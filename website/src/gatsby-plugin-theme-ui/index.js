@@ -44,118 +44,200 @@ const fontSizes = [12, 14, 16, 20, 24, 32, 48, 64]
 fontSizes.body = fontSizes[2]
 fontSizes.display = fontSizes[5]
 
-// Heading
-const heading = {
-  fontWeight: 'secondaryHeading',
-  fontFamily: 'heading',
-  marginBottom: 3,
-}
-
 // Colors
 const colors = {
-  text: '#333333',
-  background: '#fff',
-  primary: '#3195E6',
-  primaryAlpha: 'rgba(49,149,230, 0.1)',
-  primaryComplementary: 'white',
-  secondary: '#6F52DA',
-  accent: '#097a32',
-  muted: '#F2F2F2',
-  // New colors
-  gray1: '#333333',
-  gray2: '#4F4F4F',
-  gray3: '#828282',
-  gray4: '#BDBDBD',
-  gray5: '#E0E0E0',
-  gray6: '#F2F2F2',
-  red: '#E15554',
-  blue: '#3195E6',
-  orange: '#F2994A',
-  yellow: '#E1BC29',
-  green: '#3BB273',
-  purple: '#6F52DA',
+  text: "#000",
+  background: "#fff",
+  primary: "#046abd",
+  secondary: "#6F52DA",
+  accent: "hsl(280, 100%, 57%)",
+  muted: "#f9f9fc",
+  gray: "#555",
+  modes: {
+    black: {
+      text: "#fff",
+      background: "#000",
+      primary: "#0ff",
+      secondary: "#0fc",
+      accent: "#f0f",
+      muted: "#111",
+      gray: "#888",
+    },
+    dark: {
+      text: "#fff",
+      background: "hsl(180, 5%, 15%)",
+      primary: "hsl(180, 100%, 57%)",
+      secondary: "hsl(50, 100%, 57%)",
+      accent: "hsl(310, 100%, 57%)",
+      muted: "hsl(180, 5%, 5%)",
+      gray: "hsl(180, 0%, 70%)",
+    },
+    deep: {
+      text: "#fff",
+      background: "hsl(230,25%,18%)",
+      primary: "hsl(260, 100%, 80%)",
+      secondary: "hsl(290, 100%, 80%)",
+      accent: "hsl(290, 100%, 80%)",
+      muted: "hsla(230, 20%, 0%, 20%)",
+      gray: "hsl(210, 50%, 60%)",
+    },
+    hack: {
+      text: "hsl(120, 100%, 75%)",
+      background: "hsl(120, 20%, 10%)",
+      primary: "hsl(120, 100%, 40%)",
+      secondary: "hsl(120, 50%, 40%)",
+      accent: "hsl(120, 100%, 90%)",
+      muted: "hsl(120, 20%, 7%)",
+      gray: "hsl(120, 20%, 40%)",
+    },
+    pink: {
+      text: "hsl(350, 80%, 10%)",
+      background: "hsl(350, 100%, 90%)",
+      primary: "hsl(350, 100%, 50%)",
+      secondary: "hsl(280, 100%, 50%)",
+      accent: "hsl(280, 100%, 20%)",
+      muted: "hsl(350, 100%, 88%)",
+      gray: "hsl(350, 40%, 50%)",
+    },
+  },
 }
 
 // Styles
 const styles = {
   root: {
-    color: 'gray2',
-    fontFamily: 'body',
-    lineHeight: 'body',
-    fontWeight: 'body',
+    fontFamily: "body",
+    lineHeight: "body",
     fontSize: 2,
+    transitionProperty: "background-color",
+    transitionTimingFunction: "ease-out",
+    transitionDuration: ".4s",
   },
   a: {
-    color: 'secondary',
-    backgroundImage: 'none',
-    textShadow: 'none',
-    '&:hover': {
-      textDecoration: 'underline',
+    color: "primary",
+    ":hover,:focus": {
+      color: "secondary",
     },
-    '&:focus': {
-      textDecoration: 'underline',
-    },
-  },
-  p: {
-    fontFamily: 'body',
-    mb: 3,
-  },
-  pre: {
-    fontFamily: 'monospace',
-    fontSize: 1,
-    bg: 'muted',
-    p: 3,
-    borderRadius: 8,
-    overflowX: 'auto',
-    variant: 'prism',
-  },
-  code: {
-    fontFamily: 'monospace',
-    color: 'secondary',
-  },
-  blockquote: {
-    bg: 'muted',
-    fontSize: 'body',
-    borderLeft: '10px solid',
-    borderLeftColor: 'primary',
-    my: 3,
-    py: 2,
-    px: 3,
   },
   h1: {
-    ...heading,
-    fontWeight: 'heading',
-    marginTop: 4,
-    color: 'primary',
+    variant: "text.heading",
+    mb: 4,
+    mt: 4
   },
   h2: {
-    ...heading,
-    marginTop: 4,
-    color: 'gray1',
+    mt: 4,
+    mb: 4,
+    variant: "text.heading",
   },
   h3: {
-    ...heading,
-    marginTop: 4,
+    my: 3,
+    variant: 'text.heading',
+    fontSize: 2,
   },
   h4: {
-    ...heading,
-    fontWeight: 'body',
-    marginTop: 3,
+    my: 3,
+    variant: "text.heading",
   },
   h5: {
-    ...heading,
-    fontWeight: 'body',
-    marginTop: 3,
+    my: 3,
+    variant: "text.heading",
   },
   h6: {
-    ...heading,
-    fontWeight: 'body',
-    marginTop: 2,
+    my: 3,
+    variant: "text.heading",
   },
-  ul: {
-    pl: 4,
-    py: 3,
+  img: {
+    maxWidth: "100%",
+    height: "auto",
   },
+  pre: {
+    fontFamily: "monospace",
+    fontSize: 1,
+    bg: "muted",
+    p: 3,
+    borderRadius: 8,
+    overflowX: "auto",
+    variant: "prism",
+  },
+  code: {
+    fontFamily: "monospace",
+    color: "secondary",
+  },
+  inlineCode: {
+    fontFamily: "monospace",
+    color: "secondary",
+  },
+  hr: {
+    border: 0,
+    my: 4,
+    borderBottom: "1px solid",
+    borderColor: "muted",
+  },
+  table: {
+    width: "100%",
+    borderCollapse: "separate",
+    borderSpacing: 0,
+  },
+  th: {
+    textAlign: "left",
+    py: 2,
+    borderBottomStyle: "solid",
+  },
+  td: {
+    textAlign: "left",
+    py: 2,
+    borderBottom: "1px solid",
+    borderColor: "muted",
+  },
+  blockquote: {
+    fontWeight: "bold",
+    mx: 0,
+    px: 3,
+    my: 5,
+    borderLeft: "4px solid",
+  },
+  div: {
+    "&.footnotes": {
+      variant: "text.small",
+    },
+  },
+  navlink: {
+    color: "inherit",
+    textDecoration: "none",
+    ":hover,:focus": {
+      color: "primary",
+    },
+  },
+  navitem: {
+    variant: "styles.navlink",
+    display: "inline-flex",
+    alignItems: "center",
+    fontWeight: "bold",
+  },
+}
+
+const text = {
+  heading: {
+    fontSize: 4,
+    fontWeight: "heading",
+    lineHeight: "heading",
+  },
+  small: {
+    fontSize: 0,
+  },
+  header: {
+    textDecoration: 'none',
+    color: 'text',
+    "&:hover": {
+      color: 'primary'
+    }
+  },
+  "gatsby-link": {
+    textDecoration: 'none',
+    color: 'primary',
+    "&:hover": {
+      color: 'secondary'
+    }
+  }
 }
 
 export default {
@@ -165,6 +247,7 @@ export default {
   fonts,
   space,
   fontSizes,
+  text,
   fontWeights,
   lineHeights,
   prism,

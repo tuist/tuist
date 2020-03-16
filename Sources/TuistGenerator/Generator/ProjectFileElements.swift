@@ -23,9 +23,6 @@ class ProjectFileElements {
     // swiftlint:disable:next force_try
     static let localizedRegex = try! NSRegularExpression(pattern: "(.+\\.lproj)/.+",
                                                          options: [])
-    // swiftlint:disable:next force_try
-    static let assetRegex = try! NSRegularExpression(pattern: ".+/.+\\.xcassets/.+",
-                                                     options: [])
 
     // MARK: - Attributes
 

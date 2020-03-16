@@ -28,7 +28,7 @@ enum CocoaPodsInteractorError: FatalError, Equatable {
     }
 }
 
-protocol CocoaPodsInteracting {
+public protocol CocoaPodsInteracting {
     /// Runs 'pod install' for all the CocoaPods dependencies that have been indicated in the graph.
     ///
     /// - Parameter graph: Project graph.
@@ -36,17 +36,19 @@ protocol CocoaPodsInteracting {
     func install(graph: Graphing) throws
 }
 
-final class CocoaPodsInteractor: CocoaPodsInteracting {
+public final class CocoaPodsInteractor: CocoaPodsInteracting {
+    public init() {}
+
     /// Runs 'pod install' for all the CocoaPods dependencies that have been indicated in the graph.
     ///
     /// - Parameter graph: Project graph.
     /// - Throws: An error if the installation of the pods fails.
-    func install(graph: Graphing) throws {
+    public func install(graph: Graphing) throws {
         do {
             try install(graph: graph, updatingRepo: false)
         } catch let error as CocoaPodsInteractorError {
             if case CocoaPodsInteractorError.outdatedRepository = error {
-                Printer.shared.print(warning: "The local CocoaPods specs repository is outdated. Re-running 'pod install' updating the repository.")
+                logger.warning("The local CocoaPods specs repository is outdated. Re-running 'pod install' updating the repository.")
                 try self.install(graph: graph, updatingRepo: true)
             } else {
                 throw error
@@ -81,7 +83,8 @@ final class CocoaPodsInteractor: CocoaPodsInteracting {
 
             // The installation of Pods might fail if the local repository that contains the specs
             // is outdated.
-            Printer.shared.print(section: "Installing CocoaPods dependencies defined in \(node.podfilePath)")
+            logger.notice("Installing CocoaPods dependencies defined in \(node.podfilePath)", metadata: .section)
+
             var mightNeedRepoUpdate: Bool = false
             let outputClosure: ([UInt8]) -> Void = { bytes in
                 let content = String(data: Data(bytes), encoding: .utf8)

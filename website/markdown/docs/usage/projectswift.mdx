@@ -15,6 +15,7 @@ Projects are defined in `Project.swift` files, which we refer to as manifest fil
 ```swift
 
 let project = Project(name: "MyProject",
+                      organizationName: "MyOrg",
                       targets: [
                           Target(name: "App",
                                  platform: .iOS,
@@ -64,6 +65,14 @@ A `Project.swift` should initialize a variable of type `Project`. It can take an
         "Name of the project. It's used to determine the name of the generated Xcode project.",
       type: 'String',
       optional: false,
+      default: '',
+    },
+    {
+      name: 'OrganizationName',
+      description:
+        "Name of the organization used by Xcode as copyright when generating new files.",
+      type: 'String',
+      optional: true,
       default: '',
     },
     {
@@ -292,7 +301,9 @@ let target = Target(name: "App",
 
 ## Source file list
 
-It represents a list of source files that are part of a target:<PropertiesTable
+It represents a list of source files that are part of a target:
+
+<PropertiesTable
 properties={[
 {
 name: 'Globs',
@@ -507,7 +518,9 @@ The type of build product this target will output. It can be any of the followin
 
 ## InfoPlist
 
-The `InfoPlist` model represents a target `Info.plist` file. It can have any of the following values:<EnumTable
+The `InfoPlist` model represents a target `Info.plist` file. It can have any of the following values:
+
+<EnumTable
 cases={[
 {
 case: '.file(path: Path)',
@@ -534,7 +547,9 @@ description:
 
 ## InfoPlist.Value
 
-It represents the values of the InfoPlist file dictionary. The reason this type exists is to ensure that the values used to define the content of the dynamically generated `Info.plist` files ar valid:<EnumTable
+It represents the values of the InfoPlist file dictionary. The reason this type exists is to ensure that the values used to define the content of the dynamically generated `Info.plist` files ar valid:
+
+<EnumTable
 cases={[
 {
 case: '.string(String)',
@@ -630,7 +645,9 @@ It represents the default build configurations available:
 
 ## Scheme
 
-A `Scheme` defines a collection of targets to `Build, Run, Test, Profile, Analyze and Archive`:<PropertiesTable
+A `Scheme` defines a collection of targets to `Build, Run, Test, Profile, Analyze and Archive`:
+
+<PropertiesTable
 properties={[
 {
 name: 'Name',
@@ -676,6 +693,22 @@ name: 'Archive action',
 description: 'Action that runs the project archive.',
 type: 'ArchiveAction',
 typeLink: '#archive-action',
+optional: true,
+default: 'nil',
+},
+{
+name: 'Profile action',
+description: 'Action that profiles the project.',
+type: 'ProfileAction',
+typeLink: '#profile-action',
+optional: true,
+default: 'nil',
+},
+{
+name: 'Analyze action',
+description: 'Action that analyze the project.',
+type: 'AnalyzeAction',
+typeLink: '#analyze-action',
 optional: true,
 default: 'nil',
 },
@@ -995,6 +1028,88 @@ Arguments contain commandline arguments passed on launch and Environment variabl
   ]}
 />
 
+### Profile action
+
+It represents the scheme action that profiles the built products on the supported platforms:
+
+<PropertiesTable
+  properties={[
+    {
+      name: 'Config',
+      description:
+        'Indicates the build configuration the product should be profiled with.',
+      type: 'PresetBuildConfiguration',
+      typeLink: '#preset-build-configuration',
+      optional: true,
+      default: '.release',
+    },
+    {
+      name: 'Executable',
+      description: 'The name of the executable or target to profile.',
+      type: 'TargetReference',
+      optional: true,
+      default: 'nil',
+    },
+    {
+      name: 'Arguments',
+      description:
+        'Commandline arguments passed on launch and environment variables.',
+      type: 'Arguments',
+      typeLink: '#arguments',
+      optional: true,
+      default: 'nil',
+    },
+  ]}
+/>
+
+Alternatively, when leveraging custom configurations, the configuration name can be explicitly specified:
+
+<PropertiesTable
+  properties={[
+    {
+      name: 'Configuration Name',
+      description:
+        'Indicates the build configuration the product should be profiled with.',
+      type: 'String',
+      optional: false,
+      default: '',
+    },
+  ]}
+/>
+
+### Analyze action
+
+It represents the scheme action that analyzes the built products:
+
+<PropertiesTable
+  properties={[
+    {
+      name: 'Config',
+      description:
+        'Indicates the build configuration the product should be analyzed with.',
+      type: 'PresetBuildConfiguration',
+      typeLink: '#preset-build-configuration',
+      optional: true,
+      default: '.debug',
+    }
+  ]}
+/>
+
+Alternatively, when leveraging custom configurations, the configuration name can be explicitly specified:
+
+<PropertiesTable
+  properties={[
+    {
+      name: 'Configuration Name',
+      description:
+        'Indicates the build configuration the product should be analyzed with.',
+      type: 'String',
+      optional: false,
+      default: '',
+    },
+  ]}
+/>
+
 ## Settings
 
 A `Settings` object contains an optional dictionary with build settings and relative path to an `.xcconfig` file. It is initialized with the following attributes:
@@ -1037,7 +1152,9 @@ A `Settings` object contains an optional dictionary with build settings and rela
   ]}
 />
 
-To specify multiple configurations beyond the default Debug and Release configuration _(e.g. Debug, Beta, Release)_, `Settings` can alternatively be initialized with the following attributes:<PropertiesTable
+To specify multiple configurations beyond the default Debug and Release configuration _(e.g. Debug, Beta, Release)_, `Settings` can alternatively be initialized with the following attributes:
+
+<PropertiesTable
 properties={[
 {
 name: 'Base',
@@ -1159,7 +1276,9 @@ A `FileElement` can be one of the following options:
 
 ## DefaultSettings
 
-A `DefaultSettings` can be one of the following options:<EnumTable
+A `DefaultSettings` can be one of the following options:
+
+<EnumTable
 cases={[
 {
 case: '.recommended',
@@ -1308,7 +1427,9 @@ A `Workspace.swift` should initialize a variable of type `Workspace`. It can tak
 
 ## Path
 
-A path represents a path to a file, directory, or a group of files represented by a glob expression. Paths can be relative and absolute. We **discourage** using absolute paths because they create a dependency with the environment where they are defined.<EnumTable
+A path represents a path to a file, directory, or a group of files represented by a glob expression. Paths can be relative and absolute. We **discourage** using absolute paths because they create a dependency with the environment where they are defined.
+
+<EnumTable
 cases={[
 {
 case: '.relativeToCurrentFile(String)',

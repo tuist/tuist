@@ -60,7 +60,7 @@ final class InstallCommand: Command {
         let version = result.get(versionArgument)!
         let versions = versionsController.versions().map { $0.description }
         if versions.contains(version) {
-            Printer.shared.print(warning: "Version \(version) already installed, skipping")
+            logger.warning("Version \(version) already installed, skipping")
             return
         }
         try installer.install(version: version, force: force)

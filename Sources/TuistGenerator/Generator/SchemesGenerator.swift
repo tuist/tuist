@@ -15,9 +15,8 @@ protocol SchemesGenerating {
     ///   - graph: Tuist graph.
     /// - Throws: A FatalError if the generation of the schemes fails.
     func generateWorkspaceSchemes(workspace: Workspace,
-                                  xcworkspacePath: AbsolutePath,
                                   generatedProjects: [AbsolutePath: GeneratedProject],
-                                  graph: Graphing) throws
+                                  graph: Graphing) throws -> [SchemeDescriptor]
 
     /// Generates the schemes for the project targets.
     ///
@@ -28,17 +27,8 @@ protocol SchemesGenerating {
     ///   - graph: Tuist graph.
     /// - Throws: A FatalError if the generation of the schemes fails.
     func generateProjectSchemes(project: Project,
-                                xcprojectPath: AbsolutePath,
                                 generatedProject: GeneratedProject,
-                                graph: Graphing) throws
-
-    /// Wipes shared and user schemes at a workspace or project path. This is needed
-    /// currently to support the workspace scheme generation case where a workspace that
-    /// already exists on disk is being regenerated. Wiping the schemes directory prevents
-    /// older custom schemes from persisting after regeneration.
-    ///
-    /// - Parameter at: Path to the workspace or project.
-    func wipeSchemes(at: AbsolutePath) throws
+                                graph: Graphing) throws -> [SchemeDescriptor]
 }
 
 // swiftlint:disable:next type_body_length
@@ -49,42 +39,24 @@ final class SchemesGenerator: SchemesGenerating {
     /// Default version for generated schemes.
     private static let defaultVersion = "1.3"
 
-    /// Generates the schemes for the workspace targets.
-    ///
-    /// - Parameters:
-    ///   - workspace: Workspace model.
-    ///   - xcworkspacePath: Path to the workspace.
-    ///   - generatedProject: Generated Xcode project.
-    ///   - graph: Tuist graph.
-    /// - Throws: A FatalError if the generation of the schemes fails.
     func generateWorkspaceSchemes(workspace: Workspace,
-                                  xcworkspacePath: AbsolutePath,
                                   generatedProjects: [AbsolutePath: GeneratedProject],
-                                  graph: Graphing) throws {
-        try workspace.schemes.forEach { scheme in
+                                  graph: Graphing) throws -> [SchemeDescriptor] {
+        let schemes = try workspace.schemes.map { scheme in
             try generateScheme(scheme: scheme,
-                               xcPath: xcworkspacePath,
                                path: workspace.path,
                                graph: graph,
                                generatedProjects: generatedProjects)
         }
+
+        return schemes
     }
 
-    /// Generate schemes for a project.
-    ///
-    /// - Parameters:
-    ///     - project: Project manifest.
-    ///     - xcprojectPath: Path to project's .xcodeproj.
-    ///     - generatedProject: Generated Project
-    ///     - graph: Tuist graph.
     func generateProjectSchemes(project: Project,
-                                xcprojectPath: AbsolutePath,
                                 generatedProject: GeneratedProject,
-                                graph: Graphing) throws {
-        /// Generate custom schemes from manifest
-        try project.schemes.forEach { scheme in
+                                graph: Graphing) throws -> [SchemeDescriptor] {
+        let customSchemes: [SchemeDescriptor] = try project.schemes.map { scheme in
             try generateScheme(scheme: scheme,
-                               xcPath: xcprojectPath,
                                path: project.path,
                                graph: graph,
                                generatedProjects: [project.path: generatedProject])
@@ -94,14 +66,15 @@ final class SchemesGenerator: SchemesGenerating {
         let buildConfiguration = defaultDebugBuildConfigurationName(in: project)
         let userDefinedSchemes = Set(project.schemes.map(\.name))
         let defaultSchemeTargets = project.targets.filter { !userDefinedSchemes.contains($0.name) }
-        try defaultSchemeTargets.forEach { target in
+        let defaultSchemes: [SchemeDescriptor] = try defaultSchemeTargets.map { target in
             let scheme = createDefaultScheme(target: target, project: project, buildConfiguration: buildConfiguration, graph: graph)
-            try generateScheme(scheme: scheme,
-                               xcPath: xcprojectPath,
-                               path: project.path,
-                               graph: graph,
-                               generatedProjects: [project.path: generatedProject])
+            return try generateScheme(scheme: scheme,
+                                      path: project.path,
+                                      graph: graph,
+                                      generatedProjects: [project.path: generatedProject])
         }
+
+        return customSchemes + defaultSchemes
     }
 
     /// Wipes shared and user schemes at a workspace or project path. This is needed
@@ -149,13 +122,9 @@ final class SchemesGenerator: SchemesGenerating {
     ///     - graph: Tuist graph.
     ///     - generatedProjects: Project paths mapped to generated projects.
     private func generateScheme(scheme: Scheme,
-                                xcPath: AbsolutePath,
                                 path: AbsolutePath,
                                 graph: Graphing,
-                                generatedProjects: [AbsolutePath: GeneratedProject]) throws {
-        let schemeDirectory = try createSchemesDirectory(path: xcPath, shared: scheme.shared)
-        let schemePath = schemeDirectory.appending(component: "\(scheme.name).xcscheme")
-
+                                generatedProjects: [AbsolutePath: GeneratedProject]) throws -> SchemeDescriptor {
         let generatedBuildAction = try schemeBuildAction(scheme: scheme,
                                                          graph: graph,
                                                          rootPath: path,
@@ -181,17 +150,17 @@ final class SchemesGenerator: SchemesGenerating {
                                                              rootPath: path,
                                                              generatedProjects: generatedProjects)
 
-        let scheme = XCScheme(name: scheme.name,
-                              lastUpgradeVersion: SchemesGenerator.defaultLastUpgradeVersion,
-                              version: SchemesGenerator.defaultVersion,
-                              buildAction: generatedBuildAction,
-                              testAction: generatedTestAction,
-                              launchAction: generatedLaunchAction,
-                              profileAction: generatedProfileAction,
-                              analyzeAction: generatedAnalyzeAction,
-                              archiveAction: generatedArchiveAction)
+        let xcscheme = XCScheme(name: scheme.name,
+                                lastUpgradeVersion: SchemesGenerator.defaultLastUpgradeVersion,
+                                version: SchemesGenerator.defaultVersion,
+                                buildAction: generatedBuildAction,
+                                testAction: generatedTestAction,
+                                launchAction: generatedLaunchAction,
+                                profileAction: generatedProfileAction,
+                                analyzeAction: generatedAnalyzeAction,
+                                archiveAction: generatedArchiveAction)
 
-        try scheme.write(path: schemePath.path, override: true)
+        return SchemeDescriptor(xcScheme: xcscheme, shared: scheme.shared)
     }
 
     /// Generates the scheme build action.
@@ -382,9 +351,23 @@ final class SchemesGenerator: SchemesGenerating {
                              rootPath: AbsolutePath,
                              generatedProjects: [AbsolutePath: GeneratedProject]) throws -> XCScheme.ProfileAction? {
         guard var target = try defaultTargetReference(scheme: scheme) else { return nil }
-        if let executable = scheme.runAction?.executable {
+        var commandlineArguments: XCScheme.CommandLineArguments?
+        var environments: [XCScheme.EnvironmentVariable]?
+
+        if let action = scheme.profileAction, let executable = action.executable {
             target = executable
+            if let arguments = action.arguments {
+                commandlineArguments = XCScheme.CommandLineArguments(arguments: commandlineArgruments(arguments.launch))
+                environments = environmentVariables(arguments.environment)
+            }
+        } else if let action = scheme.runAction, let executable = action.executable {
+            target = executable
+            if let arguments = action.arguments {
+                commandlineArguments = XCScheme.CommandLineArguments(arguments: commandlineArgruments(arguments.launch))
+                environments = environmentVariables(arguments.environment)
+            }
         }
+
         guard let targetNode = try graph.target(path: target.projectPath, name: target.name) else { return nil }
         guard let buildableReference = try createBuildableReference(targetReference: target,
                                                                     graph: graph,
@@ -400,10 +383,12 @@ final class SchemesGenerator: SchemesGenerating {
             macroExpansion = buildableReference
         }
 
-        let buildConfiguration = defaultReleaseBuildConfigurationName(in: targetNode.project)
+        let buildConfiguration = scheme.profileAction?.configurationName ?? defaultReleaseBuildConfigurationName(in: targetNode.project)
         return XCScheme.ProfileAction(buildableProductRunnable: buildableProductRunnable,
                                       buildConfiguration: buildConfiguration,
-                                      macroExpansion: macroExpansion)
+                                      macroExpansion: macroExpansion,
+                                      commandlineArguments: commandlineArguments,
+                                      environmentVariables: environments)
     }
 
     /// Returns the scheme analyze action.
@@ -421,7 +406,7 @@ final class SchemesGenerator: SchemesGenerating {
         guard let target = try defaultTargetReference(scheme: scheme),
             let targetNode = try graph.target(path: target.projectPath, name: target.name) else { return nil }
 
-        let buildConfiguration = defaultDebugBuildConfigurationName(in: targetNode.project)
+        let buildConfiguration = scheme.analyzeAction?.configurationName ?? defaultDebugBuildConfigurationName(in: targetNode.project)
         return XCScheme.AnalyzeAction(buildConfiguration: buildConfiguration)
     }
 

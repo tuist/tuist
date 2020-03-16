@@ -1,6 +1,8 @@
 /** @jsx jsx */
-import { jsx } from 'theme-ui'
-import { FacebookIcon, TwitterIcon, EmailIcon } from 'react-share'
+import { jsx, useThemeUI } from 'theme-ui'
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { faFacebook, faTwitter } from '@fortawesome/free-brands-svg-icons'
+import { faEnvelope } from '@fortawesome/free-regular-svg-icons'
 
 import { useStaticQuery, graphql } from 'gatsby'
 
@@ -28,12 +30,10 @@ export default ({ path, title, tags }) => {
       }
     }
   `)
+  const { theme } = useThemeUI();
   const url = `${siteUrl}/${path}`
   return (
-    <div>
-      <p sx={{ textAlign: 'center', mt: 4, mb: 2, color: 'gray3' }}>
-        Share ♥ the blog post with others
-      </p>
+    <div sx={{ mt: 4 }}>
       <div
         sx={{
           display: 'flex',
@@ -46,21 +46,33 @@ export default ({ path, title, tags }) => {
           href={shareUrl(title, tags, url, 'twitter')}
           alt="Share the blog post on Twitter"
         >
-          <TwitterIcon size={32} round={true} sx={{ mx: 3 }} />
+          <FontAwesomeIcon
+            sx={{ mx: 3, path: { fill: theme.colors.text }, "&:hover": { path: { fill: theme.colors.primary } } }}
+            icon={faTwitter}
+            size="lg"
+          />
         </a>
         <a
           sx={{ mx: 3 }}
           href={shareUrl(title, tags, url, 'facebook')}
           alt="Share the blog post on Facebook"
         >
-          <FacebookIcon size={32} round={true} sx={{ mx: 3 }} />
+          <FontAwesomeIcon
+            sx={{ mx: 3, path: { fill: theme.colors.text }, "&:hover": { path: { fill: theme.colors.primary } } }}
+            icon={faFacebook}
+            size="lg"
+          />
         </a>
         <a
           sx={{ mx: 3 }}
           href={shareUrl(title, tags, url, 'mail')}
           alt="Share the blog post via email"
         >
-          <EmailIcon size={32} round={true} />
+          <FontAwesomeIcon
+            sx={{ mx: 3, path: { fill: theme.colors.text }, "&:hover": { path: { fill: theme.colors.primary } } }}
+            icon={faEnvelope}
+            size="lg"
+          />
         </a>
       </div>
     </div>

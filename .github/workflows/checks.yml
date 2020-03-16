@@ -45,12 +45,3 @@ jobs:
         uses: norio-nomura/action-swiftlint@3c67ce2e382be797d968883944140ffa0113f737
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  changelog:
-    name: Changelog
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v1
-      - name: Changelog Reminder
-        uses: peterjgrainger/action-changelog-reminder@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -50,7 +50,7 @@ public class SetupLoader: SetupLoading {
             .printAndThrowIfNeeded()
         try setup.forEach { command in
             if try !command.isMet(projectPath: path) {
-                Printer.shared.print(subsection: "Configuring \(command.name)")
+                logger.notice("Configuring \(command.name)", metadata: .subsection)
                 try command.meet(projectPath: path)
             }
         }

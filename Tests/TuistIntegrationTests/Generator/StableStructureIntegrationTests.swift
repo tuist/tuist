@@ -29,9 +29,7 @@ final class StableXcodeProjIntegrationTests: TuistUnitTestCase {
 
         // When
         try (0 ..< 10).forEach { _ in
-            let subject = Generator(modelLoader: try createModelLoader())
-
-            let (workspacePath, _) = try subject.generateWorkspace(at: temporaryPath, workspaceFiles: [])
+            let workspacePath = try generateWorkspace(path: temporaryPath)
 
             let workspace = try XCWorkspace(path: workspacePath.path)
             let xcodeProjs = try findXcodeProjs(in: workspace)
@@ -56,6 +54,20 @@ final class StableXcodeProjIntegrationTests: TuistUnitTestCase {
     }
 
     // MARK: - Helpers
+
+    private func generateWorkspace(path: AbsolutePath) throws -> AbsolutePath {
+        let subject = DescriptorGenerator()
+        let writer = XcodeProjWriter()
+        let linter = GraphLinter()
+        let graphLoader = GraphLoader(modelLoader: try createModelLoader())
+
+        let (graph, workspace) = try graphLoader.loadWorkspace(path: path)
+        try linter.lint(graph: graph).printAndThrowIfNeeded()
+        let descriptor = try subject.generateWorkspace(workspace: workspace, graph: graph)
+        try writer.write(workspace: descriptor)
+
+        return descriptor.xcworkspacePath
+    }
 
     private func findXcodeProjs(in workspace: XCWorkspace) throws -> [XcodeProj] {
         let temporaryPath = try self.temporaryPath()
@@ -118,22 +130,21 @@ final class StableXcodeProjIntegrationTests: TuistUnitTestCase {
                                     settings: projectSettings,
                                     targets: [appTarget] + frameworkTargets + appUnitTestsTargets,
                                     schemes: schemes)
-        let workspace = try createWorkspace(projects: ["App"])
-        let tuistConfig = createTuistConfig()
+        let workspace = try createWorkspace(path: temporaryPath, projects: ["App"])
+        let config = createConfig()
 
         modelLoader.mockProject("App") { _ in project }
         modelLoader.mockWorkspace { _ in workspace }
-        modelLoader.mockTuistConfig { _ in tuistConfig }
+        modelLoader.mockConfig { _ in config }
         return modelLoader
     }
 
-    private func createTuistConfig() -> TuistConfig {
-        TuistConfig(compatibleXcodeVersions: .all,
-                    generationOptions: [])
+    private func createConfig() -> Config {
+        Config(compatibleXcodeVersions: .all, cloudURL: nil, generationOptions: [])
     }
 
-    private func createWorkspace(projects: [String]) throws -> Workspace {
-        Workspace(path: AbsolutePath("/"), name: "Workspace", projects: try projects.map { try pathTo($0) })
+    private func createWorkspace(path: AbsolutePath, projects: [String]) throws -> Workspace {
+        Workspace(path: path, name: "Workspace", projects: try projects.map { try pathTo($0) })
     }
 
     private func createProject(path: AbsolutePath, settings: Settings, targets: [Target], packages: [Package] = [], schemes: [Scheme]) -> Project {

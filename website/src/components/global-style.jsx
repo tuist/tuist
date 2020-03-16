@@ -14,22 +14,25 @@ const GlobalStyle = () => {
           padding: '0px',
           margin: '0px',
         },
-        code: {
-          paddingLeft: 3,
-          paddingRight: 3,
-          color: theme.colors.primary,
-          background: theme.colors.primaryAlpha,
-          fontSize: theme.fontSizes[1],
-        },
-        a: {
-          color: 'inherit',
-          textDecoration: 'none',
-          backgroundImage: 'none',
-          textShadow: 'none',
-        },
-        "pre[class*='language-']": {
-          overflow: 'auto',
-          fontSize: theme.fontSizes[1],
+        // code: {
+        //   paddingLeft: 3,
+        //   paddingRight: 3,
+        //   color: theme.colors.primary,
+        //   background: theme.colors.primaryAlpha,
+        //   fontSize: theme.fontSizes[1],
+        // },
+        // a: {
+        //   textDecoration: 'none',
+        //   backgroundImage: 'none',
+        //   textShadow: 'none',
+        // },
+        // "pre[class*='language-']": {
+        //   overflow: 'auto',
+        //   fontSize: theme.fontSizes[1],
+        // },
+        body: {
+          bg: theme.colors.background,
+          color: theme.colors.text,
         },
         "div[class*='token-line']": {
           overflowWrap: 'normal',

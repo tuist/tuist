@@ -41,13 +41,13 @@ public final class ErrorHandler: ErrorHandling {
     public func fatal(error: FatalError) {
         let isSilent = error.type == .abortSilent || error.type == .bugSilent
         if !error.description.isEmpty, !isSilent {
-            Printer.shared.print(errorMessage: "\(error.description)")
+            logger.error("\(error.description)")
         } else if isSilent {
             let message = """
             An unexpected error happened. We've opened an issue to fix it as soon as possible.
             We are sorry for any inconveniences it might have caused.
             """
-            Printer.shared.print(errorMessage: "\(message)")
+            logger.error("\(message)")
         }
         exiter(1)
     }

@@ -29,16 +29,14 @@ final class DerivedFileGeneratorTests: TuistUnitTestCase {
         let temporaryPath = try self.temporaryPath()
         let target = Target.test(name: "Target", infoPlist: InfoPlist.dictionary(["a": "b"]))
         let project = Project.test(name: "App", targets: [target])
-        let infoPlistsPath = DerivedFileGenerator.infoPlistsPath(sourceRootPath: temporaryPath)
-        let path = infoPlistsPath.appending(component: "Target.plist")
 
         // When
-        _ = try subject.generate(graph: Graph.test(), project: project, sourceRootPath: temporaryPath)
+        let (_, sideEffects) = try subject.generate(graph: Graph.test(), project: project, sourceRootPath: temporaryPath)
 
         // Then
-        XCTAssertTrue(FileHandler.shared.exists(path))
-        let writtenData = try Data(contentsOf: path.url)
-        let content = try PropertyListSerialization.propertyList(from: writtenData, options: [], format: nil)
+        let file = try XCTUnwrap(sideEffects.files.first)
+        let contents = try XCTUnwrap(file.contents)
+        let content = try PropertyListSerialization.propertyList(from: contents, options: [], format: nil)
         XCTAssertTrue(NSDictionary(dictionary: (content as? [String: Any]) ?? [:])
             .isEqual(to: ["a": "b"]))
     }
@@ -53,14 +51,15 @@ final class DerivedFileGeneratorTests: TuistUnitTestCase {
         infoPlistContentProvider.contentStub = ["test": "value"]
 
         // When
-        _ = try subject.generate(graph: Graph.test(), project: project, sourceRootPath: temporaryPath)
+        let (_, sideEffects) = try subject.generate(graph: Graph.test(), project: project, sourceRootPath: temporaryPath)
 
         // Then
-        XCTAssertTrue(FileHandler.shared.exists(path))
+        let file = try XCTUnwrap(sideEffects.files.first)
+        XCTAssertEqual(file.path, path)
         XCTAssertTrue(infoPlistContentProvider.contentArgs.first?.target == target)
         XCTAssertTrue(infoPlistContentProvider.contentArgs.first?.extendedWith["a"] == "b")
 
-        let writtenData = try Data(contentsOf: path.url)
+        let writtenData = try XCTUnwrap(file.contents)
         let content = try PropertyListSerialization.propertyList(from: writtenData, options: [], format: nil)
         XCTAssertTrue(NSDictionary(dictionary: (content as? [String: Any]) ?? [:])
             .isEqual(to: ["test": "value"]))
@@ -78,28 +77,41 @@ final class DerivedFileGeneratorTests: TuistUnitTestCase {
         try FileHandler.shared.touch(oldPlistPath)
 
         // When
-        let (_, deleteOldDerivedFiles) = try subject.generate(graph: Graph.test(),
-                                                              project: project,
-                                                              sourceRootPath: temporaryPath)
-        try deleteOldDerivedFiles()
+        let (_, sideEffects) = try subject.generate(graph: Graph.test(),
+                                                    project: project,
+                                                    sourceRootPath: temporaryPath)
 
         // Then
-        XCTAssertFalse(FileHandler.shared.exists(oldPlistPath))
+        let file = try XCTUnwrap(sideEffects.deletions.first)
+        XCTAssertEqual(file, oldPlistPath)
+    }
+}
+
+private extension Array where Element == SideEffectDescriptor {
+    var files: [FileDescriptor] {
+        compactMap {
+            switch $0 {
+            case let .file(file):
+                return file
+            default:
+                return nil
+            }
+        }
     }
 
-    func test_generate_checkFolderNotCreated_whenNoGeneratedInfoPlist() throws {
-        // Given
-        let temporaryPath = try self.temporaryPath()
-        let target = Target.test(name: "Target", infoPlist: .file(path: "/Info.plist"))
-        let project = Project.test(name: "App", targets: [target])
-        let infoPlistsPath = DerivedFileGenerator.infoPlistsPath(sourceRootPath: temporaryPath)
-        let path = infoPlistsPath.appending(component: "Target.plist")
-
-        // When
-        _ = try subject.generate(graph: Graph.test(), project: project, sourceRootPath: temporaryPath)
-
-        // Then
-        XCTAssertFalse(FileHandler.shared.exists(path))
-        XCTAssertFalse(FileHandler.shared.exists(infoPlistsPath))
+    var deletions: [AbsolutePath] {
+        compactMap {
+            switch $0 {
+            case let .file(file):
+                switch file.state {
+                case .absent:
+                    return file.path
+                default:
+                    return nil
+                }
+            default:
+                return nil
+            }
+        }
     }
 }

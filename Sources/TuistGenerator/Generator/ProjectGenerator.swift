@@ -29,13 +29,13 @@ protocol ProjectGenerating: AnyObject {
     ///   - graph: Dependencies graph.
     ///   - sourceRootPath: Directory where the files are relative to.
     ///   - xcodeprojPath: Path to the Xcode project. When not given, the xcodeproj is generated at sourceRootPath.
+    /// - Returns: Generated project descriptor
     func generate(project: Project,
                   graph: Graphing,
                   sourceRootPath: AbsolutePath?,
-                  xcodeprojPath: AbsolutePath?) throws -> GeneratedProject
+                  xcodeprojPath: AbsolutePath?) throws -> ProjectDescriptor
 }
 
-// swiftlint:disable type_body_length
 final class ProjectGenerator: ProjectGenerating {
     // MARK: - Attributes
 
@@ -72,11 +72,12 @@ final class ProjectGenerator: ProjectGenerating {
 
     // MARK: - ProjectGenerating
 
+    // swiftlint:disable:next function_body_length
     func generate(project: Project,
                   graph: Graphing,
                   sourceRootPath: AbsolutePath? = nil,
-                  xcodeprojPath: AbsolutePath? = nil) throws -> GeneratedProject {
-        Printer.shared.print("Generating project \(project.name)")
+                  xcodeprojPath: AbsolutePath? = nil) throws -> ProjectDescriptor {
+        logger.notice("Generating project \(project.name)")
 
         // Getting the path.
         let sourceRootPath = sourceRootPath ?? project.path
@@ -84,22 +85,9 @@ final class ProjectGenerator: ProjectGenerating {
         // If the xcodeproj path is not given, we generate it under the source root path.
         let xcodeprojPath = xcodeprojPath ?? sourceRootPath.appending(component: "\(project.fileName).xcodeproj")
 
-        // Project and workspace.
-        return try generateProjectAndWorkspace(project: project,
-                                               graph: graph,
-                                               sourceRootPath: sourceRootPath,
-                                               xcodeprojPath: xcodeprojPath)
-    }
-
-    // MARK: - Fileprivate
-
-    // swiftlint:disable:next function_body_length
-    private func generateProjectAndWorkspace(project: Project,
-                                             graph: Graphing,
-                                             sourceRootPath: AbsolutePath,
-                                             xcodeprojPath: AbsolutePath) throws -> GeneratedProject {
         // Derived files
-        let (project, deleteOldDerivedFiles) = try derivedFileGenerator.generate(graph: graph, project: project, sourceRootPath: sourceRootPath)
+        // TODO: experiment with moving this outside the project generator to avoid needing to mutate the project
+        let (project, sideEffects) = try derivedFileGenerator.generate(graph: graph, project: project, sourceRootPath: sourceRootPath)
 
         let workspaceData = XCWorkspaceData(children: [])
         let workspace = XCWorkspace(data: workspaceData)
@@ -107,19 +95,13 @@ final class ProjectGenerator: ProjectGenerating {
         let pbxproj = PBXProj(objectVersion: projectConstants.objectVersion,
                               archiveVersion: projectConstants.archiveVersion,
                               classes: [:])
-
-        let groups = ProjectGroups.generate(project: project,
-                                            pbxproj: pbxproj,
-                                            xcodeprojPath: xcodeprojPath,
-                                            sourceRootPath: sourceRootPath)
-
+        let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj, xcodeprojPath: xcodeprojPath, sourceRootPath: sourceRootPath)
         let fileElements = ProjectFileElements()
         try fileElements.generateProjectFiles(project: project,
                                               graph: graph,
                                               groups: groups,
                                               pbxproj: pbxproj,
                                               sourceRootPath: sourceRootPath)
-
         let configurationList = try configGenerator.generateProjectConfig(project: project, pbxproj: pbxproj, fileElements: fileElements)
         let pbxProject = try generatePbxproject(project: project,
                                                 projectFileElements: fileElements,
@@ -141,15 +123,25 @@ final class ProjectGenerator: ProjectGenerating {
         try generateSwiftPackageReferences(project: project,
                                            pbxproj: pbxproj,
                                            pbxProject: pbxProject)
-        try deleteOldDerivedFiles()
 
-        return try write(xcodeprojPath: xcodeprojPath,
-                         nativeTargets: nativeTargets,
-                         workspace: workspace,
-                         pbxproj: pbxproj,
-                         project: project,
-                         graph: graph)
+        let generatedProject = GeneratedProject(pbxproj: pbxproj,
+                                                path: xcodeprojPath,
+                                                targets: nativeTargets,
+                                                name: xcodeprojPath.basename)
+
+        let schemes = try schemesGenerator.generateProjectSchemes(project: project,
+                                                                  generatedProject: generatedProject,
+                                                                  graph: graph)
+
+        let xcodeProj = XcodeProj(workspace: workspace, pbxproj: pbxproj)
+        return ProjectDescriptor(path: project.path,
+                                 xcodeprojPath: xcodeprojPath,
+                                 xcodeProj: xcodeProj,
+                                 schemeDescriptors: schemes,
+                                 sideEffectDescriptors: sideEffects)
     }
+
+    // MARK: - Fileprivate
 
     private func generatePbxproject(project: Project,
                                     projectFileElements: ProjectFileElements,
@@ -158,6 +150,7 @@ final class ProjectGenerator: ProjectGenerating {
                                     pbxproj: PBXProj) throws -> PBXProject {
         let defaultRegions = ["en", "Base"]
         let knownRegions = Set(defaultRegions + projectFileElements.knownRegions).sorted()
+        let attributes = project.organizationName.map { ["ORGANIZATIONNAME": $0] } ?? [:]
         let pbxProject = PBXProject(name: project.name,
                                     buildConfigurationList: configurationList,
                                     compatibilityVersion: Xcode.Default.compatibilityVersion,
@@ -169,7 +162,8 @@ final class ProjectGenerator: ProjectGenerating {
                                     projectDirPath: "",
                                     projects: [],
                                     projectRoots: [],
-                                    targets: [])
+                                    targets: [],
+                                    attributes: attributes)
         pbxproj.add(object: pbxProject)
         pbxproj.rootObject = pbxProject
         return pbxProject
@@ -262,84 +256,6 @@ final class ProjectGenerator: ProjectGenerating {
         }
 
         pbxProject.packages = packageReferences.sorted { $0.key < $1.key }.map { $1 }
-    }
-
-    private func write(xcodeprojPath: AbsolutePath,
-                       nativeTargets: [String: PBXNativeTarget],
-                       workspace: XCWorkspace,
-                       pbxproj: PBXProj,
-                       project: Project,
-                       graph: Graphing) throws -> GeneratedProject {
-        let fileHandler = FileHandler.shared
-        func write(xcodeprojPath: AbsolutePath) throws -> GeneratedProject {
-            let generatedProject = GeneratedProject(pbxproj: pbxproj,
-                                                    path: xcodeprojPath,
-                                                    targets: nativeTargets,
-                                                    name: xcodeprojPath.basename)
-            try writeXcodeproj(workspace: workspace,
-                               pbxproj: pbxproj,
-                               xcodeprojPath: xcodeprojPath)
-
-            try writeSchemes(project: project,
-                             generatedProject: generatedProject,
-                             xcprojectPath: xcodeprojPath,
-                             graph: graph)
-
-            return generatedProject
-        }
-
-        guard fileHandler.exists(xcodeprojPath) else {
-            return try write(xcodeprojPath: xcodeprojPath)
-        }
-
-        var generatedProject: GeneratedProject!
-        try fileHandler.inTemporaryDirectory { temporaryPath in
-            let temporaryPath = temporaryPath.appending(component: xcodeprojPath.basename)
-            generatedProject = try write(xcodeprojPath: temporaryPath)
-
-            let pathsToReplace = self.pathsToReplace(xcodeProjPath: temporaryPath)
-            try pathsToReplace.forEach {
-                let relativeFile = $0.relative(to: temporaryPath)
-                let writeToPath = xcodeprojPath.appending(relativeFile)
-                try fileHandler.createFolder(writeToPath.parentDirectory)
-                try fileHandler.replace(writeToPath, with: $0)
-            }
-        }
-
-        return generatedProject.at(path: xcodeprojPath)
-    }
-
-    private func pathsToReplace(xcodeProjPath: AbsolutePath) -> [AbsolutePath] {
-        var paths = [
-            "project.pbxproj",
-            "project.xcworkspace",
-            "xcshareddata/xcschemes",
-        ]
-
-        if FileHandler.shared.exists(xcodeProjPath.appending(component: "xcuserdata")) {
-            paths.append("xcuserdata/**/*.xcscheme")
-        }
-
-        return paths.flatMap {
-            FileHandler.shared.glob(xcodeProjPath, glob: $0)
-        }
-    }
-
-    private func writeXcodeproj(workspace: XCWorkspace,
-                                pbxproj: PBXProj,
-                                xcodeprojPath: AbsolutePath) throws {
-        let xcodeproj = XcodeProj(workspace: workspace, pbxproj: pbxproj)
-        try xcodeproj.write(path: xcodeprojPath.path)
-    }
-
-    private func writeSchemes(project: Project,
-                              generatedProject: GeneratedProject,
-                              xcprojectPath: AbsolutePath,
-                              graph: Graphing) throws {
-        try schemesGenerator.generateProjectSchemes(project: project,
-                                                    xcprojectPath: xcprojectPath,
-                                                    generatedProject: generatedProject,
-                                                    graph: graph)
     }
 
     private func determineProjectConstants(graph: Graphing) throws -> ProjectConstants {

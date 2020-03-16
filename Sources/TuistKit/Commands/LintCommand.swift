@@ -78,28 +78,28 @@ class LintCommand: NSObject, Command {
         let manifests = manifestLoading.manifests(at: path)
         var graph: Graphing!
 
-        Printer.shared.print(section: "Loading the dependency graph")
+        logger.notice("Loading the dependency graph")
         if manifests.contains(.workspace) {
-            Printer.shared.print("Loading workspace at \(path.pathString)")
+            logger.notice("Loading workspace at \(path.pathString)")
             (graph, _) = try graphLoader.loadWorkspace(path: path)
         } else if manifests.contains(.project) {
-            Printer.shared.print("Loading project at \(path.pathString)")
+            logger.notice("Loading project at \(path.pathString)")
             (graph, _) = try graphLoader.loadProject(path: path)
         } else {
             throw LintCommandError.manifestNotFound(path)
         }
 
-        Printer.shared.print(section: "Running linters")
-        let config = try graphLoader.loadTuistConfig(path: path)
+        logger.notice("Running linters")
+        let config = try graphLoader.loadConfig(path: path)
 
         var issues: [LintingIssue] = []
-        Printer.shared.print("Linting the environment")
+        logger.notice("Linting the environment")
         issues.append(contentsOf: try environmentLinter.lint(config: config))
-        Printer.shared.print("Linting the loaded dependency graph")
+        logger.notice("Linting the loaded dependency graph")
         issues.append(contentsOf: graphLinter.lint(graph: graph))
 
         if issues.isEmpty {
-            Printer.shared.print(success: "No linting issues found")
+            logger.notice("No linting issues found", metadata: .success)
         } else {
             try issues.printAndThrowIfNeeded()
         }
