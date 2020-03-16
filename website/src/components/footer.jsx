@@ -1,4 +1,4 @@
-//* @jsx jsx */
+/** @jsx jsx */
 import { jsx, Styled } from 'theme-ui'
 import { withPrefix, useStaticQuery, graphql, Link } from 'gatsby'
 import Margin from './margin'
@@ -22,17 +22,18 @@ export default () => {
   const copyrightMessage =
     'Tuist © Copyright 2019. All rights reserved. Crafted with ♥ by Pedro Piñera & the contributors.'
   const linkStyle = {
+    textDecoration: 'none',
     fontSize: 2,
-    color: 'gray5',
-    '&:hover': { textDecoration: 'underline' },
-    '&:focus-visible': { textDecoration: 'underline' },
+    color: 'primary',
+    "&:hover": {
+      color: 'secondary'
+    }
   }
   return (
-    <footer sx={{ py: 3, bg: 'gray1', flex: 1 }}>
+    <footer sx={{ py: 3, bg: 'muted', flex: 1 }}>
       <Margin>
         <div
           sx={{
-            color: 'white',
             display: 'flex',
             alignItems: 'center',
             flexDirection: 'column',
@@ -67,7 +68,7 @@ export default () => {
                   sx={{ height: 30, width: 30 }}
                   alt="Tuist's logotype"
                 />
-                <Styled.h2 sx={{ color: 'white', ml: 2, my: 0 }}>
+                <Styled.h2 sx={{ color: 'text', ml: 2, my: 0 }}>
                   Tuist
                 </Styled.h2>
               </div>
@@ -80,7 +81,7 @@ export default () => {
                 alignItems: 'center',
               }}
             >
-              <Styled.h2 sx={{ color: 'white', mb: 9, mt: 0 }}>
+              <Styled.h2 sx={{ color: 'text', mb: 9, mt: 0 }}>
                 Documentation
               </Styled.h2>
               <Link to="/docs/usage/getting-started/" sx={linkStyle}>
@@ -100,7 +101,8 @@ export default () => {
                   fontSize: 1,
                   mt: 3,
                   display: ['none', 'block'],
-                  color: 'gray3',
+                  color: 'gray',
+                  textAlign: 'center'
                 }}
               >
                 {copyrightMessage}
@@ -114,7 +116,7 @@ export default () => {
                 alignItems: 'center',
               }}
             >
-              <Styled.h2 sx={{ color: 'white', mb: 9, mt: [3, 0] }}>
+              <Styled.h2 sx={{ color: 'text', mb: 9, mt: [3, 0] }}>
                 Other
               </Styled.h2>
               <a
@@ -123,7 +125,7 @@ export default () => {
                 href={githubUrl}
                 alt="Opens the Tuist's organizqtion on GitHub"
               >
-                GitHub organization
+                GitHub
               </a>
               <a
                 sx={linkStyle}
@@ -131,7 +133,7 @@ export default () => {
                 href={slackUrl}
                 alt="Join the Slack group"
               >
-                Join our Slack
+                Slack
               </a>
               <Link to="/blog" sx={linkStyle}>
                 Blog
@@ -151,7 +153,7 @@ export default () => {
                 mt: 3,
                 display: ['block', 'none'],
                 textAlign: 'center',
-                color: 'gray3',
+                color: 'gray'
               }}
             >
               {copyrightMessage}
