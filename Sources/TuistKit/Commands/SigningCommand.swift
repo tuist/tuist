@@ -36,6 +36,6 @@ class SigningCommand: NSObject, Command {
     }
     
     func run(with arguments: ArgumentParser.Result) throws {
-        try signingCipher.decryptSigning(at: FileHandler.shared.currentPath)
+        argumentParser.printUsage(on: stdoutStream)
     }
 }
