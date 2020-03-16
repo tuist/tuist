@@ -8,4 +8,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     func applicationDidFinishLaunching(_: UIApplication) {
         let observable = Observable<String>.just("hello world")
     }
+    
+    public func hello() -> String {
+        return "AppDelegate.hello()"
+    }
 }

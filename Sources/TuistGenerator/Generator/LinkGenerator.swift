@@ -89,6 +89,7 @@ final class LinkGenerator: LinkGenerating {
                                        linkableModules: linkableModules)
 
         try generateEmbedPhase(dependencies: embeddableFrameworks,
+                               target: target,
                                pbxTarget: pbxTarget,
                                pbxproj: pbxproj,
                                fileElements: fileElements,
@@ -152,6 +153,7 @@ final class LinkGenerator: LinkGenerating {
     }
 
     func generateEmbedPhase(dependencies: [GraphDependencyReference],
+                            target: Target,
                             pbxTarget: PBXTarget,
                             pbxproj: PBXProj,
                             fileElements: ProjectFileElements,
@@ -201,7 +203,10 @@ final class LinkGenerator: LinkGenerating {
         if frameworkReferences.isEmpty {
             precompiledEmbedPhase.shellScript = "echo \"Skipping, nothing to be embedded.\""
         } else {
-            let script = try embedScriptGenerator.script(sourceRootPath: sourceRootPath, frameworkReferences: frameworkReferences)
+            let script = try embedScriptGenerator.script(sourceRootPath: sourceRootPath,
+                                                         frameworkReferences: frameworkReferences,
+                                                         includeSymbolsInFileLists: !target.product.testsBundle)
+
             precompiledEmbedPhase.shellScript = script.script
             precompiledEmbedPhase.inputPaths = script.inputPaths.map(\.pathString)
             precompiledEmbedPhase.outputPaths = script.outputPaths

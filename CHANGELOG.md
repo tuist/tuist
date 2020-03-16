@@ -4,6 +4,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Fixed
+
+- Prevent `Multiple commands produce XXXXX` error produced by multiple test targets using “Embed Precompiled Frameworks” script https://github.com/tuist/tuist/pull/1118 by @paulsamuels
+
 ## 1.5.2
 
 ### Fixed
