@@ -47,7 +47,7 @@ const Post = ({ post, index, authors }) => {
         >
           <span>
             <FontAwesomeIcon
-              sx={{ path: { fill: theme.colors.gray } }}
+              sx={{ path: { fill: theme.colors.gray }, height: 15, width: 15 }}
               icon={faCalendarAlt}
               size="sm"
             /> {post.fields.date}
@@ -55,7 +55,7 @@ const Post = ({ post, index, authors }) => {
 
           <span sx={{ ml: [0, 4] }}>
             <FontAwesomeIcon
-              sx={{ path: { fill: theme.colors.gray } }}
+              sx={{ path: { fill: theme.colors.gray }, height: 15, width: 15 }}
               icon={faUser}
               size="sm"
             />
@@ -75,7 +75,7 @@ const Post = ({ post, index, authors }) => {
 
           <span sx={{ ml: [0, 4] }}>
             <FontAwesomeIcon
-              sx={{ path: { fill: theme.colors.gray } }}
+              sx={{ path: { fill: theme.colors.gray }, height: 15, width: 15 }}
               icon={faClock}
               size="sm"
             /> {post.timeToRead} min read
