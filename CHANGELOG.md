@@ -16,6 +16,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Added
 
+- New `ProjectDescription` models for `scaffold` command https://github.com/tuist/tuist/pull/1082 by @fortmarek
 - Allow specifying Project Organization name via new `organizationName` parameter to `Project` initializer or via `Config` new GenerationOption. https://github.com/tuist/tuist/pull/1062 by @c0diq
 - `tuist lint` command https://github.com/tuist/tuist/pull/1043 by @pepibumur.
 - Add `--verbose` https://github.com/tuist/tuist/pull/1027 by @ollieatkinson.
