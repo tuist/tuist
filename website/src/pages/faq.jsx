@@ -5,7 +5,6 @@ import Layout from '../components/layout'
 import Main from '../components/main'
 import { MDXRenderer } from 'gatsby-plugin-mdx'
 import { FAQJsonLd, GatsbySeo } from 'gatsby-plugin-next-seo'
-import Footer from '../components/footer'
 import SEO from '../components/SEO'
 
 const Question = ({ question, body, index }) => {
@@ -60,7 +59,6 @@ export default () => {
           )
         })}
       </Main>
-      <Footer />
     </Layout>
   )
 }

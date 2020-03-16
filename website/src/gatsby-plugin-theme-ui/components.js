@@ -9,7 +9,7 @@ const heading = Tag => props => {
   if (!props.id) return <Tag {...props} />
   return (
     <Tag {...props}>
-      <a href={`#${props.id}`}>{props.children}</a>
+      <Styled.a sx={{ textDecoration: 'none' }} href={`#${props.id}`}>{props.children}</Styled.a>
     </Tag>
   )
 }

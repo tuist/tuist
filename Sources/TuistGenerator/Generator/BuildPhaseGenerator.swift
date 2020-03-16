@@ -206,22 +206,21 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         var buildFilesCache = Set<AbsolutePath>()
         try files.sorted().forEach { buildFilePath in
             let pathString = buildFilePath.pathString
-            let pathRange = NSRange(location: 0, length: pathString.count)
-            let isLocalized = ProjectFileElements.localizedRegex.firstMatch(in: pathString, options: [], range: pathRange) != nil
+            let isLocalized = pathString.contains(".lproj/")
             let isLproj = buildFilePath.extension == "lproj"
-            let isAsset = ProjectFileElements.assetRegex.firstMatch(in: pathString, options: [], range: pathRange) != nil
+            let isAssetWithinXCAssets = pathString.contains(".xcassets/")
 
             /// Assets that are part of a .xcassets folder
             /// are not added individually. The whole folder is added
             /// instead as a group.
-            if isAsset {
+            if isAssetWithinXCAssets {
                 return
             }
 
             var element: (element: PBXFileElement, path: AbsolutePath)?
 
             if isLocalized {
-                let name = buildFilePath.components.last!
+                let name = buildFilePath.basename
                 let path = buildFilePath.parentDirectory.parentDirectory.appending(component: name)
                 guard let group = fileElements.group(path: path) else {
                     throw BuildPhaseGenerationError.missingFileReference(buildFilePath)

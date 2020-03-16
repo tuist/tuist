@@ -6,7 +6,7 @@ import ReactMarkdown from 'react-markdown'
 
 const PropertiesTable = ({ properties }) => {
   const borderStyle = {
-    border: theme => `1px solid ${theme.colors.gray5}`,
+    border: theme => `1px solid ${theme.colors.gray}`,
     borderCollapse: 'collapse',
   }
   const cellStyle = {
@@ -20,19 +20,21 @@ const PropertiesTable = ({ properties }) => {
         my: 3,
       }}
     >
-      <tr sx={{ bg: 'gray6', ...borderStyle, display: ['none', 'table-row'] }}>
-        <th sx={{ ...cellStyle }}>Property</th>
-        <th sx={{ ...cellStyle }}>Description</th>
-        <th sx={{ ...cellStyle }}>Type</th>
-        <th sx={{ ...cellStyle }}>Optional</th>
-        <th sx={{ ...cellStyle }}>Default</th>
-      </tr>
+      <thead>
+        <tr sx={{ bg: 'muted', ...borderStyle, display: ['none', 'table-row'] }}>
+          <th sx={{ ...cellStyle }}>Property</th>
+          <th sx={{ ...cellStyle }}>Description</th>
+          <th sx={{ ...cellStyle }}>Type</th>
+          <th sx={{ ...cellStyle }}>Optional</th>
+          <th sx={{ ...cellStyle }}>Default</th>
+        </tr>
+      </thead>
 
       <tbody>
         {properties.map((prop, index) => {
           let type
           if (prop.typeLink) {
-            type = <a href={prop.typeLink}>{prop.type}</a>
+            type = <Styled.a href={prop.typeLink}>{prop.type}</Styled.a>
           } else {
             type = <span>{prop.type}</span>
           }
