@@ -43,7 +43,7 @@
     "gatsby-remark-smartypants": "^2.1.22",
     "gatsby-remark-social-cards": "https://github.com/pepibumur/gatsby-remark-social-cards.git#0.5.2",
     "gatsby-source-filesystem": "^2.1.55",
-    "gatsby-transformer-yaml": "^2.2.26",
+    "gatsby-transformer-yaml": "^2.2.27",
     "is-absolute-url": "^3.0.3",
     "moment": "^2.24.0",
     "polished": "^3.4.4",
