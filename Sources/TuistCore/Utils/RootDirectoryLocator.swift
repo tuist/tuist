@@ -16,7 +16,7 @@ public final class RootDirectoryLocator: RootDirectoryLocating {
     fileprivate var cache: [AbsolutePath: AbsolutePath] = [:]
 
     /// Shared instance
-    static var shared: RootDirectoryLocating = RootDirectoryLocator()
+    public static var shared: RootDirectoryLocating = RootDirectoryLocator()
 
     /// Constructor
     public init() {}

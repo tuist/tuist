@@ -1,7 +1,7 @@
 import Basic
 import Foundation
-import TuistLoader
 import TuistSupport
+import TuistCore
 
 public protocol TemplatesDirectoryLocating {
     /// Returns the path to the custom templates directory if it exists.
@@ -12,12 +12,9 @@ public protocol TemplatesDirectoryLocating {
 }
 
 public final class TemplatesDirectoryLocator: TemplatesDirectoryLocating {
-    private let rootDirectoryLocator: RootDirectoryLocating
 
     /// Default constructor.
-    public init(rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator()) {
-        self.rootDirectoryLocator = rootDirectoryLocator
-    }
+    public init() { }
 
     // MARK: - TemplatesDirectoryLocating
 
@@ -36,7 +33,7 @@ public final class TemplatesDirectoryLocator: TemplatesDirectoryLocating {
     // MARK: - Helpers
 
     private func locate(from path: AbsolutePath) -> AbsolutePath? {
-        guard let rootDirectory = rootDirectoryLocator.locate(from: path) else { return nil }
+        guard let rootDirectory = RootDirectoryLocator.shared.locate(from: path) else { return nil }
         return rootDirectory.appending(components: Constants.tuistDirectoryName, Constants.templatesDirectoryName)
     }
 }

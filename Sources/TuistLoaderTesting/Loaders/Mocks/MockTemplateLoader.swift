@@ -1,6 +1,7 @@
 import Basic
 import Foundation
-import TuistScaffold
+import TuistCore
+import TuistLoader
 
 public final class MockTemplateLoader: TemplateLoading {
     public var loadTemplateStub: ((AbsolutePath) throws -> Template)?

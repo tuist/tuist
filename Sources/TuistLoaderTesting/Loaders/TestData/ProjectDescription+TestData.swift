@@ -7,6 +7,18 @@ extension Config {
     }
 }
 
+extension Template {
+    public static func test(description: String = "Template",
+                            attributes: [Template.Attribute] = [],
+                            files: [Template.File] = [],
+                            directories: [String] = []) -> Template {
+        Template(description: description,
+                 attributes: attributes,
+                 files: files,
+                 directories: directories)
+    }
+}
+
 extension Workspace {
     public static func test(name: String = "Workspace",
                             projects: [Path] = [],

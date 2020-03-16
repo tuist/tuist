@@ -6,6 +6,7 @@ import XCTest
 @testable import ProjectDescription
 @testable import TuistLoader
 @testable import TuistLoaderTesting
+@testable import TuistCoreTesting
 @testable import TuistSupportTesting
 
 class GeneratorPathsErrorTests: TuistUnitTestCase {

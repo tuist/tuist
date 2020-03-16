@@ -2,6 +2,7 @@ import Basic
 import Foundation
 import ProjectDescription
 import TuistSupport
+import TuistCore
 
 enum GeneratorPathsError: FatalError, Equatable {
     /// Thrown when the root directory can't be located.

@@ -5,6 +5,7 @@ public enum Manifest: CaseIterable {
     case workspace
     case config
     case setup
+    case template
     case galaxy
 
     /// This was introduced to rename a file name without breaking existing projects.
@@ -27,6 +28,8 @@ public enum Manifest: CaseIterable {
             return "Config.swift"
         case .setup:
             return "Setup.swift"
+        case .template:
+            return "Template.swift"
         case .galaxy:
             return "Galaxy.swift"
         }

@@ -2,11 +2,14 @@ import Basic
 import Foundation
 import SPMUtility
 import TuistSupport
+import TuistCore
 import TuistScaffold
 import XCTest
 
 @testable import TuistKit
 @testable import TuistSupportTesting
+@testable import TuistCoreTesting
+@testable import TuistLoaderTesting
 @testable import TuistScaffoldTesting
 
 final class ScaffoldCommandTests: TuistUnitTestCase {
