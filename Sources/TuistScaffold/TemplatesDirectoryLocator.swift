@@ -1,7 +1,7 @@
 import Basic
 import Foundation
-import TuistSupport
 import TuistCore
+import TuistSupport
 
 public protocol TemplatesDirectoryLocating {
     /// Returns the path to the custom templates directory if it exists.
@@ -12,9 +12,8 @@ public protocol TemplatesDirectoryLocating {
 }
 
 public final class TemplatesDirectoryLocator: TemplatesDirectoryLocating {
-
     /// Default constructor.
-    public init() { }
+    public init() {}
 
     // MARK: - TemplatesDirectoryLocating
 

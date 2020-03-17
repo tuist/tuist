@@ -37,12 +37,12 @@ extension TuistCore.Template {
         let attributes = try manifest.attributes.map(TuistCore.Template.Attribute.from)
         let files = try manifest.files.map { (path: RelativePath($0.path),
                                               contents: try TuistCore.Template.Contents.from(manifest: $0.contents,
-                                                                                                 at: path)) }
+                                                                                             at: path)) }
         let directories = manifest.directories.map { RelativePath($0) }
         return TuistCore.Template(description: manifest.description,
-                                      attributes: attributes,
-                                      files: files,
-                                      directories: directories)
+                                  attributes: attributes,
+                                  files: files,
+                                  directories: directories)
     }
 }
 

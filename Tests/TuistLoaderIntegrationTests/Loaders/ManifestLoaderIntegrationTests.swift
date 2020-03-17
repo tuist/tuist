@@ -101,7 +101,7 @@ final class ManifestLoaderTests: TuistTestCase {
         XCTAssertEqual(customUp?.meet, ["a", "b"])
         XCTAssertEqual(customUp?.isMet, ["c"])
     }
-    
+
     func test_loadTemplate() throws {
         // Given
         let temporaryPath = try self.temporaryPath()

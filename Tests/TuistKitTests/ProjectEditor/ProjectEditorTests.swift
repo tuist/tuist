@@ -8,8 +8,8 @@ import XCTest
 @testable import TuistGeneratorTesting
 @testable import TuistKit
 @testable import TuistLoaderTesting
-@testable import TuistSupportTesting
 @testable import TuistScaffoldTesting
+@testable import TuistSupportTesting
 
 final class ProjectEditorErrorTests: TuistUnitTestCase {
     func test_type() {

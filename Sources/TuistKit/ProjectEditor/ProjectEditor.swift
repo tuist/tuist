@@ -2,8 +2,8 @@ import Basic
 import Foundation
 import TuistGenerator
 import TuistLoader
-import TuistSupport
 import TuistScaffold
+import TuistSupport
 
 enum ProjectEditorError: FatalError, Equatable {
     /// This error is thrown when we try to edit in a project in a directory that has no editable files.

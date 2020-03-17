@@ -69,7 +69,7 @@ public protocol ManifestLoading {
     /// Loads the Setup.swift in the given directory.
     /// - Parameter path: Path to the directory that contains the Setup.swift.
     func loadSetup(at path: AbsolutePath) throws -> [Upping]
-    
+
     /// Loads the Template.swift in the given directory.
     /// - Parameters:
     ///     - path: Path to the directory that contains the Template.swift
@@ -120,7 +120,7 @@ public class ManifestLoader: ManifestLoading {
     public func loadWorkspace(at path: AbsolutePath) throws -> ProjectDescription.Workspace {
         try loadManifest(.workspace, at: path)
     }
-    
+
     public func loadTemplate(at path: AbsolutePath) throws -> ProjectDescription.Template {
         try loadManifest(.template, at: path)
     }
