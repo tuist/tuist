@@ -167,6 +167,7 @@ module.exports = {
         remarkPlugins: [remarkSlug],
         gatsbyRemarkPlugins: [
           `gatsby-remark-smartypants`,
+          `gatsby-remark-copy-linked-files`,
           {
             resolve: `gatsby-remark-images`,
             options: {
