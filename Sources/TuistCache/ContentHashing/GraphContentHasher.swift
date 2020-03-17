@@ -4,7 +4,7 @@ import TuistCore
 import TuistSupport
 
 public protocol GraphContentHashing {
-    func contentHashes(for graph: Graph) throws -> [TargetNode: String]
+    func contentHashes(for graph: Graphing) throws -> [TargetNode: String]
 }
 
 public final class GraphContentHasher: GraphContentHashing {
@@ -27,9 +27,11 @@ public final class GraphContentHasher: GraphContentHashing {
         return Dictionary(uniqueKeysWithValues: zip(hashableTargets, hashes))
     }
 
+
+    // MARK: - Private
+
     fileprivate func isCacheable(_ target: TargetNode, visited: inout [TargetNode: Bool]) -> Bool {
         if let visitedValue = visited[target] { return visitedValue }
-
         let isFramework = target.target.product == .framework
         let noXCTestDependency = target.sdkDependencies.first(where: { $0.name == "XCTest.framework" }) == nil
         let allTargetDependenciesAreHasheable = target.targetDependencies.allSatisfy { isCacheable($0, visited: &visited) }
@@ -39,41 +41,73 @@ public final class GraphContentHasher: GraphContentHashing {
         return cacheable
     }
 
-    fileprivate func makeContentHash(of targetNode: TargetNode) throws -> String {
-        // TODO: extend function to consider build settings, compiler flags, dependencies, and a lot more
-        let sourcesHash = try hashSources(of: targetNode)
-        let productHash = try hash(string: targetNode.target.productName)
-        let platformHash = try hash(string: targetNode.target.platform.rawValue)
-        return try hash(strings: [sourcesHash, productHash, platformHash])
+    private func hash(targetNode: TargetNode) throws -> String {
+        let target = targetNode.target
+        let sourcesHash = try hash(sources: target.sources)
+        let resourcesHash = try hash(resources: target.resources)
+        let coreDataModelHash = try coreDataModelsContentHasher.hash(coreDataModels: target.coreDataModels)
+        let targetActionsHash = try hash(targetActions: target.actions)
+        let stringsToHash = [sourcesHash,
+                             target.name,
+                             target.platform.rawValue,
+                             target.product.rawValue,
+                             target.bundleId,
+                             target.productName,
+                             resourcesHash,
+                             coreDataModelHash,
+                             targetActionsHash]
+
+
+        //TODO: hash headers, platforms, version, entitlements, info.plist, target.environment, target.filesGroup, targetNode.settings, targetNode.project, targetNode.dependencies ,targetNode.target.dependencies
+
+        return try contentHasher.hash(stringsToHash)
     }
 
-    fileprivate func hashSources(of targetNode: TargetNode) throws -> String {
-        let hashes = try targetNode.target.sources.sorted(by: { $0.path < $1.path }).map(md5)
-        let joinedHash = try hash(strings: hashes)
-        return joinedHash
+    private func hash(headers: Headers) throws -> String {
+        let hashes = try (headers.private + headers.project + headers.project).map { path in
+            try contentHasher.hash(path)
+        }
+        return try contentHasher.hash(hashes)
     }
 
-    fileprivate func hash(string: String) throws -> String {
-        guard let hash = string.checksum(algorithm: .md5) else {
-            throw ContentHashingError.stringHashingFailed(string)
+    private func hash(sources: [Target.SourceFile]) throws -> String {
+        let sortedSources = sources.sorted(by: { $0.path < $1.path })
+        var stringsToHash: [String] = []
+        for source in sortedSources {
+            let contentHash = try contentHasher.hash(source.path)
+            var sourceHash = contentHash
+            if let compilerFlags = source.compilerFlags {
+                sourceHash += String(compilerFlags.hashValue)
+            }
+            stringsToHash.append(sourceHash)
         }
-        return hash
+        return try contentHasher.hash(stringsToHash)
     }
 
-    fileprivate func hash(strings: [String]) throws -> String {
-        guard let joinedHash = strings.joined().checksum(algorithm: .md5) else {
-            throw ContentHashingError.stringHashingFailed(strings.joined())
-        }
-        return joinedHash
+    private func hash(resources: [FileElement]) throws -> String {
+        let paths = resources.map { $0.path }
+        let hashes = try paths.map { try contentHasher.hash($0) }
+        return try contentHasher.hash(hashes)
     }
 
-    fileprivate func md5(of source: Target.SourceFile) throws -> String {
-        guard let sourceData = try? fileHandler.readFile(source.path) else {
-            throw ContentHashingError.fileNotFound(source.path)
+    private func hash(targetActions: [TargetAction]) throws -> String {
+        var stringsToHash: [String] = []
+        for targetAction in targetActions {
+            var contentHash = ""
+            if let path = targetAction.path {
+                contentHash = try contentHasher.hash(path)
+            }
+            let inputPaths = targetAction.inputPaths.map { $0.pathString }
+            let outputPaths = targetAction.outputPaths.map { $0.pathString }
+            let outputFileListPaths = targetAction.outputFileListPaths.map { $0.pathString }
+            let targetStringsToHash = [
+                contentHash,
+                targetAction.name,
+                targetAction.tool ?? "",
+                String(targetAction.order.hashValue),
+            ] + targetAction.arguments + inputPaths + outputPaths + outputFileListPaths
+            stringsToHash.append(try contentHasher.hash(targetStringsToHash))
         }
-        guard let hash = sourceData.checksum(algorithm: .md5) else {
-            throw ContentHashingError.fileHashingFailed(source.path)
-        }
-        return hash
+        return try contentHasher.hash(stringsToHash)
     }
 }
