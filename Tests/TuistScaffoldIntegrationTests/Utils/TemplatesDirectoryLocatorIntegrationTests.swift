@@ -3,8 +3,8 @@ import Foundation
 import TuistSupport
 import XCTest
 
-@testable import TuistScaffold
 @testable import TuistCore
+@testable import TuistScaffold
 @testable import TuistSupportTesting
 
 final class TemplatesDirectoryLocatorIntegrationTests: TuistTestCase {
