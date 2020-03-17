@@ -4,6 +4,7 @@ import TuistSupport
 import XCTest
 
 @testable import TuistScaffold
+@testable import TuistCore
 @testable import TuistSupportTesting
 
 final class TemplatesDirectoryLocatorIntegrationTests: TuistTestCase {
@@ -11,6 +12,7 @@ final class TemplatesDirectoryLocatorIntegrationTests: TuistTestCase {
 
     override func setUp() {
         super.setUp()
+        RootDirectoryLocator.shared = RootDirectoryLocator()
         subject = TemplatesDirectoryLocator()
     }
 
