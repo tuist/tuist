@@ -9,7 +9,14 @@ import Foundation
 import TuistSupport
 
 public struct TestingLogHandler: LogHandler {
-    static var collected: [Logger.Level: [String]] = [:]
+    static var collected: [Logger.Level: [String]] {
+        collectionQueue.sync {
+            collectedLogs
+        }
+    }
+
+    private static var collectionQueue = DispatchQueue(label: "io.tuist.tuistTestingSupport.logging")
+    private static var collectedLogs: [Logger.Level: [String]] = [:]
 
     public var logLevel: Logger.Level
     public let label: String
@@ -25,7 +32,9 @@ public struct TestingLogHandler: LogHandler {
         metadata _: Logger.Metadata?,
         file _: String, function _: String, line _: UInt
     ) {
-        Self.collected[level, default: []].append(message.description)
+        TestingLogHandler.collectionQueue.async {
+            TestingLogHandler.collectedLogs[level, default: []].append(message.description)
+        }
     }
 
     public var metadata = Logger.Metadata()

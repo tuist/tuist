@@ -8,7 +8,7 @@ import XCTest
 @testable import TuistSupport
 @testable import TuistSupportTesting
 
-final class StableXcodeProjIntegrationTests: TuistUnitTestCase {
+final class StableXcodeProjIntegrationTests: TuistTestCase {
     override func setUp() {
         super.setUp()
 
