@@ -77,7 +77,7 @@ const DocumentationPage = ({
         ]}
       />
       <div
-        sx={{ display: 'flex', flexDirection: ['column', 'row'], flex: '1' }}
+        sx={{ display: 'flex', flexDirection: ['column', 'row'], flex: '1', overflow: 'auto' }}
       >
         <div
           ref={ref}
