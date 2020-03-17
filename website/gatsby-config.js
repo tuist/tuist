@@ -27,6 +27,12 @@ module.exports = {
     `gatsby-transformer-yaml`,
     `gatsby-plugin-react-helmet`,
     {
+      resolve: `gatsby-plugin-google-analytics`,
+      options: {
+        trackingId: "UA-125584790-1",
+      },
+    },
+    {
       resolve: `gatsby-source-filesystem`,
       name: 'data',
       options: {
