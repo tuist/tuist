@@ -79,4 +79,19 @@ final class ScaffoldCommandTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(try result.get("--name"), "test")
     }
+    
+    func test_fails_when_attributes_not_added() throws {
+        // Given
+        templateLoader.loadTemplateStub = { _ in
+            Template(description: "test")
+        }
+        
+        templatesDirectoryLocator.templateDirectoriesStub = { _ in
+            [try self.temporaryPath().appending(component: "template")]
+        }
+        
+        // Then
+        XCTAssertThrowsError(try subject.parse(with: parser,
+                                               arguments: [ScaffoldCommand.command, "template", "--name", "Test"]))
+    }
 }

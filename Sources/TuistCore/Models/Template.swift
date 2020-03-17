@@ -1,6 +1,13 @@
 import Basic
 
-public struct Template {
+public struct Template: Equatable {
+    public static func == (lhs: Template, rhs: Template) -> Bool {
+        lhs.description == rhs.description
+            && lhs.attributes == rhs.attributes
+            && lhs.files == rhs.files
+            && lhs.directories == rhs.directories
+    }
+    
     public let description: String
     public let attributes: [Attribute]
     public let files: [(path: RelativePath, contents: Contents)]
@@ -16,7 +23,7 @@ public struct Template {
         self.directories = directories
     }
 
-    public enum Attribute {
+    public enum Attribute: Equatable {
         case required(String)
         case optional(String, default: String)
 
@@ -39,7 +46,7 @@ public struct Template {
         }
     }
 
-    public enum Contents {
+    public enum Contents: Equatable {
         case string(String)
         case file(AbsolutePath)
     }
