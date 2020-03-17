@@ -136,14 +136,17 @@ const styles = {
   h4: {
     my: 3,
     variant: "text.heading",
+    fontSize: 2,
   },
   h5: {
     my: 3,
     variant: "text.heading",
+    fontSize: 2,
   },
   h6: {
     my: 3,
     variant: "text.heading",
+    fontSize: 2,
   },
   img: {
     maxWidth: "100%",
