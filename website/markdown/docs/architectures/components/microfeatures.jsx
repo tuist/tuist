@@ -1,5 +1,6 @@
 /** @jsx jsx */
 import { jsx, Styled, useThemeUI, useColorMode } from 'theme-ui'
+import { useResponsiveValue } from '@theme-ui/match-media'
 import { Graphviz } from 'graphviz-react';
 
 const useTextColor = () => {
@@ -27,7 +28,9 @@ const useBackgroundColor = () => {
 const CrossPlatform = () => {
     const textColor = useTextColor()
     const backgroundColor = useBackgroundColor()
-    return <Graphviz options={{ width: "100%" }} dot={`digraph {
+    const width = useResponsiveValue(["100%", "600"])
+
+    return <Graphviz options={{ width: width }} dot={`digraph {
         graph [bgcolor="${backgroundColor}"];
         µSearchiOS [color="${textColor}", fontcolor="${textColor}"];
         µSearchmacOS [color="${textColor}", fontcolor="${textColor}"];
@@ -42,8 +45,10 @@ const CrossPlatform = () => {
 const MicroFeature = () => {
     const textColor = useTextColor()
     const backgroundColor = useBackgroundColor()
-    return <div sx={{ py: 3 }}>
-        <Graphviz options={{ width: "50%" }} dot={`digraph {
+    const width = useResponsiveValue(["100%", "300"])
+
+    return <div sx={{ py: 2 }}>
+        <Graphviz options={{ width: width }} dot={`digraph {
         graph [bgcolor="${backgroundColor}"];
         Example [color="${textColor}", fontcolor="${textColor}"];
         Source [color="${textColor}", fontcolor="${textColor}"];
@@ -62,8 +67,10 @@ const MicroFeature = () => {
 const Layers = () => {
     const textColor = useTextColor()
     const backgroundColor = useBackgroundColor()
+    const width = useResponsiveValue(["100%", "400"])
+
     return <div sx={{ py: 3 }}>
-        <Graphviz options={{ width: "70%" }} dot={`digraph {
+        <Graphviz options={{ width: width }} dot={`digraph {
             graph [bgcolor="${backgroundColor}"];
 
             Application [color="${textColor}", fontcolor="${textColor}"];
