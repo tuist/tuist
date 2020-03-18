@@ -23,19 +23,19 @@ final class TemplateLoaderTests: TuistUnitTestCase {
         subject = nil
         super.tearDown()
     }
-    
+
     func test_loadTemplate_when_not_found() throws {
         // Given
         let temporaryPath = try self.temporaryPath()
         manifestLoader.loadTemplateStub = { path in
             throw ManifestLoaderError.manifestNotFound(path)
         }
-        
+
         // Then
         XCTAssertThrowsSpecific(try subject.loadTemplate(at: temporaryPath),
                                 ManifestLoaderError.manifestNotFound(temporaryPath))
     }
-    
+
     func test_loadTemplate_files() throws {
         // Given
         let temporaryPath = try self.temporaryPath()
@@ -44,16 +44,16 @@ final class TemplateLoaderTests: TuistUnitTestCase {
                                         files: [ProjectDescription.Template.File(path: "generateOne",
                                                                                  contents: .file("fileOne"))])
         }
-        
+
         // When
         let got = try subject.loadTemplate(at: temporaryPath)
-        
+
         // Then
         XCTAssertEqual(got, TuistCore.Template(description: "desc",
                                                files: [(path: RelativePath("generateOne"),
                                                         contents: .file(temporaryPath.appending(component: "fileOne")))]))
     }
-    
+
     func test_loadTemplate_directories() throws {
         // Given
         let temporaryPath = try self.temporaryPath()
@@ -61,10 +61,10 @@ final class TemplateLoaderTests: TuistUnitTestCase {
             ProjectDescription.Template(description: "",
                                         directories: ["directoryOne"])
         }
-        
+
         // When
         let got = try subject.loadTemplate(at: temporaryPath)
-        
+
         // Then
         XCTAssertEqual(got, TuistCore.Template(description: "",
                                                directories: [RelativePath("directoryOne")]))

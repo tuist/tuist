@@ -7,7 +7,7 @@ public struct Template: Equatable {
             && lhs.files == rhs.files
             && lhs.directories == rhs.directories
     }
-    
+
     public let description: String
     public let attributes: [Attribute]
     public let files: [(path: RelativePath, contents: Contents)]
