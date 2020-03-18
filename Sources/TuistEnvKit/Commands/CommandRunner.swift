@@ -111,8 +111,6 @@ class CommandRunner: CommandRunning {
     func runAtPath(_ path: AbsolutePath) throws {
         var args: [String] = []
 
-        
-
         args.append(path.appending(component: Constants.binName).pathString)
         args.append(contentsOf: Array(arguments().dropFirst()))
 
@@ -121,7 +119,7 @@ class CommandRunner: CommandRunning {
         if CommandLine.arguments.contains("--verbose") {
             environment["TUIST_VERBOSE"] = "true"
         }
-        
+
         do {
             try System.shared.runAndPrint(args, verbose: false, environment: environment)
         } catch {

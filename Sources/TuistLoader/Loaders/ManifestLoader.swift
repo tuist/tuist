@@ -1,9 +1,9 @@
 import Basic
 import Foundation
 import ProjectDescription
-import TuistSupport
 import RxBlocking
 import RxSwift
+import TuistSupport
 public enum ManifestLoaderError: FatalError, Equatable {
     case projectDescriptionNotFound(AbsolutePath)
     case unexpectedOutput(AbsolutePath)
@@ -190,7 +190,7 @@ public class ManifestLoader: ManifestLoading {
         let result = try System.shared.observable(arguments)
             .do(onNext: { event in
                 switch event {
-                case .standardError(let data):
+                case let .standardError(data):
                     if let string = String(data: data, encoding: .utf8) {
                         logger.error("\(string)")
                     }
@@ -200,7 +200,7 @@ public class ManifestLoader: ManifestLoading {
             })
             .toBlocking()
             .first()
-        
+
         if let result = result, case let SystemEvent.standardOutput(output) = result {
             return output
         }
