@@ -2,7 +2,8 @@ import Basic
 import Foundation
 import ProjectDescription
 import TuistSupport
-
+import RxBlocking
+import RxSwift
 public enum ManifestLoaderError: FatalError, Equatable {
     case projectDescriptionNotFound(AbsolutePath)
     case unexpectedOutput(AbsolutePath)
@@ -186,11 +187,23 @@ public class ManifestLoader: ManifestLoading {
         arguments.append(path.pathString)
         arguments.append("--tuist-dump")
 
-        let result = try System.shared.capture(arguments).spm_chuzzle()
-        guard let jsonString = result, let data = jsonString.data(using: .utf8) else {
-            throw ManifestLoaderError.unexpectedOutput(path)
+        let result = try System.shared.observable(arguments)
+            .do(onNext: { event in
+                switch event {
+                case .standardError(let data):
+                    if let string = String(data: data, encoding: .utf8) {
+                        logger.error("\(string)")
+                    }
+                default:
+                    break
+                }
+            })
+            .toBlocking()
+            .first()
+        
+        if let result = result, case let SystemEvent.standardOutput(output) = result {
+            return output
         }
-
-        return data
+        throw ManifestLoaderError.unexpectedOutput(path)
     }
 }

@@ -111,16 +111,17 @@ class CommandRunner: CommandRunning {
     func runAtPath(_ path: AbsolutePath) throws {
         var args: [String] = []
 
-        if CommandLine.arguments.contains("--verbose") {
-            args.append("TUIST_VERBOSE=true")
-        }
+        
 
         args.append(path.appending(component: Constants.binName).pathString)
         args.append(contentsOf: Array(arguments().dropFirst()))
 
         var environment = ProcessInfo.processInfo.environment
         environment[Constants.EnvironmentVariables.colouredOutput] = "\(self.environment.shouldOutputBeColoured)"
-
+        if CommandLine.arguments.contains("--verbose") {
+            environment["TUIST_VERBOSE"] = "true"
+        }
+        
         do {
             try System.shared.runAndPrint(args, verbose: false, environment: environment)
         } catch {
