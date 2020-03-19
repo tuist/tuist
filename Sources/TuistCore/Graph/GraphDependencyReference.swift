@@ -15,7 +15,16 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
         architectures: [BinaryArchitecture],
         product: Product
     )
-    case framework(path: AbsolutePath, binaryPath: AbsolutePath, isCarthage: Bool, dsymPath: AbsolutePath?, bcsymbolmapPaths: [AbsolutePath], linking: BinaryLinking, architectures: [BinaryArchitecture], product: Product)
+    case framework(
+        path: AbsolutePath,
+        binaryPath: AbsolutePath,
+        isCarthage: Bool,
+        dsymPath: AbsolutePath?,
+        bcsymbolmapPaths: [AbsolutePath],
+        linking: BinaryLinking,
+        architectures: [BinaryArchitecture],
+        product: Product
+    )
     case product(target: String, productName: String)
     case sdk(path: AbsolutePath, status: SDKStatus)
 
