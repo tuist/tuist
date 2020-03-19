@@ -28,19 +28,20 @@ final class XCFrameworkNodeTests: TuistUnitTestCase {
         let expected = """
         {
           "path" : "/MyFramework/MyFramework.xcframework",
-          "libraries" : [
-            {
-              "SupportedArchitectures" : [
-                "i386"
-              ],
-              "LibraryIdentifier" : "test",
-              "LibraryPath" : "relative/to/library"
-            },
-          ],
           "name" : "MyFramework",
-          "type" : "precompiled"
+          "type" : "xcframework",
+          "info_plist" : {
+            "AvailableLibraries" : [
+              {
+                "SupportedArchitectures" : [
+                  "i386"
+                ],
+                "LibraryIdentifier" : "test",
+                "LibraryPath" : "relative/to/library"
+              }
+            ]
+          }
         }
-
         """
 
         // Then

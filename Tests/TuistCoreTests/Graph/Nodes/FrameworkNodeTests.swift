@@ -65,4 +65,26 @@ final class FrameworkNodeTests: TuistUnitTestCase {
         // Then
         XCTAssertEncodableEqualToJson(subject, expected)
     }
+
+    func test_product_when_static() {
+        // Given
+        let subject = FrameworkNode.test(linking: .static)
+
+        // When
+        let got = subject.product
+
+        // Then
+        XCTAssertEqual(got, .staticFramework)
+    }
+
+    func test_product_when_dynamic() {
+        // Given
+        let subject = FrameworkNode.test(linking: .dynamic)
+
+        // When
+        let got = subject.product
+
+        // Then
+        XCTAssertEqual(got, .framework)
+    }
 }

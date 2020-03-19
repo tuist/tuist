@@ -42,10 +42,10 @@ public class GraphLoader: GraphLoading {
                   libraryNodeLoader: LibraryNodeLoader())
     }
 
-    init(modelLoader: GeneratorModelLoading,
-         frameworkNodeLoader: FrameworkNodeLoading,
-         xcframeworkNodeLoader: XCFrameworkNodeLoading,
-         libraryNodeLoader: LibraryNodeLoading) {
+    public init(modelLoader: GeneratorModelLoading,
+                frameworkNodeLoader: FrameworkNodeLoading,
+                xcframeworkNodeLoader: XCFrameworkNodeLoading,
+                libraryNodeLoader: LibraryNodeLoading) {
         self.modelLoader = modelLoader
         self.frameworkNodeLoader = frameworkNodeLoader
         self.xcframeworkNodeLoader = xcframeworkNodeLoader

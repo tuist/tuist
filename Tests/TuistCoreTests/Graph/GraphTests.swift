@@ -620,7 +620,7 @@ final class GraphTests: TuistUnitTestCase {
         let target = Target.test(name: "Main")
         let project = Project.test(targets: [target])
 
-        let frameworkNode = FrameworkNode.test(path: "/test/StaticFramework.framework")
+        let frameworkNode = FrameworkNode.test(path: "/test/StaticFramework.framework", linking: .static)
         let targetNode = TargetNode(
             project: project,
             target: target,
@@ -629,9 +629,6 @@ final class GraphTests: TuistUnitTestCase {
         let cache = GraphLoaderCache()
         cache.add(targetNode: targetNode)
         let graph = Graph.test(cache: cache)
-
-        system.succeedCommand("/usr/bin/file", "/test/StaticFramework.framework/StaticFramework",
-                              output: "current ar archive random library")
 
         // When
         let result = try graph.embeddableFrameworks(path: project.path, name: target.name)
@@ -955,7 +952,7 @@ final class GraphTests: TuistUnitTestCase {
         System.shared = System()
         let cache = GraphLoaderCache()
         let graph = Graph.test(cache: cache)
-        let framework = FrameworkNode.test(path: fixturePath(path: RelativePath("xpm.framework")))
+        let framework = FrameworkNode.test(path: fixturePath(path: RelativePath("xpm.framework")), architectures: [.x8664, .arm64])
         let library = LibraryNode.test(path: fixturePath(path: RelativePath("libStaticLibrary.a")),
                                        publicHeaders: fixturePath(path: RelativePath("")))
         let target = TargetNode.test(dependencies: [framework, library])
@@ -966,36 +963,36 @@ final class GraphTests: TuistUnitTestCase {
         let expected = """
         [
         {
-        "product" : "\(target.target.product.rawValue)",
-        "bundle_id" : "\(target.target.bundleId)",
-        "platform" : "\(target.target.platform.rawValue)",
-        "path" : "\(target.path)",
-        "dependencies" : [
-        "xpm",
-        "libStaticLibrary"
-        ],
-        "name" : "Target",
-        "type" : "source"
+            "product" : "\(target.target.product.rawValue)",
+            "bundle_id" : "\(target.target.bundleId)",
+            "platform" : "\(target.target.platform.rawValue)",
+            "path" : "\(target.path)",
+            "dependencies" : [
+                "xpm",
+                "libStaticLibrary"
+            ],
+            "name" : "Target",
+            "type" : "source"
         },
         {
-        "path" : "\(library.path)",
-        "architectures" : [
-        "x86_64"
-        ],
-        "product" : "static_library",
-        "name" : "\(library.name)",
-        "type" : "precompiled"
+            "path" : "\(library.path)",
+            "architectures" : [
+                "arm64"
+            ],
+            "product" : "static_library",
+            "name" : "\(library.name)",
+            "type" : "precompiled"
         },
-        {
-        "path" : "\(framework.path)",
-        "architectures" : [
-        "x86_64",
-        "arm64"
-        ],
-        "product" : "framework",
-        "name" : "\(framework.name)",
-        "type" : "precompiled"
-        }
+            {
+                "path" : "\(framework.path)",
+                "architectures" : [
+                    "x86_64",
+                    "arm64"
+                ],
+                "product" : "framework",
+                "name" : "\(framework.name)",
+                "type" : "precompiled"
+            }
         ]
         """
 

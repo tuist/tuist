@@ -21,7 +21,6 @@ final class XCFrameworkMetadataProviderTests: XCTestCase {
         // Given
         let frameworkPath = fixturePath(path: RelativePath("MyFramework.xcframework"))
         let infoPlist = try subject.infoPlist(xcframeworkPath: frameworkPath)
-        let binaryPath = try subject.binaryPath(xcframeworkPath: frameworkPath, libraries: infoPlist.libraries)
 
         // Then
         XCTAssertEqual(infoPlist.libraries, [

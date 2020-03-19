@@ -22,7 +22,7 @@ enum FrameworkNodeLoaderError: FatalError {
     }
 }
 
-protocol FrameworkNodeLoading {
+public protocol FrameworkNodeLoading {
     /// Reads an existing framework and returns its in-memory representation, FrameworkNode.
     /// - Parameter path: Path to the .framework.
     func load(path: AbsolutePath) throws -> FrameworkNode

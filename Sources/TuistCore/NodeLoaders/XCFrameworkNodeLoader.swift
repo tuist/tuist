@@ -22,7 +22,7 @@ enum XCFrameworkNodeLoaderError: FatalError {
     }
 }
 
-protocol XCFrameworkNodeLoading {
+public protocol XCFrameworkNodeLoading {
     /// Reads an existing xcframework and returns its in-memory representation, XCFrameworkNode..
     /// - Parameter path: Path to the .xcframework.
     func load(path: AbsolutePath) throws -> XCFrameworkNode

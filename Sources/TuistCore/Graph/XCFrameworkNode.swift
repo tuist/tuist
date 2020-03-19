@@ -8,7 +8,7 @@ public class XCFrameworkNode: PrecompiledNode {
         case type
         case path
         case name
-        case infoPlist
+        case infoPlist = "info_plist"
     }
 
     /// The xcframework's Info.plist content.

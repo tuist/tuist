@@ -292,7 +292,7 @@ public class Graph: Graphing {
         if targetNode.target.canLinkStaticProducts() {
             let transitiveSystemLibraries = transitiveStaticTargetNodes(for: targetNode).flatMap {
                 $0.sdkDependencies.map {
-                    GraphDependencyReference.sdk($0.path, $0.status)
+                    GraphDependencyReference.sdk(path: $0.path, status: $0.status)
                 }
             }
 
@@ -300,7 +300,7 @@ public class Graph: Graphing {
         }
 
         let directSystemLibrariesAndFrameworks = targetNode.sdkDependencies.map {
-            GraphDependencyReference.sdk($0.path, $0.status)
+            GraphDependencyReference.sdk(path: $0.path, status: $0.status)
         }
 
         references = references.union(directSystemLibrariesAndFrameworks)
@@ -309,8 +309,7 @@ public class Graph: Graphing {
 
         let precompiledLibrariesAndFrameworks = targetNode.precompiledDependencies
             .lazy
-            .map(\.path)
-            .map(GraphDependencyReference.absolute)
+            .map(GraphDependencyReference.init)
 
         references = references.union(precompiledLibrariesAndFrameworks)
 
@@ -387,8 +386,7 @@ public class Graph: Graphing {
         /// Precompiled frameworks
         let precompiledFrameworks = findAll(targetNode: targetNode, test: isDynamicAndLinkable, skip: canEmbedProducts)
             .lazy
-            .map(\.path)
-            .map(GraphDependencyReference.absolute)
+            .map(GraphDependencyReference.init)
 
         references.formUnion(precompiledFrameworks)
 

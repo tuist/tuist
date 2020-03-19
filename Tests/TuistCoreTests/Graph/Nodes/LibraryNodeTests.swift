@@ -77,4 +77,26 @@ final class LibraryNodeTests: TuistUnitTestCase {
         // Then
         XCTAssertEncodableEqualToJson(library, expected)
     }
+
+    func test_product_when_static() {
+        // Given
+        let subject = LibraryNode.test(linking: .static)
+
+        // When
+        let got = subject.product
+
+        // Then
+        XCTAssertEqual(got, .staticLibrary)
+    }
+
+    func test_product_when_dynamic() {
+        // Given
+        let subject = LibraryNode.test(linking: .dynamic)
+
+        // When
+        let got = subject.product
+
+        // Then
+        XCTAssertEqual(got, .dynamicLibrary)
+    }
 }

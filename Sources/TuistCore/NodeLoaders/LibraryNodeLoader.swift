@@ -29,7 +29,7 @@ enum LibraryNodeLoaderError: FatalError {
     }
 }
 
-protocol LibraryNodeLoading {
+public protocol LibraryNodeLoading {
     /// Reads an existing library and returns its in-memory representation, LibraryNode.
     /// - Parameters:
     ///   - path: Path to the library.
