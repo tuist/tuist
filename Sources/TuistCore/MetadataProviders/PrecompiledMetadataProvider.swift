@@ -31,7 +31,7 @@ enum PrecompiledMetadataProviderError: FatalError, Equatable {
     }
 }
 
-public protocol PrecompiledMetadataProviding {
+protocol PrecompiledMetadataProviding {
     /// It returns the supported architectures of the binary at the given path.
     /// - Parameter binaryPath: Binary path.
     func architectures(binaryPath: AbsolutePath) throws -> [BinaryArchitecture]
@@ -46,10 +46,10 @@ public protocol PrecompiledMetadataProviding {
     func uuids(binaryPath: AbsolutePath) throws -> Set<UUID>
 }
 
-public class PrecompiledMetadataProvider: PrecompiledMetadataProviding {
+class PrecompiledMetadataProvider: PrecompiledMetadataProviding {
     public init() {}
 
-    public func architectures(binaryPath: AbsolutePath) throws -> [BinaryArchitecture] {
+    func architectures(binaryPath: AbsolutePath) throws -> [BinaryArchitecture] {
         let result = try System.shared.capture("/usr/bin/lipo", "-info", binaryPath.pathString).spm_chuzzle() ?? ""
         let regexes = [
             // Non-fat file: path is architecture: x86_64
@@ -70,12 +70,12 @@ public class PrecompiledMetadataProvider: PrecompiledMetadataProviding {
         return architectures
     }
 
-    public func linking(binaryPath: AbsolutePath) throws -> BinaryLinking {
+    func linking(binaryPath: AbsolutePath) throws -> BinaryLinking {
         let result = try System.shared.capture("/usr/bin/file", binaryPath.pathString).spm_chuzzle() ?? ""
         return result.contains("dynamically linked") ? .dynamic : .static
     }
 
-    public func uuids(binaryPath: AbsolutePath) throws -> Set<UUID> {
+    func uuids(binaryPath: AbsolutePath) throws -> Set<UUID> {
         let output = try System.shared.capture(["/usr/bin/xcrun", "dwarfdump", "--uuid", binaryPath.pathString])
         // UUIDs are letters, decimals, or hyphens.
         var uuidCharacterSet = CharacterSet()

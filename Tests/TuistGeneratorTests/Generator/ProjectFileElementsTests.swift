@@ -406,7 +406,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
                                             xcodeprojPath: project.path.appending(component: "\(project.fileName).xcodeproj"),
                                             sourceRootPath: sourceRootPath)
         var dependencies: Set<GraphDependencyReference> = Set()
-        let precompiledNode = GraphDependencyReference.absolute(project.path.appending(component: "waka.framework"))
+        let precompiledNode = GraphDependencyReference.testFramework(path: project.path.appending(component: "waka.framework"))
         dependencies.insert(precompiledNode)
 
         try subject.generate(dependencyReferences: dependencies,
@@ -610,7 +610,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         let sdk = try SDKNode(name: "ARKit.framework",
                               platform: .iOS,
                               status: .required)
-        let sdkDependency = GraphDependencyReference.sdk(sdk.path, sdk.status)
+        let sdkDependency = GraphDependencyReference.sdk(path: sdk.path, status: sdk.status)
 
         // When
         try subject.generate(dependencyReferences: [sdkDependency],

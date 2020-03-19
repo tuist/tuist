@@ -28,7 +28,7 @@ enum XCFrameworkMetadataProviderError: FatalError, Equatable {
     }
 }
 
-public protocol XCFrameworkMetadataProviding {
+protocol XCFrameworkMetadataProviding {
     /// Returns the info.plist of the xcframework at the given path.
     /// - Parameter xcframeworkPath: Path to the xcframework.
     func infoPlist(xcframeworkPath: AbsolutePath) throws -> XCFrameworkInfoPlist
@@ -39,8 +39,8 @@ public protocol XCFrameworkMetadataProviding {
     func binaryPath(xcframeworkPath: AbsolutePath, libraries: [XCFrameworkInfoPlist.Library]) throws -> AbsolutePath
 }
 
-public class XCFrameworkMetadataProvider: XCFrameworkMetadataProviding {
-    public func infoPlist(xcframeworkPath: AbsolutePath) throws -> XCFrameworkInfoPlist {
+class XCFrameworkMetadataProvider: XCFrameworkMetadataProviding {
+    func infoPlist(xcframeworkPath: AbsolutePath) throws -> XCFrameworkInfoPlist {
         let fileHandler = FileHandler.shared
         let infoPlist = xcframeworkPath.appending(component: "Info.plist")
         guard fileHandler.exists(infoPlist) else {
@@ -50,7 +50,7 @@ public class XCFrameworkMetadataProvider: XCFrameworkMetadataProviding {
         return try fileHandler.readPlistFile(infoPlist)
     }
 
-    public func binaryPath(xcframeworkPath: AbsolutePath, libraries: [XCFrameworkInfoPlist.Library]) throws -> AbsolutePath {
+    func binaryPath(xcframeworkPath: AbsolutePath, libraries: [XCFrameworkInfoPlist.Library]) throws -> AbsolutePath {
         let archs: [BinaryArchitecture] = [.arm64, .x8664]
         guard let library = libraries.first(where: { !$0.architectures.filter(archs.contains).isEmpty }) else {
             throw XCFrameworkMetadataProviderError.supportedArchitectureReferencesNotFound(xcframeworkPath)
