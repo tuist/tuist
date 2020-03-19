@@ -2,7 +2,7 @@ import Basic
 import Foundation
 import TuistSupport
 
-enum FrameworkNodeLoaderError: FatalError {
+enum FrameworkNodeLoaderError: FatalError, Equatable {
     case frameworkNotFound(AbsolutePath)
 
     /// Error type.
@@ -43,10 +43,11 @@ final class FrameworkNodeLoader: FrameworkNodeLoading {
             throw FrameworkNodeLoaderError.frameworkNotFound(path)
         }
 
+        let binaryPath = FrameworkNode.binaryPath(frameworkPath: path)
         let dsymsPath = frameworkMetadataProvider.dsymPath(frameworkPath: path)
         let bcsymbolmapPaths = try frameworkMetadataProvider.bcsymbolmapPaths(frameworkPath: path)
-        let linking = try frameworkMetadataProvider.linking(binaryPath: FrameworkNode.binaryPath(frameworkPath: path))
-        let architectures = try frameworkMetadataProvider.architectures(binaryPath: FrameworkNode.binaryPath(frameworkPath: path))
+        let linking = try frameworkMetadataProvider.linking(binaryPath: binaryPath)
+        let architectures = try frameworkMetadataProvider.architectures(binaryPath: binaryPath)
 
         return FrameworkNode(path: path,
                              dsymPath: dsymsPath,
