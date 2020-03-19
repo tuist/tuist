@@ -2,7 +2,7 @@ import Basic
 import Foundation
 import TuistSupport
 
-enum XCFrameworkNodeLoaderError: FatalError {
+enum XCFrameworkNodeLoaderError: FatalError, Equatable {
     case xcframeworkNotFound(AbsolutePath)
 
     /// Error type.
