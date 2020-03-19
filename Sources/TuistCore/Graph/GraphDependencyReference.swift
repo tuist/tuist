@@ -109,6 +109,8 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
             return true
         case (.library, .framework):
             return true
+        case (.library, .xcframework):
+            return true
         case (.framework, .xcframework):
             return true
         default:
