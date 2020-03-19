@@ -2,7 +2,7 @@ import Basic
 import Foundation
 import TuistSupport
 
-enum LibraryNodeLoaderError: FatalError {
+enum LibraryNodeLoaderError: FatalError, Equatable {
     case libraryNotFound(AbsolutePath)
     case publicHeadersNotFound(AbsolutePath)
     case swiftModuleMapNotFound(AbsolutePath)
