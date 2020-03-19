@@ -92,7 +92,7 @@ final class GraphTests: TuistUnitTestCase {
                               output: "Architectures in the fat file: Alamofire are: x86_64 arm64")
 
         let got = try graph.linkableDependencies(path: project.path, name: target.name)
-        XCTAssertEqual(got.first, .absolute(precompiledNode.path))
+        XCTAssertEqual(got.first, GraphDependencyReference(precompiledNode: precompiledNode))
     }
 
     func test_linkableDependencies_whenALibraryTarget() throws {
@@ -579,7 +579,7 @@ final class GraphTests: TuistUnitTestCase {
 
         let got = try graph.embeddableFrameworks(path: project.path, name: target.name)
 
-        XCTAssertEqual(got.first, GraphDependencyReference.absolute(frameworkPath))
+        XCTAssertEqual(got.first, GraphDependencyReference(precompiledNode: frameworkNode))
     }
 
     func test_embeddableFrameworks_when_dependencyIsATransitiveFramework() throws {
@@ -611,7 +611,7 @@ final class GraphTests: TuistUnitTestCase {
 
         XCTAssertEqual(got, [
             GraphDependencyReference.product(target: "Dependency", productName: "Dependency.framework"),
-            GraphDependencyReference.absolute(frameworkPath),
+            GraphDependencyReference(precompiledNode: frameworkNode),
         ])
     }
 
