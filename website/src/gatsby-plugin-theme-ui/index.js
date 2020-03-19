@@ -120,7 +120,7 @@ const styles = {
   },
   a: {
     color: "primary",
-    ":hover,:focus": {
+    ":hover,:focus,:visited": {
       color: "secondary",
     },
   },
@@ -131,6 +131,7 @@ const styles = {
   h2: {
     my: 4,
     variant: "text.heading",
+    fontSize: 4,
   },
   h3: {
     my: 4,
