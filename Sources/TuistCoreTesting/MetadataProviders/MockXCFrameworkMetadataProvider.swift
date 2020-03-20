@@ -2,9 +2,7 @@ import Basic
 import Foundation
 @testable import TuistCore
 
-public final class MockXCFrameworkMetadataProvider: XCFrameworkMetadataProviding {
-    public init() {}
-
+public final class MockXCFrameworkMetadataProvider: MockPrecompiledMetadataProvider, XCFrameworkMetadataProviding {
     public var infoPlistStub: ((AbsolutePath) throws -> XCFrameworkInfoPlist)?
     public func infoPlist(xcframeworkPath: AbsolutePath) throws -> XCFrameworkInfoPlist {
         if let infoPlistStub = infoPlistStub {

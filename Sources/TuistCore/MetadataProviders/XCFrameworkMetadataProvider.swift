@@ -28,7 +28,7 @@ enum XCFrameworkMetadataProviderError: FatalError, Equatable {
     }
 }
 
-protocol XCFrameworkMetadataProviding {
+protocol XCFrameworkMetadataProviding: PrecompiledMetadataProviding {
     /// Returns the info.plist of the xcframework at the given path.
     /// - Parameter xcframeworkPath: Path to the xcframework.
     func infoPlist(xcframeworkPath: AbsolutePath) throws -> XCFrameworkInfoPlist
@@ -39,7 +39,7 @@ protocol XCFrameworkMetadataProviding {
     func binaryPath(xcframeworkPath: AbsolutePath, libraries: [XCFrameworkInfoPlist.Library]) throws -> AbsolutePath
 }
 
-class XCFrameworkMetadataProvider: XCFrameworkMetadataProviding {
+class XCFrameworkMetadataProvider: PrecompiledMetadataProvider, XCFrameworkMetadataProviding {
     func infoPlist(xcframeworkPath: AbsolutePath) throws -> XCFrameworkInfoPlist {
         let fileHandler = FileHandler.shared
         let infoPlist = xcframeworkPath.appending(component: "Info.plist")

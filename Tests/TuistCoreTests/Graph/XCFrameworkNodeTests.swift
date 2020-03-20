@@ -30,6 +30,7 @@ final class XCFrameworkNodeTests: TuistUnitTestCase {
           "path" : "/MyFramework/MyFramework.xcframework",
           "name" : "MyFramework",
           "type" : "xcframework",
+          "linking": "dynamic",
           "info_plist" : {
             "AvailableLibraries" : [
               {

@@ -381,7 +381,11 @@ public class Graph: Graphing {
 
         var references: Set<GraphDependencyReference> = Set([])
 
-        let isDynamicAndLinkable = { (node: FrameworkNode) in node.linking == .dynamic }
+        let isDynamicAndLinkable = { (node: PrecompiledNode) -> Bool in
+            if let framework = node as? FrameworkNode { return framework.linking == .dynamic }
+            if let xcframework = node as? XCFrameworkNode { return xcframework.linking == .dynamic }
+            return false
+        }
 
         /// Precompiled frameworks
         let precompiledFrameworks = findAll(targetNode: targetNode, test: isDynamicAndLinkable, skip: canEmbedProducts)

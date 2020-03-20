@@ -54,6 +54,7 @@ final class XCFrameworkNodeLoaderTests: TuistUnitTestCase {
         let path = try temporaryPath()
         let xcframeworkPath = path.appending(component: "tuist.xcframework")
         let binaryPath = path.appending(RelativePath("tuist.xcframework/whatever/tuist"))
+        let linking: BinaryLinking = .dynamic
 
         let infoPlist = XCFrameworkInfoPlist.test()
         try FileHandler.shared.touch(xcframeworkPath)
@@ -67,6 +68,10 @@ final class XCFrameworkNodeLoaderTests: TuistUnitTestCase {
             XCTAssertEqual(libraries, infoPlist.libraries)
             return binaryPath
         }
+        xcframeworkMetadataProvider.linkingStub = { path in
+            XCTAssertEqual(binaryPath, path)
+            return linking
+        }
 
         // When
         let got = try subject.load(path: xcframeworkPath)
@@ -75,6 +80,7 @@ final class XCFrameworkNodeLoaderTests: TuistUnitTestCase {
         XCTAssertEqual(got, XCFrameworkNode(path: xcframeworkPath,
                                             infoPlist: infoPlist,
                                             primaryBinaryPath: binaryPath,
+                                            linking: linking,
                                             dependencies: []))
     }
 }

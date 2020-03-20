@@ -45,9 +45,11 @@ final class XCFrameworkNodeLoader: XCFrameworkNodeLoading {
         let infoPlist = try xcframeworkMetadataProvider.infoPlist(xcframeworkPath: path)
         let primaryBinaryPath = try xcframeworkMetadataProvider.binaryPath(xcframeworkPath: path,
                                                                            libraries: infoPlist.libraries)
+        let linking = try xcframeworkMetadataProvider.linking(binaryPath: primaryBinaryPath)
         return XCFrameworkNode(path: path,
                                infoPlist: infoPlist,
                                primaryBinaryPath: primaryBinaryPath,
+                               linking: linking,
                                dependencies: [])
     }
 }
