@@ -40,11 +40,11 @@ public struct Template: Equatable {
         case string(String)
         case file(AbsolutePath)
     }
-    
+
     public struct File: Equatable {
         public let path: RelativePath
         public let contents: Contents
-        
+
         public init(path: RelativePath,
                     contents: Contents) {
             self.path = path

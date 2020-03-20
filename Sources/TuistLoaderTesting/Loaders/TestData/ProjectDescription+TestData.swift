@@ -10,12 +10,10 @@ extension Config {
 extension Template {
     public static func test(description: String = "Template",
                             attributes: [Template.Attribute] = [],
-                            files: [Template.File] = [],
-                            directories: [String] = []) -> Template {
+                            files: [Template.File] = []) -> Template {
         Template(description: description,
                  attributes: attributes,
-                 files: files,
-                 directories: directories)
+                 files: files)
     }
 }
 

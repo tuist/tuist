@@ -13,7 +13,7 @@ public protocol TemplatesDirectoryLocating {
 
 public final class TemplatesDirectoryLocator: TemplatesDirectoryLocating {
     private let rootDirectoryLocator: RootDirectoryLocating
-    
+
     /// Default constructor.
     public init(rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator.shared) {
         self.rootDirectoryLocator = rootDirectoryLocator

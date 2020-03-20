@@ -26,7 +26,7 @@ final class TemplatesDirectoryLocatorIntegrationTests: TuistTestCase {
         try createFolders(["this/is/a/very/nested/directory", "this/is/Tuist/Templates", "this/.git"])
 
         // When
-        let got = subject.locateCustom(at: temporaryDirectory.appending(RelativePath("this/is/a/very/nested/directory")))
+        let got = subject.locateUserTemplates(at: temporaryDirectory.appending(RelativePath("this/is/a/very/nested/directory")))
 
         // Then
         XCTAssertEqual(got, temporaryDirectory.appending(RelativePath("this/is/Tuist/Templates")))
@@ -38,7 +38,7 @@ final class TemplatesDirectoryLocatorIntegrationTests: TuistTestCase {
         try createFolders(["this/is/a/very/nested/directory", "this/is/Tuist/Templates"])
 
         // When
-        let got = subject.locateCustom(at: temporaryDirectory.appending(RelativePath("this/is/a/very/nested/directory")))
+        let got = subject.locateUserTemplates(at: temporaryDirectory.appending(RelativePath("this/is/a/very/nested/directory")))
 
         // Then
         XCTAssertEqual(got, temporaryDirectory.appending(RelativePath("this/is/Tuist/Templates")))
@@ -50,7 +50,7 @@ final class TemplatesDirectoryLocatorIntegrationTests: TuistTestCase {
         try createFolders(["this/is/a/very/nested/directory", "this/.git", "this/Tuist/Templates"])
 
         // When
-        let got = subject.locateCustom(at: temporaryDirectory.appending(RelativePath("this/is/a/very/nested/directory")))
+        let got = subject.locateUserTemplates(at: temporaryDirectory.appending(RelativePath("this/is/a/very/nested/directory")))
 
         // Then
         XCTAssertEqual(got, temporaryDirectory.appending(RelativePath("this/Tuist/Templates")))
@@ -67,7 +67,7 @@ final class TemplatesDirectoryLocatorIntegrationTests: TuistTestCase {
 
         // When
         let got = paths.map {
-            subject.locateCustom(at: temporaryDirectory.appending(RelativePath($0)))
+            subject.locateUserTemplates(at: temporaryDirectory.appending(RelativePath($0)))
         }
 
         // Then

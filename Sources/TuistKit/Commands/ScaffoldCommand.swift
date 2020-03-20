@@ -100,8 +100,6 @@ class ScaffoldCommand: NSObject, Command {
     }
 
     func run(with arguments: ArgumentParser.Result) throws {
-        logger.warning("Scaffold is a feature that is currently being worked on")
-
         guard let template = arguments.get(templateArgument) else { throw ScaffoldCommandError.templateNotProvided }
 
         let path = self.path(arguments: arguments)

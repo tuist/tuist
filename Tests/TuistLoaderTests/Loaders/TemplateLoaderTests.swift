@@ -50,23 +50,7 @@ final class TemplateLoaderTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(got, TuistCore.Template(description: "desc",
-                                               files: [(path: RelativePath("generateOne"),
-                                                        contents: .file(temporaryPath.appending(component: "fileOne")))]))
-    }
-
-    func test_loadTemplate_directories() throws {
-        // Given
-        let temporaryPath = try self.temporaryPath()
-        manifestLoader.loadTemplateStub = { _ in
-            ProjectDescription.Template(description: "",
-                                        directories: ["directoryOne"])
-        }
-
-        // When
-        let got = try subject.loadTemplate(at: temporaryPath)
-
-        // Then
-        XCTAssertEqual(got, TuistCore.Template(description: "",
-                                               directories: [RelativePath("directoryOne")]))
+                                               files: [Template.File(path: RelativePath("generateOne"),
+                                                                     contents: .file(temporaryPath.appending(component: "fileOne")))]))
     }
 }
