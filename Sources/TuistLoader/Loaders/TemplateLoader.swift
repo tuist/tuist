@@ -35,14 +35,12 @@ public class TemplateLoader: TemplateLoading {
 extension TuistCore.Template {
     static func from(manifest: ProjectDescription.Template, at path: AbsolutePath) throws -> TuistCore.Template {
         let attributes = try manifest.attributes.map(TuistCore.Template.Attribute.from)
-        let files = try manifest.files.map { (path: RelativePath($0.path),
-                                              contents: try TuistCore.Template.Contents.from(manifest: $0.contents,
-                                                                                             at: path)) }
-        let directories = manifest.directories.map { RelativePath($0) }
+        let files = try manifest.files.map { File(path: RelativePath($0.path),
+                                                  contents: try TuistCore.Template.Contents.from(manifest: $0.contents,
+                                                                                                 at: path)) }
         return TuistCore.Template(description: manifest.description,
                                   attributes: attributes,
-                                  files: files,
-                                  directories: directories)
+                                  files: files)
     }
 }
 

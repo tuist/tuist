@@ -8,17 +8,13 @@ public struct Template: Codable, Equatable {
     public let attributes: [Attribute]
     /// Files to generate
     public let files: [File]
-    /// Directories to generate
-    public let directories: [String]
 
     public init(description: String,
                 attributes: [Attribute] = [],
-                files: [File] = [],
-                directories: [String] = []) {
+                files: [File] = []) {
         self.description = description
         self.attributes = attributes
         self.files = files
-        self.directories = directories
         dumpIfNeeded(self)
     }
 

@@ -14,7 +14,6 @@ let template = Template(
         platformAttribute
     ],
     files: [
-        .string(path: "custom_dir/custom.swift", contents: testContents)
-    ],
-    directories: ["custom_dir"]
+        .string(path: "\(nameAttribute)/custom.swift", contents: testContents)
+    ]
 )
