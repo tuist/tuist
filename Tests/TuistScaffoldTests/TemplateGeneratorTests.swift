@@ -3,40 +3,39 @@ import Foundation
 import TuistSupport
 import XCTest
 
+@testable import TuistCore
+@testable import TuistCoreTesting
 @testable import TuistSupportTesting
-@testable import TuistTemplate
-@testable import TuistTemplateTesting
+@testable import TuistScaffold
 
 final class TemplateGeneratorTests: TuistTestCase {
     var subject: TemplateGenerator!
-    var templateLoader: MockTemplateLoader!
 
     override func setUp() {
         super.setUp()
-        templateLoader = MockTemplateLoader()
-        subject = TemplateGenerator(templateLoader: templateLoader)
+        subject = TemplateGenerator()
     }
 
     override func tearDown() {
         super.tearDown()
         subject = nil
-        templateLoader = nil
     }
 
     func test_directories_are_generated() throws {
         // Given
         let directories = [RelativePath("a"), RelativePath("a/b"), RelativePath("c")]
-        templateLoader.loadTemplateStub = { _ in
-            Template(description: "",
-                     directories: directories)
-        }
         let destinationPath = try temporaryPath()
         let expectedDirectories = directories.map(destinationPath.appending)
+        let files = directories.map {
+            Template.File.test(path: RelativePath($0.pathString + "/file.swift"))
+        }
+        
+        let template = Template.test(files: files)
 
         // When
-        try subject.generate(at: try temporaryPath(),
+        try subject.generate(template: template,
                              to: destinationPath,
-                             attributes: [])
+                             attributes: [:])
 
         // Then
         XCTAssertTrue(expectedDirectories.allSatisfy(FileHandler.shared.exists))
@@ -44,62 +43,43 @@ final class TemplateGeneratorTests: TuistTestCase {
 
     func test_directories_with_attributes() throws {
         // Given
-        let name = "GenName"
-        let bName = "BName"
-        let defaultName = "defaultName"
-        let directories = [RelativePath("{{ name }}"), RelativePath("{{ aName }}"), RelativePath("{{ bName }}")]
-        templateLoader.loadTemplateStub = { _ in
-            Template(description: "",
-                     attributes: [
-                         .required("name"),
-                         .optional("aName", default: defaultName),
-                         .optional("bName", default: ""),
-                     ],
-                     directories: directories)
+        let directories = [RelativePath("{{ name }}"), RelativePath("{{ aName }}"), RelativePath("{{ name }}/{{ bName }}")]
+        let files = directories.map {
+            Template.File.test(path: RelativePath($0.pathString + "/file.swift"))
         }
+        let template = Template.test(files: files)
         let destinationPath = try temporaryPath()
-        let expectedDirectories = [name, defaultName, bName].map(destinationPath.appending)
+        let expectedDirectories = [RelativePath("test_name"),
+                                   RelativePath("test"),
+                                   RelativePath("test_name/nested_dir")].map(destinationPath.appending)
 
         // When
-        try subject.generate(at: try temporaryPath(),
+        try subject.generate(template: template,
                              to: destinationPath,
-                             attributes: ["--name", name, "--bName", bName])
+                             attributes: ["name": "test_name",
+                                          "aName": "test",
+                                          "bName": "nested_dir"])
 
         // Then
         XCTAssertTrue(expectedDirectories.allSatisfy(FileHandler.shared.exists))
     }
 
-    func test_fails_when_required_attribute_not_provided() throws {
-        // Given
-        templateLoader.loadTemplateStub = { _ in
-            Template(description: "",
-                     attributes: [.required("required")])
-        }
-
-        // Then
-        XCTAssertThrowsSpecific(try subject.generate(at: try temporaryPath(),
-                                                     to: try temporaryPath(),
-                                                     attributes: []),
-                                TemplateGeneratorError.attributeNotFound("required"))
-    }
 
     func test_files_are_generated() throws {
         // Given
-        let files: [(path: RelativePath, contents: Template.Contents)] = [
-            (path: RelativePath("a"), contents: .static("aContent")),
-            (path: RelativePath("b"), contents: .static("bContent")),
+        let files: [Template.File] = [
+            Template.File(path: RelativePath("a"), contents: .string("aContent")),
+            Template.File(path: RelativePath("b"), contents: .string("bContent")),
         ]
-        templateLoader.loadTemplateStub = { _ in
-            Template(description: "",
-                     files: files)
-        }
+        
+        let template = Template.test(files: files)
         let destinationPath = try temporaryPath()
         let expectedFiles: [(AbsolutePath, String)] = files.compactMap {
             let content: String
             switch $0.contents {
-            case let .static(staticContent):
+            case let .string(staticContent):
                 content = staticContent
-            case .generated:
+            case .file:
                 XCTFail("Unexpected type")
                 return nil
             }
@@ -107,9 +87,9 @@ final class TemplateGeneratorTests: TuistTestCase {
         }
 
         // When
-        try subject.generate(at: try temporaryPath(),
+        try subject.generate(template: template,
                              to: destinationPath,
-                             attributes: [])
+                             attributes: [:])
 
         // Then
         try expectedFiles.forEach {
@@ -119,20 +99,11 @@ final class TemplateGeneratorTests: TuistTestCase {
 
     func test_files_are_generated_with_attributes() throws {
         // Given
-        templateLoader.loadTemplateStub = { _ in
-            Template(description: "",
-                     attributes: [
-                         .required("name"),
-                         .required("contentName"),
-                         .required("directoryName"),
-                         .required("fileName"),
-                     ],
-                     files: [
-                         (path: RelativePath("{{ name }}"), contents: .static("{{ contentName }}")),
-                         (path: RelativePath("{{ directoryName }}/{{ fileName }}"), contents: .static("bContent")),
-                     ],
-                     directories: [RelativePath("{{ directoryName }}")])
-        }
+        let files = [
+            Template.File(path: RelativePath("{{ name }}"), contents: .string("{{ contentName }}")),
+            Template.File(path: RelativePath("{{ directoryName }}/{{ fileName }}"), contents: .string("bContent")),
+        ]
+        let template = Template.test(files: files)
         let name = "test name"
         let contentName = "test content"
         let directoryName = "test directory"
@@ -144,13 +115,13 @@ final class TemplateGeneratorTests: TuistTestCase {
         ]
 
         // When
-        try subject.generate(at: try temporaryPath(),
+        try subject.generate(template: template,
                              to: destinationPath,
                              attributes: [
-                                 "--name", name,
-                                 "--contentName", contentName,
-                                 "--directoryName", directoryName,
-                                 "--fileName", fileName,
+                                "name": name,
+                                "contentName": contentName,
+                                "directoryName": directoryName,
+                                "fileName": fileName,
                              ])
 
         // Then
@@ -159,41 +130,29 @@ final class TemplateGeneratorTests: TuistTestCase {
         }
     }
 
-    func test_generated_files() throws {
+    func test_rendered_files() throws {
         // Given
         let sourcePath = try temporaryPath()
         let destinationPath = try temporaryPath()
         let name = "test name"
         let aContent = "test a content"
         let bContent = "test b content"
-        templateLoader.loadTemplateStub = { _ in
-            Template(description: "",
-                     attributes: [.required("name")],
-                     files: [
-                         (path: RelativePath("a"), contents: .generated(sourcePath.appending(component: "a"))),
-                         (path: RelativePath("b/{{ name }}"), contents: .generated(sourcePath.appending(components: "b"))),
-                     ],
-                     directories: [RelativePath("b")])
-        }
-        templateLoader.loadGenerateFileStub = { filePath, _ in
-            if filePath == destinationPath.appending(components: "a") {
-                return aContent
-            } else if filePath == destinationPath.appending(components: "b") {
-                return bContent
-            } else {
-                XCTFail("unexpected path \(filePath)")
-                return ""
-            }
-        }
+        let files = [
+            Template.File(path: RelativePath("a/file"), contents: .file(sourcePath.appending(component: "testFile"))),
+            Template.File(path: RelativePath("b/{{ name }}/file"), contents: .file(sourcePath.appending(components: "bTestFile"))),
+        ]
+        let template = Template.test(files: files)
+        try FileHandler.shared.write(aContent, path: sourcePath.appending(component: "testFile"), atomically: true)
+        try FileHandler.shared.write(bContent, path: sourcePath.appending(component: "bTestFile"), atomically: true)
         let expectedFiles: [(AbsolutePath, String)] = [
-            (destinationPath.appending(component: "a"), aContent),
-            (destinationPath.appending(components: "b", name), bContent),
+            (destinationPath.appending(components: "a", "file"), aContent),
+            (destinationPath.appending(components: "b", name, "file"), bContent),
         ]
 
         // When
-        try subject.generate(at: sourcePath,
+        try subject.generate(template: template,
                              to: destinationPath,
-                             attributes: ["--name", name])
+                             attributes: ["name": name])
 
         // Then
         try expectedFiles.forEach {
@@ -201,33 +160,24 @@ final class TemplateGeneratorTests: TuistTestCase {
         }
     }
 
-    func test_attributes_passed_to_generated_file() throws {
+    func test_file_rendered_wit_attributes() throws {
         // Given
         let sourcePath = try temporaryPath()
         let destinationPath = try temporaryPath()
-        var parsedAttributes: [ParsedAttribute] = []
-        templateLoader.loadGenerateFileStub = { filePath, attributes in
-            if filePath == sourcePath.appending(component: "a") {
-                parsedAttributes = attributes
-            } else {
-                XCTFail("unexpected path \(filePath)")
-            }
-            return ""
-        }
-        templateLoader.loadTemplateStub = { _ in
-            Template(description: "",
-                     attributes: [.required("name")],
-                     files: [(path: RelativePath("a"),
-                              contents: .generated(sourcePath.appending(component: "a")))])
-        }
-        let expectedParsedAttributes: [ParsedAttribute] = [ParsedAttribute(name: "name", value: "attribute name")]
+        let expectedContents = "attribute name content"
+        try FileHandler.shared.write(expectedContents,
+                                     path: sourcePath.appending(component: "a"),
+                                     atomically: true)
+        let template = Template.test(files: [Template.File(path: RelativePath("a"),
+                                                           contents: .file(sourcePath.appending(component: "a")))])
 
         // When
-        try subject.generate(at: sourcePath,
+        try subject.generate(template: template,
                              to: destinationPath,
-                             attributes: ["--name", "attribute name"])
+                             attributes: ["name": "attribute name"])
 
         // Then
-        XCTAssertEqual(parsedAttributes, expectedParsedAttributes)
+        XCTAssertEqual(try FileHandler.shared.readTextFile(destinationPath.appending(component: "a")),
+                       expectedContents)
     }
 }

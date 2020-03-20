@@ -4,19 +4,6 @@ import TuistSupport
 import TuistCore
 import struct Stencil.Environment
 
-enum TemplateGeneratorError: FatalError, Equatable {
-    var type: ErrorType { .abort }
-
-    case attributeNotFound(String)
-
-    var description: String {
-        switch self {
-        case let .attributeNotFound(attribute):
-            return "You must provide \(attribute) attribute"
-        }
-    }
-}
-
 /// Interface for generating content defined in template manifest
 public protocol TemplateGenerating {
     /// Generate files for template manifest at `path`
@@ -64,10 +51,12 @@ public final class TemplateGenerator: TemplateGenerating {
         try renderedFiles
             .map(\.path)
             .map {
-                destinationPath.appending(component: $0.dirname)
+                destinationPath.appending(RelativePath($0.dirname))
             }
-            .filter { !FileHandler.shared.exists($0) }
-            .forEach(FileHandler.shared.createFolder)
+            .forEach {
+                guard !FileHandler.shared.exists($0) else { return }
+                try FileHandler.shared.createFolder($0)
+            }
     }
 
     /// Generate all `renderedFiles`

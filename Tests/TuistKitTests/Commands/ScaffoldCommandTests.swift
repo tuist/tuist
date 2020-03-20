@@ -17,15 +17,18 @@ final class ScaffoldCommandTests: TuistUnitTestCase {
     var parser: ArgumentParser!
     var templateLoader: MockTemplateLoader!
     var templatesDirectoryLocator: MockTemplatesDirectoryLocator!
+    var templateGenerator: TemplateGenerating!
 
     override func setUp() {
         super.setUp()
         parser = ArgumentParser.test()
         templateLoader = MockTemplateLoader()
         templatesDirectoryLocator = MockTemplatesDirectoryLocator()
+        templateGenerator = MockTemplateGenerator()
         subject = ScaffoldCommand(parser: parser,
                                   templateLoader: templateLoader,
-                                  templatesDirectoryLocator: templatesDirectoryLocator)
+                                  templatesDirectoryLocator: templatesDirectoryLocator,
+                                  templateGenerator: templateGenerator)
     }
 
     override func tearDown() {
@@ -33,6 +36,7 @@ final class ScaffoldCommandTests: TuistUnitTestCase {
         subject = nil
         templateLoader = nil
         templatesDirectoryLocator = nil
+        templateGenerator = nil
         super.tearDown()
     }
 
