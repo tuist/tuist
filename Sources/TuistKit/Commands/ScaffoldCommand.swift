@@ -15,7 +15,7 @@ enum ScaffoldCommandError: FatalError, Equatable {
     var description: String {
         switch self {
         case let .templateNotFound(template):
-            return "Could not find template \(template)"
+            return "Could not find template \(template). Make sure it exists at Tuist/Templates/\(template)"
         case .templateNotProvided:
             return "You must provide template name"
         case let .nonEmptyDirectory(path):
