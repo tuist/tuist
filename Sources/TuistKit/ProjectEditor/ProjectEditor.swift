@@ -80,7 +80,7 @@ final class ProjectEditor: ProjectEditing {
             helpers = FileHandler.shared.glob(helpersDirectory, glob: "**/*.swift")
         }
         var templates: [AbsolutePath] = []
-        if let templatesDirectory = templatesDirectoryLocator.locateCustom(at: at) {
+        if let templatesDirectory = templatesDirectoryLocator.locateUserTemplates(at: at) {
             templates = FileHandler.shared.glob(templatesDirectory, glob: "**/*.swift")
         }
 
