@@ -1,0 +1,95 @@
+import Basic
+import Foundation
+import TuistSupport
+import TuistCore
+import struct Stencil.Environment
+
+enum TemplateGeneratorError: FatalError, Equatable {
+    var type: ErrorType { .abort }
+
+    case attributeNotFound(String)
+
+    var description: String {
+        switch self {
+        case let .attributeNotFound(attribute):
+            return "You must provide \(attribute) attribute"
+        }
+    }
+}
+
+/// Interface for generating content defined in template manifest
+public protocol TemplateGenerating {
+    /// Generate files for template manifest at `path`
+    /// - Parameters:
+    ///     - destinationPath: Path of directory where files should be generated to
+    ///     - attributes: Attributes from user input
+    func generate(template: Template,
+                  to destinationPath: AbsolutePath,
+                  attributes: [String: String]) throws
+}
+
+public final class TemplateGenerator: TemplateGenerating {
+    // Public initializer
+    public init() { }
+    
+    public func generate(template: Template,
+                         to destinationPath: AbsolutePath,
+                         attributes: [String: String]) throws {
+        let renderedFiles = renderFiles(template: template,
+                                        attributes: attributes)
+        try generateDirectories(renderedFiles: renderedFiles,
+                                destinationPath: destinationPath)
+        
+        try generateFiles(renderedFiles: renderedFiles,
+                          attributes: attributes,
+                          destinationPath: destinationPath)
+    }
+
+    // MARK: - Helpers
+    
+    /// Renders files' paths in format  path_to_dir/{{ attribute_name }} with `attributes`
+    private func renderFiles(template: Template,
+                             attributes: [String: String]) -> [Template.File] {
+        attributes.reduce(template.files) { files, attribute in
+            files.map {
+                let path = RelativePath($0.path.pathString.replacingOccurrences(of: "{{ \(attribute.key) }}", with: attribute.value))
+                return Template.File(path: path, contents: $0.contents)
+            }
+        }
+    }
+
+    /// Generate all necessary directories
+    private func generateDirectories(renderedFiles: [Template.File],
+                                     destinationPath: AbsolutePath) throws {
+        try renderedFiles
+            .map(\.path)
+            .map {
+                destinationPath.appending(component: $0.dirname)
+            }
+            .filter { !FileHandler.shared.exists($0) }
+            .forEach(FileHandler.shared.createFolder)
+    }
+
+    /// Generate all `renderedFiles`
+    private func generateFiles(renderedFiles: [Template.File],
+                               attributes: [String: String],
+                               destinationPath: AbsolutePath) throws {
+        let environment = Environment()
+        try renderedFiles.forEach {
+            let renderedContents: String
+            switch $0.contents {
+            case let .string(contents):
+                renderedContents = try environment.renderTemplate(string: contents,
+                                                                  context: attributes)
+            case let .file(path):
+                let fileContents = try FileHandler.shared.readTextFile(path)
+                renderedContents = try environment.renderTemplate(string: fileContents,
+                                                                  context: attributes)
+            }
+            
+            try FileHandler.shared.write(renderedContents,
+                                         path: destinationPath.appending($0.path),
+                                         atomically: true)
+        }
+    }
+}
