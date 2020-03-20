@@ -17,7 +17,7 @@ final class ScaffoldCommandTests: TuistUnitTestCase {
     var parser: ArgumentParser!
     var templateLoader: MockTemplateLoader!
     var templatesDirectoryLocator: MockTemplatesDirectoryLocator!
-    var templateGenerator: TemplateGenerating!
+    var templateGenerator: MockTemplateGenerator!
 
     override func setUp() {
         super.setUp()
@@ -97,5 +97,82 @@ final class ScaffoldCommandTests: TuistUnitTestCase {
         // Then
         XCTAssertThrowsError(try subject.parse(with: parser,
                                                arguments: [ScaffoldCommand.command, "template", "--name", "Test"]))
+    }
+    
+    func test_fails_when_required_attribute_not_provided() throws {
+        // Given
+        templateLoader.loadTemplateStub = { _ in
+            Template.test(attributes: [.required("required")])
+        }
+        
+        templatesDirectoryLocator.templateDirectoriesStub = { _ in
+            [try self.temporaryPath().appending(component: "template")]
+        }
+        
+        let arguments = [ScaffoldCommand.command, "template"]
+        _ = try subject.parse(with: parser, arguments: arguments)
+        
+        // When
+        let result = try parser.parse(arguments)
+        
+        // Then
+        XCTAssertThrowsSpecific(try subject.run(with: result),
+                                ScaffoldCommandError.attributeNotProvided("required"))
+    }
+    
+    func test_optional_attribute_is_taken_from_template() throws {
+        // Given
+        templateLoader.loadTemplateStub = { _ in
+            Template.test(attributes: [.optional("optional", default: "optionalValue")])
+        }
+        
+        templatesDirectoryLocator.templateDirectoriesStub = { _ in
+            [try self.temporaryPath().appending(component: "template")]
+        }
+        
+        var generateAttributes: [String: String] = [:]
+        templateGenerator.generateStub = { _, _, attributes in
+            generateAttributes = attributes
+        }
+        
+        let arguments = [ScaffoldCommand.command, "template"]
+        _ = try subject.parse(with: parser, arguments: arguments)
+        let result = try parser.parse(arguments)
+        
+        // When
+        try subject.run(with: result)
+        
+        // Then
+        XCTAssertEqual(["optional": "optionalValue"],
+                       generateAttributes)
+    }
+    
+    func test_attributes_are_passed_to_generator() throws {
+        // Given
+        templateLoader.loadTemplateStub = { _ in
+            Template.test(attributes: [.optional("optional", default: ""),
+                                       .required("required")])
+        }
+        
+        templatesDirectoryLocator.templateDirectoriesStub = { _ in
+            [try self.temporaryPath().appending(component: "template")]
+        }
+        
+        var generateAttributes: [String: String] = [:]
+        templateGenerator.generateStub = { _, _, attributes in
+            generateAttributes = attributes
+        }
+        
+        let arguments = [ScaffoldCommand.command, "template", "--optional", "optionalValue", "--required", "requiredValue"]
+        _ = try subject.parse(with: parser, arguments: arguments)
+        let result = try parser.parse(arguments)
+        
+        // When
+        try subject.run(with: result)
+        
+        // Then
+        XCTAssertEqual(["optional": "optionalValue",
+                        "required": "requiredValue"],
+                       generateAttributes)
     }
 }

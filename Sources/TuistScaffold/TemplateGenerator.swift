@@ -8,6 +8,7 @@ import struct Stencil.Environment
 public protocol TemplateGenerating {
     /// Generate files for template manifest at `path`
     /// - Parameters:
+    ///     - template: Template we are generating
     ///     - destinationPath: Path of directory where files should be generated to
     ///     - attributes: Attributes from user input
     func generate(template: Template,
