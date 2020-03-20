@@ -12,8 +12,12 @@ public protocol TemplatesDirectoryLocating {
 }
 
 public final class TemplatesDirectoryLocator: TemplatesDirectoryLocating {
+    private let rootDirectoryLocator: RootDirectoryLocating
+    
     /// Default constructor.
-    public init() {}
+    public init(rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator.shared) {
+        self.rootDirectoryLocator = rootDirectoryLocator
+    }
 
     // MARK: - TemplatesDirectoryLocating
 
@@ -32,7 +36,7 @@ public final class TemplatesDirectoryLocator: TemplatesDirectoryLocating {
     // MARK: - Helpers
 
     private func locate(from path: AbsolutePath) -> AbsolutePath? {
-        guard let rootDirectory = RootDirectoryLocator.shared.locate(from: path) else { return nil }
+        guard let rootDirectory = rootDirectoryLocator.locate(from: path) else { return nil }
         return rootDirectory.appending(components: Constants.tuistDirectoryName, Constants.templatesDirectoryName)
     }
 }

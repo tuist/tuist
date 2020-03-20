@@ -12,8 +12,7 @@ final class TemplatesDirectoryLocatorIntegrationTests: TuistTestCase {
 
     override func setUp() {
         super.setUp()
-        RootDirectoryLocator.shared = RootDirectoryLocator()
-        subject = TemplatesDirectoryLocator()
+        subject = TemplatesDirectoryLocator(rootDirectoryLocator: RootDirectoryLocator())
     }
 
     override func tearDown() {
