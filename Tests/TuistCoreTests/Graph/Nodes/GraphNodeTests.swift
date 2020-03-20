@@ -16,8 +16,8 @@ final class GraphNodeTests: XCTestCase {
         let c2 = TargetNode(project: .test(path: "/path/c"),
                             target: .test(name: "c2"),
                             dependencies: [])
-        let d = LibraryNode(path: "/path/a", publicHeaders: "/path/to/headers")
-        let e = LibraryNode(path: "/path/c", publicHeaders: "/path/to/headers")
+        let d = LibraryNode(path: "/path/a", publicHeaders: "/path/to/headers", architectures: [.arm64], linking: .static)
+        let e = LibraryNode(path: "/path/c", publicHeaders: "/path/to/headers", architectures: [.arm64], linking: .static)
 
         // When
         var set = Set<GraphNode>()
@@ -48,7 +48,7 @@ final class GraphNodeTests: XCTestCase {
         // Given
         let a = GraphNode(path: "/a", name: "a")
         let b = TargetNode(project: .test(path: "/a"), target: .test(), dependencies: [])
-        let c = LibraryNode(path: "/a", publicHeaders: "/path/to/headers")
+        let c = LibraryNode(path: "/a", publicHeaders: "/path/to/headers", architectures: [.arm64], linking: .static)
 
         // When / Then
         let all = [a, b, c]

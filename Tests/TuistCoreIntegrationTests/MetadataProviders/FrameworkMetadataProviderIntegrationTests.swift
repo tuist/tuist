@@ -23,10 +23,9 @@ final class FrameworkMetadataProviderIntegrationTests: TuistTestCase {
         // Given
         let carthagePath = try temporaryFixture("Carthage/")
         let frameworkPath = FileHandler.shared.glob(carthagePath, glob: "*.framework").first!
-        let framework = FrameworkNode(path: frameworkPath)
 
         // When
-        let got = try subject.bcsymbolmapPaths(framework: framework).sorted()
+        let got = try subject.bcsymbolmapPaths(frameworkPath: frameworkPath).sorted()
 
         // Then
         XCTAssertEqual(got, [
@@ -39,10 +38,9 @@ final class FrameworkMetadataProviderIntegrationTests: TuistTestCase {
         // Given
         let carthagePath = try temporaryFixture("Carthage/")
         let frameworkPath = FileHandler.shared.glob(carthagePath, glob: "*.framework").first!
-        let framework = FrameworkNode(path: frameworkPath)
 
         // When
-        let got = subject.dsymPath(framework: framework)
+        let got = subject.dsymPath(frameworkPath: frameworkPath)
 
         // Then
         XCTAssertTrue(got == carthagePath.appending(component: "\(frameworkPath.basename).dSYM"))

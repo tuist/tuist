@@ -1,5 +1,6 @@
 import Basic
 import TuistCore
+import TuistCoreTesting
 import TuistSupport
 import XcodeProj
 import XCTest
@@ -59,7 +60,14 @@ final class StableXcodeProjIntegrationTests: TuistTestCase {
         let subject = DescriptorGenerator()
         let writer = XcodeProjWriter()
         let linter = GraphLinter()
-        let graphLoader = GraphLoader(modelLoader: try createModelLoader())
+        let frameworkNodeLoader = MockFrameworkNodeLoader()
+        let libraryNodeLoader = MockLibraryNodeLoader()
+        let xcframeworkNodeLoader = MockXCFrameworkNodeLoader()
+
+        let graphLoader = GraphLoader(modelLoader: try createModelLoader(),
+                                      frameworkNodeLoader: frameworkNodeLoader,
+                                      xcframeworkNodeLoader: xcframeworkNodeLoader,
+                                      libraryNodeLoader: libraryNodeLoader)
 
         let (graph, workspace) = try graphLoader.loadWorkspace(path: path)
         try linter.lint(graph: graph).printAndThrowIfNeeded()

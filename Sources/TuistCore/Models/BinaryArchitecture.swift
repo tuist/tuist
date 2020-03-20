@@ -8,6 +8,6 @@ public enum BinaryArchitecture: String, Codable {
     case arm64
 }
 
-public enum BinaryLinking: String {
+public enum BinaryLinking: String, Codable {
     case `static`, dynamic
 }

@@ -22,10 +22,9 @@ final class PrecompiledMetadataProviderIntegrationTests: TuistTestCase {
     func test_architectures() throws {
         // Given
         let frameworkPath = try temporaryFixture("xpm.framework")
-        let framework = FrameworkNode(path: frameworkPath)
 
         // When
-        let got = try subject.architectures(precompiled: framework)
+        let got = try subject.architectures(binaryPath: FrameworkNode.binaryPath(frameworkPath: frameworkPath))
 
         // Then
         XCTAssertEqual(got.map(\.rawValue).sorted(), ["arm64", "x86_64"])
@@ -34,10 +33,9 @@ final class PrecompiledMetadataProviderIntegrationTests: TuistTestCase {
     func test_uuids() throws {
         // Given
         let frameworkPath = try temporaryFixture("xpm.framework")
-        let framework = FrameworkNode(path: frameworkPath)
 
         // When
-        let got = try subject.uuids(precompiled: framework)
+        let got = try subject.uuids(binaryPath: FrameworkNode.binaryPath(frameworkPath: frameworkPath))
 
         // Then
         let expected = Set([
