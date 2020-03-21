@@ -8,8 +8,6 @@ let project = Project(name: "App",
                                  bundleId: "io.tuist.SignApp",
                                  infoPlist: "Info.plist",
                                  sources: "App/**",
-                                 dependencies: [],
-                                 settings: Settings(base: ["CODE_SIGN_IDENTITY": "",
-                                                           "CODE_SIGNING_REQUIRED": "NO"]))
+                                 dependencies: []))
                         ]
 )
