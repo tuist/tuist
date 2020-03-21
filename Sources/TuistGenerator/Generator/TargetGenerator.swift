@@ -12,12 +12,12 @@ protocol TargetGenerating: AnyObject {
                         fileElements: ProjectFileElements,
                         path: AbsolutePath,
                         sourceRootPath: AbsolutePath,
-                        graph: Graphing) throws -> PBXNativeTarget
+                        graph: Graph) throws -> PBXNativeTarget
 
     func generateTargetDependencies(path: AbsolutePath,
                                     targets: [Target],
                                     nativeTargets: [String: PBXNativeTarget],
-                                    graph: Graphing) throws
+                                    graph: Graph) throws
 }
 
 final class TargetGenerator: TargetGenerating {
@@ -50,7 +50,7 @@ final class TargetGenerator: TargetGenerating {
                         fileElements: ProjectFileElements,
                         path: AbsolutePath,
                         sourceRootPath: AbsolutePath,
-                        graph: Graphing) throws -> PBXNativeTarget {
+                        graph: Graph) throws -> PBXNativeTarget {
         /// Products reference.
         let productFileReference = fileElements.products[target.name]!
 
@@ -111,7 +111,7 @@ final class TargetGenerator: TargetGenerating {
     func generateTargetDependencies(path: AbsolutePath,
                                     targets: [Target],
                                     nativeTargets: [String: PBXNativeTarget],
-                                    graph: Graphing) throws {
+                                    graph: Graph) throws {
         try targets.forEach { targetSpec in
             let dependencies = graph.targetDependencies(path: path, name: targetSpec.name)
             try dependencies.forEach { dependency in

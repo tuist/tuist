@@ -8,11 +8,11 @@ import TuistCore
 /// static products are linked multiple times.
 ///
 protocol StaticProductsGraphLinting {
-    func lint(graph: Graphing) -> [LintingIssue]
+    func lint(graph: Graph) -> [LintingIssue]
 }
 
 class StaticProductsGraphLinter: StaticProductsGraphLinting {
-    func lint(graph: Graphing) -> [LintingIssue] {
+    func lint(graph: Graph) -> [LintingIssue] {
         let nodes = graph.entryNodes
         return warnings(in: nodes)
             .sorted()

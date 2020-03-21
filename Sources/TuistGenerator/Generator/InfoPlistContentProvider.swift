@@ -13,7 +13,7 @@ protocol InfoPlistContentProviding {
     ///   - target: Target whose Info.plist content will be returned.
     ///   - extendedWith: Values provided by the user to extend the default ones.
     /// - Returns: Content to generate the Info.plist file.
-    func content(graph: Graphing, project: Project, target: Target, extendedWith: [String: InfoPlist.Value]) -> [String: Any]?
+    func content(graph: Graph, project: Project, target: Target, extendedWith: [String: InfoPlist.Value]) -> [String: Any]?
 }
 
 final class InfoPlistContentProvider: InfoPlistContentProviding {
@@ -27,7 +27,7 @@ final class InfoPlistContentProvider: InfoPlistContentProviding {
     ///   - target: Target whose Info.plist content will be returned.
     ///   - extendedWith: Values provided by the user to extend the default ones.
     /// - Returns: Content to generate the Info.plist file.
-    func content(graph: Graphing, project: Project, target: Target, extendedWith: [String: InfoPlist.Value]) -> [String: Any]? {
+    func content(graph: Graph, project: Project, target: Target, extendedWith: [String: InfoPlist.Value]) -> [String: Any]? {
         if target.product == .staticLibrary || target.product == .dynamicLibrary {
             return nil
         }
