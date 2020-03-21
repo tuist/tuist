@@ -22,6 +22,9 @@ public final class MockManifestLoader: ManifestLoading {
     public var loadConfigCount: UInt = 0
     public var loadConfigStub: ((AbsolutePath) throws -> ProjectDescription.Config)?
 
+    public var loadTemplateCount: UInt = 0
+    public var loadTemplateStub: ((AbsolutePath) throws -> ProjectDescription.Template)?
+
     public init() {}
 
     public func loadProject(at path: AbsolutePath) throws -> ProjectDescription.Project {
@@ -50,5 +53,10 @@ public final class MockManifestLoader: ManifestLoading {
     public func loadConfig(at path: AbsolutePath) throws -> Config {
         loadConfigCount += 1
         return try loadConfigStub?(path) ?? ProjectDescription.Config.test()
+    }
+
+    public func loadTemplate(at path: AbsolutePath) throws -> Template {
+        loadTemplateCount += 1
+        return try loadTemplateStub?(path) ?? ProjectDescription.Template.test()
     }
 }

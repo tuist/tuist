@@ -8,6 +8,7 @@ protocol ProjectEditorMapping: AnyObject {
              sourceRootPath: AbsolutePath,
              manifests: [AbsolutePath],
              helpers: [AbsolutePath],
+             templates: [AbsolutePath],
              projectDescriptionPath: AbsolutePath) -> (Project, Graph)
 }
 
@@ -17,6 +18,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
              sourceRootPath: AbsolutePath,
              manifests: [AbsolutePath],
              helpers: [AbsolutePath],
+             templates: [AbsolutePath],
              projectDescriptionPath: AbsolutePath) -> (Project, Graph) {
         // Settings
         let projectSettings = Settings(base: [:],
@@ -32,6 +34,9 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         if !helpers.isEmpty {
             manifestsDependencies = [.target(name: "ProjectDescriptionHelpers")]
         }
+        if !templates.isEmpty {
+            manifestsDependencies.append(.target(name: "Templates"))
+        }
         let manifestsTarget = Target(name: "Manifests",
                                      platform: .macOS,
                                      product: .staticFramework,
@@ -43,18 +48,21 @@ final class ProjectEditorMapper: ProjectEditorMapping {
                                      dependencies: manifestsDependencies)
         var helpersTarget: Target?
         if !helpers.isEmpty {
-            helpersTarget = Target(name: "ProjectDescriptionHelpers",
-                                   platform: .macOS,
-                                   product: .staticFramework,
-                                   productName: "ProjectDescriptionHelpers",
-                                   bundleId: "io.tuist.${PRODUCT_NAME:rfc1034identifier}",
-                                   settings: targetSettings,
-                                   sources: helpers.map { (path: $0, compilerFlags: nil) },
-                                   filesGroup: .group(name: "Manifests"))
+            helpersTarget = Target.editorHelperTarget(name: "ProjectDescriptionHelpers",
+                                                      targetSettings: targetSettings,
+                                                      sourcePaths: helpers)
         }
+        var templatesTarget: Target?
+        if !templates.isEmpty {
+            templatesTarget = Target.editorHelperTarget(name: "Templates",
+                                                        targetSettings: targetSettings,
+                                                        sourcePaths: templates)
+        }
+
         var targets: [Target] = []
         targets.append(manifestsTarget)
         if let helpersTarget = helpersTarget { targets.append(helpersTarget) }
+        if let templatesTarget = templatesTarget { targets.append(templatesTarget) }
 
         // Run Scheme
         let buildAction = BuildAction(targets: targets.map { TargetReference(projectPath: sourceRootPath, name: $0.name) })
@@ -81,6 +89,11 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             cache.add(targetNode: helpersNode)
             dependencies.append(helpersNode)
         }
+        if let templatesTarget = templatesTarget {
+            let templatesNode = TargetNode(project: project, target: templatesTarget, dependencies: [])
+            cache.add(targetNode: templatesNode)
+            dependencies.append(templatesNode)
+        }
         cache.add(targetNode: TargetNode(project: project, target: manifestsTarget, dependencies: dependencies))
 
         // Project
@@ -97,5 +110,21 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         buildSettings["SWIFT_INCLUDE_PATHS"] = .string(frameworkParentDirectory.pathString)
         buildSettings["SWIFT_VERSION"] = .string(Constants.swiftVersion)
         return buildSettings
+    }
+}
+
+private extension Target {
+    /// Target for edit project
+    static func editorHelperTarget(name: String,
+                                   targetSettings: Settings,
+                                   sourcePaths: [AbsolutePath]) -> Target {
+        Target(name: name,
+               platform: .macOS,
+               product: .staticFramework,
+               productName: name,
+               bundleId: "io.tuist.${PRODUCT_NAME:rfc1034identifier}",
+               settings: targetSettings,
+               sources: sourcePaths.map { (path: $0, compilerFlags: nil) },
+               filesGroup: .group(name: "Manifests"))
     }
 }

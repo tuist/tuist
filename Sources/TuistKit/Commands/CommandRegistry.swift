@@ -19,6 +19,7 @@ public final class CommandRegistry {
         self.init(errorHandler: ErrorHandler(),
                   processArguments: CommandRegistry.processArguments)
         register(command: InitCommand.self)
+        register(command: ScaffoldCommand.self)
         register(command: GenerateCommand.self)
         register(command: DumpCommand.self)
         register(command: VersionCommand.self)
@@ -75,7 +76,10 @@ public final class CommandRegistry {
 
                 // Normal command
             } else {
-                let parsedArguments = try parse()
+                guard let parsedArguments = try parse() else {
+                    parser.printUsage(on: stdoutStream)
+                    return
+                }
                 try process(arguments: parsedArguments)
             }
         } catch let error as FatalError {
@@ -100,8 +104,13 @@ public final class CommandRegistry {
         return arguments[1]
     }
 
-    private func parse() throws -> ArgumentParser.Result {
+    private func parse() throws -> ArgumentParser.Result? {
         let arguments = Array(processArguments().dropFirst())
+        guard let argumentName = arguments.first else { return nil }
+        let subparser = try parser.parse([argumentName]).subparser(parser)
+        if let command = commands.first(where: { type(of: $0).command == subparser }) {
+            return try command.parse(with: parser, arguments: arguments)
+        }
         return try parser.parse(arguments)
     }
 

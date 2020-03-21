@@ -1,6 +1,6 @@
 import Basic
 import Foundation
-@testable import TuistLoader
+@testable import TuistCore
 
 public final class MockRootDirectoryLocator: RootDirectoryLocating {
     public var locateArgs: [AbsolutePath] = []

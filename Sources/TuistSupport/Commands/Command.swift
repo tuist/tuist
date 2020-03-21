@@ -19,6 +19,20 @@ public protocol Command {
     /// - Parameter arguments: Result of parsing the arguments that the user passed to the CLI.
     /// - Throws: Errors that are thrown by the underlying command action.
     func run(with arguments: ArgumentParser.Result) throws
+
+    /// If needed, command can do custom parsing
+    /// As default, result from `parser.parse` is used
+    /// - Parameters:
+    ///     - parser: Default parser
+    ///     - argumets: List of arguments that the user passed to the CLI
+    /// - Returns: Result of parsing the arguments that the user passed to the CLI.
+    func parse(with parser: ArgumentParser, arguments: [String]) throws -> ArgumentParser.Result
+}
+
+public extension Command {
+    func parse(with parser: ArgumentParser, arguments: [String]) throws -> ArgumentParser.Result {
+        try parser.parse(arguments)
+    }
 }
 
 /// Protocol that defines the interface of a command that can be executed but that is not exposed from the CLI.

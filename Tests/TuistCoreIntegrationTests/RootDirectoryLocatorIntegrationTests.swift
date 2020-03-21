@@ -1,9 +1,9 @@
 import Basic
 import Foundation
+import TuistCore
 import TuistSupport
 import XCTest
 
-@testable import TuistLoader
 @testable import TuistSupportTesting
 
 final class RootDirectoryLocatorIntegrationTests: TuistTestCase {
