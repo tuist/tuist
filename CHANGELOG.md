@@ -4,7 +4,12 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Removed
+
+- `Graphing` protocol https://github.com/tuist/tuist/pull/1128 by @pepibumur
+
 ### Changed
+
 - Optimize `TargetNode`'s set operations https://github.com/tuist/tuist/pull/1095 by @kwridan
 - Optimize `BuildPhaseGenerator`'s method of detecting assets and localized files https://github.com/tuist/tuist/pull/1094 by @kwridan
 - Concurrent project generation https://github.com/tuist/tuist/pull/1096 by @kwridan
