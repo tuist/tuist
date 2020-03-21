@@ -179,15 +179,23 @@ class ProjectFileElements {
                   sourceRootPath: AbsolutePath,
                   filesGroup: ProjectGroup) throws {
         let sortedDependencies = dependencyReferences.sorted()
+
+        func generatePrecompiled(_ path: AbsolutePath) throws {
+            let fileElement = GroupFileElement(path: path, group: filesGroup)
+            try generate(fileElement: fileElement,
+                         groups: groups,
+                         pbxproj: pbxproj,
+                         sourceRootPath: sourceRootPath)
+        }
+
         try sortedDependencies.forEach { dependency in
             switch dependency {
-            case let .absolute(dependencyPath):
-                let fileElement = GroupFileElement(path: dependencyPath,
-                                                   group: filesGroup)
-                try generate(fileElement: fileElement,
-                             groups: groups,
-                             pbxproj: pbxproj,
-                             sourceRootPath: sourceRootPath)
+            case let .xcframework(metadata):
+                try generatePrecompiled(metadata.path)
+            case let .framework(metadata):
+                try generatePrecompiled(metadata.path)
+            case let .library(metadata):
+                try generatePrecompiled(metadata.path)
             case let .sdk(sdkNodePath, _):
                 generateSDKFileElement(sdkNodePath: sdkNodePath,
                                        toGroup: groups.frameworks,

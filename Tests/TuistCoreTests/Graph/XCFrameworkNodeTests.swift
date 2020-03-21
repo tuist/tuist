@@ -27,27 +27,22 @@ final class XCFrameworkNodeTests: TuistUnitTestCase {
 
         let expected = """
         {
-          "path" : "\\/MyFramework.xcframework",
-          "libraries" : [
-            {
-              "SupportedArchitectures" : [
-                "x86_64"
-              ],
-              "LibraryIdentifier" : "ios-x86_64-simulator",
-              "LibraryPath" : "MyFramework.framework"
-            },
-            {
-              "SupportedArchitectures" : [
-                "arm64"
-              ],
-              "LibraryIdentifier" : "ios-arm64",
-              "LibraryPath" : "MyFramework.framework"
-            }
-          ],
+          "path" : "/MyFramework/MyFramework.xcframework",
           "name" : "MyFramework",
-          "type" : "precompiled"
+          "type" : "xcframework",
+          "linking": "dynamic",
+          "info_plist" : {
+            "AvailableLibraries" : [
+              {
+                "SupportedArchitectures" : [
+                  "i386"
+                ],
+                "LibraryIdentifier" : "test",
+                "LibraryPath" : "relative/to/library"
+              }
+            ]
+          }
         }
-
         """
 
         // Then

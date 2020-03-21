@@ -1,5 +1,6 @@
 import Basic
 import TuistCore
+import TuistCoreTesting
 import TuistSupport
 import XcodeProj
 import XCTest
@@ -8,7 +9,7 @@ import XCTest
 @testable import TuistSupport
 @testable import TuistSupportTesting
 
-final class StableXcodeProjIntegrationTests: TuistUnitTestCase {
+final class StableXcodeProjIntegrationTests: TuistTestCase {
     override func setUp() {
         super.setUp()
 
@@ -59,7 +60,14 @@ final class StableXcodeProjIntegrationTests: TuistUnitTestCase {
         let subject = DescriptorGenerator()
         let writer = XcodeProjWriter()
         let linter = GraphLinter()
-        let graphLoader = GraphLoader(modelLoader: try createModelLoader())
+        let frameworkNodeLoader = MockFrameworkNodeLoader()
+        let libraryNodeLoader = MockLibraryNodeLoader()
+        let xcframeworkNodeLoader = MockXCFrameworkNodeLoader()
+
+        let graphLoader = GraphLoader(modelLoader: try createModelLoader(),
+                                      frameworkNodeLoader: frameworkNodeLoader,
+                                      xcframeworkNodeLoader: xcframeworkNodeLoader,
+                                      libraryNodeLoader: libraryNodeLoader)
 
         let (graph, workspace) = try graphLoader.loadWorkspace(path: path)
         try linter.lint(graph: graph).printAndThrowIfNeeded()

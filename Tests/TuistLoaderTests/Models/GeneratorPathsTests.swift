@@ -4,6 +4,7 @@ import TuistSupport
 import XCTest
 
 @testable import ProjectDescription
+@testable import TuistCoreTesting
 @testable import TuistLoader
 @testable import TuistLoaderTesting
 @testable import TuistSupportTesting

@@ -1,0 +1,50 @@
+import Basic
+import Foundation
+import TuistCore
+import TuistSupport
+import XCTest
+
+@testable import TuistGenerator
+@testable import TuistSupportTesting
+
+final class EmbedScriptGeneratorTests: TuistUnitTestCase {
+    var subject: EmbedScriptGenerator!
+
+    override func setUp() {
+        super.setUp()
+        subject = EmbedScriptGenerator()
+    }
+
+    override func tearDown() {
+        super.tearDown()
+        subject = nil
+    }
+
+    func test_script() throws {
+        // Given
+        let path = AbsolutePath("/frameworks/tuist.framework")
+        let dsymPath = AbsolutePath("/frameworks/tuist.dSYM")
+        let bcsymbolPath = AbsolutePath("/frameworks/tuist.bcsymbolmap")
+        let framework = GraphDependencyReference.testFramework(path: path,
+                                                               binaryPath: path.appending(component: "tuist"),
+                                                               dsymPath: dsymPath,
+                                                               bcsymbolmapPaths: [bcsymbolPath])
+        // When
+        let got = try subject.script(sourceRootPath: framework.path!.parentDirectory, frameworkReferences: [framework])
+
+        // Then
+        XCTAssertEqual(got.inputPaths, [
+            RelativePath(path.basename),
+            RelativePath(dsymPath.basename),
+            RelativePath(bcsymbolPath.basename),
+        ])
+        XCTAssertEqual(got.outputPaths, [
+            "${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/\(path.basename)",
+            "${DWARF_DSYM_FOLDER_PATH}/tuist.dSYM", "${BUILT_PRODUCTS_DIR}/\(bcsymbolPath.basename)",
+        ])
+
+        XCTAssertTrue(got.script.contains("install_framework \"\(path.basename)\""))
+        XCTAssertTrue(got.script.contains("install_dsym \"\(dsymPath.basename)\""))
+        XCTAssertTrue(got.script.contains("install_bcsymbolmap \"\(bcsymbolPath.basename)\""))
+    }
+}

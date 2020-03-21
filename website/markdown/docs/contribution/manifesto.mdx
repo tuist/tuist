@@ -87,3 +87,64 @@ And last but not least,
 our test cases should contemplate failing scenarios.
 Not only they ensure that we are handling errors as we are supposed to,
 but prevent future developers from breaking that logic.
+
+## 7. Write code for humans
+
+The code that we write can make a huge difference between a buggy and unmaintainable code base, 
+and a stable and maintainable one.
+Write beautiful and concise code that is **easy to read and understand**.
+Leverage the abstractions and primitives provided by the programming language, 
+Swift,
+to create a solid structure made of simple pieces with scoped responsibilities.
+Don't add code to Tuist that reads like a long and mysterious bash script.
+The programming patterns and paradigms that you might apply when building apps might apply to CLI too.
+In fact, a pattern like MVP, is also valid in the context of CLIs with the difference that the view is the CLI output *(chunks of data sent through the standard output and error)*.
+
+
+Code that reads like a book encourages contributions, 
+and contributions bring new ideas to the table that 
+
+
+
+We write code not just to be understood by the computer or other programmers, but to bask in the warm glow of beauty. Aesthetically pleasing code is a value unto itself and should be pursued with vigor. That doesn’t mean that beautiful code always trumps other concerns, but it should have a full seat at the table of priorities.
+
+So what is beautiful code? In Ruby, it’s often somewhere at the intersection between native Ruby idioms and the power of a custom domain-specific language. It’s a fuzzy line, but one well worth trying to dance.
+
+Here’s a simple example from Active Record:
+
+
+    class Project < ApplicationRecord
+      belongs_to :account
+      has_many :participants, class_name: 'Person'
+      validates_presence_of :name
+    end
+This looks like DSL, but it’s really just a class definition with three class-method calls that take symbols and options. There’s nothing fancy here. But it sure is pretty. It sure is simple. It gives an immense amount of power and flexibility from those few declarations.
+
+Part of the beauty comes from these calls honoring the previous principles, like Convention over Configuration. When we call belongs_to :account, we’re assuming that the foreign key is called account_id and that it lives in the projects table. When we have to designate the class_name of Person to the role of the participants association, we require just that class name definition. From it we’ll derive, again, the foreign keys and other configuration points.
+
+Here’s another example from the database migrations system:
+
+
+    class CreateAccounts < ActiveRecord::Migration
+      def change
+        create_table :accounts do |t|
+          t.integer :queenbee_id
+          t.timestamps
+        end
+      end
+    end
+This is the essence of framework power. The programmer declares a class according to certain convention, like a ActiveRecord::Migration subclass that implements #change, and the framework can do all the plumbing that goes around that, and know this is the method to call.
+
+This leaves the programmer with very little code to write. In the case of migrations, not only will this allow a call to rails db:migrate to upgrade the database to add this new table, it’ll also allow it to go the other way of dropping this table with another call. This is very different from a programmer making all this happen and stitching the workflow together from libraries they call themselves.
+
+Sometimes beautiful code is more subtle, though. It’s less about making something as short or powerful as possible, but more about making the rhythm of the declaration flow.
+
+These two statements do the same:
+
+
+    if people.include? person
+      …
+
+    if person.in? people
+But the flow and focus is subtlety different. In the first statement, the focus is on the collection. That’s our subject. In the second statement, the subject is clearly the person. There’s not much between the two statements in length, but I’ll contend that the second is far more beautiful and likely to make me smile when used in a spot where the condition is about the person.
+

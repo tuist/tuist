@@ -6,6 +6,7 @@ import { Location } from '@reach/router'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faGithub } from '@fortawesome/free-brands-svg-icons'
 import { faSlack } from '@fortawesome/free-brands-svg-icons'
+import { faDiscourse } from '@fortawesome/free-brands-svg-icons'
 import logo from '../../static/logo.svg'
 
 const ColorButton = ({ mode, ...props }) => (
@@ -74,12 +75,13 @@ export default ({ menuOpen, setMenuOpen, menuRef }) => {
   }
   const {
     site: {
-      siteMetadata: { githubUrl, slackUrl, firstDocumentationPagePath },
+      siteMetadata: { githubUrl, discourseUrl, slackUrl, firstDocumentationPagePath },
     },
   } = useStaticQuery(graphql`
     query {
       site {
         siteMetadata {
+          discourseUrl
           githubUrl
           slackUrl
           firstDocumentationPagePath
@@ -187,7 +189,7 @@ export default ({ menuOpen, setMenuOpen, menuRef }) => {
                 </Link>
                 </div>
 
-                <div sx={{ flexDirection: 'row', display: 'flex' }}>
+                <div sx={{ flexDirection: 'row', display: 'flex', mt: [3, 0] }}>
                   <a
                     sx={{
                       ...linkStyle,
@@ -203,6 +205,24 @@ export default ({ menuOpen, setMenuOpen, menuRef }) => {
                     <FontAwesomeIcon
                       sx={{ mt: -1, path: { fill: theme.colors.text }, "&:hover": { path: { fill: theme.colors.primary } } }}
                       icon={faGithub}
+                      size="lg"
+                    />
+                  </a>
+                  <a
+                    sx={{
+                      ...linkStyle,
+                      ml: 4,
+                      display: 'flex',
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                    }}
+                    target="__blank"
+                    href={discourseUrl}
+                    alt="The project's Discourse"
+                  >
+                    <FontAwesomeIcon
+                      sx={{ mt: -1, path: { fill: theme.colors.text }, "&:hover": { path: { fill: theme.colors.primary } } }}
+                      icon={faDiscourse}
                       size="lg"
                     />
                   </a>

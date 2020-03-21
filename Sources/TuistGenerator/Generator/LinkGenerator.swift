@@ -165,26 +165,31 @@ final class LinkGenerator: LinkGenerating {
         pbxTarget.buildPhases.append(precompiledEmbedPhase)
         pbxTarget.buildPhases.append(embedPhase)
 
-        var precompiledFrameworkPaths: [AbsolutePath] = []
+        var frameworkReferences: [GraphDependencyReference] = []
 
         try dependencies.forEach { dependency in
-            if case let GraphDependencyReference.absolute(path) = dependency {
-                if path.extension == "xcframework" {
-                    guard let fileRef = fileElements.file(path: path) else {
-                        throw LinkGeneratorError.missingReference(path: path)
-                    }
-                    let buildFile = PBXBuildFile(
-                        file: fileRef,
-                        settings: ["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]]
-                    )
-                    pbxproj.add(object: buildFile)
-                    embedPhase.files?.append(buildFile)
-                } else {
-                    precompiledFrameworkPaths.append(path)
+            switch dependency {
+            case .framework:
+                frameworkReferences.append(dependency)
+            case .library:
+                // Do nothing
+                break
+            case let .xcframework(metadata):
+                guard let fileRef = fileElements.file(path: metadata.path) else {
+                    throw LinkGeneratorError.missingReference(path: metadata.path)
                 }
-            } else if case let GraphDependencyReference.product(target, _) = dependency {
-                guard let fileRef = fileElements.product(target: target) else {
-                    throw LinkGeneratorError.missingProduct(name: target)
+                let buildFile = PBXBuildFile(
+                    file: fileRef,
+                    settings: ["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]]
+                )
+                pbxproj.add(object: buildFile)
+                embedPhase.files?.append(buildFile)
+            case .sdk:
+                // Do nothing
+                break
+            case let .product(metadata):
+                guard let fileRef = fileElements.product(target: metadata.target) else {
+                    throw LinkGeneratorError.missingProduct(name: metadata.target)
                 }
                 let buildFile = PBXBuildFile(file: fileRef,
                                              settings: ["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]])
@@ -193,10 +198,10 @@ final class LinkGenerator: LinkGenerating {
             }
         }
 
-        if precompiledFrameworkPaths.isEmpty {
+        if frameworkReferences.isEmpty {
             precompiledEmbedPhase.shellScript = "echo \"Skipping, nothing to be embedded.\""
         } else {
-            let script = try embedScriptGenerator.script(sourceRootPath: sourceRootPath, frameworkPaths: precompiledFrameworkPaths)
+            let script = try embedScriptGenerator.script(sourceRootPath: sourceRootPath, frameworkReferences: frameworkReferences)
             precompiledEmbedPhase.shellScript = script.script
             precompiledEmbedPhase.inputPaths = script.inputPaths.map(\.pathString)
             precompiledEmbedPhase.outputPaths = script.outputPaths
@@ -206,11 +211,8 @@ final class LinkGenerator: LinkGenerating {
     func setupFrameworkSearchPath(dependencies: [GraphDependencyReference],
                                   pbxTarget: PBXTarget,
                                   sourceRootPath: AbsolutePath) throws {
-        let paths = dependencies.compactMap { (dependency: GraphDependencyReference) -> AbsolutePath? in
-            if case let .absolute(path) = dependency { return path }
-            return nil
-        }
-        .map { $0.removingLastComponent() }
+        let paths = dependencies.compactMap { $0.path }
+            .map { $0.removingLastComponent() }
 
         let uniquePaths = Array(Set(paths))
         try setup(setting: "FRAMEWORK_SEARCH_PATHS",
@@ -275,17 +277,25 @@ final class LinkGenerator: LinkGenerating {
         pbxproj.add(object: buildPhase)
         pbxTarget.buildPhases.append(buildPhase)
 
+        func addBuildFile(_ path: AbsolutePath) throws {
+            guard let fileRef = fileElements.file(path: path) else {
+                throw LinkGeneratorError.missingReference(path: path)
+            }
+            let buildFile = PBXBuildFile(file: fileRef)
+            pbxproj.add(object: buildFile)
+            buildPhase.files?.append(buildFile)
+        }
+
         try dependencies
             .sorted()
             .forEach { dependency in
                 switch dependency {
-                case let .absolute(path):
-                    guard let fileRef = fileElements.file(path: path) else {
-                        throw LinkGeneratorError.missingReference(path: path)
-                    }
-                    let buildFile = PBXBuildFile(file: fileRef)
-                    pbxproj.add(object: buildFile)
-                    buildPhase.files?.append(buildFile)
+                case let .framework(metadata):
+                    try addBuildFile(metadata.path)
+                case let .library(metadata):
+                    try addBuildFile(metadata.path)
+                case let .xcframework(metadata):
+                    try addBuildFile(metadata.path)
                 case let .product(target, _):
                     guard let fileRef = fileElements.product(target: target) else {
                         throw LinkGeneratorError.missingProduct(name: target)

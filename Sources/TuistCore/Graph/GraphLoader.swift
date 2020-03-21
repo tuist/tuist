@@ -24,10 +24,32 @@ public class GraphLoader: GraphLoading {
 
     fileprivate let modelLoader: GeneratorModelLoading
 
+    /// Utility to load framework nodes by parsing their information from disk.
+    fileprivate let frameworkNodeLoader: FrameworkNodeLoading
+
+    /// Utility to load xcframework nodes by parsing their information from disk.
+    fileprivate let xcframeworkNodeLoader: XCFrameworkNodeLoading
+
+    /// Utility to load library nodes by parsing their information from disk.
+    fileprivate let libraryNodeLoader: LibraryNodeLoading
+
     // MARK: - Init
 
-    public init(modelLoader: GeneratorModelLoading) {
+    public convenience init(modelLoader: GeneratorModelLoading) {
+        self.init(modelLoader: modelLoader,
+                  frameworkNodeLoader: FrameworkNodeLoader(),
+                  xcframeworkNodeLoader: XCFrameworkNodeLoader(),
+                  libraryNodeLoader: LibraryNodeLoader())
+    }
+
+    public init(modelLoader: GeneratorModelLoading,
+                frameworkNodeLoader: FrameworkNodeLoading,
+                xcframeworkNodeLoader: XCFrameworkNodeLoading,
+                libraryNodeLoader: LibraryNodeLoading) {
         self.modelLoader = modelLoader
+        self.frameworkNodeLoader = frameworkNodeLoader
+        self.xcframeworkNodeLoader = xcframeworkNodeLoader
+        self.libraryNodeLoader = libraryNodeLoader
     }
 
     // MARK: - GraphLoading
@@ -216,7 +238,7 @@ public class GraphLoader: GraphLoading {
     ///   - graphLoaderCache: Graph loader cache.
     fileprivate func loadFrameworkNode(frameworkPath: AbsolutePath, graphLoaderCache: GraphLoaderCaching) throws -> FrameworkNode {
         if let frameworkNode = graphLoaderCache.precompiledNode(frameworkPath) as? FrameworkNode { return frameworkNode }
-        let framewokNode = FrameworkNode(path: frameworkPath)
+        let framewokNode = try frameworkNodeLoader.load(path: frameworkPath)
         graphLoaderCache.add(precompiledNode: framewokNode)
         return framewokNode
     }
@@ -231,26 +253,11 @@ public class GraphLoader: GraphLoading {
                                      swiftModuleMap: AbsolutePath?,
                                      libraryPath: AbsolutePath,
                                      graphLoaderCache: GraphLoaderCaching) throws -> LibraryNode {
-        // TODO: Validate using linters
-        if !FileHandler.shared.exists(libraryPath) {
-            throw GraphLoadingError.missingFile(libraryPath)
-        }
         if let libraryNode = graphLoaderCache.precompiledNode(libraryPath) as? LibraryNode { return libraryNode }
+        let libraryNode = try libraryNodeLoader.load(path: libraryPath,
+                                                     publicHeaders: publicHeaders,
+                                                     swiftModuleMap: swiftModuleMap)
 
-        // TODO: Validate using linters
-        if !FileHandler.shared.exists(publicHeaders) {
-            throw GraphLoadingError.missingFile(publicHeaders)
-        }
-
-        // TODO: Validate using linters
-        if let swiftModuleMap = swiftModuleMap {
-            if !FileHandler.shared.exists(swiftModuleMap) {
-                throw GraphLoadingError.missingFile(swiftModuleMap)
-            }
-        }
-        let libraryNode = LibraryNode(path: libraryPath,
-                                      publicHeaders: publicHeaders,
-                                      swiftModuleMap: swiftModuleMap)
         graphLoaderCache.add(precompiledNode: libraryNode)
         return libraryNode
     }
@@ -276,10 +283,12 @@ public class GraphLoader: GraphLoading {
     /// - Parameters:
     ///   - xcframeworkPath: Path to the .xcframework.
     ///   - graphLoaderCache: Graph loader cache.
-    fileprivate func loadXCFrameworkNode(
-        path: AbsolutePath,
-        graphLoaderCache: GraphLoaderCaching
-    ) throws -> XCFrameworkNode {
-        try XCFrameworkParser.parse(path: path, cache: graphLoaderCache)
+    fileprivate func loadXCFrameworkNode(path: AbsolutePath, graphLoaderCache: GraphLoaderCaching) throws -> XCFrameworkNode {
+        if let cachedXCFramework = graphLoaderCache.precompiledNode(path) as? XCFrameworkNode {
+            return cachedXCFramework
+        }
+        let xcframework = try xcframeworkNodeLoader.load(path: path)
+        graphLoaderCache.add(precompiledNode: xcframework)
+        return xcframework
     }
 }

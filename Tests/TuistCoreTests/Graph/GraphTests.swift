@@ -4,6 +4,7 @@ import TuistSupport
 import XCTest
 
 @testable import TuistCore
+@testable import TuistCoreTesting
 @testable import TuistSupport
 @testable import TuistSupportTesting
 
@@ -22,7 +23,7 @@ final class GraphErrorTests: XCTestCase {
 
 final class GraphTests: TuistUnitTestCase {
     func test_frameworks() throws {
-        let framework = FrameworkNode(path: AbsolutePath("/path/to/framework.framework"))
+        let framework = FrameworkNode.test(path: AbsolutePath("/path/to/framework.framework"))
         let cache = GraphLoaderCache()
         cache.add(precompiledNode: framework)
         let graph = Graph.test(cache: cache)
@@ -78,7 +79,7 @@ final class GraphTests: TuistUnitTestCase {
 
     func test_linkableDependencies_whenPrecompiled() throws {
         let target = Target.test(name: "Main")
-        let precompiledNode = FrameworkNode(path: AbsolutePath("/test/test.framework"))
+        let precompiledNode = FrameworkNode.test(path: AbsolutePath("/test/test.framework"))
         let project = Project.test(targets: [target])
         let targetNode = TargetNode(project: project,
                                     target: target,
@@ -91,7 +92,7 @@ final class GraphTests: TuistUnitTestCase {
                               output: "Architectures in the fat file: Alamofire are: x86_64 arm64")
 
         let got = try graph.linkableDependencies(path: project.path, name: target.name)
-        XCTAssertEqual(got.first, .absolute(precompiledNode.path))
+        XCTAssertEqual(got.first, GraphDependencyReference(precompiledNode: precompiledNode))
     }
 
     func test_linkableDependencies_whenALibraryTarget() throws {
@@ -506,8 +507,8 @@ final class GraphTests: TuistUnitTestCase {
     func test_librariesPublicHeaders() throws {
         let target = Target.test(name: "Main")
         let publicHeadersPath = AbsolutePath("/test/public/")
-        let precompiledNode = LibraryNode(path: AbsolutePath("/test/test.a"),
-                                          publicHeaders: publicHeadersPath)
+        let precompiledNode = LibraryNode.test(path: AbsolutePath("/test/test.a"),
+                                               publicHeaders: publicHeadersPath)
         let project = Project.test(targets: [target])
         let targetNode = TargetNode(project: project,
                                     target: target,
@@ -564,7 +565,7 @@ final class GraphTests: TuistUnitTestCase {
     func test_embeddableFrameworks_when_dependencyIsAFramework() throws {
         let frameworkPath = AbsolutePath("/test/test.framework")
         let target = Target.test(name: "Main", platform: .iOS)
-        let frameworkNode = FrameworkNode(path: frameworkPath)
+        let frameworkNode = FrameworkNode.test(path: frameworkPath)
         let project = Project.test(targets: [target])
         let targetNode = TargetNode(project: project,
                                     target: target,
@@ -578,7 +579,7 @@ final class GraphTests: TuistUnitTestCase {
 
         let got = try graph.embeddableFrameworks(path: project.path, name: target.name)
 
-        XCTAssertEqual(got.first, GraphDependencyReference.absolute(frameworkPath))
+        XCTAssertEqual(got.first, GraphDependencyReference(precompiledNode: frameworkNode))
     }
 
     func test_embeddableFrameworks_when_dependencyIsATransitiveFramework() throws {
@@ -587,7 +588,7 @@ final class GraphTests: TuistUnitTestCase {
         let project = Project.test(targets: [target])
 
         let frameworkPath = AbsolutePath("/test/test.framework")
-        let frameworkNode = FrameworkNode(path: frameworkPath)
+        let frameworkNode = FrameworkNode.test(path: frameworkPath)
 
         let dependencyNode = TargetNode(
             project: project,
@@ -610,7 +611,7 @@ final class GraphTests: TuistUnitTestCase {
 
         XCTAssertEqual(got, [
             GraphDependencyReference.product(target: "Dependency", productName: "Dependency.framework"),
-            GraphDependencyReference.absolute(frameworkPath),
+            GraphDependencyReference(precompiledNode: frameworkNode),
         ])
     }
 
@@ -619,7 +620,7 @@ final class GraphTests: TuistUnitTestCase {
         let target = Target.test(name: "Main")
         let project = Project.test(targets: [target])
 
-        let frameworkNode = FrameworkNode(path: "/test/StaticFramework.framework")
+        let frameworkNode = FrameworkNode.test(path: "/test/StaticFramework.framework", linking: .static)
         let targetNode = TargetNode(
             project: project,
             target: target,
@@ -628,9 +629,6 @@ final class GraphTests: TuistUnitTestCase {
         let cache = GraphLoaderCache()
         cache.add(targetNode: targetNode)
         let graph = Graph.test(cache: cache)
-
-        system.succeedCommand("/usr/bin/file", "/test/StaticFramework.framework/StaticFramework",
-                              output: "current ar archive random library")
 
         // When
         let result = try graph.embeddableFrameworks(path: project.path, name: target.name)
@@ -769,8 +767,7 @@ final class GraphTests: TuistUnitTestCase {
     func test_librariesSearchPaths() throws {
         // Given
         let target = Target.test(name: "Main")
-        let precompiledNode = LibraryNode(path: AbsolutePath("/test/test.a"),
-                                          publicHeaders: AbsolutePath("/test/public/"))
+        let precompiledNode = LibraryNode.test(path: "/test/test.a", publicHeaders: "/test/public/")
         let project = Project.test(targets: [target])
         let targetNode = TargetNode(project: project,
                                     target: target,
@@ -790,12 +787,8 @@ final class GraphTests: TuistUnitTestCase {
     func test_librariesSwiftIncludePaths() throws {
         // Given
         let target = Target.test(name: "Main")
-        let precompiledNodeA = LibraryNode(path: AbsolutePath("/test/test.a"),
-                                           publicHeaders: AbsolutePath("/test/public/"),
-                                           swiftModuleMap: AbsolutePath("/test/modules/test.swiftmodulemap"))
-        let precompiledNodeB = LibraryNode(path: AbsolutePath("/test/another.a"),
-                                           publicHeaders: AbsolutePath("/test/public/"),
-                                           swiftModuleMap: nil)
+        let precompiledNodeA = LibraryNode.test(path: "/test/test.a", swiftModuleMap: "/test/modules/test.swiftmodulemap")
+        let precompiledNodeB = LibraryNode.test(path: "/test/another.a", swiftModuleMap: nil)
         let project = Project.test(targets: [target])
         let targetNode = TargetNode(project: project,
                                     target: target,
@@ -959,9 +952,9 @@ final class GraphTests: TuistUnitTestCase {
         System.shared = System()
         let cache = GraphLoaderCache()
         let graph = Graph.test(cache: cache)
-        let framework = FrameworkNode(path: fixturePath(path: RelativePath("xpm.framework")))
-        let library = LibraryNode(path: fixturePath(path: RelativePath("libStaticLibrary.a")),
-                                  publicHeaders: fixturePath(path: RelativePath("")))
+        let framework = FrameworkNode.test(path: fixturePath(path: RelativePath("xpm.framework")), architectures: [.x8664, .arm64])
+        let library = LibraryNode.test(path: fixturePath(path: RelativePath("libStaticLibrary.a")),
+                                       publicHeaders: fixturePath(path: RelativePath("")))
         let target = TargetNode.test(dependencies: [framework, library])
         cache.add(targetNode: target)
         cache.add(precompiledNode: framework)
@@ -969,36 +962,36 @@ final class GraphTests: TuistUnitTestCase {
 
         let expected = """
         [
-            {
-              "product" : "\(target.target.product.rawValue)",
-              "bundle_id" : "\(target.target.bundleId)",
-              "platform" : "\(target.target.platform.rawValue)",
-              "path" : "\(target.path)",
-              "dependencies" : [
+        {
+            "product" : "\(target.target.product.rawValue)",
+            "bundle_id" : "\(target.target.bundleId)",
+            "platform" : "\(target.target.platform.rawValue)",
+            "path" : "\(target.path)",
+            "dependencies" : [
                 "xpm",
                 "libStaticLibrary"
-              ],
-              "name" : "Target",
-              "type" : "source"
-            },
-            {
-              "path" : "\(library.path)",
-              "architectures" : [
-                "x86_64"
-              ],
-              "product" : "static_library",
-              "name" : "\(library.name)",
-              "type" : "precompiled"
-            },
-            {
-              "path" : "\(framework.path)",
-              "architectures" : [
-                "x86_64",
+            ],
+            "name" : "Target",
+            "type" : "source"
+        },
+        {
+            "path" : "\(library.path)",
+            "architectures" : [
                 "arm64"
-              ],
-              "product" : "framework",
-              "name" : "\(framework.name)",
-              "type" : "precompiled"
+            ],
+            "product" : "static_library",
+            "name" : "\(library.name)",
+            "type" : "precompiled"
+        },
+            {
+                "path" : "\(framework.path)",
+                "architectures" : [
+                    "x86_64",
+                    "arm64"
+                ],
+                "product" : "framework",
+                "name" : "\(framework.name)",
+                "type" : "precompiled"
             }
         ]
         """
@@ -1010,7 +1003,7 @@ final class GraphTests: TuistUnitTestCase {
     // MARK: - Helpers
 
     private func mockDynamicFrameworkNode(at path: AbsolutePath) -> FrameworkNode {
-        let precompiledNode = FrameworkNode(path: path)
+        let precompiledNode = FrameworkNode.test()
         let binaryPath = path.appending(component: path.basenameWithoutExt)
         system.succeedCommand("/usr/bin/file",
                               binaryPath.pathString,

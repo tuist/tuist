@@ -7,6 +7,7 @@ module.exports = {
     title: title,
     description: `Tuist is a tool that helps developers manage large Xcode projects by leveraging project generation. Moreover, it provides some tools to automate most common tasks, allowing developers to focus on building apps.`,
     siteUrl: siteUrl,
+    discourseUrl: "https://community.tuist.io",
     githubUrl: 'https://github.com/tuist',
     releasesUrl: 'https://github.com/tuist/tuist/releases',
     documentationUrl: 'https://docs.tuist.io/',
@@ -26,6 +27,12 @@ module.exports = {
     `gatsby-plugin-theme-ui`,
     `gatsby-transformer-yaml`,
     `gatsby-plugin-react-helmet`,
+    {
+      resolve: `gatsby-plugin-google-analytics`,
+      options: {
+        trackingId: "UA-125584790-1",
+      },
+    },
     {
       resolve: `gatsby-source-filesystem`,
       name: 'data',
@@ -167,6 +174,7 @@ module.exports = {
         remarkPlugins: [remarkSlug],
         gatsbyRemarkPlugins: [
           `gatsby-remark-smartypants`,
+          `gatsby-remark-copy-linked-files`,
           {
             resolve: `gatsby-remark-images`,
             options: {

@@ -13,7 +13,7 @@ final class WorkspaceGeneratorTests: TuistUnitTestCase {
 
     override func setUp() {
         super.setUp()
-        subject = WorkspaceGenerator()
+        subject = WorkspaceGenerator(config: .init(projectGenerationContext: .serial))
     }
 
     override func tearDown() {

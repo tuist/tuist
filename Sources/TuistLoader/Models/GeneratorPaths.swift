@@ -1,6 +1,7 @@
 import Basic
 import Foundation
 import ProjectDescription
+import TuistCore
 import TuistSupport
 
 enum GeneratorPathsError: FatalError, Equatable {

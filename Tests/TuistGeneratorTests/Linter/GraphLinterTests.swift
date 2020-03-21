@@ -32,8 +32,8 @@ final class GraphLinterTests: TuistUnitTestCase {
 
         try FileHandler.shared.createFolder(frameworkAPath)
 
-        let frameworkA = FrameworkNode(path: frameworkAPath)
-        let frameworkB = FrameworkNode(path: frameworkBPath)
+        let frameworkA = FrameworkNode.test(path: frameworkAPath)
+        let frameworkB = FrameworkNode.test(path: frameworkBPath)
 
         cache.add(precompiledNode: frameworkA)
         cache.add(precompiledNode: frameworkB)
@@ -130,8 +130,8 @@ final class GraphLinterTests: TuistUnitTestCase {
 
         try FileHandler.shared.createFolder(frameworkAPath)
 
-        let frameworkA = FrameworkNode(path: frameworkAPath)
-        let frameworkB = FrameworkNode(path: frameworkBPath)
+        let frameworkA = FrameworkNode.test(path: frameworkAPath)
+        let frameworkB = FrameworkNode.test(path: frameworkBPath)
 
         cache.add(precompiledNode: frameworkA)
         cache.add(precompiledNode: frameworkB)
