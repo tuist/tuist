@@ -159,7 +159,7 @@ final class TemplateGeneratorTests: TuistTestCase {
         }
     }
 
-    func test_file_rendered_wit_attributes() throws {
+func test_file_rendered_with_attributes() throws {
         // Given
         let sourcePath = try temporaryPath()
         let destinationPath = try temporaryPath()

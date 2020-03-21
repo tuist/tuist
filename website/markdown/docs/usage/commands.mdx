@@ -29,7 +29,7 @@ That will generate a `Manifest.xcodeproj` project that you can open manually.
 After project description helpers, `scaffold` is a next step to make it easier to create new modules in your app.
 With `scaffold` you can define your own templates and soon also templates that Tuist provides to generate a basic structure of your module!
 
-If you want to define your own template, we recommend you to run `tuist edit` - after that you can create a new directory at `Tuist/Templates/name_of_your_template` where `Tuist/Templates` is a directory where all your custom templates will live. Additionaly you have to create a `Template.swift` in that directory:
+To define templates, you can run `tuist edit` and then create a directory under `Tuist/Templates` that represents your template. Templates need a manifest file, `Template.swift` that describes the template:
 
 ```swift
 import ProjectDescription
@@ -61,7 +61,7 @@ You could also omit `--platform` argument since it is optional and the template 
 If you do not need any difficult logic, feel free to use `.string` for `files` parameter.
 Otherwise, you can leverage a powerful templating tool [Stencil](https://github.com/stencilproject/Stencil) via `.file` case.
 
-You can also leverage anything that you define in `ProjectDescriptionHelpers`, so you can share types and methods between your templates and manifests.
+<Message info title="Project description helpers" description={`Templates can import [project description helpers](/docs/usage/helpers/). Just add `import ProjectDescriptionHelpers` at the top, and extract reusable logic into the helpers.`}/>
 
 
 # Lint
