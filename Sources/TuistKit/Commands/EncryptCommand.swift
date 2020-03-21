@@ -10,6 +10,7 @@ class EncryptCommand: NSObject, Command {
 
     static let command = "encrypt"
     static let overview = "Encrypts all files in Tuist/Signing directory."
+    private let pathArgument: OptionArgument<String>
     
     private let signingCipher: SigningCiphering
 
@@ -21,11 +22,27 @@ class EncryptCommand: NSObject, Command {
 
     init(parser: ArgumentParser,
          signingCipher: SigningCiphering) {
-        _ = parser.add(subparser: EncryptCommand.command, overview: EncryptCommand.overview)
+        let subParser = parser.add(subparser: EncryptCommand.command, overview: EncryptCommand.overview)
+        pathArgument = subParser.add(option: "--path",
+                                     shortName: "-p",
+                                     kind: String.self,
+                                     usage: "The path to the folder where the template will be generated (Default: Current directory).",
+                                     completion: .filename)
         self.signingCipher = signingCipher
     }
     
     func run(with arguments: ArgumentParser.Result) throws {
-        try signingCipher.encryptSigning(at: FileHandler.shared.currentPath)
+        let path = self.path(arguments: arguments)
+        try signingCipher.encryptSigning(at: path)
+    }
+    
+    // MARK: - Helpers
+
+    private func path(arguments: ArgumentParser.Result) -> AbsolutePath {
+        if let path = arguments.get(pathArgument) {
+            return AbsolutePath(path, relativeTo: FileHandler.shared.currentPath)
+        } else {
+            return FileHandler.shared.currentPath
+        }
     }
 }

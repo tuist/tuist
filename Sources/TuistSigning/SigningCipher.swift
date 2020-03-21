@@ -2,7 +2,7 @@ import Basic
 import Foundation
 import CryptoSwift
 import TuistSupport
-import TuistLoader
+import TuistCore
 
 enum SigningCipherError: FatalError, Equatable {
     case failedToEncrypt
