@@ -22,7 +22,47 @@ The project is deleted automatically once you are done with editing. If you wish
 tuist edit --permanent
 ```
 
-That will generate a `Manfiest.xcodeproj` project that you can open manually.
+That will generate a `Manifest.xcodeproj` project that you can open manually.
+
+# Scaffold
+
+After project description helpers, `scaffold` is a next step to make it easier to create new modules in your app.
+With `scaffold` you can define your own templates and soon also templates that Tuist provides to generate a basic structure of your module!
+
+If you want to define your own template, we recommend you to run `tuist edit` - after that you can create a new directory at `Tuist/Templates/name_of_your_template` where `Tuist/Templates` is a directory where all your custom templates will live. Additionaly you have to create a `Template.swift` in that directory:
+
+```swift
+import ProjectDescription
+
+let nameAttribute: Template.Attribute = .required("name")
+
+let template = Template(
+    description: "Custom template",
+    attributes: [
+        nameAttribute,
+        .optional("platform", default: "ios"),
+    ],
+    files: [
+        .string(path: "Project.swift",
+                contents: "My template contents of name \(nameAttribute)"),
+        .file(path: "generated/Up.swift",
+              templatePath: "generate.stencil"),
+    ],
+)
+```
+
+This template would then be called like this:
+```bash
+tuist scaffold name_of_template --name Name --platform macos
+```
+
+You could also omit `--platform` argument since it is optional and the template provides a default value.
+
+If you do not need any difficult logic, feel free to use `.string` for `files` parameter.
+Otherwise, you can leverage a powerful templating tool [Stencil](https://github.com/stencilproject/Stencil) via `.file` case.
+
+You can also leverage anything that you define in `ProjectDescriptionHelpers`, so you can share types and methods between your templates and manifests.
+
 
 # Lint
 
