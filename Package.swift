@@ -179,7 +179,7 @@ let package = Package(
         ),
         .testTarget(
             name: "TuistSigningTests",
-            dependencies: ["TuistSigning", "TuistSupportTesting"]
+            dependencies: ["TuistSigning", "TuistSupportTesting", "TuistCoreTesting"]
         ),
         .target(
             name: "TuistLoader",
