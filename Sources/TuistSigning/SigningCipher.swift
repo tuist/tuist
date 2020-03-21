@@ -33,7 +33,7 @@ public protocol SigningCiphering {
 
 public final class SigningCipher: SigningCiphering {
     private let rootDirectoryLocator: RootDirectoryLocating
-    
+
     /// Public initializer
     public init(rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator()) {
         self.rootDirectoryLocator = rootDirectoryLocator

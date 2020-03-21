@@ -2,9 +2,9 @@ import Basic
 import Foundation
 import TuistSupport
 import XCTest
+@testable import TuistCoreTesting
 @testable import TuistSigning
 @testable import TuistSupportTesting
-@testable import TuistCoreTesting
 
 final class SigningCipherTests: TuistUnitTestCase {
     var subject: SigningCiphering!
@@ -15,7 +15,7 @@ final class SigningCipherTests: TuistUnitTestCase {
         rootDirectoryLocator = MockRootDirectoryLocator()
         subject = SigningCipher(rootDirectoryLocator: rootDirectoryLocator)
     }
-    
+
     override func tearDown() {
         rootDirectoryLocator = nil
         subject = nil
