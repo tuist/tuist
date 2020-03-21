@@ -48,17 +48,6 @@ final class ScaffoldCommandTests: TuistUnitTestCase {
         XCTAssertEqual(ScaffoldCommand.overview, "Generates new project based on template.")
     }
 
-    func test_fails_when_directory_not_empty() throws {
-        // Given
-        let path = FileHandler.shared.currentPath
-        try FileHandler.shared.touch(path.appending(component: "dummy"))
-
-        let result = try parser.parse([ScaffoldCommand.command, "template"])
-
-        // Then
-        XCTAssertThrowsSpecific(try subject.run(with: result), ScaffoldCommandError.nonEmptyDirectory(path))
-    }
-
     func test_fails_when_template_not_found() throws {
         let templateName = "template"
         let result = try parser.parse([ScaffoldCommand.command, templateName])

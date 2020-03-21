@@ -94,6 +94,7 @@ class InitCommand: NSObject, Command {
         try generateSwiftFiles(name: name, platform: platform, path: path)
         try generatePlaygrounds(name: name, path: path, platform: platform)
         try generateConfig(path: path)
+        try generateTemplate(path: path)
         try generateGitIgnore(path: path)
 
         logger.notice("Project generated at path \(path.pathString).", metadata: .success)
@@ -342,6 +343,53 @@ class InitCommand: NSObject, Command {
         }
 
         try content.write(to: configPath.url, atomically: true, encoding: .utf8)
+    }
+    
+    private func generateTemplate(path: AbsolutePath) throws {
+        let templatesPath = path.appending(RelativePath("\(Constants.tuistDirectoryName)/\(Constants.templatesDirectoryName)/framework"))
+        let projectStencilContent = """
+        import ProjectDescription
+
+        let project = Project(name: "{{ nameAttribute }}",
+                              targets: [
+                                  Target(name: "{{ nameAttribute }}",
+                                         platform: .iOS,
+                                         product: .framework,
+                                         productName: "{{ nameAttribute }}",
+                                         bundleId: "io.tuist.{{ nameAttribute }}",
+                                         infoPlist: .default,
+                                         sources: "Sources/**",
+                                         dependencies: []),
+        ])
+        """
+        
+        let templateContent = """
+        import ProjectDescription
+
+        let nameAttribute: Template.Attribute = .required("name")
+
+        let exampleContents = \"""
+        struct \\(nameAttribute) { }
+        \"""
+
+        let template = Template(
+            description: "Framework template",
+            attributes: [
+                nameAttribute,
+            ],
+            files: [
+                .string(path: "\\(nameAttribute)/Sources/\\(nameAttribute).swift", contents: exampleContents),
+                .file(path: "\\(nameAttribute)/Project.swift", templatePath: "project.stencil"),
+            ]
+        )
+
+        """
+        if !FileHandler.shared.exists(templatesPath) {
+            try FileHandler.shared.createFolder(templatesPath)
+        }
+        
+        try templateContent.write(to: templatesPath.appending(component: Manifest.template.fileName).url, atomically: true, encoding: .utf8)
+        try projectStencilContent.write(to: templatesPath.appending(component: "project.stencil").url, atomically: true, encoding: .utf8)
     }
 
     // swiftlint:disable:next function_body_length

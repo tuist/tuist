@@ -133,8 +133,6 @@ class ScaffoldCommand: NSObject, Command {
 
         guard let templateName = arguments.get(templateArgument) else { throw ScaffoldCommandError.templateNotProvided }
 
-        try verifyDirectoryIsEmpty(path: path)
-
         let templateDirectory = try self.templateDirectory(templateDirectories: templateDirectories,
                                                            template: templateName)
 
@@ -158,16 +156,6 @@ class ScaffoldCommand: NSObject, Command {
             return AbsolutePath(path, relativeTo: FileHandler.shared.currentPath)
         } else {
             return FileHandler.shared.currentPath
-        }
-    }
-
-    /// Checks if the given directory is empty, essentially that it doesn't contain any file or directory.
-    ///
-    /// - Parameter path: Directory to be checked.
-    /// - Throws: An ScaffoldCommandError.nonEmptyDirectory error when the directory is not empty.
-    private func verifyDirectoryIsEmpty(path: AbsolutePath) throws {
-        if !path.glob("*").isEmpty {
-            throw ScaffoldCommandError.nonEmptyDirectory(path)
         }
     }
 

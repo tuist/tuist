@@ -82,6 +82,7 @@ final class ProjectEditor: ProjectEditing {
         var templates: [AbsolutePath] = []
         if let templatesDirectory = templatesDirectoryLocator.locateUserTemplates(at: at) {
             templates = FileHandler.shared.glob(templatesDirectory, glob: "**/*.swift")
+                + FileHandler.shared.glob(templatesDirectory, glob: "**/*.stencil")
         }
 
         /// We error if the user tries to edit a project in a directory where there are no editable files.
