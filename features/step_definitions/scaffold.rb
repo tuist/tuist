@@ -1,8 +1,7 @@
 # frozen_string_literal: true
 
-Then(/tuist scaffolds a (.+) template to (.+) named (.+) and platform (.+)/) do |template, path, name, platform|
-    system("swift", "run", "tuist", "scaffold", "--list")
-    system("swift", "run", "tuist", "scaffold", template, "--path", File.join(@dir, path), "--attributes", "--name", name, "--platform", platform)
+Then(/tuist scaffolds a (.+) template to (.+) named (.+)/) do |template, path, name|
+    system("swift", "run", "tuist", "scaffold", template, "--path", File.join(@dir, path), "--name", name)
 end
 
 Then(/content of a file named (.+) in a directory (.+) should be equal to (.+)/) do |file, dir, content|

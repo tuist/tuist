@@ -80,7 +80,17 @@ class ScaffoldCommand: NSObject, Command {
     func parse(with parser: ArgumentParser, arguments: [String]) throws -> ArgumentParser.Result {
         guard arguments.count >= 2 else { throw ScaffoldCommandError.templateNotProvided }
         // We want to parse only the name of template, not its arguments which will be dynamically added
-        let resultArguments = try parser.parse(Array(arguments.prefix(2)))
+        let templateArguments = Array(arguments.prefix(2))
+        // Plucking out path argument
+        let filteredArguments = stride(from: 2, to: arguments.count, by: 2).map {
+            arguments[$0..<min($0 + 2, arguments.count)]
+        }
+        .filter {
+            $0.first == "--path"
+        }
+        .flatMap { Array($0) }
+        // We want to parse only the name of template, not its arguments which will be dynamically added
+        let resultArguments = try parser.parse(templateArguments + filteredArguments)
 
         if resultArguments.get(listArgument) != nil {
             return try parser.parse(arguments)
@@ -108,11 +118,10 @@ class ScaffoldCommand: NSObject, Command {
     }
 
     func run(with arguments: ArgumentParser.Result) throws {
-        guard let templateName = arguments.get(templateArgument) else { throw ScaffoldCommandError.templateNotProvided }
-
         let path = self.path(arguments: arguments)
+        
         let templateDirectories = try templatesDirectoryLocator.templateDirectories(at: path)
-
+        
         let shouldList = arguments.get(listArgument) ?? false
         if shouldList {
             try templateDirectories.forEach {
@@ -121,7 +130,9 @@ class ScaffoldCommand: NSObject, Command {
             }
             return
         }
-
+        
+        guard let templateName = arguments.get(templateArgument) else { throw ScaffoldCommandError.templateNotProvided }
+        
         try verifyDirectoryIsEmpty(path: path)
 
         let templateDirectory = try self.templateDirectory(templateDirectories: templateDirectories,
