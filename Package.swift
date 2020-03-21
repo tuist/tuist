@@ -56,15 +56,15 @@ let package = Package(
         ),
         .target(
             name: "TuistKit",
-            dependencies: ["XcodeProj", "SPMUtility", "TuistSupport", "TuistGenerator", "TuistCache", "TuistAutomation", "ProjectDescription", "Signals", "RxSwift", "RxBlocking", "Checksum", "TuistLoader", "TuistInsights", "TuistScaffold", "TuistSigning"]
+            dependencies: ["XcodeProj", "SPMUtility", "TuistSupport", "TuistGenerator", "TuistCache", "TuistAutomation", "ProjectDescription", "Signals", "RxSwift", "RxBlocking", "Checksum", "TuistLoader", "TuistInsights", "TuistScaffold", "TuistSigning", "TuistCloud"]
         ),
         .testTarget(
             name: "TuistKitTests",
-            dependencies: ["TuistKit", "TuistAutomation", "TuistSupportTesting", "TuistCoreTesting", "ProjectDescription", "RxBlocking", "TuistLoaderTesting", "TuistCacheTesting", "TuistGeneratorTesting", "TuistScaffoldTesting"]
+            dependencies: ["TuistKit", "TuistAutomation", "TuistSupportTesting", "TuistCoreTesting", "ProjectDescription", "RxBlocking", "TuistLoaderTesting", "TuistCacheTesting", "TuistGeneratorTesting", "TuistScaffoldTesting", "TuistCloudTesting"]
         ),
         .testTarget(
             name: "TuistKitIntegrationTests",
-            dependencies: ["TuistKit", "TuistCoreTesting", "TuistSupportTesting", "ProjectDescription", "RxBlocking", "TuistLoaderTesting"]
+            dependencies: ["TuistKit", "TuistCoreTesting", "TuistSupportTesting", "ProjectDescription", "RxBlocking", "TuistLoaderTesting", "TuistCloudTesting"]
         ),
         .target(
             name: "tuist",
@@ -133,6 +133,18 @@ let package = Package(
         .target(
             name: "TuistCacheTesting",
             dependencies: ["TuistCache", "SPMUtility", "TuistCore", "RxTest", "RxSwift"]
+        ),
+        .target(
+            name: "TuistCloud",
+            dependencies: ["XcodeProj", "SPMUtility", "TuistCore", "TuistSupport", "Checksum", "RxSwift"]
+        ),
+        .testTarget(
+            name: "TuistCloudTests",
+            dependencies: ["TuistCloud", "TuistSupportTesting", "TuistCoreTesting", "RxBlocking"]
+        ),
+        .target(
+            name: "TuistCloudTesting",
+            dependencies: ["TuistCloud", "SPMUtility", "TuistCore", "RxTest", "RxSwift"]
         ),
         .testTarget(
             name: "TuistCacheIntegrationTests",
