@@ -5,5 +5,5 @@ Then(/tuist scaffolds a (.+) template to (.+) named (.+)/) do |template, path, n
 end
 
 Then(/content of a file named (.+) in a directory (.+) should be equal to (.+)/) do |file, dir, content|
-    assert_match File.read(File.join(@dir, dir, file)), content
+    assert_equal File.read(File.join(@dir, dir, file)), content
 end
