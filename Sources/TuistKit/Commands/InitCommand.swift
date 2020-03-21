@@ -344,7 +344,7 @@ class InitCommand: NSObject, Command {
 
         try content.write(to: configPath.url, atomically: true, encoding: .utf8)
     }
-    
+
     private func generateTemplate(path: AbsolutePath) throws {
         let templatesPath = path.appending(RelativePath("\(Constants.tuistDirectoryName)/\(Constants.templatesDirectoryName)/framework"))
         let projectStencilContent = """
@@ -362,7 +362,7 @@ class InitCommand: NSObject, Command {
                                          dependencies: []),
         ])
         """
-        
+
         let templateContent = """
         import ProjectDescription
 
@@ -387,7 +387,7 @@ class InitCommand: NSObject, Command {
         if !FileHandler.shared.exists(templatesPath) {
             try FileHandler.shared.createFolder(templatesPath)
         }
-        
+
         try templateContent.write(to: templatesPath.appending(component: Manifest.template.fileName).url, atomically: true, encoding: .utf8)
         try projectStencilContent.write(to: templatesPath.appending(component: "project.stencil").url, atomically: true, encoding: .utf8)
     }
