@@ -5,8 +5,8 @@ import XCTest
 
 @testable import TuistCore
 @testable import TuistCoreTesting
-@testable import TuistSupportTesting
 @testable import TuistScaffold
+@testable import TuistSupportTesting
 
 final class TemplateGeneratorTests: TuistTestCase {
     var subject: TemplateGenerator!
@@ -29,7 +29,7 @@ final class TemplateGeneratorTests: TuistTestCase {
         let files = directories.map {
             Template.File.test(path: RelativePath($0.pathString + "/file.swift"))
         }
-        
+
         let template = Template.test(files: files)
 
         // When
@@ -64,14 +64,13 @@ final class TemplateGeneratorTests: TuistTestCase {
         XCTAssertTrue(expectedDirectories.allSatisfy(FileHandler.shared.exists))
     }
 
-
     func test_files_are_generated() throws {
         // Given
         let files: [Template.File] = [
             Template.File(path: RelativePath("a"), contents: .string("aContent")),
             Template.File(path: RelativePath("b"), contents: .string("bContent")),
         ]
-        
+
         let template = Template.test(files: files)
         let destinationPath = try temporaryPath()
         let expectedFiles: [(AbsolutePath, String)] = files.compactMap {
@@ -118,10 +117,10 @@ final class TemplateGeneratorTests: TuistTestCase {
         try subject.generate(template: template,
                              to: destinationPath,
                              attributes: [
-                                "name": name,
-                                "contentName": contentName,
-                                "directoryName": directoryName,
-                                "fileName": fileName,
+                                 "name": name,
+                                 "contentName": contentName,
+                                 "directoryName": directoryName,
+                                 "fileName": fileName,
                              ])
 
         // Then

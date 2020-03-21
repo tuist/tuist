@@ -83,7 +83,7 @@ class ScaffoldCommand: NSObject, Command {
         let templateArguments = Array(arguments.prefix(2))
         // Plucking out path argument
         let filteredArguments = stride(from: 2, to: arguments.count, by: 2).map {
-            arguments[$0..<min($0 + 2, arguments.count)]
+            arguments[$0 ..< min($0 + 2, arguments.count)]
         }
         .filter {
             $0.first == "--path"
@@ -119,9 +119,9 @@ class ScaffoldCommand: NSObject, Command {
 
     func run(with arguments: ArgumentParser.Result) throws {
         let path = self.path(arguments: arguments)
-        
+
         let templateDirectories = try templatesDirectoryLocator.templateDirectories(at: path)
-        
+
         let shouldList = arguments.get(listArgument) ?? false
         if shouldList {
             try templateDirectories.forEach {
@@ -130,16 +130,16 @@ class ScaffoldCommand: NSObject, Command {
             }
             return
         }
-        
+
         guard let templateName = arguments.get(templateArgument) else { throw ScaffoldCommandError.templateNotProvided }
-        
+
         try verifyDirectoryIsEmpty(path: path)
 
         let templateDirectory = try self.templateDirectory(templateDirectories: templateDirectories,
                                                            template: templateName)
-        
+
         let template = try templateLoader.loadTemplate(at: templateDirectory)
-        
+
         let parsedAttributes = try validateAttributes(attributesArguments,
                                                       template: template,
                                                       arguments: arguments)
@@ -170,7 +170,7 @@ class ScaffoldCommand: NSObject, Command {
             throw ScaffoldCommandError.nonEmptyDirectory(path)
         }
     }
-    
+
     /// Validates if all `attributes` from `template` have been provided
     /// If those attributes are optional, they default to `default` if not provided
     /// - Returns: Array of parsed attributes

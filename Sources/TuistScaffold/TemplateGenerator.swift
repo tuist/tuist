@@ -1,8 +1,8 @@
 import Basic
 import Foundation
-import TuistSupport
-import TuistCore
 import struct Stencil.Environment
+import TuistCore
+import TuistSupport
 
 /// Interface for generating content defined in template manifest
 public protocol TemplateGenerating {
@@ -18,8 +18,8 @@ public protocol TemplateGenerating {
 
 public final class TemplateGenerator: TemplateGenerating {
     // Public initializer
-    public init() { }
-    
+    public init() {}
+
     public func generate(template: Template,
                          to destinationPath: AbsolutePath,
                          attributes: [String: String]) throws {
@@ -27,14 +27,14 @@ public final class TemplateGenerator: TemplateGenerating {
                                         attributes: attributes)
         try generateDirectories(renderedFiles: renderedFiles,
                                 destinationPath: destinationPath)
-        
+
         try generateFiles(renderedFiles: renderedFiles,
                           attributes: attributes,
                           destinationPath: destinationPath)
     }
 
     // MARK: - Helpers
-    
+
     /// Renders files' paths in format  path_to_dir/{{ attribute_name }} with `attributes`
     private func renderFiles(template: Template,
                              attributes: [String: String]) -> [Template.File] {
@@ -76,7 +76,7 @@ public final class TemplateGenerator: TemplateGenerating {
                 renderedContents = try environment.renderTemplate(string: fileContents,
                                                                   context: attributes)
             }
-            
+
             try FileHandler.shared.write(renderedContents,
                                          path: destinationPath.appending($0.path),
                                          atomically: true)
