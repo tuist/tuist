@@ -23,12 +23,16 @@ enum SigningCipherError: FatalError, Equatable {
     }
 }
 
+/// SigningCiphering handles all encryption/decryption of files needed for signing (certificates, profiles, etc.)
 public protocol SigningCiphering {
+    /// Encrypts all signing files at `Tuist/Signing`
     func encryptSigning(at path: AbsolutePath) throws
+    /// Decrypts all signing files at `Tuist/Signing`
     func decryptSigning(at path: AbsolutePath) throws
 }
 
 public final class SigningCipher: SigningCiphering {
+    /// Public initializer
     public init() {}
 
     public func encryptSigning(at path: AbsolutePath) throws {
