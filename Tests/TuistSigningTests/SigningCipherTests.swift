@@ -4,17 +4,28 @@ import TuistSupport
 import XCTest
 @testable import TuistSigning
 @testable import TuistSupportTesting
+@testable import TuistCoreTesting
 
 final class SigningCipherTests: TuistUnitTestCase {
     var subject: SigningCiphering!
+    var rootDirectoryLocator: MockRootDirectoryLocator!
 
     override func setUp() {
-        subject = SigningCipher()
+        super.setUp()
+        rootDirectoryLocator = MockRootDirectoryLocator()
+        subject = SigningCipher(rootDirectoryLocator: rootDirectoryLocator)
+    }
+    
+    override func tearDown() {
+        rootDirectoryLocator = nil
+        subject = nil
+        super.tearDown()
     }
 
     func test_fails_when_no_master_key() throws {
         // Given
         let temporaryPath = try self.temporaryPath()
+        rootDirectoryLocator.locateStub = temporaryPath
         try FileHandler.shared.createFolder(temporaryPath.appending(component: Constants.tuistDirectoryName))
         let masterKeyPath = temporaryPath.appending(components: Constants.tuistDirectoryName, Constants.signingDirectoryName, "master.key")
         // Then
@@ -24,6 +35,7 @@ final class SigningCipherTests: TuistUnitTestCase {
     func test_encrypt_and_decrypt_signing() throws {
         // Given
         let temporaryPath = try self.temporaryPath()
+        rootDirectoryLocator.locateStub = temporaryPath
         let signingDirectory = temporaryPath.appending(components: Constants.tuistDirectoryName, Constants.signingDirectoryName)
         try FileHandler.shared.createFolder(signingDirectory)
         try FileHandler.shared.write("my-password", path: signingDirectory.appending(component: "master.key"), atomically: true)
@@ -47,6 +59,7 @@ final class SigningCipherTests: TuistUnitTestCase {
         // Given
         let temporaryPath = try self.temporaryPath()
         let signingDirectory = temporaryPath.appending(components: Constants.tuistDirectoryName, Constants.signingDirectoryName)
+        rootDirectoryLocator.locateStub = temporaryPath
         try FileHandler.shared.createFolder(signingDirectory)
         try FileHandler.shared.write("my-password", path: signingDirectory.appending(component: "master.key"), atomically: true)
         let certContent = "my-certificate"

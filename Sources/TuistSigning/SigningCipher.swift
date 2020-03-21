@@ -32,8 +32,12 @@ public protocol SigningCiphering {
 }
 
 public final class SigningCipher: SigningCiphering {
+    private let rootDirectoryLocator: RootDirectoryLocating
+    
     /// Public initializer
-    public init() {}
+    public init(rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator()) {
+        self.rootDirectoryLocator = rootDirectoryLocator
+    }
 
     public func encryptSigning(at path: AbsolutePath) throws {
         let (signingKeyFiles, masterKey) = try signingData(at: path)
@@ -97,7 +101,7 @@ public final class SigningCipher: SigningCiphering {
     /// - Returns: Files we want encrypt/decrypt along with master key data
     private func signingData(at path: AbsolutePath) throws -> (signingKeyFiles: [AbsolutePath], masterKey: Data) {
         guard
-            let rootDirectory = RootDirectoryLocator.shared.locate(from: path)
+            let rootDirectory = rootDirectoryLocator.locate(from: path)
         else { throw SigningCipherError.rootDirectoryNotFound(path) }
         let signingDirectory = rootDirectory.appending(components: Constants.tuistDirectoryName, Constants.signingDirectoryName)
         let masterKey = try self.masterKey(from: signingDirectory)

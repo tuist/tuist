@@ -15,7 +15,7 @@ public final class HelpersDirectoryLocator: HelpersDirectoryLocating {
 
     /// Default constructor.
     public convenience init() {
-        self.init(rootDirectoryLocator: RootDirectoryLocator.shared)
+        self.init(rootDirectoryLocator: RootDirectoryLocator())
     }
 
     /// Initializes the locator with its dependencies.
