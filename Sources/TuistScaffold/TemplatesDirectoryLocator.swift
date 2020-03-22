@@ -31,7 +31,7 @@ public final class TemplatesDirectoryLocator: TemplatesDirectoryLocating {
                 .removingLastComponent()
                 .removingLastComponent()
         #else
-            let bundlePath = AbsolutePath(Bundle(for: ManifestLoader.self).bundleURL.path)
+            let bundlePath = AbsolutePath(Bundle(for: TemplatesDirectoryLocator.self).bundleURL.path)
         #endif
         let paths = [
             bundlePath,
