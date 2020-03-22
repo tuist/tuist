@@ -181,8 +181,11 @@ final class Installer: Installing {
             }
             try FileHandler.shared.createFolder(installationDirectory)
             
-            try FileHandler.shared.copy(from: temporaryDirectory.path.appending(component: Constants.templatesDirectoryName),
-                                        to: buildDirectory.appending(component: Constants.templatesDirectoryName))
+            let templatesDirectory = temporaryDirectory.path.appending(component: Constants.templatesDirectoryName)
+            if FileHandler.shared.exists(templatesDirectory) {
+                try FileHandler.shared.copy(from: templatesDirectory,
+                                            to: buildDirectory.appending(component: Constants.templatesDirectoryName))
+            }
 
             try buildCopier.copy(from: buildDirectory,
                                  to: installationDirectory)

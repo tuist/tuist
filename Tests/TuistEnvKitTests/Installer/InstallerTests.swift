@@ -220,6 +220,52 @@ final class InstallerTests: TuistUnitTestCase {
         let tuistVersionPath = installationDirectory.appending(component: Constants.versionFileName)
         XCTAssertTrue(FileHandler.shared.exists(tuistVersionPath))
     }
+    
+    func test_install_when_no_bundled_release_and_no_templates() throws {
+        let version = "3.2.1"
+        let temporaryPath = try self.temporaryPath()
+
+        stubLocalAndRemoveSwiftVersions()
+        let temporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
+        let installationDirectory = temporaryPath.appending(component: "3.2.1")
+
+        versionsController.installStub = { _, closure in
+            try closure(installationDirectory)
+        }
+
+        system.succeedCommand("/usr/bin/env", "git",
+                              "clone", Constants.gitRepositoryURL,
+                              temporaryDirectory.path.pathString)
+        system.succeedCommand("/usr/bin/env", "git", "-C", temporaryDirectory.path.pathString,
+                              "checkout", version)
+        system.succeedCommand("/usr/bin/xcrun", "-f", "swift", output: "/path/to/swift")
+
+        system.succeedCommand("/path/to/swift", "build",
+                              "--product", "tuist",
+                              "--package-path", temporaryDirectory.path.pathString,
+                              "--configuration", "release")
+        system.succeedCommand("/path/to/swift", "build",
+                              "--product", "ProjectDescription",
+                              "--package-path", temporaryDirectory.path.pathString,
+                              "--configuration", "release",
+                              "-Xswiftc", "-enable-library-evolution",
+                              "-Xswiftc", "-emit-module-interface",
+                              "-Xswiftc", "-emit-module-interface-path",
+                              "-Xswiftc", temporaryDirectory.path.appending(RelativePath(".build/release/ProjectDescription.swiftinterface")).pathString)
+        
+        try FileHandler.shared.createFolder(temporaryDirectory.path.appending(RelativePath(".build/release")))
+
+        try subject.install(version: version, temporaryDirectory: temporaryDirectory)
+
+        XCTAssertPrinterOutputContains("""
+        Pulling source code
+        Building using Swift (it might take a while)
+        Version 3.2.1 installed
+        """)
+
+        let tuistVersionPath = installationDirectory.appending(component: Constants.versionFileName)
+        XCTAssertTrue(FileHandler.shared.exists(tuistVersionPath))
+    }
 
     func test_install_when_no_bundled_release_and_invalid_reference() throws {
         let version = "3.2.1"

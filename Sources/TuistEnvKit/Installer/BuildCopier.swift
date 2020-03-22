@@ -12,7 +12,6 @@ class BuildCopier: BuildCopying {
     /// Files that should be copied (if they exist).
     static let files: [String] = [
         "tuist",
-        // TODO: Handle version without templates
         Constants.templatesDirectoryName,
         // Project description
         "ProjectDescription.swiftmodule",
