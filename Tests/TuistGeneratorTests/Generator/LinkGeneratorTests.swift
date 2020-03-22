@@ -37,7 +37,7 @@ final class LinkGeneratorErrorTests: XCTestCase {
     func test_generateEmbedPhase() throws {
         // Given
         var dependencies: [GraphDependencyReference] = []
-        dependencies.append(GraphDependencyReference.absolute(AbsolutePath("/test.framework")))
+        dependencies.append(GraphDependencyReference.testFramework())
         dependencies.append(GraphDependencyReference.product(target: "Test", productName: "Test.framework"))
         let pbxproj = PBXProj()
         let pbxTarget = PBXNativeTarget(name: "Test")
@@ -92,7 +92,7 @@ final class LinkGeneratorErrorTests: XCTestCase {
     func test_generateEmbedPhase_setupEmbedFrameworksBuildPhase_whenXCFrameworkIsPresent() throws {
         // Given
         var dependencies: [GraphDependencyReference] = []
-        dependencies.append(GraphDependencyReference.absolute(AbsolutePath("/Frameworks/Test.xcframework")))
+        dependencies.append(GraphDependencyReference.testXCFramework(path: "/Frameworks/Test.xcframework"))
         let pbxproj = PBXProj()
         let pbxTarget = PBXNativeTarget(name: "Test")
         let sourceRootPath = AbsolutePath("/")
@@ -122,9 +122,9 @@ final class LinkGeneratorErrorTests: XCTestCase {
 
     func test_setupFrameworkSearchPath() throws {
         let dependencies = [
-            GraphDependencyReference.absolute(AbsolutePath("/Dependencies/A.framework")),
-            GraphDependencyReference.absolute(AbsolutePath("/Dependencies/B.framework")),
-            GraphDependencyReference.absolute(AbsolutePath("/Dependencies/C/C.framework")),
+            GraphDependencyReference.testFramework(path: "/Dependencies/A.framework"),
+            GraphDependencyReference.testFramework(path: "/Dependencies/B.framework"),
+            GraphDependencyReference.testFramework(path: "/Dependencies/C/C.framework"),
         ]
         let sourceRootPath = AbsolutePath("/")
 
@@ -312,7 +312,7 @@ final class LinkGeneratorErrorTests: XCTestCase {
 
     func test_generateLinkingPhase() throws {
         var dependencies: [GraphDependencyReference] = []
-        dependencies.append(GraphDependencyReference.absolute(AbsolutePath("/test.framework")))
+        dependencies.append(GraphDependencyReference.testFramework(path: "/test.framework"))
         dependencies.append(GraphDependencyReference.product(target: "Test", productName: "Test.framework"))
         let pbxproj = PBXProj()
         let pbxTarget = PBXNativeTarget(name: "Test")
@@ -340,7 +340,7 @@ final class LinkGeneratorErrorTests: XCTestCase {
 
     func test_generateLinkingPhase_throws_whenFileReferenceIsMissing() throws {
         var dependencies: [GraphDependencyReference] = []
-        dependencies.append(GraphDependencyReference.absolute(AbsolutePath("/test.framework")))
+        dependencies.append(GraphDependencyReference.testFramework(path: "/test.framework"))
         let pbxproj = PBXProj()
         let pbxTarget = PBXNativeTarget(name: "Test")
         let fileElements = ProjectFileElements()
@@ -371,8 +371,8 @@ final class LinkGeneratorErrorTests: XCTestCase {
     func test_generateLinkingPhase_sdkNodes() throws {
         // Given
         let dependencies: [GraphDependencyReference] = [
-            .sdk("/Strong/Foo.framework", .required),
-            .sdk("/Weak/Bar.framework", .optional),
+            .sdk(path: "/Strong/Foo.framework", status: .required),
+            .sdk(path: "/Weak/Bar.framework", status: .optional),
         ]
         let pbxproj = PBXProj()
         let pbxTarget = PBXNativeTarget(name: "Test")

@@ -1,14 +1,14 @@
 import Basic
 import Foundation
 import SPMUtility
-import TuistSupport
 import TuistScaffold
+import TuistSupport
 import XCTest
 
 @testable import TuistKit
-@testable import TuistSupportTesting
-@testable import TuistScaffoldTesting
 @testable import TuistLoaderTesting
+@testable import TuistScaffoldTesting
+@testable import TuistSupportTesting
 
 final class InitCommandTests: TuistUnitTestCase {
     var subject: InitCommand!

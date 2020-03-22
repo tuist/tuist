@@ -292,7 +292,7 @@ public class Graph: Graphing {
         if targetNode.target.canLinkStaticProducts() {
             let transitiveSystemLibraries = transitiveStaticTargetNodes(for: targetNode).flatMap {
                 $0.sdkDependencies.map {
-                    GraphDependencyReference.sdk($0.path, $0.status)
+                    GraphDependencyReference.sdk(path: $0.path, status: $0.status)
                 }
             }
 
@@ -300,7 +300,7 @@ public class Graph: Graphing {
         }
 
         let directSystemLibrariesAndFrameworks = targetNode.sdkDependencies.map {
-            GraphDependencyReference.sdk($0.path, $0.status)
+            GraphDependencyReference.sdk(path: $0.path, status: $0.status)
         }
 
         references = references.union(directSystemLibrariesAndFrameworks)
@@ -309,8 +309,7 @@ public class Graph: Graphing {
 
         let precompiledLibrariesAndFrameworks = targetNode.precompiledDependencies
             .lazy
-            .map(\.path)
-            .map(GraphDependencyReference.absolute)
+            .map(GraphDependencyReference.init)
 
         references = references.union(precompiledLibrariesAndFrameworks)
 
@@ -382,13 +381,16 @@ public class Graph: Graphing {
 
         var references: Set<GraphDependencyReference> = Set([])
 
-        let isDynamicAndLinkable = frameworkUsesDynamicLinking()
+        let isDynamicAndLinkable = { (node: PrecompiledNode) -> Bool in
+            if let framework = node as? FrameworkNode { return framework.linking == .dynamic }
+            if let xcframework = node as? XCFrameworkNode { return xcframework.linking == .dynamic }
+            return false
+        }
 
         /// Precompiled frameworks
         let precompiledFrameworks = findAll(targetNode: targetNode, test: isDynamicAndLinkable, skip: canEmbedProducts)
             .lazy
-            .map(\.path)
-            .map(GraphDependencyReference.absolute)
+            .map(GraphDependencyReference.init)
 
         references.formUnion(precompiledFrameworks)
 
@@ -572,12 +574,5 @@ public class Graph: Graphing {
         ]
 
         return validProducts.contains(targetNode.target.product)
-    }
-
-    // swiftlint:disable:next line_length
-    fileprivate func frameworkUsesDynamicLinking(frameworkMetadataProvider: FrameworkMetadataProviding = FrameworkMetadataProvider()) -> (_ frameworkNode: PrecompiledNode) -> Bool { { frameworkNode in
-        let isDynamicLink = try? frameworkMetadataProvider.linking(precompiled: frameworkNode) == .dynamic
-        return isDynamicLink ?? false
-    }
     }
 }

@@ -11,7 +11,14 @@ const Message = ({ title, description }) => {
       <div sx={{ fontWeight: 'heading', fontSize: 2 }}>
         <span>{title}</span>
       </div>
-      <ReactMarkdown source={description} />
+      <ReactMarkdown source={description} sx={{
+        "a:-webkit-any-link": {
+          color: "primary",
+          ":hover,:focus,:visited": {
+            color: "secondary",
+          },
+        },
+      }} />
     </ThemeUIMessage>
   )
 }

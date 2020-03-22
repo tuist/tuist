@@ -3,33 +3,55 @@ import Foundation
 import TuistSupport
 
 public class XCFrameworkNode: PrecompiledNode {
+    /// Coding keys.
     enum XCFrameworkNodeCodingKeys: String, CodingKey {
-        case libraries
+        case linking
+        case type
+        case path
+        case name
+        case infoPlist = "info_plist"
     }
 
-    public let libraries: [XCFrameworkInfoPlist.Library]
+    /// The xcframework's Info.plist content.
+    public let infoPlist: XCFrameworkInfoPlist
+
+    /// Path to the primary binary.
     public let primaryBinaryPath: AbsolutePath
 
-    public init(
-        path: AbsolutePath,
-        libraries: [XCFrameworkInfoPlist.Library],
-        primaryBinaryPath: AbsolutePath
-    ) {
-        self.libraries = libraries
+    /// Returns the type of linking
+    public let linking: BinaryLinking
+
+    /// List of other .xcframeworks this xcframework depends on.
+    public let dependencies: [XCFrameworkNode]
+
+    /// Path to the binary.
+    public override var binaryPath: AbsolutePath { primaryBinaryPath }
+
+    /// Initializes the node with its attributes.
+    /// - Parameters:
+    ///   - path: Path to the .xcframework.
+    ///   - infoPlist: The xcframework's Info.plist content.
+    ///   - primaryBinaryPath: Path to the primary binary.
+    ///   - linking: Returns the type of linking.
+    ///   - dependencies: List of other .xcframeworks this xcframework depends on.
+    public init(path: AbsolutePath,
+                infoPlist: XCFrameworkInfoPlist,
+                primaryBinaryPath: AbsolutePath,
+                linking: BinaryLinking,
+                dependencies: [XCFrameworkNode] = []) {
+        self.infoPlist = infoPlist
+        self.linking = linking
         self.primaryBinaryPath = primaryBinaryPath
+        self.dependencies = dependencies
         super.init(path: path)
     }
 
-    public override var binaryPath: AbsolutePath {
-        primaryBinaryPath
-    }
-
     public override func encode(to encoder: Encoder) throws {
-        var parentContainer = encoder.container(keyedBy: CodingKeys.self)
-        try parentContainer.encode(path.pathString, forKey: .path)
-        try parentContainer.encode(name, forKey: .name)
-        try parentContainer.encode("precompiled", forKey: .type)
         var container = encoder.container(keyedBy: XCFrameworkNodeCodingKeys.self)
-        try container.encode(libraries, forKey: .libraries)
+        try container.encode(path.pathString, forKey: .path)
+        try container.encode(name, forKey: .name)
+        try container.encode(linking, forKey: .linking)
+        try container.encode("xcframework", forKey: .type)
+        try container.encode(infoPlist, forKey: .infoPlist)
     }
 }

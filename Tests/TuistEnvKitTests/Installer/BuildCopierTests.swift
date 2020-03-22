@@ -46,7 +46,7 @@ final class BuildCopierTests: XCTestCase {
         XCTAssertEqual(toPath.glob("*").count, BuildCopier.files.count)
         XCTAssertFalse(fileManager.fileExists(atPath: toPath.appending(component: "test").pathString))
     }
-    
+
     func test_copy_without_templates() throws {
         let fromDir = try TemporaryDirectory(removeTreeOnDeinit: true)
         let fromPath = fromDir.path

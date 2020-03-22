@@ -9,7 +9,7 @@ import XCTest
 @testable import TuistGenerator
 @testable import TuistSupportTesting
 
-final class XcodeProjWriterTests: TuistUnitTestCase {
+final class XcodeProjWriterTests: TuistTestCase {
     private var subject: XcodeProjWriter!
 
     override func setUp() {

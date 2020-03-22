@@ -36,30 +36,44 @@ protocol WorkspaceGenerating: AnyObject {
 }
 
 final class WorkspaceGenerator: WorkspaceGenerating {
+    struct Config {
+        /// The execution context to use when generating
+        /// descriptors for each project within the workspace / graph
+        var projectGenerationContext: ExecutionContext
+        static var `default`: Config {
+            Config(projectGenerationContext: .concurrent)
+        }
+    }
+
     // MARK: - Attributes
 
     private let projectGenerator: ProjectGenerating
     private let workspaceStructureGenerator: WorkspaceStructureGenerating
     private let schemesGenerator: SchemesGenerating
+    private let config: Config
 
     // MARK: - Init
 
-    convenience init(defaultSettingsProvider: DefaultSettingsProviding = DefaultSettingsProvider()) {
+    convenience init(defaultSettingsProvider: DefaultSettingsProviding = DefaultSettingsProvider(),
+                     config: Config = .default) {
         let configGenerator = ConfigGenerator(defaultSettingsProvider: defaultSettingsProvider)
         let targetGenerator = TargetGenerator(configGenerator: configGenerator)
         let projectGenerator = ProjectGenerator(targetGenerator: targetGenerator,
                                                 configGenerator: configGenerator)
         self.init(projectGenerator: projectGenerator,
                   workspaceStructureGenerator: WorkspaceStructureGenerator(),
-                  schemesGenerator: SchemesGenerator())
+                  schemesGenerator: SchemesGenerator(),
+                  config: config)
     }
 
     init(projectGenerator: ProjectGenerating,
          workspaceStructureGenerator: WorkspaceStructureGenerating,
-         schemesGenerator: SchemesGenerating) {
+         schemesGenerator: SchemesGenerating,
+         config: Config = .default) {
         self.projectGenerator = projectGenerator
         self.workspaceStructureGenerator = workspaceStructureGenerator
         self.schemesGenerator = schemesGenerator
+        self.config = config
     }
 
     // MARK: - WorkspaceGenerating
@@ -70,7 +84,7 @@ final class WorkspaceGenerator: WorkspaceGenerating {
         logger.notice("Generating workspace \(workspaceName)", metadata: .section)
 
         /// Projects
-        let projects = try graph.projects.map { project in
+        let projects = try graph.projects.map(context: config.projectGenerationContext) { project in
             try projectGenerator.generate(project: project,
                                           graph: graph,
                                           sourceRootPath: project.path,

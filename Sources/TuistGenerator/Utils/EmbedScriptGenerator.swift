@@ -11,8 +11,8 @@ protocol EmbedScriptGenerating {
     /// It returns the script and the input paths list that should be used to generate a Xcode script phase
     /// to embed the given frameworks into the compiled product.
     /// - Parameter sourceRootPath: Directory where the Xcode project will be created.
-    /// - Parameter frameworkPaths: Path to the frameworks.
-    func script(sourceRootPath: AbsolutePath, frameworkPaths: [AbsolutePath]) throws -> EmbedScript
+    /// - Parameter frameworkReferences: Framework references.
+    func script(sourceRootPath: AbsolutePath, frameworkReferences: [GraphDependencyReference]) throws -> EmbedScript
 }
 
 /// It represents a embed frameworks script.
@@ -30,17 +30,11 @@ struct EmbedScript {
 final class EmbedScriptGenerator: EmbedScriptGenerating {
     typealias FrameworkScript = (script: String, inputPaths: [RelativePath], outputPaths: [String])
 
-    let frameworkMetadataProvider: FrameworkMetadataProviding
-
-    init(frameworkMetadataProvider: FrameworkMetadataProviding = FrameworkMetadataProvider()) {
-        self.frameworkMetadataProvider = frameworkMetadataProvider
-    }
-
-    func script(sourceRootPath: AbsolutePath, frameworkPaths: [AbsolutePath]) throws -> EmbedScript {
+    func script(sourceRootPath: AbsolutePath, frameworkReferences: [GraphDependencyReference]) throws -> EmbedScript {
         var script = baseScript()
         script.append("\n")
 
-        let (frameworksScript, inputPaths, outputPaths) = try self.frameworksScript(sourceRootPath: sourceRootPath, frameworkPaths: frameworkPaths)
+        let (frameworksScript, inputPaths, outputPaths) = try self.frameworksScript(sourceRootPath: sourceRootPath, frameworkReferences: frameworkReferences)
         script.append(frameworksScript)
 
         return EmbedScript(script: script, inputPaths: inputPaths, outputPaths: outputPaths)
@@ -48,21 +42,25 @@ final class EmbedScriptGenerator: EmbedScriptGenerating {
 
     // MARK: - Fileprivate
 
-    fileprivate func frameworksScript(sourceRootPath: AbsolutePath,
-                                      frameworkPaths: [AbsolutePath]) throws -> FrameworkScript {
+    fileprivate func frameworksScript(sourceRootPath: AbsolutePath, frameworkReferences: [GraphDependencyReference]) throws -> FrameworkScript {
         var script = ""
         var inputPaths: [RelativePath] = []
         var outputPaths: [String] = []
 
-        for frameworkPath in frameworkPaths {
+        for frameworkReference in frameworkReferences {
+            guard case let GraphDependencyReference.framework(path, _, _, dsymPath, bcsymbolmapPaths, _, _, _) = frameworkReference else {
+                preconditionFailure("references need to be of type framework")
+                break
+            }
+
             // Framework
-            let relativeFrameworkPath = frameworkPath.relative(to: sourceRootPath)
+            let relativeFrameworkPath = path.relative(to: sourceRootPath)
             script.append("install_framework \"\(relativeFrameworkPath.pathString)\"\n")
             inputPaths.append(relativeFrameworkPath)
             outputPaths.append("${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/\(relativeFrameworkPath.basename)")
 
             // .dSYM
-            if let dsymPath = frameworkMetadataProvider.dsymPath(frameworkPath: frameworkPath) {
+            if let dsymPath = dsymPath {
                 let relativeDsymPath = dsymPath.relative(to: sourceRootPath)
                 script.append("install_dsym \"\(relativeDsymPath.pathString)\"\n")
                 inputPaths.append(relativeDsymPath)
@@ -70,8 +68,7 @@ final class EmbedScriptGenerator: EmbedScriptGenerating {
             }
 
             // .bcsymbolmap
-            let bcsymbolmaps = try frameworkMetadataProvider.bcsymbolmapPaths(frameworkPath: frameworkPath)
-            for bcsymbolmapPath in bcsymbolmaps {
+            for bcsymbolmapPath in bcsymbolmapPaths {
                 let relativeDsymPath = bcsymbolmapPath.relative(to: sourceRootPath)
                 script.append("install_bcsymbolmap \"\(relativeDsymPath.pathString)\"\n")
                 inputPaths.append(relativeDsymPath)

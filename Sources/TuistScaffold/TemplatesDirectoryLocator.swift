@@ -22,7 +22,7 @@ public final class TemplatesDirectoryLocator: TemplatesDirectoryLocating {
     }
 
     // MARK: - TemplatesDirectoryLocating
-    
+
     public func locateTuistTemplates() -> AbsolutePath? {
         #if DEBUG
             // Used only for debug purposed to find templates in your tuist working directory
@@ -43,7 +43,6 @@ public final class TemplatesDirectoryLocator: TemplatesDirectoryLocating {
         }
         return candidates.first(where: FileHandler.shared.exists)
     }
-
 
     public func locateUserTemplates(at: AbsolutePath) -> AbsolutePath? {
         guard let customTemplatesDirectory = locate(from: at) else { return nil }

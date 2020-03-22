@@ -4,8 +4,8 @@ import SPMUtility
 import TuistCore
 import TuistGenerator
 import TuistLoader
-import TuistSupport
 import TuistScaffold
+import TuistSupport
 
 private typealias Platform = TuistCore.Platform
 private typealias Product = TuistCore.Product
@@ -109,7 +109,7 @@ class InitCommand: NSObject, Command {
         self.templateGenerator = templateGenerator
         self.templateLoader = templateLoader
     }
-    
+
     func parse(with parser: ArgumentParser, arguments: [String]) throws -> ArgumentParser.Result {
         guard arguments.contains("--template") else { return try parser.parse(arguments) }
         // Plucking out path and template argument
@@ -117,10 +117,10 @@ class InitCommand: NSObject, Command {
             arguments[$0 ..< min($0 + 2, arguments.count)]
         }
         let filteredArguments = pairedArguments
-        .filter {
-            $0.first == "--path" || $0.first == "--template"
-        }
-        .flatMap { Array($0) }
+            .filter {
+                $0.first == "--path" || $0.first == "--template"
+            }
+            .flatMap { Array($0) }
         // We want to parse only the name of template, not its arguments which will be dynamically added
         let resultArguments = try parser.parse(filteredArguments)
 
@@ -150,7 +150,7 @@ class InitCommand: NSObject, Command {
         let path = self.path(arguments: arguments)
         let name = try self.name(arguments: arguments, path: path)
         try verifyDirectoryIsEmpty(path: path)
-        
+
         let directories = try templatesDirectoryLocator.templateDirectories(at: path)
         if let template = arguments.get(templateArgument) {
             guard
@@ -174,7 +174,6 @@ class InitCommand: NSObject, Command {
                                            attributes: ["name": name, "platform": platform.caseValue])
         }
 
-
         logger.notice("Project generated at path \(path.pathString).", metadata: .success)
     }
 
@@ -189,7 +188,7 @@ class InitCommand: NSObject, Command {
             throw InitCommandError.nonEmptyDirectory(path)
         }
     }
-    
+
     /// Validates if all `attributes` from `template` have been provided
     /// If those attributes are optional, they default to `default` if not provided
     /// - Returns: Array of parsed attributes
@@ -218,7 +217,7 @@ class InitCommand: NSObject, Command {
             return mutableDict
         }
     }
-    
+
     /// Finds template directory
     /// - Parameters:
     ///     - templateDirectories: Paths of available templates

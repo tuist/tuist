@@ -180,7 +180,7 @@ final class Installer: Installing {
                 try FileHandler.shared.delete(installationDirectory)
             }
             try FileHandler.shared.createFolder(installationDirectory)
-            
+
             let templatesDirectory = temporaryDirectory.path.appending(component: Constants.templatesDirectoryName)
             if FileHandler.shared.exists(templatesDirectory) {
                 try FileHandler.shared.copy(from: templatesDirectory,

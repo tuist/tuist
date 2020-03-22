@@ -14,7 +14,7 @@ public final class MockTemplatesDirectoryLocator: TemplatesDirectoryLocating {
     public func templateDirectories(at path: AbsolutePath) throws -> [AbsolutePath] {
         try templateDirectoriesStub?(path) ?? []
     }
-    
+
     public func locateTuistTemplates() -> AbsolutePath? {
         locateTuistTemplatesStub?()
     }
