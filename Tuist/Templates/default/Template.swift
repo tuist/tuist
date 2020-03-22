@@ -69,10 +69,6 @@ let config = TuistConfig(generationOptions: [
 
 let template = Template(
     description: "Default template",
-    attributes: [
-        nameAttribute,
-        platformAttribute,
-    ],
     files: [
         .string(path: "Setup.swift",
                 contents: setupContent),

@@ -113,7 +113,7 @@ class InitCommand: NSObject, Command {
     func parse(with parser: ArgumentParser, arguments: [String]) throws -> ArgumentParser.Result {
         guard arguments.contains("--template") else { return try parser.parse(arguments) }
         // Plucking out path and template argument
-        let pairedArguments = stride(from: 2, to: arguments.count, by: 2).map {
+        let pairedArguments = stride(from: 1, to: arguments.count, by: 2).map {
             arguments[$0 ..< min($0 + 2, arguments.count)]
         }
         let filteredArguments = pairedArguments
@@ -122,7 +122,7 @@ class InitCommand: NSObject, Command {
             }
             .flatMap { Array($0) }
         // We want to parse only the name of template, not its arguments which will be dynamically added
-        let resultArguments = try parser.parse(filteredArguments)
+        let resultArguments = try parser.parse(Array(arguments.prefix(1)) + filteredArguments)
 
         guard let templateName = resultArguments.get(templateArgument) else { throw InitCommandError.templateNotProvided }
 

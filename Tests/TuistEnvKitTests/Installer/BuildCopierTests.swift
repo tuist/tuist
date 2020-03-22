@@ -14,7 +14,6 @@ final class BuildCopierTests: XCTestCase {
         subject = BuildCopier()
     }
 
-    // TODO: Test for installing older version
     func test_files() {
         XCTAssertEqual(BuildCopier.files, [
             "tuist",
