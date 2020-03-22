@@ -1,6 +1,7 @@
 import Basic
 import Foundation
 import SPMUtility
+import TuistCore
 import TuistLoader
 import TuistScaffold
 import TuistSupport
@@ -11,6 +12,7 @@ enum ScaffoldCommandError: FatalError, Equatable {
     case templateNotFound(String)
     case templateNotProvided
     case nonEmptyDirectory(AbsolutePath)
+    case attributeNotProvided(String)
 
     var description: String {
         switch self {
@@ -20,6 +22,8 @@ enum ScaffoldCommandError: FatalError, Equatable {
             return "You must provide template name"
         case let .nonEmptyDirectory(path):
             return "Can't generate a template in the non-empty directory at path \(path.pathString)."
+        case let .attributeNotProvided(name):
+            return "You must provide \(name) option. Add --\(name) desired_value to your command."
         }
     }
 }
@@ -37,18 +41,21 @@ class ScaffoldCommand: NSObject, Command {
 
     private let templateLoader: TemplateLoading
     private let templatesDirectoryLocator: TemplatesDirectoryLocating
+    private let templateGenerator: TemplateGenerating
 
     // MARK: - Init
 
     public required convenience init(parser: ArgumentParser) {
         self.init(parser: parser,
                   templateLoader: TemplateLoader(),
-                  templatesDirectoryLocator: TemplatesDirectoryLocator())
+                  templatesDirectoryLocator: TemplatesDirectoryLocator(),
+                  templateGenerator: TemplateGenerator())
     }
 
     init(parser: ArgumentParser,
          templateLoader: TemplateLoading,
-         templatesDirectoryLocator: TemplatesDirectoryLocating) {
+         templatesDirectoryLocator: TemplatesDirectoryLocating,
+         templateGenerator: TemplateGenerating) {
         subParser = parser.add(subparser: ScaffoldCommand.command, overview: ScaffoldCommand.overview)
         listArgument = subParser.add(option: "--list",
                                      shortName: "-l",
@@ -67,12 +74,23 @@ class ScaffoldCommand: NSObject, Command {
                                      completion: .filename)
         self.templateLoader = templateLoader
         self.templatesDirectoryLocator = templatesDirectoryLocator
+        self.templateGenerator = templateGenerator
     }
 
     func parse(with parser: ArgumentParser, arguments: [String]) throws -> ArgumentParser.Result {
         guard arguments.count >= 2 else { throw ScaffoldCommandError.templateNotProvided }
         // We want to parse only the name of template, not its arguments which will be dynamically added
-        let resultArguments = try parser.parse(Array(arguments.prefix(2)))
+        let templateArguments = Array(arguments.prefix(2))
+        // Plucking out path argument
+        let filteredArguments = stride(from: 2, to: arguments.count, by: 2).map {
+            arguments[$0 ..< min($0 + 2, arguments.count)]
+        }
+        .filter {
+            $0.first == "--path"
+        }
+        .flatMap { Array($0) }
+        // We want to parse only the name of template, not its arguments which will be dynamically added
+        let resultArguments = try parser.parse(templateArguments + filteredArguments)
 
         if resultArguments.get(listArgument) != nil {
             return try parser.parse(arguments)
@@ -100,9 +118,8 @@ class ScaffoldCommand: NSObject, Command {
     }
 
     func run(with arguments: ArgumentParser.Result) throws {
-        guard let template = arguments.get(templateArgument) else { throw ScaffoldCommandError.templateNotProvided }
-
         let path = self.path(arguments: arguments)
+
         let templateDirectories = try templatesDirectoryLocator.templateDirectories(at: path)
 
         let shouldList = arguments.get(listArgument) ?? false
@@ -114,14 +131,22 @@ class ScaffoldCommand: NSObject, Command {
             return
         }
 
-        try verifyDirectoryIsEmpty(path: path)
+        guard let templateName = arguments.get(templateArgument) else { throw ScaffoldCommandError.templateNotProvided }
 
-        _ = try templateDirectory(templateDirectories: templateDirectories,
-                                  template: template)
+        let templateDirectory = try self.templateDirectory(templateDirectories: templateDirectories,
+                                                           template: templateName)
 
-        // TODO: Generate templates
+        let template = try templateLoader.loadTemplate(at: templateDirectory)
 
-        logger.notice("Template \(template) was successfully generated", metadata: .success)
+        let parsedAttributes = try validateAttributes(attributesArguments,
+                                                      template: template,
+                                                      arguments: arguments)
+
+        try templateGenerator.generate(template: template,
+                                       to: path,
+                                       attributes: parsedAttributes)
+
+        logger.notice("Template \(templateName) was successfully generated", metadata: .success)
     }
 
     // MARK: - Helpers
@@ -134,13 +159,32 @@ class ScaffoldCommand: NSObject, Command {
         }
     }
 
-    /// Checks if the given directory is empty, essentially that it doesn't contain any file or directory.
-    ///
-    /// - Parameter path: Directory to be checked.
-    /// - Throws: An ScaffoldCommandError.nonEmptyDirectory error when the directory is not empty.
-    private func verifyDirectoryIsEmpty(path: AbsolutePath) throws {
-        if !path.glob("*").isEmpty {
-            throw ScaffoldCommandError.nonEmptyDirectory(path)
+    /// Validates if all `attributes` from `template` have been provided
+    /// If those attributes are optional, they default to `default` if not provided
+    /// - Returns: Array of parsed attributes
+    private func validateAttributes(_ attributes: [String: OptionArgument<String>],
+                                    template: Template,
+                                    arguments: ArgumentParser.Result) throws -> [String: String] {
+        try template.attributes.reduce([:]) {
+            var mutableDict = $0
+            switch $1 {
+            case let .required(name):
+                guard
+                    let argument = attributes[name],
+                    let value = arguments.get(argument)
+                else { throw ScaffoldCommandError.attributeNotProvided(name) }
+                mutableDict[name] = value
+            case let .optional(name, default: defaultValue):
+                guard
+                    let argument = attributes[name],
+                    let value: String = arguments.get(argument)
+                else {
+                    mutableDict[name] = defaultValue
+                    return mutableDict
+                }
+                mutableDict[name] = value
+            }
+            return mutableDict
         }
     }
 

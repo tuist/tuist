@@ -14,6 +14,7 @@ let template = Template(
         platformAttribute
     ],
     files: [
-        .string(path: "\(nameAttribute)/custom.swift", contents: testContents)
+        .string(path: "\(nameAttribute)/custom.swift", contents: testContents),
+        .file(path: "\(nameAttribute)/generated.swift", templatePath: "platform.stencil"),
     ]
 )
