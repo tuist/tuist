@@ -159,6 +159,9 @@ final class InstallerTests: TuistUnitTestCase {
                               "-Xswiftc", "-emit-module-interface",
                               "-Xswiftc", "-emit-module-interface-path",
                               "-Xswiftc", temporaryDirectory.path.appending(RelativePath(".build/release/ProjectDescription.swiftinterface")).pathString)
+        
+        try FileHandler.shared.createFolder(temporaryDirectory.path.appending(component: Constants.templatesDirectoryName))
+        try FileHandler.shared.createFolder(temporaryDirectory.path.appending(RelativePath(".build/release")))
 
         try subject.install(version: version, temporaryDirectory: temporaryDirectory)
 
@@ -202,6 +205,9 @@ final class InstallerTests: TuistUnitTestCase {
                               "-Xswiftc", "-emit-module-interface",
                               "-Xswiftc", "-emit-module-interface-path",
                               "-Xswiftc", temporaryDirectory.path.appending(RelativePath(".build/release/ProjectDescription.swiftinterface")).pathString)
+        
+        try FileHandler.shared.createFolder(temporaryDirectory.path.appending(component: Constants.templatesDirectoryName))
+        try FileHandler.shared.createFolder(temporaryDirectory.path.appending(RelativePath(".build/release")))
 
         try subject.install(version: version, temporaryDirectory: temporaryDirectory, force: true)
 

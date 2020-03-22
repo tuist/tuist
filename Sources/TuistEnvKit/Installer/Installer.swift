@@ -180,6 +180,9 @@ final class Installer: Installing {
                 try FileHandler.shared.delete(installationDirectory)
             }
             try FileHandler.shared.createFolder(installationDirectory)
+            
+            try FileHandler.shared.copy(from: temporaryDirectory.path.appending(component: Constants.templatesDirectoryName),
+                                        to: buildDirectory.appending(component: Constants.templatesDirectoryName))
 
             try buildCopier.copy(from: buildDirectory,
                                  to: installationDirectory)

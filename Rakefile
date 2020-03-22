@@ -101,7 +101,8 @@ def package
     system(
       "zip", "-q", "-r", "--symlinks",
       "tuist.zip", "tuist",
-      "ProjectDescription.swiftmodule", "ProjectDescription.swiftdoc", "libProjectDescription.dylib", "ProjectDescription.swiftinterface"
+      "ProjectDescription.swiftmodule", "ProjectDescription.swiftdoc", "libProjectDescription.dylib", "ProjectDescription.swiftinterface",
+      File.expand_path("Templates", __dir__)
     )
     system("zip", "-q", "-r", "--symlinks", "tuistenv.zip", "tuistenv")
   end

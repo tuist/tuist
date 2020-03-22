@@ -5,6 +5,7 @@ import TuistCore
 import TuistGenerator
 import TuistLoader
 import TuistSupport
+import TuistScaffold
 
 private typealias Platform = TuistCore.Platform
 private typealias Product = TuistCore.Product
@@ -12,6 +13,9 @@ private typealias Product = TuistCore.Product
 enum InitCommandError: FatalError, Equatable {
     case ungettableProjectName(AbsolutePath)
     case nonEmptyDirectory(AbsolutePath)
+    case templateNotFound(String)
+    case templateNotProvided
+    case attributeNotProvided(String)
 
     var type: ErrorType {
         .abort
@@ -19,10 +23,16 @@ enum InitCommandError: FatalError, Equatable {
 
     var description: String {
         switch self {
+        case let .templateNotFound(template):
+            return "Could not find template \(template). Make sure it exists at Tuist/Templates/\(template)"
+        case .templateNotProvided:
+            return "You must provide template name"
         case let .ungettableProjectName(path):
             return "Couldn't infer the project name from path \(path.pathString)."
         case let .nonEmptyDirectory(path):
             return "Can't initialize a project in the non-empty directory at path \(path.pathString)."
+        case let .attributeNotProvided(name):
+            return "You must provide \(name) option. Add --\(name) desired_value to your command."
         }
     }
 
@@ -32,32 +42,45 @@ enum InitCommandError: FatalError, Equatable {
             return lhsPath == rhsPath
         case let (.nonEmptyDirectory(lhsPath), .nonEmptyDirectory(rhsPath)):
             return lhsPath == rhsPath
+        case let (.templateNotFound(lhsTemplate), .templateNotFound(rhsTemplate)):
+            return lhsTemplate == rhsTemplate
+        case (.templateNotProvided, .templateNotProvided):
+            return true
         default:
             return false
         }
     }
 }
 
-// swiftlint:disable:next type_body_length
 class InitCommand: NSObject, Command {
     // MARK: - Attributes
 
     static let command = "init"
     static let overview = "Bootstraps a project."
-    let platformArgument: OptionArgument<String>
-    let pathArgument: OptionArgument<String>
-    let nameArgument: OptionArgument<String>
-    let playgroundGenerator: PlaygroundGenerating
+    private let platformArgument: OptionArgument<String>
+    private let pathArgument: OptionArgument<String>
+    private let nameArgument: OptionArgument<String>
+    private let templateArgument: OptionArgument<String>
+    private var attributesArguments: [String: OptionArgument<String>] = [:]
+    private let subParser: ArgumentParser
+    private let templatesDirectoryLocator: TemplatesDirectoryLocating
+    private let templateGenerator: TemplateGenerating
+    private let templateLoader: TemplateLoading
 
     // MARK: - Init
 
     public required convenience init(parser: ArgumentParser) {
-        self.init(parser: parser, playgroundGenerator: PlaygroundGenerator())
+        self.init(parser: parser,
+                  templatesDirectoryLocator: TemplatesDirectoryLocator(),
+                  templateGenerator: TemplateGenerator(),
+                  templateLoader: TemplateLoader())
     }
 
     init(parser: ArgumentParser,
-         playgroundGenerator: PlaygroundGenerating) {
-        let subParser = parser.add(subparser: InitCommand.command, overview: InitCommand.overview)
+         templatesDirectoryLocator: TemplatesDirectoryLocating,
+         templateGenerator: TemplateGenerating,
+         templateLoader: TemplateLoading) {
+        subParser = parser.add(subparser: InitCommand.command, overview: InitCommand.overview)
         platformArgument = subParser.add(option: "--platform",
                                          shortName: nil,
                                          kind: String.self,
@@ -77,25 +100,80 @@ class InitCommand: NSObject, Command {
                                      kind: String.self,
                                      usage: "The name of the project. If it's not passed (Default: Name of the directory).",
                                      completion: nil)
+        templateArgument = subParser.add(option: "--template",
+                                         shortName: "-t",
+                                         kind: String.self,
+                                         usage: "The name of the template to use (you can list available templates with tuist scaffold --list).",
+                                         completion: nil)
+        self.templatesDirectoryLocator = templatesDirectoryLocator
+        self.templateGenerator = templateGenerator
+        self.templateLoader = templateLoader
+    }
+    
+    func parse(with parser: ArgumentParser, arguments: [String]) throws -> ArgumentParser.Result {
+        guard arguments.contains("--template") else { return try parser.parse(arguments) }
+        // Plucking out path and template argument
+        let pairedArguments = stride(from: 2, to: arguments.count, by: 2).map {
+            arguments[$0 ..< min($0 + 2, arguments.count)]
+        }
+        let filteredArguments = pairedArguments
+        .filter {
+            $0.first == "--path" || $0.first == "--template"
+        }
+        .flatMap { Array($0) }
+        // We want to parse only the name of template, not its arguments which will be dynamically added
+        let resultArguments = try parser.parse(filteredArguments)
 
-        self.playgroundGenerator = playgroundGenerator
+        guard let templateName = resultArguments.get(templateArgument) else { throw InitCommandError.templateNotProvided }
+
+        let path = self.path(arguments: resultArguments)
+        let directories = try templatesDirectoryLocator.templateDirectories(at: path)
+
+        let templateDirectory = try self.templateDirectory(templateDirectories: directories,
+                                                           template: templateName)
+
+        let template = try templateLoader.loadTemplate(at: templateDirectory)
+
+        // Dynamically add attributes from template to `subParser`
+        attributesArguments = template.attributes.reduce([:]) {
+            var mutableDictionary = $0
+            mutableDictionary[$1.name] = subParser.add(option: "--\($1.name)",
+                                                       kind: String.self)
+            return mutableDictionary
+        }
+
+        return try parser.parse(arguments)
     }
 
     func run(with arguments: ArgumentParser.Result) throws {
         let platform = try self.platform(arguments: arguments)
-        let path = try self.path(arguments: arguments)
+        let path = self.path(arguments: arguments)
         let name = try self.name(arguments: arguments, path: path)
         try verifyDirectoryIsEmpty(path: path)
-        try generateSetup(path: path)
-        try generateProjectDescriptionHelpers(path: path)
-        try generateProjectsDirectories(name: name, path: path)
-        try generateProjectsSwift(name: name, platform: platform, path: path)
-        try generateWorkspaceSwift(name: name, platform: platform, path: path)
-        try generateSwiftFiles(name: name, platform: platform, path: path)
-        try generatePlaygrounds(name: name, path: path, platform: platform)
-        try generateConfig(path: path)
-        try generateTemplate(path: path)
-        try generateGitIgnore(path: path)
+        
+        let directories = try templatesDirectoryLocator.templateDirectories(at: path)
+        if let template = arguments.get(templateArgument) {
+            guard
+                let templateDirectory = directories.first(where: { $0.basename == template })
+            else { throw InitCommandError.templateNotFound(template) }
+            let template = try templateLoader.loadTemplate(at: templateDirectory)
+            let parsedAttributes = try validateAttributes(attributesArguments,
+                                                          template: template,
+                                                          arguments: arguments)
+
+            try templateGenerator.generate(template: template,
+                                           to: path,
+                                           attributes: parsedAttributes)
+        } else {
+            guard
+                let templateDirectory = directories.first(where: { $0.basename == "default" })
+            else { throw InitCommandError.templateNotFound("default") }
+            let template = try templateLoader.loadTemplate(at: templateDirectory)
+            try templateGenerator.generate(template: template,
+                                           to: path,
+                                           attributes: ["name": name, "platform": platform.caseValue])
+        }
+
 
         logger.notice("Project generated at path \(path.pathString).", metadata: .success)
     }
@@ -111,388 +189,46 @@ class InitCommand: NSObject, Command {
             throw InitCommandError.nonEmptyDirectory(path)
         }
     }
-
-    fileprivate func projectsPath(_ path: AbsolutePath) -> AbsolutePath {
-        path.appending(component: "Projects")
-    }
-
-    fileprivate func appPath(_ path: AbsolutePath, name: String) -> AbsolutePath {
-        projectsPath(path).appending(component: name)
-    }
-
-    fileprivate func kitFrameworkPath(_ path: AbsolutePath, name: String) -> AbsolutePath {
-        projectsPath(path).appending(component: "\(name)Kit")
-    }
-
-    fileprivate func supportFrameworkPath(_ path: AbsolutePath, name: String) -> AbsolutePath {
-        projectsPath(path).appending(component: "\(name)Support")
-    }
-
-    private func generateProjectsDirectories(name: String, path: AbsolutePath) throws {
-        func generate(for projectPath: AbsolutePath) throws {
-            try FileHandler.shared.createFolder(projectPath)
-            try FileHandler.shared.createFolder(projectPath.appending(component: "Sources"))
-            try FileHandler.shared.createFolder(projectPath.appending(component: "Tests"))
-            try FileHandler.shared.createFolder(projectPath.appending(component: "Playgrounds"))
-        }
-        try generate(for: appPath(path, name: name))
-        try generate(for: kitFrameworkPath(path, name: name))
-        try generate(for: supportFrameworkPath(path, name: name))
-    }
-
-    // swiftlint:disable:next function_body_length
-    private func generateProjectDescriptionHelpers(path: AbsolutePath) throws {
-        let helpersPath = path.appending(RelativePath("\(Constants.tuistDirectoryName)/\(Constants.helpersDirectoryName)"))
-        try FileHandler.shared.createFolder(helpersPath)
-
-        let content = """
-        import ProjectDescription
-
-        extension Project {
-
-            public static func app(name: String, platform: Platform, dependencies: [TargetDependency] = []) -> Project {
-                return self.project(name: name, product: .app, platform: platform, dependencies: dependencies, infoPlist: [
-                    "CFBundleShortVersionString": "1.0",
-                    "CFBundleVersion": "1"
-                ])
-            }
-
-            public static func framework(name: String, platform: Platform, dependencies: [TargetDependency] = []) -> Project {
-                return self.project(name: name, product: .framework, platform: platform, dependencies: dependencies)
-            }
-        
-            public static func project(name: String,
-                                       product: Product,
-                                       platform: Platform,
-                                       dependencies: [TargetDependency] = [],
-                                       infoPlist: [String: InfoPlist.Value] = [:]) -> Project {
-                return Project(name: name,
-                               targets: [
-                                Target(name: name,
-                                        platform: platform,
-                                        product: product,
-                                        bundleId: "io.tuist.\\(name)",
-                                        infoPlist: .extendingDefault(with: infoPlist),
-                                        sources: ["Sources/**"],
-                                        resources: [],
-                                        dependencies: dependencies),
-                                Target(name: "\\(name)Tests",
-                                        platform: platform,
-                                        product: .unitTests,
-                                        bundleId: "io.tuist.\\(name)Tests",
-                                        infoPlist: .default,
-                                        sources: "Tests/**",
-                                        dependencies: [
-                                            .target(name: "\\(name)")
-                                        ])
-                              ])
-            }
-
-        }
-        """
-        let helperPath = helpersPath.appending(component: "Project+Templates.swift")
-        try FileHandler.shared.write(content, path: helperPath, atomically: true)
-    }
-
-    private func generateWorkspaceSwift(name: String, platform _: Platform, path: AbsolutePath) throws {
-        let content = """
-        import ProjectDescription
-        import ProjectDescriptionHelpers
-        
-        let workspace = Workspace(name: "\(name)", projects: [
-            "Projects/\(name)",
-            "Projects/\(name)Kit",
-            "Projects/\(name)Support"
-        ])
-        """
-        try FileHandler.shared.write(content, path: path.appending(component: "Workspace.swift"), atomically: true)
-    }
-
-    private func generateProjectsSwift(name: String, platform: Platform, path: AbsolutePath) throws {
-        let appContent = """
-        import ProjectDescription
-        import ProjectDescriptionHelpers
-        
-        let project = Project.app(name: "\(name)", platform: .\(platform.caseValue), dependencies: [
-            .project(target: "\(name)Kit", path: .relativeToManifest("../\(name)Kit"))
-        ])
-        """
-        let kitFrameworkContent = """
-        import ProjectDescription
-        import ProjectDescriptionHelpers
-        
-        let project = Project.framework(name: "\(name)Kit", platform: .\(platform.caseValue), dependencies: [
-            .project(target: "\(name)Support", path: .relativeToManifest("../\(name)Support"))
-        ])
-        """
-        let supportFrameworkContent = """
-        import ProjectDescription
-        import ProjectDescriptionHelpers
-        
-        let project = Project.framework(name: "\(name)Support", platform: .\(platform.caseValue), dependencies: [])
-        """
-
-        try FileHandler.shared.write(appContent, path: appPath(path, name: name).appending(component: "Project.swift"), atomically: true)
-        try FileHandler.shared.write(kitFrameworkContent,
-                                     path: kitFrameworkPath(path, name: name).appending(component: "Project.swift"), atomically: true)
-        try FileHandler.shared.write(supportFrameworkContent,
-                                     path: supportFrameworkPath(path, name: name).appending(component: "Project.swift"), atomically: true)
-    }
-
-    // swiftlint:disable:next function_body_length
-    private func generateGitIgnore(path: AbsolutePath) throws {
-        let path = path.appending(component: ".gitignore")
-        let content = """
-        ### macOS ###
-        # General
-        .DS_Store
-        .AppleDouble
-        .LSOverride
-
-        # Icon must end with two \r
-        Icon
-
-        # Thumbnails
-        ._*
-
-        # Files that might appear in the root of a volume
-        .DocumentRevisions-V100
-        .fseventsd
-        .Spotlight-V100
-        .TemporaryItems
-        .Trashes
-        .VolumeIcon.icns
-        .com.apple.timemachine.donotpresent
-
-        # Directories potentially created on remote AFP share
-        .AppleDB
-        .AppleDesktop
-        Network Trash Folder
-        Temporary Items
-        .apdisk
-
-        ### Xcode ###
-        # Xcode
-        #
-        # gitignore contributors: remember to update Global/Xcode.gitignore, Objective-C.gitignore & Swift.gitignore
-
-        ## User settings
-        xcuserdata/
-
-        ## compatibility with Xcode 8 and earlier (ignoring not required starting Xcode 9)
-        *.xcscmblueprint
-        *.xccheckout
-
-        ## compatibility with Xcode 3 and earlier (ignoring not required starting Xcode 4)
-        build/
-        DerivedData/
-        *.moved-aside
-        *.pbxuser
-        !default.pbxuser
-        *.mode1v3
-        !default.mode1v3
-        *.mode2v3
-        !default.mode2v3
-        *.perspectivev3
-        !default.perspectivev3
-
-        ### Xcode Patch ###
-        *.xcodeproj/*
-        !*.xcodeproj/project.pbxproj
-        !*.xcodeproj/xcshareddata/
-        !*.xcworkspace/contents.xcworkspacedata
-        /*.gcno
-
-        ### Projects ###
-        *.xcodeproj
-        *.xcworkspace
-
-        ### Tuist derived files ###
-        graph.dot
-        """
-        try content.write(to: path.url, atomically: true, encoding: .utf8)
-    }
-
-    /// Generates a Setup.swift file in the given directory.
-    ///
-    /// - Parameter path: Path where the Setup.swift file will be created.
-    /// - Throws: An error if the file cannot be created.
-    private func generateSetup(path: AbsolutePath) throws {
-        let content = """
-        import ProjectDescription
-
-        let setup = Setup([
-            // .homebrew(packages: ["swiftlint", "carthage"]),
-            // .carthage()
-        ])
-        """
-        let setupPath = path.appending(component: Manifest.setup.fileName)
-        try content.write(to: setupPath.url, atomically: true, encoding: .utf8)
-    }
-
-    private func generateConfig(path: AbsolutePath) throws {
-        let content = """
-        import ProjectDescription
-
-        let config = Config(generationOptions: [
-        ])
-        """
-        let configPath = path.appending(RelativePath("\(Constants.tuistDirectoryName)/\(Manifest.config.fileName)"))
-        if !FileHandler.shared.exists(configPath.parentDirectory) {
-            try FileHandler.shared.createFolder(configPath.parentDirectory)
-        }
-
-        try content.write(to: configPath.url, atomically: true, encoding: .utf8)
-    }
-
-    private func generateTemplate(path: AbsolutePath) throws {
-        let templatesPath = path.appending(RelativePath("\(Constants.tuistDirectoryName)/\(Constants.templatesDirectoryName)/framework"))
-        let projectStencilContent = """
-        import ProjectDescription
-
-        let project = Project(name: "{{ nameAttribute }}",
-                              targets: [
-                                  Target(name: "{{ nameAttribute }}",
-                                         platform: .iOS,
-                                         product: .framework,
-                                         productName: "{{ nameAttribute }}",
-                                         bundleId: "io.tuist.{{ nameAttribute }}",
-                                         infoPlist: .default,
-                                         sources: "Sources/**",
-                                         dependencies: []),
-        ])
-        """
-
-        let templateContent = """
-        import ProjectDescription
-
-        let nameAttribute: Template.Attribute = .required("name")
-
-        let exampleContents = \"""
-        struct \\(nameAttribute) { }
-        \"""
-
-        let template = Template(
-            description: "Framework template",
-            attributes: [
-                nameAttribute,
-            ],
-            files: [
-                .string(path: "\\(nameAttribute)/Sources/\\(nameAttribute).swift", contents: exampleContents),
-                .file(path: "\\(nameAttribute)/Project.swift", templatePath: "project.stencil"),
-            ]
-        )
-
-        """
-        if !FileHandler.shared.exists(templatesPath) {
-            try FileHandler.shared.createFolder(templatesPath)
-        }
-
-        try templateContent.write(to: templatesPath.appending(component: Manifest.template.fileName).url, atomically: true, encoding: .utf8)
-        try projectStencilContent.write(to: templatesPath.appending(component: "project.stencil").url, atomically: true, encoding: .utf8)
-    }
-
-    // swiftlint:disable:next function_body_length
-    private func generateSwiftFiles(name: String, platform: Platform, path: AbsolutePath) throws {
-        let appContent: String!
-        if platform == .macOS {
-            appContent = """
-            import Cocoa
-            import \(name)Kit
-            
-            @NSApplicationMain
-            class AppDelegate: NSObject, NSApplicationDelegate {
-            
-                @IBOutlet weak var window: NSWindow!
-            
-                func applicationDidFinishLaunching(_ aNotification: Notification) {
-                    // Insert code here to initialize your application
+    
+    /// Validates if all `attributes` from `template` have been provided
+    /// If those attributes are optional, they default to `default` if not provided
+    /// - Returns: Array of parsed attributes
+    private func validateAttributes(_ attributes: [String: OptionArgument<String>],
+                                    template: Template,
+                                    arguments: ArgumentParser.Result) throws -> [String: String] {
+        try template.attributes.reduce([:]) {
+            var mutableDict = $0
+            switch $1 {
+            case let .required(name):
+                guard
+                    let argument = attributes[name],
+                    let value = arguments.get(argument)
+                else { throw InitCommandError.attributeNotProvided(name) }
+                mutableDict[name] = value
+            case let .optional(name, default: defaultValue):
+                guard
+                    let argument = attributes[name],
+                    let value: String = arguments.get(argument)
+                else {
+                    mutableDict[name] = defaultValue
+                    return mutableDict
                 }
-            
-                func applicationWillTerminate(_ aNotification: Notification) {
-                    // Insert code here to tear down your application
-                }
-            
+                mutableDict[name] = value
             }
-            """
-        } else {
-            appContent = """
-            import UIKit
-            import \(name)Kit
-            
-            @UIApplicationMain
-            class AppDelegate: UIResponder, UIApplicationDelegate {
-            
-                var window: UIWindow?
-            
-                func application(
-                    _ application: UIApplication,
-                    didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil
-                ) -> Bool {
-                    window = UIWindow(frame: UIScreen.main.bounds)
-                    let viewController = UIViewController()
-                    viewController.view.backgroundColor = .white
-                    window?.rootViewController = viewController
-                    window?.makeKeyAndVisible()
-                    return true
-                }
-            
-            }
-            """
+            return mutableDict
         }
-        let kitSourceContent = """
-        import Foundation
-        import \(name)Support
-        
-        public final class \(name)Kit {}
-        """
-        let supportSourceContent = """
-        import Foundation
-        
-        public final class \(name)Support {}
-        """
-
-        func testsContent(_ name: String) -> String {
-            """
-            import Foundation
-            import XCTest
-            
-            @testable import \(name)
-
-            final class \(name)Tests: XCTestCase {
-            
-            }
-            """
-        }
-
-        // App
-        let appSourcesPath = appPath(path, name: name).appending(RelativePath("Sources"))
-        let appTestsPath = appPath(path, name: name).appending(RelativePath("Tests"))
-        try FileHandler.shared.write(appContent, path: appSourcesPath.appending(component: "AppDelegate.swift"), atomically: true)
-        try FileHandler.shared.write(testsContent(name), path: appTestsPath.appending(component: "\(name)Tests.swift"), atomically: true)
-
-        // Kit
-        let kitSourcesPath = kitFrameworkPath(path, name: name).appending(RelativePath("Sources"))
-        let kitTestsPath = kitFrameworkPath(path, name: name).appending(RelativePath("Tests"))
-        try FileHandler.shared.write(kitSourceContent, path: kitSourcesPath.appending(component: "\(name)Kit.swift"), atomically: true)
-        try FileHandler.shared.write(testsContent("\(name)Kit"), path: kitTestsPath.appending(component: "\(name)KitTests.swift"), atomically: true)
-
-        // Support
-        let supportSourcesPath = supportFrameworkPath(path, name: name).appending(RelativePath("Sources"))
-        let supportTestsPath = supportFrameworkPath(path, name: name).appending(RelativePath("Tests"))
-        try FileHandler.shared.write(supportSourceContent, path: supportSourcesPath.appending(component: "\(name)Support.swift"), atomically: true)
-        try FileHandler.shared.write(testsContent("\(name)Support"), path: supportTestsPath.appending(component: "\(name)SupportTests.swift"), atomically: true)
     }
-
-    private func generatePlaygrounds(name: String, path: AbsolutePath, platform: Platform) throws {
-        try playgroundGenerator.generate(path: kitFrameworkPath(path, name: name).appending(component: "Playgrounds"),
-                                         name: "\(name)Kit",
-                                         platform: platform,
-                                         content: PlaygroundGenerator.defaultContent())
-        try playgroundGenerator.generate(path: supportFrameworkPath(path, name: name).appending(component: "Playgrounds"),
-                                         name: "\(name)Support",
-                                         platform: platform,
-                                         content: PlaygroundGenerator.defaultContent())
+    
+    /// Finds template directory
+    /// - Parameters:
+    ///     - templateDirectories: Paths of available templates
+    ///     - template: Name of template
+    /// - Returns: `AbsolutePath` of template directory
+    private func templateDirectory(templateDirectories: [AbsolutePath], template: String) throws -> AbsolutePath {
+        guard
+            let templateDirectory = templateDirectories.first(where: { $0.basename == template })
+        else { throw InitCommandError.templateNotFound(template) }
+        return templateDirectory
     }
 
     private func name(arguments: ArgumentParser.Result, path: AbsolutePath) throws -> String {
@@ -505,7 +241,7 @@ class InitCommand: NSObject, Command {
         }
     }
 
-    private func path(arguments: ArgumentParser.Result) throws -> AbsolutePath {
+    private func path(arguments: ArgumentParser.Result) -> AbsolutePath {
         if let path = arguments.get(pathArgument) {
             return AbsolutePath(path, relativeTo: FileHandler.shared.currentPath)
         } else {
