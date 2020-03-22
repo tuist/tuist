@@ -69,7 +69,7 @@ final class InitCommandTests: TuistUnitTestCase {
         templatesDirectoryLocator.templateDirectoriesStub = { _ in
             [defaultTemplatePath]
         }
-        let expectedAttributes = ["name": "name", "platform": "macos"]
+        let expectedAttributes = ["name": "name", "platform": "macOS"]
         let result = try parser.parse([InitCommand.command, "--name", "name", "--platform", "macos"])
         var generatorAttributes: [String: String] = [:]
         templateGenerator.generateStub = { _, _, attributes in
@@ -88,7 +88,7 @@ final class InitCommandTests: TuistUnitTestCase {
         templatesDirectoryLocator.templateDirectoriesStub = { _ in
             [defaultTemplatePath]
         }
-        let expectedAttributes = ["name": "name", "platform": "ios"]
+        let expectedAttributes = ["name": "name", "platform": "iOS"]
         let result = try parser.parse([InitCommand.command, "--name", "name"])
         var generatorAttributes: [String: String] = [:]
         templateGenerator.generateStub = { _, _, attributes in

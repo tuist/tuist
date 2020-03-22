@@ -30,7 +30,6 @@ public final class TemplatesDirectoryLocator: TemplatesDirectoryLocating {
                 .removingLastComponent()
                 .removingLastComponent()
                 .removingLastComponent()
-                .appending(component: Constants.tuistDirectoryName)
         #else
             let bundlePath = AbsolutePath(Bundle(for: ManifestLoader.self).bundleURL.path)
         #endif
