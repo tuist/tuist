@@ -2,41 +2,48 @@ import Foundation
 import KeychainAccess
 
 public protocol CredentialsStoring {
-    /// Sotres the given credentials.
-    /// - Parameter credentials: Credentials to be stored.
-    func store(credentials: Credentials) throws
+    /// It stores the credentials for the server with the given URL.
+    /// - Parameters:
+    ///   - credentials: Credentials to be stored.
+    ///   - serverURL: Server URL (without path).
+    func store(credentials: Credentials, serverURL: URL) throws
 
-    /// Reads the credentials from the store and returns them.
-    func read() throws -> Credentials?
+    /// Reads the credentials to authenticate the user against the server with the given URL.
+    /// - Parameter serverURL: Server URL (without path).
+    func read(serverURL: URL) throws -> Credentials?
 
-    /// Deletes any existing credentials.
-    func delete() throws
+    /// Deletes the credentials for the server with the given URL.
+    /// - Parameter serverURL: Server URL (without path).
+    func delete(serverURL: URL) throws
 }
 
 public final class CredentialsStore: CredentialsStoring {
-    // MARK: - Attributes
+    // MARK: - CredentialsStoring
 
-    /// Keychain instance.
-    let keychain: Keychain
-    private let key = "credentials"
-
-    /// Initializes the credentials store with the domain the keys belong to (e.g. CredentialsStore(identifier: "tuist-cloud")
-    /// - Parameter domain: A string to identify the app that is storing credentials.
-    init(service: String) {
-        keychain = Keychain(service: service)
+    public func store(credentials: Credentials, serverURL: URL) throws {
+        try keychain(serverURL: serverURL)
+            .comment("Token to authenticate the \(credentials.account) against \(serverURL.absoluteString)")
+            .set(credentials.account, key: credentials.token)
     }
 
-    public func store(credentials: Credentials) throws {
-        let data = try JSONEncoder().encode(credentials)
-        try keychain.set(data, key: key)
+    public func read(serverURL: URL) throws -> Credentials? {
+        let keychain = self.keychain(serverURL: serverURL)
+        guard let account = keychain.allKeys().first else { return nil }
+        guard let token = try keychain.get(account) else { return nil }
+        return Credentials(token: token, account: account)
     }
 
-    public func read() throws -> Credentials? {
-        guard let data = try keychain.getData(key) else { return nil }
-        return try JSONDecoder().decode(Credentials.self, from: data)
+    public func delete(serverURL: URL) throws {
+        let keychain = self.keychain(serverURL: serverURL)
+        guard let account = keychain.allKeys().first else { return }
+        try keychain.remove(account)
     }
 
-    public func delete() throws {
-        try keychain.remove(key)
+    // MARK: - Fileprivate
+
+    fileprivate func keychain(serverURL: URL) -> Keychain {
+        Keychain(server: serverURL, protocolType: .https, authenticationType: .default)
+            .synchronizable(true)
+            .label("\(serverURL.absoluteString)")
     }
 }

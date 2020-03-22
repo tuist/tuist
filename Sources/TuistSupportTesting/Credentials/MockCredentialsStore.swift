@@ -2,17 +2,17 @@ import Foundation
 @testable import TuistSupport
 
 public final class MockCredentialsStore: CredentialsStoring {
-    var credentials: Credentials?
+    public var credentials: [URL: Credentials] = [:]
 
-    public func store(credentials: Credentials) throws {
-        self.credentials = credentials
+    public func store(credentials: Credentials, serverURL: URL) throws {
+        self.credentials[serverURL] = credentials
     }
 
-    public func read() throws -> Credentials? {
-        credentials
+    public func read(serverURL: URL) throws -> Credentials? {
+        credentials[serverURL]
     }
 
-    public func delete() throws {
-        credentials = nil
+    public func delete(serverURL: URL) throws {
+        credentials.removeValue(forKey: serverURL)
     }
 }
