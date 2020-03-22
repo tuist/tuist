@@ -36,8 +36,8 @@ let package = Package(
         .package(url: "https://github.com/thii/xcbeautify.git", .upToNextMajor(from: "0.7.3")),
         .package(url: "https://github.com/krzyzanowskim/CryptoSwift", .upToNextMajor(from: "1.3.0")),
         .package(url: "https://github.com/stencilproject/Stencil", .branch("master")),
-        .package(url: "https://github.com/evgenyneu/keychain-swift.git", .upToNextMajor(from: "19.0.0")),
-        .package(url: "https://github.com/httpswift/swifter.git", .upToNextMajor(from: "1.4.7"))
+        .package(url: "https://github.com/kishikawakatsumi/KeychainAccess.git", .upToNextMajor(from: "4.1.0")),
+        .package(url: "https://github.com/httpswift/swifter.git", .upToNextMajor(from: "1.4.7")),
     ],
     targets: [
         .target(
@@ -94,7 +94,7 @@ let package = Package(
         ),
         .target(
             name: "TuistSupport",
-            dependencies: ["SPMUtility", "RxSwift", "RxRelay", "Logging", "KeychainSwift", "Swifter"]
+            dependencies: ["SPMUtility", "RxSwift", "RxRelay", "Logging", "KeychainAccess", "Swifter"]
         ),
         .target(
             name: "TuistSupportTesting",
