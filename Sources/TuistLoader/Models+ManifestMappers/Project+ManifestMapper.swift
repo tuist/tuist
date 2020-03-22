@@ -26,6 +26,7 @@ extension TuistCore.Project {
                        targets: targets,
                        packages: packages,
                        schemes: schemes,
+                       shouldGenerateDefaultSchemes: manifest.shouldGenerateDefaultSchemes,
                        additionalFiles: additionalFiles)
     }
 
@@ -39,6 +40,7 @@ extension TuistCore.Project {
                 targets: targets + [target],
                 packages: packages,
                 schemes: schemes,
+                shouldGenerateDefaultSchemes: shouldGenerateDefaultSchemes,
                 additionalFiles: additionalFiles)
     }
 
@@ -52,6 +54,7 @@ extension TuistCore.Project {
                 targets: targets,
                 packages: packages,
                 schemes: schemes,
+                shouldGenerateDefaultSchemes: shouldGenerateDefaultSchemes,
                 additionalFiles: additionalFiles)
     }
 
@@ -65,6 +68,7 @@ extension TuistCore.Project {
                 targets: targets,
                 packages: packages,
                 schemes: schemes,
+                shouldGenerateDefaultSchemes: shouldGenerateDefaultSchemes,
                 additionalFiles: additionalFiles)
     }
 }
