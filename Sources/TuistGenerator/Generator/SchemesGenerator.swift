@@ -61,7 +61,7 @@ final class SchemesGenerator: SchemesGenerating {
                                graph: graph,
                                generatedProjects: [project.path: generatedProject])
         }
-        
+
         guard project.shouldGenerateDefaultSchemes else { return customSchemes }
 
         /// Generate default schemes for targets in Project that are not defined in Manifest
