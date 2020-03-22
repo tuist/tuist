@@ -3,14 +3,14 @@ import Foundation
 import Signals
 import Swifter
 
-public protocol HTTPRedirectListening {
+public protocol HTTPRedirectListening: Any {
     /// Starts an HTTP server at the given port and blocks the process until a request is sent to the given path.
     /// - Parameters:
     ///   - port: Port for the HTTP server.
     ///   - path: Path we are expecting the browser to redirect the user to.
     ///   - redirectMessage: Text returned to the browser when it redirects the user to the given path.
     /// - Returns: Either the query parameterrs of the redirect URL, or an error if the HTTP server fails to start.
-    func listen(port: UInt16, path: String, redirectMessage: String) -> Result<[String: String]?, HTTPRedirectListenerError>
+    func listen(port: UInt16, path: String, redirectMessage: String) -> Swift.Result<[String: String]?, HTTPRedirectListenerError>
 }
 
 public enum HTTPRedirectListenerError: FatalError {
@@ -35,10 +35,10 @@ public enum HTTPRedirectListenerError: FatalError {
 private var runningServer: HttpServerIO!
 
 public final class HTTPRedirectListener: HTTPRedirectListening {
-    public func listen(port: UInt16, path: String, redirectMessage: String) -> Result<[String: String]?, HTTPRedirectListenerError> {
+    public func listen(port: UInt16, path: String, redirectMessage: String) -> Swift.Result<[String: String]?, HTTPRedirectListenerError> {
         precondition(runningServer == nil, "Trying to start a redirect server for localhost:\(port)\(path) when there's already one running.")
         let httpServer = HttpServer()
-        var result: Result<[String: String]?, HTTPRedirectListenerError> = .success(nil)
+        var result: Swift.Result<[String: String]?, HTTPRedirectListenerError> = .success(nil)
 
         httpServer[path] = { request in
             result = .success(request.queryParams.reduce(into: [String: String]()) { $0[$1.0] = $1.1 })

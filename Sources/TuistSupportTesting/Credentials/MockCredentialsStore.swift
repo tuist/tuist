@@ -2,6 +2,7 @@ import Foundation
 @testable import TuistSupport
 
 public final class MockCredentialsStore: CredentialsStoring {
+    public init() {}
     public var credentials: [URL: Credentials] = [:]
 
     public func store(credentials: Credentials, serverURL: URL) throws {
