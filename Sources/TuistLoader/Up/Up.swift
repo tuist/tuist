@@ -74,9 +74,9 @@ class Up: Upping {
             return try UpHomebrewTap(dictionary: dictionary, projectPath: projectPath)
         } else if type == "carthage" {
             return try UpCarthage(dictionary: dictionary, projectPath: projectPath)
-		} else if type == "mint" {
-			return try UpMint(dictionary: dictionary, projectPath: projectPath)
-		}
+        } else if type == "mint" {
+            return try UpMint(dictionary: dictionary, projectPath: projectPath)
+        }
         return nil
     }
 

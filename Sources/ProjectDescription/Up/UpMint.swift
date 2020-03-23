@@ -2,7 +2,7 @@ import Foundation
 
 /// Up that installs Mint and packages.
 class UpMint: Up {
-	/// A Boolean value indicating whether installing the packages of the Mintfile globally.
+    /// A Boolean value indicating whether installing the packages of the Mintfile globally.
     let linkPackagesGlobally: Bool
 
     /// Initializes the Mint up.

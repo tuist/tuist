@@ -41,15 +41,15 @@ public class Up: Codable, Equatable {
         let platforms = platforms ?? [.iOS, .macOS, .tvOS, .watchOS]
         return UpCarthage(platforms: platforms)
     }
-	
-	/// Returns an up that installs Mint packages specified in the Mintfile.
+
+    /// Returns an up that installs Mint packages specified in the Mintfile.
     ///
     /// - Parameters
     ///     - linkPackagesGlobally: A Boolean value indicating whether installing the packages of the Mintfile globally.
     /// - Returns: Up instance to install Mint packages.
-	public static func mint(linkPackagesGlobally: Bool = false) -> Up {
-		return UpMint(linkPackagesGlobally: linkPackagesGlobally)
-	}
+    public static func mint(linkPackagesGlobally: Bool = false) -> Up {
+        return UpMint(linkPackagesGlobally: linkPackagesGlobally)
+    }
 
     public static func == (_: Up, _: Up) -> Bool {
         fatalError("Subclasses should override this method")
