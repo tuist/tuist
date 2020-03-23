@@ -28,7 +28,11 @@ public class Graph: Encodable {
     public let name: String
     public let entryPath: AbsolutePath
     public let entryNodes: [GraphNode]
-
+    
+    /// Projects that are part of the graph.
+    public var projects: [AbsolutePath: Project]
+    
+    
     // MARK: - Init
 
     public convenience init(name: String, entryPath: AbsolutePath, cache: GraphLoaderCaching) {
@@ -46,6 +50,7 @@ public class Graph: Encodable {
         self.entryPath = entryPath
         self.cache = cache
         self.entryNodes = entryNodes
+        self.projects = cache.projects
     }
 
     // MARK: - Encodable
@@ -61,16 +66,6 @@ public class Graph: Encodable {
     }
 
     // MARK: - Graphing
-
-    /// List of projects that are part of the dependency graph.
-    public var projects: [Project] {
-        Array(cache.projects.values)
-    }
-
-    /// Paths to the projects that are part of the dependency graph.
-    public var projectPaths: [AbsolutePath] {
-        Array(cache.projects.keys)
-    }
 
     /// Returns all the CocoaPods nodes that are part of the graph.
     public var cocoapods: [CocoaPodsNode] {

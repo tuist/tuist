@@ -166,7 +166,7 @@ public class Generator: Generating {
 
         let workspace = Workspace(path: path,
                                   name: project.name,
-                                  projects: graph.projectPaths,
+                                  projects: Array(graph.projects.keys),
                                   additionalFiles: workspaceFiles.map(FileElement.file))
 
         let descriptor = try workspaceGenerator.generate(workspace: workspace,
@@ -187,7 +187,7 @@ public class Generator: Generating {
         try graphLinter.lint(graph: graph).printAndThrowIfNeeded()
 
         let updatedWorkspace = workspace
-            .merging(projects: graph.projectPaths)
+            .merging(projects: Array(graph.projects.keys))
             .adding(files: workspaceFiles)
 
         let descriptor = try workspaceGenerator.generate(workspace: updatedWorkspace,
