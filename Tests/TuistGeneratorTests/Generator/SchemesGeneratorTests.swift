@@ -654,6 +654,100 @@ final class SchemesGeneratorTests: XCTestCase {
         XCTAssertEqual(result.revealArchiveInOrganizer, true)
     }
 
+    func test_schemeGenerationModes_default() throws {
+         // Given
+         let app = Target.test(name: "App", product: .app)
+         let framework = Target.test(name: "Framework", product: .framework)
+         let unitTests = Target.test(name: "AppTests", product: .unitTests)
+         let uiTests = Target.test(name: "AppUITests", product: .uiTests)
+         let project = Project.test(targets: [app, framework, unitTests, uiTests])
+
+         let graph = Graph.create(
+             project: project,
+             dependencies: [
+             (target: app, dependencies: [framework]),
+             (target: framework, dependencies: []),
+             (target: unitTests, dependencies: [app]),
+             (target: uiTests, dependencies: [app]),
+         ])
+
+         // When
+         let result = try subject.generateProjectSchemes(project: project,
+                                                         generatedProject: generatedProject(targets: project.targets),
+                                                         graph: graph)
+
+         // Then
+         let schemes = result.map(\.xcScheme.name)
+         XCTAssertEqual(schemes, [
+             "App",
+             "Framework",
+             "AppTests",
+             "AppUITests",
+         ])
+     }
+
+    func test_schemeGenerationModes_customOnly() throws {
+        // Given
+        let app = Target.test(name: "App", product: .app)
+        let framework = Target.test(name: "Framework", product: .framework)
+        let unitTests = Target.test(name: "AppTests", product: .unitTests)
+        let uiTests = Target.test(name: "AppUITests", product: .uiTests)
+        let scheme = Scheme.test()
+        let project = Project.test(targets: [app, framework, unitTests, uiTests], schemes: [scheme], schemeGeneration: .customOnly)
+
+        let graph = Graph.create(
+            project: project,
+            dependencies: [
+                (target: app, dependencies: [framework]),
+                (target: framework, dependencies: []),
+                (target: unitTests, dependencies: [app]),
+                (target: uiTests, dependencies: [app]),
+        ])
+
+        // When
+        let result = try subject.generateProjectSchemes(project: project,
+                                                        generatedProject: generatedProject(targets: project.targets),
+                                                        graph: graph)
+        
+        // Then
+        let schemes = result.map(\.xcScheme.name)
+        XCTAssertEqual(schemes, [scheme.name])
+    }
+    
+    func test_schemeGenerationModes_defaultAndcustom() throws {
+        // Given
+        let app = Target.test(name: "App", product: .app)
+        let framework = Target.test(name: "Framework", product: .framework)
+        let unitTests = Target.test(name: "AppTests", product: .unitTests)
+        let uiTests = Target.test(name: "AppUITests", product: .uiTests)
+        let scheme = Scheme.test()
+        let project = Project.test(targets: [app, framework, unitTests, uiTests], schemes: [scheme], schemeGeneration: .defaultAndCustom)
+
+        let graph = Graph.create(
+            project: project,
+            dependencies: [
+                (target: app, dependencies: [framework]),
+                (target: framework, dependencies: []),
+                (target: unitTests, dependencies: [app]),
+                (target: uiTests, dependencies: [app]),
+        ])
+
+        // When
+        let result = try subject.generateProjectSchemes(project: project,
+                                                        generatedProject: generatedProject(targets: project.targets),
+                                                        graph: graph)
+        
+        // Then
+        let schemes = result.map(\.xcScheme.name)
+        XCTAssertEqual(schemes, [
+            scheme.name,
+            "App",
+            "Framework",
+            "AppTests",
+            "AppUITests"
+        ])
+    }
+
     private func createGeneratedProjects(projects: [Project]) -> [AbsolutePath: GeneratedProject] {
         Dictionary(uniqueKeysWithValues: projects.map {
             ($0.path, generatedProject(targets: $0.targets,
