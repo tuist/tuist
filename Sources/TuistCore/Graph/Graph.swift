@@ -35,25 +35,35 @@ public class Graph: Encodable {
     /// Dictionary whose keys are paths to directories where projects are defined, and the values are the CocoaPods nodes define in them.
     public var cocoapods: [AbsolutePath: CocoaPodsNode]
 
+    /// Dictionary whose keys are path to directories where projects are defined, and the values are packages defined in that project.
+    public var packages: [AbsolutePath: [PackageNode]]
+
     // MARK: - Init
 
-    public convenience init(name: String, entryPath: AbsolutePath, cache: GraphLoaderCaching) {
+    public convenience init(name: String, entryPath: AbsolutePath, cache: GraphLoaderCaching, entryNodes: [GraphNode]) {
         self.init(name: name,
                   entryPath: entryPath,
                   cache: cache,
-                  entryNodes: [])
+                  entryNodes: entryNodes,
+                  projects: cache.projects,
+                  cocoapods: cache.cocoapodsNodes,
+                  packages: cache.packages)
     }
 
     init(name: String,
          entryPath: AbsolutePath,
          cache: GraphLoaderCaching,
-         entryNodes: [GraphNode]) {
+         entryNodes: [GraphNode],
+         projects: [AbsolutePath: Project],
+         cocoapods: [AbsolutePath: CocoaPodsNode],
+         packages: [AbsolutePath: [PackageNode]]) {
         self.name = name
         self.entryPath = entryPath
         self.cache = cache
         self.entryNodes = entryNodes
-        projects = cache.projects
-        cocoapods = cache.cocoapodsNodes
+        self.projects = projects
+        self.cocoapods = cocoapods
+        self.packages = packages
     }
 
     // MARK: - Encodable
@@ -66,13 +76,6 @@ public class Graph: Encodable {
         nodes.append(contentsOf: Array(cache.precompiledNodes.values))
 
         try container.encode(nodes.sorted(by: { $0.path < $1.path }))
-    }
-
-    // MARK: - Graphing
-
-    /// Returns all the SwiftPM package nodes that are part of the graph.
-    public var packages: [PackageNode] {
-        cache.packages.values.flatMap { $0 }
     }
 
     /// Returns all the frameorks that are part of the graph.

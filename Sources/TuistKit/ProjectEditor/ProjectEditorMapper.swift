@@ -81,7 +81,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
 
         // Graph
         let cache = GraphLoaderCache()
-        let graph = Graph(name: "Manifests", entryPath: sourceRootPath, cache: cache)
+        let graph = Graph(name: "Manifests", entryPath: sourceRootPath, cache: cache, entryNodes: [])
         var dependencies: [TargetNode] = []
 
         if let helpersTarget = helpersTarget {

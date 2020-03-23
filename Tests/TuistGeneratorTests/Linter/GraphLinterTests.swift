@@ -46,10 +46,8 @@ final class GraphLinterTests: TuistUnitTestCase {
     func test_lint_when_podfiles_are_missing() throws {
         // Given
         let temporaryPath = try self.temporaryPath()
-        let cache = GraphLoaderCache()
-        let graph = Graph.test(cache: cache)
         let cocoapods = CocoaPodsNode(path: temporaryPath)
-        cache.add(cocoapods: cocoapods)
+        let graph = Graph.test(cocoapods: [cocoapods.path: cocoapods])
         let podfilePath = temporaryPath.appending(component: "Podfile")
 
         // When
@@ -62,12 +60,9 @@ final class GraphLinterTests: TuistUnitTestCase {
     func test_lint_when_packages_and_xcode_10() throws {
         // Given
         let cache = GraphLoaderCache()
-
-        cache.add(project: .test(packages: [
-            .remote(url: "remote", requirement: .branch("master")),
-        ]))
-
-        let graph = Graph.test(cache: cache)
+        let package = Package.remote(url: "remote", requirement: .branch("master"))
+        let project = Project.test(packages: [package])
+        let graph = Graph.test(cache: cache, projects: [project.path: project], packages: [project.path: [PackageNode(package: package, path: project.path)]])
         let versionStub = Version(10, 0, 0)
         xcodeController.selectedVersionStub = .success(versionStub)
 
@@ -103,12 +98,9 @@ final class GraphLinterTests: TuistUnitTestCase {
     func test_lint_when_no_version_available() throws {
         // Given
         let cache = GraphLoaderCache()
-
-        cache.add(project: .test(packages: [
-            .remote(url: "remote", requirement: .branch("master")),
-        ]))
-
-        let graph = Graph.test(cache: cache)
+        let package = Package.remote(url: "remote", requirement: .branch("master"))
+        let project = Project.test(packages: [package])
+        let graph = Graph.test(cache: cache, projects: [project.path: project], packages: [project.path: [PackageNode(package: package, path: project.path)]])
 
         let error = NSError.test()
         xcodeController.selectedVersionStub = .failure(error)

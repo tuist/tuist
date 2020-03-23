@@ -10,6 +10,7 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
     override func setUp() {
         super.setUp()
         do {
+            xcodeController.selectedVersionStub = .success("11.0.0")
             try setupTestProject()
         } catch {
             XCTFail(error.localizedDescription)

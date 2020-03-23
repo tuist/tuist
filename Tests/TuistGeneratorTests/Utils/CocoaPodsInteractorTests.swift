@@ -37,10 +37,8 @@ final class CocoaPodsInteractorTests: TuistUnitTestCase {
         system.whichStub = { _ in
             throw NSError.test()
         }
-        let cache = GraphLoaderCache()
-        let graph = Graph.test(cache: cache)
         let cocoapods = CocoaPodsNode.test()
-        cache.add(cocoapods: cocoapods)
+        let graph = Graph.test(cocoapods: [cocoapods.path: cocoapods])
 
         // Then
         XCTAssertThrowsSpecific(try subject.install(graph: graph),
@@ -50,9 +48,9 @@ final class CocoaPodsInteractorTests: TuistUnitTestCase {
     func test_install_when_theCocoaPodsFromBundlerCanBeUsed() throws {
         // Given
         let cache = GraphLoaderCache()
-        let graph = Graph.test(cache: cache)
         let cocoapods = CocoaPodsNode.test()
         cache.add(cocoapods: cocoapods)
+        let graph = Graph.test(cache: cache)
 
         system.succeedCommand(["bundle", "show", "cocoapods"])
         system.succeedCommand(["bundle", "exec", "pod", "install", "--project-directory=\(cocoapods.path.pathString)"])
@@ -66,10 +64,8 @@ final class CocoaPodsInteractorTests: TuistUnitTestCase {
 
     func test_install_when_theCocoaPodsFromTheSystemCanBeUsed() throws {
         // Given
-        let cache = GraphLoaderCache()
-        let graph = Graph.test(cache: cache)
         let cocoapods = CocoaPodsNode.test()
-        cache.add(cocoapods: cocoapods)
+        let graph = Graph.test(cocoapods: [cocoapods.path: cocoapods])
 
         system.errorCommand(["bundle", "show", "cocoapods"])
         system.whichStub = {
@@ -87,10 +83,8 @@ final class CocoaPodsInteractorTests: TuistUnitTestCase {
 
     func test_install_when_theCocoaPodsSpecsRepoIsOutdated() throws {
         // Given
-        let cache = GraphLoaderCache()
-        let graph = Graph.test(cache: cache)
         let cocoapods = CocoaPodsNode.test()
-        cache.add(cocoapods: cocoapods)
+        let graph = Graph.test(cocoapods: [cocoapods.path: cocoapods])
 
         system.succeedCommand(["bundle", "show", "cocoapods"])
         system.errorCommand(["bundle", "exec", "pod", "install", "--project-directory=\(cocoapods.path.pathString)"], error: "[!] CocoaPods could not find compatible versions for pod")

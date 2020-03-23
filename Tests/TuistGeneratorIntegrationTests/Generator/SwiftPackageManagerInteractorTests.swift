@@ -28,15 +28,15 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         let target = anyTarget(dependencies: [
             .package(product: "Example"),
         ])
+        let package = Package.remote(url: "http://some.remote/repo.git", requirement: .exact("branch"))
         let project = Project.test(path: temporaryPath,
                                    name: "Test",
                                    settings: .default,
                                    targets: [target],
-                                   packages: [
-                                       .remote(url: "http://some.remote/repo.git", requirement: .exact("branch")),
-                                   ])
+                                   packages: [package])
         let graph = Graph.create(project: project,
-                                 dependencies: [(target, [])])
+                                 dependencies: [(target, [])],
+                                 packages: [project.path: [PackageNode(package: package, path: project.path)]])
         let workspacePath = temporaryPath.appending(component: "\(project.name).xcworkspace")
         system.succeedCommand(["xcodebuild", "-resolvePackageDependencies", "-workspace", workspacePath.pathString, "-list"])
         try createFiles(["\(workspacePath.basename)/xcshareddata/swiftpm/Package.resolved"])
@@ -54,15 +54,17 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         let target = anyTarget(dependencies: [
             .package(product: "Example"),
         ])
+        let package = Package.remote(url: "http://some.remote/repo.git", requirement: .exact("branch"))
         let project = Project.test(path: temporaryPath,
                                    name: "Test",
                                    settings: .default,
                                    targets: [target],
                                    packages: [
-                                       .remote(url: "http://some.remote/repo.git", requirement: .exact("branch")),
+                                       package,
                                    ])
         let graph = Graph.create(project: project,
-                                 dependencies: [(target, [])])
+                                 dependencies: [(target, [])],
+                                 packages: [project.path: [PackageNode(package: package, path: project.path)]])
 
         let workspace = Workspace.test(name: project.name,
                                        projects: [project.path])
