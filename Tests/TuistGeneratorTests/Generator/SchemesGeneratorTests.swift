@@ -655,36 +655,37 @@ final class SchemesGeneratorTests: XCTestCase {
     }
 
     func test_schemeGenerationModes_default() throws {
-         // Given
-         let app = Target.test(name: "App", product: .app)
-         let framework = Target.test(name: "Framework", product: .framework)
-         let unitTests = Target.test(name: "AppTests", product: .unitTests)
-         let uiTests = Target.test(name: "AppUITests", product: .uiTests)
-         let project = Project.test(targets: [app, framework, unitTests, uiTests])
+        // Given
+        let app = Target.test(name: "App", product: .app)
+        let framework = Target.test(name: "Framework", product: .framework)
+        let unitTests = Target.test(name: "AppTests", product: .unitTests)
+        let uiTests = Target.test(name: "AppUITests", product: .uiTests)
+        let project = Project.test(targets: [app, framework, unitTests, uiTests])
 
-         let graph = Graph.create(
-             project: project,
-             dependencies: [
-             (target: app, dependencies: [framework]),
-             (target: framework, dependencies: []),
-             (target: unitTests, dependencies: [app]),
-             (target: uiTests, dependencies: [app]),
-         ])
+        let graph = Graph.create(
+            project: project,
+            dependencies: [
+                (target: app, dependencies: [framework]),
+                (target: framework, dependencies: []),
+                (target: unitTests, dependencies: [app]),
+                (target: uiTests, dependencies: [app]),
+            ]
+        )
 
-         // When
-         let result = try subject.generateProjectSchemes(project: project,
-                                                         generatedProject: generatedProject(targets: project.targets),
-                                                         graph: graph)
+        // When
+        let result = try subject.generateProjectSchemes(project: project,
+                                                        generatedProject: generatedProject(targets: project.targets),
+                                                        graph: graph)
 
-         // Then
-         let schemes = result.map(\.xcScheme.name)
-         XCTAssertEqual(schemes, [
-             "App",
-             "Framework",
-             "AppTests",
-             "AppUITests",
-         ])
-     }
+        // Then
+        let schemes = result.map(\.xcScheme.name)
+        XCTAssertEqual(schemes, [
+            "App",
+            "Framework",
+            "AppTests",
+            "AppUITests",
+        ])
+    }
 
     func test_schemeGenerationModes_customOnly() throws {
         // Given
@@ -702,18 +703,19 @@ final class SchemesGeneratorTests: XCTestCase {
                 (target: framework, dependencies: []),
                 (target: unitTests, dependencies: [app]),
                 (target: uiTests, dependencies: [app]),
-        ])
+            ]
+        )
 
         // When
         let result = try subject.generateProjectSchemes(project: project,
                                                         generatedProject: generatedProject(targets: project.targets),
                                                         graph: graph)
-        
+
         // Then
         let schemes = result.map(\.xcScheme.name)
         XCTAssertEqual(schemes, [scheme.name])
     }
-    
+
     func test_schemeGenerationModes_defaultAndcustom() throws {
         // Given
         let app = Target.test(name: "App", product: .app)
@@ -730,13 +732,14 @@ final class SchemesGeneratorTests: XCTestCase {
                 (target: framework, dependencies: []),
                 (target: unitTests, dependencies: [app]),
                 (target: uiTests, dependencies: [app]),
-        ])
+            ]
+        )
 
         // When
         let result = try subject.generateProjectSchemes(project: project,
                                                         generatedProject: generatedProject(targets: project.targets),
                                                         graph: graph)
-        
+
         // Then
         let schemes = result.map(\.xcScheme.name)
         XCTAssertEqual(schemes, [
@@ -744,7 +747,7 @@ final class SchemesGeneratorTests: XCTestCase {
             "App",
             "Framework",
             "AppTests",
-            "AppUITests"
+            "AppUITests",
         ])
     }
 
