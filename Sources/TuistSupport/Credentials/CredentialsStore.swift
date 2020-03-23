@@ -18,6 +18,9 @@ public protocol CredentialsStoring {
 }
 
 public final class CredentialsStore: CredentialsStoring {
+    /// Default initializer.
+    public init() {}
+
     // MARK: - CredentialsStoring
 
     public func store(credentials: Credentials, serverURL: URL) throws {
