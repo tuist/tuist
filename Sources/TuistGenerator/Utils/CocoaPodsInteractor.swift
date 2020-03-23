@@ -64,7 +64,7 @@ public final class CocoaPodsInteractor: CocoaPodsInteracting {
         let canUseBundler = canUseCocoaPodsThroughBundler()
         let canUseSystem = canUseSystemPod()
 
-        try graph.cocoapods.forEach { node in
+        try graph.cocoapods.values.forEach { node in
             var command: [String]
 
             if canUseBundler {

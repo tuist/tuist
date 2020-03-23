@@ -28,11 +28,13 @@ public class Graph: Encodable {
     public let name: String
     public let entryPath: AbsolutePath
     public let entryNodes: [GraphNode]
-    
-    /// Projects that are part of the graph.
+
+    /// Dictionary whose keys are paths to directories where projects are defined, and the values are the representation of the projects.
     public var projects: [AbsolutePath: Project]
-    
-    
+
+    /// Dictionary whose keys are paths to directories where projects are defined, and the values are the CocoaPods nodes define in them.
+    public var cocoapods: [AbsolutePath: CocoaPodsNode]
+
     // MARK: - Init
 
     public convenience init(name: String, entryPath: AbsolutePath, cache: GraphLoaderCaching) {
@@ -50,7 +52,8 @@ public class Graph: Encodable {
         self.entryPath = entryPath
         self.cache = cache
         self.entryNodes = entryNodes
-        self.projects = cache.projects
+        projects = cache.projects
+        cocoapods = cache.cocoapodsNodes
     }
 
     // MARK: - Encodable
@@ -66,11 +69,6 @@ public class Graph: Encodable {
     }
 
     // MARK: - Graphing
-
-    /// Returns all the CocoaPods nodes that are part of the graph.
-    public var cocoapods: [CocoaPodsNode] {
-        Array(cache.cocoapodsNodes.values)
-    }
 
     /// Returns all the SwiftPM package nodes that are part of the graph.
     public var packages: [PackageNode] {

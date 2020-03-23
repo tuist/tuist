@@ -68,6 +68,7 @@ public extension Graph {
         }
 
         let cache = GraphLoaderCache()
+        projects.forEach(cache.add(project:))
         let graph = Graph.test(name: projects.first?.name ?? "Test",
                                entryPath: projects.first?.path ?? AbsolutePath("/test/path"),
                                cache: cache,
