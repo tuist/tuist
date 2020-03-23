@@ -48,7 +48,7 @@ public class Up: Codable, Equatable {
     ///     - linkPackagesGlobally: A Boolean value indicating whether installing the packages of the Mintfile globally.
     /// - Returns: Up instance to install Mint packages.
     public static func mint(linkPackagesGlobally: Bool = false) -> Up {
-        return UpMint(linkPackagesGlobally: linkPackagesGlobally)
+        UpMint(linkPackagesGlobally: linkPackagesGlobally)
     }
 
     public static func == (_: Up, _: Up) -> Bool {
