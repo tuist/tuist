@@ -38,6 +38,7 @@ public final class MockSystem: Systeming {
         if stub.exitstatus != 0 {
             throw TuistSupport.SystemError.terminated(command: arguments.first!, code: 1)
         }
+		calls.append(command)
     }
 
     public func run(_ arguments: String...) throws {
@@ -64,6 +65,7 @@ public final class MockSystem: Systeming {
         if stub.exitstatus != 0 {
             throw TuistSupport.SystemError.terminated(command: arguments.first!, code: 1)
         }
+		calls.append(command)
         return stub.stdout ?? ""
     }
 
@@ -99,6 +101,7 @@ public final class MockSystem: Systeming {
             }
             throw TuistSupport.SystemError.terminated(command: arguments.first!, code: 1)
         }
+		calls.append(command)
     }
 
     public func observable(_ arguments: [String]) -> Observable<SystemEvent<Data>> {
@@ -127,6 +130,7 @@ public final class MockSystem: Systeming {
                 observer.onNext(.standardOutput(stdout.data(using: .utf8)!))
             }
             observer.onCompleted()
+			self.calls.append(command)
             return Disposables.create()
         }
     }
@@ -143,6 +147,7 @@ public final class MockSystem: Systeming {
         if stub.exitstatus != 0 {
             throw TuistSupport.SystemError.terminated(command: arguments.first!, code: 1)
         }
+		calls.append(command)
     }
 
     public func swiftVersion() throws -> String? {
