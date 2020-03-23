@@ -96,13 +96,15 @@ def package
     "-Xswiftc", ".build/release/ProjectDescription.swiftinterface"
   )
   system("swift", "build", "--product", "tuistenv", "--configuration", "release")
+  
+  FileUtils.cp_r(File.expand_path("Templates", __dir__), ".build/release/Templates")
 
   Dir.chdir(".build/release") do
     system(
       "zip", "-q", "-r", "--symlinks",
       "tuist.zip", "tuist",
       "ProjectDescription.swiftmodule", "ProjectDescription.swiftdoc", "libProjectDescription.dylib", "ProjectDescription.swiftinterface",
-      File.expand_path("Templates", __dir__)
+      "Templates"
     )
     system("zip", "-q", "-r", "--symlinks", "tuistenv.zip", "tuistenv")
   end
