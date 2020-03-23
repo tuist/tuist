@@ -76,7 +76,7 @@ class LintCommand: NSObject, Command {
 
         // Load graph
         let manifests = manifestLoading.manifests(at: path)
-        var graph: Graphing!
+        var graph: Graph!
 
         logger.notice("Loading the dependency graph")
         if manifests.contains(.workspace) {

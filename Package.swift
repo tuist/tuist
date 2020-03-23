@@ -34,6 +34,7 @@ let package = Package(
         .package(url: "https://github.com/rnine/Checksum.git", .upToNextMajor(from: "1.0.2")),
         .package(url: "https://github.com/apple/swift-log.git", .upToNextMajor(from: "1.2.0")),
         .package(url: "https://github.com/thii/xcbeautify.git", .upToNextMajor(from: "0.7.3")),
+        .package(url: "https://github.com/stencilproject/Stencil", .branch("master")),
     ],
     targets: [
         .target(
@@ -138,11 +139,15 @@ let package = Package(
         ),
         .target(
             name: "TuistScaffold",
-            dependencies: ["SPMUtility", "TuistCore", "TuistSupport"]
+            dependencies: ["SPMUtility", "TuistCore", "TuistSupport", "Stencil"]
         ),
         .target(
             name: "TuistScaffoldTesting",
             dependencies: ["TuistScaffold"]
+        ),
+        .testTarget(
+            name: "TuistScaffoldTests",
+            dependencies: ["TuistScaffold", "TuistSupportTesting", "TuistCoreTesting"]
         ),
         .testTarget(
             name: "TuistScaffoldIntegrationTests",

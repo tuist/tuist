@@ -66,7 +66,7 @@ final class CacheControllerTests: TuistUnitTestCase {
             XCTAssertEqual(loadPath, path)
             return Set(arrayLiteral: .project)
         }
-        generator.generateWithGraphStub = { (loadPath, _) -> (AbsolutePath, Graphing) in
+        generator.generateWithGraphStub = { (loadPath, _) -> (AbsolutePath, Graph) in
             XCTAssertEqual(loadPath, path)
             return (xcworkspacePath, graph)
         }
