@@ -2,6 +2,24 @@ import Basic
 import Foundation
 import TuistSupport
 
+public enum UpMintError: FatalError, Equatable {
+    case mintfileNotFound(AbsolutePath)
+
+    public var description: String {
+        switch self {
+        case let .mintfileNotFound(path):
+            return "Mintfile not found at path \(path.pathString)"
+        }
+    }
+
+    public var type: ErrorType {
+        switch self {
+        case .mintfileNotFound:
+            return .abort
+        }
+    }
+}
+
 /// Command that installs Mint and packages.
 class UpMint: Up, GraphInitiatable {
     /// A Boolean value indicating whether installing the packages of the Mintfile globally.
@@ -41,10 +59,10 @@ class UpMint: Up, GraphInitiatable {
 
         let mintfile = projectPath.appending(component: "Mintfile")
         if !FileHandler.shared.exists(mintfile) {
-            throw MintError.mintfileNotFound(projectPath)
+            throw UpMintError.mintfileNotFound(projectPath)
         }
 
-        let output = try System.shared.capture(["cat", "\(mintfile.pathString)"])
+        let output = try FileHandler.shared.readTextFile(mintfile)
         let packages = output.split(separator: "\n")
         for package in packages {
             guard let _ = try? System.shared.capture(["mint", "which", "\(package)"]) else {
@@ -68,40 +86,11 @@ class UpMint: Up, GraphInitiatable {
 
         let mintfile = projectPath.appending(component: "Mintfile")
         if !FileHandler.shared.exists(mintfile) {
-            throw MintError.mintfileNotFound(projectPath)
+            throw UpMintError.mintfileNotFound(projectPath)
         }
 
         var command = ["mint", "bootstrap", "-m", "\(mintfile.pathString)"]
         if linkPackagesGlobally { command.append("--link") }
         try System.shared.runAndPrint(command, verbose: true, environment: System.shared.env)
-    }
-}
-
-extension UpMint {
-    public enum MintError: FatalError, Equatable {
-        case mintfileNotFound(AbsolutePath)
-
-        public var description: String {
-            switch self {
-            case let .mintfileNotFound(path):
-                return "Mintfile not found at path \(path.pathString)"
-            }
-        }
-
-        public var type: ErrorType {
-            switch self {
-            case .mintfileNotFound:
-                return .abort
-            }
-        }
-
-        // MARK: - Equatable
-
-        public static func == (lhs: MintError, rhs: MintError) -> Bool {
-            switch (lhs, rhs) {
-            case let (.mintfileNotFound(lhsPath), .mintfileNotFound(rhsPath)):
-                return lhsPath == rhsPath
-            }
-        }
     }
 }
