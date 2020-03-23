@@ -21,8 +21,8 @@ final class MockProjectGenerator: ProjectGenerating {
     }
 
     var generateWithGraphCalls: [(path: AbsolutePath, projectOnly: Bool)] = []
-    var generateWithGraphStub: ((AbsolutePath, Bool) throws -> (AbsolutePath, Graphing))?
-    func generateWithGraph(path: AbsolutePath, projectOnly: Bool) throws -> (AbsolutePath, Graphing) {
+    var generateWithGraphStub: ((AbsolutePath, Bool) throws -> (AbsolutePath, Graph))?
+    func generateWithGraph(path: AbsolutePath, projectOnly: Bool) throws -> (AbsolutePath, Graph) {
         guard let generateWithGraphStub = generateWithGraphStub else {
             throw MockError.stubNotImplemented
         }

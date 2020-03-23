@@ -7,7 +7,7 @@ import TuistLoader
 protocol ProjectGenerating {
     @discardableResult
     func generate(path: AbsolutePath, projectOnly: Bool) throws -> AbsolutePath
-    func generateWithGraph(path: AbsolutePath, projectOnly: Bool) throws -> (AbsolutePath, Graphing)
+    func generateWithGraph(path: AbsolutePath, projectOnly: Bool) throws -> (AbsolutePath, Graph)
 }
 
 class ProjectGenerator: ProjectGenerating {
@@ -33,7 +33,7 @@ class ProjectGenerator: ProjectGenerating {
         return generatedPath
     }
 
-    func generateWithGraph(path: AbsolutePath, projectOnly: Bool) throws -> (AbsolutePath, Graphing) {
+    func generateWithGraph(path: AbsolutePath, projectOnly: Bool) throws -> (AbsolutePath, Graph) {
         let manifests = manifestLoader.manifests(at: path)
 
         if projectOnly {
@@ -107,7 +107,7 @@ class ProjectGenerator: ProjectGenerating {
         return (workspaceDescriptor.xcworkspacePath, graph)
     }
 
-    private func lint(graph: Graphing) throws {
+    private func lint(graph: Graph) throws {
         let config = try graphLoader.loadConfig(path: graph.entryPath)
 
         try environmentLinter.lint(config: config).printAndThrowIfNeeded()

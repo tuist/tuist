@@ -14,7 +14,7 @@ protocol DerivedFileGenerating {
     /// - Throws: An error if the generation of the derived files errors.
     /// - Returns: A project that might have got mutated after the generation of derived files, and a
     ///     function to be called after the project generation to delete the derived files that are not necessary anymore.
-    func generate(graph: Graphing, project: Project, sourceRootPath: AbsolutePath) throws -> (Project, [SideEffectDescriptor])
+    func generate(graph: Graph, project: Project, sourceRootPath: AbsolutePath) throws -> (Project, [SideEffectDescriptor])
 }
 
 final class DerivedFileGenerator: DerivedFileGenerating {
@@ -33,7 +33,7 @@ final class DerivedFileGenerator: DerivedFileGenerating {
         self.infoPlistContentProvider = infoPlistContentProvider
     }
 
-    func generate(graph: Graphing, project: Project, sourceRootPath: AbsolutePath) throws -> (Project, [SideEffectDescriptor]) {
+    func generate(graph: Graph, project: Project, sourceRootPath: AbsolutePath) throws -> (Project, [SideEffectDescriptor]) {
         let transformation = try generateInfoPlists(graph: graph, project: project, sourceRootPath: sourceRootPath)
 
         return (transformation.project, transformation.sideEffects)
@@ -47,7 +47,7 @@ final class DerivedFileGenerator: DerivedFileGenerating {
     ///   - sourceRootPath: Path to the directory in which the project is getting generated.
     /// - Returns: A set with paths to the Info.plist files that are no longer necessary and therefore need to be removed.
     /// - Throws: An error if the encoding of the Info.plist content fails.
-    func generateInfoPlists(graph: Graphing,
+    func generateInfoPlists(graph: Graph,
                             project: Project,
                             sourceRootPath: AbsolutePath) throws -> ProjectTransformation {
         let targetsWithGeneratableInfoPlists = project.targets.filter {
@@ -102,7 +102,7 @@ final class DerivedFileGenerator: DerivedFileGenerating {
     private func infoPlistDictionary(infoPlist: InfoPlist,
                                      project: Project,
                                      target: Target,
-                                     graph: Graphing) -> [String: Any]? {
+                                     graph: Graph) -> [String: Any]? {
         switch infoPlist {
         case let .dictionary(content):
             return content.mapValues { $0.value }

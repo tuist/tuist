@@ -22,7 +22,7 @@ public protocol SwiftPackageManagerInteracting {
     /// - Parameters:
     ///   - graph: The graph of projects
     ///   - workspaceName: The name of the generated workspace (e.g. `MyWorkspace.xcworkspace`)
-    func install(graph: Graphing, workspaceName: String) throws
+    func install(graph: Graph, workspaceName: String) throws
 }
 
 public class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting {
@@ -31,7 +31,7 @@ public class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting {
         self.fileHandler = fileHandler
     }
 
-    public func install(graph: Graphing, workspaceName: String) throws {
+    public func install(graph: Graph, workspaceName: String) throws {
         try generatePackageDependencyManager(at: graph.entryPath,
                                              workspaceName: workspaceName,
                                              graph: graph)
@@ -40,7 +40,7 @@ public class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting {
     private func generatePackageDependencyManager(
         at path: AbsolutePath,
         workspaceName: String,
-        graph: Graphing
+        graph: Graph
     ) throws {
         let packages = graph.packages
         guard !packages.remotePackages.isEmpty else {
