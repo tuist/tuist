@@ -151,7 +151,6 @@ final class UpMintTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(upHomebrew.meetCallCount, 0)
-        XCTAssertTrue(system.called("mint bootstrap -m \(mintfile.pathString)"))
     }
 
     func test_meet_linkPackagesGlobally() throws {
@@ -170,6 +169,5 @@ final class UpMintTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(upHomebrew.meetCallCount, 0)
-        XCTAssertTrue(system.called("mint bootstrap -m \(mintfile.pathString) --link"))
     }
 }
