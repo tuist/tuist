@@ -121,33 +121,35 @@ final class LinkGeneratorErrorTests: XCTestCase {
     }
 
     func test_setupFrameworkSearchPath() throws {
+        // Given
         let dependencies = [
-            GraphDependencyReference.testFramework(path: "/Dependencies/A.framework"),
-            GraphDependencyReference.testFramework(path: "/Dependencies/B.framework"),
-            GraphDependencyReference.testFramework(path: "/Dependencies/C/C.framework"),
-        ]
-        let sourceRootPath = AbsolutePath("/")
+            GraphDependencyReference.testFramework(path: "/path/Dependencies/Frameworks/A.framework"),
+            GraphDependencyReference.testFramework(path: "/path/Dependencies/Frameworks/B.framework"),
+            GraphDependencyReference.testLibrary(path: "/path/Dependencies/Libraries/libC.a"),
+            GraphDependencyReference.testLibrary(path: "/path/Dependencies/Libraries/libD.a"),
+            GraphDependencyReference.testXCFramework(path: "/path/Dependencies/XCFrameworks/E.xcframework"),
+            GraphDependencyReference.testSDK(path: "/libc++.tbd"),
+            GraphDependencyReference.testSDK(path: "/CloudKit.framework"),
+            GraphDependencyReference.testProduct(target: "Foo", productName: "Foo.framework"),
+        ].shuffled()
+        let sourceRootPath = AbsolutePath("/path")
+        let xcodeprojElements = createXcodeprojElements()
+        xcodeprojElements.config.buildSettings["FRAMEWORK_SEARCH_PATHS"] = "my/custom/path"
 
-        let pbxproj = PBXProj()
-        let pbxTarget = PBXNativeTarget(name: "Test")
-        let configurationList = XCConfigurationList(buildConfigurations: [])
-        pbxproj.add(object: configurationList)
-        pbxTarget.buildConfigurationList = configurationList
-
-        let debugConfig = XCBuildConfiguration(name: "Debug")
-        let releaseConfig = XCBuildConfiguration(name: "Release")
-        pbxproj.add(object: debugConfig)
-        pbxproj.add(object: releaseConfig)
-        configurationList.buildConfigurations.append(debugConfig)
-        configurationList.buildConfigurations.append(releaseConfig)
-
+        // When
         try subject.setupFrameworkSearchPath(dependencies: dependencies,
-                                             pbxTarget: pbxTarget,
+                                             pbxTarget: xcodeprojElements.pbxTarget,
                                              sourceRootPath: sourceRootPath)
 
-        let expected = ["$(inherited)", "$(SRCROOT)/Dependencies", "$(SRCROOT)/Dependencies/C"]
-        XCTAssertEqual(debugConfig.buildSettings["FRAMEWORK_SEARCH_PATHS"] as? [String], expected)
-        XCTAssertEqual(releaseConfig.buildSettings["FRAMEWORK_SEARCH_PATHS"] as? [String], expected)
+        // Then
+        let config = xcodeprojElements.config
+        XCTAssertEqual(config.buildSettings["FRAMEWORK_SEARCH_PATHS"] as? [String], [
+            "$(inherited)",
+            "$(SRCROOT)/Dependencies/Frameworks",
+            "$(SRCROOT)/Dependencies/Libraries",
+            "$(SRCROOT)/Dependencies/XCFrameworks",
+            "my/custom/path",
+        ])
     }
 
     func test_setupHeadersSearchPath() throws {

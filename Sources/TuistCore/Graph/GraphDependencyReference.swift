@@ -71,16 +71,15 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
         }
     }
 
-    /// For dependencies that exists in the file system. This attribute returns the path to them.
-    public var path: AbsolutePath? {
+    /// For dependencies that exists in the file system (precompiled frameworks & libraries),
+    /// this attribute returns the path to them.
+    public var precompiledPath: AbsolutePath? {
         switch self {
         case let .framework(metadata):
             return metadata.path
         case let .library(metadata):
             return metadata.path
         case let .xcframework(metadata):
-            return metadata.path
-        case let .sdk(metadata):
             return metadata.path
         default:
             return nil
