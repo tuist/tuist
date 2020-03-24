@@ -50,7 +50,7 @@ final class BundleCommand: Command {
     init(parser: ArgumentParser,
          versionsController: VersionsControlling,
          installer: Installing) {
-        let subParser = parser.add(subparser: BundleCommand.command, overview: BundleCommand.overview)
+        _ = parser.add(subparser: BundleCommand.command, overview: BundleCommand.overview)
         self.versionsController = versionsController
         self.installer = installer
     }
