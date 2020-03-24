@@ -34,7 +34,7 @@ class GraphToDotGraphMapper: GraphToDotGraphMapping {
         }
 
         // Precompiled
-        graph.precompiled.forEach { precompiled in
+        graph.precompiled.values.forEach { precompiled in
             nodes.append(DotGraphNode(name: precompiled.name))
         }
 

@@ -24,9 +24,7 @@ final class GraphErrorTests: XCTestCase {
 final class GraphTests: TuistUnitTestCase {
     func test_frameworks() throws {
         let framework = FrameworkNode.test(path: AbsolutePath("/path/to/framework.framework"))
-        let cache = GraphLoaderCache()
-        cache.add(precompiledNode: framework)
-        let graph = Graph.test(cache: cache)
+        let graph = Graph.test(precompiled: [framework.path: framework])
         XCTAssertTrue(graph.frameworks.contains(framework))
     }
 
@@ -803,28 +801,6 @@ final class GraphTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(got, [AbsolutePath("/test/modules")])
-    }
-
-    func test_packageDepedencies_fromTargetDependency() throws {
-        // Given
-        let target = Target.test(name: "Test", product: .app, dependencies: [
-            .package(product: "A"),
-            .package(product: "B"),
-        ])
-        let project = Project.test(path: "/path", packages: [
-            .remote(url: "testA", requirement: .branch("master")),
-            .local(path: AbsolutePath("/testB")),
-        ])
-
-        let graph = Graph.create(project: project,
-                                 dependencies: [(target: target, dependencies: [])])
-
-        // When
-        let result = try graph.packages(path: project.path, name: target.name)
-
-        // Then
-        XCTAssertEqual(result.first?.name, "testA")
-        XCTAssertEqual(result.last?.name, "/testB")
     }
 
     func test_resourceBundleDependencies_fromTargetDependency() {

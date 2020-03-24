@@ -9,14 +9,16 @@ public extension Graph {
                      entryNodes: [GraphNode] = [],
                      projects: [AbsolutePath: Project] = [:],
                      cocoapods: [AbsolutePath: CocoaPodsNode] = [:],
-                     packages: [AbsolutePath: [PackageNode]] = [:]) -> Graph {
+                     packages: [AbsolutePath: [PackageNode]] = [:],
+                     precompiled: [AbsolutePath: PrecompiledNode] = [:]) -> Graph {
         Graph(name: name,
               entryPath: entryPath,
               cache: cache,
               entryNodes: entryNodes,
               projects: projects,
               cocoapods: cocoapods,
-              packages: packages)
+              packages: packages,
+              precompiled: precompiled)
     }
 
     /// Creates a test dependency graph for targets within a single project

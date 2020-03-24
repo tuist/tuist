@@ -49,8 +49,7 @@ final class CocoaPodsInteractorTests: TuistUnitTestCase {
         // Given
         let cache = GraphLoaderCache()
         let cocoapods = CocoaPodsNode.test()
-        cache.add(cocoapods: cocoapods)
-        let graph = Graph.test(cache: cache)
+        let graph = Graph.test(cache: cache, cocoapods: [cocoapods.path: cocoapods])
 
         system.succeedCommand(["bundle", "show", "cocoapods"])
         system.succeedCommand(["bundle", "exec", "pod", "install", "--project-directory=\(cocoapods.path.pathString)"])

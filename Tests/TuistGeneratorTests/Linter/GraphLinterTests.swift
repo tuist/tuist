@@ -25,7 +25,6 @@ final class GraphLinterTests: TuistUnitTestCase {
     func test_lint_when_carthage_frameworks_are_missing() throws {
         let temporaryPath = try self.temporaryPath()
         let cache = GraphLoaderCache()
-        let graph = Graph.test(cache: cache)
 
         let frameworkAPath = temporaryPath.appending(RelativePath("Carthage/Build/iOS/A.framework"))
         let frameworkBPath = temporaryPath.appending(RelativePath("Carthage/Build/iOS/B.framework"))
@@ -35,8 +34,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         let frameworkA = FrameworkNode.test(path: frameworkAPath)
         let frameworkB = FrameworkNode.test(path: frameworkBPath)
 
-        cache.add(precompiledNode: frameworkA)
-        cache.add(precompiledNode: frameworkB)
+        let graph = Graph.test(cache: cache, precompiled: [frameworkA.path: frameworkA, frameworkB.path: frameworkB])
 
         let result = subject.lint(graph: graph)
 
@@ -114,8 +112,6 @@ final class GraphLinterTests: TuistUnitTestCase {
 
     func test_lint_when_frameworks_are_missing() throws {
         let temporaryPath = try self.temporaryPath()
-        let cache = GraphLoaderCache()
-        let graph = Graph.test(cache: cache)
 
         let frameworkAPath = temporaryPath.appending(component: "A.framework")
         let frameworkBPath = temporaryPath.appending(component: "B.framework")
@@ -125,8 +121,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         let frameworkA = FrameworkNode.test(path: frameworkAPath)
         let frameworkB = FrameworkNode.test(path: frameworkBPath)
 
-        cache.add(precompiledNode: frameworkA)
-        cache.add(precompiledNode: frameworkB)
+        let graph = Graph.test(precompiled: [frameworkA.path: frameworkA, frameworkB.path: frameworkB])
 
         let result = subject.lint(graph: graph)
 

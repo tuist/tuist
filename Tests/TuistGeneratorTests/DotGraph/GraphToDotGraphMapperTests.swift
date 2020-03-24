@@ -26,12 +26,10 @@ final class GraphToDotGraphMapperTests: XCTestCase {
         let watchApp = TargetNode.test(target: Target.test(name: "Tuist watchOS"), dependencies: [core])
 
         let cache = GraphLoaderCache()
-        cache.add(precompiledNode: framework)
-        cache.add(precompiledNode: library)
         cache.add(targetNode: core)
         cache.add(targetNode: iOSApp)
         cache.add(targetNode: watchApp)
-        let graph = Graph.test(cache: cache, entryNodes: [iOSApp, watchApp])
+        let graph = Graph.test(cache: cache, entryNodes: [iOSApp, watchApp], precompiled: [framework.path: framework, library.path: library])
 
         // When
         let got = subject.map(graph: graph)

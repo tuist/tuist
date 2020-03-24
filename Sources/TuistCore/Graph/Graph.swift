@@ -38,6 +38,12 @@ public class Graph: Encodable {
     /// Dictionary whose keys are path to directories where projects are defined, and the values are packages defined in that project.
     public var packages: [AbsolutePath: [PackageNode]]
 
+    /// Dictionary whose keys are path to directories where projects are defined, and the values are precompiled nodes defined in them.
+    public var precompiled: [AbsolutePath: PrecompiledNode]
+
+    /// Returns all the frameorks that are part of the graph.
+    public var frameworks: [FrameworkNode] { precompiled.values.compactMap { $0 as? FrameworkNode } }
+
     // MARK: - Init
 
     public convenience init(name: String, entryPath: AbsolutePath, cache: GraphLoaderCaching, entryNodes: [GraphNode]) {
@@ -47,7 +53,8 @@ public class Graph: Encodable {
                   entryNodes: entryNodes,
                   projects: cache.projects,
                   cocoapods: cache.cocoapodsNodes,
-                  packages: cache.packages)
+                  packages: cache.packages,
+                  precompiled: cache.precompiledNodes)
     }
 
     init(name: String,
@@ -56,7 +63,8 @@ public class Graph: Encodable {
          entryNodes: [GraphNode],
          projects: [AbsolutePath: Project],
          cocoapods: [AbsolutePath: CocoaPodsNode],
-         packages: [AbsolutePath: [PackageNode]]) {
+         packages: [AbsolutePath: [PackageNode]],
+         precompiled: [AbsolutePath: PrecompiledNode]) {
         self.name = name
         self.entryPath = entryPath
         self.cache = cache
@@ -64,6 +72,7 @@ public class Graph: Encodable {
         self.projects = projects
         self.cocoapods = cocoapods
         self.packages = packages
+        self.precompiled = precompiled
     }
 
     // MARK: - Encodable
@@ -76,16 +85,6 @@ public class Graph: Encodable {
         nodes.append(contentsOf: Array(cache.precompiledNodes.values))
 
         try container.encode(nodes.sorted(by: { $0.path < $1.path }))
-    }
-
-    /// Returns all the frameorks that are part of the graph.
-    public var frameworks: [FrameworkNode] {
-        cache.precompiledNodes.values.compactMap { $0 as? FrameworkNode }
-    }
-
-    /// Returns all the precompiled nodes that are part of the graph.
-    public var precompiled: [PrecompiledNode] {
-        Array(cache.precompiledNodes.values)
     }
 
     /// Returns all the targets that are part of the graph.
@@ -163,14 +162,6 @@ public class Graph: Encodable {
 
         return targetNode.targetDependencies
             .filter { $0.target.product == .bundle }
-    }
-
-    /// Returns all package dependencies for the given target.
-    /// - Parameters:
-    ///   - path: Path to the directory where the project that defines the target is located.
-    ///   - name: Name of the target.
-    public func packages(path: AbsolutePath, name _: String) throws -> [PackageNode] {
-        cache.packages[path] ?? []
     }
 
     /// It returns the libraries a given target should be linked against.
