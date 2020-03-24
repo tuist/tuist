@@ -49,9 +49,10 @@ class UpCustom: Up {
         try container.encode("custom", forKey: .type)
     }
 
-    public static func == (lhs: UpCustom, rhs: UpCustom) -> Bool {
-        lhs.meet == rhs.meet &&
-            lhs.isMet == rhs.isMet &&
-            lhs.name == rhs.name
+    override func equals(_ other: Up) -> Bool {
+        guard let otherUpCustom = other as? UpCustom else { return false }
+        return meet == otherUpCustom.meet &&
+            isMet == otherUpCustom.isMet &&
+            name == otherUpCustom.name
     }
 }

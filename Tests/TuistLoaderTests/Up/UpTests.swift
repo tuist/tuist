@@ -53,4 +53,15 @@ final class UpTests: TuistUnitTestCase {
         XCTAssertEqual(got?.name, "Carthage update")
         XCTAssertEqual(got?.platforms, [.macOS])
     }
+
+    func test_with_when_mint() throws {
+        let temporaryPath = try self.temporaryPath()
+        let dictionary = JSON([
+            "type": "mint",
+            "linkPackagesGlobally": JSON.bool(true),
+        ])
+        let got = try Up.with(dictionary: dictionary, projectPath: temporaryPath) as? UpMint
+        XCTAssertEqual(got?.name, "Mint")
+        XCTAssertEqual(got?.linkPackagesGlobally, true)
+    }
 }

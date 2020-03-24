@@ -30,7 +30,8 @@ class UpCarthage: Up {
         try container.encode(platforms, forKey: .platforms)
     }
 
-    public static func == (lhs: UpCarthage, rhs: UpCarthage) -> Bool {
-        lhs.platforms == rhs.platforms
+    override func equals(_ other: Up) -> Bool {
+        guard let otherUpCarthage = other as? UpCarthage else { return false }
+        return platforms == otherUpCarthage.platforms
     }
 }
