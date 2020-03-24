@@ -5,7 +5,7 @@ import XCTest
 @testable import TuistSupportTesting
 
 final class UpMintTests: XCTestCase {
-    func test_codable_when_all() {
+    func test_codable() {
         // Given
         let subject = UpMint(linkPackagesGlobally: true)
 

@@ -30,7 +30,8 @@ class UpMint: Up {
         try container.encode(linkPackagesGlobally, forKey: .linkPackagesGlobally)
     }
 
-    public static func == (lhs: UpMint, rhs: UpMint) -> Bool {
-        lhs.linkPackagesGlobally == rhs.linkPackagesGlobally
+    override func equals(_ other: Up) -> Bool {
+        guard let otherUpMint = other as? UpMint else { return false }
+        return linkPackagesGlobally == otherUpMint.linkPackagesGlobally
     }
 }

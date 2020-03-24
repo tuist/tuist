@@ -51,7 +51,11 @@ public class Up: Codable, Equatable {
         UpMint(linkPackagesGlobally: linkPackagesGlobally)
     }
 
-    public static func == (_: Up, _: Up) -> Bool {
+    public static func == (lhs: Up, rhs: Up) -> Bool {
+        lhs.equals(rhs)
+    }
+
+    func equals(_: Up) -> Bool {
         fatalError("Subclasses should override this method")
     }
 }
