@@ -26,7 +26,7 @@ class EncryptCommand: NSObject, Command {
         pathArgument = subParser.add(option: "--path",
                                      shortName: "-p",
                                      kind: String.self,
-                                     usage: "The path to the folder where the template will be generated (Default: Current directory).",
+                                     usage: "The path to the folder containing the certificates you would like to encrypt",
                                      completion: .filename)
         self.signingCipher = signingCipher
     }
@@ -34,6 +34,8 @@ class EncryptCommand: NSObject, Command {
     func run(with arguments: ArgumentParser.Result) throws {
         let path = self.path(arguments: arguments)
         try signingCipher.encryptSigning(at: path)
+        
+        logger.notice("Successfully encrypted all signing files", metadata: .success)
     }
     
     // MARK: - Helpers

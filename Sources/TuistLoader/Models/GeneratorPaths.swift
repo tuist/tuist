@@ -26,11 +26,15 @@ enum GeneratorPathsError: FatalError, Equatable {
 struct GeneratorPaths {
     /// Path to the directory that contains the manifest being loaded.
     let manifestDirectory: AbsolutePath
+    
+    private let rootDirectoryLocator: RootDirectoryLocating
 
     /// Creates an instance with its attributes.
     /// - Parameter manifestDirectory: Path to the directory that contains the manifest being loaded.
-    init(manifestDirectory: AbsolutePath) {
+    init(manifestDirectory: AbsolutePath,
+         rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator()) {
         self.manifestDirectory = manifestDirectory
+        self.rootDirectoryLocator = rootDirectoryLocator
     }
 
     /// Given a project description path, it returns the absolute path of the given path.
@@ -43,7 +47,7 @@ struct GeneratorPaths {
         case .relativeToManifest:
             return AbsolutePath(path.pathString, relativeTo: manifestDirectory)
         case .relativeToRoot:
-            guard let rootPath = RootDirectoryLocator.shared.locate(from: AbsolutePath(manifestDirectory.pathString)) else {
+            guard let rootPath = rootDirectoryLocator.locate(from: AbsolutePath(manifestDirectory.pathString)) else {
                 throw GeneratorPathsError.rootDirectoryNotFound(AbsolutePath(manifestDirectory.pathString))
             }
             return AbsolutePath(path.pathString, relativeTo: rootPath)

@@ -6,8 +6,9 @@ import TuistCore
 
 enum SigningCipherError: FatalError, Equatable {
     case failedToEncrypt
+    case ivGenerationFailed(String)
     case masterKeyNotFound(AbsolutePath)
-    case rootDirectoryNotFound(AbsolutePath)
+    case signingDirectoryNotFound(AbsolutePath)
     
     var type: ErrorType { .abort }
     
@@ -15,10 +16,12 @@ enum SigningCipherError: FatalError, Equatable {
         switch self {
         case .failedToEncrypt:
             return "Encryption failed"
+        case let .ivGenerationFailed(reason):
+            return "Generation of IV failed with error: \(reason)"
         case let .masterKeyNotFound(masterKeyPath):
             return "Could not find master.key at \(masterKeyPath.pathString)"
-        case let .rootDirectoryNotFound(fromPath):
-            return "Could not find root directory from \(fromPath.pathString)"
+        case let .signingDirectoryNotFound(fromPath):
+            return "Could not find signing directory from \(fromPath.pathString)"
         }
     }
 }
@@ -29,7 +32,11 @@ public protocol SigningCiphering {
 }
 
 public final class SigningCipher: SigningCiphering {
-    public init() { }
+    private let rootDirectoryLocator: RootDirectoryLocating
+    
+    public init(rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator()) {
+        self.rootDirectoryLocator = rootDirectoryLocator
+    }
     
     public func encryptSigning(at path: AbsolutePath) throws {
         let (signingKeyFiles, masterKey) = try signingData(at: path)
@@ -38,6 +45,7 @@ public final class SigningCipher: SigningCiphering {
             .map { try encryptData($0, masterKey: masterKey) }
         
         try zip(cipheredKeys, signingKeyFiles).forEach {
+            logger.debug("Encrypting \($1.pathString)")
             try $0.write(to: $1.url)
         }
     }
@@ -51,6 +59,7 @@ public final class SigningCipher: SigningCiphering {
             }
         
         try zip(decipheredKeys, signingKeyFiles).forEach {
+            logger.debug("Decrypting \($1.pathString)")
             try $0.write(to: $1.url)
         }
     }
@@ -93,20 +102,18 @@ public final class SigningCipher: SigningCiphering {
     /// - Returns: Files we want encrypt/decrypt along with master key data
     private func signingData(at path: AbsolutePath) throws -> (signingKeyFiles: [AbsolutePath], masterKey: Data) {
         guard
-            let rootDirectory = RootDirectoryLocator.shared.locate(from: path)
-        else { throw SigningCipherError.rootDirectoryNotFound(path) }
+            let rootDirectory = rootDirectoryLocator.locate(from: path)
+        else { throw SigningCipherError.signingDirectoryNotFound(path) }
         let signingDirectory = rootDirectory.appending(components: Constants.tuistDirectoryName, Constants.signingDirectoryName)
-        let masterKey = try self.masterKey(from: signingDirectory)
-        // Find all files in `signingDirectory` with the exception of "master.key"
-        let signingKeyFiles = FileHandler.shared.glob(signingDirectory, glob: "**/*")
-            .filter { $0.pathString != signingDirectory.appending(component: "master.key").pathString }
-            .filter { !FileHandler.shared.isFolder($0) }
+        let masterKey = try self.masterKey(from: rootDirectory)
+        // Find all files in `signingDirectory` with the exception of Constants.masterKey
+        let signingKeyFiles = FileHandler.shared.glob(signingDirectory, glob: "*")
         return (signingKeyFiles: signingKeyFiles, masterKey: masterKey)
     }
     
     /// - Returns: Master key data
-    private func masterKey(from signingDirectory: AbsolutePath) throws -> Data {
-        let masterKeyFile = signingDirectory.appending(component: "master.key")
+    private func masterKey(from rootDirectory: AbsolutePath) throws -> Data {
+        let masterKeyFile = rootDirectory.appending(component: Constants.masterKey)
         guard FileHandler.shared.exists(masterKeyFile) else { throw SigningCipherError.masterKeyNotFound(masterKeyFile) }
         let plainMasterKey = try FileHandler.shared.readFile(masterKeyFile)
         return plainMasterKey.sha256()
@@ -116,11 +123,17 @@ public final class SigningCipher: SigningCiphering {
     private func generateIv() throws -> Data {
         let blockSize = 16
         var iv = Data(repeating: 0, count: blockSize)
-        let result = iv.withUnsafeMutableBytes { bytes -> Int32 in
-            guard let baseAddress = bytes.baseAddress else { return 0 }
+        let result = try iv.withUnsafeMutableBytes { bytes -> Int32 in
+            guard
+                let baseAddress = bytes.baseAddress
+            else { throw SigningCipherError.ivGenerationFailed("Base address not found") }
             return SecRandomCopyBytes(kSecRandomDefault, blockSize, baseAddress)
         }
-        guard result == errSecSuccess else { throw SigningCipherError.failedToEncrypt }
-        return iv
+        if result == errSecSuccess {
+            return iv
+        } else {
+            let errorDescription = String(SecCopyErrorMessageString(result, nil) ?? "Unknown")
+            throw SigningCipherError.ivGenerationFailed(errorDescription)
+        }
     }
 }

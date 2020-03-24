@@ -13,22 +13,15 @@ class SigningCommand: NSObject, Command {
     let subcommands: [Command]
     
     private let argumentParser: ArgumentParser
-    private let signingCipher: SigningCiphering
 
     // MARK: - Init
 
-    public required convenience init(parser: ArgumentParser) {
-        self.init(parser: parser, signingCipher: SigningCipher())
-    }
-
-    init(parser: ArgumentParser,
-         signingCipher: SigningCiphering) {
+    public required init(parser: ArgumentParser) {
         _ = parser.add(subparser: SigningCommand.command, overview: SigningCommand.overview)
         let argumentParser = ArgumentParser(commandName: Self.command, usage: "tuist signing <command> <options>", overview: Self.overview)
         let subcommands: [Command.Type] = [EncryptCommand.self, DecryptCommand.self]
         self.subcommands = subcommands.map { $0.init(parser: argumentParser) }
         self.argumentParser = argumentParser
-        self.signingCipher = signingCipher
     }
     
     func parse(with parser: ArgumentParser, arguments: [String]) throws -> (ArgumentParser.Result, ArgumentParser) {

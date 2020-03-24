@@ -8,6 +8,6 @@ let project = Project(name: "App",
                                  bundleId: "io.tuist.SignApp",
                                  infoPlist: "Info.plist",
                                  sources: "App/**",
-                                 dependencies: []))
+                                 dependencies: [])
                         ]
 )
