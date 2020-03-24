@@ -8,6 +8,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Add Mint up https://github.com/tuist/tuist/pull/1131 by @mollyIV
 
+### Fixed
+
+- Remove redundant SDK paths from `FRAMEWORK_SEARCH_PATHS` https://github.com/tuist/tuist/pull/1145 by @kwridan
+
 ### Removed
 
 - `Graphing` protocol https://github.com/tuist/tuist/pull/1128 by @pepibumur

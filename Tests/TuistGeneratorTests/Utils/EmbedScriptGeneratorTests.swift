@@ -30,7 +30,7 @@ final class EmbedScriptGeneratorTests: TuistUnitTestCase {
                                                                dsymPath: dsymPath,
                                                                bcsymbolmapPaths: [bcsymbolPath])
         // When
-        let got = try subject.script(sourceRootPath: framework.path!.parentDirectory, frameworkReferences: [framework])
+        let got = try subject.script(sourceRootPath: framework.precompiledPath!.parentDirectory, frameworkReferences: [framework])
 
         // Then
         XCTAssertEqual(got.inputPaths, [

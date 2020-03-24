@@ -211,7 +211,7 @@ final class LinkGenerator: LinkGenerating {
     func setupFrameworkSearchPath(dependencies: [GraphDependencyReference],
                                   pbxTarget: PBXTarget,
                                   sourceRootPath: AbsolutePath) throws {
-        let paths = dependencies.compactMap { $0.path }
+        let paths = dependencies.compactMap { $0.precompiledPath }
             .map { $0.removingLastComponent() }
 
         let uniquePaths = Array(Set(paths))
