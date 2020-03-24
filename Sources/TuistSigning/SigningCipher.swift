@@ -6,6 +6,7 @@ import TuistSupport
 
 enum SigningCipherError: FatalError, Equatable {
     case failedToEncrypt
+    case failedToDecrypt(String)
     case ivGenerationFailed(String)
     case masterKeyNotFound(AbsolutePath)
     case signingDirectoryNotFound(AbsolutePath)
@@ -15,7 +16,9 @@ enum SigningCipherError: FatalError, Equatable {
     var description: String {
         switch self {
         case .failedToEncrypt:
-            return "Encryption failed"
+            return "Unable to encrypt data"
+        case let .failedToDecrypt(reason):
+            return "Could not decrypt data: \(reason)"
         case let .ivGenerationFailed(reason):
             return "Generation of IV failed with error: \(reason)"
         case let .masterKeyNotFound(masterKeyPath):
@@ -95,11 +98,13 @@ public final class SigningCipher: SigningCiphering {
             let encodedString = String(data: data, encoding: .utf8),
             let dividerIndex = encodedString.firstIndex(of: "-"),
             let iv = Data(base64Encoded: String(encodedString.prefix(upTo: dividerIndex)))
-        else { throw SigningCipherError.failedToEncrypt }
+        else { throw SigningCipherError.failedToDecrypt("corrupted data") }
 
         let dataToDecrypt = Data(base64Encoded: String(encodedString.suffix(from: dividerIndex).dropFirst()))
         let aesCipher = try AES(key: masterKey.bytes, blockMode: CTR(iv: iv.bytes), padding: .noPadding)
-        guard let decryptedData = try dataToDecrypt?.decrypt(cipher: aesCipher) else { throw SigningCipherError.failedToEncrypt }
+        guard
+            let decryptedData = try dataToDecrypt?.decrypt(cipher: aesCipher)
+        else { throw SigningCipherError.failedToDecrypt("data is in wrong format") }
         return decryptedData
     }
 
