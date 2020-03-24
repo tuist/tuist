@@ -141,8 +141,11 @@ public final class SigningCipher: SigningCiphering {
         if result == errSecSuccess {
             return iv
         } else {
-            let errorDescription = String(SecCopyErrorMessageString(result, nil) ?? "Unknown")
-            throw SigningCipherError.ivGenerationFailed(errorDescription)
+            if let errorMessage = SecCopyErrorMessageString(result, nil) {
+                throw SigningCipherError.ivGenerationFailed(String(errorMessage))
+            } else {
+                throw SigningCipherError.ivGenerationFailed("code: \(result)")
+            }
         }
     }
 }
