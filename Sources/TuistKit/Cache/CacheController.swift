@@ -52,7 +52,7 @@ final class CacheController: CacheControlling {
 
     /// Returns all the targets that are cacheable and their hashes.
     /// - Parameter graph: Graph that contains all the dependency graph nodes.
-    fileprivate func cacheableTargets(graph: Graphing) throws -> [TargetNode: String] {
+    fileprivate func cacheableTargets(graph: Graph) throws -> [TargetNode: String] {
         try graphContentHasher.contentHashes(for: graph)
             .filter { target, hash in
                 if let exists = try self.cache.exists(hash: hash).toBlocking().first(), exists {

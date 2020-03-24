@@ -22,7 +22,46 @@ The project is deleted automatically once you are done with editing. If you wish
 tuist edit --permanent
 ```
 
-That will generate a `Manfiest.xcodeproj` project that you can open manually.
+That will generate a `Manifest.xcodeproj` project that you can open manually.
+
+# Scaffold
+
+In projects with an established architecture, developers might want to bootstrap new components or features that are consistent with the project.
+With `scaffold` you can define your own templates and also templates that Tuist provides to generate a basic structure of your module!
+
+To define templates, you can run `tuist edit` and then create a directory under `Tuist/Templates` that represents your template. Templates need a manifest file, `Template.swift` that describes the template:
+
+```swift
+import ProjectDescription
+
+let nameAttribute: Template.Attribute = .required("name")
+
+let template = Template(
+    description: "Custom template",
+    attributes: [
+        nameAttribute,
+        .optional("platform", default: "ios"),
+    ],
+    files: [
+        .string(path: "Project.swift",
+                contents: "My template contents of name \(nameAttribute)"),
+        .file(path: "generated/Up.swift",
+              templatePath: "generate.stencil"),
+    ],
+)
+```
+
+This template would then be called like this:
+```bash
+tuist scaffold name_of_template --name Name --platform macos
+```
+
+Since platform is an optional argument, we can also call the command without the `--platform macos` argument.
+
+If `.string` and `.files` don't provide enough flexibility, you can leverage the [Stencil](https://github.com/stencilproject/Stencil) templating language via the `.file` case.
+
+Templates can import [project description helpers](/docs/usage/helpers/). Just add `import ProjectDescriptionHelpers` at the top, and extract reusable logic into the helpers.
+
 
 # Lint
 
@@ -128,6 +167,14 @@ Configures Homebrew tap repositories. It also installs Homebrew if it's not avai
 ```
 
 It runs [Carthage](https://github.com/carthage) dependencies for those dependencies that don’t exist or that are outdated.
+
+### Mint packages
+
+```swift
+.mint()
+```
+
+It installs all the packages in a [Mintfile](https://github.com/yonaskolb/Mint) if they don’t exist in the system.
 
 ### Custom
 

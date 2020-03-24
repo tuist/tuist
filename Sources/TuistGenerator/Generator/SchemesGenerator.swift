@@ -16,7 +16,7 @@ protocol SchemesGenerating {
     /// - Throws: A FatalError if the generation of the schemes fails.
     func generateWorkspaceSchemes(workspace: Workspace,
                                   generatedProjects: [AbsolutePath: GeneratedProject],
-                                  graph: Graphing) throws -> [SchemeDescriptor]
+                                  graph: Graph) throws -> [SchemeDescriptor]
 
     /// Generates the schemes for the project targets.
     ///
@@ -28,7 +28,7 @@ protocol SchemesGenerating {
     /// - Throws: A FatalError if the generation of the schemes fails.
     func generateProjectSchemes(project: Project,
                                 generatedProject: GeneratedProject,
-                                graph: Graphing) throws -> [SchemeDescriptor]
+                                graph: Graph) throws -> [SchemeDescriptor]
 }
 
 // swiftlint:disable:next type_body_length
@@ -41,7 +41,7 @@ final class SchemesGenerator: SchemesGenerating {
 
     func generateWorkspaceSchemes(workspace: Workspace,
                                   generatedProjects: [AbsolutePath: GeneratedProject],
-                                  graph: Graphing) throws -> [SchemeDescriptor] {
+                                  graph: Graph) throws -> [SchemeDescriptor] {
         let schemes = try workspace.schemes.map { scheme in
             try generateScheme(scheme: scheme,
                                path: workspace.path,
@@ -54,7 +54,7 @@ final class SchemesGenerator: SchemesGenerating {
 
     func generateProjectSchemes(project: Project,
                                 generatedProject: GeneratedProject,
-                                graph: Graphing) throws -> [SchemeDescriptor] {
+                                graph: Graph) throws -> [SchemeDescriptor] {
         let customSchemes: [SchemeDescriptor] = try project.schemes.map { scheme in
             try generateScheme(scheme: scheme,
                                path: project.path,
@@ -91,7 +91,7 @@ final class SchemesGenerator: SchemesGenerating {
         if fileHandler.exists(sharedPath) { try fileHandler.delete(sharedPath) }
     }
 
-    func createDefaultScheme(target: Target, project: Project, buildConfiguration: String, graph: Graphing) -> Scheme {
+    func createDefaultScheme(target: Target, project: Project, buildConfiguration: String, graph: Graph) -> Scheme {
         let targetReference = TargetReference(projectPath: project.path, name: target.name)
 
         let testTargets: [TestableTarget]
@@ -123,7 +123,7 @@ final class SchemesGenerator: SchemesGenerating {
     ///     - generatedProjects: Project paths mapped to generated projects.
     private func generateScheme(scheme: Scheme,
                                 path: AbsolutePath,
-                                graph: Graphing,
+                                graph: Graph,
                                 generatedProjects: [AbsolutePath: GeneratedProject]) throws -> SchemeDescriptor {
         let generatedBuildAction = try schemeBuildAction(scheme: scheme,
                                                          graph: graph,
@@ -172,7 +172,7 @@ final class SchemesGenerator: SchemesGenerating {
     ///   - generatedProjects: Project paths mapped to generated projects.
     /// - Returns: Scheme build action.
     func schemeBuildAction(scheme: Scheme,
-                           graph: Graphing,
+                           graph: Graph,
                            rootPath: AbsolutePath,
                            generatedProjects: [AbsolutePath: GeneratedProject]) throws -> XCScheme.BuildAction? {
         guard let buildAction = scheme.buildAction else { return nil }
@@ -218,7 +218,7 @@ final class SchemesGenerator: SchemesGenerating {
     /// - Returns: Scheme test action.
     // swiftlint:disable:next function_body_length
     func schemeTestAction(scheme: Scheme,
-                          graph: Graphing,
+                          graph: Graph,
                           rootPath: AbsolutePath,
                           generatedProjects: [AbsolutePath: GeneratedProject]) throws -> XCScheme.TestAction? {
         guard let testAction = scheme.testAction else { return nil }
@@ -290,7 +290,7 @@ final class SchemesGenerator: SchemesGenerating {
     ///   - generatedProjects: Project paths mapped to generated projects.
     /// - Returns: Scheme launch action.
     func schemeLaunchAction(scheme: Scheme,
-                            graph: Graphing,
+                            graph: Graph,
                             rootPath: AbsolutePath,
                             generatedProjects: [AbsolutePath: GeneratedProject]) throws -> XCScheme.LaunchAction? {
         guard var target = try defaultTargetReference(scheme: scheme) else { return nil }
@@ -347,7 +347,7 @@ final class SchemesGenerator: SchemesGenerating {
     ///   - generatedProjects: Project paths mapped to generated projects.
     /// - Returns: Scheme profile action.
     func schemeProfileAction(scheme: Scheme,
-                             graph: Graphing,
+                             graph: Graph,
                              rootPath: AbsolutePath,
                              generatedProjects: [AbsolutePath: GeneratedProject]) throws -> XCScheme.ProfileAction? {
         guard var target = try defaultTargetReference(scheme: scheme) else { return nil }
@@ -400,7 +400,7 @@ final class SchemesGenerator: SchemesGenerating {
     ///     - generatedProjects: Project paths mapped to generated projects.
     /// - Returns: Scheme analyze action.
     func schemeAnalyzeAction(scheme: Scheme,
-                             graph: Graphing,
+                             graph: Graph,
                              rootPath _: AbsolutePath,
                              generatedProjects _: [AbsolutePath: GeneratedProject]) throws -> XCScheme.AnalyzeAction? {
         guard let target = try defaultTargetReference(scheme: scheme),
@@ -419,7 +419,7 @@ final class SchemesGenerator: SchemesGenerating {
     ///     - generatedProjects: Project paths mapped to generated projects.
     /// - Returns: Scheme archive action.
     func schemeArchiveAction(scheme: Scheme,
-                             graph: Graphing,
+                             graph: Graph,
                              rootPath: AbsolutePath,
                              generatedProjects: [AbsolutePath: GeneratedProject]) throws -> XCScheme.ArchiveAction? {
         guard let target = try defaultTargetReference(scheme: scheme),
@@ -445,7 +445,7 @@ final class SchemesGenerator: SchemesGenerating {
     }
 
     func schemeExecutionAction(action: ExecutionAction,
-                               graph: Graphing,
+                               graph: Graph,
                                generatedProjects: [AbsolutePath: GeneratedProject],
                                rootPath _: AbsolutePath) throws -> XCScheme.ExecutionAction {
         guard let targetReference = action.target,
@@ -509,7 +509,7 @@ final class SchemesGenerator: SchemesGenerating {
     ///     - rootPath: Path to the project or workspace.
     ///     - generatedProjects: Project paths mapped to generated projects.
     private func createBuildableReference(targetReference: TargetReference,
-                                          graph: Graphing,
+                                          graph: Graph,
                                           rootPath: AbsolutePath,
                                           generatedProjects: [AbsolutePath: GeneratedProject]) throws -> XCScheme.BuildableReference? {
         let projectPath = targetReference.projectPath
@@ -535,7 +535,7 @@ final class SchemesGenerator: SchemesGenerating {
     ///   - rootPath: Root path to workspace or project.
     /// - Returns: Array of buildable references.
     private func testCoverageTargetReferences(target: TargetReference,
-                                              graph: Graphing,
+                                              graph: Graph,
                                               generatedProjects: [AbsolutePath: GeneratedProject],
                                               rootPath: AbsolutePath) throws -> XCScheme.BuildableReference? {
         try createBuildableReference(targetReference: target,

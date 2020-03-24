@@ -4,7 +4,20 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Added
+
+- Add Mint up https://github.com/tuist/tuist/pull/1131 by @mollyIV
+
+### Fixed
+
+- Remove redundant SDK paths from `FRAMEWORK_SEARCH_PATHS` https://github.com/tuist/tuist/pull/1145 by @kwridan
+
+### Removed
+
+- `Graphing` protocol https://github.com/tuist/tuist/pull/1128 by @pepibumur
+
 ### Changed
+
 - Optimize `TargetNode`'s set operations https://github.com/tuist/tuist/pull/1095 by @kwridan
 - Optimize `BuildPhaseGenerator`'s method of detecting assets and localized files https://github.com/tuist/tuist/pull/1094 by @kwridan
 - Concurrent project generation https://github.com/tuist/tuist/pull/1096 by @kwridan
@@ -18,6 +31,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Added
 
+- `scaffold` command to generate user-defined templates https://github.com/tuist/tuist/pull/1126 by @fortmarek
 - New `ProjectDescription` models for `scaffold` command https://github.com/tuist/tuist/pull/1082 by @fortmarek
 - Allow specifying Project Organization name via new `organizationName` parameter to `Project` initializer or via `Config` new GenerationOption. https://github.com/tuist/tuist/pull/1062 by @c0diq
 - `tuist lint` command https://github.com/tuist/tuist/pull/1043 by @pepibumur.

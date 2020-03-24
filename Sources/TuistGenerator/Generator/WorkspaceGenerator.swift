@@ -32,7 +32,7 @@ protocol WorkspaceGenerating: AnyObject {
     /// - Throws: An error if the generation fails.
     func generate(workspace: Workspace,
                   path: AbsolutePath,
-                  graph: Graphing) throws -> WorkspaceDescriptor
+                  graph: Graph) throws -> WorkspaceDescriptor
 }
 
 final class WorkspaceGenerator: WorkspaceGenerating {
@@ -78,7 +78,7 @@ final class WorkspaceGenerator: WorkspaceGenerating {
 
     // MARK: - WorkspaceGenerating
 
-    func generate(workspace: Workspace, path: AbsolutePath, graph: Graphing) throws -> WorkspaceDescriptor {
+    func generate(workspace: Workspace, path: AbsolutePath, graph: Graph) throws -> WorkspaceDescriptor {
         let workspaceName = "\(graph.name).xcworkspace"
 
         logger.notice("Generating workspace \(workspaceName)", metadata: .section)

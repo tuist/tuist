@@ -2,34 +2,39 @@
 import { jsx, MenuButton } from 'theme-ui'
 
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faCloud, faUsers, faFileCode, faLayerGroup } from '@fortawesome/free-solid-svg-icons'
+import {
+  faCloud,
+  faUsers,
+  faFileCode,
+  faLayerGroup,
+} from '@fortawesome/free-solid-svg-icons'
 
 const Cloud = () => {
-    return <FontAwesomeIcon
-        sx={{}}
-        icon={faCloud}
-        size="lg"
-    />
+  return (
+    <FontAwesomeIcon sx={{ width: 20, height: 20 }} icon={faCloud} size="sm" />
+  )
 }
 const Users = () => {
-    return <FontAwesomeIcon
-        sx={{}}
-        icon={faUsers}
-        size="lg"
-    />
+  return (
+    <FontAwesomeIcon sx={{ width: 20, height: 20 }} icon={faUsers} size="sm" />
+  )
 }
 const Contributors = () => {
-    return <FontAwesomeIcon
-        sx={{}}
-        icon={faFileCode}
-        size="lg"
+  return (
+    <FontAwesomeIcon
+      sx={{ width: 20, height: 20 }}
+      icon={faFileCode}
+      size="sm"
     />
+  )
 }
 const Architectures = () => {
-    return <FontAwesomeIcon
-        sx={{}}
-        icon={faLayerGroup}
-        size="lg"
+  return (
+    <FontAwesomeIcon
+      sx={{ width: 20, height: 20 }}
+      icon={faLayerGroup}
+      size="sm"
     />
+  )
 }
 export { Cloud, Users, Contributors, Architectures }

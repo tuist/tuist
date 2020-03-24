@@ -49,7 +49,7 @@ protocol LinkGenerating: AnyObject {
                        fileElements: ProjectFileElements,
                        path: AbsolutePath,
                        sourceRootPath: AbsolutePath,
-                       graph: Graphing) throws
+                       graph: Graph) throws
 }
 
 // swiftlint:disable type_body_length
@@ -77,7 +77,7 @@ final class LinkGenerator: LinkGenerating {
                        fileElements: ProjectFileElements,
                        path: AbsolutePath,
                        sourceRootPath: AbsolutePath,
-                       graph: Graphing) throws {
+                       graph: Graph) throws {
         let embeddableFrameworks = try graph.embeddableFrameworks(path: path, name: target.name)
         let linkableModules = try graph.linkableDependencies(path: path, name: target.name)
 
@@ -115,7 +115,7 @@ final class LinkGenerator: LinkGenerating {
                                             pbxTarget: PBXTarget,
                                             sourceRootPath: AbsolutePath,
                                             path: AbsolutePath,
-                                            graph: Graphing,
+                                            graph: Graph,
                                             linkableModules: [GraphDependencyReference]) throws {
         let headersSearchPaths = graph.librariesPublicHeadersFolders(path: path, name: target.name)
         let librarySearchPaths = graph.librariesSearchPaths(path: path, name: target.name)
@@ -211,7 +211,7 @@ final class LinkGenerator: LinkGenerating {
     func setupFrameworkSearchPath(dependencies: [GraphDependencyReference],
                                   pbxTarget: PBXTarget,
                                   sourceRootPath: AbsolutePath) throws {
-        let paths = dependencies.compactMap { $0.path }
+        let paths = dependencies.compactMap { $0.precompiledPath }
             .map { $0.removingLastComponent() }
 
         let uniquePaths = Array(Set(paths))
@@ -317,7 +317,7 @@ final class LinkGenerator: LinkGenerating {
 
     func generateCopyProductsdBuildPhase(path: AbsolutePath,
                                          target: Target,
-                                         graph: Graphing,
+                                         graph: Graph,
                                          pbxTarget: PBXTarget,
                                          pbxproj: PBXProj,
                                          fileElements: ProjectFileElements) throws {
