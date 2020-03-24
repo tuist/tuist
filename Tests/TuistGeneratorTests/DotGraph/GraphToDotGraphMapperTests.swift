@@ -15,6 +15,7 @@ final class GraphToDotGraphMapperTests: XCTestCase {
 
     func test_map() throws {
         // Given
+        let project = Project.test()
         let framework = FrameworkNode.test(path: AbsolutePath("/XcodeProj.framework"))
         let library = LibraryNode.test(path: AbsolutePath("/RxSwift.a"))
         let sdk = try SDKNode(name: "CoreData.framework", platform: .iOS, status: .required)
@@ -25,11 +26,10 @@ final class GraphToDotGraphMapperTests: XCTestCase {
         let iOSApp = TargetNode.test(target: Target.test(name: "Tuist iOS"), dependencies: [core])
         let watchApp = TargetNode.test(target: Target.test(name: "Tuist watchOS"), dependencies: [core])
 
-        let cache = GraphLoaderCache()
-        cache.add(targetNode: core)
-        cache.add(targetNode: iOSApp)
-        cache.add(targetNode: watchApp)
-        let graph = Graph.test(cache: cache, entryNodes: [iOSApp, watchApp], precompiled: [framework.path: framework, library.path: library])
+        let graph = Graph.test(entryNodes: [iOSApp, watchApp],
+                               projects: [project.path: project],
+                               precompiled: [framework.path: framework, library.path: library],
+                               targets: [project.path: [core.name: core, iOSApp.name: iOSApp, watchApp.name: watchApp]])
 
         // When
         let got = subject.map(graph: graph)

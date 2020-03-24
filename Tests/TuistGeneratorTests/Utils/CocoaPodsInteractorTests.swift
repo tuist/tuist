@@ -47,9 +47,8 @@ final class CocoaPodsInteractorTests: TuistUnitTestCase {
 
     func test_install_when_theCocoaPodsFromBundlerCanBeUsed() throws {
         // Given
-        let cache = GraphLoaderCache()
         let cocoapods = CocoaPodsNode.test()
-        let graph = Graph.test(cache: cache, cocoapods: [cocoapods.path: cocoapods])
+        let graph = Graph.test(cocoapods: [cocoapods.path: cocoapods])
 
         system.succeedCommand(["bundle", "show", "cocoapods"])
         system.succeedCommand(["bundle", "exec", "pod", "install", "--project-directory=\(cocoapods.path.pathString)"])

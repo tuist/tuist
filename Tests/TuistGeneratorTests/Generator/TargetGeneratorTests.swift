@@ -174,12 +174,8 @@ final class TargetGeneratorTests: XCTestCase {
     private func createGraph(project: Project,
                              dependencies: [(target: Target, dependencies: [Target])]) -> Graph {
         let targetNodes = createTargetNodes(project: project, dependencies: dependencies)
-
-        let cache = GraphLoaderCache()
-        let graph = Graph.test(cache: cache)
-
-        targetNodes.forEach { cache.add(targetNode: $0) }
-
+        let graph = Graph.test(projects: [project.path: project],
+                               targets: [project.path: targetNodes.reduce(into: [String: TargetNode]()) { $0[$1.name] = $1 }])
         return graph
     }
 

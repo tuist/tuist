@@ -15,7 +15,7 @@ public final class GraphContentHasher: GraphContentHashing {
     }
 
     public func contentHashes(for graph: Graph) throws -> [TargetNode: String] {
-        let hashableTargets = graph.targets.filter { $0.target.product == .framework }
+        let hashableTargets = graph.targets.flatMap { $0.value.values }.filter { $0.target.product == .framework }
         let hashes = try hashableTargets.map { try makeContentHash(of: $0) }
         return Dictionary(uniqueKeysWithValues: zip(hashableTargets, hashes))
     }

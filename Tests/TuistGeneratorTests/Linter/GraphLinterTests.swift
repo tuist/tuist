@@ -24,7 +24,6 @@ final class GraphLinterTests: TuistUnitTestCase {
 
     func test_lint_when_carthage_frameworks_are_missing() throws {
         let temporaryPath = try self.temporaryPath()
-        let cache = GraphLoaderCache()
 
         let frameworkAPath = temporaryPath.appending(RelativePath("Carthage/Build/iOS/A.framework"))
         let frameworkBPath = temporaryPath.appending(RelativePath("Carthage/Build/iOS/B.framework"))
@@ -34,7 +33,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         let frameworkA = FrameworkNode.test(path: frameworkAPath)
         let frameworkB = FrameworkNode.test(path: frameworkBPath)
 
-        let graph = Graph.test(cache: cache, precompiled: [frameworkA.path: frameworkA, frameworkB.path: frameworkB])
+        let graph = Graph.test(precompiled: [frameworkA.path: frameworkA, frameworkB.path: frameworkB])
 
         let result = subject.lint(graph: graph)
 
@@ -57,10 +56,9 @@ final class GraphLinterTests: TuistUnitTestCase {
 
     func test_lint_when_packages_and_xcode_10() throws {
         // Given
-        let cache = GraphLoaderCache()
         let package = Package.remote(url: "remote", requirement: .branch("master"))
         let project = Project.test(packages: [package])
-        let graph = Graph.test(cache: cache, projects: [project.path: project], packages: [project.path: [PackageNode(package: package, path: project.path)]])
+        let graph = Graph.test(projects: [project.path: project], packages: [project.path: [PackageNode(package: package, path: project.path)]])
         let versionStub = Version(10, 0, 0)
         xcodeController.selectedVersionStub = .success(versionStub)
 
@@ -74,13 +72,11 @@ final class GraphLinterTests: TuistUnitTestCase {
 
     func test_lint_when_packages_and_xcode_11() throws {
         // Given
-        let cache = GraphLoaderCache()
-
-        cache.add(project: .test(packages: [
+        let project = Project.test(packages: [
             .remote(url: "remote", requirement: .branch("master")),
-        ]))
+        ])
 
-        let graph = Graph.test(cache: cache)
+        let graph = Graph.test(projects: [project.path: project])
         let versionStub = Version(11, 0, 0)
         xcodeController.selectedVersionStub = .success(versionStub)
 
@@ -95,10 +91,9 @@ final class GraphLinterTests: TuistUnitTestCase {
 
     func test_lint_when_no_version_available() throws {
         // Given
-        let cache = GraphLoaderCache()
         let package = Package.remote(url: "remote", requirement: .branch("master"))
         let project = Project.test(packages: [package])
-        let graph = Graph.test(cache: cache, projects: [project.path: project], packages: [project.path: [PackageNode(package: package, path: project.path)]])
+        let graph = Graph.test(projects: [project.path: project], packages: [project.path: [PackageNode(package: package, path: project.path)]])
 
         let error = NSError.test()
         xcodeController.selectedVersionStub = .failure(error)

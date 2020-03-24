@@ -35,15 +35,14 @@ final class ProjectGeneratorTests: TuistUnitTestCase {
                                    name: "Project",
                                    targets: [app, test])
 
-        let cache = GraphLoaderCache()
-        cache.add(project: project)
+        let testTargetNode = TargetNode(project: project,
+                                        target: test,
+                                        dependencies: [TargetNode(project: project, target: app, dependencies: [])])
+        let appNode = TargetNode(project: project, target: app, dependencies: [])
+
         let graph = Graph.test(entryPath: temporaryPath,
-                               cache: cache,
-                               entryNodes: [TargetNode(project: project,
-                                                       target: test,
-                                                       dependencies: [
-                                                           TargetNode(project: project, target: app, dependencies: []),
-                                                       ])])
+                               entryNodes: [testTargetNode, appNode],
+                               targets: [project.path: [testTargetNode.name: testTargetNode, appNode.name: appNode]])
 
         // When
         let generatedProject = try subject.generate(project: project, graph: graph)

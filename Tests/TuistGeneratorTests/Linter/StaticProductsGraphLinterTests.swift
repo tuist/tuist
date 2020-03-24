@@ -18,17 +18,12 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let app = Target.test(name: "App")
         let framework = Target.test(name: "Framework", product: .framework)
         let project = Project.test(path: "/tmp/app", name: "AppProject", targets: [app])
-
         let package = PackageProductNode(product: "PackageLibrary", path: "/tmp/packageLibrary")
         let frameworkNode = TargetNode(project: project, target: framework, dependencies: [package])
         let appNode = TargetNode(project: project, target: app, dependencies: [package, frameworkNode])
-
-        let cache = GraphLoaderCache()
-        cache.add(project: project)
-        cache.add(targetNode: appNode)
-        cache.add(targetNode: frameworkNode)
-
-        let graph = Graph.test(cache: cache, entryNodes: [appNode, frameworkNode, package])
+        let graph = Graph.test(entryNodes: [appNode, frameworkNode, package],
+                               projects: [project.path: project],
+                               targets: [project.path: [appNode.name: appNode, frameworkNode.name: frameworkNode]])
 
         // When
         let results = subject.lint(graph: graph)
@@ -49,13 +44,10 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let frameworkNode = TargetNode(project: project, target: framework, dependencies: [libraryNode])
         let appNode = TargetNode(project: project, target: app, dependencies: [libraryNode, frameworkNode])
 
-        let cache = GraphLoaderCache()
-        cache.add(project: project)
-        cache.add(targetNode: appNode)
-        cache.add(targetNode: frameworkNode)
-        cache.add(precompiledNode: libraryNode)
-
-        let graph = Graph.test(cache: cache, entryNodes: [appNode, frameworkNode, libraryNode])
+        let graph = Graph.test(entryNodes: [appNode],
+                               projects: [project.path: project],
+                               precompiled: [libraryNode.path: libraryNode],
+                               targets: [project.path: [appNode.name: appNode, frameworkNode.name: frameworkNode]])
 
         // When
         let results = subject.lint(graph: graph)

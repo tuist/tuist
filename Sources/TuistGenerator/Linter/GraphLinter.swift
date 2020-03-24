@@ -186,7 +186,7 @@ public class GraphLinter: GraphLinting {
 
     private func lintWatchBundleIndentifiers(graph: Graph) -> [LintingIssue] {
         let apps = graph
-            .targets
+            .targets.flatMap { $0.value.values }
             .filter { $0.target.product == .app }
 
         let issues = apps.flatMap { app -> [LintingIssue] in

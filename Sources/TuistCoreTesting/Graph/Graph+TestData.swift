@@ -5,20 +5,20 @@ import Foundation
 public extension Graph {
     static func test(name: String = "test",
                      entryPath: AbsolutePath = AbsolutePath("/test/graph"),
-                     cache: GraphLoaderCaching = GraphLoaderCache(),
                      entryNodes: [GraphNode] = [],
                      projects: [AbsolutePath: Project] = [:],
                      cocoapods: [AbsolutePath: CocoaPodsNode] = [:],
                      packages: [AbsolutePath: [PackageNode]] = [:],
-                     precompiled: [AbsolutePath: PrecompiledNode] = [:]) -> Graph {
+                     precompiled: [AbsolutePath: PrecompiledNode] = [:],
+                     targets: [AbsolutePath: [String: TargetNode]] = [:]) -> Graph {
         Graph(name: name,
               entryPath: entryPath,
-              cache: cache,
               entryNodes: entryNodes,
               projects: projects,
               cocoapods: cocoapods,
               packages: packages,
-              precompiled: precompiled)
+              precompiled: precompiled,
+              targets: targets)
     }
 
     /// Creates a test dependency graph for targets within a single project
@@ -50,14 +50,18 @@ public extension Graph {
             targetNodes.first { $0.name == entryNode.name }
         }
 
-        let cache = GraphLoaderCache()
-        targetNodes.forEach { cache.add(targetNode: $0) }
+        let targets = targetNodes.reduce(into: [AbsolutePath: [String: TargetNode]]()) { acc, next in
+            var dict = acc[next.path]
+            if dict == nil { dict = [:] }
+            dict?[next.name] = next
+            acc[next.path] = dict
+        }
         let graph = Graph.test(name: project.name,
                                entryPath: project.path,
-                               cache: cache,
                                entryNodes: entryNodes,
                                projects: [project.path: project],
-                               packages: packages)
+                               packages: packages,
+                               targets: targets)
 
         return graph
     }
@@ -78,14 +82,18 @@ public extension Graph {
             }
         }
 
-        let cache = GraphLoaderCache()
-        targetNodes.forEach { cache.add(targetNode: $0) }
+        let targets = targetNodes.reduce(into: [AbsolutePath: [String: TargetNode]]()) { acc, next in
+            var dict = acc[next.path]
+            if dict == nil { dict = [:] }
+            dict?[next.name] = next
+            acc[next.path] = dict
+        }
 
         let graph = Graph.test(name: projects.first?.name ?? "Test",
                                entryPath: projects.first?.path ?? AbsolutePath("/test/path"),
-                               cache: cache,
                                entryNodes: entryNodes ?? targetNodes,
-                               projects: projects.reduce(into: [AbsolutePath: Project]()) { $0[$1.path] = $1 })
+                               projects: projects.reduce(into: [AbsolutePath: Project]()) { $0[$1.path] = $1 },
+                               targets: targets)
 
         return graph
     }
