@@ -2,8 +2,8 @@ import Basic
 import Foundation
 import SPMUtility
 import TuistCore
-import TuistSupport
 import TuistSigning
+import TuistSupport
 
 class DecryptCommand: NSObject, Command {
     // MARK: - Attributes
@@ -11,7 +11,7 @@ class DecryptCommand: NSObject, Command {
     static let command = "decrypt"
     static let overview = "Decrypts all files in Tuist/Signing directory."
     private let pathArgument: OptionArgument<String>
-    
+
     private let signingCipher: SigningCiphering
 
     // MARK: - Init
@@ -30,13 +30,13 @@ class DecryptCommand: NSObject, Command {
                                      completion: .filename)
         self.signingCipher = signingCipher
     }
-    
+
     func run(with arguments: ArgumentParser.Result) throws {
         let path = self.path(arguments: arguments)
         try signingCipher.decryptSigning(at: path)
         logger.notice("Successfully decrypted all signing files", metadata: .success)
     }
-    
+
     // MARK: - Helpers
 
     private func path(arguments: ArgumentParser.Result) -> AbsolutePath {

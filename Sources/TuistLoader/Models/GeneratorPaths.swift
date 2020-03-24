@@ -26,7 +26,7 @@ enum GeneratorPathsError: FatalError, Equatable {
 struct GeneratorPaths {
     /// Path to the directory that contains the manifest being loaded.
     let manifestDirectory: AbsolutePath
-    
+
     private let rootDirectoryLocator: RootDirectoryLocating
 
     /// Creates an instance with its attributes.

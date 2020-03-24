@@ -1,21 +1,21 @@
 import Basic
 import Foundation
-import XCTest
 import TuistSupport
+import XCTest
+@testable import TuistCoreTesting
 @testable import TuistSigning
 @testable import TuistSupportTesting
-@testable import TuistCoreTesting
 
 final class SigningCipherTests: TuistUnitTestCase {
     var subject: SigningCiphering!
     var rootDirectoryLocator: MockRootDirectoryLocator!
-        
+
     override func setUp() {
         super.setUp()
         rootDirectoryLocator = MockRootDirectoryLocator()
         subject = SigningCipher(rootDirectoryLocator: rootDirectoryLocator)
     }
-    
+
     override func tearDown() {
         rootDirectoryLocator = nil
         subject = nil
@@ -32,7 +32,7 @@ final class SigningCipherTests: TuistUnitTestCase {
         XCTAssertThrowsSpecific(try subject.encryptSigning(at: temporaryPath),
                                 SigningCipherError.masterKeyNotFound(masterKeyPath))
     }
-    
+
     func test_encrypt_and_decrypt_signing() throws {
         // Given
         let temporaryPath = try self.temporaryPath()
@@ -46,16 +46,16 @@ final class SigningCipherTests: TuistUnitTestCase {
         let profileFile = signingDirectory.appending(component: "ProfileFile.txt")
         try FileHandler.shared.write(certContent, path: certFile, atomically: true)
         try FileHandler.shared.write(profileContent, path: profileFile, atomically: true)
-        
+
         // When
         try subject.encryptSigning(at: temporaryPath)
         try subject.decryptSigning(at: temporaryPath)
-        
+
         // Then
         XCTAssertEqual(try FileHandler.shared.readTextFile(certFile), certContent)
         XCTAssertEqual(try FileHandler.shared.readTextFile(profileFile), profileContent)
     }
-    
+
     func test_encrypt_signing() throws {
         // Given
         let temporaryPath = try self.temporaryPath()
@@ -71,10 +71,10 @@ final class SigningCipherTests: TuistUnitTestCase {
         let profileFile = signingDirectory.appending(component: "ProfileFile.text")
         try FileHandler.shared.write(certContent, path: certFile, atomically: true)
         try FileHandler.shared.write(profileContent, path: profileFile, atomically: true)
-        
+
         // When
         try subject.encryptSigning(at: temporaryPath)
-        
+
         // Then
         XCTAssertNotEqual(try FileHandler.shared.readTextFile(certFile), certContent)
         XCTAssertNotEqual(try FileHandler.shared.readTextFile(profileFile), profileContent)

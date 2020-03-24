@@ -39,7 +39,8 @@ class GeneratorPathsTests: TuistUnitTestCase {
         path = try! temporaryPath()
         rootDirectoryLocator = MockRootDirectoryLocator()
         rootDirectoryLocator.locateStub = path.appending(component: "Root")
-        subject = GeneratorPaths(manifestDirectory: path)
+        subject = GeneratorPaths(manifestDirectory: path,
+                                 rootDirectoryLocator: rootDirectoryLocator)
     }
 
     override func tearDown() {

@@ -2,16 +2,16 @@ import Basic
 import Foundation
 import SPMUtility
 import TuistCore
-import TuistSupport
 import TuistSigning
+import TuistSupport
 
-class SigningCommand: NSObject, Command {    
+class SigningCommand: NSObject, Command {
     // MARK: - Attributes
 
     static let command = "signing"
     static let overview = "Signing command"
     let subcommands: [Command]
-    
+
     private let argumentParser: ArgumentParser
 
     // MARK: - Init
@@ -23,12 +23,12 @@ class SigningCommand: NSObject, Command {
         self.subcommands = subcommands.map { $0.init(parser: argumentParser) }
         self.argumentParser = argumentParser
     }
-    
-    func parse(with parser: ArgumentParser, arguments: [String]) throws -> (ArgumentParser.Result, ArgumentParser) {
+
+    func parse(with _: ArgumentParser, arguments: [String]) throws -> (ArgumentParser.Result, ArgumentParser) {
         return (try argumentParser.parse(Array(arguments.dropFirst())), argumentParser)
     }
-    
-    func run(with arguments: ArgumentParser.Result) throws {
+
+    func run(with _: ArgumentParser.Result) throws {
         argumentParser.printUsage(on: stdoutStream)
     }
 }

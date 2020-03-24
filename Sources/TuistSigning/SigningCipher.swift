@@ -1,17 +1,17 @@
 import Basic
-import Foundation
 import CryptoSwift
-import TuistSupport
+import Foundation
 import TuistCore
+import TuistSupport
 
 enum SigningCipherError: FatalError, Equatable {
     case failedToEncrypt
     case ivGenerationFailed(String)
     case masterKeyNotFound(AbsolutePath)
     case signingDirectoryNotFound(AbsolutePath)
-    
+
     var type: ErrorType { .abort }
-    
+
     var description: String {
         switch self {
         case .failedToEncrypt:
@@ -33,23 +33,23 @@ public protocol SigningCiphering {
 
 public final class SigningCipher: SigningCiphering {
     private let rootDirectoryLocator: RootDirectoryLocating
-    
+
     public init(rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator()) {
         self.rootDirectoryLocator = rootDirectoryLocator
     }
-    
+
     public func encryptSigning(at path: AbsolutePath) throws {
         let (signingKeyFiles, masterKey) = try signingData(at: path)
         let cipheredKeys = try signingKeyFiles
             .map(FileHandler.shared.readFile)
             .map { try encryptData($0, masterKey: masterKey) }
-        
+
         try zip(cipheredKeys, signingKeyFiles).forEach {
             logger.debug("Encrypting \($1.pathString)")
             try $0.write(to: $1.url)
         }
     }
-    
+
     public func decryptSigning(at path: AbsolutePath) throws {
         let (signingKeyFiles, masterKey) = try signingData(at: path)
         let decipheredKeys = try signingKeyFiles
@@ -57,15 +57,15 @@ public final class SigningCipher: SigningCiphering {
             .map {
                 try decryptData($0, masterKey: masterKey)
             }
-        
+
         try zip(decipheredKeys, signingKeyFiles).forEach {
             logger.debug("Decrypting \($1.pathString)")
             try $0.write(to: $1.url)
         }
     }
-    
+
     // MARK: - Helpers
-    
+
     /// Encrypts `data`
     /// - Parameters:
     ///     - data: Data to encrypt
@@ -80,7 +80,7 @@ public final class SigningCipher: SigningCiphering {
         else { throw SigningCipherError.failedToEncrypt }
         return data
     }
-    
+
     /// Decrypts `data`
     /// - Parameters:
     ///     - data: Data to decrypt
@@ -98,7 +98,7 @@ public final class SigningCipher: SigningCiphering {
         guard let decryptedData = try dataToDecrypt?.decrypt(cipher: aesCipher) else { throw SigningCipherError.failedToEncrypt }
         return decryptedData
     }
-    
+
     /// - Returns: Files we want encrypt/decrypt along with master key data
     private func signingData(at path: AbsolutePath) throws -> (signingKeyFiles: [AbsolutePath], masterKey: Data) {
         guard
@@ -110,7 +110,7 @@ public final class SigningCipher: SigningCiphering {
         let signingKeyFiles = FileHandler.shared.glob(signingDirectory, glob: "*")
         return (signingKeyFiles: signingKeyFiles, masterKey: masterKey)
     }
-    
+
     /// - Returns: Master key data
     private func masterKey(from rootDirectory: AbsolutePath) throws -> Data {
         let masterKeyFile = rootDirectory.appending(component: Constants.masterKey)
@@ -118,7 +118,7 @@ public final class SigningCipher: SigningCiphering {
         let plainMasterKey = try FileHandler.shared.readFile(masterKeyFile)
         return plainMasterKey.sha256()
     }
-    
+
     /// - Returns: Data of generated initialization vector
     private func generateIv() throws -> Data {
         let blockSize = 16

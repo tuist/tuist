@@ -7,7 +7,7 @@ public protocol Command {
 
     /// A short sentece that describes what the command is for.
     static var overview: String { get }
-    
+
     var subcommands: [Command] { get }
 
     /// Initializes the command with the argument parser. ArgumentParser is defined un the SPM Utility package.
@@ -33,7 +33,7 @@ public protocol Command {
 
 public extension Command {
     var subcommands: [Command] { [] }
-    
+
     func parse(with parser: ArgumentParser, arguments: [String]) throws -> (ArgumentParser.Result, ArgumentParser) {
         return (try parser.parse(arguments), parser)
     }
