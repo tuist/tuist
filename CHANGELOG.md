@@ -4,6 +4,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Fixed
+
+- Fix example framework template not being generated https://github.com/tuist/tuist/pull/1149 by @fortmarek 
+
 ## 1.5.0
 
 ### Added
