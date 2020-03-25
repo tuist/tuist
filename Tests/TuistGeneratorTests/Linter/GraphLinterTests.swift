@@ -44,7 +44,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         // Given
         let temporaryPath = try self.temporaryPath()
         let cocoapods = CocoaPodsNode(path: temporaryPath)
-        let graph = Graph.test(cocoapods: [cocoapods.path: cocoapods])
+        let graph = Graph.test(cocoapods: [cocoapods])
         let podfilePath = temporaryPath.appending(component: "Podfile")
 
         // When

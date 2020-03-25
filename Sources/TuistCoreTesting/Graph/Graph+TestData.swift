@@ -7,7 +7,7 @@ public extension Graph {
                      entryPath: AbsolutePath = AbsolutePath("/test/graph"),
                      entryNodes: [GraphNode] = [],
                      projects: [AbsolutePath: Project] = [:],
-                     cocoapods: [AbsolutePath: CocoaPodsNode] = [:],
+                     cocoapods: [CocoaPodsNode] = [],
                      packages: [AbsolutePath: [PackageNode]] = [:],
                      precompiled: [AbsolutePath: PrecompiledNode] = [:],
                      targets: [AbsolutePath: [String: TargetNode]] = [:]) -> Graph {

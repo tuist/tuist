@@ -36,7 +36,7 @@ final class GraphContentHasherTests: XCTestCase {
         let graph = Graph.test(entryPath: path,
                                entryNodes: [],
                                projects: [:],
-                               cocoapods: [:],
+                               cocoapods: [],
                                packages: [:],
                                precompiled: [:],
                                targets: [path: [

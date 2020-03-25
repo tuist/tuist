@@ -38,7 +38,7 @@ final class CocoaPodsInteractorTests: TuistUnitTestCase {
             throw NSError.test()
         }
         let cocoapods = CocoaPodsNode.test()
-        let graph = Graph.test(cocoapods: [cocoapods.path: cocoapods])
+        let graph = Graph.test(cocoapods: [cocoapods])
 
         // Then
         XCTAssertThrowsSpecific(try subject.install(graph: graph),
@@ -48,7 +48,7 @@ final class CocoaPodsInteractorTests: TuistUnitTestCase {
     func test_install_when_theCocoaPodsFromBundlerCanBeUsed() throws {
         // Given
         let cocoapods = CocoaPodsNode.test()
-        let graph = Graph.test(cocoapods: [cocoapods.path: cocoapods])
+        let graph = Graph.test(cocoapods: [cocoapods])
 
         system.succeedCommand(["bundle", "show", "cocoapods"])
         system.succeedCommand(["bundle", "exec", "pod", "install", "--project-directory=\(cocoapods.path.pathString)"])
@@ -63,7 +63,7 @@ final class CocoaPodsInteractorTests: TuistUnitTestCase {
     func test_install_when_theCocoaPodsFromTheSystemCanBeUsed() throws {
         // Given
         let cocoapods = CocoaPodsNode.test()
-        let graph = Graph.test(cocoapods: [cocoapods.path: cocoapods])
+        let graph = Graph.test(cocoapods: [cocoapods])
 
         system.errorCommand(["bundle", "show", "cocoapods"])
         system.whichStub = {
@@ -82,7 +82,7 @@ final class CocoaPodsInteractorTests: TuistUnitTestCase {
     func test_install_when_theCocoaPodsSpecsRepoIsOutdated() throws {
         // Given
         let cocoapods = CocoaPodsNode.test()
-        let graph = Graph.test(cocoapods: [cocoapods.path: cocoapods])
+        let graph = Graph.test(cocoapods: [cocoapods])
 
         system.succeedCommand(["bundle", "show", "cocoapods"])
         system.errorCommand(["bundle", "exec", "pod", "install", "--project-directory=\(cocoapods.path.pathString)"], error: "[!] CocoaPods could not find compatible versions for pod")
