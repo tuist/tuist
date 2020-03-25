@@ -8,6 +8,9 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Added
 
+- Scaffold init https://github.com/tuist/tuist/pull/1129 by @fortmarek 
+- Scaffold generate https://github.com/tuist/tuist/pull/1126 by @fortmarek 
+- Scaffold load https://github.com/tuist/tuist/pull/1092 by @fortmarek
 - Add Mint up https://github.com/tuist/tuist/pull/1131 by @mollyIV
 
 ### Fixed
