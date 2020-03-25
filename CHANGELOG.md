@@ -4,6 +4,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+## 1.5.0
+
 ### Added
 
 - Add Mint up https://github.com/tuist/tuist/pull/1131 by @mollyIV
