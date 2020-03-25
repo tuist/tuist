@@ -61,7 +61,7 @@ final class GraphTests: TuistUnitTestCase {
         let targets = testsNodes.reduce(into: [project.path: [targetNode.name: targetNode, dependentTarget.name: dependencyNode]]) {
             $0[project.path]?[$1.name] = $1
         }
-        let graph = Graph.test(projects: [project.path: project], targets: targets)
+        let graph = Graph.test(projects: [project], targets: targets)
 
         // when
         let testDependencies = graph.testTargetsDependingOn(path: project.path, name: target.name)
@@ -98,7 +98,7 @@ final class GraphTests: TuistUnitTestCase {
         let targetNode = TargetNode(project: project,
                                     target: target,
                                     dependencies: [dependencyNode])
-        let graph = Graph.test(projects: [project.path: project], targets: [
+        let graph = Graph.test(projects: [project], targets: [
             project.path: [dependencyNode.name: dependencyNode, targetNode.name: targetNode],
         ])
 
@@ -127,7 +127,7 @@ final class GraphTests: TuistUnitTestCase {
         cache.add(targetNode: dependencyNode)
         cache.add(targetNode: staticDependencyNode)
 
-        let graph = Graph.test(projects: [project.path: project], targets: [project.path: [
+        let graph = Graph.test(projects: [project], targets: [project.path: [
             targetNode.name: targetNode,
             dependencyNode.name: dependencyNode,
             staticDependencyNode.name: staticDependencyNode,
@@ -511,7 +511,7 @@ final class GraphTests: TuistUnitTestCase {
         let targetNode = TargetNode(project: project,
                                     target: target,
                                     dependencies: [precompiledNode])
-        let graph = Graph.test(projects: [project.path: project],
+        let graph = Graph.test(projects: [project],
                                precompiled: [precompiledNode],
                                targets: [project.path: [targetNode.name: targetNode]])
         let got = graph.librariesPublicHeadersFolders(path: project.path,
@@ -529,7 +529,7 @@ final class GraphTests: TuistUnitTestCase {
         let targetNode = TargetNode(project: project,
                                     target: target,
                                     dependencies: [dependencyNode])
-        let graph = Graph.test(projects: [project.path: project], targets: [
+        let graph = Graph.test(projects: [project], targets: [
             project.path: [targetNode.name: targetNode, dependencyNode.name: dependencyNode],
         ])
         system.succeedCommand([], output: "dynamically linked")
@@ -550,7 +550,7 @@ final class GraphTests: TuistUnitTestCase {
         let targetNode = TargetNode(project: project,
                                     target: target,
                                     dependencies: [dependencyNode])
-        let graph = Graph.test(projects: [project.path: project],
+        let graph = Graph.test(projects: [project],
                                targets: [project.path: [targetNode.name: targetNode, dependencyNode.name: dependencyNode]])
 
         system.succeedCommand([], output: "dynamically linked")
@@ -567,7 +567,7 @@ final class GraphTests: TuistUnitTestCase {
         let targetNode = TargetNode(project: project,
                                     target: target,
                                     dependencies: [frameworkNode])
-        let graph = Graph.test(projects: [project.path: project],
+        let graph = Graph.test(projects: [project],
                                precompiled: [frameworkNode],
                                targets: [project.path: [targetNode.name: targetNode]])
 
@@ -597,7 +597,7 @@ final class GraphTests: TuistUnitTestCase {
             target: target,
             dependencies: [dependencyNode]
         )
-        let graph = Graph.test(projects: [project.path: project],
+        let graph = Graph.test(projects: [project],
                                precompiled: [frameworkNode],
                                targets: [project.path: [targetNode.name: targetNode, dependencyNode.name: dependencyNode]])
 
@@ -624,7 +624,7 @@ final class GraphTests: TuistUnitTestCase {
             dependencies: [frameworkNode]
         )
 
-        let graph = Graph.test(projects: [project.path: project],
+        let graph = Graph.test(projects: [project],
                                precompiled: [frameworkNode],
                                targets: [project.path: [targetNode.name: targetNode]])
 
@@ -673,7 +673,7 @@ final class GraphTests: TuistUnitTestCase {
                                     target: target,
                                     dependencies: dependencyNodes)
         let targetNodes = dependencyNodes.reduce(into: [project.path: [targetNode.name: targetNode]]) { $0[project.path]?[$1.name] = $1 }
-        let graph = Graph.test(projects: [project.path: project], targets: targetNodes)
+        let graph = Graph.test(projects: [project], targets: targetNodes)
 
         // When
         let got = try graph.embeddableFrameworks(path: project.path, name: target.name)
@@ -769,7 +769,7 @@ final class GraphTests: TuistUnitTestCase {
         let targetNode = TargetNode(project: project,
                                     target: target,
                                     dependencies: [precompiledNode])
-        let graph = Graph.test(projects: [project.path: project],
+        let graph = Graph.test(projects: [project],
                                precompiled: [precompiledNode],
                                targets: [project.path: [targetNode.name: targetNode]])
 
@@ -790,7 +790,7 @@ final class GraphTests: TuistUnitTestCase {
         let targetNode = TargetNode(project: project,
                                     target: target,
                                     dependencies: [precompiledNodeA, precompiledNodeB])
-        let graph = Graph.test(projects: [project.path: project],
+        let graph = Graph.test(projects: [project],
                                precompiled: [precompiledNodeA, precompiledNodeB],
                                targets: [project.path: [targetNode.name: targetNode]])
 
@@ -856,7 +856,7 @@ final class GraphTests: TuistUnitTestCase {
         let targetNode = TargetNode(project: project,
                                     target: target,
                                     dependencies: [dependencyNode])
-        let graph = Graph.test(projects: [project.path: project], targets: [
+        let graph = Graph.test(projects: [project], targets: [
             project.path: [targetNode.name: targetNode, dependencyNode.name: dependencyNode],
         ])
 
@@ -875,7 +875,7 @@ final class GraphTests: TuistUnitTestCase {
         let targetNode = TargetNode(project: project,
                                     target: target,
                                     dependencies: [dependencyNode])
-        let graph = Graph.test(projects: [project.path: project], targets: [
+        let graph = Graph.test(projects: [project], targets: [
             project.path: [targetNode.name: targetNode, dependencyNode.name: dependencyNode],
         ])
 
@@ -931,7 +931,7 @@ final class GraphTests: TuistUnitTestCase {
                                        publicHeaders: fixturePath(path: RelativePath("")))
         let target = TargetNode.test(dependencies: [framework, library])
 
-        let graph = Graph.test(projects: [project.path: project],
+        let graph = Graph.test(projects: [project],
                                precompiled: [framework, library],
                                targets: [project.path: [target.name: target]])
 

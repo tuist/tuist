@@ -662,7 +662,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
 
     private func createGraph(project: Project, target: Target, dependencies: [GraphNode]) -> Graph {
         let targetNode = TargetNode(project: project, target: target, dependencies: dependencies)
-        return Graph.test(projects: [project.path: project], targets: [project.path: [targetNode.name: targetNode]])
+        return Graph.test(projects: [project], targets: [project.path: [targetNode.name: targetNode]])
     }
 }
 

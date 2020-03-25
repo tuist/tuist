@@ -34,7 +34,7 @@ public class Graph: Encodable {
     public let entryNodes: [GraphNode]
 
     /// Dictionary whose keys are paths to directories where projects are defined, and the values are the representation of the projects.
-    public let projects: [AbsolutePath: Project]
+    public let projects: WeakArray<Project>
 
     /// Dictionary whose keys are paths to directories where projects are defined, and the values are the CocoaPods nodes define in them.
     /// If none of the nodes of the graph references a CocoaPods node, the node gets released from memory.
@@ -60,7 +60,7 @@ public class Graph: Encodable {
         self.init(name: name,
                   entryPath: entryPath,
                   entryNodes: entryNodes,
-                  projects: cache.projects,
+                  projects: Array(cache.projects.values),
                   cocoapods: Array(cache.cocoapodsNodes.values),
                   packages: Array(cache.packages.flatMap { $0.value }),
                   precompiled: Array(cache.precompiledNodes.values),
@@ -70,7 +70,7 @@ public class Graph: Encodable {
     public init(name: String,
                 entryPath: AbsolutePath,
                 entryNodes: [GraphNode],
-                projects: [AbsolutePath: Project],
+                projects: [Project],
                 cocoapods: [CocoaPodsNode],
                 packages: [PackageNode],
                 precompiled: [PrecompiledNode],
@@ -78,7 +78,7 @@ public class Graph: Encodable {
         self.name = name
         self.entryPath = entryPath
         self.entryNodes = entryNodes
-        self.projects = projects
+        self.projects = WeakArray(projects)
         self.cocoapods = WeakArray(cocoapods)
         self.packages = WeakArray(packages)
         self.precompiled = WeakArray(precompiled)

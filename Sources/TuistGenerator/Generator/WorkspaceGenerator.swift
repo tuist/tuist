@@ -84,11 +84,12 @@ final class WorkspaceGenerator: WorkspaceGenerating {
         logger.notice("Generating workspace \(workspaceName)", metadata: .section)
 
         /// Projects
-        let projects = try Array(graph.projects.values).map(context: config.projectGenerationContext) { project in
-            try projectGenerator.generate(project: project,
-                                          graph: graph,
-                                          sourceRootPath: project.path,
-                                          xcodeprojPath: nil)
+        let projects = try Array(graph.projects).compactMap(context: config.projectGenerationContext) { project -> ProjectDescriptor? in
+            guard let project = project else { return nil }
+            return try projectGenerator.generate(project: project,
+                                                 graph: graph,
+                                                 sourceRootPath: project.path,
+                                                 xcodeprojPath: nil)
         }
 
         let generatedProjects: [AbsolutePath: GeneratedProject] = Dictionary(uniqueKeysWithValues: projects.map { project in

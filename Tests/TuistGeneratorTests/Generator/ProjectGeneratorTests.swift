@@ -98,7 +98,7 @@ final class ProjectGeneratorTests: TuistUnitTestCase {
                                entryNodes: [TargetNode(project: project,
                                                        target: target,
                                                        dependencies: [packageNode])],
-                               projects: [project.path: project],
+                               projects: [project],
                                packages: [packageNode])
 
         // When

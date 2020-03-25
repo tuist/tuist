@@ -59,7 +59,7 @@ final class CacheControllerTests: TuistUnitTestCase {
             TargetNode.test(project: project, target: aTarget): "A_HASH",
             TargetNode.test(project: project, target: bTarget): "B_HASH",
         ]
-        let graph = Graph.test(projects: [project.path: project],
+        let graph = Graph.test(projects: [project],
                                targets: nodeWithHashes.keys.reduce(into: [project.path: [String: TargetNode]()]) { $0[project.path]?[$1.name] = $1 })
 
         manifestLoader.manifestsAtStub = { (loadPath: AbsolutePath) -> Set<Manifest> in

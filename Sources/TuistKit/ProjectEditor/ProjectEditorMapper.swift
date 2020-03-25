@@ -97,7 +97,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         let graph = Graph(name: "Manifests",
                           entryPath: sourceRootPath,
                           entryNodes: [],
-                          projects: [sourceRootPath: project],
+                          projects: [project],
                           cocoapods: [],
                           packages: [],
                           precompiled: [],

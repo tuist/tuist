@@ -6,7 +6,7 @@ public extension Graph {
     static func test(name: String = "test",
                      entryPath: AbsolutePath = AbsolutePath("/test/graph"),
                      entryNodes: [GraphNode] = [],
-                     projects: [AbsolutePath: Project] = [:],
+                     projects: [Project] = [],
                      cocoapods: [CocoaPodsNode] = [],
                      packages: [PackageNode] = [],
                      precompiled: [PrecompiledNode] = [],
@@ -59,7 +59,7 @@ public extension Graph {
         let graph = Graph.test(name: project.name,
                                entryPath: project.path,
                                entryNodes: entryNodes,
-                               projects: [project.path: project],
+                               projects: [project],
                                packages: packages,
                                targets: targets)
 
@@ -92,7 +92,7 @@ public extension Graph {
         let graph = Graph.test(name: projects.first?.name ?? "Test",
                                entryPath: projects.first?.path ?? AbsolutePath("/test/path"),
                                entryNodes: entryNodes ?? targetNodes,
-                               projects: projects.reduce(into: [AbsolutePath: Project]()) { $0[$1.path] = $1 },
+                               projects: projects,
                                targets: targets)
 
         return graph
