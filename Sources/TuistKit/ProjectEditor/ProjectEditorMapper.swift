@@ -91,17 +91,16 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             dependencies.append(templatesNode)
         }
 
-        var nodes = targets.reduce(into: [String: TargetNode]()) { $0[$1.name] = TargetNode(project: project, target: $1, dependencies: dependencies) }
-        nodes = dependencies.reduce(into: nodes) { $0[$1.name] = $1 }
+        let manifestTargetNode = TargetNode(project: project, target: manifestsTarget, dependencies: dependencies)
 
         let graph = Graph(name: "Manifests",
                           entryPath: sourceRootPath,
-                          entryNodes: [],
+                          entryNodes: [manifestTargetNode],
                           projects: [project],
                           cocoapods: [],
                           packages: [],
                           precompiled: [],
-                          targets: [sourceRootPath: nodes])
+                          targets: [sourceRootPath: [manifestTargetNode] + dependencies])
 
         // Project
         return (project, graph)

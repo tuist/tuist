@@ -191,8 +191,14 @@ public class GraphLinter: GraphLinting {
 
     private func lintWatchBundleIndentifiers(graph: Graph) -> [LintingIssue] {
         let apps = graph
-            .targets.flatMap { $0.value.values }
-            .filter { $0.target.product == .app }
+            .targets.values
+            .flatMap { targets -> [TargetNode] in
+                targets.compactMap { target in
+                    guard let target = target else { return nil }
+                    if target.target.product == .app { return target }
+                    return nil
+                }
+            }
 
         let issues = apps.flatMap { app -> [LintingIssue] in
             let watchApps = watchAppsFor(targetNode: app, graph: graph)

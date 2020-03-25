@@ -29,7 +29,7 @@ final class ContentHashingIntegrationTests: TuistTestCase {
         let framework2 = makeFramework(named: "f2", withSources: [source1, source2])
 
         let graph = Graph.test(targets: [
-            temporaryDirectoryPath: [framework1.name: framework1, framework2.name: framework2],
+            temporaryDirectoryPath: [framework1, framework2],
         ])
 
         let contentHashes = try subject.contentHashes(for: graph)
@@ -49,7 +49,7 @@ final class ContentHashingIntegrationTests: TuistTestCase {
         let framework2 = makeFramework(named: "f2", withSources: [source3, source4])
 
         let graph = Graph.test(targets: [
-            temporaryDirectoryPath: [framework1.name: framework1, framework2.name: framework2],
+            temporaryDirectoryPath: [framework1, framework2],
         ])
 
         let contentHashes = try subject.contentHashes(for: graph)
@@ -67,7 +67,7 @@ final class ContentHashingIntegrationTests: TuistTestCase {
         let framework2 = makeFramework(named: "f2", platform: .macOS, withSources: [source1, source2])
 
         let graph = Graph.test(targets: [
-            temporaryDirectoryPath: [framework1.name: framework1, framework2.name: framework2],
+            temporaryDirectoryPath: [framework1, framework2],
         ])
 
         let contentHashes = try subject.contentHashes(for: graph)
@@ -83,7 +83,7 @@ final class ContentHashingIntegrationTests: TuistTestCase {
         let framework2 = makeFramework(named: "f2", productName: "2", withSources: [source1, source2])
 
         let graph = Graph.test(targets: [
-            temporaryDirectoryPath: [framework1.name: framework1, framework2.name: framework2],
+            temporaryDirectoryPath: [framework1, framework2],
         ])
 
         let contentHashes = try subject.contentHashes(for: graph)
@@ -101,7 +101,7 @@ final class ContentHashingIntegrationTests: TuistTestCase {
         let framework2 = makeFramework(named: "f2", withSources: [source3, source4])
 
         let graph = Graph.test(targets: [
-            temporaryDirectoryPath: [framework1.name: framework1, framework2.name: framework2],
+            temporaryDirectoryPath: [framework1, framework2],
         ])
 
         let contentHashes = try subject.contentHashes(for: graph)
@@ -120,7 +120,7 @@ final class ContentHashingIntegrationTests: TuistTestCase {
         let framework2 = makeFramework(named: "f2", withSources: [source4, source3])
 
         let graph = Graph.test(targets: [
-            temporaryDirectoryPath: [framework1.name: framework1, framework2.name: framework2],
+            temporaryDirectoryPath: [framework1, framework2],
         ])
 
         let contentHashes = try subject.contentHashes(for: graph)

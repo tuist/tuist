@@ -23,7 +23,7 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let appNode = TargetNode(project: project, target: app, dependencies: [package, frameworkNode])
         let graph = Graph.test(entryNodes: [appNode, frameworkNode, package],
                                projects: [project],
-                               targets: [project.path: [appNode.name: appNode, frameworkNode.name: frameworkNode]])
+                               targets: [project.path: [appNode, frameworkNode]])
 
         // When
         let results = subject.lint(graph: graph)
@@ -47,7 +47,7 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let graph = Graph.test(entryNodes: [appNode],
                                projects: [project],
                                precompiled: [libraryNode],
-                               targets: [project.path: [appNode.name: appNode, frameworkNode.name: frameworkNode]])
+                               targets: [project.path: [appNode, frameworkNode]])
 
         // When
         let results = subject.lint(graph: graph)

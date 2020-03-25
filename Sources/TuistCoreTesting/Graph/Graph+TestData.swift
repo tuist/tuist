@@ -10,7 +10,7 @@ public extension Graph {
                      cocoapods: [CocoaPodsNode] = [],
                      packages: [PackageNode] = [],
                      precompiled: [PrecompiledNode] = [],
-                     targets: [AbsolutePath: [String: TargetNode]] = [:]) -> Graph {
+                     targets: [AbsolutePath: [TargetNode]] = [:]) -> Graph {
         Graph(name: name,
               entryPath: entryPath,
               entryNodes: entryNodes,
@@ -50,10 +50,9 @@ public extension Graph {
             targetNodes.first { $0.name == entryNode.name }
         }
 
-        let targets = targetNodes.reduce(into: [AbsolutePath: [String: TargetNode]]()) { acc, next in
-            var dict = acc[next.path]
-            if dict == nil { dict = [:] }
-            dict?[next.name] = next
+        let targets = targetNodes.reduce(into: [AbsolutePath: [TargetNode]]()) { acc, next in
+            var dict = acc[next.path, default: []]
+            dict.append(next)
             acc[next.path] = dict
         }
         let graph = Graph.test(name: project.name,
@@ -82,10 +81,9 @@ public extension Graph {
             }
         }
 
-        let targets = targetNodes.reduce(into: [AbsolutePath: [String: TargetNode]]()) { acc, next in
-            var dict = acc[next.path]
-            if dict == nil { dict = [:] }
-            dict?[next.name] = next
+        let targets = targetNodes.reduce(into: [AbsolutePath: [TargetNode]]()) { acc, next in
+            var dict = acc[next.path, default: []]
+            dict.append(next)
             acc[next.path] = dict
         }
 

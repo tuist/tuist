@@ -42,7 +42,7 @@ final class ProjectGeneratorTests: TuistUnitTestCase {
 
         let graph = Graph.test(entryPath: temporaryPath,
                                entryNodes: [testTargetNode, appNode],
-                               targets: [project.path: [testTargetNode.name: testTargetNode, appNode.name: appNode]])
+                               targets: [project.path: [testTargetNode, appNode]])
 
         // When
         let generatedProject = try subject.generate(project: project, graph: graph)

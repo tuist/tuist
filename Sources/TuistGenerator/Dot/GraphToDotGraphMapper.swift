@@ -20,15 +20,18 @@ class GraphToDotGraphMapper: GraphToDotGraphMapping {
         var dependencies: [DotGraphDependency] = []
 
         // Targets
-        graph.targets.flatMap { $0.value.values }.forEach { target in
-            nodes.append(DotGraphNode(name: target.target.name))
+        graph.targets.forEach { targetsList in
+            targetsList.value.forEach { target in
+                guard let target = target else { return }
+                nodes.append(DotGraphNode(name: target.target.name))
 
-            // Dependencies
-            target.dependencies.forEach { dependency in
-                dependencies.append(DotGraphDependency(from: target.name, to: dependency.name))
+                // Dependencies
+                target.dependencies.forEach { dependency in
+                    dependencies.append(DotGraphDependency(from: target.name, to: dependency.name))
 
-                if let sdk = dependency as? SDKNode {
-                    nodes.append(DotGraphNode(name: sdk.name))
+                    if let sdk = dependency as? SDKNode {
+                        nodes.append(DotGraphNode(name: sdk.name))
+                    }
                 }
             }
         }

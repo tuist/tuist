@@ -38,7 +38,7 @@ final class GraphTests: TuistUnitTestCase {
         let targetNode = TargetNode(project: project,
                                     target: target,
                                     dependencies: [dependencyNode])
-        let graph = Graph.test(targets: [targetNode.path: [targetNode.name: targetNode]])
+        let graph = Graph.test(targets: [targetNode.path: [targetNode]])
         let dependencies = graph.targetDependencies(path: project.path,
                                                     name: target.name)
         XCTAssertEqual(dependencies.first?.target.name, "Dependency")
@@ -58,8 +58,8 @@ final class GraphTests: TuistUnitTestCase {
         let targetNode = TargetNode(project: project, target: target, dependencies: [dependencyNode])
         let testsNodes = testTargets.map { TargetNode(project: project, target: $0, dependencies: [targetNode]) }
 
-        let targets = testsNodes.reduce(into: [project.path: [targetNode.name: targetNode, dependentTarget.name: dependencyNode]]) {
-            $0[project.path]?[$1.name] = $1
+        let targets = testsNodes.reduce(into: [project.path: [targetNode, dependencyNode]]) {
+            $0[project.path]?.append($1)
         }
         let graph = Graph.test(projects: [project], targets: targets)
 
@@ -79,7 +79,7 @@ final class GraphTests: TuistUnitTestCase {
         let targetNode = TargetNode(project: project,
                                     target: target,
                                     dependencies: [precompiledNode])
-        let graph = Graph.test(targets: [targetNode.path: [targetNode.name: targetNode]])
+        let graph = Graph.test(targets: [targetNode.path: [targetNode]])
 
         system.succeedCommand("/usr/bin/lipo", "-info", "/test/test.framework/test",
                               output: "Architectures in the fat file: Alamofire are: x86_64 arm64")
@@ -99,7 +99,7 @@ final class GraphTests: TuistUnitTestCase {
                                     target: target,
                                     dependencies: [dependencyNode])
         let graph = Graph.test(projects: [project], targets: [
-            project.path: [dependencyNode.name: dependencyNode, targetNode.name: targetNode],
+            project.path: [dependencyNode, targetNode],
         ])
 
         let got = try graph.linkableDependencies(path: project.path, name: target.name)
@@ -122,16 +122,7 @@ final class GraphTests: TuistUnitTestCase {
                                     target: target,
                                     dependencies: [dependencyNode])
 
-        let cache = GraphLoaderCache()
-        cache.add(targetNode: targetNode)
-        cache.add(targetNode: dependencyNode)
-        cache.add(targetNode: staticDependencyNode)
-
-        let graph = Graph.test(projects: [project], targets: [project.path: [
-            targetNode.name: targetNode,
-            dependencyNode.name: dependencyNode,
-            staticDependencyNode.name: staticDependencyNode,
-        ]])
+        let graph = Graph.test(projects: [project], targets: [project.path: [targetNode, dependencyNode, staticDependencyNode]])
         let got = try graph.linkableDependencies(path: project.path,
                                                  name: target.name)
         XCTAssertEqual(got.count, 1)
@@ -513,7 +504,7 @@ final class GraphTests: TuistUnitTestCase {
                                     dependencies: [precompiledNode])
         let graph = Graph.test(projects: [project],
                                precompiled: [precompiledNode],
-                               targets: [project.path: [targetNode.name: targetNode]])
+                               targets: [project.path: [targetNode]])
         let got = graph.librariesPublicHeadersFolders(path: project.path,
                                                       name: target.name)
         XCTAssertEqual(got.first, publicHeadersPath)
@@ -530,7 +521,7 @@ final class GraphTests: TuistUnitTestCase {
                                     target: target,
                                     dependencies: [dependencyNode])
         let graph = Graph.test(projects: [project], targets: [
-            project.path: [targetNode.name: targetNode, dependencyNode.name: dependencyNode],
+            project.path: [targetNode, dependencyNode],
         ])
         system.succeedCommand([], output: "dynamically linked")
 
@@ -551,7 +542,7 @@ final class GraphTests: TuistUnitTestCase {
                                     target: target,
                                     dependencies: [dependencyNode])
         let graph = Graph.test(projects: [project],
-                               targets: [project.path: [targetNode.name: targetNode, dependencyNode.name: dependencyNode]])
+                               targets: [project.path: [targetNode, dependencyNode]])
 
         system.succeedCommand([], output: "dynamically linked")
         let got = try graph.embeddableFrameworks(path: project.path,
@@ -569,7 +560,7 @@ final class GraphTests: TuistUnitTestCase {
                                     dependencies: [frameworkNode])
         let graph = Graph.test(projects: [project],
                                precompiled: [frameworkNode],
-                               targets: [project.path: [targetNode.name: targetNode]])
+                               targets: [project.path: [targetNode]])
 
         system.succeedCommand("/usr/bin/file", "/test/test.framework/test",
                               output: "dynamically linked")
@@ -599,7 +590,7 @@ final class GraphTests: TuistUnitTestCase {
         )
         let graph = Graph.test(projects: [project],
                                precompiled: [frameworkNode],
-                               targets: [project.path: [targetNode.name: targetNode, dependencyNode.name: dependencyNode]])
+                               targets: [project.path: [targetNode, dependencyNode]])
 
         system.succeedCommand("/usr/bin/file", "/test/test.framework/test",
                               output: "dynamically linked")
@@ -626,7 +617,7 @@ final class GraphTests: TuistUnitTestCase {
 
         let graph = Graph.test(projects: [project],
                                precompiled: [frameworkNode],
-                               targets: [project.path: [targetNode.name: targetNode]])
+                               targets: [project.path: [targetNode]])
 
         // When
         let result = try graph.embeddableFrameworks(path: project.path, name: target.name)
@@ -672,7 +663,7 @@ final class GraphTests: TuistUnitTestCase {
         let targetNode = TargetNode(project: project,
                                     target: target,
                                     dependencies: dependencyNodes)
-        let targetNodes = dependencyNodes.reduce(into: [project.path: [targetNode.name: targetNode]]) { $0[project.path]?[$1.name] = $1 }
+        let targetNodes = dependencyNodes.reduce(into: [project.path: [targetNode]]) { $0[project.path]?.append($1) }
         let graph = Graph.test(projects: [project], targets: targetNodes)
 
         // When
@@ -771,7 +762,7 @@ final class GraphTests: TuistUnitTestCase {
                                     dependencies: [precompiledNode])
         let graph = Graph.test(projects: [project],
                                precompiled: [precompiledNode],
-                               targets: [project.path: [targetNode.name: targetNode]])
+                               targets: [project.path: [targetNode]])
 
         // When
         let got = graph.librariesSearchPaths(path: project.path,
@@ -792,7 +783,7 @@ final class GraphTests: TuistUnitTestCase {
                                     dependencies: [precompiledNodeA, precompiledNodeB])
         let graph = Graph.test(projects: [project],
                                precompiled: [precompiledNodeA, precompiledNodeB],
-                               targets: [project.path: [targetNode.name: targetNode]])
+                               targets: [project.path: [targetNode]])
 
         // When
         let got = graph.librariesSwiftIncludePaths(path: project.path,
@@ -857,7 +848,7 @@ final class GraphTests: TuistUnitTestCase {
                                     target: target,
                                     dependencies: [dependencyNode])
         let graph = Graph.test(projects: [project], targets: [
-            project.path: [targetNode.name: targetNode, dependencyNode.name: dependencyNode],
+            project.path: [targetNode, dependencyNode],
         ])
 
         let got = graph.appExtensionDependencies(path: project.path, name: target.name)
@@ -876,7 +867,7 @@ final class GraphTests: TuistUnitTestCase {
                                     target: target,
                                     dependencies: [dependencyNode])
         let graph = Graph.test(projects: [project], targets: [
-            project.path: [targetNode.name: targetNode, dependencyNode.name: dependencyNode],
+            project.path: [targetNode, dependencyNode],
         ])
 
         let got = graph.appExtensionDependencies(path: project.path, name: target.name)
@@ -933,7 +924,7 @@ final class GraphTests: TuistUnitTestCase {
 
         let graph = Graph.test(projects: [project],
                                precompiled: [framework, library],
-                               targets: [project.path: [target.name: target]])
+                               targets: [project.path: [target]])
 
         let expected = """
         [

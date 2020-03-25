@@ -39,13 +39,7 @@ final class GraphContentHasherTests: XCTestCase {
                                cocoapods: [],
                                packages: [],
                                precompiled: [],
-                               targets: [path: [
-                                   frameworkTarget.name: frameworkTarget,
-                                   secondFrameworkTarget.name: secondFrameworkTarget,
-                                   appTarget.name: appTarget,
-                                   dynamicLibraryTarget.name: dynamicLibraryTarget,
-                                   staticFrameworkTarget.name: staticFrameworkTarget,
-                               ]])
+                               targets: [path: [frameworkTarget, secondFrameworkTarget, appTarget, dynamicLibraryTarget, staticFrameworkTarget]])
 
         let expectedCachableTargets = [frameworkTarget, secondFrameworkTarget].sorted(by: { $0.target.name < $1.target.name })
 

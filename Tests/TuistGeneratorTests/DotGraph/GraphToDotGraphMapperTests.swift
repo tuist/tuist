@@ -29,7 +29,7 @@ final class GraphToDotGraphMapperTests: XCTestCase {
         let graph = Graph.test(entryNodes: [iOSApp, watchApp],
                                projects: [project],
                                precompiled: [framework, library],
-                               targets: [project.path: [core.name: core, iOSApp.name: iOSApp, watchApp.name: watchApp]])
+                               targets: [project.path: [core, iOSApp, watchApp]])
 
         // When
         let got = subject.map(graph: graph)

@@ -52,7 +52,7 @@ public class Graph: Encodable {
     public var frameworks: [FrameworkNode] { precompiled.compactMap { $0 as? FrameworkNode } }
 
     /// Dictionary whose keys are path to directories where projects are defined, and the values are target nodes defined in them.
-    public let targets: [AbsolutePath: [String: TargetNode]]
+    public let targets: [AbsolutePath: WeakArray<TargetNode>]
 
     // MARK: - Init
 
@@ -64,7 +64,7 @@ public class Graph: Encodable {
                   cocoapods: Array(cache.cocoapodsNodes.values),
                   packages: Array(cache.packages.flatMap { $0.value }),
                   precompiled: Array(cache.precompiledNodes.values),
-                  targets: cache.targetNodes)
+                  targets: cache.targetNodes.mapValues { Array($0.values) })
     }
 
     public init(name: String,
@@ -74,7 +74,7 @@ public class Graph: Encodable {
                 cocoapods: [CocoaPodsNode],
                 packages: [PackageNode],
                 precompiled: [PrecompiledNode],
-                targets: [AbsolutePath: [String: TargetNode]]) {
+                targets: [AbsolutePath: [TargetNode]]) {
         self.name = name
         self.entryPath = entryPath
         self.entryNodes = entryNodes
@@ -82,7 +82,7 @@ public class Graph: Encodable {
         self.cocoapods = WeakArray(cocoapods)
         self.packages = WeakArray(packages)
         self.precompiled = WeakArray(precompiled)
-        self.targets = targets
+        self.targets = targets.mapValues(WeakArray.init)
     }
 
     // MARK: - Encodable
@@ -91,7 +91,7 @@ public class Graph: Encodable {
         var container = encoder.singleValueContainer()
         var nodes: [GraphNode] = []
 
-        nodes.append(contentsOf: targets.values.flatMap { $0.values })
+        nodes.append(contentsOf: targets.values.flatMap { targets in targets.compactMap { $0 } })
         nodes.append(contentsOf: precompiled.compactMap { $0 })
 
         try container.encode(nodes.sorted(by: { $0.path < $1.path }))
@@ -126,7 +126,7 @@ public class Graph: Encodable {
         guard let targetNode = findTargetNode(path: path, name: name) else {
             return []
         }
-        return targets[path]?.map { $0.value }
+        return targets[path]?.compactMap { $0 }
             .filter { $0.target.product.testsBundle }
             .filter { $0.targetDependencies.contains(targetNode) }
             .sorted { $0.target.name < $1.target.name } ?? []
@@ -376,7 +376,8 @@ public class Graph: Encodable {
 
         var references = Set<T>()
 
-        for (_, node) in targetNodes {
+        targetNodes.forEach { node in
+            guard let node = node else { return }
             references.formUnion(findAll(targetNode: node))
         }
 
@@ -439,7 +440,7 @@ public class Graph: Encodable {
             return nil
         }
 
-        return cachedTargetNodesForPath[name]
+        return cachedTargetNodesForPath.first(where: { $0?.name == name }) ?? nil
     }
 
     /// Returns all the transitive dependencies of the given target that are static libraries.
@@ -462,9 +463,10 @@ public class Graph: Encodable {
         guard let cachedTargetNodesForPath = targets[path] else {
             return nil
         }
-        return cachedTargetNodesForPath.values.first {
-            $0.dependencies.contains(where: { $0.path == path && $0.name == name })
-        }
+        return cachedTargetNodesForPath.first { node in
+            guard let node = node else { return false }
+            return node.dependencies.contains(where: { $0.path == path && $0.name == name })
+        } ?? nil
     }
 
     // MARK: - Fileprivate

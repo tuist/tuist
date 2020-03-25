@@ -60,7 +60,7 @@ final class CacheControllerTests: TuistUnitTestCase {
             TargetNode.test(project: project, target: bTarget): "B_HASH",
         ]
         let graph = Graph.test(projects: [project],
-                               targets: nodeWithHashes.keys.reduce(into: [project.path: [String: TargetNode]()]) { $0[project.path]?[$1.name] = $1 })
+                               targets: nodeWithHashes.keys.reduce(into: [project.path: [TargetNode]()]) { $0[project.path]?.append($1) })
 
         manifestLoader.manifestsAtStub = { (loadPath: AbsolutePath) -> Set<Manifest> in
             XCTAssertEqual(loadPath, path)
