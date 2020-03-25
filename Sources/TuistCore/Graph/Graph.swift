@@ -44,10 +44,10 @@ public class Graph: Encodable {
     public let packages: [AbsolutePath: [PackageNode]]
 
     /// Dictionary whose keys are path to directories where projects are defined, and the values are precompiled nodes defined in them.
-    public let precompiled: [AbsolutePath: PrecompiledNode]
+    public let precompiled: WeakArray<PrecompiledNode>
 
     /// Returns all the frameorks that are part of the graph.
-    public var frameworks: [FrameworkNode] { precompiled.values.compactMap { $0 as? FrameworkNode } }
+    public var frameworks: [FrameworkNode] { precompiled.compactMap { $0 as? FrameworkNode } }
 
     /// Dictionary whose keys are path to directories where projects are defined, and the values are target nodes defined in them.
     public let targets: [AbsolutePath: [String: TargetNode]]
@@ -61,7 +61,7 @@ public class Graph: Encodable {
                   projects: cache.projects,
                   cocoapods: Array(cache.cocoapodsNodes.values),
                   packages: cache.packages,
-                  precompiled: cache.precompiledNodes,
+                  precompiled: Array(cache.precompiledNodes.values),
                   targets: cache.targetNodes)
     }
 
@@ -71,7 +71,7 @@ public class Graph: Encodable {
                 projects: [AbsolutePath: Project],
                 cocoapods: [CocoaPodsNode],
                 packages: [AbsolutePath: [PackageNode]],
-                precompiled: [AbsolutePath: PrecompiledNode],
+                precompiled: [PrecompiledNode],
                 targets: [AbsolutePath: [String: TargetNode]]) {
         self.name = name
         self.entryPath = entryPath
@@ -79,7 +79,7 @@ public class Graph: Encodable {
         self.projects = projects
         self.cocoapods = WeakArray(cocoapods)
         self.packages = packages
-        self.precompiled = precompiled
+        self.precompiled = WeakArray(precompiled)
         self.targets = targets
     }
 
@@ -90,7 +90,7 @@ public class Graph: Encodable {
         var nodes: [GraphNode] = []
 
         nodes.append(contentsOf: targets.values.flatMap { $0.values })
-        nodes.append(contentsOf: Array(precompiled.values))
+        nodes.append(contentsOf: precompiled.compactMap({ $0 }))
 
         try container.encode(nodes.sorted(by: { $0.path < $1.path }))
     }

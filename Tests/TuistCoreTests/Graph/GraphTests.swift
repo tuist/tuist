@@ -24,7 +24,7 @@ final class GraphErrorTests: XCTestCase {
 final class GraphTests: TuistUnitTestCase {
     func test_frameworks() throws {
         let framework = FrameworkNode.test(path: AbsolutePath("/path/to/framework.framework"))
-        let graph = Graph.test(precompiled: [framework.path: framework])
+        let graph = Graph.test(precompiled: [framework])
         XCTAssertTrue(graph.frameworks.contains(framework))
     }
 
@@ -512,7 +512,7 @@ final class GraphTests: TuistUnitTestCase {
                                     target: target,
                                     dependencies: [precompiledNode])
         let graph = Graph.test(projects: [project.path: project],
-                               precompiled: [project.path: precompiledNode],
+                               precompiled: [precompiledNode],
                                targets: [project.path: [targetNode.name: targetNode]])
         let got = graph.librariesPublicHeadersFolders(path: project.path,
                                                       name: target.name)
@@ -568,7 +568,7 @@ final class GraphTests: TuistUnitTestCase {
                                     target: target,
                                     dependencies: [frameworkNode])
         let graph = Graph.test(projects: [project.path: project],
-                               precompiled: [frameworkNode.path: frameworkNode],
+                               precompiled: [frameworkNode],
                                targets: [project.path: [targetNode.name: targetNode]])
 
         system.succeedCommand("/usr/bin/file", "/test/test.framework/test",
@@ -598,7 +598,7 @@ final class GraphTests: TuistUnitTestCase {
             dependencies: [dependencyNode]
         )
         let graph = Graph.test(projects: [project.path: project],
-                               precompiled: [frameworkNode.path: frameworkNode],
+                               precompiled: [frameworkNode],
                                targets: [project.path: [targetNode.name: targetNode, dependencyNode.name: dependencyNode]])
 
         system.succeedCommand("/usr/bin/file", "/test/test.framework/test",
@@ -625,7 +625,7 @@ final class GraphTests: TuistUnitTestCase {
         )
 
         let graph = Graph.test(projects: [project.path: project],
-                               precompiled: [frameworkNode.path: frameworkNode],
+                               precompiled: [frameworkNode],
                                targets: [project.path: [targetNode.name: targetNode]])
 
         // When
@@ -770,7 +770,7 @@ final class GraphTests: TuistUnitTestCase {
                                     target: target,
                                     dependencies: [precompiledNode])
         let graph = Graph.test(projects: [project.path: project],
-                               precompiled: [precompiledNode.path: precompiledNode],
+                               precompiled: [precompiledNode],
                                targets: [project.path: [targetNode.name: targetNode]])
 
         // When
@@ -791,7 +791,7 @@ final class GraphTests: TuistUnitTestCase {
                                     target: target,
                                     dependencies: [precompiledNodeA, precompiledNodeB])
         let graph = Graph.test(projects: [project.path: project],
-                               precompiled: [precompiledNodeA.path: precompiledNodeA, precompiledNodeB.path: precompiledNodeB],
+                               precompiled: [precompiledNodeA, precompiledNodeB],
                                targets: [project.path: [targetNode.name: targetNode]])
 
         // When
@@ -932,7 +932,7 @@ final class GraphTests: TuistUnitTestCase {
         let target = TargetNode.test(dependencies: [framework, library])
 
         let graph = Graph.test(projects: [project.path: project],
-                               precompiled: [framework.path: framework, library.path: library],
+                               precompiled: [framework, library],
                                targets: [project.path: [target.name: target]])
 
         let expected = """

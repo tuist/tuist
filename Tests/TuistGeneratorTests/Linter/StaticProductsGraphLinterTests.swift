@@ -46,7 +46,7 @@ class StaticProductsGraphLinterTests: XCTestCase {
 
         let graph = Graph.test(entryNodes: [appNode],
                                projects: [project.path: project],
-                               precompiled: [libraryNode.path: libraryNode],
+                               precompiled: [libraryNode],
                                targets: [project.path: [appNode.name: appNode, frameworkNode.name: frameworkNode]])
 
         // When

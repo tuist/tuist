@@ -34,7 +34,8 @@ class GraphToDotGraphMapper: GraphToDotGraphMapping {
         }
 
         // Precompiled
-        graph.precompiled.values.forEach { precompiled in
+        graph.precompiled.forEach { precompiled in
+            guard let precompiled = precompiled else { return }
             nodes.append(DotGraphNode(name: precompiled.name))
         }
 

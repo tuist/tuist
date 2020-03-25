@@ -33,7 +33,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         let frameworkA = FrameworkNode.test(path: frameworkAPath)
         let frameworkB = FrameworkNode.test(path: frameworkBPath)
 
-        let graph = Graph.test(precompiled: [frameworkA.path: frameworkA, frameworkB.path: frameworkB])
+        let graph = Graph.test(precompiled: [frameworkA, frameworkB])
 
         let result = subject.lint(graph: graph)
 
@@ -116,7 +116,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         let frameworkA = FrameworkNode.test(path: frameworkAPath)
         let frameworkB = FrameworkNode.test(path: frameworkBPath)
 
-        let graph = Graph.test(precompiled: [frameworkA.path: frameworkA, frameworkB.path: frameworkB])
+        let graph = Graph.test(precompiled: [frameworkA, frameworkB])
 
         let result = subject.lint(graph: graph)
 

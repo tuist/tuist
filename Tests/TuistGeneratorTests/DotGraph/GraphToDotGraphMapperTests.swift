@@ -28,7 +28,7 @@ final class GraphToDotGraphMapperTests: XCTestCase {
 
         let graph = Graph.test(entryNodes: [iOSApp, watchApp],
                                projects: [project.path: project],
-                               precompiled: [framework.path: framework, library.path: library],
+                               precompiled: [framework, library],
                                targets: [project.path: [core.name: core, iOSApp.name: iOSApp, watchApp.name: watchApp]])
 
         // When

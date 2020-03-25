@@ -38,7 +38,7 @@ final class GraphContentHasherTests: XCTestCase {
                                projects: [:],
                                cocoapods: [],
                                packages: [:],
-                               precompiled: [:],
+                               precompiled: [],
                                targets: [path: [
                                    frameworkTarget.name: frameworkTarget,
                                    secondFrameworkTarget.name: secondFrameworkTarget,

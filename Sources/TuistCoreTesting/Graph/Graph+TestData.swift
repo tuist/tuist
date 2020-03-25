@@ -9,7 +9,7 @@ public extension Graph {
                      projects: [AbsolutePath: Project] = [:],
                      cocoapods: [CocoaPodsNode] = [],
                      packages: [AbsolutePath: [PackageNode]] = [:],
-                     precompiled: [AbsolutePath: PrecompiledNode] = [:],
+                     precompiled: [PrecompiledNode] = [],
                      targets: [AbsolutePath: [String: TargetNode]] = [:]) -> Graph {
         Graph(name: name,
               entryPath: entryPath,
