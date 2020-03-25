@@ -28,8 +28,8 @@ public class SDKNode: GraphNode {
             sdkRootPath = AbsolutePath(xcodeDeveloperSdkRootPath,
                                        relativeTo: AbsolutePath("/"))
             path = sdkRootPath
-                    .appending(RelativePath("Frameworks"))
-                    .appending(component: name)
+                .appending(RelativePath("Frameworks"))
+                .appending(component: name)
         } else {
             sdkRootPath = AbsolutePath(platform.xcodeSdkRootPath,
                                        relativeTo: AbsolutePath("/"))
