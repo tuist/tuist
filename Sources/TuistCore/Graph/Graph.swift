@@ -41,9 +41,11 @@ public class Graph: Encodable {
     public let cocoapods: WeakArray<CocoaPodsNode>
 
     /// Dictionary whose keys are path to directories where projects are defined, and the values are packages defined in that project.
-    public let packages: [AbsolutePath: [PackageNode]]
+    /// If none of the nodes of the graph references a Package node, the node gets released from memory.
+    public let packages: WeakArray<PackageNode>
 
     /// Dictionary whose keys are path to directories where projects are defined, and the values are precompiled nodes defined in them.
+    /// If none of the nodds references a precompiled node, the node gets released from memory.
     public let precompiled: WeakArray<PrecompiledNode>
 
     /// Returns all the frameorks that are part of the graph.
@@ -60,7 +62,7 @@ public class Graph: Encodable {
                   entryNodes: entryNodes,
                   projects: cache.projects,
                   cocoapods: Array(cache.cocoapodsNodes.values),
-                  packages: cache.packages,
+                  packages: Array(cache.packages.flatMap { $0.value }),
                   precompiled: Array(cache.precompiledNodes.values),
                   targets: cache.targetNodes)
     }
@@ -70,7 +72,7 @@ public class Graph: Encodable {
                 entryNodes: [GraphNode],
                 projects: [AbsolutePath: Project],
                 cocoapods: [CocoaPodsNode],
-                packages: [AbsolutePath: [PackageNode]],
+                packages: [PackageNode],
                 precompiled: [PrecompiledNode],
                 targets: [AbsolutePath: [String: TargetNode]]) {
         self.name = name
@@ -78,7 +80,7 @@ public class Graph: Encodable {
         self.entryNodes = entryNodes
         self.projects = projects
         self.cocoapods = WeakArray(cocoapods)
-        self.packages = packages
+        self.packages = WeakArray(packages)
         self.precompiled = WeakArray(precompiled)
         self.targets = targets
     }
@@ -90,7 +92,7 @@ public class Graph: Encodable {
         var nodes: [GraphNode] = []
 
         nodes.append(contentsOf: targets.values.flatMap { $0.values })
-        nodes.append(contentsOf: precompiled.compactMap({ $0 }))
+        nodes.append(contentsOf: precompiled.compactMap { $0 })
 
         try container.encode(nodes.sorted(by: { $0.path < $1.path }))
     }

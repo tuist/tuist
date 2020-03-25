@@ -99,7 +99,7 @@ final class ProjectGeneratorTests: TuistUnitTestCase {
                                                        target: target,
                                                        dependencies: [packageNode])],
                                projects: [project.path: project],
-                               packages: [project.path: [packageNode]])
+                               packages: [packageNode])
 
         // When
         let got = try subject.generate(project: project, graph: graph)

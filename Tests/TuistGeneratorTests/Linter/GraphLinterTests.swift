@@ -58,7 +58,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         // Given
         let package = Package.remote(url: "remote", requirement: .branch("master"))
         let project = Project.test(packages: [package])
-        let graph = Graph.test(projects: [project.path: project], packages: [project.path: [PackageNode(package: package, path: project.path)]])
+        let graph = Graph.test(projects: [project.path: project], packages: [PackageNode(package: package, path: project.path)])
         let versionStub = Version(10, 0, 0)
         xcodeController.selectedVersionStub = .success(versionStub)
 
@@ -93,7 +93,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         // Given
         let package = Package.remote(url: "remote", requirement: .branch("master"))
         let project = Project.test(packages: [package])
-        let graph = Graph.test(projects: [project.path: project], packages: [project.path: [PackageNode(package: package, path: project.path)]])
+        let graph = Graph.test(projects: [project.path: project], packages: [PackageNode(package: package, path: project.path)])
 
         let error = NSError.test()
         xcodeController.selectedVersionStub = .failure(error)

@@ -6,17 +6,17 @@ public struct WeakArray<Element: AnyObject>: Collection {
     public init(_ elements: [Element]) {
         items = elements.map { WeakBox($0) }
     }
-    
+
     // MARK: - Collection
-    
-    public var startIndex: Int { return items.startIndex }
-    public var endIndex: Int { return items.endIndex }
+
+    public var startIndex: Int { items.startIndex }
+    public var endIndex: Int { items.endIndex }
 
     public subscript(_ index: Int) -> Element? {
-        return items[index].value
+        items[index].value
     }
 
     public func index(after idx: Int) -> Int {
-        return items.index(after: idx)
+        items.index(after: idx)
     }
 }

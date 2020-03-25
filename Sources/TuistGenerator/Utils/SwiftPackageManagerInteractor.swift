@@ -42,7 +42,7 @@ public class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting {
         workspaceName: String,
         graph: Graph
     ) throws {
-        let packages = Array(graph.packages.values.flatMap { $0 })
+        let packages = graph.packages.compactMap { $0 }
         guard !packages.remotePackages.isEmpty else {
             return
         }

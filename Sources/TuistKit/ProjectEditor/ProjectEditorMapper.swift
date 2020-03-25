@@ -99,7 +99,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
                           entryNodes: [],
                           projects: [sourceRootPath: project],
                           cocoapods: [],
-                          packages: [:],
+                          packages: [],
                           precompiled: [],
                           targets: [sourceRootPath: nodes])
 

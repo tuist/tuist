@@ -34,9 +34,10 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
                                    settings: .default,
                                    targets: [target],
                                    packages: [package])
+        let packageNode = PackageNode(package: package, path: project.path)
         let graph = Graph.create(project: project,
                                  dependencies: [(target, [])],
-                                 packages: [project.path: [PackageNode(package: package, path: project.path)]])
+                                 packages: [packageNode])
         let workspacePath = temporaryPath.appending(component: "\(project.name).xcworkspace")
         system.succeedCommand(["xcodebuild", "-resolvePackageDependencies", "-workspace", workspacePath.pathString, "-list"])
         try createFiles(["\(workspacePath.basename)/xcshareddata/swiftpm/Package.resolved"])
@@ -62,9 +63,10 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
                                    packages: [
                                        package,
                                    ])
+        let packageNode = PackageNode(package: package, path: project.path)
         let graph = Graph.create(project: project,
                                  dependencies: [(target, [])],
-                                 packages: [project.path: [PackageNode(package: package, path: project.path)]])
+                                 packages: [packageNode])
 
         let workspace = Workspace.test(name: project.name,
                                        projects: [project.path])

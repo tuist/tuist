@@ -8,7 +8,7 @@ public extension Graph {
                      entryNodes: [GraphNode] = [],
                      projects: [AbsolutePath: Project] = [:],
                      cocoapods: [CocoaPodsNode] = [],
-                     packages: [AbsolutePath: [PackageNode]] = [:],
+                     packages: [PackageNode] = [],
                      precompiled: [PrecompiledNode] = [],
                      targets: [AbsolutePath: [String: TargetNode]] = [:]) -> Graph {
         Graph(name: name,
@@ -28,7 +28,7 @@ public extension Graph {
     ///       All targets need to be listed even if they don't have any dependencies.
     static func create(project: Project,
                        dependencies: [(target: Target, dependencies: [Target])],
-                       packages: [AbsolutePath: [PackageNode]] = [:]) -> Graph {
+                       packages: [PackageNode] = []) -> Graph {
         create(project: project,
                entryNodes: dependencies.map(\.target),
                dependencies: dependencies,
@@ -38,7 +38,7 @@ public extension Graph {
     static func create(project: Project,
                        entryNodes: [Target],
                        dependencies: [(target: Target, dependencies: [Target])],
-                       packages: [AbsolutePath: [PackageNode]] = [:]) -> Graph {
+                       packages: [PackageNode] = []) -> Graph {
         let dependenciesWithProject = dependencies.map { (
             project: project,
             target: $0.target,
