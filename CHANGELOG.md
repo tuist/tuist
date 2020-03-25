@@ -6,6 +6,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Added
 
+- Encrypt/decrypt command https://github.com/tuist/tuist/pull/1127 by @fortmarek
 - Add Mint up https://github.com/tuist/tuist/pull/1131 by @mollyIV
 
 ### Fixed
