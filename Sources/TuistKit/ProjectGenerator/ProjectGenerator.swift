@@ -74,7 +74,7 @@ class ProjectGenerator: ProjectGenerating {
         try lint(graph: graph)
 
         // Generate
-        let updatedWorkspace = workspace.merging(projects: Array(graph.projects.compactMap { $0?.path }))
+        let updatedWorkspace = workspace.merging(projects: Array(graph.projects.map { $0.path }))
         let workspaceDescriptor = try generator.generateWorkspace(workspace: updatedWorkspace,
                                                                   graph: graph)
 
@@ -95,7 +95,7 @@ class ProjectGenerator: ProjectGenerating {
         try lint(graph: graph)
 
         // Generate
-        let workspace = Workspace(path: path, name: project.name, projects: Array(graph.projects.compactMap { $0?.path }))
+        let workspace = Workspace(path: path, name: project.name, projects: Array(graph.projects.map { $0.path }))
         let workspaceDescriptor = try generator.generateWorkspace(workspace: workspace, graph: graph)
 
         // Write

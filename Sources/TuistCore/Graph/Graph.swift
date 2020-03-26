@@ -34,25 +34,25 @@ public class Graph: Encodable {
     public let entryNodes: [GraphNode]
 
     /// Dictionary whose keys are paths to directories where projects are defined, and the values are the representation of the projects.
-    public let projects: WeakArray<Project>
+    public let projects: [Project]
 
     /// Dictionary whose keys are paths to directories where projects are defined, and the values are the CocoaPods nodes define in them.
     /// If none of the nodes of the graph references a CocoaPods node, the node gets released from memory.
-    public let cocoapods: WeakArray<CocoaPodsNode>
+    public let cocoapods: [CocoaPodsNode]
 
     /// Dictionary whose keys are path to directories where projects are defined, and the values are packages defined in that project.
     /// If none of the nodes of the graph references a Package node, the node gets released from memory.
-    public let packages: WeakArray<PackageNode>
+    public let packages: [PackageNode]
 
     /// Dictionary whose keys are path to directories where projects are defined, and the values are precompiled nodes defined in them.
     /// If none of the nodds references a precompiled node, the node gets released from memory.
-    public let precompiled: WeakArray<PrecompiledNode>
+    public let precompiled: [PrecompiledNode]
 
     /// Returns all the frameorks that are part of the graph.
     public var frameworks: [FrameworkNode] { precompiled.compactMap { $0 as? FrameworkNode } }
 
     /// Dictionary whose keys are path to directories where projects are defined, and the values are target nodes defined in them.
-    public let targets: [AbsolutePath: WeakArray<TargetNode>]
+    public let targets: [AbsolutePath: [TargetNode]]
 
     // MARK: - Init
 
@@ -78,11 +78,11 @@ public class Graph: Encodable {
         self.name = name
         self.entryPath = entryPath
         self.entryNodes = entryNodes
-        self.projects = WeakArray(projects)
-        self.cocoapods = WeakArray(cocoapods)
-        self.packages = WeakArray(packages)
-        self.precompiled = WeakArray(precompiled)
-        self.targets = targets.mapValues(WeakArray.init)
+        self.projects = projects
+        self.cocoapods = cocoapods
+        self.packages = packages
+        self.precompiled = precompiled
+        self.targets = targets
     }
 
     // MARK: - Encodable
@@ -103,6 +103,13 @@ public class Graph: Encodable {
     ///   - name: Name of the target.
     public func target(path: AbsolutePath, name: String) -> TargetNode? {
         findTargetNode(path: path, name: name)
+    }
+
+    /// Returns all target nodes at a given path (i.e. all target nodes in a project)
+    /// - Parameters:
+    ///   - path: Path to the directory where the project is located
+    public func targets(at path: AbsolutePath) -> [TargetNode] {
+        Array(targets[path] ?? [])
     }
 
     /// Returns all the non-transitive target dependencies for the given target.
@@ -377,7 +384,6 @@ public class Graph: Encodable {
         var references = Set<T>()
 
         targetNodes.forEach { node in
-            guard let node = node else { return }
             references.formUnion(findAll(targetNode: node))
         }
 
@@ -440,7 +446,7 @@ public class Graph: Encodable {
             return nil
         }
 
-        return cachedTargetNodesForPath.first(where: { $0?.name == name }) ?? nil
+        return cachedTargetNodesForPath.first(where: { $0.name == name }) ?? nil
     }
 
     /// Returns all the transitive dependencies of the given target that are static libraries.
@@ -464,8 +470,7 @@ public class Graph: Encodable {
             return nil
         }
         return cachedTargetNodesForPath.first { node in
-            guard let node = node else { return false }
-            return node.dependencies.contains(where: { $0.path == path && $0.name == name })
+            node.dependencies.contains(where: { $0.path == path && $0.name == name })
         } ?? nil
     }
 

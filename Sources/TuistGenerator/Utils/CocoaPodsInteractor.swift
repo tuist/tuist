@@ -65,7 +65,6 @@ public final class CocoaPodsInteractor: CocoaPodsInteracting {
         let canUseSystem = canUseSystemPod()
 
         try graph.cocoapods.forEach { node in
-            guard let node = node else { return }
             var command: [String]
 
             if canUseBundler {

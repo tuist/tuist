@@ -15,9 +15,8 @@ public final class GraphContentHasher: GraphContentHashing {
     }
 
     public func contentHashes(for graph: Graph) throws -> [TargetNode: String] {
-        let hashableTargets = graph.targets.values.flatMap { (targets: WeakArray<TargetNode>) -> [TargetNode] in
+        let hashableTargets = graph.targets.values.flatMap { (targets: [TargetNode]) -> [TargetNode] in
             targets.compactMap { target in
-                guard let target = target else { return nil }
                 if target.target.product == .framework { return target }
                 return nil
             }

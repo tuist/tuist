@@ -34,8 +34,7 @@ public class GraphLinter: GraphLinting {
     public func lint(graph: Graph) -> [LintingIssue] {
         var issues: [LintingIssue] = []
         issues.append(contentsOf: graph.projects.flatMap { project -> [LintingIssue] in
-            guard let project = project else { return [] }
-            return projectLinter.lint(project)
+            projectLinter.lint(project)
         })
         issues.append(contentsOf: lintDependencies(graph: graph))
         issues.append(contentsOf: lintMismatchingConfigurations(graph: graph))
@@ -114,8 +113,7 @@ public class GraphLinter: GraphLinting {
         }
 
         let projectBuildConfigurations = graph.projects.compactMap { project -> (name: String, buildConfigurations: Set<BuildConfiguration>)? in
-            guard let project = project else { return nil }
-            return (name: project.name, buildConfigurations: Set(project.settings.configurations.keys))
+            (name: project.name, buildConfigurations: Set(project.settings.configurations.keys))
         }
 
         let mismatchingBuildConfigurations = projectBuildConfigurations.filter {
@@ -161,7 +159,6 @@ public class GraphLinter: GraphLinting {
     /// - Returns: Linting issues.
     private func lintCocoaPodsDependencies(graph: Graph) -> [LintingIssue] {
         graph.cocoapods.compactMap { node in
-            guard let node = node else { return nil }
             let podfilePath = node.podfilePath
             if !FileHandler.shared.exists(podfilePath) {
                 return LintingIssue(reason: "The Podfile at path \(podfilePath) referenced by some projects does not exist", severity: .error)
@@ -194,7 +191,6 @@ public class GraphLinter: GraphLinting {
             .targets.values
             .flatMap { targets -> [TargetNode] in
                 targets.compactMap { target in
-                    guard let target = target else { return nil }
                     if target.target.product == .app { return target }
                     return nil
                 }

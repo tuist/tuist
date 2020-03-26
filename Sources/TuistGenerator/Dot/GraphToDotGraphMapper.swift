@@ -22,7 +22,6 @@ class GraphToDotGraphMapper: GraphToDotGraphMapping {
         // Targets
         graph.targets.forEach { targetsList in
             targetsList.value.forEach { target in
-                guard let target = target else { return }
                 nodes.append(DotGraphNode(name: target.target.name))
 
                 // Dependencies
@@ -37,10 +36,7 @@ class GraphToDotGraphMapper: GraphToDotGraphMapping {
         }
 
         // Precompiled
-        graph.precompiled.forEach { precompiled in
-            guard let precompiled = precompiled else { return }
-            nodes.append(DotGraphNode(name: precompiled.name))
-        }
+        graph.precompiled.forEach { nodes.append(DotGraphNode(name: $0.name)) }
 
         return DotGraph(name: "Project Dependencies Graph",
                         type: .directed,
