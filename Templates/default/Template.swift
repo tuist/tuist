@@ -106,5 +106,9 @@ let template = Template(
                 contents: configContent),
         .file(path: ".gitignore",
               templatePath: "Gitignore.stencil"),
+        .file(path: "Tuist/Templates/framework/Template.swift",
+              templatePath: "ExampleTemplate.stencil"),
+        .file(path: "Tuist/Templates/framework/project.stencil",
+              templatePath: "ExampleProject.stencil")
     ]
 )
