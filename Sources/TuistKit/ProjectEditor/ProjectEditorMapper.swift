@@ -80,21 +80,27 @@ final class ProjectEditorMapper: ProjectEditorMapping {
                               schemes: [scheme])
 
         // Graph
-        let cache = GraphLoaderCache()
-        let graph = Graph(name: "Manifests", entryPath: sourceRootPath, cache: cache)
         var dependencies: [TargetNode] = []
 
         if let helpersTarget = helpersTarget {
             let helpersNode = TargetNode(project: project, target: helpersTarget, dependencies: [])
-            cache.add(targetNode: helpersNode)
             dependencies.append(helpersNode)
         }
         if let templatesTarget = templatesTarget {
             let templatesNode = TargetNode(project: project, target: templatesTarget, dependencies: [])
-            cache.add(targetNode: templatesNode)
             dependencies.append(templatesNode)
         }
-        cache.add(targetNode: TargetNode(project: project, target: manifestsTarget, dependencies: dependencies))
+
+        let manifestTargetNode = TargetNode(project: project, target: manifestsTarget, dependencies: dependencies)
+
+        let graph = Graph(name: "Manifests",
+                          entryPath: sourceRootPath,
+                          entryNodes: [manifestTargetNode],
+                          projects: [project],
+                          cocoapods: [],
+                          packages: [],
+                          precompiled: [],
+                          targets: [sourceRootPath: [manifestTargetNode] + dependencies])
 
         // Project
         return (project, graph)

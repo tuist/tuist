@@ -2,7 +2,20 @@ import Basic
 import Foundation
 import TuistSupport
 
-public struct Project: Equatable, CustomStringConvertible {
+public class Project: Equatable, CustomStringConvertible {
+    public static func == (lhs: Project, rhs: Project) -> Bool {
+        lhs.path == rhs.path &&
+            lhs.name == rhs.name &&
+            lhs.organizationName == rhs.organizationName &&
+            lhs.fileName == rhs.fileName &&
+            lhs.targets == rhs.targets &&
+            lhs.packages == rhs.packages &&
+            lhs.schemes == rhs.schemes &&
+            lhs.settings == rhs.settings &&
+            lhs.filesGroup == rhs.filesGroup &&
+            lhs.additionalFiles == rhs.additionalFiles
+    }
+
     // MARK: - Attributes
 
     /// Path to the folder that contains the project manifest.

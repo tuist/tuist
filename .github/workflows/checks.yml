@@ -23,8 +23,8 @@ jobs:
     runs-on: macOS-latest
     steps:
       - uses: actions/checkout@v1
-      - name: Select Xcode 11.2.1
-        run: sudo xcode-select -switch /Applications/Xcode_11.2.1.app
+      - name: Select Xcode 11.3.1
+        run: sudo xcode-select -switch /Applications/Xcode_11.3.1.app
       - name: Install swiftformat by homebrew
         run: brew install swiftformat
       - uses: actions/setup-ruby@v1

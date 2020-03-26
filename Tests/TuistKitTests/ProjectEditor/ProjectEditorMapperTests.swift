@@ -38,7 +38,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
                                            projectDescriptionPath: projectDescriptionPath)
 
         // Then
-        let targetNodes = graph.targets.sorted(by: { $0.target.name < $1.target.name })
+        let targetNodes = graph.targets.values.flatMap { targets in targets.compactMap { $0 } }.sorted(by: { $0.target.name < $1.target.name })
         XCTAssertEqual(targetNodes.count, 3)
         XCTAssertEqual(targetNodes.first?.dependencies, Array(targetNodes.dropFirst()))
 
@@ -120,7 +120,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
                                            projectDescriptionPath: projectDescriptionPath)
 
         // Then
-        let targetNodes = graph.targets.sorted(by: { $0.target.name < $1.target.name })
+        let targetNodes = graph.targets.values.flatMap { targets in targets.compactMap { $0 } }.sorted(by: { $0.target.name < $1.target.name })
         XCTAssertEqual(targetNodes.count, 1)
         XCTAssertEqual(targetNodes.first?.dependencies, [])
 

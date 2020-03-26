@@ -24,28 +24,65 @@ enum GraphError: FatalError {
 public class Graph: Encodable {
     // MARK: - Attributes
 
-    private let cache: GraphLoaderCaching
+    /// Name of the graph.
     public let name: String
+
+    /// Path to the directory where the graph has been loaded from.
     public let entryPath: AbsolutePath
+
+    /// The entry nodes of the graph.
     public let entryNodes: [GraphNode]
+
+    /// Dictionary whose keys are paths to directories where projects are defined, and the values are the representation of the projects.
+    public let projects: [Project]
+
+    /// Dictionary whose keys are paths to directories where projects are defined, and the values are the CocoaPods nodes define in them.
+    /// If none of the nodes of the graph references a CocoaPods node, the node gets released from memory.
+    public let cocoapods: [CocoaPodsNode]
+
+    /// Dictionary whose keys are path to directories where projects are defined, and the values are packages defined in that project.
+    /// If none of the nodes of the graph references a Package node, the node gets released from memory.
+    public let packages: [PackageNode]
+
+    /// Dictionary whose keys are path to directories where projects are defined, and the values are precompiled nodes defined in them.
+    /// If none of the nodds references a precompiled node, the node gets released from memory.
+    public let precompiled: [PrecompiledNode]
+
+    /// Returns all the frameorks that are part of the graph.
+    public var frameworks: [FrameworkNode] { precompiled.compactMap { $0 as? FrameworkNode } }
+
+    /// Dictionary whose keys are path to directories where projects are defined, and the values are target nodes defined in them.
+    public let targets: [AbsolutePath: [TargetNode]]
 
     // MARK: - Init
 
-    public convenience init(name: String, entryPath: AbsolutePath, cache: GraphLoaderCaching) {
+    convenience init(name: String, entryPath: AbsolutePath, cache: GraphLoaderCaching, entryNodes: [GraphNode]) {
         self.init(name: name,
                   entryPath: entryPath,
-                  cache: cache,
-                  entryNodes: [])
+                  entryNodes: entryNodes,
+                  projects: Array(cache.projects.values),
+                  cocoapods: Array(cache.cocoapodsNodes.values),
+                  packages: Array(cache.packages.flatMap { $0.value }),
+                  precompiled: Array(cache.precompiledNodes.values),
+                  targets: cache.targetNodes.mapValues { Array($0.values) })
     }
 
-    init(name: String,
-         entryPath: AbsolutePath,
-         cache: GraphLoaderCaching,
-         entryNodes: [GraphNode]) {
+    public init(name: String,
+                entryPath: AbsolutePath,
+                entryNodes: [GraphNode],
+                projects: [Project],
+                cocoapods: [CocoaPodsNode],
+                packages: [PackageNode],
+                precompiled: [PrecompiledNode],
+                targets: [AbsolutePath: [TargetNode]]) {
         self.name = name
         self.entryPath = entryPath
-        self.cache = cache
         self.entryNodes = entryNodes
+        self.projects = projects
+        self.cocoapods = cocoapods
+        self.packages = packages
+        self.precompiled = precompiled
+        self.targets = targets
     }
 
     // MARK: - Encodable
@@ -54,57 +91,10 @@ public class Graph: Encodable {
         var container = encoder.singleValueContainer()
         var nodes: [GraphNode] = []
 
-        nodes.append(contentsOf: cache.targetNodes.values.flatMap { $0.values })
-        nodes.append(contentsOf: Array(cache.precompiledNodes.values))
+        nodes.append(contentsOf: targets.values.flatMap { targets in targets.compactMap { $0 } })
+        nodes.append(contentsOf: precompiled.compactMap { $0 })
 
         try container.encode(nodes.sorted(by: { $0.path < $1.path }))
-    }
-
-    // MARK: - Graphing
-
-    /// List of projects that are part of the dependency graph.
-    public var projects: [Project] {
-        Array(cache.projects.values)
-    }
-
-    /// Paths to the projects that are part of the dependency graph.
-    public var projectPaths: [AbsolutePath] {
-        Array(cache.projects.keys)
-    }
-
-    /// Returns all the CocoaPods nodes that are part of the graph.
-    public var cocoapods: [CocoaPodsNode] {
-        Array(cache.cocoapodsNodes.values)
-    }
-
-    /// Returns all the SwiftPM package nodes that are part of the graph.
-    public var packages: [PackageNode] {
-        cache.packages.values.flatMap { $0 }
-    }
-
-    /// Returns all the frameorks that are part of the graph.
-    public var frameworks: [FrameworkNode] {
-        cache.precompiledNodes.values.compactMap { $0 as? FrameworkNode }
-    }
-
-    /// Returns all the precompiled nodes that are part of the graph.
-    public var precompiled: [PrecompiledNode] {
-        Array(cache.precompiledNodes.values)
-    }
-
-    /// Returns all the targets that are part of the graph.
-    public var targets: [TargetNode] {
-        cache.targetNodes.flatMap { $0.value.values }
-    }
-
-    /// Returns all target nodes at a given path (i.e. all target nodes in a project)
-    /// - Parameters:
-    ///   - path: Path to the directory where the project is located
-    public func targets(at path: AbsolutePath) -> [TargetNode] {
-        guard let nodes = cache.targetNodes[path] else {
-            return []
-        }
-        return Array(nodes.values)
     }
 
     /// Returns the target with the given name and at the given directory.
@@ -113,6 +103,13 @@ public class Graph: Encodable {
     ///   - name: Name of the target.
     public func target(path: AbsolutePath, name: String) -> TargetNode? {
         findTargetNode(path: path, name: name)
+    }
+
+    /// Returns all target nodes at a given path (i.e. all target nodes in a project)
+    /// - Parameters:
+    ///   - path: Path to the directory where the project is located
+    public func targets(at path: AbsolutePath) -> [TargetNode] {
+        Array(targets[path] ?? [])
     }
 
     /// Returns all the non-transitive target dependencies for the given target.
@@ -136,10 +133,10 @@ public class Graph: Encodable {
         guard let targetNode = findTargetNode(path: path, name: name) else {
             return []
         }
-        return targets(at: path)
+        return targets[path]?.compactMap { $0 }
             .filter { $0.target.product.testsBundle }
             .filter { $0.targetDependencies.contains(targetNode) }
-            .sorted { $0.target.name < $1.target.name }
+            .sorted { $0.target.name < $1.target.name } ?? []
     }
 
     /// Returns all non-transitive target static dependencies for the given target.
@@ -167,14 +164,6 @@ public class Graph: Encodable {
 
         return targetNode.targetDependencies
             .filter { $0.target.product == .bundle }
-    }
-
-    /// Returns all package dependencies for the given target.
-    /// - Parameters:
-    ///   - path: Path to the directory where the project that defines the target is located.
-    ///   - name: Name of the target.
-    public func packages(path: AbsolutePath, name _: String) throws -> [PackageNode] {
-        cache.packages[path] ?? []
     }
 
     /// It returns the libraries a given target should be linked against.
@@ -388,13 +377,13 @@ public class Graph: Encodable {
     /// This implementation looks for TargetNode's and traverses their dependencies so that we are able to build
     /// up a graph of dependencies to later be used to define the "Link Binary with Library" in an xcodeproj.
     public func findAll<T: GraphNode>(path: AbsolutePath) -> Set<T> {
-        guard let targetNodes = cache.targetNodes[path] else {
+        guard let targetNodes = targets[path] else {
             return []
         }
 
         var references = Set<T>()
 
-        for (_, node) in targetNodes {
+        targetNodes.forEach { node in
             references.formUnion(findAll(targetNode: node))
         }
 
@@ -453,11 +442,11 @@ public class Graph: Encodable {
             return targetNode
         }
 
-        guard let cachedTargetNodesForPath = cache.targetNodes[path] else {
+        guard let cachedTargetNodesForPath = targets[path] else {
             return nil
         }
 
-        return cachedTargetNodesForPath[name]
+        return cachedTargetNodesForPath.first(where: { $0.name == name }) ?? nil
     }
 
     /// Returns all the transitive dependencies of the given target that are static libraries.
@@ -477,12 +466,12 @@ public class Graph: Encodable {
     ///
     /// - Note: Search is limited to nodes with a matching path (i.e. targets within the same project)
     public func hostTargetNodeFor(path: AbsolutePath, name: String) -> TargetNode? {
-        guard let cachedTargetNodesForPath = cache.targetNodes[path] else {
+        guard let cachedTargetNodesForPath = targets[path] else {
             return nil
         }
-        return cachedTargetNodesForPath.values.first {
-            $0.dependencies.contains(where: { $0.path == path && $0.name == name })
-        }
+        return cachedTargetNodesForPath.first { node in
+            node.dependencies.contains(where: { $0.path == path && $0.name == name })
+        } ?? nil
     }
 
     // MARK: - Fileprivate

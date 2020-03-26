@@ -40,6 +40,20 @@ public extension Array {
         }
     }
 
+    /// Compact map (with execution context)
+    ///
+    /// - Parameters:
+    ///   - context: The execution context to perform the `transform` with
+    ///   - transform: The transformation closure to apply to the array
+    func compactMap<B>(context: ExecutionContext, _ transform: (Element) throws -> B?) rethrows -> [B] {
+        switch context.executionType {
+        case .serial:
+            return try compactMap(transform)
+        case .concurrent:
+            return try concurrentCompactMap(transform)
+        }
+    }
+
     /// For Each (with execution context)
     ///
     /// - Parameters:
@@ -86,6 +100,24 @@ extension Array {
             let element = self[idx]
             do {
                 let transformed = try transform(element)
+                result.atomically {
+                    $0[idx] = .success(transformed)
+                }
+            } catch {
+                result.atomically {
+                    $0[idx] = .failure(error)
+                }
+            }
+        }
+        return try result.value.map { try $0!.get() }
+    }
+
+    private func concurrentCompactMap<B>(_ transform: (Element) throws -> B?) rethrows -> [B] {
+        let result = ThreadSafe([Result<B, Error>?](repeating: nil, count: count))
+        DispatchQueue.concurrentPerform(iterations: count) { idx in
+            let element = self[idx]
+            do {
+                guard let transformed = try transform(element) else { return }
                 result.atomically {
                     $0[idx] = .success(transformed)
                 }

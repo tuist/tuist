@@ -33,7 +33,9 @@ public class GraphLinter: GraphLinting {
 
     public func lint(graph: Graph) -> [LintingIssue] {
         var issues: [LintingIssue] = []
-        issues.append(contentsOf: graph.projects.flatMap(projectLinter.lint))
+        issues.append(contentsOf: graph.projects.flatMap { project -> [LintingIssue] in
+            projectLinter.lint(project)
+        })
         issues.append(contentsOf: lintDependencies(graph: graph))
         issues.append(contentsOf: lintMismatchingConfigurations(graph: graph))
         issues.append(contentsOf: lintWatchBundleIndentifiers(graph: graph))
@@ -110,8 +112,8 @@ public class GraphLinter: GraphLinting {
             $0.formUnion(Set($1.settings.configurations.keys))
         }
 
-        let projectBuildConfigurations = graph.projects.map {
-            (name: $0.name, buildConfigurations: Set($0.settings.configurations.keys))
+        let projectBuildConfigurations = graph.projects.compactMap { project -> (name: String, buildConfigurations: Set<BuildConfiguration>)? in
+            (name: project.name, buildConfigurations: Set(project.settings.configurations.keys))
         }
 
         let mismatchingBuildConfigurations = projectBuildConfigurations.filter {
@@ -186,8 +188,13 @@ public class GraphLinter: GraphLinting {
 
     private func lintWatchBundleIndentifiers(graph: Graph) -> [LintingIssue] {
         let apps = graph
-            .targets
-            .filter { $0.target.product == .app }
+            .targets.values
+            .flatMap { targets -> [TargetNode] in
+                targets.compactMap { target in
+                    if target.target.product == .app { return target }
+                    return nil
+                }
+            }
 
         let issues = apps.flatMap { app -> [LintingIssue] in
             let watchApps = watchAppsFor(targetNode: app, graph: graph)
