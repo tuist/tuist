@@ -4,6 +4,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Changed
+
+- Generate only files with `.stencil` extension https://github.com/tuist/tuist/pull/1153 by @fortmarek
+
 ## 1.5.1
 
 ### Fixed
