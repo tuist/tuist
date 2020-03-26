@@ -20,7 +20,6 @@ public final class CommandRegistry {
                   processArguments: CommandRegistry.processArguments)
         register(command: InitCommand.self)
         register(command: ScaffoldCommand.self)
-        register(command: GenerateCommand.self)
         register(command: DumpCommand.self)
         register(command: VersionCommand.self)
         register(command: CreateIssueCommand.self)
