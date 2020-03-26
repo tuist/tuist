@@ -15,7 +15,7 @@ public struct TuistCommand: ParsableCommand {
         let errorHandler = ErrorHandler()
         let command: ParsableCommand
         do {
-             command = try parseAsRoot(arguments)
+             command = try parseAsRoot(processArguments(arguments))
         } catch {
             logger.error("\(fullMessage(for: error))")
             _exit(exitCode(for: error).rawValue)
@@ -28,5 +28,11 @@ public struct TuistCommand: ParsableCommand {
         } catch {
             errorHandler.fatal(error: UnhandledError(error: error))
         }
+    }
+    
+    // MARK: - Helpers
+    
+    private static func processArguments(_ arguments: [String]?) -> [String]? {
+        arguments?.filter { $0 != "--verbose" }
     }
 }
