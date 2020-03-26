@@ -48,42 +48,6 @@ task :release_scripts do
   release_scripts
 end
 
-desc("Prebuilds all the modules from the fixtures")
-task :prebuild_fixtures_modules do
-  paths = [
-    "fixtures/ios_app_with_static_libraries/Modules/C",
-    "fixtures/ios_app_with_static_frameworks/Prebuilt",
-    "fixtures/ios_app_with_transitive_framework/Framework2",
-    "fixtures/ios_app_with_xcframeworks/Frameworks/MyStaticLibrary",
-    "fixtures/ios_app_with_xcframeworks/Frameworks/MyStaticFramework",
-    "fixtures/ios_app_with_xcframeworks/Frameworks/MyFramework",
-    "fixtures/ios_app_with_static_library_and_package/Prebuilt",
-  ]
-  paths.each do |path|
-    Dir.chdir(File.join(__dir__, path)) do 
-      system("./build.sh")
-    end
-  end  
-end
-
-desc("Packages tuist, tags it with the commit sha and uploads it to gcs")
-task :package_commit do
-  decrypt_secrets
-  package
-
-  bucket = storage.bucket("tuist-builds")
-
-  sha = %x(git rev-parse HEAD).strip.chomp
-  print_section("Uploading tuist-#{sha}")
-  file = bucket.create_file(
-    "build/tuist.zip",
-    "#{sha}.zip"
-  )
-
-  file.acl.public!
-  print_section("Uploaded 🚀")
-end
-
 desc("Encrypt secret keys")
 task :encrypt_secrets do
   Encrypted::Environment.encrypt_ejson("secrets.ejson", private_key: ENV["SECRET_KEY"])
