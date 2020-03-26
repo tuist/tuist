@@ -4,8 +4,11 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+## 1.5.1
+
 ### Fixed
 
+- Update config name in the default template https://github.com/tuist/tuist/pull/1150 by @pepibumur
 - Fix example framework template not being generated https://github.com/tuist/tuist/pull/1149 by @fortmarek 
 
 ## 1.5.0
