@@ -109,6 +109,6 @@ let template = Template(
         .file(path: "Tuist/Templates/framework/Template.swift",
               templatePath: "ExampleTemplate.stencil"),
         .file(path: "Tuist/Templates/framework/project.stencil",
-              templatePath: "ExampleProject.stencil")
+              templatePath: "ExampleProject.stencil"),
     ]
 )

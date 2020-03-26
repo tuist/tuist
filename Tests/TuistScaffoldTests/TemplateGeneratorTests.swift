@@ -164,11 +164,11 @@ final class TemplateGeneratorTests: TuistTestCase {
         let sourcePath = try temporaryPath()
         let destinationPath = try temporaryPath()
         let expectedContents = "attribute name content"
-        try FileHandler.shared.write(expectedContents,
-                                     path: sourcePath.appending(component: "a"),
+        try FileHandler.shared.write("{{ name }} content",
+                                     path: sourcePath.appending(component: "a.stencil"),
                                      atomically: true)
         let template = Template.test(files: [Template.File(path: RelativePath("a"),
-                                                           contents: .file(sourcePath.appending(component: "a")))])
+                                                           contents: .file(sourcePath.appending(component: "a.stencil")))])
 
         // When
         try subject.generate(template: template,
@@ -178,5 +178,36 @@ final class TemplateGeneratorTests: TuistTestCase {
         // Then
         XCTAssertEqual(try FileHandler.shared.readTextFile(destinationPath.appending(component: "a")),
                        expectedContents)
+    }
+
+    func test_only_stencil_files_rendered() throws {
+        // Given
+        let sourcePath = try temporaryPath()
+        let destinationPath = try temporaryPath()
+        let expectedRenderedContents = "attribute name content"
+        let expectedUnrenderedContents = "{{ name }} content"
+        try FileHandler.shared.write("{{ name }} content",
+                                     path: sourcePath.appending(component: "a.stencil"),
+                                     atomically: true)
+        try FileHandler.shared.write("{{ name }} content",
+                                     path: sourcePath.appending(component: "a.swift"),
+                                     atomically: true)
+        let template = Template.test(files: [
+            Template.File(path: RelativePath("unrendered"),
+                          contents: .file(sourcePath.appending(component: "a.swift"))),
+            Template.File(path: RelativePath("rendered"),
+                          contents: .file(sourcePath.appending(component: "a.stencil"))),
+        ])
+
+        // When
+        try subject.generate(template: template,
+                             to: destinationPath,
+                             attributes: ["name": "attribute name"])
+
+        // Then
+        XCTAssertEqual(try FileHandler.shared.readTextFile(destinationPath.appending(component: "rendered")),
+                       expectedRenderedContents)
+        XCTAssertEqual(try FileHandler.shared.readTextFile(destinationPath.appending(component: "unrendered")),
+                       expectedUnrenderedContents)
     }
 }
