@@ -3,7 +3,6 @@
 </p>
 
 [![code style: prettier](https://img.shields.io/badge/code_style-prettier-ff69b4.svg?style=flat-square)](https://github.com/prettier/prettier)
-[![codecov](https://codecov.io/gh/tuist/tuist/branch/master/graph/badge.svg)](https://codecov.io/gh/tuist/tuist)
 [![Slack](http://slack.tuist.io/badge.svg)](http://slack.tuist.io)
 
 ## What's Tuist 🕺
