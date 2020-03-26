@@ -174,9 +174,9 @@ final class LinkGenerator: LinkGenerating {
             case .library:
                 // Do nothing
                 break
-            case let .xcframework(metadata):
-                guard let fileRef = fileElements.file(path: metadata.path) else {
-                    throw LinkGeneratorError.missingReference(path: metadata.path)
+            case let .xcframework(path, _, _, _):
+                guard let fileRef = fileElements.file(path: path) else {
+                    throw LinkGeneratorError.missingReference(path: path)
                 }
                 let buildFile = PBXBuildFile(
                     file: fileRef,
@@ -187,9 +187,9 @@ final class LinkGenerator: LinkGenerating {
             case .sdk:
                 // Do nothing
                 break
-            case let .product(metadata):
-                guard let fileRef = fileElements.product(target: metadata.target) else {
-                    throw LinkGeneratorError.missingProduct(name: metadata.target)
+            case let .product(target, _):
+                guard let fileRef = fileElements.product(target: target) else {
+                    throw LinkGeneratorError.missingProduct(name: target)
                 }
                 let buildFile = PBXBuildFile(file: fileRef,
                                              settings: ["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]])
@@ -290,12 +290,12 @@ final class LinkGenerator: LinkGenerating {
             .sorted()
             .forEach { dependency in
                 switch dependency {
-                case let .framework(metadata):
-                    try addBuildFile(metadata.path)
-                case let .library(metadata):
-                    try addBuildFile(metadata.path)
-                case let .xcframework(metadata):
-                    try addBuildFile(metadata.path)
+                case let .framework(path, _, _, _, _, _, _, _):
+                    try addBuildFile(path)
+                case let .library(path, _, _, _, _):
+                    try addBuildFile(path)
+                case let .xcframework(path, _, _, _):
+                    try addBuildFile(path)
                 case let .product(target, _):
                     guard let fileRef = fileElements.product(target: target) else {
                         throw LinkGeneratorError.missingProduct(name: target)
