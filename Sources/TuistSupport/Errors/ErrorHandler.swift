@@ -7,38 +7,19 @@ public protocol ErrorHandling: AnyObject {
     /// to the entity that conforms this protocol.
     ///
     /// - Parameter error: Fatal error that should be handler.
-    func fatal(error: FatalError) -> Never
+    func fatal(error: FatalError)
 }
 
 /// The default implementation of the ErrorHandling protocol
 public final class ErrorHandler: ErrorHandling {
-    // MARK: - Attributes
-
-    /// Function to exit the execution of the program.
-    var exiter: (Int32) -> Never
-
-    // MARK: - Init
-
-    /// Default error handler initializer.
-    public convenience init() {
-        self.init(exiter: { exit($0) })
-    }
-
-    /// Default error handler initializer.
-    ///
-    /// - Parameters:
-    ///   - exiter: Closure to exit the execution.
-    init(exiter: @escaping (Int32) -> Never) {
-        self.exiter = exiter
-    }
-
     // MARK: - Public
+    public init() { }
 
     /// When called, this method delegates the error handling
     /// to the entity that conforms this protocol.
     ///
     /// - Parameter error: Fatal error that should be handler.
-    public func fatal(error: FatalError) -> Never {
+    public func fatal(error: FatalError) {
         let isSilent = error.type == .abortSilent || error.type == .bugSilent
         if !error.description.isEmpty, !isSilent {
             logger.error("\(error.description)")
@@ -49,6 +30,5 @@ public final class ErrorHandler: ErrorHandling {
             """
             logger.error("\(message)")
         }
-        exiter(1)
     }
 }

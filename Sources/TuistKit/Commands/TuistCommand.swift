@@ -25,8 +25,10 @@ public struct TuistCommand: ParsableCommand {
             exit()
         } catch let error as FatalError {
             errorHandler.fatal(error: error)
+            _exit(exitCode(for: error).rawValue)
         } catch {
             errorHandler.fatal(error: UnhandledError(error: error))
+            _exit(exitCode(for: error).rawValue)
         }
     }
     
