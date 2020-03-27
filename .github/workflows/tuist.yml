@@ -20,10 +20,13 @@ jobs:
   unit_tests:
     name: Unit tests
     runs-on: macOS-latest
+    strategy:
+      matrix:
+        xcode: ["11.3.1", "11.4"]
     steps:
       - uses: actions/checkout@v1
-      - name: Select Xcode 11.3.1
-        run: sudo xcode-select -switch /Applications/Xcode_11.3.1.app
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_${{ matrix.xcode }}.app
       - name: Run tests
         run: |
           rm -rf .coverage
@@ -39,10 +42,13 @@ jobs:
   release_build:
     name: Release build
     runs-on: macOS-latest
+    strategy:
+      matrix:
+        xcode: ["11.3.1", "11.4"]
     steps:
       - uses: actions/checkout@v1
-      - name: Select Xcode 11.3.1
-        run: sudo xcode-select -switch /Applications/Xcode_11.3.1.app
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_${{ matrix.xcode }}.app
       - name: Build Tuist for release
         run: swift build -c release --product tuist
       - name: Build Tuistenv for release
@@ -50,10 +56,13 @@ jobs:
   acceptance_tests:
     name: Features
     runs-on: macOS-latest
+    strategy:
+      matrix:
+        xcode: ["11.4"]
     steps:
       - uses: actions/checkout@v1
-      - name: Select Xcode 11.3.1
-        run: sudo xcode-select -switch /Applications/Xcode_11.3.1.app
+      - name: Select Xcode 11.4
+        run: sudo xcode-select -switch /Applications/Xcode_${{ matrix.xcode }}.app
       - uses: actions/setup-ruby@v1
         with:
           ruby-version: '2.x'
@@ -69,8 +78,8 @@ jobs:
     runs-on: macOS-latest
     steps:
       - uses: actions/checkout@v1
-      - name: Select Xcode 11.3.1
-        run: sudo xcode-select -switch /Applications/Xcode_11.3.1.app
+      - name: Select Xcode 11.4
+        run: sudo xcode-select -switch /Applications/Xcode_11.4.app
       - uses: actions/setup-ruby@v1
         with:
           ruby-version: '2.x'

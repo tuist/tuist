@@ -4,6 +4,13 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Changed
+- Generate only files with `.stencil` extension https://github.com/tuist/tuist/pull/1153 by @fortmarek
+
+### Added
+- Support for Xcode 11.4 https://github.com/tuist/tuist/pull/1152 by @pepibumur.
+- `SWIFT_VERSION` is set to 5.2 automatically if it's not set https://github.com/tuist/tuist/pull/1152 by @pepibumur.
+
 ## 1.5.1
 
 ### Fixed
