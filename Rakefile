@@ -97,7 +97,12 @@ def package
   )
   system("swift", "build", "--product", "tuistenv", "--configuration", "release")
   
-  FileUtils.cp_r(File.expand_path("Templates", __dir__), ".build/release/Templates")
+  build_templates_path = File.join(__dir__, ".build/release/Templates")
+  FileUtils.rm_rf(build_templates_path) if File.exist?(build_templates_path)
+  FileUtils.cp_r(File.expand_path("Templates", __dir__), build_templates_path)
+
+  File.delete("tuist.zip") if File.exist?("tuist.zip")
+  File.delete("tuistenv.zip") if File.exist?("tuistenv.zip")
 
   Dir.chdir(".build/release") do
     system(
