@@ -1,0 +1,13 @@
+---
+name: Scratch
+order: 11
+excerpt: Random ideas and notes for Tuist. Pseudocode and braindumps.
+---
+
+# Scratch
+
+## March 26th 2020 - Acceptance tests and multiple versions of Xcode
+
+I attempted to add set up GitHub actions to run the tests on multiple versions of Xcode and I realized that the acceptance tests that depend on precompiled frameworks an libraries can only run with a version of Xcode. 
+I made the tradeoff of **always running the acceptance tests with the latest version of Xcode** to avoid increasing the cost of maintaining those tests.
+This is a decision that we should revisit if we notice that we ship changes that break the backwards compatibility without us realizing it.
