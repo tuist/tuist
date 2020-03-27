@@ -694,7 +694,7 @@ final class SchemesGeneratorTests: XCTestCase {
         let unitTests = Target.test(name: "AppTests", product: .unitTests)
         let uiTests = Target.test(name: "AppUITests", product: .uiTests)
         let scheme = Scheme.test()
-        let project = Project.test(targets: [app, framework, unitTests, uiTests], schemes: [scheme])
+        let project = Project.test(targets: [app, framework, unitTests, uiTests], schemes: [scheme], autoGenerateSchemes: false)
 
         let graph = Graph.create(
             project: project,

@@ -12,6 +12,7 @@ public extension Project {
                      targets: [Target] = [Target.test()],
                      packages: [Package] = [],
                      schemes: [Scheme] = [],
+                     autoGenerateSchemes: Bool = true,
                      additionalFiles: [FileElement] = []) -> Project {
         Project(path: path,
                 name: name,
@@ -22,6 +23,7 @@ public extension Project {
                 targets: targets,
                 packages: packages,
                 schemes: schemes,
+                autoGenerateSchemes: autoGenerateSchemes,
                 additionalFiles: additionalFiles)
     }
 
@@ -33,6 +35,7 @@ public extension Project {
                       targets: [Target] = [],
                       packages: [Package] = [],
                       schemes: [Scheme] = [],
+                      autoGenerateSchemes: Bool = true,
                       additionalFiles: [FileElement] = []) -> Project {
         Project(path: path,
                 name: name,
@@ -42,6 +45,7 @@ public extension Project {
                 targets: targets,
                 packages: packages,
                 schemes: schemes,
+                autoGenerateSchemes: autoGenerateSchemes,
                 additionalFiles: additionalFiles)
     }
 }
