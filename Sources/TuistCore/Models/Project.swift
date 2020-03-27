@@ -129,7 +129,7 @@ public class Project: Equatable, CustomStringConvertible {
     /// Returns a copy of the project with the given targets set.
     /// - Parameter targets: Targets to be set to the copy.
     public func with(targets: [Target]) -> Project {
-        let copy = self
+        var copy = self
         copy.targets = targets
         return copy
     }
