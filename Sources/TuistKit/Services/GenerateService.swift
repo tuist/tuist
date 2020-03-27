@@ -3,13 +3,7 @@ import TuistLoader
 import TuistSupport
 import Basic
 
-protocol GenerateServicing {
-    func run(path: String?,
-             projectOnly: Bool) throws
-}
-
-class GenerateService: GenerateServicing {
-    
+class GenerateService {
     // MARK: - Attributes
     private let clock: Clock
     private let generator: ProjectGenerating
