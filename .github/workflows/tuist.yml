@@ -54,11 +54,12 @@ jobs:
       - name: Build Tuistenv for release
         run: swift build -c release --product tuistenv
   acceptance_tests:
-    name: Features
+    name: Acceptance tests (${{ matrix.feature }})
     runs-on: macOS-latest
     strategy:
       matrix:
-        xcode: ["11.4"]
+        xcode: ["11.3.1", "11.4"]
+        feature: ["generate-1", "generate-2", "generate-3", "generate-4", "generate-5", "init", "lint", "scaffold", "up"]
     steps:
       - uses: actions/checkout@v1
       - name: Select Xcode 11.4
@@ -71,7 +72,7 @@ jobs:
       - name: Install Bundler dependencies
         run: bundle install
       - name: Run tests
-        run: bundle exec rake features
+        run: FEATURE=features/${{ matrix.feature }}.feature bundle exec rake features
   upload:
     if: github.ref == 'refs/heads/master'
     name: Upload
