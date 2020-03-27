@@ -12,7 +12,6 @@ public extension Project {
                      targets: [Target] = [Target.test()],
                      packages: [Package] = [],
                      schemes: [Scheme] = [],
-                     schemeGeneration: SchemeGeneration = .defaultAndCustom,
                      additionalFiles: [FileElement] = []) -> Project {
         Project(path: path,
                 name: name,
@@ -23,7 +22,6 @@ public extension Project {
                 targets: targets,
                 packages: packages,
                 schemes: schemes,
-                schemeGeneration: schemeGeneration,
                 additionalFiles: additionalFiles)
     }
 
