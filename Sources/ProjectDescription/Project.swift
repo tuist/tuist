@@ -8,7 +8,6 @@ public struct Project: Codable, Equatable {
     public let packages: [Package]
     public let targets: [Target]
     public let schemes: [Scheme]
-    public let schemeGeneration: SchemeGeneration
     public let settings: Settings?
     public let additionalFiles: [FileElement]
 
@@ -18,14 +17,12 @@ public struct Project: Codable, Equatable {
                 settings: Settings? = nil,
                 targets: [Target] = [],
                 schemes: [Scheme] = [],
-                schemeGeneration: SchemeGeneration = .defaultAndCustom,
                 additionalFiles: [FileElement] = []) {
         self.name = name
         self.organizationName = organizationName
         self.packages = packages
         self.targets = targets
         self.schemes = schemes
-        self.schemeGeneration = schemeGeneration
         self.settings = settings
         self.additionalFiles = additionalFiles
         dumpIfNeeded(self)

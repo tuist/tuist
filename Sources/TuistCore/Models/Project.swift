@@ -26,11 +26,6 @@ public struct Project: Equatable, CustomStringConvertible {
     /// Project schemes
     public let schemes: [Scheme]
 
-    /// Scheme generation type
-    ///
-    /// Default value is `defaultAndCustom`
-    public let schemeGeneration: SchemeGeneration
-
     /// Project settings.
     public let settings: Settings
 
@@ -62,7 +57,6 @@ public struct Project: Equatable, CustomStringConvertible {
                 targets: [Target] = [],
                 packages: [Package] = [],
                 schemes: [Scheme] = [],
-                schemeGeneration: SchemeGeneration = .defaultAndCustom,
                 additionalFiles: [FileElement] = []) {
         self.path = path
         self.name = name
@@ -71,7 +65,6 @@ public struct Project: Equatable, CustomStringConvertible {
         self.targets = targets
         self.packages = packages
         self.schemes = schemes
-        self.schemeGeneration = schemeGeneration
         self.settings = settings
         self.filesGroup = filesGroup
         self.additionalFiles = additionalFiles

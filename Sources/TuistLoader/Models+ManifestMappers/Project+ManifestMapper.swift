@@ -26,7 +26,6 @@ extension TuistCore.Project {
                        targets: targets,
                        packages: packages,
                        schemes: schemes,
-                       schemeGeneration: SchemeGeneration(rawValue: manifest.schemeGeneration.rawValue) ?? .default,
                        additionalFiles: additionalFiles)
     }
 
@@ -40,7 +39,6 @@ extension TuistCore.Project {
                 targets: targets + [target],
                 packages: packages,
                 schemes: schemes,
-                schemeGeneration: schemeGeneration,
                 additionalFiles: additionalFiles)
     }
 
@@ -54,7 +52,6 @@ extension TuistCore.Project {
                 targets: targets,
                 packages: packages,
                 schemes: schemes,
-                schemeGeneration: schemeGeneration,
                 additionalFiles: additionalFiles)
     }
 
@@ -68,7 +65,6 @@ extension TuistCore.Project {
                 targets: targets,
                 packages: packages,
                 schemes: schemes,
-                schemeGeneration: schemeGeneration,
                 additionalFiles: additionalFiles)
     }
 }

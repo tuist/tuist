@@ -62,23 +62,18 @@ final class SchemesGenerator: SchemesGenerating {
                                generatedProjects: [project.path: generatedProject])
         }
 
-        switch project.schemeGeneration {
-        case .customOnly: return customSchemes
-        case .defaultAndCustom:
-            /// Generate default schemes for targets in Project that are not defined in Manifest
-            let buildConfiguration = defaultDebugBuildConfigurationName(in: project)
-            let userDefinedSchemes = Set(project.schemes.map(\.name))
-            let defaultSchemeTargets = project.targets.filter { !userDefinedSchemes.contains($0.name) }
-            let defaultSchemes: [SchemeDescriptor] = try defaultSchemeTargets.map { target in
-                let scheme = createDefaultScheme(target: target, project: project, buildConfiguration: buildConfiguration, graph: graph)
-                return try generateScheme(scheme: scheme,
-                                          path: project.path,
-                                          graph: graph,
-                                          generatedProjects: [project.path: generatedProject])
-            }
-
-            return customSchemes + defaultSchemes
+        let buildConfiguration = defaultDebugBuildConfigurationName(in: project)
+        let userDefinedSchemes = Set(project.schemes.map(\.name))
+        let defaultSchemeTargets = project.targets.filter { !userDefinedSchemes.contains($0.name) }
+        let defaultSchemes: [SchemeDescriptor] = try defaultSchemeTargets.map { target in
+            let scheme = createDefaultScheme(target: target, project: project, buildConfiguration: buildConfiguration, graph: graph)
+            return try generateScheme(scheme: scheme,
+                                      path: project.path,
+                                      graph: graph,
+                                      generatedProjects: [project.path: generatedProject])
         }
+
+        return customSchemes + defaultSchemes
     }
 
     /// Wipes shared and user schemes at a workspace or project path. This is needed
