@@ -1,5 +1,7 @@
 import ProjectDescription
 let nameAttribute: Template.Attribute = .required("name")
+let platformAttribute: Template.Attribute = .optional("platform", default: "iOS")
+
 let exampleContents = """
 struct \(nameAttribute) { }
 """
@@ -7,6 +9,7 @@ let template = Template(
     description: "Framework template",
     attributes: [
         nameAttribute,
+        platformAttribute
     ],
     files: [
         .string(path: "\(nameAttribute)/Sources/\(nameAttribute).swift", contents: exampleContents),
