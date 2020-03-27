@@ -1,12 +1,4 @@
 import ProjectDescription
-let project = Project(name: "{{ name }}",
-                      targets: [
-                          Target(name: "{{ name }}",
-                                 platform: .{{ platform }},
-                                 product: .framework,
-                                 productName: "{{ name }}",
-                                 bundleId: "io.tuist.{{ name }}",
-                                 infoPlist: .default,
-                                 sources: "Sources/**",
-                                 dependencies: []),
-])
+import ProjectDescriptionHelpers
+
+let project = Project.framework(name: "{{ name }}", platform: .{{ platform }}, dependencies: [])
