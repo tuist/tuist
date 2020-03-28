@@ -27,7 +27,7 @@ public struct Project: Equatable, CustomStringConvertible {
     public let schemes: [Scheme]
 
     /// Auto generate default schemes
-    public var autoGenerateSchemes: Bool
+    public let autoGenerateSchemes: Bool
 
     /// Project settings.
     public let settings: Settings
