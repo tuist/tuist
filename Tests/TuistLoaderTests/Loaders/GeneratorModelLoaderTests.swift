@@ -290,7 +290,7 @@ class GeneratorModelLoaderTests: TuistUnitTestCase {
         let model = try subject.loadProject(at: temporaryPath)
 
         // Then
-        XCTAssertFalse(model.autoGenerateSchemes)
+        XCTAssertFalse(model.autogenerateSchemes)
     }
 
     func test_loadWorkspace() throws {

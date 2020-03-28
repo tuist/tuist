@@ -39,7 +39,7 @@ extension TuistCore.Project {
                 targets: targets + [target],
                 packages: packages,
                 schemes: schemes,
-                autoGenerateSchemes: autoGenerateSchemes,
+                autogenerateSchemes: autogenerateSchemes,
                 additionalFiles: additionalFiles)
     }
 
@@ -53,7 +53,7 @@ extension TuistCore.Project {
                 targets: targets,
                 packages: packages,
                 schemes: schemes,
-                autoGenerateSchemes: autoGenerateSchemes,
+                autogenerateSchemes: autogenerateSchemes,
                 additionalFiles: additionalFiles)
     }
 
@@ -67,7 +67,7 @@ extension TuistCore.Project {
                 targets: targets,
                 packages: packages,
                 schemes: schemes,
-                autoGenerateSchemes: autoGenerateSchemes,
+                autogenerateSchemes: autogenerateSchemes,
                 additionalFiles: additionalFiles)
     }
     
@@ -81,7 +81,7 @@ extension TuistCore.Project {
                 targets: targets,
                 packages: packages,
                 schemes: schemes,
-                autoGenerateSchemes: autogenerateSchemes,
+                autogenerateSchemes: autogenerateSchemes,
                 additionalFiles: additionalFiles)
     }
 }

@@ -62,7 +62,7 @@ final class SchemesGenerator: SchemesGenerating {
                                generatedProjects: [project.path: generatedProject])
         }
 
-        guard project.autoGenerateSchemes else {
+        guard project.autogenerateSchemes else {
             return customSchemes
         }
 
