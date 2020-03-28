@@ -17,7 +17,7 @@ public protocol Generating {
     /// - Returns: An absolute path to the generated Xcode project many of which adopt `FatalError`
     /// - Throws: Errors encountered during the generation process
     /// - seealso: TuistCore.FatalError
-    func generateProject(at path: AbsolutePath) throws -> (AbsolutePath, Graphing)
+    func generateProject(at path: AbsolutePath) throws -> (AbsolutePath, Graph)
 
     /// Generates the given project in the same directory where it's defined.
     /// - Parameters:
@@ -25,7 +25,7 @@ public protocol Generating {
     ///     - graph: The dependencies graph.
     ///     - sourceRootPath: The path all the files in the Xcode project will be realtived to. When it's nil, it's assumed that all the paths are relative to the directory that contains the manifest.
     ///     - xcodeprojPath: Path where the .xcodeproj directory will be generated. When the attribute is nil, the project is generated in the manifest's directory.
-    func generateProject(_ project: Project, graph: Graphing, sourceRootPath: AbsolutePath?, xcodeprojPath: AbsolutePath?) throws -> AbsolutePath
+    func generateProject(_ project: Project, graph: Graph, sourceRootPath: AbsolutePath?, xcodeprojPath: AbsolutePath?) throws -> AbsolutePath
 
     /// Generate an Xcode workspace for the project at a given path. All the project's dependencies will also be generated and included.
     ///
@@ -39,7 +39,7 @@ public protocol Generating {
     ///           many of which adopt `FatalError`
     /// - seealso: TuistCore.FatalError
     @discardableResult
-    func generateProjectWorkspace(at path: AbsolutePath, workspaceFiles: [AbsolutePath]) throws -> (AbsolutePath, Graphing)
+    func generateProjectWorkspace(at path: AbsolutePath, workspaceFiles: [AbsolutePath]) throws -> (AbsolutePath, Graph)
 
     /// Generate an Xcode workspace at a given path. All referenced projects and their dependencies will be generated and included.
     ///
@@ -53,7 +53,7 @@ public protocol Generating {
     ///           many of which adopt `FatalError`
     /// - seealso: TuistCore.FatalError
     @discardableResult
-    func generateWorkspace(at path: AbsolutePath, workspaceFiles: [AbsolutePath]) throws -> (AbsolutePath, Graphing)
+    func generateWorkspace(at path: AbsolutePath, workspaceFiles: [AbsolutePath]) throws -> (AbsolutePath, Graph)
 }
 
 /// A default implementation of `Generating`
@@ -124,7 +124,7 @@ public class Generator: Generating {
     }
 
     public func generateProject(_ project: Project,
-                                graph: Graphing,
+                                graph: Graph,
                                 sourceRootPath: AbsolutePath? = nil,
                                 xcodeprojPath: AbsolutePath? = nil) throws -> AbsolutePath {
         /// When the source root path is not given, we assume paths
@@ -140,7 +140,7 @@ public class Generator: Generating {
         return descriptor.xcodeprojPath
     }
 
-    public func generateProject(at path: AbsolutePath) throws -> (AbsolutePath, Graphing) {
+    public func generateProject(at path: AbsolutePath) throws -> (AbsolutePath, Graph) {
         let config = try graphLoader.loadConfig(path: path)
         try environmentLinter.lint(config: config).printAndThrowIfNeeded()
 
@@ -157,7 +157,7 @@ public class Generator: Generating {
     }
 
     public func generateProjectWorkspace(at path: AbsolutePath,
-                                         workspaceFiles: [AbsolutePath]) throws -> (AbsolutePath, Graphing) {
+                                         workspaceFiles: [AbsolutePath]) throws -> (AbsolutePath, Graph) {
         let config = try graphLoader.loadConfig(path: path)
         try environmentLinter.lint(config: config).printAndThrowIfNeeded()
 
@@ -166,7 +166,7 @@ public class Generator: Generating {
 
         let workspace = Workspace(path: path,
                                   name: project.name,
-                                  projects: graph.projectPaths,
+                                  projects: graph.projects.compactMap { $0.path },
                                   additionalFiles: workspaceFiles.map(FileElement.file))
 
         let descriptor = try workspaceGenerator.generate(workspace: workspace,
@@ -180,14 +180,14 @@ public class Generator: Generating {
     }
 
     public func generateWorkspace(at path: AbsolutePath,
-                                  workspaceFiles: [AbsolutePath]) throws -> (AbsolutePath, Graphing) {
+                                  workspaceFiles: [AbsolutePath]) throws -> (AbsolutePath, Graph) {
         let config = try graphLoader.loadConfig(path: path)
         try environmentLinter.lint(config: config).printAndThrowIfNeeded()
         let (graph, workspace) = try graphLoader.loadWorkspace(path: path)
         try graphLinter.lint(graph: graph).printAndThrowIfNeeded()
 
         let updatedWorkspace = workspace
-            .merging(projects: graph.projectPaths)
+            .merging(projects: graph.projects.map { $0.path })
             .adding(files: workspaceFiles)
 
         let descriptor = try workspaceGenerator.generate(workspace: updatedWorkspace,

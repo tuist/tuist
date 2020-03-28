@@ -12,9 +12,9 @@ final class MockWorkspaceGenerator: WorkspaceGenerating {
     }
 
     var generateWorkspaces: [Workspace] = []
-    var generateStub: ((Workspace, AbsolutePath, Graphing) throws -> WorkspaceDescriptor)?
+    var generateStub: ((Workspace, AbsolutePath, Graph) throws -> WorkspaceDescriptor)?
 
-    func generate(workspace: Workspace, path: AbsolutePath, graph: Graphing) throws -> WorkspaceDescriptor {
+    func generate(workspace: Workspace, path: AbsolutePath, graph: Graph) throws -> WorkspaceDescriptor {
         guard let generateStub = generateStub else {
             throw MockError.stubNotImplemented
         }

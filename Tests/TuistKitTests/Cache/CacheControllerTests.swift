@@ -47,8 +47,6 @@ final class CacheControllerTests: TuistUnitTestCase {
         // Given
         let path = try temporaryPath()
         let xcworkspacePath = path.appending(component: "Project.xcworkspace")
-        let cache = GraphLoaderCache()
-        let graph = Graph.test(cache: cache)
         let project = Project.test(path: path, name: "Cache")
         let aTarget = Target.test(name: "A")
         let bTarget = Target.test(name: "B")
@@ -61,12 +59,14 @@ final class CacheControllerTests: TuistUnitTestCase {
             TargetNode.test(project: project, target: aTarget): "A_HASH",
             TargetNode.test(project: project, target: bTarget): "B_HASH",
         ]
+        let graph = Graph.test(projects: [project],
+                               targets: nodeWithHashes.keys.reduce(into: [project.path: [TargetNode]()]) { $0[project.path]?.append($1) })
 
         manifestLoader.manifestsAtStub = { (loadPath: AbsolutePath) -> Set<Manifest> in
             XCTAssertEqual(loadPath, path)
             return Set(arrayLiteral: .project)
         }
-        generator.generateWithGraphStub = { (loadPath, _) -> (AbsolutePath, Graphing) in
+        generator.generateWithGraphStub = { (loadPath, _) -> (AbsolutePath, Graph) in
             XCTAssertEqual(loadPath, path)
             return (xcworkspacePath, graph)
         }

@@ -56,12 +56,12 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
 
     public func hash(into hasher: inout Hasher) {
         switch self {
-        case let .library(metadata):
-            hasher.combine(metadata.0)
-        case let .framework(metadata):
-            hasher.combine(metadata.0)
-        case let .xcframework(metadata):
-            hasher.combine(metadata.0)
+        case let .library(path, _, _, _, _):
+            hasher.combine(path)
+        case let .framework(path, _, _, _, _, _, _, _):
+            hasher.combine(path)
+        case let .xcframework(path, _, _, _):
+            hasher.combine(path)
         case let .product(target, productName):
             hasher.combine(target)
             hasher.combine(productName)
@@ -71,17 +71,16 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
         }
     }
 
-    /// For dependencies that exists in the file system. This attribute returns the path to them.
-    public var path: AbsolutePath? {
+    /// For dependencies that exists in the file system (precompiled frameworks & libraries),
+    /// this attribute returns the path to them.
+    public var precompiledPath: AbsolutePath? {
         switch self {
-        case let .framework(metadata):
-            return metadata.path
-        case let .library(metadata):
-            return metadata.path
-        case let .xcframework(metadata):
-            return metadata.path
-        case let .sdk(metadata):
-            return metadata.path
+        case let .framework(path, _, _, _, _, _, _, _):
+            return path
+        case let .library(path, _, _, _, _):
+            return path
+        case let .xcframework(path, _, _, _):
+            return path
         default:
             return nil
         }
@@ -89,12 +88,12 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
 
     public static func < (lhs: GraphDependencyReference, rhs: GraphDependencyReference) -> Bool {
         switch (lhs, rhs) {
-        case let (.framework(lhsMetadata), .framework(rhsMetadata)):
-            return lhsMetadata.path < rhsMetadata.path
-        case let (.xcframework(lhsMetadata), .xcframework(rhsMetadata)):
-            return lhsMetadata.path < rhsMetadata.path
-        case let (.library(lhsMetadata), .library(rhsMetadata)):
-            return lhsMetadata.path < rhsMetadata.path
+        case let (.framework(lhsPath, _, _, _, _, _, _, _), .framework(rhsPath, _, _, _, _, _, _, _)):
+            return lhsPath < rhsPath
+        case let (.xcframework(lhsPath, _, _, _), .xcframework(rhsPath, _, _, _)):
+            return lhsPath < rhsPath
+        case let (.library(lhsPath, _, _, _, _), .library(rhsPath, _, _, _, _)):
+            return lhsPath < rhsPath
         case let (.product(lhsTarget, lhsProductName), .product(rhsTarget, rhsProductName)):
             if lhsTarget == rhsTarget {
                 return lhsProductName < rhsProductName

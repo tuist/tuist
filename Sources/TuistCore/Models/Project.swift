@@ -2,7 +2,21 @@ import Basic
 import Foundation
 import TuistSupport
 
-public struct Project: Equatable, CustomStringConvertible {
+public class Project: Equatable, CustomStringConvertible {
+    public static func == (lhs: Project, rhs: Project) -> Bool {
+        lhs.path == rhs.path &&
+            lhs.name == rhs.name &&
+            lhs.organizationName == rhs.organizationName &&
+            lhs.fileName == rhs.fileName &&
+            lhs.targets == rhs.targets &&
+            lhs.packages == rhs.packages &&
+            lhs.schemes == rhs.schemes &&
+            lhs.autogenerateSchemes == rhs.autogenerateSchemes &&
+            lhs.settings == rhs.settings &&
+            lhs.filesGroup == rhs.filesGroup &&
+            lhs.additionalFiles == rhs.additionalFiles
+    }
+
     // MARK: - Attributes
 
     /// Path to the folder that contains the project manifest.
@@ -80,7 +94,7 @@ public struct Project: Equatable, CustomStringConvertible {
     ///
     /// - Parameter graph: Dependencies graph.
     /// - Returns: Sorted targets.
-    public func sortedTargetsForProjectScheme(graph: Graphing) -> [Target] {
+    public func sortedTargetsForProjectScheme(graph: Graph) -> [Target] {
         targets.sorted { (first, second) -> Bool in
             // First criteria: Test bundles at the end
             if first.product.testsBundle, !second.product.testsBundle {
@@ -121,8 +135,16 @@ public struct Project: Equatable, CustomStringConvertible {
     /// Returns a copy of the project with the given targets set.
     /// - Parameter targets: Targets to be set to the copy.
     public func with(targets: [Target]) -> Project {
-        var copy = self
-        copy.targets = targets
-        return copy
+        Project(path: path,
+                name: name,
+                organizationName: organizationName,
+                fileName: fileName,
+                settings: settings,
+                filesGroup: filesGroup,
+                targets: targets,
+                packages: packages,
+                schemes: schemes,
+                autogenerateSchemes: autogenerateSchemes,
+                additionalFiles: additionalFiles)
     }
 }

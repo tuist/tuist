@@ -2,7 +2,6 @@ import Basic
 import Foundation
 import ProjectDescription
 import TuistCore
-import TuistGenerator
 import TuistSupport
 import TuistSupportTesting
 import XCTest

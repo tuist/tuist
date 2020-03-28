@@ -49,7 +49,7 @@ protocol LinkGenerating: AnyObject {
                        fileElements: ProjectFileElements,
                        path: AbsolutePath,
                        sourceRootPath: AbsolutePath,
-                       graph: Graphing) throws
+                       graph: Graph) throws
 }
 
 // swiftlint:disable type_body_length
@@ -77,7 +77,7 @@ final class LinkGenerator: LinkGenerating {
                        fileElements: ProjectFileElements,
                        path: AbsolutePath,
                        sourceRootPath: AbsolutePath,
-                       graph: Graphing) throws {
+                       graph: Graph) throws {
         let embeddableFrameworks = try graph.embeddableFrameworks(path: path, name: target.name)
         let linkableModules = try graph.linkableDependencies(path: path, name: target.name)
 
@@ -115,7 +115,7 @@ final class LinkGenerator: LinkGenerating {
                                             pbxTarget: PBXTarget,
                                             sourceRootPath: AbsolutePath,
                                             path: AbsolutePath,
-                                            graph: Graphing,
+                                            graph: Graph,
                                             linkableModules: [GraphDependencyReference]) throws {
         let headersSearchPaths = graph.librariesPublicHeadersFolders(path: path, name: target.name)
         let librarySearchPaths = graph.librariesSearchPaths(path: path, name: target.name)
@@ -174,9 +174,9 @@ final class LinkGenerator: LinkGenerating {
             case .library:
                 // Do nothing
                 break
-            case let .xcframework(metadata):
-                guard let fileRef = fileElements.file(path: metadata.path) else {
-                    throw LinkGeneratorError.missingReference(path: metadata.path)
+            case let .xcframework(path, _, _, _):
+                guard let fileRef = fileElements.file(path: path) else {
+                    throw LinkGeneratorError.missingReference(path: path)
                 }
                 let buildFile = PBXBuildFile(
                     file: fileRef,
@@ -187,9 +187,9 @@ final class LinkGenerator: LinkGenerating {
             case .sdk:
                 // Do nothing
                 break
-            case let .product(metadata):
-                guard let fileRef = fileElements.product(target: metadata.target) else {
-                    throw LinkGeneratorError.missingProduct(name: metadata.target)
+            case let .product(target, _):
+                guard let fileRef = fileElements.product(target: target) else {
+                    throw LinkGeneratorError.missingProduct(name: target)
                 }
                 let buildFile = PBXBuildFile(file: fileRef,
                                              settings: ["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]])
@@ -211,7 +211,7 @@ final class LinkGenerator: LinkGenerating {
     func setupFrameworkSearchPath(dependencies: [GraphDependencyReference],
                                   pbxTarget: PBXTarget,
                                   sourceRootPath: AbsolutePath) throws {
-        let paths = dependencies.compactMap { $0.path }
+        let paths = dependencies.compactMap { $0.precompiledPath }
             .map { $0.removingLastComponent() }
 
         let uniquePaths = Array(Set(paths))
@@ -290,12 +290,12 @@ final class LinkGenerator: LinkGenerating {
             .sorted()
             .forEach { dependency in
                 switch dependency {
-                case let .framework(metadata):
-                    try addBuildFile(metadata.path)
-                case let .library(metadata):
-                    try addBuildFile(metadata.path)
-                case let .xcframework(metadata):
-                    try addBuildFile(metadata.path)
+                case let .framework(path, _, _, _, _, _, _, _):
+                    try addBuildFile(path)
+                case let .library(path, _, _, _, _):
+                    try addBuildFile(path)
+                case let .xcframework(path, _, _, _):
+                    try addBuildFile(path)
                 case let .product(target, _):
                     guard let fileRef = fileElements.product(target: target) else {
                         throw LinkGeneratorError.missingProduct(name: target)
@@ -317,7 +317,7 @@ final class LinkGenerator: LinkGenerating {
 
     func generateCopyProductsdBuildPhase(path: AbsolutePath,
                                          target: Target,
-                                         graph: Graphing,
+                                         graph: Graph,
                                          pbxTarget: PBXTarget,
                                          pbxproj: PBXProj,
                                          fileElements: ProjectFileElements) throws {

@@ -14,7 +14,7 @@ protocol ConfigGenerating: AnyObject {
                               pbxproj: PBXProj,
                               projectSettings: Settings,
                               fileElements: ProjectFileElements,
-                              graph: Graphing,
+                              graph: Graph,
                               sourceRootPath: AbsolutePath) throws
 }
 
@@ -61,7 +61,7 @@ final class ConfigGenerator: ConfigGenerating {
                               pbxproj: PBXProj,
                               projectSettings: Settings,
                               fileElements: ProjectFileElements,
-                              graph: Graphing,
+                              graph: Graph,
                               sourceRootPath: AbsolutePath) throws {
         let defaultConfiguration = projectSettings.defaultReleaseBuildConfiguration()
             ?? projectSettings.defaultDebugBuildConfiguration()
@@ -128,7 +128,7 @@ final class ConfigGenerator: ConfigGenerating {
                                            buildConfiguration: BuildConfiguration,
                                            configuration: Configuration?,
                                            fileElements: ProjectFileElements,
-                                           graph: Graphing,
+                                           graph: Graph,
                                            pbxproj: PBXProj,
                                            configurationList: XCConfigurationList,
                                            sourceRootPath: AbsolutePath) throws {
@@ -158,7 +158,7 @@ final class ConfigGenerator: ConfigGenerating {
 
     private func updateTargetDerived(buildSettings settings: inout [String: SettingValue],
                                      target: Target,
-                                     graph: Graphing,
+                                     graph: Graph,
                                      sourceRootPath: AbsolutePath) {
         settings.merge(generalTargetDerivedSettings(target: target, sourceRootPath: sourceRootPath)) { $1 }
         settings.merge(testBundleTargetDerivedSettings(target: target, graph: graph, sourceRootPath: sourceRootPath)) { $1 }
@@ -197,7 +197,7 @@ final class ConfigGenerator: ConfigGenerating {
     }
 
     private func testBundleTargetDerivedSettings(target: Target,
-                                                 graph: Graphing,
+                                                 graph: Graph,
                                                  sourceRootPath: AbsolutePath) -> [String: SettingValue] {
         guard target.product.testsBundle else {
             return [:]
@@ -250,7 +250,7 @@ final class ConfigGenerator: ConfigGenerating {
     }
 
     private func watchTargetDerivedSettings(target: Target,
-                                            graph: Graphing,
+                                            graph: Graph,
                                             sourceRootPath: AbsolutePath) -> [String: SettingValue] {
         guard target.product == .watch2App else {
             return [:]

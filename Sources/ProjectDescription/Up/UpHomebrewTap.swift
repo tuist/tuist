@@ -30,7 +30,8 @@ class UpHomebrewTap: Up {
         try container.encode("homebrew-tap", forKey: .type)
     }
 
-    public static func == (lhs: UpHomebrewTap, rhs: UpHomebrewTap) -> Bool {
-        lhs.repositories == rhs.repositories
+    override func equals(_ other: Up) -> Bool {
+        guard let otherUpHomebrewTap = other as? UpHomebrewTap else { return false }
+        return repositories == otherUpHomebrewTap.repositories
     }
 }

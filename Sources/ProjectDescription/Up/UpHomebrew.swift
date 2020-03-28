@@ -30,7 +30,8 @@ class UpHomebrew: Up {
         try container.encode("homebrew", forKey: .type)
     }
 
-    public static func == (lhs: UpHomebrew, rhs: UpHomebrew) -> Bool {
-        lhs.packages == rhs.packages
+    override func equals(_ other: Up) -> Bool {
+        guard let otherUpHomebrew = other as? UpHomebrew else { return false }
+        return packages == otherUpHomebrew.packages
     }
 }

@@ -42,7 +42,20 @@ public class Up: Codable, Equatable {
         return UpCarthage(platforms: platforms)
     }
 
-    public static func == (_: Up, _: Up) -> Bool {
+    /// Returns an up that installs Mint packages specified in the Mintfile.
+    ///
+    /// - Parameters
+    ///     - linkPackagesGlobally: A Boolean value indicating whether installing the packages of the Mintfile globally.
+    /// - Returns: Up instance to install Mint packages.
+    public static func mint(linkPackagesGlobally: Bool = false) -> Up {
+        UpMint(linkPackagesGlobally: linkPackagesGlobally)
+    }
+
+    public static func == (lhs: Up, rhs: Up) -> Bool {
+        lhs.equals(rhs)
+    }
+
+    func equals(_: Up) -> Bool {
         fatalError("Subclasses should override this method")
     }
 }

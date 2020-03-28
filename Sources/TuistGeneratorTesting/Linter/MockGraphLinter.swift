@@ -9,7 +9,7 @@ public class MockGraphLinter: GraphLinting {
 
     public init() {}
 
-    public func lint(graph _: Graphing) -> [LintingIssue] {
+    public func lint(graph _: Graph) -> [LintingIssue] {
         lintStub ?? []
     }
 }

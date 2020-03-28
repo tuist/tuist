@@ -31,7 +31,7 @@ protocol ProjectGenerating: AnyObject {
     ///   - xcodeprojPath: Path to the Xcode project. When not given, the xcodeproj is generated at sourceRootPath.
     /// - Returns: Generated project descriptor
     func generate(project: Project,
-                  graph: Graphing,
+                  graph: Graph,
                   sourceRootPath: AbsolutePath?,
                   xcodeprojPath: AbsolutePath?) throws -> ProjectDescriptor
 }
@@ -74,7 +74,7 @@ final class ProjectGenerator: ProjectGenerating {
 
     // swiftlint:disable:next function_body_length
     func generate(project: Project,
-                  graph: Graphing,
+                  graph: Graph,
                   sourceRootPath: AbsolutePath? = nil,
                   xcodeprojPath: AbsolutePath? = nil) throws -> ProjectDescriptor {
         logger.notice("Generating project \(project.name)")
@@ -174,7 +174,7 @@ final class ProjectGenerator: ProjectGenerating {
                                  pbxProject: PBXProject,
                                  fileElements: ProjectFileElements,
                                  sourceRootPath: AbsolutePath,
-                                 graph: Graphing) throws -> [String: PBXNativeTarget] {
+                                 graph: Graph) throws -> [String: PBXNativeTarget] {
         var nativeTargets: [String: PBXNativeTarget] = [:]
         try project.targets.forEach { target in
             let nativeTarget = try targetGenerator.generateTarget(target: target,
@@ -258,7 +258,7 @@ final class ProjectGenerator: ProjectGenerating {
         pbxProject.packages = packageReferences.sorted { $0.key < $1.key }.map { $1 }
     }
 
-    private func determineProjectConstants(graph: Graphing) throws -> ProjectConstants {
+    private func determineProjectConstants(graph: Graph) throws -> ProjectConstants {
         if !graph.packages.isEmpty {
             return .xcode11
         } else {

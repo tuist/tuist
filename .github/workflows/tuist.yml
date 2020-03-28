@@ -20,10 +20,13 @@ jobs:
   unit_tests:
     name: Unit tests
     runs-on: macOS-latest
+    strategy:
+      matrix:
+        xcode: ["11.3.1", "11.4"]
     steps:
       - uses: actions/checkout@v1
-      - name: Select Xcode 11.2.1
-        run: sudo xcode-select -switch /Applications/Xcode_11.2.1.app
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_${{ matrix.xcode }}.app
       - name: Run tests
         run: |
           rm -rf .coverage
@@ -39,21 +42,28 @@ jobs:
   release_build:
     name: Release build
     runs-on: macOS-latest
+    strategy:
+      matrix:
+        xcode: ["11.3.1", "11.4"]
     steps:
       - uses: actions/checkout@v1
-      - name: Select Xcode 11.2.1
-        run: sudo xcode-select -switch /Applications/Xcode_11.2.1.app
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_${{ matrix.xcode }}.app
       - name: Build Tuist for release
         run: swift build -c release --product tuist
       - name: Build Tuistenv for release
         run: swift build -c release --product tuistenv
   acceptance_tests:
-    name: Features
+    name: Acceptance tests (${{ matrix.feature }})
     runs-on: macOS-latest
+    strategy:
+      matrix:
+        xcode: ["11.4"]
+        feature: ["generate-1", "generate-2", "generate-3", "generate-4", "generate-5", "init", "lint", "scaffold", "up"]
     steps:
       - uses: actions/checkout@v1
-      - name: Select Xcode 11.2.1
-        run: sudo xcode-select -switch /Applications/Xcode_11.2.1.app
+      - name: Select Xcode 11.4
+        run: sudo xcode-select -switch /Applications/Xcode_${{ matrix.xcode }}.app
       - uses: actions/setup-ruby@v1
         with:
           ruby-version: '2.x'
@@ -62,15 +72,15 @@ jobs:
       - name: Install Bundler dependencies
         run: bundle install
       - name: Run tests
-        run: bundle exec rake features
+        run: FEATURE=features/${{ matrix.feature }}.feature bundle exec rake features
   upload:
     if: github.ref == 'refs/heads/master'
     name: Upload
     runs-on: macOS-latest
     steps:
       - uses: actions/checkout@v1
-      - name: Select Xcode 11.2.1
-        run: sudo xcode-select -switch /Applications/Xcode_11.2.1.app
+      - name: Select Xcode 11.4
+        run: sudo xcode-select -switch /Applications/Xcode_11.4.app
       - uses: actions/setup-ruby@v1
         with:
           ruby-version: '2.x'

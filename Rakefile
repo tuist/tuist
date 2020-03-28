@@ -96,12 +96,20 @@ def package
     "-Xswiftc", ".build/release/ProjectDescription.swiftinterface"
   )
   system("swift", "build", "--product", "tuistenv", "--configuration", "release")
+  
+  build_templates_path = File.join(__dir__, ".build/release/Templates")
+  FileUtils.rm_rf(build_templates_path) if File.exist?(build_templates_path)
+  FileUtils.cp_r(File.expand_path("Templates", __dir__), build_templates_path)
+
+  File.delete("tuist.zip") if File.exist?("tuist.zip")
+  File.delete("tuistenv.zip") if File.exist?("tuistenv.zip")
 
   Dir.chdir(".build/release") do
     system(
       "zip", "-q", "-r", "--symlinks",
       "tuist.zip", "tuist",
-      "ProjectDescription.swiftmodule", "ProjectDescription.swiftdoc", "libProjectDescription.dylib", "ProjectDescription.swiftinterface"
+      "ProjectDescription.swiftmodule", "ProjectDescription.swiftdoc", "libProjectDescription.dylib", "ProjectDescription.swiftinterface",
+      "Templates"
     )
     system("zip", "-q", "-r", "--symlinks", "tuistenv.zip", "tuistenv")
   end

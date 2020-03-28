@@ -4,7 +4,7 @@ import TuistCore
 import TuistSupport
 
 public protocol GraphLinting: AnyObject {
-    func lint(graph: Graphing) -> [LintingIssue]
+    func lint(graph: Graph) -> [LintingIssue]
 }
 
 // swiftlint:disable type_body_length
@@ -31,9 +31,11 @@ public class GraphLinter: GraphLinting {
 
     // MARK: - GraphLinting
 
-    public func lint(graph: Graphing) -> [LintingIssue] {
+    public func lint(graph: Graph) -> [LintingIssue] {
         var issues: [LintingIssue] = []
-        issues.append(contentsOf: graph.projects.flatMap(projectLinter.lint))
+        issues.append(contentsOf: graph.projects.flatMap { project -> [LintingIssue] in
+            projectLinter.lint(project)
+        })
         issues.append(contentsOf: lintDependencies(graph: graph))
         issues.append(contentsOf: lintMismatchingConfigurations(graph: graph))
         issues.append(contentsOf: lintWatchBundleIndentifiers(graph: graph))
@@ -42,7 +44,7 @@ public class GraphLinter: GraphLinting {
 
     // MARK: - Fileprivate
 
-    func lintDependencies(graph: Graphing) -> [LintingIssue] {
+    func lintDependencies(graph: Graph) -> [LintingIssue] {
         var issues: [LintingIssue] = []
         var evaluatedNodes: [GraphNode] = []
         graph.entryNodes.forEach {
@@ -103,15 +105,15 @@ public class GraphLinter: GraphLinting {
         return issues
     }
 
-    private func lintMismatchingConfigurations(graph: Graphing) -> [LintingIssue] {
+    private func lintMismatchingConfigurations(graph: Graph) -> [LintingIssue] {
         let entryNodeProjects = graph.entryNodes.compactMap { $0 as? TargetNode }.map { $0.project }
 
         let knownConfigurations = entryNodeProjects.reduce(into: Set()) {
             $0.formUnion(Set($1.settings.configurations.keys))
         }
 
-        let projectBuildConfigurations = graph.projects.map {
-            (name: $0.name, buildConfigurations: Set($0.settings.configurations.keys))
+        let projectBuildConfigurations = graph.projects.compactMap { project -> (name: String, buildConfigurations: Set<BuildConfiguration>)? in
+            (name: project.name, buildConfigurations: Set(project.settings.configurations.keys))
         }
 
         let mismatchingBuildConfigurations = projectBuildConfigurations.filter {
@@ -131,7 +133,7 @@ public class GraphLinter: GraphLinting {
     ///
     /// - Parameter graph: Project graph.
     /// - Returns: Linting issues.
-    private func lintPackageDependencies(graph: Graphing) -> [LintingIssue] {
+    private func lintPackageDependencies(graph: Graph) -> [LintingIssue] {
         let containsPackageDependency = graph.packages.count > 0
 
         guard containsPackageDependency else { return [] }
@@ -155,7 +157,7 @@ public class GraphLinter: GraphLinting {
     ///
     /// - Parameter graph: Project graph.
     /// - Returns: Linting issues.
-    private func lintCocoaPodsDependencies(graph: Graphing) -> [LintingIssue] {
+    private func lintCocoaPodsDependencies(graph: Graph) -> [LintingIssue] {
         graph.cocoapods.compactMap { node in
             let podfilePath = node.podfilePath
             if !FileHandler.shared.exists(podfilePath) {
@@ -165,7 +167,7 @@ public class GraphLinter: GraphLinting {
         }
     }
 
-    private func lintCarthageDependencies(graph: Graphing) -> [LintingIssue] {
+    private func lintCarthageDependencies(graph: Graph) -> [LintingIssue] {
         let frameworks = graph.frameworks
         let carthageFrameworks = frameworks.filter { $0.isCarthage }
         let nonCarthageFrameworks = frameworks.filter { !$0.isCarthage }
@@ -184,10 +186,15 @@ public class GraphLinter: GraphLinting {
         return issues
     }
 
-    private func lintWatchBundleIndentifiers(graph: Graphing) -> [LintingIssue] {
+    private func lintWatchBundleIndentifiers(graph: Graph) -> [LintingIssue] {
         let apps = graph
-            .targets
-            .filter { $0.target.product == .app }
+            .targets.values
+            .flatMap { targets -> [TargetNode] in
+                targets.compactMap { target in
+                    if target.target.product == .app { return target }
+                    return nil
+                }
+            }
 
         let issues = apps.flatMap { app -> [LintingIssue] in
             let watchApps = watchAppsFor(targetNode: app, graph: graph)
@@ -226,13 +233,13 @@ public class GraphLinter: GraphLinting {
         return []
     }
 
-    private func watchAppsFor(targetNode: TargetNode, graph: Graphing) -> [TargetNode] {
+    private func watchAppsFor(targetNode: TargetNode, graph: Graph) -> [TargetNode] {
         graph.targetDependencies(path: targetNode.path,
                                  name: targetNode.name)
             .filter { $0.target.product == .watch2App }
     }
 
-    private func watchExtensionsFor(targetNode: TargetNode, graph: Graphing) -> [TargetNode] {
+    private func watchExtensionsFor(targetNode: TargetNode, graph: Graph) -> [TargetNode] {
         graph.targetDependencies(path: targetNode.path,
                                  name: targetNode.name)
             .filter { $0.target.product == .watch2Extension }

@@ -35,15 +35,14 @@ final class ProjectGeneratorTests: TuistUnitTestCase {
                                    name: "Project",
                                    targets: [app, test])
 
-        let cache = GraphLoaderCache()
-        cache.add(project: project)
+        let testTargetNode = TargetNode(project: project,
+                                        target: test,
+                                        dependencies: [TargetNode(project: project, target: app, dependencies: [])])
+        let appNode = TargetNode(project: project, target: app, dependencies: [])
+
         let graph = Graph.test(entryPath: temporaryPath,
-                               cache: cache,
-                               entryNodes: [TargetNode(project: project,
-                                                       target: test,
-                                                       dependencies: [
-                                                           TargetNode(project: project, target: app, dependencies: []),
-                                                       ])])
+                               entryNodes: [testTargetNode, appNode],
+                               targets: [project.path: [testTargetNode, appNode]])
 
         // When
         let generatedProject = try subject.generate(project: project, graph: graph)
@@ -93,15 +92,14 @@ final class ProjectGeneratorTests: TuistUnitTestCase {
                                    packages: [.remote(url: "A", requirement: .exact("0.1"))])
 
         let target = Target.test()
-        let cache = GraphLoaderCache()
-        cache.add(project: project)
         let packageNode = PackageNode(package: .remote(url: "A", requirement: .exact("0.1")),
                                       path: temporaryPath)
         let graph = Graph.test(entryPath: temporaryPath,
-                               cache: cache,
                                entryNodes: [TargetNode(project: project,
                                                        target: target,
-                                                       dependencies: [packageNode])])
+                                                       dependencies: [packageNode])],
+                               projects: [project],
+                               packages: [packageNode])
 
         // When
         let got = try subject.generate(project: project, graph: graph)
