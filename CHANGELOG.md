@@ -4,6 +4,9 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Added
+- Add possibility to skip generation of default schemes https://github.com/tuist/tuist/pull/1130 by @olejnjak
+
 ## 1.5.2
 
 ### Fixed
@@ -46,7 +49,6 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Optimize `TargetNode`'s set operations https://github.com/tuist/tuist/pull/1095 by @kwridan
 - Optimize `BuildPhaseGenerator`'s method of detecting assets and localized files https://github.com/tuist/tuist/pull/1094 by @kwridan
 - Concurrent project generation https://github.com/tuist/tuist/pull/1096 by @kwridan
-- Add possibility to skip generation of default schemes https://github.com/tuist/tuist/pull/1130 by @olejnjak
 
 ## 1.4.0
 
