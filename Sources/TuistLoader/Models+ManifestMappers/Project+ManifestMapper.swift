@@ -70,7 +70,7 @@ extension TuistCore.Project {
                 autogenerateSchemes: autogenerateSchemes,
                 additionalFiles: additionalFiles)
     }
-    
+
     func replacing(autogenerateSchemes: Bool) -> TuistCore.Project {
         Project(path: path,
                 name: name,
