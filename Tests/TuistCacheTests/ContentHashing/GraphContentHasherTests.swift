@@ -3,9 +3,11 @@ import TSCBasic
 import TuistCore
 import TuistCoreTesting
 import XCTest
-@testable import TuistCache
 
-final class GraphContentHasherTests: XCTestCase {
+@testable import TuistCache
+@testable import TuistSupportTesting
+
+final class GraphContentHasherTests: TuistUnitTestCase {
     private var sut: GraphContentHasher!
 
     override func setUp() {

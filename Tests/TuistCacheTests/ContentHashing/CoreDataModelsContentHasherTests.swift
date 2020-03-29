@@ -6,9 +6,10 @@ import XCTest
 import TuistSupport
 import TuistCacheTesting
 @testable import TuistCache
+@testable import TuistSupportTesting
 
 
-final class CoreDataModelsContentHasherTests: XCTestCase {
+final class CoreDataModelsContentHasherTests: TuistUnitTestCase {
     private var sut: CoreDataModelsContentHasher!
     private var coreDataModel: CoreDataModel!
     private var temporaryDirectory: TemporaryDirectory!
