@@ -30,7 +30,7 @@ Scenario: The project is an iOS application with Carthage frameworks (ios_app_wi
     And I have a working directory
     Then I copy the fixture ios_app_with_carthage_frameworks into the working directory
     Then tuist generates the project
-    Then I should be able to build for iOS the scheme App
+    Then I should be able to build for iOS the scheme AllTargets
     Then the product 'App.app' with destination 'Debug-iphoneos' contains the framework 'RxSwift' without architecture 'armv7'
     Then the product 'App.app' with destination 'Debug-iphoneos' contains the framework 'RxSwift' with architecture 'arm64'
     Then the product 'App.app' with destination 'Debug-iphoneos' does not contain headers
