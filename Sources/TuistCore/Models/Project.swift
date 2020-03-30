@@ -11,6 +11,7 @@ public class Project: Equatable, CustomStringConvertible {
             lhs.targets == rhs.targets &&
             lhs.packages == rhs.packages &&
             lhs.schemes == rhs.schemes &&
+            lhs.autogenerateSchemes == rhs.autogenerateSchemes &&
             lhs.settings == rhs.settings &&
             lhs.filesGroup == rhs.filesGroup &&
             lhs.additionalFiles == rhs.additionalFiles
@@ -38,6 +39,9 @@ public class Project: Equatable, CustomStringConvertible {
 
     /// Project schemes
     public let schemes: [Scheme]
+
+    /// Auto generate default schemes
+    public let autogenerateSchemes: Bool
 
     /// Project settings.
     public let settings: Settings
@@ -70,6 +74,7 @@ public class Project: Equatable, CustomStringConvertible {
                 targets: [Target] = [],
                 packages: [Package] = [],
                 schemes: [Scheme] = [],
+                autogenerateSchemes: Bool = true,
                 additionalFiles: [FileElement] = []) {
         self.path = path
         self.name = name
@@ -78,6 +83,7 @@ public class Project: Equatable, CustomStringConvertible {
         self.targets = targets
         self.packages = packages
         self.schemes = schemes
+        self.autogenerateSchemes = autogenerateSchemes
         self.settings = settings
         self.filesGroup = filesGroup
         self.additionalFiles = additionalFiles
@@ -129,8 +135,16 @@ public class Project: Equatable, CustomStringConvertible {
     /// Returns a copy of the project with the given targets set.
     /// - Parameter targets: Targets to be set to the copy.
     public func with(targets: [Target]) -> Project {
-        var copy = self
-        copy.targets = targets
-        return copy
+        Project(path: path,
+                name: name,
+                organizationName: organizationName,
+                fileName: fileName,
+                settings: settings,
+                filesGroup: filesGroup,
+                targets: targets,
+                packages: packages,
+                schemes: schemes,
+                autogenerateSchemes: autogenerateSchemes,
+                additionalFiles: additionalFiles)
     }
 }
