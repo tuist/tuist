@@ -1,13 +1,21 @@
 import Foundation
 import TuistCore
 
-public final class CoreDataModelsContentHasher {
+public protocol CoreDataModelsContentHashing {
+    func hash(coreDataModels: [CoreDataModel]) throws -> String
+}
+
+public final class CoreDataModelsContentHasher: CoreDataModelsContentHashing {
     private let contentHasher: ContentHashing
+
+    // MARK: - Init
 
     public init(contentHasher: ContentHashing = ContentHasher()) {
         self.contentHasher = contentHasher
     }
 
+    // MARK: - CoreDataModelsContentHashing
+    
     public func hash(coreDataModels: [CoreDataModel]) throws -> String {
         var stringsToHash: [String] = []
         for cdModel in coreDataModels {

@@ -58,7 +58,6 @@ final class SourceFilesContentHasherTests: TuistUnitTestCase {
         XCTAssertEqual(mockContentHasher.hashStringsSpy, ["file1-content-hash-compilerflag", "file2-content-hash-compilerflag"])
     }
 
-
     func test_hash_filesAreSortedByPath() throws {
         mockContentHasher.stubHashForPath[sourceFile1Path] = "file1-content-hash"
         mockContentHasher.stubHashForPath[sourceFile2Path] = "file2-content-hash"

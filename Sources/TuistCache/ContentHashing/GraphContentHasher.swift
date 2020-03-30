@@ -2,24 +2,37 @@ import Checksum
 import Foundation
 import TuistCore
 import TuistSupport
+import Basic
 
 public protocol GraphContentHashing {
     func contentHashes(for graph: Graphing) throws -> [TargetNode: String]
 }
 
 public final class GraphContentHasher: GraphContentHashing {
-    private let fileHandler: FileHandling
+    private let contentHasher: ContentHashing
+    private let coreDataModelsContentHasher: CoreDataModelsContentHashing
+    private let sourceFilesContentHasher: SourceFilesContentHashing
 
-    public init(fileHandler: FileHandling = FileHandler.shared) {
-        self.fileHandler = fileHandler
+    // MARK: - Init
+
+    public init(
+        contentHasher: ContentHashing = ContentHasher(),
+        sourceFilesContentHasher: SourceFilesContentHashing = SourceFilesContentHasher(),
+        coreDataModelsContentHasher: CoreDataModelsContentHashing = CoreDataModelsContentHasher()
+    ) {
+        self.contentHasher = contentHasher
+        self.sourceFilesContentHasher = sourceFilesContentHasher
+        self.coreDataModelsContentHasher = coreDataModelsContentHasher
     }
+
+    // MARK: - GraphContentHashing
 
     public func contentHashes(for graph: Graph) throws -> [TargetNode: String] {
         var visitedNodes: [TargetNode: Bool] = [:]
 
         let hashableTargets = graph.targets.values.flatMap { (targets: [TargetNode]) -> [TargetNode] in
-            targets.compactMap { target in
-                if self.isCacheable(target, visited: &visitedNodes) { return target }
+        targets.compactMap { target in
+            if self.isCacheable(target, visited: &visitedNodes) { return target }
                 return nil
             }
         }
@@ -43,7 +56,7 @@ public final class GraphContentHasher: GraphContentHashing {
 
     private func hash(targetNode: TargetNode) throws -> String {
         let target = targetNode.target
-        let sourcesHash = try hash(sources: target.sources)
+        let sourcesHash = try sourceFilesContentHasher.hash(sources: target.sources)
         let resourcesHash = try hash(resources: target.resources)
         let coreDataModelHash = try coreDataModelsContentHasher.hash(coreDataModels: target.coreDataModels)
         let targetActionsHash = try hash(targetActions: target.actions)
@@ -68,20 +81,6 @@ public final class GraphContentHasher: GraphContentHashing {
             try contentHasher.hash(path)
         }
         return try contentHasher.hash(hashes)
-    }
-
-    private func hash(sources: [Target.SourceFile]) throws -> String {
-        let sortedSources = sources.sorted(by: { $0.path < $1.path })
-        var stringsToHash: [String] = []
-        for source in sortedSources {
-            let contentHash = try contentHasher.hash(source.path)
-            var sourceHash = contentHash
-            if let compilerFlags = source.compilerFlags {
-                sourceHash += String(compilerFlags.hashValue)
-            }
-            stringsToHash.append(sourceHash)
-        }
-        return try contentHasher.hash(stringsToHash)
     }
 
     private func hash(resources: [FileElement]) throws -> String {
