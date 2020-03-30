@@ -38,8 +38,7 @@ final class WorkspaceGeneratorIntegrationTests: TuistTestCase {
                                          (project: project, target: target, dependencies: [])
                                      }
         })
-        let workspace = Workspace.test(path: temporaryPath,
-                                       projects: projects.map(\.path))
+        let workspace = Workspace.test(path: temporaryPath, projects: projects.map(\.path))
 
         // When / Then
         try (0 ..< 50).forEach { _ in

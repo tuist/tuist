@@ -60,10 +60,10 @@ import Foundation
 
 """
 
-let tuistConfigContent = """
+let configContent = """
 import ProjectDescription
 
-let config = TuistConfig(generationOptions: [
+let config = Config(generationOptions: [
 ])
 """
 
@@ -102,9 +102,13 @@ let template = Template(
                 contents: playgroundContent),
         .file(path: supportFrameworkPath + "/Playgrounds/\(nameAttribute)Support.playground" + "/contents.xcplayground",
               templatePath: "Playground.stencil"),
-        .string(path: "TuistConfig.swift",
-                contents: tuistConfigContent),
+        .string(path: "Tuist/Config.swift",
+                contents: configContent),
         .file(path: ".gitignore",
               templatePath: "Gitignore.stencil"),
+        .file(path: "Tuist/Templates/framework/Template.swift",
+              templatePath: "ExampleTemplate.stencil"),
+        .file(path: "Tuist/Templates/framework/project.stencil",
+              templatePath: "ExampleProject"),
     ]
 )

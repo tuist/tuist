@@ -190,12 +190,12 @@ class ProjectFileElements {
 
         try sortedDependencies.forEach { dependency in
             switch dependency {
-            case let .xcframework(metadata):
-                try generatePrecompiled(metadata.path)
-            case let .framework(metadata):
-                try generatePrecompiled(metadata.path)
-            case let .library(metadata):
-                try generatePrecompiled(metadata.path)
+            case let .xcframework(path, _, _, _):
+                try generatePrecompiled(path)
+            case let .framework(path, _, _, _, _, _, _, _):
+                try generatePrecompiled(path)
+            case let .library(path, _, _, _, _):
+                try generatePrecompiled(path)
             case let .sdk(sdkNodePath, _):
                 generateSDKFileElement(sdkNodePath: sdkNodePath,
                                        toGroup: groups.frameworks,

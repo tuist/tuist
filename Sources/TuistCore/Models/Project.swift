@@ -2,7 +2,21 @@ import Basic
 import Foundation
 import TuistSupport
 
-public struct Project: Equatable, CustomStringConvertible {
+public class Project: Equatable, CustomStringConvertible {
+    public static func == (lhs: Project, rhs: Project) -> Bool {
+        lhs.path == rhs.path &&
+            lhs.name == rhs.name &&
+            lhs.organizationName == rhs.organizationName &&
+            lhs.fileName == rhs.fileName &&
+            lhs.targets == rhs.targets &&
+            lhs.packages == rhs.packages &&
+            lhs.schemes == rhs.schemes &&
+            lhs.autogenerateSchemes == rhs.autogenerateSchemes &&
+            lhs.settings == rhs.settings &&
+            lhs.filesGroup == rhs.filesGroup &&
+            lhs.additionalFiles == rhs.additionalFiles
+    }
+
     // MARK: - Attributes
 
     /// Path to the folder that contains the project manifest.
@@ -25,6 +39,9 @@ public struct Project: Equatable, CustomStringConvertible {
 
     /// Project schemes
     public let schemes: [Scheme]
+
+    /// Auto generate default schemes
+    public let autogenerateSchemes: Bool
 
     /// Project settings.
     public let settings: Settings
@@ -57,6 +74,7 @@ public struct Project: Equatable, CustomStringConvertible {
                 targets: [Target] = [],
                 packages: [Package] = [],
                 schemes: [Scheme] = [],
+                autogenerateSchemes: Bool = true,
                 additionalFiles: [FileElement] = []) {
         self.path = path
         self.name = name
@@ -65,6 +83,7 @@ public struct Project: Equatable, CustomStringConvertible {
         self.targets = targets
         self.packages = packages
         self.schemes = schemes
+        self.autogenerateSchemes = autogenerateSchemes
         self.settings = settings
         self.filesGroup = filesGroup
         self.additionalFiles = additionalFiles
@@ -116,8 +135,16 @@ public struct Project: Equatable, CustomStringConvertible {
     /// Returns a copy of the project with the given targets set.
     /// - Parameter targets: Targets to be set to the copy.
     public func with(targets: [Target]) -> Project {
-        var copy = self
-        copy.targets = targets
-        return copy
+        Project(path: path,
+                name: name,
+                organizationName: organizationName,
+                fileName: fileName,
+                settings: settings,
+                filesGroup: filesGroup,
+                targets: targets,
+                packages: packages,
+                schemes: schemes,
+                autogenerateSchemes: autogenerateSchemes,
+                additionalFiles: additionalFiles)
     }
 }

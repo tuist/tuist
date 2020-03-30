@@ -73,8 +73,13 @@ public final class TemplateGenerator: TemplateGenerating {
                                                                   context: attributes)
             case let .file(path):
                 let fileContents = try FileHandler.shared.readTextFile(path)
-                renderedContents = try environment.renderTemplate(string: fileContents,
-                                                                  context: attributes)
+                // Render only files with .stencil extension
+                if path.extension == "stencil" {
+                    renderedContents = try environment.renderTemplate(string: fileContents,
+                                                                      context: attributes)
+                } else {
+                    renderedContents = fileContents
+                }
             }
 
             try FileHandler.shared.write(renderedContents,

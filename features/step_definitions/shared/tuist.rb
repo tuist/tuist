@@ -4,10 +4,16 @@ Given(/tuist is available/) do
   system("swift", "build")
 end
 
-Then(/tuist generates the project/) do
+Then(/^tuist generates the project$/) do
   system("swift", "run", "tuist", "generate", "--path", @dir)
   @workspace_path = Dir.glob(File.join(@dir, "*.xcworkspace")).first
   @xcodeproj_path = Dir.glob(File.join(@dir, "*.xcodeproj")).first
+end
+
+Then(/^tuist generates the project at (.+)$/) do |path|
+  system("swift", "run", "tuist", "generate", "--path", File.join(@dir, path))
+  @workspace_path = Dir.glob(File.join(@dir, path, "*.xcworkspace")).first
+  @xcodeproj_path = Dir.glob(File.join(@dir, path, "*.xcodeproj")).first
 end
 
 Then(/tuist lints the project and fails/) do

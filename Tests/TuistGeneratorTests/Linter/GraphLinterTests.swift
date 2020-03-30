@@ -24,8 +24,6 @@ final class GraphLinterTests: TuistUnitTestCase {
 
     func test_lint_when_carthage_frameworks_are_missing() throws {
         let temporaryPath = try self.temporaryPath()
-        let cache = GraphLoaderCache()
-        let graph = Graph.test(cache: cache)
 
         let frameworkAPath = temporaryPath.appending(RelativePath("Carthage/Build/iOS/A.framework"))
         let frameworkBPath = temporaryPath.appending(RelativePath("Carthage/Build/iOS/B.framework"))
@@ -35,8 +33,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         let frameworkA = FrameworkNode.test(path: frameworkAPath)
         let frameworkB = FrameworkNode.test(path: frameworkBPath)
 
-        cache.add(precompiledNode: frameworkA)
-        cache.add(precompiledNode: frameworkB)
+        let graph = Graph.test(precompiled: [frameworkA, frameworkB])
 
         let result = subject.lint(graph: graph)
 
@@ -46,10 +43,8 @@ final class GraphLinterTests: TuistUnitTestCase {
     func test_lint_when_podfiles_are_missing() throws {
         // Given
         let temporaryPath = try self.temporaryPath()
-        let cache = GraphLoaderCache()
-        let graph = Graph.test(cache: cache)
         let cocoapods = CocoaPodsNode(path: temporaryPath)
-        cache.add(cocoapods: cocoapods)
+        let graph = Graph.test(cocoapods: [cocoapods])
         let podfilePath = temporaryPath.appending(component: "Podfile")
 
         // When
@@ -61,13 +56,9 @@ final class GraphLinterTests: TuistUnitTestCase {
 
     func test_lint_when_packages_and_xcode_10() throws {
         // Given
-        let cache = GraphLoaderCache()
-
-        cache.add(project: .test(packages: [
-            .remote(url: "remote", requirement: .branch("master")),
-        ]))
-
-        let graph = Graph.test(cache: cache)
+        let package = Package.remote(url: "remote", requirement: .branch("master"))
+        let project = Project.test(packages: [package])
+        let graph = Graph.test(projects: [project], packages: [PackageNode(package: package, path: project.path)])
         let versionStub = Version(10, 0, 0)
         xcodeController.selectedVersionStub = .success(versionStub)
 
@@ -81,13 +72,11 @@ final class GraphLinterTests: TuistUnitTestCase {
 
     func test_lint_when_packages_and_xcode_11() throws {
         // Given
-        let cache = GraphLoaderCache()
-
-        cache.add(project: .test(packages: [
+        let project = Project.test(packages: [
             .remote(url: "remote", requirement: .branch("master")),
-        ]))
+        ])
 
-        let graph = Graph.test(cache: cache)
+        let graph = Graph.test(projects: [project])
         let versionStub = Version(11, 0, 0)
         xcodeController.selectedVersionStub = .success(versionStub)
 
@@ -102,13 +91,9 @@ final class GraphLinterTests: TuistUnitTestCase {
 
     func test_lint_when_no_version_available() throws {
         // Given
-        let cache = GraphLoaderCache()
-
-        cache.add(project: .test(packages: [
-            .remote(url: "remote", requirement: .branch("master")),
-        ]))
-
-        let graph = Graph.test(cache: cache)
+        let package = Package.remote(url: "remote", requirement: .branch("master"))
+        let project = Project.test(packages: [package])
+        let graph = Graph.test(projects: [project], packages: [PackageNode(package: package, path: project.path)])
 
         let error = NSError.test()
         xcodeController.selectedVersionStub = .failure(error)
@@ -122,8 +107,6 @@ final class GraphLinterTests: TuistUnitTestCase {
 
     func test_lint_when_frameworks_are_missing() throws {
         let temporaryPath = try self.temporaryPath()
-        let cache = GraphLoaderCache()
-        let graph = Graph.test(cache: cache)
 
         let frameworkAPath = temporaryPath.appending(component: "A.framework")
         let frameworkBPath = temporaryPath.appending(component: "B.framework")
@@ -133,8 +116,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         let frameworkA = FrameworkNode.test(path: frameworkAPath)
         let frameworkB = FrameworkNode.test(path: frameworkBPath)
 
-        cache.add(precompiledNode: frameworkA)
-        cache.add(precompiledNode: frameworkB)
+        let graph = Graph.test(precompiled: [frameworkA, frameworkB])
 
         let result = subject.lint(graph: graph)
 

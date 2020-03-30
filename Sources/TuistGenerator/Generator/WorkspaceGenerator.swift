@@ -84,7 +84,7 @@ final class WorkspaceGenerator: WorkspaceGenerating {
         logger.notice("Generating workspace \(workspaceName)", metadata: .section)
 
         /// Projects
-        let projects = try graph.projects.map(context: config.projectGenerationContext) { project in
+        let projects = try Array(graph.projects).compactMap(context: config.projectGenerationContext) { project -> ProjectDescriptor? in
             try projectGenerator.generate(project: project,
                                           graph: graph,
                                           sourceRootPath: project.path,

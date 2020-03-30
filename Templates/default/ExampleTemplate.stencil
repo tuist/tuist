@@ -1,0 +1,17 @@
+import ProjectDescription
+let nameAttribute: Template.Attribute = .required("name")
+
+let exampleContents = """
+struct \(nameAttribute) { }
+"""
+let template = Template(
+    description: "Framework template",
+    attributes: [
+        nameAttribute,
+        .optional("platform", default: "iOS")
+    ],
+    files: [
+        .string(path: "\(nameAttribute)/Sources/\(nameAttribute).swift", contents: exampleContents),
+        .file(path: "\(nameAttribute)/Project.swift", templatePath: "project.stencil"),
+    ]
+)
