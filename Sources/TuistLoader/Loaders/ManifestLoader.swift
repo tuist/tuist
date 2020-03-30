@@ -187,23 +187,14 @@ public class ManifestLoader: ManifestLoading {
         arguments.append(path.pathString)
         arguments.append("--tuist-dump")
 
-        let result = try System.shared.observable(arguments)
-            .do(onNext: { event in
-                switch event {
-                case let .standardError(data):
-                    if let string = String(data: data, encoding: .utf8) {
-                        logger.error("\(string)")
-                    }
-                default:
-                    break
-                }
-            })
-            .toBlocking()
-            .first()
+        let result = System.shared.observable(arguments).toBlocking().materialize()
 
-        if let result = result, case let SystemEvent.standardOutput(output) = result {
-            return output
+        switch result {
+        case let .completed(elements):
+            if let output = elements.first(where: { $0.isStandardOutput }) { return output.value }
+            throw ManifestLoaderError.unexpectedOutput(path)
+        case let .failed(_, error):
+            throw error
         }
-        throw ManifestLoaderError.unexpectedOutput(path)
     }
 }

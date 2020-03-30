@@ -17,6 +17,22 @@ public enum SystemEvent<T> {
         case let .standardOutput(value): return value
         }
     }
+
+    /// Returns true if the event is a standard output event.
+    public var isStandardOutput: Bool {
+        switch self {
+        case .standardError: return false
+        case .standardOutput: return true
+        }
+    }
+
+    /// Returns true if the event is a standard output event.
+    public var isStandardError: Bool {
+        switch self {
+        case .standardError: return true
+        case .standardOutput: return false
+        }
+    }
 }
 
 extension SystemEvent: Equatable where T: Equatable {
