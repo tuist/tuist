@@ -9,7 +9,7 @@ class SigningCommand: NSObject, Command {
     // MARK: - Attributes
 
     static let command = "signing"
-    static let overview = "Signing command"
+    static let overview = "A set of commands for signing-related operations. "
     let subcommands: [Command]
 
     private let argumentParser: ArgumentParser
