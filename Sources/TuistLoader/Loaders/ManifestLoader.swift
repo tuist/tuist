@@ -191,8 +191,7 @@ public class ManifestLoader: ManifestLoading {
 
         switch result {
         case let .completed(elements):
-            if let output = elements.first(where: { $0.isStandardOutput }) { return output.value }
-            throw ManifestLoaderError.unexpectedOutput(path)
+            return elements.filter({ $0.isStandardOutput }).map({ $0.value }).reduce(into: Data(), { $0.append($1) })
         case let .failed(_, error):
             throw error
         }
