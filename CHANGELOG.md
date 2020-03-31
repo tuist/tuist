@@ -5,12 +5,15 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ## Next
 
 ### Added
+
 - `Derived` to `.gitignore` when running `tuist init` https://github.com/tuist/tuist/pull/1171 by @fortmarek
 
 ### Fixed
+
 - Prevent `Multiple commands produce XXXXX` error produced by multiple test targets using “Embed Precompiled Frameworks” script https://github.com/tuist/tuist/pull/1118 by @paulsamuels
 - Add possibility to skip generation of default schemes https://github.com/tuist/tuist/pull/1130 by @olejnjak
 - Errors during the manifest parsing are not printed https://github.com/tuist/tuist/pull/1125 by @pepibumur.
+- Warnings because test files are missing in the project scaffolded using the default `framework` template https://github.com/tuist/tuist/pull/1172 by @pepibumur.
 
 ## 1.5.2
 
