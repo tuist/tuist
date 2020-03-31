@@ -1,6 +1,5 @@
 ---
 name: Performance
-order: 12
 excerpt: This page describes the project's performance testing strategy.
 ---
 
@@ -11,7 +10,7 @@ To test out generation speeds and to provide some utilities to aid profiling Tui
 - `fixturegen`: A tool to generate large fixtures
 - `tuistbench`: A tool to benchmark Tuist
 
-Those tools are located within the [`tools/`](https://github.com/tuist/tuist/blob/master/tools) directory. 
+Those tools are located within the [`tools/`](https://github.com/tuist/tuist/blob/master/tools) directory.
 
 ## Fixture Generator (`fixturegen`)
 
@@ -55,7 +54,7 @@ Runs          : 5
 Result
     - cold : 0.72s
     - warm : 0.74s
-    
+
 ```
 
 Markdown format:
@@ -68,10 +67,8 @@ swift run tuistbench \
 ```
 
 | Fixture            | Cold  | Warm  |
-| ------------------ | ------| ----- |
+| ------------------ | ----- | ----- |
 | ios_app_with_tests | 0.72s | 0.72s |
-
-
 
 **Benchmark (single fixture):**
 
@@ -90,7 +87,6 @@ Result
     - warm : 0.75s  vs  0.79s (⬇︎ 0.04s 5.63%)
 ```
 
-
 Markdown format:
 
 ```sh
@@ -101,11 +97,10 @@ swift run tuistbench \
      --format markdown
 ```
 
-| Fixture         | New    | Old  | Delta    |
-| --------------- | ------ | ---- | -------- |
-| ios_app_with_tests _(cold)_ | 0.73s | 0.79s | ⬇︎ 7.92% |
-| ios_app_with_tests _(warm)_ | 0.79s | 0.79s | ≈ |
-
+| Fixture                      | New   | Old   | Delta    |
+| ---------------------------- | ----- | ----- | -------- |
+| ios*app_with_tests *(cold)\_ | 0.73s | 0.79s | ⬇︎ 7.92% |
+| ios*app_with_tests *(warm)\_ | 0.79s | 0.79s | ≈        |
 
 **Benchmark (multiple fixtures):**
 
@@ -113,11 +108,11 @@ A fixture list `json` file is needed to specify multiple fixtures, here's an exa
 
 ```json
 {
-    "paths": [
-        "/path/to/fixtures/ios_app_with_tests",
-        "/path/to/fixtures/ios_app_with_carthage_frameworks",
-        "/path/to/fixtures/ios_app_with_helpers"
-    ]
+  "paths": [
+    "/path/to/fixtures/ios_app_with_tests",
+    "/path/to/fixtures/ios_app_with_carthage_frameworks",
+    "/path/to/fixtures/ios_app_with_helpers"
+  ]
 }
 ```
 
@@ -161,12 +156,11 @@ swift run tuistbench \
      --format markdown
 ```
 
-
-| Fixture         | New    | Old  | Delta    |
-| --------------- | ------ | ---- | -------- |
-| ios_app_with_tests _(cold)_ | 0.73s | 0.79s   | ⬇︎ 7.92% |
-| ios_app_with_tests _(warm)_ | 0.79s | 0.79s | ≈ |
-| ios_app_with_carthage_frameworks _(cold)_ | 0.79s | 0.85s   | ⬇︎ 7.36% |
-| ios_app_with_carthage_frameworks _(warm)_ | 0.77s | 0.81s | ⬇︎ 5.26% |
-| ios_app_with_helpers _(cold)_ | 2.29s | 2.43s | ⬇︎ 5.80% |
-| ios_app_with_helpers _(warm)_ | 1.97s | 2.15s | ⬇︎ 8.05% |
+| Fixture                                    | New   | Old   | Delta    |
+| ------------------------------------------ | ----- | ----- | -------- |
+| ios*app_with_tests *(cold)\_               | 0.73s | 0.79s | ⬇︎ 7.92% |
+| ios*app_with_tests *(warm)\_               | 0.79s | 0.79s | ≈        |
+| ios*app_with_carthage_frameworks *(cold)\_ | 0.79s | 0.85s | ⬇︎ 7.36% |
+| ios*app_with_carthage_frameworks *(warm)\_ | 0.77s | 0.81s | ⬇︎ 5.26% |
+| ios*app_with_helpers *(cold)\_             | 2.29s | 2.43s | ⬇︎ 5.80% |
+| ios*app_with_helpers *(warm)\_             | 1.97s | 2.15s | ⬇︎ 8.05% |
