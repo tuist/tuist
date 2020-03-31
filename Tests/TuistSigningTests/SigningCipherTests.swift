@@ -27,7 +27,7 @@ final class SigningCipherTests: TuistUnitTestCase {
         let temporaryPath = try self.temporaryPath()
         rootDirectoryLocator.locateStub = temporaryPath
         try FileHandler.shared.createFolder(temporaryPath.appending(component: Constants.tuistDirectoryName))
-        let masterKeyPath = temporaryPath.appending(component: Constants.masterKey)
+        let masterKeyPath = temporaryPath.appending(components: Constants.tuistDirectoryName, Constants.masterKey)
         rootDirectoryLocator.locateStub = temporaryPath
         // Then
         XCTAssertThrowsSpecific(try subject.encryptSigning(at: temporaryPath),
@@ -40,7 +40,9 @@ final class SigningCipherTests: TuistUnitTestCase {
         rootDirectoryLocator.locateStub = temporaryPath
         let signingDirectory = temporaryPath.appending(components: Constants.tuistDirectoryName, Constants.signingDirectoryName)
         try FileHandler.shared.createFolder(signingDirectory)
-        try FileHandler.shared.write("my-password", path: temporaryPath.appending(component: Constants.masterKey), atomically: true)
+        try FileHandler.shared.write("my-password",
+                                     path: temporaryPath.appending(components: Constants.tuistDirectoryName, Constants.masterKey),
+                                     atomically: true)
         let certContent = "my-certificate"
         let profileContent = "my-profile"
         let certFile = signingDirectory.appending(component: "CertFile.txt")
@@ -65,7 +67,7 @@ final class SigningCipherTests: TuistUnitTestCase {
         rootDirectoryLocator.locateStub = temporaryPath
         try FileHandler.shared.createFolder(signingDirectory)
         try FileHandler.shared.write("my-password",
-                                     path: temporaryPath.appending(component: Constants.masterKey),
+                                     path: temporaryPath.appending(components: Constants.tuistDirectoryName, Constants.masterKey),
                                      atomically: true)
         let certContent = "my-certificate"
         let profileContent = "my-profile"

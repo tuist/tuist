@@ -122,7 +122,7 @@ public final class SigningCipher: SigningCiphering {
 
     /// - Returns: Master key data
     private func masterKey(from rootDirectory: AbsolutePath) throws -> Data {
-        let masterKeyFile = rootDirectory.appending(component: Constants.masterKey)
+        let masterKeyFile = rootDirectory.appending(components: Constants.tuistDirectoryName, Constants.masterKey)
         guard FileHandler.shared.exists(masterKeyFile) else { throw SigningCipherError.masterKeyNotFound(masterKeyFile) }
         let plainMasterKey = try FileHandler.shared.readFile(masterKeyFile)
         return plainMasterKey.sha256()
