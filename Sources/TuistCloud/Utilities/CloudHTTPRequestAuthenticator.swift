@@ -4,14 +4,14 @@ import TuistSupport
 /// Protocol that defines the interface to map HTTP requests and include authentication information.
 /// Depending on th environment where Tuist is running (local or CI), it returns the token from the credentials store (i.e. Keychain)
 /// or a environment variable.
-protocol CloudHTTPRequestAuthenticating {
+public protocol CloudHTTPRequestAuthenticating {
     /// Given a request, it returns a copy of it including information to authenticate requests to the cloud.
     /// - Parameter request: Request to authenticate.
     /// - Returns: Mapped request.
     func authenticate(request: URLRequest) throws -> URLRequest
 }
 
-final class CloudHTTPRequestAuthenticator: CloudHTTPRequestAuthenticating {
+public final class CloudHTTPRequestAuthenticator: CloudHTTPRequestAuthenticating {
     /// Utility to check whether we are running Tuist on CI.
     let ciChecker: CIChecking
 
@@ -23,12 +23,12 @@ final class CloudHTTPRequestAuthenticator: CloudHTTPRequestAuthenticating {
 
     public convenience init() {
         self.init(ciChecker: CIChecker(),
-                  environmentVariables: ProcessInfo.processInfo.environment,
+                  environmentVariables: { ProcessInfo.processInfo.environment },
                   credentialsStore: CredentialsStore())
     }
 
     init(ciChecker: CIChecking,
-         environmentVariables: @escaping @autoclosure () -> [String: String],
+         environmentVariables: @escaping () -> [String: String],
          credentialsStore: CredentialsStoring) {
         self.ciChecker = ciChecker
         self.environmentVariables = environmentVariables
@@ -37,7 +37,7 @@ final class CloudHTTPRequestAuthenticator: CloudHTTPRequestAuthenticating {
 
     // MARK: - CloudHTTPRequestAuthenticating
 
-    func authenticate(request: URLRequest) throws -> URLRequest {
+    public func authenticate(request: URLRequest) throws -> URLRequest {
         var urlComponents = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)!
         urlComponents.path = ""
         urlComponents.queryItems = nil

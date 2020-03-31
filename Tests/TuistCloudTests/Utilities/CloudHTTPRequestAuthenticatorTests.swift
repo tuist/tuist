@@ -17,7 +17,7 @@ final class CloudHTTPRequestAuthenticatorTests: TuistUnitTestCase {
         ciChecker = MockCIChecker()
         credentialsStore = MockCredentialsStore()
         subject = CloudHTTPRequestAuthenticator(ciChecker: ciChecker,
-                                                environmentVariables: environmentVariables,
+                                                environmentVariables: { self.environmentVariables },
                                                 credentialsStore: credentialsStore)
     }
 

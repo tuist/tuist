@@ -1,6 +1,6 @@
 import Foundation
 
-public struct Credentials: Codable {
+public struct Credentials: Codable, Equatable {
     /// Authentication token.
     public let token: String
 
