@@ -4,6 +4,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Added
+
+- Encrypt/decrypt command https://github.com/tuist/tuist/pull/1127 by @fortmarek
+
 ## 1.5.4
 
 ### Fixed

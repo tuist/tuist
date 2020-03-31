@@ -17,7 +17,7 @@ public final class TemplatesDirectoryLocator: TemplatesDirectoryLocating {
     private let rootDirectoryLocator: RootDirectoryLocating
 
     /// Default constructor.
-    public init(rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator.shared) {
+    public init(rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator()) {
         self.rootDirectoryLocator = rootDirectoryLocator
     }
 

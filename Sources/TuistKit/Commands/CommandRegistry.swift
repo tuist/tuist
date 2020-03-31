@@ -30,6 +30,7 @@ public final class CommandRegistry {
         register(command: EditCommand.self)
         register(command: CacheCommand.self)
         register(command: LintCommand.self)
+        register(command: SigningCommand.self)
         register(rawCommand: BuildCommand.self)
     }
 
@@ -76,11 +77,11 @@ public final class CommandRegistry {
 
                 // Normal command
             } else {
-                guard let parsedArguments = try parse() else {
-                    parser.printUsage(on: stdoutStream)
+                guard let (parsedArguments, parser) = try parse() else {
+                    self.parser.printUsage(on: stdoutStream)
                     return
                 }
-                try process(arguments: parsedArguments)
+                try process(arguments: parsedArguments, parser: parser)
             }
         } catch let error as FatalError {
             errorHandler.fatal(error: error)
@@ -104,14 +105,14 @@ public final class CommandRegistry {
         return arguments[1]
     }
 
-    private func parse() throws -> ArgumentParser.Result? {
+    private func parse() throws -> (ArgumentParser.Result, ArgumentParser)? {
         let arguments = Array(processArguments().dropFirst())
         guard let argumentName = arguments.first else { return nil }
         let subparser = try parser.parse([argumentName]).subparser(parser)
         if let command = commands.first(where: { type(of: $0).command == subparser }) {
             return try command.parse(with: parser, arguments: arguments)
         }
-        return try parser.parse(arguments)
+        return (try parser.parse(arguments), parser)
     }
 
     private func hiddenCommand() -> HiddenCommand? {
@@ -120,12 +121,13 @@ public final class CommandRegistry {
         return hiddenCommands[commandName]
     }
 
-    private func process(arguments: ArgumentParser.Result) throws {
+    private func process(arguments: ArgumentParser.Result, parser: ArgumentParser) throws {
         guard let subparser = arguments.subparser(parser) else {
             parser.printUsage(on: stdoutStream)
             return
         }
-        if let command = commands.first(where: { type(of: $0).command == subparser }) {
+        let allCommands = commands + commands.flatMap { $0.subcommands }
+        if let command = allCommands.first(where: { type(of: $0).command == subparser }) {
             try command.run(with: arguments)
         }
     }

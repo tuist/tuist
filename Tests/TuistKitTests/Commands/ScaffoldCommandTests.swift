@@ -70,7 +70,7 @@ final class ScaffoldCommandTests: TuistUnitTestCase {
                                        arguments: [ScaffoldCommand.command, "template", "--name", "test"])
 
         // Then
-        XCTAssertEqual(try result.get("--name"), "test")
+        XCTAssertEqual(try result.0.get("--name"), "test")
     }
 
     func test_fails_when_attributes_not_added() throws {
