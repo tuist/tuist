@@ -11,7 +11,13 @@ enum SigningCipherError: FatalError, Equatable {
     case masterKeyNotFound(AbsolutePath)
     case signingDirectoryNotFound(AbsolutePath)
 
-    var type: ErrorType { .abort }
+    var type: ErrorType {
+        switch self {
+        case .failedToEncrypt, .failedToDecrypt, .ivGenerationFailed,
+             .masterKeyNotFound, .signingDirectoryNotFound:
+            return .abort
+        }
+    }
 
     var description: String {
         switch self {
