@@ -35,6 +35,11 @@ public enum HTTPRedirectListenerError: FatalError {
 private var runningServer: HttpServerIO!
 
 public final class HTTPRedirectListener: HTTPRedirectListening {
+    /// Default initializer.
+    public init() {}
+
+    // MARK: - HTTPRedirectListening
+
     public func listen(port: UInt16, path: String, redirectMessage: String) -> Swift.Result<[String: String]?, HTTPRedirectListenerError> {
         precondition(runningServer == nil, "Trying to start a redirect server for localhost:\(port)\(path) when there's already one running.")
         let httpServer = HttpServer()
