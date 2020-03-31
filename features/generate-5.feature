@@ -32,3 +32,9 @@ Scenario: The project contains an invalid manifest and tuist should surface comp
     And I have a working directory
     Then I copy the fixture invalid_manifest into the working directory
     Then tuist generate yields error "error: expected ',' separator"
+
+Scenario: The project contains a project with a large manifest (ios_app_large)
+    Given that tuist is available
+    And I have a working directory
+    Then I copy the fixture ios_app_large into the working directory
+    Then tuist generates the project

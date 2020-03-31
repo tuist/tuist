@@ -4,6 +4,12 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+## 1.5.4
+
+### Fixed
+
+- Tuist not working with Xcode < 11.4 by @pepibumur.
+
 ## 1.5.3
 
 ### Added
