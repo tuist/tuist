@@ -4,6 +4,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+## 1.5.3
+
 ### Added
 
 - `Derived` to `.gitignore` when running `tuist init` https://github.com/tuist/tuist/pull/1171 by @fortmarek
