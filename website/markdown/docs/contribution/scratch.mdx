@@ -1,13 +1,16 @@
 ---
 name: Scratch
-order: 11
 excerpt: Random ideas and notes for Tuist. Pseudocode and braindumps.
 ---
 
 # Scratch
 
+## March 31th 2020 - Compiling ProjectDescription with the Swift version of the minimum supported version of Xcode
+
+A recent release of Tuist, 1.5.3 caused Tuist to stop working with versions of Xcode older than 11.4. After some debugging, we found out that it was the result of building the `ProjectDescription` framework with the version of Swift that is bundled with Xcode 11.4, 5.2. We should compile the framework with the Swift version of the minium supported Xcode version. We added a note to the `RELEASE.md` document for now, but we should consider automating this process on CI so that we don't make the same mistake again.
+
 ## March 26th 2020 - Acceptance tests and multiple versions of Xcode
 
-I attempted to add set up GitHub actions to run the tests on multiple versions of Xcode and I realized that the acceptance tests that depend on precompiled frameworks an libraries can only run with a version of Xcode. 
+I attempted to add set up GitHub actions to run the tests on multiple versions of Xcode and I realized that the acceptance tests that depend on precompiled frameworks an libraries can only run with a version of Xcode.
 I made the tradeoff of **always running the acceptance tests with the latest version of Xcode** to avoid increasing the cost of maintaining those tests.
 This is a decision that we should revisit if we notice that we ship changes that break the backwards compatibility without us realizing it.

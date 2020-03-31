@@ -153,25 +153,41 @@ extension ProcessResult {
     func throwIfErrored() throws {
         switch exitStatus {
         case let .signalled(code):
-            throw TuistSupport.SystemError.signalled(command: arguments.first!, code: code)
+            throw TuistSupport.SystemError.signalled(command: command(), code: code)
         case let .terminated(code):
             if code != 0 {
-                throw TuistSupport.SystemError.terminated(command: arguments.first!, code: code)
+                let data = try Data(stderrOutput.dematerialize())
+                throw TuistSupport.SystemError.terminated(command: command(), code: code, standardError: data)
             }
         }
+    }
+
+    /// It returns the command that the process executed.
+    /// If the command is executed through xcrun, then the name of the tool is returned instead.
+    /// - Returns: Returns the command that the process executed.
+    func command() -> String {
+        let command = arguments.first!
+        if command == "/usr/bin/xcrun" {
+            return arguments[1]
+        }
+        return command
     }
 }
 
 public enum SystemError: FatalError, Equatable {
-    case terminated(command: String, code: Int32)
+    case terminated(command: String, code: Int32, standardError: Data)
     case signalled(command: String, code: Int32)
 
     public var description: String {
         switch self {
         case let .signalled(command, code):
             return "The '\(command)' was interrupted with a signal \(code)"
-        case let .terminated(command, code):
-            return "The '\(command)' command exited with error code \(code)"
+        case let .terminated(command, code, data):
+            if data.count > 0, let string = String(data: data, encoding: .utf8) {
+                return "The '\(command)' command exited with error code \(code) and message:\n\(string)"
+            } else {
+                return "The '\(command)' command exited with error code \(code)"
+            }
         }
     }
 
@@ -423,7 +439,6 @@ public final class System: Systeming {
                                        exitStatus: result.exitStatus,
                                        output: result.output,
                                        stderrOutput: result.stderrOutput.map { _ in errorData })
-
                 try result.throwIfErrored()
                 observer.onCompleted()
             } catch {
@@ -434,7 +449,8 @@ public final class System: Systeming {
                     process.signal(9) // SIGKILL
                 }
             }
-        }.subscribeOn(ConcurrentDispatchQueueScheduler(queue: DispatchQueue.global()))
+        }
+        .subscribeOn(ConcurrentDispatchQueueScheduler(queue: DispatchQueue.global()))
     }
 
     /// Runs a command in the shell asynchronously.

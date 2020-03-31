@@ -4,7 +4,7 @@
 .AppleDouble
 .LSOverride
 
-# Icon must end with two
+# Icon must end with two 
 Icon
 
 # Thumbnails
@@ -61,7 +61,3 @@ DerivedData/
 ### Projects ###
 *.xcodeproj
 *.xcworkspace
-
-### Tuist derived files ###
-graph.dot
-Derived/

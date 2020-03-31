@@ -61,7 +61,7 @@ final class SystemIntegrationTests: TuistTestCase {
             XCTFail("expected command to fail but it did not")
         case let .failed(elements, error):
             XCTAssertTrue(elements.first(where: { $0.value.contains("errno=No such file or directory") }) != nil)
-            XCTAssertEqual(error as? TuistSupport.SystemError, TuistSupport.SystemError.terminated(command: "/usr/bin/xcrun", code: 72))
+            XCTAssertTrue(error is TuistSupport.SystemError)
         }
     }
 
