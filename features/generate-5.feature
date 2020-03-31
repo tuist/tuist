@@ -1,4 +1,4 @@
-Feature: Generate a new project using Tuist (suite 3)
+Feature: Generate a new project using Tuist (suite 5)
 
 Scenario: The project is an iOS application with watch app (ios_app_with_watchapp2)
     Given that tuist is available
@@ -26,3 +26,9 @@ Scenario: The project is an iOS application with a deprecated configuration name
     And I have a working directory
     Then I copy the fixture app_with_old_config_name into the working directory
     Then tuist generates the project
+
+Scenario: The project contains an invalid manifest and tuist should surface compilation issues (invalid_manifest)
+    Given that tuist is available
+    And I have a working directory
+    Then I copy the fixture invalid_manifest into the working directory
+    Then tuist generate yields error "error: expected ',' separator"
