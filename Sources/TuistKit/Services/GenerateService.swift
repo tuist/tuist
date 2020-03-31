@@ -1,13 +1,14 @@
+import Basic
 import TuistGenerator
 import TuistLoader
 import TuistSupport
-import Basic
 
 class GenerateService {
     // MARK: - Attributes
+
     private let clock: Clock
     private let generator: ProjectGenerating
-    
+
     init(generator: ProjectGenerating = ProjectGenerator(),
          clock: Clock = WallClock()) {
         self.generator = generator

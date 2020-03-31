@@ -1,5 +1,5 @@
-import Foundation
 import ArgumentParser
+import Foundation
 
 struct GenerateCommand: ParsableCommand {
     static var configuration: CommandConfiguration {
@@ -13,14 +13,14 @@ struct GenerateCommand: ParsableCommand {
         help: "The path where the project will be generated."
     )
     var path: String?
-    
+
     @Option(
         name: .shortAndLong,
         default: false,
         help: "Only generate the local project (without generating its dependencies)."
     )
     var projectOnly: Bool
-    
+
     func run() throws {
         try GenerateService().run(path: path,
                                   projectOnly: projectOnly)

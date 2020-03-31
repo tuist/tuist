@@ -35,7 +35,7 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-log.git", .upToNextMajor(from: "1.2.0")),
         .package(url: "https://github.com/thii/xcbeautify.git", .upToNextMajor(from: "0.7.3")),
         .package(url: "https://github.com/stencilproject/Stencil", .branch("master")),
-        .package(url: "https://github.com/apple/swift-argument-parser", .upToNextMinor(from: "0.0.4"))
+        .package(url: "https://github.com/apple/swift-argument-parser", .upToNextMinor(from: "0.0.4")),
     ],
     targets: [
         .target(

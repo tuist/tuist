@@ -1,21 +1,21 @@
-import Foundation
 import ArgumentParser
+import Foundation
 import TuistSupport
 
 public struct TuistCommand: ParsableCommand {
-    public init() { }
-    
+    public init() {}
+
     public static var configuration: CommandConfiguration {
         CommandConfiguration(commandName: "tuist",
                              abstract: "Generate, build and test your Xcode projects.",
                              subcommands: [GenerateCommand.self])
     }
-    
+
     public static func main(_ arguments: [String]? = nil) -> Never {
         let errorHandler = ErrorHandler()
         let command: ParsableCommand
         do {
-             command = try parseAsRoot(processArguments(arguments))
+            command = try parseAsRoot(processArguments(arguments))
         } catch {
             logger.error("\(fullMessage(for: error))")
             _exit(exitCode(for: error).rawValue)
@@ -31,9 +31,9 @@ public struct TuistCommand: ParsableCommand {
             _exit(exitCode(for: error).rawValue)
         }
     }
-    
+
     // MARK: - Helpers
-    
+
     private static func processArguments(_ arguments: [String]?) -> [String]? {
         arguments?.filter { $0 != "--verbose" }
     }

@@ -13,7 +13,8 @@ public protocol ErrorHandling: AnyObject {
 /// The default implementation of the ErrorHandling protocol
 public final class ErrorHandler: ErrorHandling {
     // MARK: - Public
-    public init() { }
+
+    public init() {}
 
     /// When called, this method delegates the error handling
     /// to the entity that conforms this protocol.
