@@ -15,3 +15,4 @@ Feature: Scaffold a project using Tuist
     And tuist scaffolds a framework template to Projects/ named MyFeature
     When tuist generates the project at Projects/MyFeature
     Then I should be able to build for iOS the scheme MyFeature
+    Then I should be able to test for iOS the scheme MyFeature
