@@ -154,7 +154,7 @@ extension ProcessResult {
         switch exitStatus {
         case let .signalled(code):
             let data = try Data(stderrOutput.dematerialize())
-            throw TuistSupport.SystemError.signalled(command: command(), code: code,  standardError: data)
+            throw TuistSupport.SystemError.signalled(command: command(), code: code, standardError: data)
         case let .terminated(code):
             if code != 0 {
                 let data = try Data(stderrOutput.dematerialize())

@@ -19,4 +19,15 @@ public extension Observable where Element == SystemEvent<XcodeBuildOutput> {
             }
         })
     }
+
+    func printRawErrors() -> Observable<SystemEvent<XcodeBuildOutput>> {
+        `do`(onNext: { event in
+            switch event {
+            case let .standardError(error):
+                logger.error("\(error.raw)")
+            default:
+                break
+            }
+        })
+    }
 }

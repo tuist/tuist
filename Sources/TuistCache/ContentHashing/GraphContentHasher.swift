@@ -16,7 +16,7 @@ public final class GraphContentHasher: GraphContentHashing {
 
     public func contentHashes(for graph: Graph) throws -> [TargetNode: String] {
         var visitedNodes: [TargetNode: Bool] = [:]
-        
+
         let hashableTargets = graph.targets.values.flatMap { (targets: [TargetNode]) -> [TargetNode] in
             targets.compactMap { target in
                 if self.isCacheable(target, visited: &visitedNodes) { return target }
@@ -26,14 +26,14 @@ public final class GraphContentHasher: GraphContentHashing {
         let hashes = try hashableTargets.map { try makeContentHash(of: $0) }
         return Dictionary(uniqueKeysWithValues: zip(hashableTargets, hashes))
     }
-    
+
     fileprivate func isCacheable(_ target: TargetNode, visited: inout [TargetNode: Bool]) -> Bool {
         if let visitedValue = visited[target] { return visitedValue }
-        
+
         let isFramework = target.target.product == .framework
         let noXCTestDependency = target.sdkDependencies.first(where: { $0.name == "XCTest.framework" }) == nil
-        let allTargetDependenciesAreHasheable = target.targetDependencies.allSatisfy({ isCacheable($0, visited: &visited) })
-        
+        let allTargetDependenciesAreHasheable = target.targetDependencies.allSatisfy { isCacheable($0, visited: &visited) }
+
         let cacheable = isFramework && noXCTestDependency && allTargetDependenciesAreHasheable
         visited[target] = cacheable
         return cacheable
