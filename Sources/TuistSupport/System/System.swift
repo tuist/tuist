@@ -153,7 +153,8 @@ extension ProcessResult {
     func throwIfErrored() throws {
         switch exitStatus {
         case let .signalled(code):
-            throw TuistSupport.SystemError.signalled(command: command(), code: code)
+            let data = try Data(stderrOutput.dematerialize())
+            throw TuistSupport.SystemError.signalled(command: command(), code: code,  standardError: data)
         case let .terminated(code):
             if code != 0 {
                 let data = try Data(stderrOutput.dematerialize())
@@ -176,12 +177,16 @@ extension ProcessResult {
 
 public enum SystemError: FatalError, Equatable {
     case terminated(command: String, code: Int32, standardError: Data)
-    case signalled(command: String, code: Int32)
+    case signalled(command: String, code: Int32, standardError: Data)
 
     public var description: String {
         switch self {
-        case let .signalled(command, code):
-            return "The '\(command)' was interrupted with a signal \(code)"
+        case let .signalled(command, code, data):
+            if data.count > 0, let string = String(data: data, encoding: .utf8) {
+                return "The '\(command)' was interrupted with a signal \(code) and message:\n\(string)"
+            } else {
+                return "The '\(command)' was interrupted with a signal \(code)"
+            }
         case let .terminated(command, code, data):
             if data.count > 0, let string = String(data: data, encoding: .utf8) {
                 return "The '\(command)' command exited with error code \(code) and message:\n\(string)"
