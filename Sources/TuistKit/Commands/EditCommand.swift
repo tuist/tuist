@@ -53,7 +53,7 @@ class EditCommand: NSObject, Command {
                 exit(0)
             }
             logger.pretty("Opening Xcode to edit the project. Press \(.keystroke("CTRL + C")) once you are done editing")
-            try opener.open(path: xcodeprojPath, wait: true)
+            try opener.open(path: xcodeprojPath)
         } else {
             logger.notice("Xcode project generated at \(xcodeprojPath.pathString)", metadata: .success)
         }
