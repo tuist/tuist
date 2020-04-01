@@ -313,3 +313,7 @@ An iOS app where the organization name is defined at the `Config` level.
 ## app_with_organization_name_project
 
 An iOS app where the organization name is defined at the `Project` level.
+
+## invalid_manifest
+
+A project with an invalid manifest

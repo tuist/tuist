@@ -77,7 +77,7 @@ class ScaffoldCommand: NSObject, Command {
         self.templateGenerator = templateGenerator
     }
 
-    func parse(with parser: ArgumentParser, arguments: [String]) throws -> ArgumentParser.Result {
+    func parse(with parser: ArgumentParser, arguments: [String]) throws -> (ArgumentParser.Result, ArgumentParser) {
         guard arguments.count >= 2 else { throw ScaffoldCommandError.templateNotProvided }
         // We want to parse only the name of template, not its arguments which will be dynamically added
         let templateArguments = Array(arguments.prefix(2))
@@ -93,7 +93,7 @@ class ScaffoldCommand: NSObject, Command {
         let resultArguments = try parser.parse(templateArguments + filteredArguments)
 
         if resultArguments.get(listArgument) != nil {
-            return try parser.parse(arguments)
+            return (try parser.parse(arguments), parser)
         }
 
         guard let templateName = resultArguments.get(templateArgument) else { throw ScaffoldCommandError.templateNotProvided }
@@ -114,7 +114,7 @@ class ScaffoldCommand: NSObject, Command {
             return mutableDictionary
         }
 
-        return try parser.parse(arguments)
+        return (try parser.parse(arguments), parser)
     }
 
     func run(with arguments: ArgumentParser.Result) throws {
