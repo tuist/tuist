@@ -14,6 +14,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - A link to the example app in the uFeatures documentation https://github.com/tuist/tuist/pull/1176 by @pepibumur.
 - Add ProjectGeneratorGraphMapping protocol and use it from ProjectGenerator https://github.com/tuist/tuist/pull/1178 by @pepibumur
 - `CloudSessionController` component to authenticate users https://github.com/tuist/tuist/pull/1174 by @pepibumur.
+- Minor improvements https://github.com/tuist/tuist/pull/1179 by @pepibumur
 
 ## 1.5.4
 
