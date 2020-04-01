@@ -80,7 +80,7 @@ public final class XCFrameworkBuilder: XCFrameworkBuilding {
         let outputDirectory = try TemporaryDirectory(removeTreeOnDeinit: false)
         let temporaryPath = try TemporaryDirectory(removeTreeOnDeinit: false)
 
-        logger.notice("Building .xcframework for \(target.name)... (it might take a while)", metadata: .section)
+        logger.notice("Building .xcframework for \(target.name)...", metadata: .section)
 
         // Build for the device
         // Without the BUILD_LIBRARY_FOR_DISTRIBUTION argument xcodebuild doesn't generate the .swiftinterface file
@@ -96,7 +96,7 @@ public final class XCFrameworkBuilder: XCFrameworkBuilding {
                                                                    .buildSetting("BUILD_LIBRARY_FOR_DISTRIBUTION", "YES"))
             .printRawErrors()
             .do(onSubscribed: {
-                logger.notice("Building \(target.name) for device... (it might take a while)", metadata: .subsection)
+                logger.notice("Building \(target.name) for device...", metadata: .subsection)
             })
 
         // Build for the simulator
