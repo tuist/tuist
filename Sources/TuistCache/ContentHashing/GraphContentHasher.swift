@@ -31,7 +31,7 @@ public final class GraphContentHasher: GraphContentHashing {
         if let visitedValue = visited[target] { return visitedValue }
         
         let isFramework = target.target.product == .framework
-        let noXCTestDependency = target.sdkDependencies.first(where: { $0.name == "XCTest.framework" }) != nil
+        let noXCTestDependency = target.sdkDependencies.first(where: { $0.name == "XCTest.framework" }) == nil
         let allTargetDependenciesAreHasheable = target.targetDependencies.allSatisfy({ isCacheable($0, visited: &visited) })
         
         let cacheable = isFramework && noXCTestDependency && allTargetDependenciesAreHasheable
