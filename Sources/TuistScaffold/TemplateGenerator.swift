@@ -81,7 +81,7 @@ public final class TemplateGenerator: TemplateGenerating {
                     renderedContents = fileContents
                 }
             }
-
+            guard !renderedContents.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
             try FileHandler.shared.write(renderedContents,
                                          path: destinationPath.appending($0.path),
                                          atomically: true)

@@ -159,6 +159,8 @@ class InitCommand: NSObject, Command {
             let template = try templateLoader.loadTemplate(at: templateDirectory)
             let parsedAttributes = try validateAttributes(attributesArguments,
                                                           template: template,
+                                                          name: name,
+                                                          platform: platform,
                                                           arguments: arguments)
 
             try templateGenerator.generate(template: template,
@@ -194,27 +196,35 @@ class InitCommand: NSObject, Command {
     /// - Returns: Array of parsed attributes
     private func validateAttributes(_ attributes: [String: OptionArgument<String>],
                                     template: Template,
+                                    name: String,
+                                    platform: Platform,
                                     arguments: ArgumentParser.Result) throws -> [String: String] {
-        try template.attributes.reduce([:]) {
-            var mutableDict = $0
+        try template.attributes.reduce(into: [:]) {
+            if $1.name == "name" {
+                $0[$1.name] = name
+                return
+            }
+            if $1.name == "platform" {
+                $0[$1.name] = platform.caseValue
+                return
+            }
             switch $1 {
             case let .required(name):
                 guard
                     let argument = attributes[name],
                     let value = arguments.get(argument)
                 else { throw InitCommandError.attributeNotProvided(name) }
-                mutableDict[name] = value
+                $0[name] = value
             case let .optional(name, default: defaultValue):
                 guard
                     let argument = attributes[name],
                     let value: String = arguments.get(argument)
                 else {
-                    mutableDict[name] = defaultValue
-                    return mutableDict
+                    $0[name] = defaultValue
+                    return
                 }
-                mutableDict[name] = value
+                $0[name] = value
             }
-            return mutableDict
         }
     }
 
