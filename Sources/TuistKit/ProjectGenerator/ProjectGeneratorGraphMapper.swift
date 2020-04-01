@@ -31,7 +31,7 @@ final class ProjectGeneratorSequentialGraphMapper: ProjectGeneratorGraphMapping 
 
     /// Default initializer
     /// - Parameter mappers: List of mappers to be executed sequentially.
-    init(mappers: [ProjectGeneratorGraphMapping]) {
+    init(_ mappers: [ProjectGeneratorGraphMapping]) {
         self.mappers = mappers
     }
 
