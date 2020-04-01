@@ -94,7 +94,7 @@ let package = Package(
         ),
         .target(
             name: "TuistSupport",
-            dependencies: ["SPMUtility", "RxSwift", "RxRelay", "Logging", "KeychainAccess", "Swifter"]
+            dependencies: ["SPMUtility", "RxSwift", "RxRelay", "Logging", "KeychainAccess", "Swifter", "Signals"]
         ),
         .target(
             name: "TuistSupportTesting",
