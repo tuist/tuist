@@ -38,8 +38,9 @@ public final class CredentialsStore: CredentialsStoring {
 
     public func delete(serverURL: URL) throws {
         let keychain = self.keychain(serverURL: serverURL)
-        guard let account = keychain.allKeys().first else { return }
-        try keychain.remove(account)
+        try keychain.allKeys().forEach { account in
+            try keychain.remove(account)
+        }
     }
 
     // MARK: - Fileprivate

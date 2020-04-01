@@ -51,7 +51,7 @@ public final class HTTPRedirectListener: HTTPRedirectListening {
             return HttpResponse.ok(.text(redirectMessage))
         }
 
-        // If the user sends an interruption sinal by pressing CTRL+C, we stop the server.
+        // If the user sends an interruption signal by pressing CTRL+C, we stop the server.
         Signals.trap(signals: [.int, .abrt]) { _ in runningServer!.stop() }
 
         do {
