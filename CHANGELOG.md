@@ -7,6 +7,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Added
 
 - Encrypt/decrypt command https://github.com/tuist/tuist/pull/1127 by @fortmarek
+- A link to the example app in the uFeatures documentation https://github.com/tuist/tuist/pull/1176 by @pepibumur.
 
 ## 1.5.4
 
