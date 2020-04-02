@@ -24,7 +24,7 @@ let template = Template(
         .file(path: "Workspace.swift",
               templatePath: templatePath("Workspace.stencil")),
         .file(path: "Tuist/ProjectDescriptionHelpers/Project+Templates.swift",
-              templatePath: templatePath("Project+Templates.stencil")),
+              templatePath: "Project+Templates.stencil"),
         .file(path: appPath + "/Project.swift",
               templatePath: templatePath("AppProject.stencil")),
         .file(path: kitFrameworkPath + "/Project.swift",
