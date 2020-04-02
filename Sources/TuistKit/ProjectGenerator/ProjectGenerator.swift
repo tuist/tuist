@@ -21,11 +21,13 @@ class ProjectGenerator: ProjectGenerating {
     private let swiftPackageManagerInteractor: SwiftPackageManagerInteracting = SwiftPackageManagerInteractor()
     private let modelLoader: GeneratorModelLoading
     private let graphLoader: GraphLoading
+    private let graphMapper: ProjectGeneratorGraphMapping
 
-    init() {
+    init(graphMapper: ProjectGeneratorGraphMapping = AnyProjectGeneratorGraphMapper(mapper: { $0 })) {
         modelLoader = GeneratorModelLoader(manifestLoader: manifestLoader,
                                            manifestLinter: manifestLinter)
         graphLoader = GraphLoader(modelLoader: modelLoader)
+        self.graphMapper = graphMapper
     }
 
     func generate(path: AbsolutePath, projectOnly: Bool) throws -> AbsolutePath {
@@ -49,7 +51,8 @@ class ProjectGenerator: ProjectGenerating {
 
     private func generateProject(path: AbsolutePath) throws -> (AbsolutePath, Graph) {
         // Load
-        let (graph, project) = try graphLoader.loadProject(path: path)
+        var (graph, project) = try graphLoader.loadProject(path: path)
+        graph = try graphMapper.map(graph: graph)
 
         // Lint
         try lint(graph: graph)
@@ -68,7 +71,8 @@ class ProjectGenerator: ProjectGenerating {
 
     private func generateWorkspace(path: AbsolutePath) throws -> (AbsolutePath, Graph) {
         // Load
-        let (graph, workspace) = try graphLoader.loadWorkspace(path: path)
+        var (graph, workspace) = try graphLoader.loadWorkspace(path: path)
+        graph = try graphMapper.map(graph: graph)
 
         // Lint
         try lint(graph: graph)
@@ -89,7 +93,8 @@ class ProjectGenerator: ProjectGenerating {
 
     private func generateProjectWorkspace(path: AbsolutePath) throws -> (AbsolutePath, Graph) {
         // Load
-        let (graph, project) = try graphLoader.loadProject(path: path)
+        var (graph, project) = try graphLoader.loadProject(path: path)
+        graph = try graphMapper.map(graph: graph)
 
         // Lint
         try lint(graph: graph)
