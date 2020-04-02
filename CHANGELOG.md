@@ -8,6 +8,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Don't try to delete a file if it doesn't exist https://github.com/tuist/tuist/pull/1177 by @pepibumur
 
+### Changed
+
+- Bump XcodeProj to 7.10.0 https://github.com/tuist/tuist/pull/1182 by @pepibumur
+
 ### Added
 
 - Encrypt/decrypt command https://github.com/tuist/tuist/pull/1127 by @fortmarek
