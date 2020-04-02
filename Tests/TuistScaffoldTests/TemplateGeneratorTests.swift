@@ -210,7 +210,7 @@ final class TemplateGeneratorTests: TuistTestCase {
         XCTAssertEqual(try FileHandler.shared.readTextFile(destinationPath.appending(component: "unrendered")),
                        expectedUnrenderedContents)
     }
-    
+
     func test_empty_stencil_files_are_skipped() throws {
         // Given
         let sourcePath = try temporaryPath()
