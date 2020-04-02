@@ -24,12 +24,18 @@ final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding 
     /// Instance to locate the helpers directory.
     let helpersDirectoryLocator: HelpersDirectoryLocating
 
+    /// Environment.
+    let environment: Environmenting
+
     /// Initializes the builder with its attributes.
     /// - Parameters:
+    ///   - environment; Environment instance.
     ///   - cacheDirectory: Path to the cache directory.
     ///   - helpersDirectoryLocating: Instance to locate the helpers directory.
-    init(cacheDirectory: AbsolutePath = Environment.shared.projectDescriptionHelpersCacheDirectory,
+    init(environment: Environmenting = Environment.shared,
+         cacheDirectory: AbsolutePath = Environment.shared.projectDescriptionHelpersCacheDirectory,
          helpersDirectoryLocator: HelpersDirectoryLocating = HelpersDirectoryLocator()) {
+        self.environment = environment
         self.cacheDirectory = cacheDirectory
         self.helpersDirectoryLocator = helpersDirectoryLocator
     }
@@ -60,7 +66,7 @@ final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding 
         let command = self.command(outputDirectory: helpersModuleCachePath,
                                    helpersDirectory: helpersDirectory,
                                    projectDescriptionPath: projectDescriptionPath)
-        try System.shared.runAndPrint(command)
+        try System.shared.runAndPrint(command, verbose: false, environment: environment.tuistVariables)
 
         let modulePath = helpersModuleCachePath.appending(component: dylibName)
         builtHelpers[helpersDirectory] = modulePath
