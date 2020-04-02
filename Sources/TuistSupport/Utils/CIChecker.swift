@@ -18,6 +18,9 @@ public final class CIChecker: CIChecking {
         "BUILD_NUMBER",
     ]
 
+    /// Default initializer
+    public init() {}
+
     // MARK: - CIChecking
 
     public func isCI() -> Bool {
