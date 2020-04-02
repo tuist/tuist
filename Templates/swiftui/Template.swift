@@ -37,6 +37,8 @@ let template = Template(
               templatePath: "ContentView.stencil"),
         .file(path: appPath + "/Sources/SceneDelegate.swift",
               templatePath: "SceneDelegate.stencil"),
+        .file(path: appPath + "/Sources/main.swift",
+              templatePath: "main.stencil"),
         .file(path: appPath + "/Tests/\(nameAttribute)Tests.swift",
               templatePath: templatePath("Tests.stencil")),
         .file(path: kitFrameworkPath + "/Sources/\(nameAttribute)Kit.swift",

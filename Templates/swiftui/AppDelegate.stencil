@@ -2,7 +2,6 @@
 import SwiftUI
 import {{ name }}Kit
 
-@NSApplicationMain
 class AppDelegate: NSObject, NSApplicationDelegate {
 
     var window: NSWindow!
