@@ -22,6 +22,9 @@ public protocol Environmenting: AnyObject {
 
     /// Returns the directory where the xcframeworks are cached.
     var xcframeworksCacheDirectory: AbsolutePath { get }
+
+    /// Returns all the environment variables that are specific to Tuist (prefixed with TUIST_)
+    var tuistVariables: [String: String] { get }
 }
 
 /// Local environment controller.
@@ -108,6 +111,11 @@ public class Environment: Environmenting {
         } else {
             return directory.appending(component: "Cache")
         }
+    }
+
+    /// Returns all the environment variables that are specific to Tuist (prefixed with TUIST_)
+    public var tuistVariables: [String: String] {
+        ProcessInfo.processInfo.environment.filter { $0.key.hasPrefix("TUIST_") }
     }
 
     /// Settings path.
