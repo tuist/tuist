@@ -52,7 +52,7 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
         }
 
         // When
-        let events = subject.build(target, scheme: scheme, clean: true)
+        let events = subject.build(target, scheme: scheme, clean: true, arguments: [])
             .toBlocking()
             .materialize()
 
@@ -63,7 +63,7 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
 
         switch events {
         case let .completed(output):
-            XCTAssertEqual(output, [.standardOutput(XcodeBuildOutput(raw: "output", formatted: "formated-output"))])
+            XCTAssertEqual(output, [.standardOutput(XcodeBuildOutput(raw: "output\n", formatted: "formated-output\n"))])
         case .failed:
             XCTFail("The command was not expected to fail")
         }

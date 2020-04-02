@@ -89,12 +89,13 @@ public final class XCFrameworkBuilder: XCFrameworkBuilding {
                                                                    scheme: scheme,
                                                                    clean: true,
                                                                    archivePath: deviceArchivePath,
-                                                                   arguments:
-                                                                   .sdk(target.platform.xcodeDeviceSDK),
-                                                                   .derivedDataPath(temporaryPath.path),
-                                                                   .buildSetting("SKIP_INSTALL", "NO"),
-                                                                   .buildSetting("BUILD_LIBRARY_FOR_DISTRIBUTION", "YES"))
-            .printRawErrors()
+                                                                   arguments: [
+                                                                       .sdk(target.platform.xcodeDeviceSDK),
+                                                                       .derivedDataPath(temporaryPath.path),
+                                                                       .buildSetting("SKIP_INSTALL", "NO"),
+                                                                       .buildSetting("BUILD_LIBRARY_FOR_DISTRIBUTION", "YES"),
+                                                                   ])
+            .printFormattedOutput()
             .do(onSubscribed: {
                 logger.notice("Building \(target.name) for device...", metadata: .subsection)
             })
@@ -108,12 +109,13 @@ public final class XCFrameworkBuilder: XCFrameworkBuilding {
                                                                       scheme: scheme,
                                                                       clean: false,
                                                                       archivePath: simulatorArchivePath!,
-                                                                      arguments:
-                                                                      .sdk(target.platform.xcodeSimulatorSDK!),
-                                                                      .derivedDataPath(temporaryPath.path),
-                                                                      .buildSetting("SKIP_INSTALL", "NO"),
-                                                                      .buildSetting("BUILD_LIBRARY_FOR_DISTRIBUTION", "YES"))
-                .printRawErrors()
+                                                                      arguments: [
+                                                                          .sdk(target.platform.xcodeSimulatorSDK!),
+                                                                          .derivedDataPath(temporaryPath.path),
+                                                                          .buildSetting("SKIP_INSTALL", "NO"),
+                                                                          .buildSetting("BUILD_LIBRARY_FOR_DISTRIBUTION", "YES"),
+                                                                      ])
+                .printFormattedOutput()
                 .do(onSubscribed: {
                     logger.notice("Building \(target.name) for simulator", metadata: .subsection)
                 })
