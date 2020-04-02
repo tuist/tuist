@@ -24,18 +24,18 @@ final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding 
     /// Instance to locate the helpers directory.
     let helpersDirectoryLocator: HelpersDirectoryLocating
 
-    /// Environment.
-    let environment: Environmenting
+    /// Project description helpers hasher.
+    let projectDescriptionHelpersHasher: ProjectDescriptionHelpersHashing
 
     /// Initializes the builder with its attributes.
     /// - Parameters:
-    ///   - environment; Environment instance.
+    ///   - projectDescriptionHelpersHasher: Project description helpers hasher.
     ///   - cacheDirectory: Path to the cache directory.
     ///   - helpersDirectoryLocating: Instance to locate the helpers directory.
-    init(environment: Environmenting = Environment.shared,
+    init(projectDescriptionHelpersHasher: ProjectDescriptionHelpersHashing = ProjectDescriptionHelpersHasher(),
          cacheDirectory: AbsolutePath = Environment.shared.projectDescriptionHelpersCacheDirectory,
          helpersDirectoryLocator: HelpersDirectoryLocating = HelpersDirectoryLocator()) {
-        self.environment = environment
+        self.projectDescriptionHelpersHasher = projectDescriptionHelpersHasher
         self.cacheDirectory = cacheDirectory
         self.helpersDirectoryLocator = helpersDirectoryLocator
     }
@@ -44,8 +44,8 @@ final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding 
         guard let helpersDirectory = helpersDirectoryLocator.locate(at: at) else { return nil }
         if let cachedPath = builtHelpers[helpersDirectory] { return cachedPath }
 
-        let hash = try self.hash(helpersDirectory: helpersDirectory)
-        let prefixHash = self.prefixHash(helpersDirectory: helpersDirectory)
+        let hash = try projectDescriptionHelpersHasher.hash(helpersDirectory: helpersDirectory)
+        let prefixHash = projectDescriptionHelpersHasher.prefixHash(helpersDirectory: helpersDirectory)
 
         // Get paths
         let helpersCachePath = cacheDirectory.appending(component: prefixHash)
@@ -66,7 +66,7 @@ final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding 
         let command = self.command(outputDirectory: helpersModuleCachePath,
                                    helpersDirectory: helpersDirectory,
                                    projectDescriptionPath: projectDescriptionPath)
-        try System.shared.runAndPrint(command, verbose: false, environment: environment.tuistVariables)
+        try System.shared.runAndPrint(command, verbose: false, environment: Environment.shared.tuistVariables)
 
         let modulePath = helpersModuleCachePath.appending(component: dylibName)
         builtHelpers[helpersDirectory] = modulePath
@@ -100,30 +100,5 @@ final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding 
 
         command.append(contentsOf: files.map { $0.pathString })
         return command
-    }
-
-    /// This method returns a hash based on the content in the helpers directory
-    /// and the Swift version used to compile the module.
-    /// - Parameter helpersDirectory: Path to the helpers directory.
-    fileprivate func hash(helpersDirectory: AbsolutePath) throws -> String {
-        let fileHashes = FileHandler.shared
-            .glob(helpersDirectory, glob: "**/*.swift")
-            .compactMap { $0.sha256() }
-            .compactMap { $0.compactMap { byte in String(format: "%02x", byte) }.joined() }
-        let swiftVersion = try System.shared.swiftVersion() ?? ""
-        let tuistVersion = Constants.version
-
-        let identifiers = [swiftVersion, tuistVersion] + fileHashes
-
-        return identifiers.joined(separator: "-").md5
-    }
-
-    /// Gets the prefix hash for the given helpers directory.
-    /// This is useful to uniquely identify a helpers directory in the cache.
-    /// - Parameter helpersDirectory: Path to the helpers directory.
-    fileprivate func prefixHash(helpersDirectory: AbsolutePath) -> String {
-        let pathString = helpersDirectory.pathString
-        let index = pathString.index(pathString.startIndex, offsetBy: 7)
-        return String(helpersDirectory.pathString.md5[..<index])
     }
 }
