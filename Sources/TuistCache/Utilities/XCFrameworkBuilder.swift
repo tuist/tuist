@@ -80,7 +80,7 @@ public final class XCFrameworkBuilder: XCFrameworkBuilding {
         let outputDirectory = try TemporaryDirectory(removeTreeOnDeinit: false)
         let temporaryPath = try TemporaryDirectory(removeTreeOnDeinit: false)
 
-        logger.notice("Building .xcframework for \(target.name)", metadata: .section)
+        logger.notice("Building .xcframework for \(target.name)...", metadata: .section)
 
         // Build for the device
         // Without the BUILD_LIBRARY_FOR_DISTRIBUTION argument xcodebuild doesn't generate the .swiftinterface file
@@ -89,13 +89,15 @@ public final class XCFrameworkBuilder: XCFrameworkBuilding {
                                                                    scheme: scheme,
                                                                    clean: true,
                                                                    archivePath: deviceArchivePath,
-                                                                   arguments:
-                                                                   .sdk(target.platform.xcodeDeviceSDK),
-                                                                   .derivedDataPath(temporaryPath.path),
-                                                                   .buildSetting("SKIP_INSTALL", "NO"),
-                                                                   .buildSetting("BUILD_LIBRARY_FOR_DISTRIBUTION", "YES"))
+                                                                   arguments: [
+                                                                       .sdk(target.platform.xcodeDeviceSDK),
+                                                                       .derivedDataPath(temporaryPath.path),
+                                                                       .buildSetting("SKIP_INSTALL", "NO"),
+                                                                       .buildSetting("BUILD_LIBRARY_FOR_DISTRIBUTION", "YES"),
+                                                                   ])
+            .printFormattedOutput()
             .do(onSubscribed: {
-                logger.notice("Building \(target.name) for device", metadata: .subsection)
+                logger.notice("Building \(target.name) for device...", metadata: .subsection)
             })
 
         // Build for the simulator
@@ -107,11 +109,13 @@ public final class XCFrameworkBuilder: XCFrameworkBuilding {
                                                                       scheme: scheme,
                                                                       clean: false,
                                                                       archivePath: simulatorArchivePath!,
-                                                                      arguments:
-                                                                      .sdk(target.platform.xcodeSimulatorSDK!),
-                                                                      .derivedDataPath(temporaryPath.path),
-                                                                      .buildSetting("SKIP_INSTALL", "NO"),
-                                                                      .buildSetting("BUILD_LIBRARY_FOR_DISTRIBUTION", "YES"))
+                                                                      arguments: [
+                                                                          .sdk(target.platform.xcodeSimulatorSDK!),
+                                                                          .derivedDataPath(temporaryPath.path),
+                                                                          .buildSetting("SKIP_INSTALL", "NO"),
+                                                                          .buildSetting("BUILD_LIBRARY_FOR_DISTRIBUTION", "YES"),
+                                                                      ])
+                .printFormattedOutput()
                 .do(onSubscribed: {
                     logger.notice("Building \(target.name) for simulator", metadata: .subsection)
                 })

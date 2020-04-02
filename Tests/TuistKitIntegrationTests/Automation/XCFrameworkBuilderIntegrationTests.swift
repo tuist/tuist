@@ -41,12 +41,6 @@ final class XCFrameworkBuilderIntegrationTests: TuistTestCase {
         XCTAssertNotNil(infoPlist.availableLibraries.first(where: { $0.supportedArchitectures.contains("arm64") }))
         XCTAssertNotNil(infoPlist.availableLibraries.first(where: { $0.supportedArchitectures.contains("x86_64") }))
         XCTAssertTrue(infoPlist.availableLibraries.allSatisfy { $0.supportedPlatform == "ios" })
-        XCTAssertPrinterOutputContains("""
-        Building .xcframework for iOS
-        Building iOS for device
-        Building iOS for simulator
-        Exporting xcframework for iOS
-        """)
         try FileHandler.shared.delete(xcframeworkPath)
     }
 
@@ -64,11 +58,6 @@ final class XCFrameworkBuilderIntegrationTests: TuistTestCase {
         XCTAssertTrue(FileHandler.shared.exists(xcframeworkPath))
         XCTAssertNotNil(infoPlist.availableLibraries.first(where: { $0.supportedArchitectures.contains("x86_64") }))
         XCTAssertTrue(infoPlist.availableLibraries.allSatisfy { $0.supportedPlatform == "macos" })
-        XCTAssertPrinterOutputContains("""
-        Building .xcframework for macOS
-        Building macOS for device
-        Exporting xcframework for macOS
-        """)
         try FileHandler.shared.delete(xcframeworkPath)
     }
 
@@ -87,12 +76,6 @@ final class XCFrameworkBuilderIntegrationTests: TuistTestCase {
         XCTAssertNotNil(infoPlist.availableLibraries.first(where: { $0.supportedArchitectures.contains("x86_64") }))
         XCTAssertNotNil(infoPlist.availableLibraries.first(where: { $0.supportedArchitectures.contains("arm64") }))
         XCTAssertTrue(infoPlist.availableLibraries.allSatisfy { $0.supportedPlatform == "tvos" })
-        XCTAssertPrinterOutputContains("""
-        Building .xcframework for tvOS
-        Building tvOS for device
-        Building tvOS for simulator
-        Exporting xcframework for tvOS
-        """)
         try FileHandler.shared.delete(xcframeworkPath)
     }
 
@@ -112,12 +95,6 @@ final class XCFrameworkBuilderIntegrationTests: TuistTestCase {
         XCTAssertNotNil(infoPlist.availableLibraries.first(where: { $0.supportedArchitectures.contains("armv7k") }))
         XCTAssertNotNil(infoPlist.availableLibraries.first(where: { $0.supportedArchitectures.contains("arm64_32") }))
         XCTAssertTrue(infoPlist.availableLibraries.allSatisfy { $0.supportedPlatform == "watchos" })
-        XCTAssertPrinterOutputContains("""
-        Building .xcframework for watchOS
-        Building watchOS for device
-        Building watchOS for simulator
-        Exporting xcframework for watchOS
-        """)
         try FileHandler.shared.delete(xcframeworkPath)
     }
 
