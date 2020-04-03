@@ -1,6 +1,5 @@
 import Basic
 import TuistCore
-import TuistGenerator
 import TuistSupport
 
 public class MockGeneratorModelLoader: GeneratorModelLoading {
