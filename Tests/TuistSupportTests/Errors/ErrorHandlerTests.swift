@@ -10,12 +10,11 @@ private struct TestError: FatalError {
 
 final class ErrorHandlerTests: TuistUnitTestCase {
     var subject: ErrorHandler!
-    var exited: Int32?
 
     override func setUp() {
         super.setUp()
 
-        subject = ErrorHandler { self.exited = $0 }
+        subject = ErrorHandler()
     }
 
     override func tearDown() {
@@ -27,12 +26,6 @@ final class ErrorHandlerTests: TuistUnitTestCase {
         let error = TestError(type: .abort)
         subject.fatal(error: error)
         XCTAssertPrinterErrorContains(error.description)
-    }
-
-    func test_fatalError_exitsWith1() {
-        let error = TestError(type: .abort)
-        subject.fatal(error: error)
-        XCTAssertEqual(exited, 1)
     }
 
     func test_fatalError_prints_whenItsSilent() {

@@ -9,5 +9,4 @@ if CommandLine.arguments.contains("--verbose") {
 LogOutput.bootstrap()
 
 import TuistKit
-var registry = CommandRegistry()
-registry.run()
+TuistCommand.main()
