@@ -14,6 +14,11 @@ extension AbsolutePath {
     public var url: URL {
         URL(fileURLWithPath: pathString)
     }
+    
+    /// Returns `AbsolutePath` to home directory
+    public static var homeDirectory: AbsolutePath {
+        AbsolutePath(NSHomeDirectory())
+    }
 
     /// Returns the list of paths that match the given glob pattern.
     ///

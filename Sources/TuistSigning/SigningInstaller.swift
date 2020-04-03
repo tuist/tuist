@@ -34,26 +34,37 @@ enum SigningFile {
 }
 
 public final class SigningInstaller: SigningInstalling {
-    public init() { }
+    
+    private let signingFilesLocator: SigningFilesLocating
+    private let securityController: SecurityControlling
+    
+    public convenience init() {
+        self.init(signingFilesLocator: SigningFilesLocator(),
+                  securityController: SecurityController())
+    }
+    
+    init(signingFilesLocator: SigningFilesLocating,
+                securityController: SecurityControlling) {
+        self.signingFilesLocator = signingFilesLocator
+        self.securityController = securityController
+    }
     
     public func installSigning(at path: AbsolutePath) throws {
-        let signingKeyFiles = try SigningFilesLocator.shared.locateSigningFiles(at: path)
+        let signingKeyFiles = try signingFilesLocator.locateSigningFiles(at: path)
         try signingKeyFiles.forEach {
             switch $0.extension {
-                // Handle provisionprofile
-            case "mobileprovision":
+            case "mobileprovision", "provisionprofile":
                 try installProvisioningProfile(at: $0)
-            case "TODO":
-                return
+            case "cer":
+                try importCertificate(at: $0)
             default:
                 logger.warning("File \($0.pathString) has unknown extension")
-                return
             }
         }
     }
     
     private func installProvisioningProfile(at path: AbsolutePath) throws {
-        let unencryptedProvisioningProfile = try System.shared.capture("/usr/bin/security", "cms", "-D", "-i", path.pathString)
+        let unencryptedProvisioningProfile = try securityController.decodeFile(at: path)
         let xmlDocument = try AEXMLDocument(xml: unencryptedProvisioningProfile)
         let children = xmlDocument.root.children.flatMap { $0.children }
         
@@ -65,8 +76,21 @@ public final class SigningInstaller: SigningInstalling {
             let uuid = children[children.index(after: uuidIndex)].value
         else { throw SigningInstallerError.invalidProvisioningProfile(path) }
         
-        let provisioningProfilesPath = AbsolutePath(NSHomeDirectory()).appending(components: "Library", "MobileDevice", "Provisioning Profiles")
+        // TODO: Create directory if it does not exist
+        let provisioningProfilesPath = AbsolutePath.homeDirectory.appending(components: "Library", "MobileDevice", "Provisioning Profiles")
         let encryptedProvisioningProfile = try FileHandler.shared.readFile(path)
-        try encryptedProvisioningProfile.write(to: provisioningProfilesPath.appending(component: uuid + profileExtension).url)
+        try encryptedProvisioningProfile.write(to: provisioningProfilesPath.appending(component: uuid + "." + profileExtension).url)
+        
+        logger.debug("Installed provisioning profile \(path.pathString)")
+    }
+    
+    private func importCertificate(at path: AbsolutePath) throws {
+        guard try !securityController.certificateExists(path: path) else {
+            logger.debug("Certificate at \(path) is already present in keychain")
+            return
+        }
+        
+        try securityController.importCertificate(at: path)
+        logger.debug("Imported certificate at \(path.pathString)")
     }
 }

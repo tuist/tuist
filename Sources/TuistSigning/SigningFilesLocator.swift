@@ -24,9 +24,7 @@ protocol SigningFilesLocating {
     func locateSigningFiles(at path: AbsolutePath) throws -> [AbsolutePath]
 }
 
-final class SigningFilesLocator: SigningFilesLocating {
-    static var shared: SigningFilesLocating = SigningFilesLocator()
-    
+final class SigningFilesLocator: SigningFilesLocating {    
     private let rootDirectoryLocator: RootDirectoryLocating
     
     init(rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator()) {

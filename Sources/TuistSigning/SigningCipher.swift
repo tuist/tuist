@@ -45,15 +45,23 @@ public protocol SigningCiphering {
 
 public final class SigningCipher: SigningCiphering {
     private let rootDirectoryLocator: RootDirectoryLocating
+    private let signingFilesLocator: SigningFilesLocating
 
     /// Public initializer
-    public init(rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator()) {
+    public convenience init() {
+        self.init(rootDirectoryLocator: RootDirectoryLocator(),
+                  signingFilesLocator: SigningFilesLocator())
+    }
+    
+    init(rootDirectoryLocator: RootDirectoryLocating,
+                signingFilesLocator: SigningFilesLocating) {
         self.rootDirectoryLocator = rootDirectoryLocator
+        self.signingFilesLocator = signingFilesLocator
     }
 
     public func encryptSigning(at path: AbsolutePath) throws {
         let masterKey = try self.masterKey(at: path)
-        let signingKeyFiles = try SigningFilesLocator.shared.locateSigningFiles(at: path)
+        let signingKeyFiles = try signingFilesLocator.locateSigningFiles(at: path)
         let cipheredKeys = try signingKeyFiles
             .map(FileHandler.shared.readFile)
             .map { try encryptData($0, masterKey: masterKey) }
@@ -66,7 +74,7 @@ public final class SigningCipher: SigningCiphering {
 
     public func decryptSigning(at path: AbsolutePath) throws {
         let masterKey = try self.masterKey(at: path)
-        let signingKeyFiles = try SigningFilesLocator.shared.locateSigningFiles(at: path)
+        let signingKeyFiles = try signingFilesLocator.locateSigningFiles(at: path)
         let decipheredKeys = try signingKeyFiles
             .map(FileHandler.shared.readFile)
             .map {

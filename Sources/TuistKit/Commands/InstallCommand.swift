@@ -44,7 +44,7 @@ class InstallCommand: NSObject, Command {
         try signingInstaller.installSigning(at: path)
 
         // TODO: Delete decrypted files
-        logger.notice("Successfully encrypted all signing files", metadata: .success)
+        logger.notice("Successfully installed all signing files", metadata: .success)
     }
 
     // MARK: - Helpers
