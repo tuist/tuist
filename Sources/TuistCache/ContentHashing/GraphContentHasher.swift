@@ -5,7 +5,7 @@ import TuistSupport
 import Basic
 
 public protocol GraphContentHashing {
-    func contentHashes(for graph: Graphing) throws -> [TargetNode: String]
+    func contentHashes(for graph: TuistCore.Graph) throws -> [TargetNode: String]
 }
 
 public final class GraphContentHasher: GraphContentHashing {
@@ -30,16 +30,15 @@ public final class GraphContentHasher: GraphContentHashing {
 
     // MARK: - GraphContentHashing
 
-    public func contentHashes(for graph: Graph) throws -> [TargetNode: String] {
+    public func contentHashes(for graph: TuistCore.Graph) throws -> [TargetNode: String] {
         var visitedNodes: [TargetNode: Bool] = [:]
-
         let hashableTargets = graph.targets.values.flatMap { (targets: [TargetNode]) -> [TargetNode] in
-        targets.compactMap { target in
+            targets.compactMap { target in
             if self.isCacheable(target, visited: &visitedNodes) { return target }
                 return nil
             }
         }
-        let hashes = try hashableTargets.map { try makeContentHash(of: $0) }
+        let hashes = try hashableTargets.map { try hash(targetNode: $0) }
         return Dictionary(uniqueKeysWithValues: zip(hashableTargets, hashes))
     }
 
@@ -51,7 +50,6 @@ public final class GraphContentHasher: GraphContentHashing {
         let isFramework = target.target.product == .framework
         let noXCTestDependency = target.sdkDependencies.first(where: { $0.name == "XCTest.framework" }) == nil
         let allTargetDependenciesAreHasheable = target.targetDependencies.allSatisfy { isCacheable($0, visited: &visited) }
-
         let cacheable = isFramework && noXCTestDependency && allTargetDependenciesAreHasheable
         visited[target] = cacheable
         return cacheable
