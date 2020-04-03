@@ -1,6 +1,7 @@
 import Basic
 import TuistCore
 import TuistCoreTesting
+import TuistLoaderTesting
 import TuistSupport
 import XcodeProj
 import XCTest
