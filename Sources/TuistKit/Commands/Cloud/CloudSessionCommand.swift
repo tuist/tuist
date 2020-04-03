@@ -9,7 +9,7 @@ class CloudSessionCommand: NSObject, Command {
     // MARK: - Attributes
 
     static let command = "session"
-    static let overview = "Prints any existing session to authenticate on the server with he URL defined in the Config.swift file."
+    static let overview = "Prints any existing session to authenticate on the server with the URL defined in the Config.swift file."
     private let service = CloudSessionService()
 
     // MARK: - Init
