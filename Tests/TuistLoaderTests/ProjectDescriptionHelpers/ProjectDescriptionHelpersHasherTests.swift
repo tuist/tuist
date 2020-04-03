@@ -10,8 +10,8 @@ import XCTest
 class ProjectDescriptionHelpersHasherTests: TuistUnitTestCase {
     var subject: ProjectDescriptionHelpersHasher!
 
-    override func setUpWithError() throws {
-        try super.setUpWithError()
+    override func setUp() {
+        super.setUp()
         subject = ProjectDescriptionHelpersHasher(tuistVersion: "3.2.1")
     }
 
