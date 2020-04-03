@@ -28,17 +28,21 @@ public protocol XCFrameworkNodeLoading {
     func load(path: AbsolutePath) throws -> XCFrameworkNode
 }
 
-final class XCFrameworkNodeLoader: XCFrameworkNodeLoading {
+public final class XCFrameworkNodeLoader: XCFrameworkNodeLoading {
     /// xcframework metadata provider.
     fileprivate let xcframeworkMetadataProvider: XCFrameworkMetadataProviding
 
+    public convenience init() {
+        self.init(xcframeworkMetadataProvider: XCFrameworkMetadataProvider())
+    }
+
     /// Initializes the loader with its attributes.
     /// - Parameter xcframeworkMetadataProvider: xcframework metadata provider.
-    init(xcframeworkMetadataProvider: XCFrameworkMetadataProviding = XCFrameworkMetadataProvider()) {
+    init(xcframeworkMetadataProvider: XCFrameworkMetadataProviding) {
         self.xcframeworkMetadataProvider = xcframeworkMetadataProvider
     }
 
-    func load(path: AbsolutePath) throws -> XCFrameworkNode {
+    public func load(path: AbsolutePath) throws -> XCFrameworkNode {
         guard FileHandler.shared.exists(path) else {
             throw XCFrameworkNodeLoaderError.xcframeworkNotFound(path)
         }

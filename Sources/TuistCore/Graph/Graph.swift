@@ -421,6 +421,14 @@ public class Graph: Encodable {
                 for child in targetNode.dependencies where !visited.contains(child) {
                     stack.push(child)
                 }
+            } else if let xcframeworkNode = node as? XCFrameworkNode {
+                for child in xcframeworkNode.dependencies.map(\.node) where !visited.contains(child) {
+                    stack.push(child)
+                }
+            } else if let frameworkNode = node as? FrameworkNode {
+                for child in frameworkNode.dependencies where !visited.contains(child) {
+                    stack.push(child)
+                }
             }
         }
 
