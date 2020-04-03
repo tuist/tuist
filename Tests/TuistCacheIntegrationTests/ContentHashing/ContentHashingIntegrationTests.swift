@@ -201,6 +201,7 @@ final class ContentHashingIntegrationTests: TuistTestCase {
 
         XCTAssertNotEqual(contentHash[framework1], contentHash[framework2])
     }
+    
     // MARK: - Private helpers
 
     private func createTemporarySourceFile(on temporaryDirectoryPath: AbsolutePath, name: String, content: String) throws -> Target.SourceFile {
