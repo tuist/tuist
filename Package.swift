@@ -28,6 +28,7 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/tuist/XcodeProj", .upToNextMajor(from: "7.10.0")),
+        .package(url: "https://github.com/tadija/AEXML", .upToNextMinor(from: "4.4.0")),
         .package(url: "https://github.com/apple/swift-package-manager", .upToNextMajor(from: "0.5.0")),
         .package(url: "https://github.com/IBM-Swift/BlueSignals", .upToNextMajor(from: "1.0.21")),
         .package(url: "https://github.com/ReactiveX/RxSwift.git", .upToNextMajor(from: "5.0.1")),
@@ -194,7 +195,7 @@ let package = Package(
         ),
         .target(
             name: "TuistSigning",
-            dependencies: ["TuistCore", "TuistSupport", "CryptoSwift"]
+            dependencies: ["TuistCore", "TuistSupport", "CryptoSwift", "AEXML"]
         ),
         .testTarget(
             name: "TuistSigningTests",

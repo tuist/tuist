@@ -52,7 +52,8 @@ public final class SigningCipher: SigningCiphering {
     }
 
     public func encryptSigning(at path: AbsolutePath) throws {
-        let (signingKeyFiles, masterKey) = try signingData(at: path)
+        let masterKey = try self.masterKey(at: path)
+        let signingKeyFiles = try SigningFilesLocator.shared.locateSigningFiles(at: path)
         let cipheredKeys = try signingKeyFiles
             .map(FileHandler.shared.readFile)
             .map { try encryptData($0, masterKey: masterKey) }
@@ -64,7 +65,8 @@ public final class SigningCipher: SigningCiphering {
     }
 
     public func decryptSigning(at path: AbsolutePath) throws {
-        let (signingKeyFiles, masterKey) = try signingData(at: path)
+        let masterKey = try self.masterKey(at: path)
+        let signingKeyFiles = try SigningFilesLocator.shared.locateSigningFiles(at: path)
         let decipheredKeys = try signingKeyFiles
             .map(FileHandler.shared.readFile)
             .map {
@@ -114,20 +116,11 @@ public final class SigningCipher: SigningCiphering {
         return decryptedData
     }
 
-    /// - Returns: Files we want encrypt/decrypt along with master key data
-    private func signingData(at path: AbsolutePath) throws -> (signingKeyFiles: [AbsolutePath], masterKey: Data) {
+    /// - Returns: Master key data
+    private func masterKey(at path: AbsolutePath) throws -> Data {
         guard
             let rootDirectory = rootDirectoryLocator.locate(from: path)
         else { throw SigningCipherError.signingDirectoryNotFound(path) }
-        let signingDirectory = rootDirectory.appending(components: Constants.tuistDirectoryName, Constants.signingDirectoryName)
-        let masterKey = try self.masterKey(from: rootDirectory)
-        // Find all files in `signingDirectory` with the exception of Constants.masterKey
-        let signingKeyFiles = FileHandler.shared.glob(signingDirectory, glob: "*")
-        return (signingKeyFiles: signingKeyFiles, masterKey: masterKey)
-    }
-
-    /// - Returns: Master key data
-    private func masterKey(from rootDirectory: AbsolutePath) throws -> Data {
         let masterKeyFile = rootDirectory.appending(components: Constants.tuistDirectoryName, Constants.masterKey)
         guard FileHandler.shared.exists(masterKeyFile) else { throw SigningCipherError.masterKeyNotFound(masterKeyFile) }
         let plainMasterKey = try FileHandler.shared.readFile(masterKeyFile)
