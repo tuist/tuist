@@ -50,7 +50,7 @@ public final class SigningInstaller: SigningInstalling {
     }
     
     public func installSigning(at path: AbsolutePath) throws {
-        let signingKeyFiles = try signingFilesLocator.locateSigningFiles(at: path)
+        let signingKeyFiles = try signingFilesLocator.locateEncryptedSigningFiles(at: path)
         try signingKeyFiles.forEach {
             switch $0.extension {
             case "mobileprovision", "provisionprofile":

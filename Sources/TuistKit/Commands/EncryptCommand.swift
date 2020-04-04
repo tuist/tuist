@@ -5,12 +5,13 @@ import TuistCore
 import TuistSigning
 import TuistSupport
 
-final class EncryptCommand: NSObject, Command {
+class EncryptCommand: NSObject, Command {
     // MARK: - Attributes
 
     static let command = "encrypt"
     static let overview = "Encrypts all files in Tuist/Signing directory."
     private let pathArgument: OptionArgument<String>
+    private let keepFilesArgument: OptionArgument<Bool>
 
     private let signingCipher: SigningCiphering
 
@@ -28,12 +29,18 @@ final class EncryptCommand: NSObject, Command {
                                      kind: String.self,
                                      usage: "The path to the folder containing the certificates you would like to encrypt",
                                      completion: .filename)
+        keepFilesArgument = subParser.add(option: "--keep-files",
+                                           shortName: "-k",
+                                           kind: Bool.self,
+                                           usage: "Should keep unencrypted files after encryption",
+                                           completion: nil)
         self.signingCipher = signingCipher
     }
 
     func run(with arguments: ArgumentParser.Result) throws {
         let path = self.path(arguments: arguments)
-        try signingCipher.encryptSigning(at: path)
+        let keepFiles = arguments.get(keepFilesArgument) ?? false
+        try signingCipher.encryptSigning(at: path, keepFiles: keepFiles)
 
         logger.notice("Successfully encrypted all signing files", metadata: .success)
     }

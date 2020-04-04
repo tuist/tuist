@@ -42,7 +42,7 @@ final class SigningInstallerTests: TuistUnitTestCase {
         let homeDirectory = try self.temporaryPath()
         fileHandler.homeDirectoryStub = homeDirectory
         
-        signingFilesLocator.locateSigningFilesStub = {
+        signingFilesLocator.locateUnencryptedSigningFilesStub = {
             [$0.appending(component: "profile.mobileprovision")]
         }
         
@@ -71,7 +71,7 @@ final class SigningInstallerTests: TuistUnitTestCase {
         let homeDirectory = try self.temporaryPath()
         fileHandler.homeDirectoryStub = homeDirectory
         
-        signingFilesLocator.locateSigningFilesStub = {
+        signingFilesLocator.locateUnencryptedSigningFilesStub = {
             [$0.appending(component: "profile.mobileprovision")]
         }
         
@@ -90,7 +90,7 @@ final class SigningInstallerTests: TuistUnitTestCase {
         let certificatePath = temporaryPath.appending(component: "development.cer")
         try fileHandler.write("CERT", path: certificatePath, atomically: true)
         
-        signingFilesLocator.locateSigningFilesStub = {
+        signingFilesLocator.locateUnencryptedSigningFilesStub = {
             [$0.appending(component: "development.cer")]
         }
         

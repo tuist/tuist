@@ -49,6 +49,20 @@ final class SigningCipherTests: TuistUnitTestCase {
                                      atomically: true)
         let certContent = "my-certificate"
         let profileContent = "my-profile"
+        signingFilesLocator.locateUnencryptedSigningFilesStub = { path in
+            let signingDirectory = path.appending(components: Constants.tuistDirectoryName, Constants.signingDirectoryName)
+            return [
+                signingDirectory.appending(component: "CertFile.txt"),
+                signingDirectory.appending(component: "ProfileFile.txt")
+            ]
+        }
+        signingFilesLocator.locateEncryptedSigningFilesStub = { path in
+            let signingDirectory = path.appending(components: Constants.tuistDirectoryName, Constants.signingDirectoryName)
+            return [
+                AbsolutePath(signingDirectory.pathString + "/CertFile.txt" + "." + Constants.encryptedExtension),
+                AbsolutePath(signingDirectory.pathString + "/ProfileFile.txt" + "." + Constants.encryptedExtension),
+            ]
+        }
         let certFile = signingDirectory.appending(component: "CertFile.txt")
         let profileFile = signingDirectory.appending(component: "ProfileFile.txt")
         try FileHandler.shared.write(certContent, path: certFile, atomically: true)
@@ -74,23 +88,88 @@ final class SigningCipherTests: TuistUnitTestCase {
                                      atomically: true)
         let certContent = "my-certificate"
         let profileContent = "my-profile"
-        signingFilesLocator.locateSigningFilesStub = { path in
+        let certFile = signingDirectory.appending(component: "CertFile.txt")
+        let profileFile = signingDirectory.appending(component: "ProfileFile.txt")
+        try FileHandler.shared.write(certContent, path: certFile, atomically: true)
+        try FileHandler.shared.write(profileContent, path: profileFile, atomically: true)
+        signingFilesLocator.locateUnencryptedSigningFilesStub = { path in
             let signingDirectory = path.appending(components: Constants.tuistDirectoryName, Constants.signingDirectoryName)
             return [
                 signingDirectory.appending(component: "CertFile.txt"),
-                signingDirectory.appending(component: "ProfileFile.text")
+                signingDirectory.appending(component: "ProfileFile.txt")
             ]
         }
-        let certFile = signingDirectory.appending(component: "CertFile.txt")
-        let profileFile = signingDirectory.appending(component: "ProfileFile.text")
-        try FileHandler.shared.write(certContent, path: certFile, atomically: true)
-        try FileHandler.shared.write(profileContent, path: profileFile, atomically: true)
+        
+        let encryptedCertFile = AbsolutePath(certFile.pathString + "." + Constants.encryptedExtension)
+        let encryptedProfileFile = AbsolutePath(profileFile.pathString + "." + Constants.encryptedExtension)
 
         // When
         try subject.encryptSigning(at: temporaryPath)
 
         // Then
-        XCTAssertNotEqual(try FileHandler.shared.readTextFile(certFile), certContent)
-        XCTAssertNotEqual(try FileHandler.shared.readTextFile(profileFile), profileContent)
+        XCTAssertNotEqual(try FileHandler.shared.readTextFile(encryptedCertFile), certContent)
+        XCTAssertNotEqual(try FileHandler.shared.readTextFile(encryptedProfileFile), profileContent)
+    }
+    
+    func test_encrypt_deletes_unencrypted_files() throws {
+        // Given
+        let temporaryPath = try self.temporaryPath()
+        rootDirectoryLocator.locateStub = temporaryPath
+        let signingDirectory = temporaryPath.appending(components: Constants.tuistDirectoryName, Constants.signingDirectoryName)
+        try FileHandler.shared.createFolder(signingDirectory)
+        try FileHandler.shared.write("my-password",
+                                     path: temporaryPath.appending(components: Constants.tuistDirectoryName, Constants.masterKey),
+                                     atomically: true)
+        let certContent = "my-certificate"
+        let profileContent = "my-profile"
+        let certFile = signingDirectory.appending(component: "CertFile.txt")
+        let profileFile = signingDirectory.appending(component: "ProfileFile.txt")
+        try FileHandler.shared.write(certContent, path: certFile, atomically: true)
+        try FileHandler.shared.write(profileContent, path: profileFile, atomically: true)
+        signingFilesLocator.locateUnencryptedSigningFilesStub = { path in
+            let signingDirectory = path.appending(components: Constants.tuistDirectoryName, Constants.signingDirectoryName)
+            return [
+                signingDirectory.appending(component: "CertFile.txt"),
+                signingDirectory.appending(component: "ProfileFile.txt")
+            ]
+        }
+
+        // When
+        try subject.encryptSigning(at: temporaryPath)
+        
+        // Then
+        XCTAssertFalse(fileHandler.exists(certFile))
+        XCTAssertFalse(fileHandler.exists(profileFile))
+    }
+    
+    func test_encrypt_does_not_delete_unencrypted_files_when_keep_files_true() throws {
+        // Given
+        let temporaryPath = try self.temporaryPath()
+        rootDirectoryLocator.locateStub = temporaryPath
+        let signingDirectory = temporaryPath.appending(components: Constants.tuistDirectoryName, Constants.signingDirectoryName)
+        try FileHandler.shared.createFolder(signingDirectory)
+        try FileHandler.shared.write("my-password",
+                                     path: temporaryPath.appending(components: Constants.tuistDirectoryName, Constants.masterKey),
+                                     atomically: true)
+        let certContent = "my-certificate"
+        let profileContent = "my-profile"
+        let certFile = signingDirectory.appending(component: "CertFile.txt")
+        let profileFile = signingDirectory.appending(component: "ProfileFile.txt")
+        try FileHandler.shared.write(certContent, path: certFile, atomically: true)
+        try FileHandler.shared.write(profileContent, path: profileFile, atomically: true)
+        signingFilesLocator.locateUnencryptedSigningFilesStub = { path in
+            let signingDirectory = path.appending(components: Constants.tuistDirectoryName, Constants.signingDirectoryName)
+            return [
+                signingDirectory.appending(component: "CertFile.txt"),
+                signingDirectory.appending(component: "ProfileFile.txt")
+            ]
+        }
+
+        // When
+        try subject.encryptSigning(at: temporaryPath, keepFiles: true)
+        
+        // Then
+        XCTAssertTrue(fileHandler.exists(certFile))
+        XCTAssertTrue(fileHandler.exists(profileFile))
     }
 }

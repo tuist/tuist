@@ -13,20 +13,6 @@ final class SecurityController: SecurityControlling {
         try System.shared.capture("/usr/bin/security", "cms", "-D", "-i", path.pathString)
     }
     
-    func certificateExists(path: AbsolutePath) throws -> Bool {
-        do {
-            try System.shared.run("/usr/bin/security", "find-certificate", "-p", keychainPath.pathString, path.pathString)
-        } catch {
-            if error.localizedDescription.contains("The specified item could not be found in the keychain") {
-                return false
-            } else {
-                throw error
-            }
-        }
-        
-        return true
-    }
-    
     func importCertificate(at path: AbsolutePath) throws {
         do {
             try System.shared.run("/usr/bin/security", "-p", keychainPath.pathString, "import", path.pathString)

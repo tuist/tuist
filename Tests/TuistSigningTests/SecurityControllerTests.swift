@@ -61,36 +61,4 @@ final class SecurityControllerTests: TuistUnitTestCase {
         // Then
         XCTAssertPrinterContains("Certificate at \(certificatePath) is already present in keychain", at: .debug, ==)
     }
-//    func test_certificate_exists() throws {
-//        // Given
-//        let certificatePath = try temporaryPath()
-//        let homeDirectoryPath = try temporaryPath()
-//        fileHandler.homeDirectoryStub = homeDirectoryPath
-//        let keychainPath = homeDirectoryPath.appending(RelativePath("Library/Keychains/login.keychain"))
-//
-//        system.succeedCommand("/usr/bin/security", "find-certificate", "-p", keychainPath.pathString, certificatePath.pathString)
-//
-//        // When
-//        let exists = try subject.certificateExists(path: certificatePath)
-//
-//        // Then
-//        XCTAssertTrue(exists)
-//    }
-//
-//    func test_certificate_does_not_exist() throws {
-//        // Given
-//        let certificatePath = try temporaryPath()
-//        let homeDirectoryPath = try temporaryPath()
-//        fileHandler.homeDirectoryStub = homeDirectoryPath
-//        let keychainPath = homeDirectoryPath.appending(RelativePath("Library/Keychains/login.keychain"))
-//
-//        system.errorCommand("/usr/bin/security", "find-certificate", "-p", keychainPath.pathString, certificatePath.pathString,
-//                            error: "security: SecKeychainSearchCopyNext: The specified item could not be found in the keychain.")
-//
-//        // When
-//        let exists = try subject.certificateExists(path: certificatePath)
-//
-//        // Then
-//        XCTAssertFalse(exists)
-//    }
 }

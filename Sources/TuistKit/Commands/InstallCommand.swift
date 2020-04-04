@@ -30,7 +30,7 @@ class InstallCommand: NSObject, Command {
         pathArgument = subParser.add(option: "--path",
                                      shortName: "-p",
                                      kind: String.self,
-                                     usage: "The path to the folder containing the certificates you would like to encrypt",
+                                     usage: "The path to the folder containing the signing files to install",
                                      completion: .filename)
         self.signingCipher = signingCipher
         self.signingInstaller = signingInstaller
@@ -38,12 +38,11 @@ class InstallCommand: NSObject, Command {
 
     func run(with arguments: ArgumentParser.Result) throws {
         let path = self.path(arguments: arguments)
-        // TODO: Decrypt only files without .encrypted extension
-//        try signingCipher.decryptSigning(at: path)
         
+        try signingCipher.decryptSigning(at: path)
         try signingInstaller.installSigning(at: path)
-
-        // TODO: Delete decrypted files
+        try signingCipher.encryptSigning(at: path)
+        
         logger.notice("Successfully installed all signing files", metadata: .success)
     }
 

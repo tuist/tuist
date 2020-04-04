@@ -21,7 +21,8 @@ enum SigningFilesLocatorError: FatalError {
 }
 
 protocol SigningFilesLocating {
-    func locateSigningFiles(at path: AbsolutePath) throws -> [AbsolutePath]
+    func locateEncryptedSigningFiles(at path: AbsolutePath) throws -> [AbsolutePath]
+    func locateUnencryptedSigningFiles(at path: AbsolutePath) throws -> [AbsolutePath]
 }
 
 final class SigningFilesLocator: SigningFilesLocating {    
@@ -31,11 +32,19 @@ final class SigningFilesLocator: SigningFilesLocating {
         self.rootDirectoryLocator = rootDirectoryLocator
     }
     
-    func locateSigningFiles(at path: AbsolutePath) throws -> [AbsolutePath] {
+    func locateEncryptedSigningFiles(at path: AbsolutePath) throws -> [AbsolutePath] {
         guard
             let rootDirectory = rootDirectoryLocator.locate(from: path)
         else { throw SigningFilesLocatorError.signingDirectoryNotFound(path) }
         let signingDirectory = rootDirectory.appending(components: Constants.tuistDirectoryName, Constants.signingDirectoryName)
-        return FileHandler.shared.glob(signingDirectory, glob: "*")
+        return FileHandler.shared.glob(signingDirectory, glob: "*").filter { $0.extension == Constants.encryptedExtension }
+    }
+    
+    func locateUnencryptedSigningFiles(at path: AbsolutePath) throws -> [AbsolutePath] {
+        guard
+            let rootDirectory = rootDirectoryLocator.locate(from: path)
+        else { throw SigningFilesLocatorError.signingDirectoryNotFound(path) }
+        let signingDirectory = rootDirectory.appending(components: Constants.tuistDirectoryName, Constants.signingDirectoryName)
+        return FileHandler.shared.glob(signingDirectory, glob: "*").filter { $0.extension != Constants.encryptedExtension }
     }
 }

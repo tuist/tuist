@@ -38,9 +38,23 @@ enum SigningCipherError: FatalError, Equatable {
 /// SigningCiphering handles all encryption/decryption of files needed for signing (certificates, profiles, etc.)
 public protocol SigningCiphering {
     /// Encrypts all signing files at `Tuist/Signing`
-    func encryptSigning(at path: AbsolutePath) throws
-    /// Decrypts all signing files at `Tuist/Signing`
-    func decryptSigning(at path: AbsolutePath) throws
+    /// - Parameters:
+    ///     - keeepFiles: Keep unencrypted files
+    func encryptSigning(at path: AbsolutePath, keepFiles: Bool) throws
+    /// Decrypts all signing files at `Tuist/Signing
+    /// - Parameters:
+    ///     - keeepFiles: Keep encrypted files
+    func decryptSigning(at path: AbsolutePath, keepFiles: Bool) throws
+}
+
+public extension SigningCiphering {
+    func encryptSigning(at path: AbsolutePath) throws {
+        try encryptSigning(at: path, keepFiles: false)
+    }
+    
+    func decryptSigning(at path: AbsolutePath) throws {
+        try decryptSigning(at: path, keepFiles: false)
+    }
 }
 
 public final class SigningCipher: SigningCiphering {
@@ -59,31 +73,49 @@ public final class SigningCipher: SigningCiphering {
         self.signingFilesLocator = signingFilesLocator
     }
 
-    public func encryptSigning(at path: AbsolutePath) throws {
+    public func encryptSigning(at path: AbsolutePath, keepFiles: Bool) throws {
         let masterKey = try self.masterKey(at: path)
-        let signingKeyFiles = try signingFilesLocator.locateSigningFiles(at: path)
+        let signingKeyFiles = try signingFilesLocator.locateUnencryptedSigningFiles(at: path)
+        guard !signingKeyFiles.isEmpty else { return }
         let cipheredKeys = try signingKeyFiles
             .map(FileHandler.shared.readFile)
             .map { try encryptData($0, masterKey: masterKey) }
 
+        try signingFilesLocator.locateEncryptedSigningFiles(at: path)
+            .forEach(FileHandler.shared.delete)
+        
         try zip(cipheredKeys, signingKeyFiles).forEach {
             logger.debug("Encrypting \($1.pathString)")
-            try $0.write(to: $1.url)
+            let encryptedPath = AbsolutePath($1.pathString + "." + Constants.encryptedExtension)
+            try $0.write(to: encryptedPath.url)
+        }
+        
+        if !keepFiles {
+            try signingKeyFiles.forEach(FileHandler.shared.delete)
         }
     }
 
-    public func decryptSigning(at path: AbsolutePath) throws {
+    public func decryptSigning(at path: AbsolutePath, keepFiles: Bool) throws {
         let masterKey = try self.masterKey(at: path)
-        let signingKeyFiles = try signingFilesLocator.locateSigningFiles(at: path)
+        let signingKeyFiles = try signingFilesLocator.locateEncryptedSigningFiles(at: path)
+        guard !signingKeyFiles.isEmpty else { return }
         let decipheredKeys = try signingKeyFiles
             .map(FileHandler.shared.readFile)
             .map {
                 try decryptData($0, masterKey: masterKey)
             }
+        
+        try signingFilesLocator.locateUnencryptedSigningFiles(at: path)
+            .forEach(FileHandler.shared.delete)
 
         try zip(decipheredKeys, signingKeyFiles).forEach {
             logger.debug("Decrypting \($1.pathString)")
-            try $0.write(to: $1.url)
+            let decryptedPath = AbsolutePath($1.parentDirectory.pathString + "/" + $1.basenameWithoutExt)
+            try $0.write(to: decryptedPath.url)
+        }
+        
+        if !keepFiles {
+            try signingKeyFiles.forEach(FileHandler.shared.delete)
         }
     }
 

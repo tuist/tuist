@@ -11,6 +11,7 @@ class DecryptCommand: NSObject, Command {
     static let command = "decrypt"
     static let overview = "Decrypts all files in Tuist/Signing directory."
     private let pathArgument: OptionArgument<String>
+    private let keepFilesArgument: OptionArgument<Bool>
 
     private let signingCipher: SigningCiphering
 
@@ -28,12 +29,18 @@ class DecryptCommand: NSObject, Command {
                                      kind: String.self,
                                      usage: "The path to the folder containing the encrypted certificates",
                                      completion: .filename)
+        keepFilesArgument = subParser.add(option: "--keep-files",
+                                           shortName: "-k",
+                                           kind: Bool.self,
+                                           usage: "Should keep encrypted files after decryption",
+                                           completion: nil)
         self.signingCipher = signingCipher
     }
 
     func run(with arguments: ArgumentParser.Result) throws {
         let path = self.path(arguments: arguments)
-        try signingCipher.decryptSigning(at: path)
+        let keepFiles = arguments.get(keepFilesArgument) ?? false
+        try signingCipher.decryptSigning(at: path, keepFiles: keepFiles)
         logger.notice("Successfully decrypted all signing files", metadata: .success)
     }
 
