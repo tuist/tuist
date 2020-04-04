@@ -9,15 +9,19 @@ import XCTest
 final class SigningCipherTests: TuistUnitTestCase {
     var subject: SigningCiphering!
     var rootDirectoryLocator: MockRootDirectoryLocator!
+    var signingFilesLocator: MockSigningFilesLocator!
 
     override func setUp() {
         super.setUp()
         rootDirectoryLocator = MockRootDirectoryLocator()
-        subject = SigningCipher(rootDirectoryLocator: rootDirectoryLocator)
+        signingFilesLocator = MockSigningFilesLocator()
+        subject = SigningCipher(rootDirectoryLocator: rootDirectoryLocator,
+                                signingFilesLocator: signingFilesLocator)
     }
 
     override func tearDown() {
         rootDirectoryLocator = nil
+        signingFilesLocator = nil
         subject = nil
         super.tearDown()
     }
@@ -64,13 +68,19 @@ final class SigningCipherTests: TuistUnitTestCase {
         let temporaryPath = try self.temporaryPath()
         rootDirectoryLocator.locateStub = temporaryPath
         let signingDirectory = temporaryPath.appending(components: Constants.tuistDirectoryName, Constants.signingDirectoryName)
-        rootDirectoryLocator.locateStub = temporaryPath
         try FileHandler.shared.createFolder(signingDirectory)
         try FileHandler.shared.write("my-password",
                                      path: temporaryPath.appending(components: Constants.tuistDirectoryName, Constants.masterKey),
                                      atomically: true)
         let certContent = "my-certificate"
         let profileContent = "my-profile"
+        signingFilesLocator.locateSigningFilesStub = { path in
+            let signingDirectory = path.appending(components: Constants.tuistDirectoryName, Constants.signingDirectoryName)
+            return [
+                signingDirectory.appending(component: "CertFile.txt"),
+                signingDirectory.appending(component: "ProfileFile.text")
+            ]
+        }
         let certFile = signingDirectory.appending(component: "CertFile.txt")
         let profileFile = signingDirectory.appending(component: "ProfileFile.text")
         try FileHandler.shared.write(certContent, path: certFile, atomically: true)

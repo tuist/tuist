@@ -3,7 +3,7 @@ import Basic
 import AEXML
 import TuistSupport
 
-enum SigningInstallerError: FatalError {
+enum SigningInstallerError: FatalError, Equatable {
     case invalidProvisioningProfile(AbsolutePath)
     case noFileExtension(AbsolutePath)
     
@@ -76,12 +76,15 @@ public final class SigningInstaller: SigningInstalling {
             let uuid = children[children.index(after: uuidIndex)].value
         else { throw SigningInstallerError.invalidProvisioningProfile(path) }
         
-        // TODO: Create directory if it does not exist
-        let provisioningProfilesPath = AbsolutePath.homeDirectory.appending(components: "Library", "MobileDevice", "Provisioning Profiles")
+        let provisioningProfilesPath = FileHandler.shared.homeDirectory.appending(RelativePath("Library/MobileDevice/Provisioning Profiles"))
+        if !FileHandler.shared.exists(provisioningProfilesPath) {
+            try FileHandler.shared.createFolder(provisioningProfilesPath)
+        }
         let encryptedProvisioningProfile = try FileHandler.shared.readFile(path)
-        try encryptedProvisioningProfile.write(to: provisioningProfilesPath.appending(component: uuid + "." + profileExtension).url)
+        let provisioningProfilePath = provisioningProfilesPath.appending(component: uuid + "." + profileExtension)
+        try encryptedProvisioningProfile.write(to: provisioningProfilePath.url)
         
-        logger.debug("Installed provisioning profile \(path.pathString)")
+        logger.debug("Installed provisioning profile \(path.pathString) to \(provisioningProfilePath.pathString)")
     }
     
     private func importCertificate(at path: AbsolutePath) throws {
