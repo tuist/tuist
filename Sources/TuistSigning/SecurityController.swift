@@ -8,11 +8,11 @@ protocol SecurityControlling {
 
 final class SecurityController: SecurityControlling {
     private let keychainPath: AbsolutePath = FileHandler.shared.homeDirectory.appending(RelativePath("Library/Keychains/login.keychain"))
-    
+
     func decodeFile(at path: AbsolutePath) throws -> String {
         try System.shared.capture("/usr/bin/security", "cms", "-D", "-i", path.pathString)
     }
-    
+
     func importCertificate(at path: AbsolutePath) throws {
         do {
             try System.shared.run("/usr/bin/security", "-p", keychainPath.pathString, "import", path.pathString)

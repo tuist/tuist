@@ -1,19 +1,19 @@
-import Foundation
-import Basic
 import AEXML
+import Basic
+import Foundation
 import TuistSupport
 
 enum SigningInstallerError: FatalError, Equatable {
     case invalidProvisioningProfile(AbsolutePath)
     case noFileExtension(AbsolutePath)
-    
+
     var type: ErrorType {
         switch self {
         case .invalidProvisioningProfile, .noFileExtension:
             return .abort
         }
     }
-    
+
     var description: String {
         switch self {
         case let .invalidProvisioningProfile(path):
@@ -34,23 +34,22 @@ enum SigningFile {
 }
 
 public final class SigningInstaller: SigningInstalling {
-    
     private let signingFilesLocator: SigningFilesLocating
     private let securityController: SecurityControlling
-    
+
     public convenience init() {
         self.init(signingFilesLocator: SigningFilesLocator(),
                   securityController: SecurityController())
     }
-    
+
     init(signingFilesLocator: SigningFilesLocating,
-                securityController: SecurityControlling) {
+         securityController: SecurityControlling) {
         self.signingFilesLocator = signingFilesLocator
         self.securityController = securityController
     }
-    
+
     public func installSigning(at path: AbsolutePath) throws {
-        let signingKeyFiles = try signingFilesLocator.locateEncryptedSigningFiles(at: path)
+        let signingKeyFiles = try signingFilesLocator.locateUnencryptedSigningFiles(at: path)
         try signingKeyFiles.forEach {
             switch $0.extension {
             case "mobileprovision", "provisionprofile":
@@ -62,20 +61,20 @@ public final class SigningInstaller: SigningInstalling {
             }
         }
     }
-    
+
     private func installProvisioningProfile(at path: AbsolutePath) throws {
         let unencryptedProvisioningProfile = try securityController.decodeFile(at: path)
         let xmlDocument = try AEXMLDocument(xml: unencryptedProvisioningProfile)
         let children = xmlDocument.root.children.flatMap { $0.children }
-        
+
         guard let profileExtension = path.extension else { throw SigningInstallerError.noFileExtension(path) }
-        
+
         guard
             let uuidIndex = children.firstIndex(where: { $0.string == "UUID" }),
             children.index(after: uuidIndex) != children.endIndex,
             let uuid = children[children.index(after: uuidIndex)].value
         else { throw SigningInstallerError.invalidProvisioningProfile(path) }
-        
+
         let provisioningProfilesPath = FileHandler.shared.homeDirectory.appending(RelativePath("Library/MobileDevice/Provisioning Profiles"))
         if !FileHandler.shared.exists(provisioningProfilesPath) {
             try FileHandler.shared.createFolder(provisioningProfilesPath)
@@ -83,10 +82,10 @@ public final class SigningInstaller: SigningInstalling {
         let encryptedProvisioningProfile = try FileHandler.shared.readFile(path)
         let provisioningProfilePath = provisioningProfilesPath.appending(component: uuid + "." + profileExtension)
         try encryptedProvisioningProfile.write(to: provisioningProfilePath.url)
-        
+
         logger.debug("Installed provisioning profile \(path.pathString) to \(provisioningProfilePath.pathString)")
     }
-    
+
     private func importCertificate(at path: AbsolutePath) throws {
         try securityController.importCertificate(at: path)
     }

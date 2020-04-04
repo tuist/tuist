@@ -38,11 +38,11 @@ class InstallCommand: NSObject, Command {
 
     func run(with arguments: ArgumentParser.Result) throws {
         let path = self.path(arguments: arguments)
-        
+
         try signingCipher.decryptSigning(at: path)
         try signingInstaller.installSigning(at: path)
         try signingCipher.encryptSigning(at: path)
-        
+
         logger.notice("Successfully installed all signing files", metadata: .success)
     }
 

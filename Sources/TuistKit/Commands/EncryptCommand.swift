@@ -30,10 +30,10 @@ class EncryptCommand: NSObject, Command {
                                      usage: "The path to the folder containing the certificates you would like to encrypt",
                                      completion: .filename)
         keepFilesArgument = subParser.add(option: "--keep-files",
-                                           shortName: "-k",
-                                           kind: Bool.self,
-                                           usage: "Should keep unencrypted files after encryption",
-                                           completion: nil)
+                                          shortName: "-k",
+                                          kind: Bool.self,
+                                          usage: "Should keep unencrypted files after encryption",
+                                          completion: nil)
         self.signingCipher = signingCipher
     }
 

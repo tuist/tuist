@@ -51,7 +51,7 @@ public extension SigningCiphering {
     func encryptSigning(at path: AbsolutePath) throws {
         try encryptSigning(at: path, keepFiles: false)
     }
-    
+
     func decryptSigning(at path: AbsolutePath) throws {
         try decryptSigning(at: path, keepFiles: false)
     }
@@ -66,9 +66,9 @@ public final class SigningCipher: SigningCiphering {
         self.init(rootDirectoryLocator: RootDirectoryLocator(),
                   signingFilesLocator: SigningFilesLocator())
     }
-    
+
     init(rootDirectoryLocator: RootDirectoryLocating,
-                signingFilesLocator: SigningFilesLocating) {
+         signingFilesLocator: SigningFilesLocating) {
         self.rootDirectoryLocator = rootDirectoryLocator
         self.signingFilesLocator = signingFilesLocator
     }
@@ -83,13 +83,13 @@ public final class SigningCipher: SigningCiphering {
 
         try signingFilesLocator.locateEncryptedSigningFiles(at: path)
             .forEach(FileHandler.shared.delete)
-        
+
         try zip(cipheredKeys, signingKeyFiles).forEach {
             logger.debug("Encrypting \($1.pathString)")
             let encryptedPath = AbsolutePath($1.pathString + "." + Constants.encryptedExtension)
             try $0.write(to: encryptedPath.url)
         }
-        
+
         if !keepFiles {
             try signingKeyFiles.forEach(FileHandler.shared.delete)
         }
@@ -104,7 +104,7 @@ public final class SigningCipher: SigningCiphering {
             .map {
                 try decryptData($0, masterKey: masterKey)
             }
-        
+
         try signingFilesLocator.locateUnencryptedSigningFiles(at: path)
             .forEach(FileHandler.shared.delete)
 
@@ -113,7 +113,7 @@ public final class SigningCipher: SigningCiphering {
             let decryptedPath = AbsolutePath($1.parentDirectory.pathString + "/" + $1.basenameWithoutExt)
             try $0.write(to: decryptedPath.url)
         }
-        
+
         if !keepFiles {
             try signingKeyFiles.forEach(FileHandler.shared.delete)
         }

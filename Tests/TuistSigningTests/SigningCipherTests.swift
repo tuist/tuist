@@ -53,7 +53,7 @@ final class SigningCipherTests: TuistUnitTestCase {
             let signingDirectory = path.appending(components: Constants.tuistDirectoryName, Constants.signingDirectoryName)
             return [
                 signingDirectory.appending(component: "CertFile.txt"),
-                signingDirectory.appending(component: "ProfileFile.txt")
+                signingDirectory.appending(component: "ProfileFile.txt"),
             ]
         }
         signingFilesLocator.locateEncryptedSigningFilesStub = { path in
@@ -96,10 +96,10 @@ final class SigningCipherTests: TuistUnitTestCase {
             let signingDirectory = path.appending(components: Constants.tuistDirectoryName, Constants.signingDirectoryName)
             return [
                 signingDirectory.appending(component: "CertFile.txt"),
-                signingDirectory.appending(component: "ProfileFile.txt")
+                signingDirectory.appending(component: "ProfileFile.txt"),
             ]
         }
-        
+
         let encryptedCertFile = AbsolutePath(certFile.pathString + "." + Constants.encryptedExtension)
         let encryptedProfileFile = AbsolutePath(profileFile.pathString + "." + Constants.encryptedExtension)
 
@@ -110,7 +110,7 @@ final class SigningCipherTests: TuistUnitTestCase {
         XCTAssertNotEqual(try FileHandler.shared.readTextFile(encryptedCertFile), certContent)
         XCTAssertNotEqual(try FileHandler.shared.readTextFile(encryptedProfileFile), profileContent)
     }
-    
+
     func test_encrypt_deletes_unencrypted_files() throws {
         // Given
         let temporaryPath = try self.temporaryPath()
@@ -130,18 +130,18 @@ final class SigningCipherTests: TuistUnitTestCase {
             let signingDirectory = path.appending(components: Constants.tuistDirectoryName, Constants.signingDirectoryName)
             return [
                 signingDirectory.appending(component: "CertFile.txt"),
-                signingDirectory.appending(component: "ProfileFile.txt")
+                signingDirectory.appending(component: "ProfileFile.txt"),
             ]
         }
 
         // When
         try subject.encryptSigning(at: temporaryPath)
-        
+
         // Then
         XCTAssertFalse(fileHandler.exists(certFile))
         XCTAssertFalse(fileHandler.exists(profileFile))
     }
-    
+
     func test_encrypt_does_not_delete_unencrypted_files_when_keep_files_true() throws {
         // Given
         let temporaryPath = try self.temporaryPath()
@@ -161,13 +161,13 @@ final class SigningCipherTests: TuistUnitTestCase {
             let signingDirectory = path.appending(components: Constants.tuistDirectoryName, Constants.signingDirectoryName)
             return [
                 signingDirectory.appending(component: "CertFile.txt"),
-                signingDirectory.appending(component: "ProfileFile.txt")
+                signingDirectory.appending(component: "ProfileFile.txt"),
             ]
         }
 
         // When
         try subject.encryptSigning(at: temporaryPath, keepFiles: true)
-        
+
         // Then
         XCTAssertTrue(fileHandler.exists(certFile))
         XCTAssertTrue(fileHandler.exists(profileFile))

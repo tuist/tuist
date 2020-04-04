@@ -32,7 +32,7 @@ enum FileHandlerError: FatalError {
 public protocol FileHandling: AnyObject {
     /// Returns the current path.
     var currentPath: AbsolutePath { get }
-    
+
     /// Returns `AbsolutePath` to home directory
     var homeDirectory: AbsolutePath { get }
 
@@ -142,7 +142,7 @@ public class FileHandler: FileHandling {
     public var currentPath: AbsolutePath {
         AbsolutePath(fileManager.currentDirectoryPath)
     }
-    
+
     public var homeDirectory: AbsolutePath {
         AbsolutePath(NSHomeDirectory())
     }
