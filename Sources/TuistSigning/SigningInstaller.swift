@@ -88,12 +88,6 @@ public final class SigningInstaller: SigningInstalling {
     }
     
     private func importCertificate(at path: AbsolutePath) throws {
-        guard try !securityController.certificateExists(path: path) else {
-            logger.debug("Certificate at \(path) is already present in keychain")
-            return
-        }
-        
         try securityController.importCertificate(at: path)
-        logger.debug("Imported certificate at \(path.pathString)")
     }
 }

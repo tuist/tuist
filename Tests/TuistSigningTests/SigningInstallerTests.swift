@@ -94,10 +94,6 @@ final class SigningInstallerTests: TuistUnitTestCase {
             [$0.appending(component: "development.cer")]
         }
         
-        securityController.certificateExistsStub = { _ in
-            false
-        }
-        
         
         var importedCertificatePath: AbsolutePath?
         securityController.importCertificateStub = {
@@ -109,27 +105,6 @@ final class SigningInstallerTests: TuistUnitTestCase {
         
         // Then
         XCTAssertEqual(importedCertificatePath, certificatePath)
-    }
-    
-    func test_certificate_is_skipped_when_already_imported() throws {
-        // Given
-        let temporaryPath = try self.temporaryPath()
-        let certificatePath = temporaryPath.appending(component: "development.cer")
-        try fileHandler.write("CERT", path: certificatePath, atomically: true)
-        
-        signingFilesLocator.locateSigningFilesStub = {
-            [$0.appending(component: "development.cer")]
-        }
-        
-        securityController.certificateExistsStub = { _ in
-            true
-        }
-        
-        // When
-        try subject.installSigning(at: temporaryPath)
-        
-        // Then
-        XCTAssertPrinterContains("Certificate at \(certificatePath) is already present in keychain", at: .debug, ==)
     }
     
     private func xml(_ string: String) -> String {
