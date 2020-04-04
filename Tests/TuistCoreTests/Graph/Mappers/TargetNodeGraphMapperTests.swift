@@ -2,10 +2,10 @@ import TuistCore
 import XCTest
 @testable import TuistCoreTesting
 
-class GraphTargetNodeMapperTests: XCTestCase {
+class TargetNodeGraphMapperTests: XCTestCase {
     func test_map() {
         // Given
-        let subject = GraphTargetNodeMapper { targetNode in
+        let subject = TargetNodeGraphMapper { targetNode in
             TargetNode(project: targetNode.project, target: targetNode.target, dependencies: [])
         }
 
@@ -32,7 +32,7 @@ class GraphTargetNodeMapperTests: XCTestCase {
 
     func test_map_doesNotUpdateOriginal() {
         // Given
-        let subject = GraphTargetNodeMapper { targetNode in
+        let subject = TargetNodeGraphMapper { targetNode in
             TargetNode(project: targetNode.project, target: targetNode.target, dependencies: [])
         }
 
@@ -59,7 +59,7 @@ class GraphTargetNodeMapperTests: XCTestCase {
 
     func test_map_removesOrphanedNodes() {
         // Given
-        let subject = GraphTargetNodeMapper { targetNode in
+        let subject = TargetNodeGraphMapper { targetNode in
             TargetNode(project: targetNode.project, target: targetNode.target, dependencies: [])
         }
 
@@ -86,7 +86,7 @@ class GraphTargetNodeMapperTests: XCTestCase {
 
     func test_map_postMapOrphanedNodesdoNotUpdateOriginal() {
         // Given
-        let subject = GraphTargetNodeMapper { targetNode in
+        let subject = TargetNodeGraphMapper { targetNode in
             TargetNode(project: targetNode.project, target: targetNode.target, dependencies: [])
         }
 

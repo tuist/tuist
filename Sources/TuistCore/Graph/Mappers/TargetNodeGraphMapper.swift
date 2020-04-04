@@ -1,13 +1,20 @@
 import Basic
 import Foundation
 
-public class GraphTargetNodeMapper {
+/// Target Node Graph Mapper
+///
+/// A `GraphMapper` that allows transforming `TargetNode`s without modifying
+/// the original nodes. Additionally, any projects associated with orphaned nodes after
+/// any transformations will no longer be part of the resulting graph.
+///
+/// - Note: When mapping, the `transform` block receives a copy of the original `TargetNode`
+public class TargetNodeGraphMapper: GraphMapping {
     public let mapTargetNode: (TargetNode) -> TargetNode
     public init(transform: @escaping (TargetNode) -> TargetNode) {
         mapTargetNode = transform
     }
 
-    // MARK: -
+    // MARK: - GraphMapping
 
     public func map(graph: Graph) -> Graph {
         var mappedCache = [GraphNodeMapKey: GraphNode]()
@@ -22,6 +29,8 @@ public class GraphTargetNodeMapper {
                      cache: cache,
                      entryNodes: updatedNodes)
     }
+
+    // MARK: - Private
 
     private func map(node: GraphNode,
                      mappedCache: inout [GraphNodeMapKey: GraphNode],

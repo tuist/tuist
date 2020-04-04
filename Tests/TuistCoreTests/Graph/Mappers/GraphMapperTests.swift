@@ -2,18 +2,16 @@ import Basic
 import Foundation
 import TuistCore
 import TuistCoreTesting
-import TuistSupport
 import XCTest
 
-@testable import TuistKit
 @testable import TuistSupportTesting
 
-final class AnyProjectGeneratorGraphMapperTests: TuistUnitTestCase {
+final class AnyGraphMapperTests: TuistUnitTestCase {
     func test_map() throws {
         // Given
         let input = Graph.test(name: "input")
         let output = Graph.test(name: "output")
-        let subject = AnyProjectGeneratorGraphMapper(mapper: { graph in
+        let subject = AnyGraphMapper(mapper: { graph in
             XCTAssertEqual(graph.name, input.name)
             return output
         })
@@ -26,19 +24,19 @@ final class AnyProjectGeneratorGraphMapperTests: TuistUnitTestCase {
     }
 }
 
-final class ProjectGeneratorSequentialGraphMapperTests: TuistUnitTestCase {
+final class SequentialGraphMapperTests: TuistUnitTestCase {
     func test_map() throws {
         // Given
         let input = Graph.test(name: "0")
-        let first = AnyProjectGeneratorGraphMapper(mapper: { graph in
+        let first = AnyGraphMapper(mapper: { graph in
             XCTAssertEqual(graph.name, "0")
             return Graph.test(name: "1")
         })
-        let second = AnyProjectGeneratorGraphMapper(mapper: { graph in
+        let second = AnyGraphMapper(mapper: { graph in
             XCTAssertEqual(graph.name, "1")
             return Graph.test(name: "2")
         })
-        let subject = ProjectGeneratorSequentialGraphMapper([first, second])
+        let subject = SequentialGraphMapper([first, second])
 
         // When
         let got = try subject.map(graph: input)
