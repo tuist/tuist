@@ -21,6 +21,7 @@ enum SigningFilesLocatorError: FatalError {
 }
 
 protocol SigningFilesLocating {
+    func hasSigningDirectory(at path: AbsolutePath) throws -> Bool
     func locateEncryptedSigningFiles(at path: AbsolutePath) throws -> [AbsolutePath]
     func locateUnencryptedSigningFiles(at path: AbsolutePath) throws -> [AbsolutePath]
 }
@@ -30,6 +31,14 @@ final class SigningFilesLocator: SigningFilesLocating {
 
     init(rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator()) {
         self.rootDirectoryLocator = rootDirectoryLocator
+    }
+    
+    func hasSigningDirectory(at path: AbsolutePath) throws -> Bool {
+        guard
+            let rootDirectory = rootDirectoryLocator.locate(from: path)
+        else { throw SigningFilesLocatorError.signingDirectoryNotFound(path) }
+        let signingDirectory = rootDirectory.appending(components: Constants.tuistDirectoryName, Constants.signingDirectoryName)
+        return FileHandler.shared.exists(signingDirectory)
     }
 
     func locateEncryptedSigningFiles(at path: AbsolutePath) throws -> [AbsolutePath] {
