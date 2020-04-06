@@ -27,7 +27,7 @@ let package = Package(
                  targets: ["TuistGenerator"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/tuist/XcodeProj", .upToNextMajor(from: "7.8.0")),
+        .package(url: "https://github.com/tuist/XcodeProj", .upToNextMajor(from: "7.10.0")),
         .package(url: "https://github.com/apple/swift-package-manager", .upToNextMajor(from: "0.5.0")),
         .package(url: "https://github.com/IBM-Swift/BlueSignals", .upToNextMajor(from: "1.0.21")),
         .package(url: "https://github.com/ReactiveX/RxSwift.git", .upToNextMajor(from: "5.0.1")),
@@ -130,7 +130,7 @@ let package = Package(
         ),
         .testTarget(
             name: "TuistCacheTests",
-            dependencies: ["TuistCache", "TuistSupportTesting", "TuistCoreTesting", "RxBlocking"]
+            dependencies: ["TuistCache", "TuistSupportTesting", "TuistCoreTesting", "RxBlocking", "TuistCacheTesting"]
         ),
         .target(
             name: "TuistCacheTesting",

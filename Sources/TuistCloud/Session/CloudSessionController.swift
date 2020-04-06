@@ -42,7 +42,7 @@ public protocol CloudSessionControlling: AnyObject {
     func logout(serverURL: URL) throws
 }
 
-public final class CloudSessionController {
+public final class CloudSessionController: CloudSessionControlling {
     static let port: UInt16 = 4455
 
     /// Credentials store.
