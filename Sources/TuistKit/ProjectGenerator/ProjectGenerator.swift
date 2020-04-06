@@ -21,9 +21,9 @@ class ProjectGenerator: ProjectGenerating {
     private let swiftPackageManagerInteractor: SwiftPackageManagerInteracting = SwiftPackageManagerInteractor()
     private let modelLoader: GeneratorModelLoading
     private let graphLoader: GraphLoading
-    private let graphMapper: ProjectGeneratorGraphMapping
+    private let graphMapper: GraphMapping
 
-    init(graphMapper: ProjectGeneratorGraphMapping = AnyProjectGeneratorGraphMapper(mapper: { $0 })) {
+    init(graphMapper: GraphMapping = AnyGraphMapper(mapper: { $0 })) {
         modelLoader = GeneratorModelLoader(manifestLoader: manifestLoader,
                                            manifestLinter: manifestLinter)
         graphLoader = GraphLoader(modelLoader: modelLoader)
