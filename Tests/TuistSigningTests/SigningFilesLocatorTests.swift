@@ -52,27 +52,27 @@ final class SigningFilesLocatorTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(files, expectedFiles)
     }
-    
+
     func test_has_signing_directory_when_none_exists() throws {
         // Given
         let tuistDirectory = try temporaryPath().appending(components: Constants.tuistDirectoryName)
         try fileHandler.createFolder(tuistDirectory)
-        
+
         // When
         let exists = try subject.hasSigningDirectory(at: tuistDirectory)
-        
+
         // Then
         XCTAssertFalse(exists)
     }
-    
+
     func test_has_signing_directory_when_exists() throws {
         // Given
         let tuistDirectory = try temporaryPath().appending(components: Constants.tuistDirectoryName, Constants.signingDirectoryName)
         try fileHandler.createFolder(tuistDirectory)
-        
+
         // When
         let exists = try subject.hasSigningDirectory(at: tuistDirectory)
-        
+
         // Then
         XCTAssertTrue(exists)
     }

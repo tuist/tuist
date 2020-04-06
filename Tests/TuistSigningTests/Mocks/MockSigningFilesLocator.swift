@@ -5,7 +5,7 @@ final class MockSigningFilesLocator: SigningFilesLocating {
     var hasSigningDirectoryStub: ((AbsolutePath) throws -> Bool)?
     var locateEncryptedSigningFilesStub: ((AbsolutePath) throws -> [AbsolutePath])?
     var locateUnencryptedSigningFilesStub: ((AbsolutePath) throws -> [AbsolutePath])?
-    
+
     func hasSigningDirectory(at path: AbsolutePath) throws -> Bool {
         try hasSigningDirectoryStub?(path) ?? true
     }

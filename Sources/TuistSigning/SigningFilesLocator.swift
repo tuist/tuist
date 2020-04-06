@@ -32,7 +32,7 @@ final class SigningFilesLocator: SigningFilesLocating {
     init(rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator()) {
         self.rootDirectoryLocator = rootDirectoryLocator
     }
-    
+
     func hasSigningDirectory(at path: AbsolutePath) throws -> Bool {
         guard
             let rootDirectory = rootDirectoryLocator.locate(from: path)
