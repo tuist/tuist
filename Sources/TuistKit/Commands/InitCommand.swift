@@ -199,31 +199,31 @@ class InitCommand: NSObject, Command {
                                     name: String,
                                     platform: Platform,
                                     arguments: ArgumentParser.Result) throws -> [String: String] {
-        try template.attributes.reduce(into: [:]) {
-            if $1.name == "name" {
-                $0[$1.name] = name
+        try template.attributes.reduce(into: [:]) { attributesDict, attribute in
+            if attribute.name == "name" {
+                attributesDict[attribute.name] = name
                 return
             }
-            if $1.name == "platform" {
-                $0[$1.name] = platform.caseValue
+            if attribute.name == "platform" {
+                attributesDict[attribute.name] = platform.caseValue
                 return
             }
-            switch $1 {
+            switch attribute {
             case let .required(name):
                 guard
                     let argument = attributes[name],
                     let value = arguments.get(argument)
                 else { throw InitCommandError.attributeNotProvided(name) }
-                $0[name] = value
+                attributesDict[name] = value
             case let .optional(name, default: defaultValue):
                 guard
                     let argument = attributes[name],
                     let value: String = arguments.get(argument)
                 else {
-                    $0[name] = defaultValue
+                    attributesDict[name] = defaultValue
                     return
                 }
-                $0[name] = value
+                attributesDict[name] = value
             }
         }
     }
