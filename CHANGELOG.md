@@ -16,6 +16,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Added
 
+- SwiftUI template https://github.com/tuist/tuist/pull/1180 by @fortmarek
 - Encrypt/decrypt command https://github.com/tuist/tuist/pull/1127 by @fortmarek
 - A link to the example app in the uFeatures documentation https://github.com/tuist/tuist/pull/1176 by @pepibumur.
 - Add ProjectGeneratorGraphMapping protocol and use it from ProjectGenerator https://github.com/tuist/tuist/pull/1178 by @pepibumur
