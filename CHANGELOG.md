@@ -4,6 +4,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+## 1.6.0
+
 ### Fixed
 
 - Don't try to delete a file if it doesn't exist https://github.com/tuist/tuist/pull/1177 by @pepibumur
