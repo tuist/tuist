@@ -19,7 +19,7 @@ class SigningCommand: NSObject, Command {
     public required init(parser: ArgumentParser) {
         _ = parser.add(subparser: SigningCommand.command, overview: SigningCommand.overview)
         let argumentParser = ArgumentParser(commandName: Self.command, usage: "tuist signing <command> <options>", overview: Self.overview)
-        let subcommands: [Command.Type] = [EncryptCommand.self, DecryptCommand.self, InstallCommand.self]
+        let subcommands: [Command.Type] = [EncryptCommand.self, DecryptCommand.self]
         self.subcommands = subcommands.map { $0.init(parser: argumentParser) }
         self.argumentParser = argumentParser
     }

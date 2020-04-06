@@ -81,14 +81,21 @@ public final class SigningCipher: SigningCiphering {
             .map(FileHandler.shared.readFile)
             .map { try encryptData($0, masterKey: masterKey) }
 
+        let correctlyEncryptedSigningFiles = try self.correctlyEncryptedSigningFiles(at: path)
+
+        print(correctlyEncryptedSigningFiles)
+
         try signingFilesLocator.locateEncryptedSigningFiles(at: path)
+            .filter { !correctlyEncryptedSigningFiles.contains($0) }
             .forEach(FileHandler.shared.delete)
 
-        try zip(cipheredKeys, signingKeyFiles).forEach {
-            logger.debug("Encrypting \($1.pathString)")
-            let encryptedPath = AbsolutePath($1.pathString + "." + Constants.encryptedExtension)
-            try $0.write(to: encryptedPath.url)
-        }
+        try zip(cipheredKeys, signingKeyFiles)
+            .filter { _, file in !correctlyEncryptedSigningFiles.contains(file) }
+            .forEach {
+                logger.debug("Encrypting \($1.pathString)")
+                let encryptedPath = AbsolutePath($1.pathString + "." + Constants.encryptedExtension)
+                try $0.write(to: encryptedPath.url)
+            }
 
         if !keepFiles {
             try signingKeyFiles.forEach(FileHandler.shared.delete)
@@ -120,6 +127,20 @@ public final class SigningCipher: SigningCiphering {
     }
 
     // MARK: - Helpers
+
+    /// - Returns: Array of files that do need to be reencrypted
+    private func correctlyEncryptedSigningFiles(at path: AbsolutePath) throws -> [AbsolutePath] {
+        try signingFilesLocator.locateUnencryptedSigningFiles(at: path).filter {
+            let encryptedFile = AbsolutePath($0.pathString + "." + Constants.encryptedExtension)
+            guard
+                FileHandler.shared.exists(encryptedFile),
+                let decryptedFileDate = try FileHandler.shared.attributesOfItem(at: $0)[FileAttributeKey.creationDate] as? Date,
+                let encryptedFileDate = try FileHandler.shared.attributesOfItem(at: encryptedFile)[FileAttributeKey.creationDate] as? Date,
+                decryptedFileDate < encryptedFileDate
+            else { return false }
+            return true
+        }
+    }
 
     /// Encrypts `data`
     /// - Parameters:

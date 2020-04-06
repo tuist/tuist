@@ -172,4 +172,43 @@ final class SigningCipherTests: TuistUnitTestCase {
         XCTAssertTrue(fileHandler.exists(certFile))
         XCTAssertTrue(fileHandler.exists(profileFile))
     }
+
+    func test_encrypted_file_stays_the_same_when_unecrypted_file_is_older() throws {
+        // Given
+        let temporaryPath = try self.temporaryPath()
+        rootDirectoryLocator.locateStub = temporaryPath
+        let signingDirectory = temporaryPath.appending(components: Constants.tuistDirectoryName, Constants.signingDirectoryName)
+        try FileHandler.shared.createFolder(signingDirectory)
+        try FileHandler.shared.write("my-password",
+                                     path: temporaryPath.appending(components: Constants.tuistDirectoryName, Constants.masterKey),
+                                     atomically: true)
+        let certContent = "my-certificate"
+        let profileContent = "my-profile"
+        let certFile = signingDirectory.appending(component: "CertFile.txt")
+        let profileFile = signingDirectory.appending(component: "ProfileFile.txt")
+        let encryptedCertFile = AbsolutePath(certFile.pathString + "." + Constants.encryptedExtension)
+        let encryptedProfileFile = AbsolutePath(profileFile.pathString + "." + Constants.encryptedExtension)
+        try FileHandler.shared.write(certContent, path: certFile, atomically: true)
+        try FileHandler.shared.write(profileContent, path: profileFile, atomically: true)
+        signingFilesLocator.locateUnencryptedSigningFilesStub = { path in
+            let signingDirectory = path.appending(components: Constants.tuistDirectoryName, Constants.signingDirectoryName)
+            return [
+                signingDirectory.appending(component: "CertFile.txt"),
+                signingDirectory.appending(component: "ProfileFile.txt"),
+            ]
+        }
+        try subject.encryptSigning(at: temporaryPath, keepFiles: true)
+        let expectedCertFile = try fileHandler.readTextFile(encryptedCertFile)
+        let expectedProfileFile = try fileHandler.readTextFile(encryptedProfileFile)
+        signingFilesLocator.locateUnencryptedSigningFilesStub = { _ in
+            [certFile, profileFile]
+        }
+
+        // When
+        try subject.encryptSigning(at: temporaryPath, keepFiles: true)
+
+        // Then
+        XCTAssertEqual(try fileHandler.readTextFile(encryptedCertFile), expectedCertFile)
+        XCTAssertEqual(try fileHandler.readTextFile(encryptedProfileFile), expectedProfileFile)
+    }
 }
