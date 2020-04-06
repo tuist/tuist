@@ -3,6 +3,7 @@ import Foundation
 import SPMUtility
 import TuistGenerator
 import TuistLoader
+import TuistSigning
 import TuistSupport
 
 class GenerateCommand: NSObject, Command {
@@ -15,6 +16,7 @@ class GenerateCommand: NSObject, Command {
 
     private let clock: Clock
     private let generator: ProjectGenerating
+    private let signingInstaller: SigningInstalling
     let pathArgument: OptionArgument<String>
     let projectOnlyArgument: OptionArgument<Bool>
 
@@ -24,14 +26,17 @@ class GenerateCommand: NSObject, Command {
         let projectGenerator = ProjectGenerator()
         self.init(parser: parser,
                   generator: projectGenerator,
+                  signingInstaller: SigningInstaller(),
                   clock: WallClock())
     }
 
     init(parser: ArgumentParser,
          generator: ProjectGenerating,
+         signingInstaller: SigningInstalling,
          clock: Clock) {
         let subParser = parser.add(subparser: GenerateCommand.command, overview: GenerateCommand.overview)
         self.generator = generator
+        self.signingInstaller = signingInstaller
         self.clock = clock
 
         pathArgument = subParser.add(option: "--path",
@@ -50,6 +55,7 @@ class GenerateCommand: NSObject, Command {
         let path = self.path(arguments: arguments)
         let projectOnly = arguments.get(projectOnlyArgument) ?? false
 
+        try signingInstaller.installSigning(at: path)
         try generator.generate(path: path, projectOnly: projectOnly)
 
         let time = String(format: "%.3f", timer.stop())

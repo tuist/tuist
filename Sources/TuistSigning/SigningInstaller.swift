@@ -35,20 +35,25 @@ enum SigningFile {
 
 public final class SigningInstaller: SigningInstalling {
     private let signingFilesLocator: SigningFilesLocating
+    private let signingCipher: SigningCiphering
     private let securityController: SecurityControlling
 
     public convenience init() {
         self.init(signingFilesLocator: SigningFilesLocator(),
+                  signingCipher: SigningCipher(),
                   securityController: SecurityController())
     }
 
     init(signingFilesLocator: SigningFilesLocating,
+         signingCipher: SigningCiphering,
          securityController: SecurityControlling) {
         self.signingFilesLocator = signingFilesLocator
+        self.signingCipher = signingCipher
         self.securityController = securityController
     }
 
     public func installSigning(at path: AbsolutePath) throws {
+        try signingCipher.decryptSigning(at: path, keepFiles: true)
         let signingKeyFiles = try signingFilesLocator.locateUnencryptedSigningFiles(at: path)
         try signingKeyFiles.forEach {
             switch $0.extension {
@@ -60,6 +65,7 @@ public final class SigningInstaller: SigningInstalling {
                 logger.warning("File \($0.pathString) has unknown extension")
             }
         }
+        try signingCipher.encryptSigning(at: path)
     }
 
     private func installProvisioningProfile(at path: AbsolutePath) throws {

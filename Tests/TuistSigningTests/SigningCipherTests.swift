@@ -173,7 +173,7 @@ final class SigningCipherTests: TuistUnitTestCase {
         XCTAssertTrue(fileHandler.exists(profileFile))
     }
 
-    func test_encrypted_file_stays_the_same_when_unecrypted_file_is_older() throws {
+    func test_encrypted_file_stays_the_same_when_unecrypted_file_has_not_changed() throws {
         // Given
         let temporaryPath = try self.temporaryPath()
         rootDirectoryLocator.locateStub = temporaryPath

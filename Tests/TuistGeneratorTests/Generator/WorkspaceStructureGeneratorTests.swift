@@ -361,10 +361,6 @@ class WorkspaceStructureGeneratorTests: XCTestCase {
         func ls(_: AbsolutePath) throws -> [AbsolutePath] {
             []
         }
-
-        func attributesOfItem(at _: AbsolutePath) throws -> [FileAttributeKey: Any] {
-            [:]
-        }
     }
 }
 

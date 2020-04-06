@@ -123,7 +123,6 @@ public protocol FileHandling: AnyObject {
     func isFolder(_ path: AbsolutePath) -> Bool
     func touch(_ path: AbsolutePath) throws
     func contentsOfDirectory(_ path: AbsolutePath) throws -> [AbsolutePath]
-    func attributesOfItem(at path: AbsolutePath) throws -> [FileAttributeKey: Any]
 }
 
 public class FileHandler: FileHandling {
@@ -283,9 +282,5 @@ public class FileHandler: FileHandling {
 
     public func contentsOfDirectory(_ path: AbsolutePath) throws -> [AbsolutePath] {
         try fileManager.contentsOfDirectory(atPath: path.pathString).map { AbsolutePath(path, $0) }
-    }
-
-    public func attributesOfItem(at path: AbsolutePath) throws -> [FileAttributeKey: Any] {
-        try fileManager.attributesOfItem(atPath: path.pathString)
     }
 }

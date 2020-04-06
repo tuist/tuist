@@ -81,9 +81,7 @@ public final class SigningCipher: SigningCiphering {
             .map(FileHandler.shared.readFile)
             .map { try encryptData($0, masterKey: masterKey) }
 
-        let correctlyEncryptedSigningFiles = try self.correctlyEncryptedSigningFiles(at: path)
-
-        print(correctlyEncryptedSigningFiles)
+        let correctlyEncryptedSigningFiles = try self.correctlyEncryptedSigningFiles(at: path, masterKey: masterKey)
 
         try signingFilesLocator.locateEncryptedSigningFiles(at: path)
             .filter { !correctlyEncryptedSigningFiles.contains($0) }
@@ -129,17 +127,30 @@ public final class SigningCipher: SigningCiphering {
     // MARK: - Helpers
 
     /// - Returns: Array of files that do need to be reencrypted
-    private func correctlyEncryptedSigningFiles(at path: AbsolutePath) throws -> [AbsolutePath] {
-        try signingFilesLocator.locateUnencryptedSigningFiles(at: path).filter {
-            let encryptedFile = AbsolutePath($0.pathString + "." + Constants.encryptedExtension)
-            guard
-                FileHandler.shared.exists(encryptedFile),
-                let decryptedFileDate = try FileHandler.shared.attributesOfItem(at: $0)[FileAttributeKey.creationDate] as? Date,
-                let encryptedFileDate = try FileHandler.shared.attributesOfItem(at: encryptedFile)[FileAttributeKey.creationDate] as? Date,
-                decryptedFileDate < encryptedFileDate
-            else { return false }
-            return true
+    private func correctlyEncryptedSigningFiles(at path: AbsolutePath, masterKey: Data) throws -> [AbsolutePath] {
+        try signingFilesLocator.locateUnencryptedSigningFiles(at: path).filter { unencryptedFile in
+            let encryptedFile = AbsolutePath(unencryptedFile.pathString + "." + Constants.encryptedExtension)
+            guard FileHandler.shared.exists(encryptedFile) else { return false }
+            return try isEncryptionNeeded(encryptedFile: encryptedFile, unencryptedFile: unencryptedFile, masterKey: masterKey)
         }
+    }
+
+    /// Determines if encryption is needed
+    private func isEncryptionNeeded(encryptedFile: AbsolutePath, unencryptedFile: AbsolutePath, masterKey: Data) throws -> Bool {
+        guard
+            let encodedString = String(data: try FileHandler.shared.readFile(encryptedFile), encoding: .utf8),
+            let dividerIndex = encodedString.firstIndex(of: "-"),
+            let iv = Data(base64Encoded: String(encodedString.prefix(upTo: dividerIndex)))
+        else { throw SigningCipherError.failedToDecrypt("corrupted data") }
+
+        let aesCipher = try AES(key: masterKey.bytes, blockMode: CTR(iv: iv.bytes), padding: .noPadding)
+        let unencryptedData = try FileHandler.shared.readFile(unencryptedFile)
+        guard
+            let encryptedBase64String = try aesCipher.encrypt(unencryptedData.bytes).toBase64(),
+            let data = (iv.base64EncodedString() + "-" + encryptedBase64String).data(using: .utf8)
+        else { throw SigningCipherError.failedToEncrypt }
+
+        return try FileHandler.shared.readFile(encryptedFile) == data
     }
 
     /// Encrypts `data`

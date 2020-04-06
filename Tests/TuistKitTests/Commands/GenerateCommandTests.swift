@@ -9,11 +9,13 @@ import XCTest
 @testable import TuistCoreTesting
 @testable import TuistKit
 @testable import TuistLoaderTesting
+@testable import TuistSigningTesting
 @testable import TuistSupportTesting
 
 final class GenerateCommandTests: TuistUnitTestCase {
     var subject: GenerateCommand!
     var generator: MockProjectGenerator!
+    var signingInstaller: MockSigningInstaller!
     var parser: ArgumentParser!
     var clock: StubClock!
 
@@ -25,14 +27,17 @@ final class GenerateCommandTests: TuistUnitTestCase {
         generator.generateStub = { _, _ in
             AbsolutePath("/Test")
         }
+        signingInstaller = MockSigningInstaller()
 
         subject = GenerateCommand(parser: parser,
                                   generator: generator,
+                                  signingInstaller: signingInstaller,
                                   clock: clock)
     }
 
     override func tearDown() {
         generator = nil
+        signingInstaller = nil
         parser = nil
         clock = nil
         subject = nil

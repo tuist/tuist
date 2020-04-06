@@ -4,24 +4,29 @@ import TuistSupport
 import XCTest
 @testable import TuistCoreTesting
 @testable import TuistSigning
+@testable import TuistSigningTesting
 @testable import TuistSupportTesting
 
 final class SigningInstallerTests: TuistUnitTestCase {
     var subject: SigningInstalling!
     var signingFilesLocator: MockSigningFilesLocator!
+    var signingCipher: MockSigningCipher!
     var securityController: MockSecurityController!
 
     override func setUp() {
         super.setUp()
         try? ProcessEnv.setVar("TUIST_VERBOSE", value: "true")
         signingFilesLocator = MockSigningFilesLocator()
+        signingCipher = MockSigningCipher()
         securityController = MockSecurityController()
         subject = SigningInstaller(signingFilesLocator: signingFilesLocator,
+                                   signingCipher: signingCipher,
                                    securityController: securityController)
     }
 
     override func tearDown() {
         signingFilesLocator = nil
+        signingCipher = nil
         securityController = nil
         super.tearDown()
     }
