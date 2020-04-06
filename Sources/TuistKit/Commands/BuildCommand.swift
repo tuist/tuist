@@ -102,7 +102,7 @@ class BuildCommand: NSObject, Command {
 
         let graph: Graph
         if noGenerate(arguments: arguments) {
-            Printer.shared.print(section: "Loading the dependency graph")
+            logger.notice("Loading dependency graph...", metadata: .section)
             graph = try graphLoader.load(at: path, manifestLoader: manifestLoader)
         } else {
             (_, graph) = try generator.generateWorkspace(at: path, manifestLoader: manifestLoader)
@@ -113,18 +113,18 @@ class BuildCommand: NSObject, Command {
         // Build
         let workspacePath = try self.workspacePath(at: path)
         let buildTarget = XcodeBuildTarget.workspace(workspacePath)
-        Printer.shared.print(section: "Building scheme \(scheme) from workspace \(workspacePath.pathString)")
+        logger.notice("Building scheme \(scheme) from workspace \(workspacePath.pathString)", metadata: .section)
         _ = try xcodeBuildController.build(buildTarget, scheme: scheme,
                                            clean: clean(arguments: arguments),
                                            arguments: xcodebuildArguments)
             .printFormattedOutput()
             .toBlocking()
             .last()
-        Printer.shared.print(success: "Scheme '\(scheme)' built successfully")
+        logger.notice("Scheme '\(scheme)' built successfully", metadata: .success)
     }
 
     fileprivate func arguments(graph: Graph, scheme: String) -> [XcodeBuildArgument] {
-        guard let target = graph.targets.first(where: { $0.target.name == scheme })?.target else {
+        guard let target = graph.targets.flatMap({ $1 }).first(where: { $0.target.name == scheme })?.target else {
             return []
         }
         let platform = target.platform

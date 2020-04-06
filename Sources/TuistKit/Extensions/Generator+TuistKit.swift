@@ -17,7 +17,7 @@ extension Generator {
 extension Generating {
     func generate(at path: AbsolutePath,
                   manifestLoader: ManifestLoading,
-                  projectOnly: Bool) throws -> (AbsolutePath, Graphing) {
+                  projectOnly: Bool) throws -> (AbsolutePath, Graph) {
         if projectOnly {
             return try generateProject(at: path)
         } else {
