@@ -8,14 +8,14 @@ public extension Observable where Element == SystemEvent<XcodeBuildOutput> {
             switch event {
             case let .standardError(error):
                 if let string = error.formatted {
-                    logger.error("\(string)")
+                    logger.error("\(string.dropLast())")
                 }
-                logger.debug("\(error.raw)")
+                logger.debug("\(error.raw.dropLast())")
             case let .standardOutput(output):
                 if let string = output.formatted {
-                    logger.notice("\(string)")
+                    logger.notice("\(string.dropLast())")
                 }
-                logger.debug("\(output.raw)")
+                logger.debug("\(output.raw.dropLast())")
             }
         })
     }
