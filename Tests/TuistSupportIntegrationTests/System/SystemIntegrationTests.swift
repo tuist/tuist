@@ -84,6 +84,10 @@ final class SystemIntegrationTests: TuistTestCase {
         }
     }
 
+    func test_swiftVersion() throws {
+        XCTAssertNoThrow(try subject.swiftVersion())
+    }
+
     func sandbox(_ name: String, value: String, do block: () throws -> Void) rethrows {
         try? ProcessEnv.setVar(name, value: value)
         _ = try? block()

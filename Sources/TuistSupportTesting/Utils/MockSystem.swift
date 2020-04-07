@@ -1,6 +1,7 @@
 import Basic
 import Foundation
 import RxSwift
+import SPMUtility
 import TuistSupport
 import XCTest
 
@@ -9,8 +10,8 @@ public final class MockSystem: Systeming {
     // swiftlint:disable:next large_tuple
     private var stubs: [String: (stderror: String?, stdout: String?, exitstatus: Int?)] = [:]
     private var calls: [String] = []
-    var swiftVersionStub: (() throws -> String?)?
-    var whichStub: ((String) throws -> String?)?
+    var swiftVersionStub: (() throws -> Version)?
+    var whichStub: ((String) throws -> String)?
 
     public init() {}
 
@@ -145,8 +146,12 @@ public final class MockSystem: Systeming {
         }
     }
 
-    public func swiftVersion() throws -> String? {
-        try swiftVersionStub?()
+    public func swiftVersion() throws -> Version {
+        if let swiftVersionStub = swiftVersionStub {
+            return try swiftVersionStub()
+        } else {
+            throw TestError("Call to non-stubbed method swiftVersion")
+        }
     }
 
     public func which(_ name: String) throws -> String {

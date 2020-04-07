@@ -1,6 +1,7 @@
 import Basic
 import Foundation
 import RxSwift
+import SPMUtility
 
 public protocol Systeming {
     /// System environment.
@@ -136,7 +137,7 @@ public protocol Systeming {
     ///
     /// - Returns: Swift version.
     /// - Throws: An error if Swift is not installed or it exists unsuccessfully.
-    func swiftVersion() throws -> String?
+    func swiftVersion() throws -> Version
 
     /// Runs /usr/bin/which passing the given tool.
     ///
@@ -178,6 +179,7 @@ extension ProcessResult {
 public enum SystemError: FatalError, Equatable {
     case terminated(command: String, code: Int32, standardError: Data)
     case signalled(command: String, code: Int32, standardError: Data)
+    case swiftVersionParseError(output: String)
 
     public var description: String {
         switch self {
@@ -193,6 +195,8 @@ public enum SystemError: FatalError, Equatable {
             } else {
                 return "The '\(command)' command exited with error code \(code)"
             }
+        case let .swiftVersionParseError(output):
+            return "Could not parse the Swift version from the output:\n\(output)"
         }
     }
 
@@ -492,11 +496,14 @@ public final class System: Systeming {
     ///
     /// - Returns: Swift version.
     /// - Throws: An error if Swift is not installed or it exists unsuccessfully.
-    public func swiftVersion() throws -> String? {
+    public func swiftVersion() throws -> Version {
         let output = try capture("/usr/bin/xcrun", "swift", "--version")
         let range = NSRange(location: 0, length: output.count)
-        guard let match = System.swiftVersionRegex.firstMatch(in: output, options: [], range: range) else { return nil }
-        return NSString(string: output).substring(with: match.range(at: 1)).spm_chomp()
+        guard let match = System.swiftVersionRegex.firstMatch(in: output, options: [], range: range) else {
+            throw SystemError.swiftVersionParseError(output: output)
+        }
+        let string = NSString(string: output).substring(with: match.range(at: 1)).spm_chomp()
+        return Version.swiftVersion(string)
     }
 
     /// Runs /usr/bin/which passing the given tool.
