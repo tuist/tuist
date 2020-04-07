@@ -53,7 +53,7 @@ public final class SigningInstaller: SigningInstalling {
     }
 
     public func installSigning(at path: AbsolutePath) throws {
-        guard try signingFilesLocator.hasSigningDirectory(at: path) else { return }
+        guard (try? signingFilesLocator.hasSigningDirectory(at: path)) ?? false else { return }
         try signingCipher.decryptSigning(at: path, keepFiles: true)
         let signingKeyFiles = try signingFilesLocator.locateUnencryptedSigningFiles(at: path)
         try signingKeyFiles.forEach {
