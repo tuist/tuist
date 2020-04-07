@@ -29,11 +29,13 @@ protocol ProjectGenerating: AnyObject {
     ///   - graph: Dependencies graph.
     ///   - sourceRootPath: Directory where the files are relative to.
     ///   - xcodeprojPath: Path to the Xcode project. When not given, the xcodeproj is generated at sourceRootPath.
+    ///   - versions: Versions of the system components that Tuist interacts with.
     /// - Returns: Generated project descriptor
     func generate(project: Project,
                   graph: Graph,
                   sourceRootPath: AbsolutePath?,
-                  xcodeprojPath: AbsolutePath?) throws -> ProjectDescriptor
+                  xcodeprojPath: AbsolutePath?,
+                  versions: Versions) throws -> ProjectDescriptor
 }
 
 final class ProjectGenerator: ProjectGenerating {
@@ -76,7 +78,8 @@ final class ProjectGenerator: ProjectGenerating {
     func generate(project: Project,
                   graph: Graph,
                   sourceRootPath: AbsolutePath? = nil,
-                  xcodeprojPath: AbsolutePath? = nil) throws -> ProjectDescriptor {
+                  xcodeprojPath: AbsolutePath? = nil,
+                  versions: Versions) throws -> ProjectDescriptor {
         logger.notice("Generating project \(project.name)")
 
         // Getting the path.
@@ -114,7 +117,8 @@ final class ProjectGenerator: ProjectGenerating {
                                                 pbxProject: pbxProject,
                                                 fileElements: fileElements,
                                                 sourceRootPath: sourceRootPath,
-                                                graph: graph)
+                                                graph: graph,
+                                                versions: versions)
 
         generateTestTargetIdentity(project: project,
                                    pbxproj: pbxproj,
@@ -174,7 +178,8 @@ final class ProjectGenerator: ProjectGenerating {
                                  pbxProject: PBXProject,
                                  fileElements: ProjectFileElements,
                                  sourceRootPath: AbsolutePath,
-                                 graph: Graph) throws -> [String: PBXNativeTarget] {
+                                 graph: Graph,
+                                 versions: Versions) throws -> [String: PBXNativeTarget] {
         var nativeTargets: [String: PBXNativeTarget] = [:]
         try project.targets.forEach { target in
             let nativeTarget = try targetGenerator.generateTarget(target: target,
@@ -184,7 +189,8 @@ final class ProjectGenerator: ProjectGenerating {
                                                                   fileElements: fileElements,
                                                                   path: project.path,
                                                                   sourceRootPath: sourceRootPath,
-                                                                  graph: graph)
+                                                                  graph: graph,
+                                                                  versions: versions)
             nativeTargets[target.name] = nativeTarget
         }
 

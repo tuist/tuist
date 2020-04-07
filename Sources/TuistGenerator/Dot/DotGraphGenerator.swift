@@ -26,13 +26,18 @@ public final class DotGraphGenerator: DotGraphGenerating {
     /// Mapper to map graphs into a dot graphs.
     private let graphToDotGraphMapper: GraphToDotGraphMapping
 
+    /// Utility to fetch the versions of system components that Tuist interacts with.
+    private let versionsFetcher: VersionsFetching
+
     /// Initializes the dot graph generator by taking its dependencies.
     ///
     /// - Parameters:
     ///   - modelLoader: Instance to load the models.
     public convenience init(modelLoader: GeneratorModelLoading) {
         let graphLoader = GraphLoader(modelLoader: modelLoader)
-        self.init(graphLoader: graphLoader, graphToDotGraphMapper: GraphToDotGraphMapper())
+        self.init(graphLoader: graphLoader,
+                  graphToDotGraphMapper: GraphToDotGraphMapper(),
+                  versionsFetcher: VersionsFetcher())
     }
 
     /// Initializes the generator with an instance to load the graph.
@@ -40,10 +45,13 @@ public final class DotGraphGenerator: DotGraphGenerating {
     /// - Parameters:
     ///   - graphLoader: Graph loader instance.
     ///   - graphToDotGraphMapper: Mapper to map the graph into a dot graph.
+    ///   - versionsFetcher: Mapper to map the graph into a dot graph.
     init(graphLoader: GraphLoading,
-         graphToDotGraphMapper: GraphToDotGraphMapping) {
+         graphToDotGraphMapper: GraphToDotGraphMapping,
+         versionsFetcher: VersionsFetching) {
         self.graphLoader = graphLoader
         self.graphToDotGraphMapper = graphToDotGraphMapper
+        self.versionsFetcher = versionsFetcher
     }
 
     /// Generates the dot graph from the project in the current directory and returns it.
@@ -52,7 +60,8 @@ public final class DotGraphGenerator: DotGraphGenerating {
     /// - Returns: Dot graph representation.
     /// - Throws: An error if the project can't be loaded.
     public func generateProject(at path: AbsolutePath) throws -> String {
-        let (graph, _) = try graphLoader.loadProject(path: path)
+        let versions = try versionsFetcher.fetch()
+        let (graph, _) = try graphLoader.loadProject(path: path, versions: versions)
         return graphToDotGraphMapper.map(graph: graph).description
     }
 
@@ -62,7 +71,8 @@ public final class DotGraphGenerator: DotGraphGenerating {
     /// - Returns: Dot graph representation.
     /// - Throws: An error if the workspace can't be loaded.
     public func generateWorkspace(at path: AbsolutePath) throws -> String {
-        let (graph, _) = try graphLoader.loadWorkspace(path: path)
+        let versions = try versionsFetcher.fetch()
+        let (graph, _) = try graphLoader.loadWorkspace(path: path, versions: versions)
         return graphToDotGraphMapper.map(graph: graph).description
     }
 }

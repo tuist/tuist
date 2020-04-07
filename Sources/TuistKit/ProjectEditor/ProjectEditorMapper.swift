@@ -9,7 +9,8 @@ protocol ProjectEditorMapping: AnyObject {
              manifests: [AbsolutePath],
              helpers: [AbsolutePath],
              templates: [AbsolutePath],
-             projectDescriptionPath: AbsolutePath) -> (Project, Graph)
+             projectDescriptionPath: AbsolutePath,
+             versions: Versions) -> (Project, Graph)
 }
 
 final class ProjectEditorMapper: ProjectEditorMapping {
@@ -19,13 +20,14 @@ final class ProjectEditorMapper: ProjectEditorMapping {
              manifests: [AbsolutePath],
              helpers: [AbsolutePath],
              templates: [AbsolutePath],
-             projectDescriptionPath: AbsolutePath) -> (Project, Graph) {
+             projectDescriptionPath: AbsolutePath,
+             versions: Versions) -> (Project, Graph) {
         // Settings
         let projectSettings = Settings(base: [:],
                                        configurations: Settings.default.configurations,
                                        defaultSettings: .recommended)
 
-        let targetSettings = Settings(base: settings(projectDescriptionPath: projectDescriptionPath),
+        let targetSettings = Settings(base: settings(projectDescriptionPath: projectDescriptionPath, versions: versions),
                                       configurations: Settings.default.configurations,
                                       defaultSettings: .recommended)
 
@@ -108,13 +110,13 @@ final class ProjectEditorMapper: ProjectEditorMapping {
 
     /// It returns the build settings that should be used in the manifests target.
     /// - Parameter projectDescriptionPath: Path to the ProjectDescription framework.
-    fileprivate func settings(projectDescriptionPath: AbsolutePath) -> [String: SettingValue] {
+    fileprivate func settings(projectDescriptionPath: AbsolutePath, versions: Versions) -> [String: SettingValue] {
         let frameworkParentDirectory = projectDescriptionPath.parentDirectory
         var buildSettings = [String: SettingValue]()
         buildSettings["FRAMEWORK_SEARCH_PATHS"] = .string(frameworkParentDirectory.pathString)
         buildSettings["LIBRARY_SEARCH_PATHS"] = .string(frameworkParentDirectory.pathString)
         buildSettings["SWIFT_INCLUDE_PATHS"] = .string(frameworkParentDirectory.pathString)
-        buildSettings["SWIFT_VERSION"] = .string(Constants.swiftVersion)
+        buildSettings["SWIFT_VERSION"] = .string(versions.swift.description)
         return buildSettings
     }
 }

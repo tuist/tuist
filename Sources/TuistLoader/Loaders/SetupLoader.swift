@@ -20,11 +20,14 @@ public class SetupLoader: SetupLoading {
     /// Manifset loader instance to load the setup.
     private let manifestLoader: ManifestLoading
 
+    /// Versions fetcher.
+    private let versionsFetcher: VersionsFetching
+
     /// Default constructor.
     public convenience init() {
         let upLinter = UpLinter()
         let manifestLoader = ManifestLoader()
-        self.init(upLinter: upLinter, manifestLoader: manifestLoader)
+        self.init(upLinter: upLinter, manifestLoader: manifestLoader, versionsFetcher: VersionsFetcher())
     }
 
     /// Initializes the command with its arguments.
@@ -32,10 +35,13 @@ public class SetupLoader: SetupLoading {
     /// - Parameters:
     ///   - upLinter: Linter for up commands.
     ///   - manifestLoader: Manifset loader instance to load the setup.
+    ///   - versionsFetcher: Utility to fetch the versions of the system components that Tuist interacts with.
     init(upLinter: UpLinting,
-         manifestLoader: ManifestLoading) {
+         manifestLoader: ManifestLoading,
+         versionsFetcher: VersionsFetching) {
         self.upLinter = upLinter
         self.manifestLoader = manifestLoader
+        self.versionsFetcher = versionsFetcher
     }
 
     /// It runs meet on each command if it is not met.
@@ -44,7 +50,8 @@ public class SetupLoader: SetupLoading {
     /// - Throws: An error if any of the commands exit unsuccessfully
     ///           or if there isn't a `Setup.swift` file within the project path.
     public func meet(at path: AbsolutePath) throws {
-        let setup = try manifestLoader.loadSetup(at: path)
+        let versions = try versionsFetcher.fetch()
+        let setup = try manifestLoader.loadSetup(at: path, versions: versions)
         try setup.map { command in upLinter.lint(up: command) }
             .flatMap { $0 }
             .printAndThrowIfNeeded()

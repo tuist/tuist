@@ -9,8 +9,9 @@ public protocol TemplateLoading {
     /// Load `TuistScaffold.Template` at given `path`
     /// - Parameters:
     ///     - path: Path of template manifest file `Template.swift`
+    ///     - versions: Versions of system components that Tuist interacts with.
     /// - Returns: Loaded `TuistScaffold.Template`
-    func loadTemplate(at path: AbsolutePath) throws -> TuistCore.Template
+    func loadTemplate(at path: AbsolutePath, versions: Versions) throws -> TuistCore.Template
 }
 
 public class TemplateLoader: TemplateLoading {
@@ -25,8 +26,8 @@ public class TemplateLoader: TemplateLoading {
         self.manifestLoader = manifestLoader
     }
 
-    public func loadTemplate(at path: AbsolutePath) throws -> TuistCore.Template {
-        let template = try manifestLoader.loadTemplate(at: path)
+    public func loadTemplate(at path: AbsolutePath, versions: Versions) throws -> TuistCore.Template {
+        let template = try manifestLoader.loadTemplate(at: path, versions: versions)
         let generatorPaths = GeneratorPaths(manifestDirectory: path)
         return try TuistCore.Template.from(manifest: template,
                                            generatorPaths: generatorPaths)

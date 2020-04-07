@@ -40,6 +40,7 @@ class LintCommand: NSObject, Command {
     private let environmentLinter: EnvironmentLinting
     private let manifestLoading: ManifestLoading
     private let graphLoader: GraphLoading
+    private let versionsFetcher: VersionsFetching
     let pathArgument: OptionArgument<String>
 
     /// Default constructor.
@@ -51,19 +52,22 @@ class LintCommand: NSObject, Command {
                   environmentLinter: EnvironmentLinter(),
                   manifestLoading: manifestLoader,
                   graphLoader: GraphLoader(modelLoader: generatorModelLoader),
-                  parser: parser)
+                  parser: parser,
+                  versionsFetcher: VersionsFetcher())
     }
 
     init(graphLinter: GraphLinting,
          environmentLinter: EnvironmentLinting,
          manifestLoading: ManifestLoading,
          graphLoader: GraphLoading,
-         parser: ArgumentParser) {
+         parser: ArgumentParser,
+         versionsFetcher: VersionsFetching) {
         let subParser = parser.add(subparser: LintCommand.command, overview: LintCommand.overview)
         self.graphLinter = graphLinter
         self.environmentLinter = environmentLinter
         self.manifestLoading = manifestLoading
         self.graphLoader = graphLoader
+        self.versionsFetcher = versionsFetcher
         pathArgument = subParser.add(option: "--path",
                                      shortName: "-p",
                                      kind: String.self,
@@ -73,6 +77,7 @@ class LintCommand: NSObject, Command {
 
     func run(with arguments: ArgumentParser.Result) throws {
         let path = self.path(arguments: arguments)
+        let versions = try versionsFetcher.fetch()
 
         // Load graph
         let manifests = manifestLoading.manifests(at: path)
@@ -81,16 +86,16 @@ class LintCommand: NSObject, Command {
         logger.notice("Loading the dependency graph")
         if manifests.contains(.workspace) {
             logger.notice("Loading workspace at \(path.pathString)")
-            (graph, _) = try graphLoader.loadWorkspace(path: path)
+            (graph, _) = try graphLoader.loadWorkspace(path: path, versions: versions)
         } else if manifests.contains(.project) {
             logger.notice("Loading project at \(path.pathString)")
-            (graph, _) = try graphLoader.loadProject(path: path)
+            (graph, _) = try graphLoader.loadProject(path: path, versions: versions)
         } else {
             throw LintCommandError.manifestNotFound(path)
         }
 
         logger.notice("Running linters")
-        let config = try graphLoader.loadConfig(path: path)
+        let config = try graphLoader.loadConfig(path: path, versions: versions)
 
         var issues: [LintingIssue] = []
         logger.notice("Linting the environment")

@@ -3,6 +3,7 @@ import Foundation
 import TuistCore
 import TuistGenerator
 import TuistLoader
+import TuistSupport
 
 protocol ProjectGenerating {
     @discardableResult
@@ -22,12 +23,15 @@ class ProjectGenerator: ProjectGenerating {
     private let modelLoader: GeneratorModelLoading
     private let graphLoader: GraphLoading
     private let graphMapper: GraphMapping
+    private let versionsFetcher: VersionsFetching
 
-    init(graphMapper: GraphMapping = AnyGraphMapper(mapper: { $0 })) {
+    init(graphMapper: GraphMapping = AnyGraphMapper(mapper: { $0 }),
+         versionsFetcher: VersionsFetching = VersionsFetcher()) {
         modelLoader = GeneratorModelLoader(manifestLoader: manifestLoader,
                                            manifestLinter: manifestLinter)
         graphLoader = GraphLoader(modelLoader: modelLoader)
         self.graphMapper = graphMapper
+        self.versionsFetcher = versionsFetcher
     }
 
     func generate(path: AbsolutePath, projectOnly: Bool) throws -> AbsolutePath {
@@ -51,14 +55,15 @@ class ProjectGenerator: ProjectGenerating {
 
     private func generateProject(path: AbsolutePath) throws -> (AbsolutePath, Graph) {
         // Load
-        var (graph, project) = try graphLoader.loadProject(path: path)
+        let versions = try versionsFetcher.fetch()
+        var (graph, project) = try graphLoader.loadProject(path: path, versions: versions)
         graph = try graphMapper.map(graph: graph)
 
         // Lint
         try lint(graph: graph)
 
         // Generate
-        let projectDescriptor = try generator.generateProject(project: project, graph: graph)
+        let projectDescriptor = try generator.generateProject(project: project, graph: graph, versions: versions)
 
         // Write
         try writer.write(project: projectDescriptor)
@@ -71,7 +76,8 @@ class ProjectGenerator: ProjectGenerating {
 
     private func generateWorkspace(path: AbsolutePath) throws -> (AbsolutePath, Graph) {
         // Load
-        var (graph, workspace) = try graphLoader.loadWorkspace(path: path)
+        let versions = try versionsFetcher.fetch()
+        var (graph, workspace) = try graphLoader.loadWorkspace(path: path, versions: versions)
         graph = try graphMapper.map(graph: graph)
 
         // Lint
@@ -93,7 +99,8 @@ class ProjectGenerator: ProjectGenerating {
 
     private func generateProjectWorkspace(path: AbsolutePath) throws -> (AbsolutePath, Graph) {
         // Load
-        var (graph, project) = try graphLoader.loadProject(path: path)
+        let versions = try versionsFetcher.fetch()
+        var (graph, project) = try graphLoader.loadProject(path: path, versions: versions)
         graph = try graphMapper.map(graph: graph)
 
         // Lint
@@ -113,7 +120,8 @@ class ProjectGenerator: ProjectGenerating {
     }
 
     private func lint(graph: Graph) throws {
-        let config = try graphLoader.loadConfig(path: graph.entryPath)
+        let versions = try versionsFetcher.fetch()
+        let config = try graphLoader.loadConfig(path: graph.entryPath, versions: versions)
 
         try environmentLinter.lint(config: config).printAndThrowIfNeeded()
         try graphLinter.lint(graph: graph).printAndThrowIfNeeded()

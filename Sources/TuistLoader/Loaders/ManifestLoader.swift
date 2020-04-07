@@ -56,26 +56,30 @@ public protocol ManifestLoading {
     /// Loads the Config.swift in the given directory.
     ///
     /// - Parameter path: Path to the directory that contains the Config.swift file.
+    /// - Parameter versions: Versions of system components that Tuist interacts with.
     /// - Returns: Loaded Config.swift file.
-    /// - Throws: An error if the file has a syntax error.
-    func loadConfig(at path: AbsolutePath) throws -> ProjectDescription.Config
+    func loadConfig(at path: AbsolutePath, versions: Versions) throws -> ProjectDescription.Config
 
     /// Loads the Project.swift in the given directory.
     /// - Parameter path: Path to the directory that contains the Project.swift.
-    func loadProject(at path: AbsolutePath) throws -> ProjectDescription.Project
+    /// - Parameter versions: Versions of system components that Tuist interacts with.
+    func loadProject(at path: AbsolutePath, versions: Versions) throws -> ProjectDescription.Project
 
     /// Loads the Workspace.swift in the given directory.
     /// - Parameter path: Path to the directory that contains the Workspace.swift
-    func loadWorkspace(at path: AbsolutePath) throws -> ProjectDescription.Workspace
+    /// - Parameter versions: Versions of system components that Tuist interacts with.
+    func loadWorkspace(at path: AbsolutePath, versions: Versions) throws -> ProjectDescription.Workspace
 
     /// Loads the Setup.swift in the given directory.
     /// - Parameter path: Path to the directory that contains the Setup.swift.
-    func loadSetup(at path: AbsolutePath) throws -> [Upping]
+    /// - Parameter versions: Versions of system components that Tuist interacts with.
+    func loadSetup(at path: AbsolutePath, versions: Versions) throws -> [Upping]
 
     /// Loads the Template.swift in the given directory.
     /// - Parameters:
     ///     - path: Path to the directory that contains the Template.swift
-    func loadTemplate(at path: AbsolutePath) throws -> ProjectDescription.Template
+    ///     - versions: Versions of system components that Tuist interacts with.
+    func loadTemplate(at path: AbsolutePath, versions: Versions) throws -> ProjectDescription.Template
 
     /// List all the manifests in the given directory.
     /// - Parameter path: Path to the directory whose manifest files will be returend.
@@ -114,29 +118,29 @@ public class ManifestLoader: ManifestLoading {
         Set(manifestFilesLocator.locate(at: path).map { $0.0 })
     }
 
-    public func loadConfig(at path: AbsolutePath) throws -> ProjectDescription.Config {
-        try loadManifest(.config, at: path)
+    public func loadConfig(at path: AbsolutePath, versions: Versions) throws -> ProjectDescription.Config {
+        try loadManifest(.config, at: path, versions: versions)
     }
 
-    public func loadProject(at path: AbsolutePath) throws -> ProjectDescription.Project {
-        try loadManifest(.project, at: path)
+    public func loadProject(at path: AbsolutePath, versions: Versions) throws -> ProjectDescription.Project {
+        try loadManifest(.project, at: path, versions: versions)
     }
 
-    public func loadWorkspace(at path: AbsolutePath) throws -> ProjectDescription.Workspace {
-        try loadManifest(.workspace, at: path)
+    public func loadWorkspace(at path: AbsolutePath, versions: Versions) throws -> ProjectDescription.Workspace {
+        try loadManifest(.workspace, at: path, versions: versions)
     }
 
-    public func loadTemplate(at path: AbsolutePath) throws -> ProjectDescription.Template {
-        try loadManifest(.template, at: path)
+    public func loadTemplate(at path: AbsolutePath, versions: Versions) throws -> ProjectDescription.Template {
+        try loadManifest(.template, at: path, versions: versions)
     }
 
-    public func loadSetup(at path: AbsolutePath) throws -> [Upping] {
+    public func loadSetup(at path: AbsolutePath, versions: Versions) throws -> [Upping] {
         let setupPath = path.appending(component: Manifest.setup.fileName)
         guard FileHandler.shared.exists(setupPath) else {
             throw ManifestLoaderError.manifestNotFound(.setup, path)
         }
 
-        let setup = try loadManifestData(at: setupPath)
+        let setup = try loadManifestData(at: setupPath, versions: versions)
         let setupJson = try JSON(data: setup)
         let actionsJson: [JSON] = try setupJson.get("actions")
         return try actionsJson.compactMap {
@@ -147,7 +151,7 @@ public class ManifestLoader: ManifestLoading {
 
     // MARK: - Private
 
-    private func loadManifest<T: Decodable>(_ manifest: Manifest, at path: AbsolutePath) throws -> T {
+    private func loadManifest<T: Decodable>(_ manifest: Manifest, at path: AbsolutePath, versions: Versions) throws -> T {
         var fileNames = [manifest.fileName]
         if let deprecatedFileName = manifest.deprecatedFileName {
             fileNames.insert(deprecatedFileName, at: 0)
@@ -156,14 +160,14 @@ public class ManifestLoader: ManifestLoading {
         for fileName in fileNames {
             let manifestPath = path.appending(component: fileName)
             if !FileHandler.shared.exists(manifestPath) { continue }
-            let data = try loadManifestData(at: manifestPath)
+            let data = try loadManifestData(at: manifestPath, versions: versions)
             return try decoder.decode(T.self, from: data)
         }
 
         throw ManifestLoaderError.manifestNotFound(manifest, path)
     }
 
-    private func loadManifestData(at path: AbsolutePath) throws -> Data {
+    private func loadManifestData(at path: AbsolutePath, versions: Versions) throws -> Data {
         let projectDescriptionPath = try resourceLocator.projectDescription()
 
         var arguments: [String] = [
@@ -178,7 +182,9 @@ public class ManifestLoader: ManifestLoading {
         ]
 
         // Helpers
-        let projectDesciptionHelpersModulePath = try projectDescriptionHelpersBuilder.build(at: path, projectDescriptionPath: projectDescriptionPath)
+        let projectDesciptionHelpersModulePath = try projectDescriptionHelpersBuilder.build(at: path,
+                                                                                            projectDescriptionPath: projectDescriptionPath,
+                                                                                            versions: versions)
         if let projectDesciptionHelpersModulePath = projectDesciptionHelpersModulePath {
             arguments.append(contentsOf: [
                 "-I", projectDesciptionHelpersModulePath.parentDirectory.pathString,

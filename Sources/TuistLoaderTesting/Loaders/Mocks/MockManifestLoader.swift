@@ -1,14 +1,15 @@
 import Basic
 import Foundation
 import ProjectDescription
+import TuistSupport
 @testable import TuistLoader
 
 public final class MockManifestLoader: ManifestLoading {
     public var loadProjectCount: UInt = 0
-    public var loadProjectStub: ((AbsolutePath) throws -> ProjectDescription.Project)?
+    public var loadProjectStub: ((AbsolutePath, Versions) throws -> ProjectDescription.Project)?
 
     public var loadWorkspaceCount: UInt = 0
-    public var loadWorkspaceStub: ((AbsolutePath) throws -> ProjectDescription.Workspace)?
+    public var loadWorkspaceStub: ((AbsolutePath, Versions) throws -> ProjectDescription.Workspace)?
 
     public var manifestsAtCount: UInt = 0
     public var manifestsAtStub: ((AbsolutePath) -> Set<Manifest>)?
@@ -17,22 +18,22 @@ public final class MockManifestLoader: ManifestLoading {
     public var manifestPathStub: ((AbsolutePath, Manifest) throws -> AbsolutePath)?
 
     public var loadSetupCount: UInt = 0
-    public var loadSetupStub: ((AbsolutePath) throws -> [Upping])?
+    public var loadSetupStub: ((AbsolutePath, Versions) throws -> [Upping])?
 
     public var loadConfigCount: UInt = 0
-    public var loadConfigStub: ((AbsolutePath) throws -> ProjectDescription.Config)?
+    public var loadConfigStub: ((AbsolutePath, Versions) throws -> ProjectDescription.Config)?
 
     public var loadTemplateCount: UInt = 0
-    public var loadTemplateStub: ((AbsolutePath) throws -> ProjectDescription.Template)?
+    public var loadTemplateStub: ((AbsolutePath, Versions) throws -> ProjectDescription.Template)?
 
     public init() {}
 
-    public func loadProject(at path: AbsolutePath) throws -> ProjectDescription.Project {
-        try loadProjectStub?(path) ?? ProjectDescription.Project.test()
+    public func loadProject(at path: AbsolutePath, versions: Versions) throws -> ProjectDescription.Project {
+        try loadProjectStub?(path, versions) ?? ProjectDescription.Project.test()
     }
 
-    public func loadWorkspace(at path: AbsolutePath) throws -> ProjectDescription.Workspace {
-        try loadWorkspaceStub?(path) ?? ProjectDescription.Workspace.test()
+    public func loadWorkspace(at path: AbsolutePath, versions: Versions) throws -> ProjectDescription.Workspace {
+        try loadWorkspaceStub?(path, versions) ?? ProjectDescription.Workspace.test()
     }
 
     public func manifests(at path: AbsolutePath) -> Set<Manifest> {
@@ -45,18 +46,18 @@ public final class MockManifestLoader: ManifestLoading {
         return try manifestPathStub?(path, manifest) ?? TemporaryDirectory(removeTreeOnDeinit: true).path
     }
 
-    public func loadSetup(at path: AbsolutePath) throws -> [Upping] {
+    public func loadSetup(at path: AbsolutePath, versions: Versions) throws -> [Upping] {
         loadSetupCount += 1
-        return try loadSetupStub?(path) ?? []
+        return try loadSetupStub?(path, versions) ?? []
     }
 
-    public func loadConfig(at path: AbsolutePath) throws -> Config {
+    public func loadConfig(at path: AbsolutePath, versions: Versions) throws -> Config {
         loadConfigCount += 1
-        return try loadConfigStub?(path) ?? ProjectDescription.Config.test()
+        return try loadConfigStub?(path, versions) ?? ProjectDescription.Config.test()
     }
 
-    public func loadTemplate(at path: AbsolutePath) throws -> Template {
+    public func loadTemplate(at path: AbsolutePath, versions: Versions) throws -> Template {
         loadTemplateCount += 1
-        return try loadTemplateStub?(path) ?? ProjectDescription.Template.test()
+        return try loadTemplateStub?(path, versions) ?? ProjectDescription.Template.test()
     }
 }

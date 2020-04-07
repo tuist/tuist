@@ -66,6 +66,7 @@ class InitCommand: NSObject, Command {
     private let templatesDirectoryLocator: TemplatesDirectoryLocating
     private let templateGenerator: TemplateGenerating
     private let templateLoader: TemplateLoading
+    private let versionsFetcher: VersionsFetching
 
     // MARK: - Init
 
@@ -79,7 +80,8 @@ class InitCommand: NSObject, Command {
     init(parser: ArgumentParser,
          templatesDirectoryLocator: TemplatesDirectoryLocating,
          templateGenerator: TemplateGenerating,
-         templateLoader: TemplateLoading) {
+         templateLoader: TemplateLoading,
+         versionsFetcher: VersionsFetching = VersionsFetcher()) {
         subParser = parser.add(subparser: InitCommand.command, overview: InitCommand.overview)
         platformArgument = subParser.add(option: "--platform",
                                          shortName: nil,
@@ -108,10 +110,13 @@ class InitCommand: NSObject, Command {
         self.templatesDirectoryLocator = templatesDirectoryLocator
         self.templateGenerator = templateGenerator
         self.templateLoader = templateLoader
+        self.versionsFetcher = versionsFetcher
     }
 
     func parse(with parser: ArgumentParser, arguments: [String]) throws -> ArgumentParser.Result {
         guard arguments.contains("--template") else { return try parser.parse(arguments) }
+        let versions = try versionsFetcher.fetch()
+
         // Plucking out path and template argument
         let pairedArguments = stride(from: 1, to: arguments.count, by: 2).map {
             arguments[$0 ..< min($0 + 2, arguments.count)]
@@ -132,7 +137,7 @@ class InitCommand: NSObject, Command {
         let templateDirectory = try self.templateDirectory(templateDirectories: directories,
                                                            template: templateName)
 
-        let template = try templateLoader.loadTemplate(at: templateDirectory)
+        let template = try templateLoader.loadTemplate(at: templateDirectory, versions: versions)
 
         // Dynamically add attributes from template to `subParser`
         attributesArguments = template.attributes.reduce([:]) {
@@ -149,6 +154,7 @@ class InitCommand: NSObject, Command {
         let platform = try self.platform(arguments: arguments)
         let path = self.path(arguments: arguments)
         let name = try self.name(arguments: arguments, path: path)
+        let versions = try versionsFetcher.fetch()
         try verifyDirectoryIsEmpty(path: path)
 
         let directories = try templatesDirectoryLocator.templateDirectories(at: path)
@@ -156,7 +162,7 @@ class InitCommand: NSObject, Command {
             guard
                 let templateDirectory = directories.first(where: { $0.basename == template })
             else { throw InitCommandError.templateNotFound(template) }
-            let template = try templateLoader.loadTemplate(at: templateDirectory)
+            let template = try templateLoader.loadTemplate(at: templateDirectory, versions: versions)
             let parsedAttributes = try validateAttributes(attributesArguments,
                                                           template: template,
                                                           name: name,
@@ -170,7 +176,7 @@ class InitCommand: NSObject, Command {
             guard
                 let templateDirectory = directories.first(where: { $0.basename == "default" })
             else { throw InitCommandError.templateNotFound("default") }
-            let template = try templateLoader.loadTemplate(at: templateDirectory)
+            let template = try templateLoader.loadTemplate(at: templateDirectory, versions: versions)
             try templateGenerator.generate(template: template,
                                            to: path,
                                            attributes: ["name": name, "platform": platform.caseValue])

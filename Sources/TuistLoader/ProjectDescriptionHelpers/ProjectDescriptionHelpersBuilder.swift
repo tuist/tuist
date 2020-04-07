@@ -10,7 +10,8 @@ protocol ProjectDescriptionHelpersBuilding: AnyObject {
     /// - Parameters:
     ///   - at: Path to the directory that contains the manifest being loaded.
     ///   - projectDescriptionPath: Path to the project description module.
-    func build(at: AbsolutePath, projectDescriptionPath: AbsolutePath) throws -> AbsolutePath?
+    ///   - versions: Versions of system components that Tuist interacts with.
+    func build(at: AbsolutePath, projectDescriptionPath: AbsolutePath, versions: Versions) throws -> AbsolutePath?
 }
 
 final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding {
@@ -40,11 +41,11 @@ final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding 
         self.helpersDirectoryLocator = helpersDirectoryLocator
     }
 
-    func build(at: AbsolutePath, projectDescriptionPath: AbsolutePath) throws -> AbsolutePath? {
+    func build(at: AbsolutePath, projectDescriptionPath: AbsolutePath, versions: Versions) throws -> AbsolutePath? {
         guard let helpersDirectory = helpersDirectoryLocator.locate(at: at) else { return nil }
         if let cachedPath = builtHelpers[helpersDirectory] { return cachedPath }
 
-        let hash = try projectDescriptionHelpersHasher.hash(helpersDirectory: helpersDirectory)
+        let hash = try projectDescriptionHelpersHasher.hash(helpersDirectory: helpersDirectory, versions: versions)
         let prefixHash = projectDescriptionHelpersHasher.prefixHash(helpersDirectory: helpersDirectory)
 
         // Get paths

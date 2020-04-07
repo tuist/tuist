@@ -24,23 +24,17 @@ public class GeneratorModelLoader: GeneratorModelLoading {
         self.rootDirectoryLocator = rootDirectoryLocator
     }
 
-    /// Load a Project model at the specified path
-    ///
-    /// - Parameters:
-    ///   - path: The absolute path for the project model to load.
-    /// - Returns: The Project loaded from the specified path
-    /// - Throws: Error encountered during the loading process (e.g. Missing project)
-    public func loadProject(at path: AbsolutePath) throws -> TuistCore.Project {
-        let manifest = try manifestLoader.loadProject(at: path)
-        let config = try loadConfig(at: path)
+    public func loadProject(at path: AbsolutePath, versions: Versions) throws -> TuistCore.Project {
+        let manifest = try manifestLoader.loadProject(at: path, versions: versions)
+        let config = try loadConfig(at: path, versions: versions)
         let generatorPaths = GeneratorPaths(manifestDirectory: path)
         try manifestLinter.lint(project: manifest).printAndThrowIfNeeded()
         let project = try TuistCore.Project.from(manifest: manifest, generatorPaths: generatorPaths)
         return try enriched(model: project, with: config)
     }
 
-    public func loadWorkspace(at path: AbsolutePath) throws -> TuistCore.Workspace {
-        let manifest = try manifestLoader.loadWorkspace(at: path)
+    public func loadWorkspace(at path: AbsolutePath, versions: Versions) throws -> TuistCore.Workspace {
+        let manifest = try manifestLoader.loadWorkspace(at: path, versions: versions)
         let generatorPaths = GeneratorPaths(manifestDirectory: path)
         let workspace = try TuistCore.Workspace.from(manifest: manifest,
                                                      path: path,
@@ -49,13 +43,13 @@ public class GeneratorModelLoader: GeneratorModelLoading {
         return workspace
     }
 
-    public func loadConfig(at path: AbsolutePath) throws -> TuistCore.Config {
+    public func loadConfig(at path: AbsolutePath, versions: Versions) throws -> TuistCore.Config {
         // If the Config.swift file exists in the root Tuist/ directory, we load it from there
         if let rootDirectoryPath = rootDirectoryLocator.locate(from: path) {
             let configPath = rootDirectoryPath.appending(RelativePath("\(Constants.tuistDirectoryName)/\(Manifest.config.fileName)"))
 
             if FileHandler.shared.exists(configPath) {
-                let manifest = try manifestLoader.loadConfig(at: configPath.parentDirectory)
+                let manifest = try manifestLoader.loadConfig(at: configPath.parentDirectory, versions: versions)
                 return try TuistCore.Config.from(manifest: manifest)
             }
         }
@@ -69,7 +63,7 @@ public class GeneratorModelLoader: GeneratorModelLoading {
             guard let configPath = FileHandler.shared.locateDirectoryTraversingParents(from: path, path: fileName) else {
                 continue
             }
-            let manifest = try manifestLoader.loadConfig(at: configPath.parentDirectory)
+            let manifest = try manifestLoader.loadConfig(at: configPath.parentDirectory, versions: versions)
             return try TuistCore.Config.from(manifest: manifest)
         }
 

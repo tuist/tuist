@@ -73,6 +73,7 @@ public class Generator: Generating {
     private let writer: XcodeProjWriting
     private let cocoapodsInteractor: CocoaPodsInteracting
     private let swiftPackageManagerInteractor: SwiftPackageManagerInteracting
+    private let versionsFetcher: VersionsFetching
 
     /// Instance to lint the Tuist configuration against the system.
     private let environmentLinter: EnvironmentLinting
@@ -88,9 +89,11 @@ public class Generator: Generating {
         let environmentLinter = EnvironmentLinter()
         let workspaceStructureGenerator = WorkspaceStructureGenerator()
         let schemesGenerator = SchemesGenerator()
+        let versionsFetcher = VersionsFetcher()
         let workspaceGenerator = WorkspaceGenerator(projectGenerator: projectGenerator,
                                                     workspaceStructureGenerator: workspaceStructureGenerator,
-                                                    schemesGenerator: schemesGenerator)
+                                                    schemesGenerator: schemesGenerator,
+                                                    versionsFetcher: versionsFetcher)
         let writer = XcodeProjWriter()
         let cocoapodsInteractor: CocoaPodsInteracting = CocoaPodsInteractor()
         let swiftPackageManagerInteractor: SwiftPackageManagerInteracting = SwiftPackageManagerInteractor()
@@ -102,7 +105,8 @@ public class Generator: Generating {
                   environmentLinter: environmentLinter,
                   writer: writer,
                   cocoapodsInteractor: cocoapodsInteractor,
-                  swiftPackageManagerInteractor: swiftPackageManagerInteractor)
+                  swiftPackageManagerInteractor: swiftPackageManagerInteractor,
+                  versionsFetcher: versionsFetcher)
     }
 
     init(graphLoader: GraphLoading,
@@ -112,7 +116,8 @@ public class Generator: Generating {
          environmentLinter: EnvironmentLinting,
          writer: XcodeProjWriting,
          cocoapodsInteractor: CocoaPodsInteracting,
-         swiftPackageManagerInteractor: SwiftPackageManagerInteracting) {
+         swiftPackageManagerInteractor: SwiftPackageManagerInteracting,
+         versionsFetcher: VersionsFetching) {
         self.graphLoader = graphLoader
         self.graphLinter = graphLinter
         self.workspaceGenerator = workspaceGenerator
@@ -121,6 +126,7 @@ public class Generator: Generating {
         self.writer = writer
         self.cocoapodsInteractor = cocoapodsInteractor
         self.swiftPackageManagerInteractor = swiftPackageManagerInteractor
+        self.versionsFetcher = versionsFetcher
     }
 
     public func generateProject(_ project: Project,
@@ -130,27 +136,30 @@ public class Generator: Generating {
         /// When the source root path is not given, we assume paths
         /// are relative to the directory that contains the manifest.
         let sourceRootPath = sourceRootPath ?? project.path
-
+        let versions = try versionsFetcher.fetch()
         let descriptor = try projectGenerator.generate(project: project,
                                                        graph: graph,
                                                        sourceRootPath: sourceRootPath,
-                                                       xcodeprojPath: xcodeprojPath)
+                                                       xcodeprojPath: xcodeprojPath,
+                                                       versions: versions)
 
         try writer.write(project: descriptor)
         return descriptor.xcodeprojPath
     }
 
     public func generateProject(at path: AbsolutePath) throws -> (AbsolutePath, Graph) {
-        let config = try graphLoader.loadConfig(path: path)
+        let versions = try versionsFetcher.fetch()
+        let config = try graphLoader.loadConfig(path: path, versions: versions)
         try environmentLinter.lint(config: config).printAndThrowIfNeeded()
 
-        let (graph, project) = try graphLoader.loadProject(path: path)
+        let (graph, project) = try graphLoader.loadProject(path: path, versions: versions)
         try graphLinter.lint(graph: graph).printAndThrowIfNeeded()
 
         let descriptor = try projectGenerator.generate(project: project,
                                                        graph: graph,
                                                        sourceRootPath: path,
-                                                       xcodeprojPath: nil)
+                                                       xcodeprojPath: nil,
+                                                       versions: versions)
 
         try writer.write(project: descriptor)
         return (descriptor.xcodeprojPath, graph)
@@ -158,10 +167,11 @@ public class Generator: Generating {
 
     public func generateProjectWorkspace(at path: AbsolutePath,
                                          workspaceFiles: [AbsolutePath]) throws -> (AbsolutePath, Graph) {
-        let config = try graphLoader.loadConfig(path: path)
+        let versions = try versionsFetcher.fetch()
+        let config = try graphLoader.loadConfig(path: path, versions: versions)
         try environmentLinter.lint(config: config).printAndThrowIfNeeded()
 
-        let (graph, project) = try graphLoader.loadProject(path: path)
+        let (graph, project) = try graphLoader.loadProject(path: path, versions: versions)
         try graphLinter.lint(graph: graph).printAndThrowIfNeeded()
 
         let workspace = Workspace(path: path,
@@ -181,9 +191,10 @@ public class Generator: Generating {
 
     public func generateWorkspace(at path: AbsolutePath,
                                   workspaceFiles: [AbsolutePath]) throws -> (AbsolutePath, Graph) {
-        let config = try graphLoader.loadConfig(path: path)
+        let versions = try versionsFetcher.fetch()
+        let config = try graphLoader.loadConfig(path: path, versions: versions)
         try environmentLinter.lint(config: config).printAndThrowIfNeeded()
-        let (graph, workspace) = try graphLoader.loadWorkspace(path: path)
+        let (graph, workspace) = try graphLoader.loadWorkspace(path: path, versions: versions)
         try graphLinter.lint(graph: graph).printAndThrowIfNeeded()
 
         let updatedWorkspace = workspace

@@ -38,7 +38,7 @@ public protocol DescriptorGenerating {
     ///   - graph: Graph model
     ///
     /// - Seealso: `GraphLoader`
-    func generateProject(project: Project, graph: Graph) throws -> ProjectDescriptor
+    func generateProject(project: Project, graph: Graph, versions: Versions) throws -> ProjectDescriptor
 
     /// Generate an individual project descriptor with some additional configuration
     ///
@@ -48,7 +48,7 @@ public protocol DescriptorGenerating {
     ///   - config: The project generation configuration
     ///
     /// - Seealso: `GraphLoader`
-    func generateProject(project: Project, graph: Graph, config: ProjectGenerationConfig) throws -> ProjectDescriptor
+    func generateProject(project: Project, graph: Graph, config: ProjectGenerationConfig, versions: Versions) throws -> ProjectDescriptor
 
     /// Generate a workspace descriptor
     ///
@@ -77,7 +77,8 @@ public final class DescriptorGenerator: DescriptorGenerating {
                                                 schemesGenerator: schemesGenerator)
         let workspaceGenerator = WorkspaceGenerator(projectGenerator: projectGenerator,
                                                     workspaceStructureGenerator: workspaceStructureGenerator,
-                                                    schemesGenerator: schemesGenerator)
+                                                    schemesGenerator: schemesGenerator,
+                                                    versionsFetcher: VersionsFetcher())
         self.init(workspaceGenerator: workspaceGenerator,
                   projectGenerator: projectGenerator)
     }
@@ -88,18 +89,20 @@ public final class DescriptorGenerator: DescriptorGenerating {
         self.projectGenerator = projectGenerator
     }
 
-    public func generateProject(project: Project, graph: Graph) throws -> ProjectDescriptor {
+    public func generateProject(project: Project, graph: Graph, versions: Versions) throws -> ProjectDescriptor {
         try projectGenerator.generate(project: project,
                                       graph: graph,
                                       sourceRootPath: nil,
-                                      xcodeprojPath: nil)
+                                      xcodeprojPath: nil,
+                                      versions: versions)
     }
 
-    public func generateProject(project: Project, graph: Graph, config: ProjectGenerationConfig) throws -> ProjectDescriptor {
+    public func generateProject(project: Project, graph: Graph, config: ProjectGenerationConfig, versions: Versions) throws -> ProjectDescriptor {
         try projectGenerator.generate(project: project,
                                       graph: graph,
                                       sourceRootPath: config.sourceRootPath,
-                                      xcodeprojPath: config.xcodeprojPath)
+                                      xcodeprojPath: config.xcodeprojPath,
+                                      versions: versions)
     }
 
     public func generateWorkspace(workspace: Workspace, graph: Graph) throws -> WorkspaceDescriptor {

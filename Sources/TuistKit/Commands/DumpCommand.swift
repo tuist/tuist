@@ -13,19 +13,23 @@ class DumpCommand: NSObject, Command {
     // MARK: - Attributes
 
     private let manifestLoader: ManifestLoading
+    private let versionsFetcher: VersionsFetching
     let pathArgument: OptionArgument<String>
 
     // MARK: - Init
 
     public required convenience init(parser: ArgumentParser) {
         self.init(manifestLoader: ManifestLoader(),
+                  versionsFetcher: VersionsFetcher(),
                   parser: parser)
     }
 
     init(manifestLoader: ManifestLoading,
+         versionsFetcher: VersionsFetching,
          parser: ArgumentParser) {
         let subParser = parser.add(subparser: DumpCommand.command, overview: DumpCommand.overview)
         self.manifestLoader = manifestLoader
+        self.versionsFetcher = versionsFetcher
         pathArgument = subParser.add(option: "--path",
                                      shortName: "-p",
                                      kind: String.self,
@@ -42,7 +46,8 @@ class DumpCommand: NSObject, Command {
         } else {
             path = AbsolutePath.current
         }
-        let project = try manifestLoader.loadProject(at: path)
+        let versions = try versionsFetcher.fetch()
+        let project = try manifestLoader.loadProject(at: path, versions: versions)
         let json: JSON = try project.toJSON()
         logger.notice("\(json.toString(prettyPrint: true))")
     }

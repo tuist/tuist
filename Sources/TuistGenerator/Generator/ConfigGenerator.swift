@@ -15,7 +15,8 @@ protocol ConfigGenerating: AnyObject {
                               projectSettings: Settings,
                               fileElements: ProjectFileElements,
                               graph: Graph,
-                              sourceRootPath: AbsolutePath) throws
+                              sourceRootPath: AbsolutePath,
+                              versions: Versions) throws
 }
 
 final class ConfigGenerator: ConfigGenerating {
@@ -62,7 +63,8 @@ final class ConfigGenerator: ConfigGenerating {
                               projectSettings: Settings,
                               fileElements: ProjectFileElements,
                               graph: Graph,
-                              sourceRootPath: AbsolutePath) throws {
+                              sourceRootPath: AbsolutePath,
+                              versions: Versions) throws {
         let defaultConfiguration = projectSettings.defaultReleaseBuildConfiguration()
             ?? projectSettings.defaultDebugBuildConfiguration()
         let configurationList = XCConfigurationList(buildConfigurations: [],
@@ -92,7 +94,8 @@ final class ConfigGenerator: ConfigGenerating {
                                           graph: graph,
                                           pbxproj: pbxproj,
                                           configurationList: configurationList,
-                                          sourceRootPath: sourceRootPath)
+                                          sourceRootPath: sourceRootPath,
+                                          versions: versions)
         }
     }
 
@@ -131,12 +134,14 @@ final class ConfigGenerator: ConfigGenerating {
                                            graph: Graph,
                                            pbxproj: PBXProj,
                                            configurationList: XCConfigurationList,
-                                           sourceRootPath: AbsolutePath) throws {
+                                           sourceRootPath: AbsolutePath,
+                                           versions: Versions) throws {
         let settingsHelper = SettingsHelper()
         var settings = try defaultSettingsProvider.targetSettings(target: target,
                                                                   buildConfiguration: buildConfiguration)
         updateTargetDerived(buildSettings: &settings,
                             target: target,
+                            versions: versions,
                             graph: graph,
                             sourceRootPath: sourceRootPath)
 
@@ -158,15 +163,17 @@ final class ConfigGenerator: ConfigGenerating {
 
     private func updateTargetDerived(buildSettings settings: inout [String: SettingValue],
                                      target: Target,
+                                     versions: Versions,
                                      graph: Graph,
                                      sourceRootPath: AbsolutePath) {
-        settings.merge(generalTargetDerivedSettings(target: target, sourceRootPath: sourceRootPath)) { $1 }
+        settings.merge(generalTargetDerivedSettings(target: target, versions: versions, sourceRootPath: sourceRootPath)) { $1 }
         settings.merge(testBundleTargetDerivedSettings(target: target, graph: graph, sourceRootPath: sourceRootPath)) { $1 }
         settings.merge(deploymentTargetDerivedSettings(target: target)) { $1 }
         settings.merge(watchTargetDerivedSettings(target: target, graph: graph, sourceRootPath: sourceRootPath)) { $1 }
     }
 
     private func generalTargetDerivedSettings(target: Target,
+                                              versions: Versions,
                                               sourceRootPath: AbsolutePath) -> [String: SettingValue] {
         var settings: [String: SettingValue] = [:]
         settings["PRODUCT_BUNDLE_IDENTIFIER"] = .string(target.bundleId)
@@ -184,7 +191,7 @@ final class ConfigGenerator: ConfigGenerating {
         settings["SUPPORTED_PLATFORMS"] = .string(target.platform.xcodeSupportedPlatforms)
         // TODO: We should show a warning here
         if settings["SWIFT_VERSION"] == nil {
-            settings["SWIFT_VERSION"] = .string(Constants.swiftVersion)
+            settings["SWIFT_VERSION"] = .string(versions.swift.description)
         }
 
         if target.product == .staticFramework {

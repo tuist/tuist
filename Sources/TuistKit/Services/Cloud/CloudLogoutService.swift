@@ -32,11 +32,9 @@ enum CloudLogoutServiceError: FatalError, Equatable {
 }
 
 final class CloudLogoutService: CloudLogoutServicing {
-    /// Cloud session controller.
     let cloudSessionController: CloudSessionControlling
-
-    /// Generator model loader.
     let generatorModelLoader: GeneratorModelLoading
+    let versionsFetcher: VersionsFetching
 
     // MARK: - Init
 
@@ -46,20 +44,25 @@ final class CloudLogoutService: CloudLogoutServicing {
         let generatorModelLoader = GeneratorModelLoader(manifestLoader: manifetLoader,
                                                         manifestLinter: manifestLinter)
         self.init(cloudSessionController: CloudSessionController(),
-                  generatorModelLoader: generatorModelLoader)
+                  generatorModelLoader: generatorModelLoader,
+                  versionsFetcher: VersionsFetcher())
     }
 
     init(cloudSessionController: CloudSessionControlling,
-         generatorModelLoader: GeneratorModelLoading) {
+         generatorModelLoader: GeneratorModelLoading,
+         versionsFetcher: VersionsFetching) {
         self.cloudSessionController = cloudSessionController
         self.generatorModelLoader = generatorModelLoader
+        self.versionsFetcher = versionsFetcher
     }
 
     // MARK: - CloudAuthServicing
 
     func logout() throws {
         let path = FileHandler.shared.currentPath
-        let config = try generatorModelLoader.loadConfig(at: path)
+        let versions = try versionsFetcher.fetch()
+        let config = try generatorModelLoader.loadConfig(at: path, versions: versions)
+
         guard let cloudURL = config.cloudURL else {
             throw CloudLogoutServiceError.missingCloudURL
         }

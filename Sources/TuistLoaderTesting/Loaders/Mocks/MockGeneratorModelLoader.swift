@@ -15,15 +15,15 @@ public class MockGeneratorModelLoader: GeneratorModelLoading {
 
     // MARK: - GeneratorModelLoading
 
-    public func loadProject(at path: AbsolutePath) throws -> Project {
+    public func loadProject(at path: AbsolutePath, versions _: Versions) throws -> Project {
         try projects[path.pathString]!(path)
     }
 
-    public func loadWorkspace(at path: AbsolutePath) throws -> Workspace {
+    public func loadWorkspace(at path: AbsolutePath, versions _: Versions) throws -> Workspace {
         try workspaces[path.pathString]!(path)
     }
 
-    public func loadConfig(at path: AbsolutePath) throws -> Config {
+    public func loadConfig(at path: AbsolutePath, versions _: Versions) throws -> Config {
         try configs[path.pathString]!(path)
     }
 

@@ -51,6 +51,9 @@ final class ProjectEditor: ProjectEditing {
     /// Utiltity to locate the custom templates directory
     let templatesDirectoryLocator: TemplatesDirectoryLocating
 
+    /// Utility to fetch the versions of the system pieces that Tuist interacts with.
+    let versionsFetcher: VersionsFetching
+
     /// Xcode Project writer
     private let writer: XcodeProjWriting
 
@@ -60,7 +63,8 @@ final class ProjectEditor: ProjectEditing {
          manifestFilesLocator: ManifestFilesLocating = ManifestFilesLocator(),
          helpersDirectoryLocator: HelpersDirectoryLocating = HelpersDirectoryLocator(),
          writer: XcodeProjWriting = XcodeProjWriter(),
-         templatesDirectoryLocator: TemplatesDirectoryLocating = TemplatesDirectoryLocator()) {
+         templatesDirectoryLocator: TemplatesDirectoryLocating = TemplatesDirectoryLocator(),
+         versionsFetcher: VersionsFetching = VersionsFetcher()) {
         self.generator = generator
         self.projectEditorMapper = projectEditorMapper
         self.resourceLocator = resourceLocator
@@ -68,10 +72,12 @@ final class ProjectEditor: ProjectEditing {
         self.helpersDirectoryLocator = helpersDirectoryLocator
         self.writer = writer
         self.templatesDirectoryLocator = templatesDirectoryLocator
+        self.versionsFetcher = versionsFetcher
     }
 
     func edit(at: AbsolutePath, in dstDirectory: AbsolutePath) throws -> AbsolutePath {
         let xcodeprojPath = dstDirectory.appending(component: "Manifests.xcodeproj")
+        let versions = try versionsFetcher.fetch()
 
         let projectDesciptionPath = try resourceLocator.projectDescription()
         let manifests = manifestFilesLocator.locate(at: at)
@@ -98,13 +104,15 @@ final class ProjectEditor: ProjectEditing {
                                                        manifests: manifests.map { $0.1 },
                                                        helpers: helpers,
                                                        templates: templates,
-                                                       projectDescriptionPath: projectDesciptionPath)
+                                                       projectDescriptionPath: projectDesciptionPath,
+                                                       versions: versions)
 
         let config = ProjectGenerationConfig(sourceRootPath: project.path,
                                              xcodeprojPath: xcodeprojPath)
         let descriptor = try generator.generateProject(project: project,
                                                        graph: graph,
-                                                       config: config)
+                                                       config: config,
+                                                       versions: versions)
         try writer.write(project: descriptor)
         return descriptor.xcodeprojPath
     }

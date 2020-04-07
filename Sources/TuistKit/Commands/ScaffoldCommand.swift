@@ -38,7 +38,7 @@ class ScaffoldCommand: NSObject, Command {
     private let templateArgument: PositionalArgument<String>
     private var attributesArguments: [String: OptionArgument<String>] = [:]
     private let subParser: ArgumentParser
-
+    private let versionsFetcher: VersionsFetching
     private let templateLoader: TemplateLoading
     private let templatesDirectoryLocator: TemplatesDirectoryLocating
     private let templateGenerator: TemplateGenerating
@@ -49,13 +49,15 @@ class ScaffoldCommand: NSObject, Command {
         self.init(parser: parser,
                   templateLoader: TemplateLoader(),
                   templatesDirectoryLocator: TemplatesDirectoryLocator(),
-                  templateGenerator: TemplateGenerator())
+                  templateGenerator: TemplateGenerator(),
+                  versionsFetcher: VersionsFetcher())
     }
 
     init(parser: ArgumentParser,
          templateLoader: TemplateLoading,
          templatesDirectoryLocator: TemplatesDirectoryLocating,
-         templateGenerator: TemplateGenerating) {
+         templateGenerator: TemplateGenerating,
+         versionsFetcher: VersionsFetching) {
         subParser = parser.add(subparser: ScaffoldCommand.command, overview: ScaffoldCommand.overview)
         listArgument = subParser.add(option: "--list",
                                      shortName: "-l",
@@ -75,10 +77,13 @@ class ScaffoldCommand: NSObject, Command {
         self.templateLoader = templateLoader
         self.templatesDirectoryLocator = templatesDirectoryLocator
         self.templateGenerator = templateGenerator
+        self.versionsFetcher = versionsFetcher
     }
 
     func parse(with parser: ArgumentParser, arguments: [String]) throws -> (ArgumentParser.Result, ArgumentParser) {
         guard arguments.count >= 2 else { throw ScaffoldCommandError.templateNotProvided }
+        let versions = try versionsFetcher.fetch()
+
         // We want to parse only the name of template, not its arguments which will be dynamically added
         let templateArguments = Array(arguments.prefix(2))
         // Plucking out path argument
@@ -104,7 +109,7 @@ class ScaffoldCommand: NSObject, Command {
         let templateDirectory = try self.templateDirectory(templateDirectories: directories,
                                                            template: templateName)
 
-        let template = try templateLoader.loadTemplate(at: templateDirectory)
+        let template = try templateLoader.loadTemplate(at: templateDirectory, versions: versions)
 
         // Dynamically add attributes from template to `subParser`
         attributesArguments = template.attributes.reduce([:]) {
@@ -119,13 +124,14 @@ class ScaffoldCommand: NSObject, Command {
 
     func run(with arguments: ArgumentParser.Result) throws {
         let path = self.path(arguments: arguments)
+        let versions = try versionsFetcher.fetch()
 
         let templateDirectories = try templatesDirectoryLocator.templateDirectories(at: path)
 
         let shouldList = arguments.get(listArgument) ?? false
         if shouldList {
             try templateDirectories.forEach {
-                let template = try templateLoader.loadTemplate(at: $0)
+                let template = try templateLoader.loadTemplate(at: $0, versions: versions)
                 logger.info("\($0.basename): \(template.description)")
             }
             return
@@ -136,7 +142,7 @@ class ScaffoldCommand: NSObject, Command {
         let templateDirectory = try self.templateDirectory(templateDirectories: templateDirectories,
                                                            template: templateName)
 
-        let template = try templateLoader.loadTemplate(at: templateDirectory)
+        let template = try templateLoader.loadTemplate(at: templateDirectory, versions: versions)
 
         let parsedAttributes = try validateAttributes(attributesArguments,
                                                       template: template,

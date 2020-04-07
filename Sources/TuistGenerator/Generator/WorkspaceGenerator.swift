@@ -51,6 +51,7 @@ final class WorkspaceGenerator: WorkspaceGenerating {
     private let workspaceStructureGenerator: WorkspaceStructureGenerating
     private let schemesGenerator: SchemesGenerating
     private let config: Config
+    private let versionsFetcher: VersionsFetching
 
     // MARK: - Init
 
@@ -63,23 +64,27 @@ final class WorkspaceGenerator: WorkspaceGenerating {
         self.init(projectGenerator: projectGenerator,
                   workspaceStructureGenerator: WorkspaceStructureGenerator(),
                   schemesGenerator: SchemesGenerator(),
-                  config: config)
+                  config: config,
+                  versionsFetcher: VersionsFetcher())
     }
 
     init(projectGenerator: ProjectGenerating,
          workspaceStructureGenerator: WorkspaceStructureGenerating,
          schemesGenerator: SchemesGenerating,
-         config: Config = .default) {
+         config: Config = .default,
+         versionsFetcher: VersionsFetching) {
         self.projectGenerator = projectGenerator
         self.workspaceStructureGenerator = workspaceStructureGenerator
         self.schemesGenerator = schemesGenerator
         self.config = config
+        self.versionsFetcher = versionsFetcher
     }
 
     // MARK: - WorkspaceGenerating
 
     func generate(workspace: Workspace, path: AbsolutePath, graph: Graph) throws -> WorkspaceDescriptor {
         let workspaceName = "\(graph.name).xcworkspace"
+        let versions = try versionsFetcher.fetch()
 
         logger.notice("Generating workspace \(workspaceName)", metadata: .section)
 
@@ -88,7 +93,8 @@ final class WorkspaceGenerator: WorkspaceGenerating {
             try projectGenerator.generate(project: project,
                                           graph: graph,
                                           sourceRootPath: project.path,
-                                          xcodeprojPath: nil)
+                                          xcodeprojPath: nil,
+                                          versions: versions)
         }
 
         let generatedProjects: [AbsolutePath: GeneratedProject] = Dictionary(uniqueKeysWithValues: projects.map { project in

@@ -1,5 +1,6 @@
 import Basic
 import Foundation
+import TuistSupport
 
 /// Entity responsible for providing generator models
 ///
@@ -14,21 +15,24 @@ public protocol GeneratorModelLoading {
     ///
     /// - Parameters:
     ///   - path: The absolute path for the project model to load.
+    ///   - versions: Versions of system components that Tuist interacts with.
     /// - Returns: The Project loaded from the specified path
     /// - Throws: Error encountered during the loading process (e.g. Missing project)
-    func loadProject(at path: AbsolutePath) throws -> Project
+    func loadProject(at path: AbsolutePath, versions: Versions) throws -> Project
 
     /// Load a Workspace model at the specified path
     ///
-    /// - Parameter path: The absolute path for the workspace model to load
+    /// - Parameter path: The absolute path for the workspace model to load.
+    /// - Parameter versions: Versions of system components that Tuist interacts with.
     /// - Returns: The workspace loaded from the specified path
     /// - Throws: Error encountered during the loading process (e.g. Missing workspace)
-    func loadWorkspace(at path: AbsolutePath) throws -> Workspace
+    func loadWorkspace(at path: AbsolutePath, versions: Versions) throws -> Workspace
 
     /// Load a Config model at the specified path
     ///
-    /// - Parameter path: The absolute path for the Config model to load
+    /// - Parameter path: The absolute path for the Config model to load.
+    /// - Parameter versions: Versions of system components that Tuist interacts with.
     /// - Returns: The config loaded from the specified path
     /// - Throws: Error encountered during the loading process (e.g. Missing Config file)
-    func loadConfig(at path: AbsolutePath) throws -> Config
+    func loadConfig(at path: AbsolutePath, versions: Versions) throws -> Config
 }

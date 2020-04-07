@@ -12,7 +12,8 @@ protocol TargetGenerating: AnyObject {
                         fileElements: ProjectFileElements,
                         path: AbsolutePath,
                         sourceRootPath: AbsolutePath,
-                        graph: Graph) throws -> PBXNativeTarget
+                        graph: Graph,
+                        versions: Versions) throws -> PBXNativeTarget
 
     func generateTargetDependencies(path: AbsolutePath,
                                     targets: [Target],
@@ -50,7 +51,8 @@ final class TargetGenerator: TargetGenerating {
                         fileElements: ProjectFileElements,
                         path: AbsolutePath,
                         sourceRootPath: AbsolutePath,
-                        graph: Graph) throws -> PBXNativeTarget {
+                        graph: Graph,
+                        versions: Versions) throws -> PBXNativeTarget {
         /// Products reference.
         let productFileReference = fileElements.products[target.name]!
 
@@ -80,7 +82,8 @@ final class TargetGenerator: TargetGenerating {
                                                  projectSettings: projectSettings,
                                                  fileElements: fileElements,
                                                  graph: graph,
-                                                 sourceRootPath: sourceRootPath)
+                                                 sourceRootPath: sourceRootPath,
+                                                 versions: versions)
 
         /// Build phases
         try buildPhaseGenerator.generateBuildPhases(path: path,
