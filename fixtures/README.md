@@ -317,3 +317,7 @@ An iOS app where the organization name is defined at the `Project` level.
 ## invalid_manifest
 
 A project with an invalid manifest
+
+## framework_with_environment_variables
+
+A framework project that leverages environment variables to change the name of the framework.

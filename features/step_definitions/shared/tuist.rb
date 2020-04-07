@@ -10,6 +10,14 @@ Then(/^tuist generates the project$/) do
   @xcodeproj_path = Dir.glob(File.join(@dir, "*.xcodeproj")).first
 end
 
+Then(/^tuist generates the project with environment variable (.+) and value (.+)$/) do |variable, value|
+  ENV[variable] = value
+  system("swift", "run", "tuist", "generate", "--path", @dir)
+  @workspace_path = Dir.glob(File.join(@dir, "*.xcworkspace")).first
+  @xcodeproj_path = Dir.glob(File.join(@dir, "*.xcodeproj")).first
+  ENV[variable] = nil
+end
+
 Then(/^tuist generates the project at (.+)$/) do |path|
   system("swift", "run", "tuist", "generate", "--path", File.join(@dir, path))
   @workspace_path = Dir.glob(File.join(@dir, path, "*.xcworkspace")).first
