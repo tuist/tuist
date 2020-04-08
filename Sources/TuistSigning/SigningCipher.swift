@@ -89,10 +89,10 @@ public final class SigningCipher: SigningCiphering {
 
         try zip(cipheredKeys, signingKeyFiles)
             .filter { _, file in !correctlyEncryptedSigningFiles.contains(file) }
-            .forEach {
-                logger.debug("Encrypting \($1.pathString)")
-                let encryptedPath = AbsolutePath($1.pathString + "." + Constants.encryptedExtension)
-                try $0.write(to: encryptedPath.url)
+            .forEach { key, file in
+                logger.debug("Encrypting \(file.pathString)")
+                let encryptedPath = AbsolutePath(file.pathString + "." + Constants.encryptedExtension)
+                try key.write(to: encryptedPath.url)
             }
 
         if !keepFiles {
