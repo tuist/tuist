@@ -9,20 +9,20 @@ import XCTest
 @testable import TuistCoreTesting
 @testable import TuistSupportTesting
 
-final class GeneratorCacheMapperTests: TuistUnitTestCase {
+final class CacheMapperTests: TuistUnitTestCase {
     var cache: MockCacheStorage!
     var graphContentHasher: MockGraphContentHasher!
     var cacheGraphMapper: MockCacheGraphMapper!
-    var subject: GeneratorCacheMapper!
+    var subject: CacheMapper!
 
     override func setUp() {
         cache = MockCacheStorage()
         graphContentHasher = MockGraphContentHasher()
         cacheGraphMapper = MockCacheGraphMapper()
-        subject = GeneratorCacheMapper(cache: cache,
-                                       graphContentHasher: graphContentHasher,
-                                       cacheGraphMapper: cacheGraphMapper,
-                                       queue: DispatchQueue.main)
+        subject = CacheMapper(cache: cache,
+                              graphContentHasher: graphContentHasher,
+                              cacheGraphMapper: cacheGraphMapper,
+                              queue: DispatchQueue.main)
         super.setUp()
     }
 
@@ -76,7 +76,7 @@ final class GeneratorCacheMapperTests: TuistUnitTestCase {
         cacheGraphMapper.mapStub = .success(outputGraph)
 
         // When
-        let got = try subject.map(graph: inputGraph).toBlocking().single()
+        let (got, _) = try subject.map(graph: inputGraph)
 
         // Then
         XCTAssertEqual(got.name, outputGraph.name)
@@ -125,6 +125,6 @@ final class GeneratorCacheMapperTests: TuistUnitTestCase {
         cacheGraphMapper.mapStub = .success(outputGraph)
 
         // Then
-        XCTAssertThrowsSpecific(try subject.map(graph: inputGraph).toBlocking().single(), error)
+        XCTAssertThrowsSpecific(try subject.map(graph: inputGraph), error)
     }
 }

@@ -33,10 +33,8 @@ class FocusCommand: NSObject, Command {
     ///
     /// - Parameter parser: Argument parser that parses the CLI arguments.
     required convenience init(parser: ArgumentParser) {
-        let generatorCacheMapper = GeneratorCacheMapper()
-        let graphMapper = AnyGraphMapper(mapper: { (try generatorCacheMapper.map(graph: $0).toBlocking().single(), []) })
         self.init(parser: parser,
-                  generator: ProjectGenerator(graphMapper: graphMapper),
+                  generator: ProjectGenerator(graphMapperProvider: GraphMapperProvider(useCache: true)),
                   opener: Opener())
     }
 
