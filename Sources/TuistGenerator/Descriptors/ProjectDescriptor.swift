@@ -1,5 +1,6 @@
 import Basic
 import Foundation
+import TuistCore
 import XcodeProj
 
 /// Project Descriptor

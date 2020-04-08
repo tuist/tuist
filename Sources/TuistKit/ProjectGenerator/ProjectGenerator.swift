@@ -22,11 +22,13 @@ class ProjectGenerator: ProjectGenerating {
     private let modelLoader: GeneratorModelLoading
     private let graphLoader: GraphLoading
     private let graphMapper: GraphMapping
+    private let sideEffectDescriptorExecutor: SideEffectDescriptorExecuting
 
-    init(graphMapper: GraphMapping = AnyGraphMapper(mapper: { $0 })) {
+    init(graphMapper: GraphMapping = AnyGraphMapper(mapper: { ($0, []) })) {
         modelLoader = GeneratorModelLoader(manifestLoader: manifestLoader,
                                            manifestLinter: manifestLinter)
         graphLoader = GraphLoader(modelLoader: modelLoader)
+        sideEffectDescriptorExecutor = SideEffectDescriptorExecutor()
         self.graphMapper = graphMapper
     }
 
@@ -52,7 +54,8 @@ class ProjectGenerator: ProjectGenerating {
     private func generateProject(path: AbsolutePath) throws -> (AbsolutePath, Graph) {
         // Load
         var (graph, project) = try graphLoader.loadProject(path: path)
-        graph = try graphMapper.map(graph: graph)
+        let sideEffects: [SideEffectDescriptor]
+        (graph, sideEffects) = try graphMapper.map(graph: graph)
 
         // Lint
         try lint(graph: graph)
@@ -63,6 +66,9 @@ class ProjectGenerator: ProjectGenerating {
         // Write
         try writer.write(project: projectDescriptor)
 
+        // Mapper side effects
+        try sideEffectDescriptorExecutor.execute(sideEffects: sideEffects)
+
         // Post Generate Actions
         try postGenerationActions(for: graph, workspaceName: projectDescriptor.xcodeprojPath.basename)
 
@@ -72,7 +78,8 @@ class ProjectGenerator: ProjectGenerating {
     private func generateWorkspace(path: AbsolutePath) throws -> (AbsolutePath, Graph) {
         // Load
         var (graph, workspace) = try graphLoader.loadWorkspace(path: path)
-        graph = try graphMapper.map(graph: graph)
+        let sideEffects: [SideEffectDescriptor]
+        (graph, sideEffects) = try graphMapper.map(graph: graph)
 
         // Lint
         try lint(graph: graph)
@@ -85,6 +92,9 @@ class ProjectGenerator: ProjectGenerating {
         // Write
         try writer.write(workspace: workspaceDescriptor)
 
+        // Mapper side effects
+        try sideEffectDescriptorExecutor.execute(sideEffects: sideEffects)
+
         // Post Generate Actions
         try postGenerationActions(for: graph, workspaceName: workspaceDescriptor.xcworkspacePath.basename)
 
@@ -94,7 +104,8 @@ class ProjectGenerator: ProjectGenerating {
     private func generateProjectWorkspace(path: AbsolutePath) throws -> (AbsolutePath, Graph) {
         // Load
         var (graph, project) = try graphLoader.loadProject(path: path)
-        graph = try graphMapper.map(graph: graph)
+        let sideEffects: [SideEffectDescriptor]
+        (graph, sideEffects) = try graphMapper.map(graph: graph)
 
         // Lint
         try lint(graph: graph)
@@ -105,6 +116,9 @@ class ProjectGenerator: ProjectGenerating {
 
         // Write
         try writer.write(workspace: workspaceDescriptor)
+
+        // Mapper side effects
+        try sideEffectDescriptorExecutor.execute(sideEffects: sideEffects)
 
         // Post Generate Actions
         try postGenerationActions(for: graph, workspaceName: workspaceDescriptor.xcworkspacePath.basename)

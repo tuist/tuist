@@ -16,7 +16,7 @@ public class TargetNodeGraphMapper: GraphMapping {
 
     // MARK: - GraphMapping
 
-    public func map(graph: Graph) -> Graph {
+    public func map(graph: Graph) -> (Graph, [SideEffectDescriptor]) {
         var mappedCache = [GraphNodeMapKey: GraphNode]()
         let cache = GraphLoaderCache()
 
@@ -24,10 +24,10 @@ public class TargetNodeGraphMapper: GraphMapping {
             map(node: $0, mappedCache: &mappedCache, cache: cache)
         }
 
-        return Graph(name: graph.name,
-                     entryPath: graph.entryPath,
-                     cache: cache,
-                     entryNodes: updatedNodes)
+        return (Graph(name: graph.name,
+                      entryPath: graph.entryPath,
+                      cache: cache,
+                      entryNodes: updatedNodes), [])
     }
 
     // MARK: - Private
