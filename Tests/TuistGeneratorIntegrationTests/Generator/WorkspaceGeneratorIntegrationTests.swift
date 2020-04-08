@@ -10,14 +10,17 @@ import XCTest
 
 final class WorkspaceGeneratorIntegrationTests: TuistTestCase {
     var subject: WorkspaceGenerator!
+    var versionsFetcher: MockVersionsFetcher!
 
     override func setUp() {
         super.setUp()
-        subject = WorkspaceGenerator(config: .init(projectGenerationContext: .concurrent))
+        versionsFetcher = MockVersionsFetcher()
+        subject = WorkspaceGenerator(config: .init(projectGenerationContext: .concurrent), versionsFetcher: versionsFetcher)
     }
 
     override func tearDown() {
         subject = nil
+        versionsFetcher = nil
         super.tearDown()
     }
 

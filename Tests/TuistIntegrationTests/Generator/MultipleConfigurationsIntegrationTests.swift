@@ -294,7 +294,7 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
         let temporaryPath = try self.temporaryPath()
 
         let modelLoader = try createModelLoader(projectSettings: projectSettings, targetSettings: targetSettings)
-        let subject = DescriptorGenerator()
+        let subject = DescriptorGenerator(versionsFetcher: MockVersionsFetcher())
         let writer = XcodeProjWriter()
         let linter = GraphLinter()
         let graphLoader = GraphLoader(modelLoader: modelLoader)

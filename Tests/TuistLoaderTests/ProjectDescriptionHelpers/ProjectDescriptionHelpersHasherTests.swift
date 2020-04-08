@@ -26,7 +26,7 @@ class ProjectDescriptionHelpersHasherTests: TuistUnitTestCase {
         // Then
         for _ in 0 ..< 20 {
             let got = try subject.hash(helpersDirectory: temporaryDir, versions: versions)
-            XCTAssertEqual(got, "d19835f96b16a558457fc33b169adb9c")
+            XCTAssertEqual(got, "80bd818a3c6eb57110056c17592caf0a")
         }
     }
 

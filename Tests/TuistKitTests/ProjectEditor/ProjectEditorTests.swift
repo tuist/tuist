@@ -29,6 +29,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
     var helpersDirectoryLocator: MockHelpersDirectoryLocator!
     var writer: MockXcodeProjWriter!
     var templatesDirectoryLocator: MockTemplatesDirectoryLocator!
+    var versionsFetcher: MockVersionsFetcher!
     var subject: ProjectEditor!
 
     override func setUp() {
@@ -40,13 +41,15 @@ final class ProjectEditorTests: TuistUnitTestCase {
         helpersDirectoryLocator = MockHelpersDirectoryLocator()
         writer = MockXcodeProjWriter()
         templatesDirectoryLocator = MockTemplatesDirectoryLocator()
+        versionsFetcher = MockVersionsFetcher()
         subject = ProjectEditor(generator: generator,
                                 projectEditorMapper: projectEditorMapper,
                                 resourceLocator: resourceLocator,
                                 manifestFilesLocator: manifestFilesLocator,
                                 helpersDirectoryLocator: helpersDirectoryLocator,
                                 writer: writer,
-                                templatesDirectoryLocator: templatesDirectoryLocator)
+                                templatesDirectoryLocator: templatesDirectoryLocator,
+                                versionsFetcher: versionsFetcher)
     }
 
     override func tearDown() {
@@ -57,6 +60,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         manifestFilesLocator = nil
         helpersDirectoryLocator = nil
         templatesDirectoryLocator = nil
+        versionsFetcher = nil
         subject = nil
     }
 

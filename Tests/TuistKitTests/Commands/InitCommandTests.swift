@@ -16,9 +16,11 @@ final class InitCommandTests: TuistUnitTestCase {
     var templatesDirectoryLocator: MockTemplatesDirectoryLocator!
     var templateGenerator: MockTemplateGenerator!
     var templateLoader: MockTemplateLoader!
+    var versionsFetcher: MockVersionsFetcher!
 
     override func setUp() {
         super.setUp()
+        versionsFetcher = MockVersionsFetcher()
         parser = ArgumentParser.test()
         templatesDirectoryLocator = MockTemplatesDirectoryLocator()
         templateGenerator = MockTemplateGenerator()
@@ -26,10 +28,12 @@ final class InitCommandTests: TuistUnitTestCase {
         subject = InitCommand(parser: parser,
                               templatesDirectoryLocator: templatesDirectoryLocator,
                               templateGenerator: templateGenerator,
-                              templateLoader: templateLoader)
+                              templateLoader: templateLoader,
+                              versionsFetcher: versionsFetcher)
     }
 
     override func tearDown() {
+        versionsFetcher = nil
         parser = nil
         subject = nil
         templatesDirectoryLocator = nil

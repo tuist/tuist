@@ -67,7 +67,8 @@ public final class DescriptorGenerator: DescriptorGenerating {
     private let workspaceGenerator: WorkspaceGenerating
     private let projectGenerator: ProjectGenerating
 
-    public convenience init(defaultSettingsProvider: DefaultSettingsProviding = DefaultSettingsProvider()) {
+    public convenience init(defaultSettingsProvider: DefaultSettingsProviding = DefaultSettingsProvider(),
+                            versionsFetcher: VersionsFetching = VersionsFetcher()) {
         let configGenerator = ConfigGenerator(defaultSettingsProvider: defaultSettingsProvider)
         let targetGenerator = TargetGenerator(configGenerator: configGenerator)
         let schemesGenerator = SchemesGenerator()
@@ -78,7 +79,7 @@ public final class DescriptorGenerator: DescriptorGenerating {
         let workspaceGenerator = WorkspaceGenerator(projectGenerator: projectGenerator,
                                                     workspaceStructureGenerator: workspaceStructureGenerator,
                                                     schemesGenerator: schemesGenerator,
-                                                    versionsFetcher: VersionsFetcher())
+                                                    versionsFetcher: versionsFetcher)
         self.init(workspaceGenerator: workspaceGenerator,
                   projectGenerator: projectGenerator)
     }

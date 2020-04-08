@@ -56,7 +56,8 @@ final class WorkspaceGenerator: WorkspaceGenerating {
     // MARK: - Init
 
     convenience init(defaultSettingsProvider: DefaultSettingsProviding = DefaultSettingsProvider(),
-                     config: Config = .default) {
+                     config: Config = .default,
+                     versionsFetcher: VersionsFetching = VersionsFetcher()) {
         let configGenerator = ConfigGenerator(defaultSettingsProvider: defaultSettingsProvider)
         let targetGenerator = TargetGenerator(configGenerator: configGenerator)
         let projectGenerator = ProjectGenerator(targetGenerator: targetGenerator,
@@ -65,7 +66,7 @@ final class WorkspaceGenerator: WorkspaceGenerating {
                   workspaceStructureGenerator: WorkspaceStructureGenerator(),
                   schemesGenerator: SchemesGenerator(),
                   config: config,
-                  versionsFetcher: VersionsFetcher())
+                  versionsFetcher: versionsFetcher)
     }
 
     init(projectGenerator: ProjectGenerating,
