@@ -39,11 +39,11 @@ enum SigningCipherError: FatalError, Equatable {
 public protocol SigningCiphering {
     /// Encrypts all signing files at `Tuist/Signing`
     /// - Parameters:
-    ///     - keeepFiles: Keep unencrypted files
+    ///     - keepFiles: Keep unencrypted files
     func encryptSigning(at path: AbsolutePath, keepFiles: Bool) throws
     /// Decrypts all signing files at `Tuist/Signing
     /// - Parameters:
-    ///     - keeepFiles: Keep encrypted files
+    ///     - keepFiles: Keep encrypted files
     func decryptSigning(at path: AbsolutePath, keepFiles: Bool) throws
 }
 
