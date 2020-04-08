@@ -8,6 +8,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Only warn about copying Info.plist when it's the target's Info.plist https://github.com/tuist/tuist/pull/1203 by @sgrgrsn
 
+### Added
+
+- Support for returning `SideEffectDescriptor`s from the graph mappers https://github.com/tuist/tuist/pull/1201 by @pepibumur.
+
 ## 1.6.0
 
 ### Removed
