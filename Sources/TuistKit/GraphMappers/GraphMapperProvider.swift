@@ -16,7 +16,11 @@ final class GraphMapperProvider: GraphMapperProviding {
         self.useCache = useCache
     }
 
-    func mapper(config _: Config) -> GraphMapping {
+    func mapper(config: Config) -> GraphMapping {
+        SequentialGraphMapper(mappers(config: config))
+    }
+
+    func mappers(config _: Config) -> [GraphMapping] {
         var mappers: [GraphMapping] = []
 
         // Cache
@@ -24,6 +28,6 @@ final class GraphMapperProvider: GraphMapperProviding {
             mappers.append(CacheMapper())
         }
 
-        return SequentialGraphMapper(mappers)
+        return mappers
     }
 }
