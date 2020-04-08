@@ -17,6 +17,7 @@ final class LintCommandTests: TuistUnitTestCase {
     var manifestLoader: MockManifestLoader!
     var graphLoader: MockGraphLoader!
     var subject: LintCommand!
+    var versionsFetcher: MockVersionsFetcher!
 
     override func setUp() {
         parser = ArgumentParser.test()
@@ -24,11 +25,13 @@ final class LintCommandTests: TuistUnitTestCase {
         environmentLinter = MockEnvironmentLinter()
         manifestLoader = MockManifestLoader()
         graphLoader = MockGraphLoader()
+        versionsFetcher = MockVersionsFetcher()
         subject = LintCommand(graphLinter: graphLinter,
                               environmentLinter: environmentLinter,
                               manifestLoading: manifestLoader,
                               graphLoader: graphLoader,
-                              parser: parser)
+                              parser: parser,
+                              versionsFetcher: versionsFetcher)
         super.setUp()
     }
 
@@ -39,6 +42,7 @@ final class LintCommandTests: TuistUnitTestCase {
         manifestLoader = nil
         graphLoader = nil
         subject = nil
+        versionsFetcher = nil
     }
 
     func test_command() {

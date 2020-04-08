@@ -25,6 +25,7 @@ final class ProjectGeneratorTests: TuistUnitTestCase {
     func test_generate_testTargetIdentity() throws {
         // Given
         let temporaryPath = try self.temporaryPath()
+        let versions = Versions.test()
         let app = Target.test(name: "App",
                               platform: .iOS,
                               product: .app)
@@ -45,7 +46,7 @@ final class ProjectGeneratorTests: TuistUnitTestCase {
                                targets: [project.path: [testTargetNode, appNode]])
 
         // When
-        let generatedProject = try subject.generate(project: project, graph: graph)
+        let generatedProject = try subject.generate(project: project, graph: graph, versions: versions)
 
         // Then
         let pbxproj = generatedProject.xcodeProj.pbxproj
@@ -66,6 +67,7 @@ final class ProjectGeneratorTests: TuistUnitTestCase {
 
     func test_generate_testUsingFileName() throws {
         // Given
+        let versions = Versions.test()
         let project = Project.test(name: "Project",
                                    fileName: "SomeAwesomeName",
                                    targets: [])
@@ -74,17 +76,16 @@ final class ProjectGeneratorTests: TuistUnitTestCase {
                                  ])
 
         // When
-        let got = try subject.generate(project: project, graph: graph)
+        let got = try subject.generate(project: project, graph: graph, versions: versions)
 
         // Then
         XCTAssertEqual(got.xcodeprojPath.basename, "SomeAwesomeName.xcodeproj")
     }
 
     func test_objectVersion_when_xcode11_and_spm() throws {
-        xcodeController.selectedVersionStub = .success(Version(11, 0, 0))
-
         // Given
         let temporaryPath = try self.temporaryPath()
+        let versions = Versions.test(xcode: "11.0.0")
         let project = Project.test(path: temporaryPath,
                                    name: "Project",
                                    fileName: "SomeAwesomeName",
@@ -102,7 +103,7 @@ final class ProjectGeneratorTests: TuistUnitTestCase {
                                packages: [packageNode])
 
         // When
-        let got = try subject.generate(project: project, graph: graph)
+        let got = try subject.generate(project: project, graph: graph, versions: versions)
 
         // Then
         let pbxproj = got.xcodeProj.pbxproj
@@ -111,9 +112,8 @@ final class ProjectGeneratorTests: TuistUnitTestCase {
     }
 
     func test_objectVersion_when_xcode11() throws {
-        xcodeController.selectedVersionStub = .success(Version(11, 0, 0))
-
         // Given
+        let versions = Versions.test(xcode: "11.0.0")
         let temporaryPath = try self.temporaryPath()
         let project = Project.test(path: temporaryPath,
                                    name: "Project",
@@ -122,7 +122,7 @@ final class ProjectGeneratorTests: TuistUnitTestCase {
         let graph = Graph.test(entryPath: temporaryPath)
 
         // When
-        let got = try subject.generate(project: project, graph: graph)
+        let got = try subject.generate(project: project, graph: graph, versions: versions)
 
         // Then
         let pbxproj = got.xcodeProj.pbxproj
@@ -131,9 +131,8 @@ final class ProjectGeneratorTests: TuistUnitTestCase {
     }
 
     func test_objectVersion_when_xcode10() throws {
-        xcodeController.selectedVersionStub = .success(Version(10, 2, 1))
-
         // Given
+        let versions = Versions.test(xcode: "10.2.1")
         let temporaryPath = try self.temporaryPath()
         let project = Project.test(path: temporaryPath,
                                    name: "Project",
@@ -142,7 +141,7 @@ final class ProjectGeneratorTests: TuistUnitTestCase {
         let graph = Graph.test(entryPath: temporaryPath)
 
         // When
-        let got = try subject.generate(project: project, graph: graph)
+        let got = try subject.generate(project: project, graph: graph, versions: versions)
 
         // Then
         let pbxproj = got.xcodeProj.pbxproj
@@ -153,6 +152,7 @@ final class ProjectGeneratorTests: TuistUnitTestCase {
     func test_knownRegions() throws {
         // Given
         let path = try temporaryPath()
+        let versions = Versions.test()
         let graph = Graph.test(entryPath: path)
         let resources = [
             "resources/en.lproj/App.strings",
@@ -170,7 +170,7 @@ final class ProjectGeneratorTests: TuistUnitTestCase {
                                    ])
 
         // When
-        let got = try subject.generate(project: project, graph: graph)
+        let got = try subject.generate(project: project, graph: graph, versions: versions)
 
         // Then
         let pbxProject = try XCTUnwrap(try got.xcodeProj.pbxproj.rootProject())
@@ -184,12 +184,13 @@ final class ProjectGeneratorTests: TuistUnitTestCase {
     func test_generate_setsDefaultKnownRegions() throws {
         // Given
         let path = try temporaryPath()
+        let versions = Versions.test()
         let graph = Graph.test(entryPath: path)
         let project = Project.test(path: path,
                                    targets: [])
 
         // When
-        let got = try subject.generate(project: project, graph: graph)
+        let got = try subject.generate(project: project, graph: graph, versions: versions)
 
         // Then
         let pbxProject = try XCTUnwrap(try got.xcodeProj.pbxproj.rootProject())
@@ -202,13 +203,14 @@ final class ProjectGeneratorTests: TuistUnitTestCase {
     func test_generate_setsOrganizationName() throws {
         // Given
         let path = try temporaryPath()
+        let versions = Versions.test()
         let graph = Graph.test(entryPath: path)
         let project = Project.test(path: path,
                                    organizationName: "tuist",
                                    targets: [])
 
         // When
-        let got = try subject.generate(project: project, graph: graph)
+        let got = try subject.generate(project: project, graph: graph, versions: versions)
 
         // Then
         let pbxProject = try XCTUnwrap(try got.xcodeProj.pbxproj.rootProject())

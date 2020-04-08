@@ -61,6 +61,7 @@ final class StableXcodeProjIntegrationTests: TuistTestCase {
         let subject = DescriptorGenerator()
         let writer = XcodeProjWriter()
         let linter = GraphLinter()
+        let versions = Versions.test()
         let frameworkNodeLoader = MockFrameworkNodeLoader()
         let libraryNodeLoader = MockLibraryNodeLoader()
         let xcframeworkNodeLoader = MockXCFrameworkNodeLoader()
@@ -70,7 +71,7 @@ final class StableXcodeProjIntegrationTests: TuistTestCase {
                                       xcframeworkNodeLoader: xcframeworkNodeLoader,
                                       libraryNodeLoader: libraryNodeLoader)
 
-        let (graph, workspace) = try graphLoader.loadWorkspace(path: path)
+        let (graph, workspace) = try graphLoader.loadWorkspace(path: path, versions: versions)
         try linter.lint(graph: graph).printAndThrowIfNeeded()
         let descriptor = try subject.generateWorkspace(workspace: workspace, graph: graph)
         try writer.write(workspace: descriptor)

@@ -28,6 +28,7 @@ final class ProjectDescriptionHelpersBuilderIntegrationTests: TuistTestCase {
     func test_build_when_the_helpers_is_a_dylib() throws {
         // Given
         let path = try temporaryPath()
+        let versions = Versions.test()
         subject = ProjectDescriptionHelpersBuilder(cacheDirectory: path,
                                                    helpersDirectoryLocator: helpersDirectoryLocator)
         let helpersPath = path.appending(RelativePath("\(Constants.tuistDirectoryName)/\(Constants.helpersDirectoryName)"))
@@ -38,7 +39,7 @@ final class ProjectDescriptionHelpersBuilderIntegrationTests: TuistTestCase {
         print(helpersPath)
 
         // When
-        let paths = try (0 ..< 3).map { _ in try subject.build(at: path, projectDescriptionPath: projectDescriptionPath) }
+        let paths = try (0 ..< 3).map { _ in try subject.build(at: path, projectDescriptionPath: projectDescriptionPath, versions: versions) }
 
         // Then
         XCTAssertEqual(Set(paths).count, 1)

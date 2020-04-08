@@ -47,7 +47,7 @@ final class UpHomebrewTests: TuistUnitTestCase {
         let temporaryPath = try self.temporaryPath()
         let subject = UpHomebrew(packages: ["swiftlint"])
 
-        system.whichStub = { _ in nil }
+        system.whichStub = { _ in throw TestError("swiftlint doesn't exist") }
         system.succeedCommand("/usr/bin/ruby",
                               "-e",
                               "\"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)\"")

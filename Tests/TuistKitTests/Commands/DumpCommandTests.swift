@@ -14,13 +14,16 @@ final class DumpCommandTests: TuistUnitTestCase {
     var subject: DumpCommand!
     var parser: ArgumentParser!
     var manifestLoading: ManifestLoading!
+    var versionsFetcher: MockVersionsFetcher!
 
     override func setUp() {
         super.setUp()
         errorHandler = MockErrorHandler()
         parser = ArgumentParser.test()
         manifestLoading = ManifestLoader()
+        versionsFetcher = MockVersionsFetcher()
         subject = DumpCommand(manifestLoader: manifestLoading,
+                              versionsFetcher: versionsFetcher,
                               parser: parser)
     }
 
@@ -29,6 +32,7 @@ final class DumpCommandTests: TuistUnitTestCase {
         parser = nil
         manifestLoading = nil
         subject = nil
+        versionsFetcher = nil
         super.tearDown()
     }
 

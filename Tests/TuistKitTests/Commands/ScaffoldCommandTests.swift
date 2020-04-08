@@ -18,6 +18,7 @@ final class ScaffoldCommandTests: TuistUnitTestCase {
     var templateLoader: MockTemplateLoader!
     var templatesDirectoryLocator: MockTemplatesDirectoryLocator!
     var templateGenerator: MockTemplateGenerator!
+    var versionsFetcher: MockVersionsFetcher!
 
     override func setUp() {
         super.setUp()
@@ -25,10 +26,12 @@ final class ScaffoldCommandTests: TuistUnitTestCase {
         templateLoader = MockTemplateLoader()
         templatesDirectoryLocator = MockTemplatesDirectoryLocator()
         templateGenerator = MockTemplateGenerator()
+        versionsFetcher = MockVersionsFetcher()
         subject = ScaffoldCommand(parser: parser,
                                   templateLoader: templateLoader,
                                   templatesDirectoryLocator: templatesDirectoryLocator,
-                                  templateGenerator: templateGenerator)
+                                  templateGenerator: templateGenerator,
+                                  versionsFetcher: versionsFetcher)
     }
 
     override func tearDown() {
@@ -37,6 +40,7 @@ final class ScaffoldCommandTests: TuistUnitTestCase {
         templateLoader = nil
         templatesDirectoryLocator = nil
         templateGenerator = nil
+        versionsFetcher = nil
         super.tearDown()
     }
 
@@ -56,7 +60,7 @@ final class ScaffoldCommandTests: TuistUnitTestCase {
 
     func test_adds_attributes_when_parsing() throws {
         // Given
-        templateLoader.loadTemplateStub = { _ in
+        templateLoader.loadTemplateStub = { _, _ in
             Template(description: "test",
                      attributes: [.required("name")])
         }
@@ -75,7 +79,7 @@ final class ScaffoldCommandTests: TuistUnitTestCase {
 
     func test_fails_when_attributes_not_added() throws {
         // Given
-        templateLoader.loadTemplateStub = { _ in
+        templateLoader.loadTemplateStub = { _, _ in
             Template(description: "test")
         }
 
@@ -90,7 +94,7 @@ final class ScaffoldCommandTests: TuistUnitTestCase {
 
     func test_fails_when_required_attribute_not_provided() throws {
         // Given
-        templateLoader.loadTemplateStub = { _ in
+        templateLoader.loadTemplateStub = { _, _ in
             Template.test(attributes: [.required("required")])
         }
 
@@ -111,7 +115,7 @@ final class ScaffoldCommandTests: TuistUnitTestCase {
 
     func test_optional_attribute_is_taken_from_template() throws {
         // Given
-        templateLoader.loadTemplateStub = { _ in
+        templateLoader.loadTemplateStub = { _, _ in
             Template.test(attributes: [.optional("optional", default: "optionalValue")])
         }
 
@@ -138,7 +142,7 @@ final class ScaffoldCommandTests: TuistUnitTestCase {
 
     func test_attributes_are_passed_to_generator() throws {
         // Given
-        templateLoader.loadTemplateStub = { _ in
+        templateLoader.loadTemplateStub = { _, _ in
             Template.test(attributes: [.optional("optional", default: ""),
                                        .required("required")])
         }

@@ -11,18 +11,21 @@ final class SetupLoaderTests: TuistUnitTestCase {
     var subject: SetupLoader!
     var upLinter: MockUpLinter!
     var manifestLoader: MockManifestLoader!
+    var versionsFetcher: MockVersionsFetcher!
 
     override func setUp() {
         super.setUp()
         upLinter = MockUpLinter()
         manifestLoader = MockManifestLoader()
-        subject = SetupLoader(upLinter: upLinter, manifestLoader: manifestLoader)
+        versionsFetcher = MockVersionsFetcher()
+        subject = SetupLoader(upLinter: upLinter, manifestLoader: manifestLoader, versionsFetcher: versionsFetcher)
     }
 
     override func tearDown() {
         upLinter = nil
         manifestLoader = nil
         subject = nil
+        versionsFetcher = nil
         super.tearDown()
     }
 
@@ -30,7 +33,7 @@ final class SetupLoaderTests: TuistUnitTestCase {
         // given
         let projectPath = AbsolutePath("/test/test1")
         var receivedPaths = [String]()
-        manifestLoader.loadSetupStub = { gotPath in
+        manifestLoader.loadSetupStub = { gotPath, _ in
             receivedPaths.append(gotPath.pathString)
             return []
         }
@@ -51,7 +54,7 @@ final class SetupLoaderTests: TuistUnitTestCase {
         mockUp2.isMetStub = { _ in false }
         var lintedUps = [Upping]()
         upLinter.lintStub = { up in lintedUps.append(up); return [] }
-        manifestLoader.loadSetupStub = { _ in [mockUp1, mockUp2] }
+        manifestLoader.loadSetupStub = { _, _ in [mockUp1, mockUp2] }
 
         // when / then
         XCTAssertNoThrow(try subject.meet(at: projectPath))
@@ -68,7 +71,7 @@ final class SetupLoaderTests: TuistUnitTestCase {
     func test_meet_when_loadSetup_throws() {
         // given
         let projectPath = AbsolutePath("/test/test1")
-        manifestLoader.loadSetupStub = { _ in throw ManifestLoaderError.manifestNotFound(.setup, projectPath) }
+        manifestLoader.loadSetupStub = { _, _ in throw ManifestLoaderError.manifestNotFound(.setup, projectPath) }
 
         // when / then
         XCTAssertThrowsSpecific(try subject.meet(at: projectPath),
@@ -101,7 +104,7 @@ final class SetupLoaderTests: TuistUnitTestCase {
             }
             return []
         }
-        manifestLoader.loadSetupStub = { _ in mockUps }
+        manifestLoader.loadSetupStub = { _, _ in mockUps }
 
         // when / then
         XCTAssertThrowsSpecific(try subject.meet(at: projectPath),

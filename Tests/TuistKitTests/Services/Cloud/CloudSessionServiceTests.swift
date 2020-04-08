@@ -39,19 +39,23 @@ final class CloudSessionServiceTests: TuistUnitTestCase {
     var cloudSessionController: MockCloudSessionController!
     var generatorModelLoader: MockGeneratorModelLoader!
     var subject: CloudSessionService!
+    var versionsFetcher: MockVersionsFetcher!
 
     override func setUp() {
         super.setUp()
         cloudSessionController = MockCloudSessionController()
         generatorModelLoader = MockGeneratorModelLoader(basePath: FileHandler.shared.currentPath)
+        versionsFetcher = MockVersionsFetcher()
         subject = CloudSessionService(cloudSessionController: cloudSessionController,
-                                      generatorModelLoader: generatorModelLoader)
+                                      generatorModelLoader: generatorModelLoader,
+                                      versionsFetcher: versionsFetcher)
     }
 
     override func tearDown() {
         super.tearDown()
         cloudSessionController = nil
         generatorModelLoader = nil
+        versionsFetcher = nil
         subject = nil
     }
 

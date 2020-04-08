@@ -21,6 +21,7 @@ final class ManifestLoaderTests: TuistTestCase {
 
     func test_loadConfig() throws {
         // Given
+        let versions = Versions.test()
         let temporaryPath = try self.temporaryPath()
         let content = """
         import ProjectDescription
@@ -33,12 +34,13 @@ final class ManifestLoaderTests: TuistTestCase {
                           encoding: .utf8)
 
         // When
-        _ = try subject.loadConfig(at: temporaryPath)
+        _ = try subject.loadConfig(at: temporaryPath, versions: versions)
     }
 
     func test_loadProject() throws {
         // Given
         let temporaryPath = try self.temporaryPath()
+        let versions = Versions.test()
         let content = """
         import ProjectDescription
         let project = Project(name: "tuist")
@@ -50,7 +52,7 @@ final class ManifestLoaderTests: TuistTestCase {
                           encoding: .utf8)
 
         // When
-        let got = try subject.loadProject(at: temporaryPath)
+        let got = try subject.loadProject(at: temporaryPath, versions: versions)
 
         // Then
         XCTAssertEqual(got.name, "tuist")
@@ -59,6 +61,7 @@ final class ManifestLoaderTests: TuistTestCase {
     func test_loadWorkspace() throws {
         // Given
         let temporaryPath = try self.temporaryPath()
+        let versions = Versions.test()
         let content = """
         import ProjectDescription
         let workspace = Workspace(name: "tuist", projects: [])
@@ -70,7 +73,7 @@ final class ManifestLoaderTests: TuistTestCase {
                           encoding: .utf8)
 
         // When
-        let got = try subject.loadWorkspace(at: temporaryPath)
+        let got = try subject.loadWorkspace(at: temporaryPath, versions: versions)
 
         // Then
         XCTAssertEqual(got.name, "tuist")
@@ -79,6 +82,7 @@ final class ManifestLoaderTests: TuistTestCase {
     func test_loadSetup() throws {
         // Given
         let temporaryPath = try self.temporaryPath()
+        let versions = Versions.test()
         let content = """
         import ProjectDescription
         let setup = Setup([
@@ -92,7 +96,7 @@ final class ManifestLoaderTests: TuistTestCase {
                           encoding: .utf8)
 
         // When
-        let got = try subject.loadSetup(at: temporaryPath)
+        let got = try subject.loadSetup(at: temporaryPath, versions: versions)
 
         // Then
         let customUp = got.first as? UpCustom
@@ -105,6 +109,7 @@ final class ManifestLoaderTests: TuistTestCase {
     func test_loadTemplate() throws {
         // Given
         let temporaryPath = try self.temporaryPath()
+        let versions = Versions.test()
         let content = """
         import ProjectDescription
         
@@ -119,7 +124,7 @@ final class ManifestLoaderTests: TuistTestCase {
                           encoding: .utf8)
 
         // When
-        let got = try subject.loadTemplate(at: temporaryPath)
+        let got = try subject.loadTemplate(at: temporaryPath, versions: versions)
 
         // Then
         XCTAssertEqual(got.description, "Template description")
@@ -128,6 +133,7 @@ final class ManifestLoaderTests: TuistTestCase {
     func test_load_invalidFormat() throws {
         // Given
         let temporaryPath = try self.temporaryPath()
+        let versions = Versions.test()
         let content = """
         import ABC
         let project
@@ -140,14 +146,15 @@ final class ManifestLoaderTests: TuistTestCase {
 
         // When / Then
         XCTAssertThrowsError(
-            try subject.loadProject(at: temporaryPath)
+            try subject.loadProject(at: temporaryPath, versions: versions)
         )
     }
 
     func test_load_missingManifest() throws {
         let temporaryPath = try self.temporaryPath()
+        let versions = Versions.test()
         XCTAssertThrowsError(
-            try subject.loadProject(at: temporaryPath)
+            try subject.loadProject(at: temporaryPath, versions: versions)
         ) { error in
             XCTAssertEqual(error as? ManifestLoaderError, ManifestLoaderError.manifestNotFound(.project, temporaryPath))
         }

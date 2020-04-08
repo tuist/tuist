@@ -38,20 +38,24 @@ final class CloudLogoutServiceErrorTests: TuistUnitTestCase {
 final class CloudLogoutServiceTests: TuistUnitTestCase {
     var cloudSessionController: MockCloudSessionController!
     var generatorModelLoader: MockGeneratorModelLoader!
+    var versionsFetcher: MockVersionsFetcher!
     var subject: CloudLogoutService!
 
     override func setUp() {
         super.setUp()
         cloudSessionController = MockCloudSessionController()
         generatorModelLoader = MockGeneratorModelLoader(basePath: FileHandler.shared.currentPath)
+        versionsFetcher = MockVersionsFetcher()
         subject = CloudLogoutService(cloudSessionController: cloudSessionController,
-                                     generatorModelLoader: generatorModelLoader)
+                                     generatorModelLoader: generatorModelLoader,
+                                     versionsFetcher: versionsFetcher)
     }
 
     override func tearDown() {
         super.tearDown()
         cloudSessionController = nil
         generatorModelLoader = nil
+        versionsFetcher = nil
         subject = nil
     }
 

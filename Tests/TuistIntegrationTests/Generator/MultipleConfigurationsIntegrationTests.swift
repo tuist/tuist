@@ -298,8 +298,9 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
         let writer = XcodeProjWriter()
         let linter = GraphLinter()
         let graphLoader = GraphLoader(modelLoader: modelLoader)
+        let versions = Versions.test()
 
-        let (graph, workspace) = try graphLoader.loadWorkspace(path: temporaryPath)
+        let (graph, workspace) = try graphLoader.loadWorkspace(path: temporaryPath, versions: versions)
         try linter.lint(graph: graph).printAndThrowIfNeeded()
         let descriptor = try subject.generateWorkspace(workspace: workspace, graph: graph)
         try writer.write(workspace: descriptor)

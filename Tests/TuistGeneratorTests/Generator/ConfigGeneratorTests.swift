@@ -60,12 +60,13 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
 
     func test_generateTargetConfig() throws {
         // Given
+        let versions = Versions.test()
         let commonSettings = [
             "Base": "Base",
             "INFOPLIST_FILE": "Info.plist",
             "PRODUCT_BUNDLE_IDENTIFIER": "com.test.bundle_id",
             "CODE_SIGN_ENTITLEMENTS": "$(SRCROOT)/Test.entitlements",
-            "SWIFT_VERSION": Constants.swiftVersion,
+            "SWIFT_VERSION": versions.swift.description,
         ]
 
         let debugSettings = [
@@ -137,6 +138,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
     func test_generateTargetWithDeploymentTarget_whenIOS() throws {
         // Given
         let target = Target.test(deploymentTarget: .iOS("12.0", [.iphone, .ipad]))
+        let versions = Versions.test()
 
         // When
         try subject.generateTargetConfig(target,
@@ -145,7 +147,8 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
                                          projectSettings: .default,
                                          fileElements: ProjectFileElements(),
                                          graph: Graph.test(),
-                                         sourceRootPath: AbsolutePath("/project"))
+                                         sourceRootPath: AbsolutePath("/project"),
+                                         versions: versions)
 
         // Then
         let configurationList = pbxTarget.buildConfigurationList
@@ -164,6 +167,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
     func test_generateTargetWithDeploymentTarget_whenMac() throws {
         // Given
         let target = Target.test(deploymentTarget: .macOS("10.14.1"))
+        let versions = Versions.test()
 
         // When
         try subject.generateTargetConfig(target,
@@ -172,7 +176,8 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
                                          projectSettings: .default,
                                          fileElements: ProjectFileElements(),
                                          graph: Graph.test(),
-                                         sourceRootPath: AbsolutePath("/project"))
+                                         sourceRootPath: AbsolutePath("/project"),
+                                         versions: versions)
 
         // Then
         let configurationList = pbxTarget.buildConfigurationList
@@ -190,6 +195,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
     func test_generateTargetWithDeploymentTarget_whenCatalyst() throws {
         // Given
         let target = Target.test(deploymentTarget: .iOS("13.1", [.iphone, .ipad, .mac]))
+        let versions = Versions.test()
 
         // When
         try subject.generateTargetConfig(target,
@@ -198,7 +204,8 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
                                          projectSettings: .default,
                                          fileElements: ProjectFileElements(),
                                          graph: Graph.test(),
-                                         sourceRootPath: AbsolutePath("/project"))
+                                         sourceRootPath: AbsolutePath("/project"),
+                                         versions: versions)
 
         // Then
         let configurationList = pbxTarget.buildConfigurationList
@@ -259,6 +266,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
             .release("CustomRelease"): nil,
         ])
         let target = Target.test()
+        let versions = Versions.test()
 
         // When
         try subject.generateTargetConfig(target,
@@ -267,7 +275,8 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
                                          projectSettings: projectSettings,
                                          fileElements: ProjectFileElements(),
                                          graph: Graph.test(),
-                                         sourceRootPath: AbsolutePath("/project"))
+                                         sourceRootPath: AbsolutePath("/project"),
+                                         versions: versions)
 
         // Then
         let result = pbxTarget.buildConfigurationList
@@ -280,6 +289,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
             .debug("CustomDebug"): nil,
             .debug("AnotherDebug"): nil,
         ])
+        let versions = Versions.test()
         let target = Target.test()
 
         // When
@@ -289,7 +299,8 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
                                          projectSettings: projectSettings,
                                          fileElements: ProjectFileElements(),
                                          graph: Graph.test(),
-                                         sourceRootPath: AbsolutePath("/project"))
+                                         sourceRootPath: AbsolutePath("/project"),
+                                         versions: versions)
 
         // Then
         let result = pbxTarget.buildConfigurationList
@@ -326,6 +337,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
 
     private func generateTargetConfig() throws {
         let dir = try TemporaryDirectory(removeTreeOnDeinit: true)
+        let versions = Versions.test()
         let xcconfigsDir = dir.path.appending(component: "xcconfigs")
         try FileHandler.shared.createFolder(xcconfigsDir)
         try "".write(to: xcconfigsDir.appending(component: "debug.xcconfig").url, atomically: true, encoding: .utf8)
@@ -361,12 +373,13 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
                                              projectSettings: project.settings,
                                              fileElements: fileElements,
                                              graph: graph,
-                                             sourceRootPath: AbsolutePath("/"))
+                                             sourceRootPath: AbsolutePath("/"),
+                                             versions: versions)
     }
 
     private func generateTestTargetConfig(uiTest: Bool = false) throws {
         let dir = try TemporaryDirectory(removeTreeOnDeinit: true)
-
+        let versions = Versions.test()
         let appTarget = Target.test(name: "App", platform: .iOS, product: .app)
 
         let target = Target.test(name: "Test", product: uiTest ? .uiTests : .unitTests)
@@ -383,7 +396,8 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
                                              projectSettings: project.settings,
                                              fileElements: .init(),
                                              graph: graph,
-                                             sourceRootPath: dir.path)
+                                             sourceRootPath: dir.path,
+                                             versions: versions)
     }
 
     func assert(config: XCBuildConfiguration?,

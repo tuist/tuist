@@ -1,6 +1,7 @@
 import Basic
 import Foundation
 import TuistCore
+import TuistSupport
 
 @testable import TuistCoreTesting
 @testable import TuistKit
@@ -21,7 +22,8 @@ final class MockProjectEditorMapper: ProjectEditorMapping {
              manifests: [AbsolutePath],
              helpers: [AbsolutePath],
              templates: [AbsolutePath],
-             projectDescriptionPath: AbsolutePath) -> (Project, Graph) {
+             projectDescriptionPath: AbsolutePath,
+             versions _: Versions) -> (Project, Graph) {
         mapArgs.append((tuistPath: tuistPath,
                         sourceRootPath: sourceRootPath,
                         manifests: manifests,

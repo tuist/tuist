@@ -2,6 +2,8 @@ import Basic
 import Foundation
 import TuistCore
 import TuistCoreTesting
+import TuistSupport
+import TuistSupportTesting
 import XcodeProj
 import XCTest
 @testable import TuistGenerator
@@ -26,6 +28,7 @@ final class TargetGeneratorTests: XCTestCase {
 
     func test_generateTarget_productName() throws {
         // Given
+        let versions = Versions.test()
         let target = Target.test(name: "MyFramework",
                                  product: .framework,
                                  actions: [
@@ -62,7 +65,8 @@ final class TargetGeneratorTests: XCTestCase {
                                                          fileElements: fileElements,
                                                          path: path,
                                                          sourceRootPath: path,
-                                                         graph: graph)
+                                                         graph: graph,
+                                                         versions: versions)
 
         // Then
         XCTAssertEqual(generatedTarget.productName, "MyFramework")
@@ -113,6 +117,7 @@ final class TargetGeneratorTests: XCTestCase {
     func test_generateTarget_actions() throws {
         // Given
         let graph = Graph.test()
+        let versions = Versions.test()
         let target = Target.test(sources: [],
                                  resources: [],
                                  actions: [
@@ -139,7 +144,8 @@ final class TargetGeneratorTests: XCTestCase {
                                                    fileElements: fileElements,
                                                    path: path,
                                                    sourceRootPath: path,
-                                                   graph: graph)
+                                                   graph: graph,
+                                                   versions: versions)
 
         // Then
         let preBuildPhase = pbxTarget.buildPhases.first as? PBXShellScriptBuildPhase

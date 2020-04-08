@@ -28,6 +28,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         let templates = [sourceRootPath].map { $0.appending(component: "template") }
         let projectDescriptionPath = sourceRootPath.appending(component: "ProjectDescription.framework")
         let tuistPath = AbsolutePath("/usr/bin/foo/bar/tuist")
+        let versions = Versions.test()
 
         // When
         let (project, graph) = subject.map(tuistPath: tuistPath,
@@ -35,7 +36,8 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
                                            manifests: manifestPaths,
                                            helpers: helperPaths,
                                            templates: templates,
-                                           projectDescriptionPath: projectDescriptionPath)
+                                           projectDescriptionPath: projectDescriptionPath,
+                                           versions: versions)
 
         // Then
         let targetNodes = graph.targets.values.flatMap { targets in targets.compactMap { $0 } }.sorted(by: { $0.target.name < $1.target.name })
@@ -49,7 +51,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(manifestsTarget.name, "Manifests")
         XCTAssertEqual(manifestsTarget.platform, .macOS)
         XCTAssertEqual(manifestsTarget.product, .staticFramework)
-        XCTAssertEqual(manifestsTarget.settings, expectedSettings(sourceRootPath: sourceRootPath))
+        XCTAssertEqual(manifestsTarget.settings, expectedSettings(sourceRootPath: sourceRootPath, versions: versions))
         XCTAssertEqual(manifestsTarget.sources.map { $0.path }, manifestPaths)
         XCTAssertEqual(manifestsTarget.filesGroup, .group(name: "Manifests"))
         XCTAssertEqual(manifestsTarget.dependencies, [.target(name: "ProjectDescriptionHelpers"), .target(name: "Templates")])
@@ -61,7 +63,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(helpersTarget.name, "ProjectDescriptionHelpers")
         XCTAssertEqual(helpersTarget.platform, .macOS)
         XCTAssertEqual(helpersTarget.product, .staticFramework)
-        XCTAssertEqual(helpersTarget.settings, expectedSettings(sourceRootPath: sourceRootPath))
+        XCTAssertEqual(helpersTarget.settings, expectedSettings(sourceRootPath: sourceRootPath, versions: versions))
         XCTAssertEqual(helpersTarget.sources.map { $0.path }, helperPaths)
         XCTAssertEqual(helpersTarget.filesGroup, .group(name: "Manifests"))
         XCTAssertEqual(helpersTarget.dependencies, [])
@@ -74,7 +76,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(templatesTarget.name, "Templates")
         XCTAssertEqual(templatesTarget.platform, .macOS)
         XCTAssertEqual(templatesTarget.product, .staticFramework)
-        XCTAssertEqual(templatesTarget.settings, expectedSettings(sourceRootPath: sourceRootPath))
+        XCTAssertEqual(templatesTarget.settings, expectedSettings(sourceRootPath: sourceRootPath, versions: versions))
         XCTAssertEqual(templatesTarget.sources.map { $0.path }, templates)
         XCTAssertEqual(templatesTarget.filesGroup, .group(name: "Manifests"))
         XCTAssertEqual(templatesTarget.dependencies, [])
@@ -104,6 +106,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
 
     func test_edit_when_there_are_no_helpers() throws {
         // Given
+        let versions = Versions.test()
         let sourceRootPath = try temporaryPath()
         let manifestPaths = [sourceRootPath].map { $0.appending(component: "Project.swift") }
         let helperPaths: [AbsolutePath] = []
@@ -117,7 +120,8 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
                                            manifests: manifestPaths,
                                            helpers: helperPaths,
                                            templates: templates,
-                                           projectDescriptionPath: projectDescriptionPath)
+                                           projectDescriptionPath: projectDescriptionPath,
+                                           versions: versions)
 
         // Then
         let targetNodes = graph.targets.values.flatMap { targets in targets.compactMap { $0 } }.sorted(by: { $0.target.name < $1.target.name })
@@ -131,7 +135,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(manifestsTarget.name, "Manifests")
         XCTAssertEqual(manifestsTarget.platform, .macOS)
         XCTAssertEqual(manifestsTarget.product, .staticFramework)
-        XCTAssertEqual(manifestsTarget.settings, expectedSettings(sourceRootPath: sourceRootPath))
+        XCTAssertEqual(manifestsTarget.settings, expectedSettings(sourceRootPath: sourceRootPath, versions: versions))
         XCTAssertEqual(manifestsTarget.sources.map { $0.path }, manifestPaths)
         XCTAssertEqual(manifestsTarget.filesGroup, .group(name: "Manifests"))
         XCTAssertEqual(manifestsTarget.dependencies, [])
@@ -159,12 +163,12 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(runAction.arguments, Arguments(launch: [generateArgument: true]))
     }
 
-    fileprivate func expectedSettings(sourceRootPath: AbsolutePath) -> Settings {
+    fileprivate func expectedSettings(sourceRootPath: AbsolutePath, versions: Versions) -> Settings {
         let base: [String: SettingValue] = [
             "FRAMEWORK_SEARCH_PATHS": .string(sourceRootPath.pathString),
             "LIBRARY_SEARCH_PATHS": .string(sourceRootPath.pathString),
             "SWIFT_INCLUDE_PATHS": .string(sourceRootPath.pathString),
-            "SWIFT_VERSION": .string(Constants.swiftVersion),
+            "SWIFT_VERSION": .string(versions.swift.description),
         ]
         return Settings(base: base,
                         configurations: Settings.default.configurations,

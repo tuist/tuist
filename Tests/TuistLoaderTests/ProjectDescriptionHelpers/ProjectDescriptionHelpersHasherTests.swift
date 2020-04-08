@@ -18,13 +18,14 @@ class ProjectDescriptionHelpersHasherTests: TuistUnitTestCase {
     func test_hash() throws {
         // Given
         let temporaryDir = try temporaryPath()
+        let versions = Versions.test()
         let helperPath = temporaryDir.appending(component: "Project+Templates.swift")
         try FileHandler.shared.write("import ProjectDescription", path: helperPath, atomically: true)
         environment.tuistVariables = ["TUIST_VARIABLE": "TEST"]
 
         // Then
         for _ in 0 ..< 20 {
-            let got = try subject.hash(helpersDirectory: temporaryDir)
+            let got = try subject.hash(helpersDirectory: temporaryDir, versions: versions)
             XCTAssertEqual(got, "d19835f96b16a558457fc33b169adb9c")
         }
     }

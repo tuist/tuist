@@ -23,14 +23,17 @@ class GeneratorModelLoaderTests: TuistUnitTestCase {
     typealias ArgumentsManifest = ProjectDescription.Arguments
 
     private var manifestLinter: MockManifestLinter!
+    private var versions: Versions!
 
     override func setUp() {
         super.setUp()
+        versions = Versions.test()
         manifestLinter = MockManifestLinter()
     }
 
     override func tearDown() {
         manifestLinter = nil
+        versions = nil
         super.tearDown()
     }
 
@@ -45,7 +48,7 @@ class GeneratorModelLoaderTests: TuistUnitTestCase {
         let subject = createGeneratorModelLoader(with: manifestLoader)
 
         // When
-        let model = try subject.loadProject(at: temporaryPath)
+        let model = try subject.loadProject(at: temporaryPath, versions: versions)
 
         // Then
         XCTAssertEqual(model.name, "SomeProject")
@@ -69,7 +72,7 @@ class GeneratorModelLoaderTests: TuistUnitTestCase {
         let subject = createGeneratorModelLoader(with: manifestLoader)
 
         // When
-        let model = try subject.loadProject(at: temporaryPath)
+        let model = try subject.loadProject(at: temporaryPath, versions: versions)
 
         // Then
         XCTAssertEqual(model.targets.count, 2)
@@ -99,7 +102,7 @@ class GeneratorModelLoaderTests: TuistUnitTestCase {
         let subject = createGeneratorModelLoader(with: manifestLoader)
 
         // When
-        let model = try subject.loadProject(at: temporaryPath)
+        let model = try subject.loadProject(at: temporaryPath, versions: versions)
 
         // Then
         XCTAssertEqual(model.targets.map(\.name), [
@@ -127,7 +130,7 @@ class GeneratorModelLoaderTests: TuistUnitTestCase {
         let subject = createGeneratorModelLoader(with: manifestLoader)
 
         // When
-        let model = try subject.loadProject(at: temporaryPath)
+        let model = try subject.loadProject(at: temporaryPath, versions: versions)
 
         // Then
         XCTAssertEqual(model.additionalFiles, files.map { .file(path: $0) })
@@ -151,7 +154,7 @@ class GeneratorModelLoaderTests: TuistUnitTestCase {
         let subject = createGeneratorModelLoader(with: manifestLoader)
 
         // When
-        let model = try subject.loadProject(at: temporaryPath)
+        let model = try subject.loadProject(at: temporaryPath, versions: versions)
 
         // Then
         XCTAssertEqual(model.additionalFiles, files.map { .folderReference(path: $0) })
@@ -178,7 +181,7 @@ class GeneratorModelLoaderTests: TuistUnitTestCase {
                                            manifestLinter: manifestLinter)
 
         // When
-        let model = try subject.loadProject(at: temporaryPath)
+        let model = try subject.loadProject(at: temporaryPath, versions: versions)
 
         // Then
         XCTAssertEqual(model.fileName, "one SomeProject two")
@@ -206,7 +209,7 @@ class GeneratorModelLoaderTests: TuistUnitTestCase {
                                            manifestLinter: manifestLinter)
 
         // When
-        let model = try subject.loadProject(at: temporaryPath)
+        let model = try subject.loadProject(at: temporaryPath, versions: versions)
 
         // Then
         XCTAssertEqual(model.fileName, "one SomeProject two")
@@ -234,7 +237,7 @@ class GeneratorModelLoaderTests: TuistUnitTestCase {
                                            manifestLinter: manifestLinter)
 
         // When
-        let model = try subject.loadProject(at: temporaryPath)
+        let model = try subject.loadProject(at: temporaryPath, versions: versions)
 
         // Then
         XCTAssertEqual(model.organizationName, "SomeOrganization")
@@ -262,7 +265,7 @@ class GeneratorModelLoaderTests: TuistUnitTestCase {
                                            manifestLinter: manifestLinter)
 
         // When
-        let model = try subject.loadProject(at: temporaryPath)
+        let model = try subject.loadProject(at: temporaryPath, versions: versions)
 
         // Then
         XCTAssertEqual(model.organizationName, "tuist")
@@ -286,7 +289,7 @@ class GeneratorModelLoaderTests: TuistUnitTestCase {
                                            manifestLinter: manifestLinter)
 
         // When
-        let model = try subject.loadProject(at: temporaryPath)
+        let model = try subject.loadProject(at: temporaryPath, versions: versions)
 
         // Then
         XCTAssertFalse(model.autogenerateSchemes)
@@ -303,7 +306,7 @@ class GeneratorModelLoaderTests: TuistUnitTestCase {
         let subject = createGeneratorModelLoader(with: manifestLoader)
 
         // When
-        let model = try subject.loadWorkspace(at: temporaryPath)
+        let model = try subject.loadWorkspace(at: temporaryPath, versions: versions)
 
         // Then
         XCTAssertEqual(model.name, "SomeWorkspace")
@@ -326,7 +329,7 @@ class GeneratorModelLoaderTests: TuistUnitTestCase {
         let subject = createGeneratorModelLoader(with: manifestLoader)
 
         // When
-        let model = try subject.loadWorkspace(at: temporaryPath)
+        let model = try subject.loadWorkspace(at: temporaryPath, versions: versions)
 
         // Then
         XCTAssertEqual(model.name, "SomeWorkspace")
@@ -354,7 +357,7 @@ class GeneratorModelLoaderTests: TuistUnitTestCase {
         let subject = createGeneratorModelLoader(with: manifestLoader)
 
         // When
-        let model = try subject.loadWorkspace(at: temporaryPath)
+        let model = try subject.loadWorkspace(at: temporaryPath, versions: versions)
 
         // Then
         XCTAssertEqual(model.name, "SomeWorkspace")
@@ -380,7 +383,7 @@ class GeneratorModelLoaderTests: TuistUnitTestCase {
         let subject = createGeneratorModelLoader(with: manifestLoader)
 
         // When
-        let model = try subject.loadWorkspace(at: temporaryPath)
+        let model = try subject.loadWorkspace(at: temporaryPath, versions: versions)
 
         // Then
         XCTAssertEqual(model.name, "SomeWorkspace")
@@ -401,7 +404,7 @@ class GeneratorModelLoaderTests: TuistUnitTestCase {
         let subject = createGeneratorModelLoader(with: manifestLoader)
 
         // When
-        let model = try subject.loadWorkspace(at: temporaryPath)
+        let model = try subject.loadWorkspace(at: temporaryPath, versions: versions)
 
         // Then
         XCTAssertPrinterOutputContains("""
@@ -421,13 +424,13 @@ class GeneratorModelLoaderTests: TuistUnitTestCase {
     func createManifestLoader(with projects: [AbsolutePath: ProjectDescription.Project],
                               configs: [AbsolutePath: ProjectDescription.Config] = [:]) -> ManifestLoading {
         let manifestLoader = MockManifestLoader()
-        manifestLoader.loadProjectStub = { path in
+        manifestLoader.loadProjectStub = { path, _ in
             guard let manifest = projects[path] else {
                 throw ManifestLoaderError.manifestNotFound(path)
             }
             return manifest
         }
-        manifestLoader.loadConfigStub = { path in
+        manifestLoader.loadConfigStub = { path, _ in
             guard let manifest = configs[path] else {
                 throw ManifestLoaderError.manifestNotFound(path)
             }
@@ -450,7 +453,7 @@ class GeneratorModelLoaderTests: TuistUnitTestCase {
     func createManifestLoader(with workspaces: [AbsolutePath: ProjectDescription.Workspace],
                               projects: [AbsolutePath] = []) -> ManifestLoading {
         let manifestLoader = MockManifestLoader()
-        manifestLoader.loadWorkspaceStub = { path in
+        manifestLoader.loadWorkspaceStub = { path, _ in
             guard let manifest = workspaces[path] else {
                 throw ManifestLoaderError.manifestNotFound(path)
             }
