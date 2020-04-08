@@ -1,0 +1,4 @@
+import Foundation
+import {{ name }}Support
+
+public final class {{ name }}Kit {}

@@ -159,6 +159,8 @@ class InitCommand: NSObject, Command {
             let template = try templateLoader.loadTemplate(at: templateDirectory)
             let parsedAttributes = try validateAttributes(attributesArguments,
                                                           template: template,
+                                                          name: name,
+                                                          platform: platform,
                                                           arguments: arguments)
 
             try templateGenerator.generate(template: template,
@@ -194,27 +196,35 @@ class InitCommand: NSObject, Command {
     /// - Returns: Array of parsed attributes
     private func validateAttributes(_ attributes: [String: OptionArgument<String>],
                                     template: Template,
+                                    name: String,
+                                    platform: Platform,
                                     arguments: ArgumentParser.Result) throws -> [String: String] {
-        try template.attributes.reduce([:]) {
-            var mutableDict = $0
-            switch $1 {
+        try template.attributes.reduce(into: [:]) { attributesDict, attribute in
+            if attribute.name == "name" {
+                attributesDict[attribute.name] = name
+                return
+            }
+            if attribute.name == "platform" {
+                attributesDict[attribute.name] = platform.caseValue
+                return
+            }
+            switch attribute {
             case let .required(name):
                 guard
                     let argument = attributes[name],
                     let value = arguments.get(argument)
                 else { throw InitCommandError.attributeNotProvided(name) }
-                mutableDict[name] = value
+                attributesDict[name] = value
             case let .optional(name, default: defaultValue):
                 guard
                     let argument = attributes[name],
                     let value: String = arguments.get(argument)
                 else {
-                    mutableDict[name] = defaultValue
-                    return mutableDict
+                    attributesDict[name] = defaultValue
+                    return
                 }
-                mutableDict[name] = value
+                attributesDict[name] = value
             }
-            return mutableDict
         }
     }
 

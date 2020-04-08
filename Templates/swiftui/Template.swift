@@ -13,7 +13,7 @@ func templatePath(_ path: String) -> Path {
 }
 
 let template = Template(
-    description: "Default template",
+    description: "SwiftUI template",
     attributes: [
         nameAttribute,
         platformAttribute,
@@ -33,6 +33,12 @@ let template = Template(
               templatePath: templatePath("SupportFrameworkProject.stencil")),
         .file(path: appPath + "/Sources/AppDelegate.swift",
               templatePath: "AppDelegate.stencil"),
+        .file(path: appPath + "/Sources/ContentView.swift",
+              templatePath: "ContentView.stencil"),
+        .file(path: appPath + "/Sources/SceneDelegate.swift",
+              templatePath: "SceneDelegate.stencil"),
+        .file(path: appPath + "/Sources/main.swift",
+              templatePath: "main.stencil"),
         .file(path: appPath + "/Tests/\(nameAttribute)Tests.swift",
               templatePath: templatePath("Tests.stencil")),
         .file(path: kitFrameworkPath + "/Sources/\(nameAttribute)Kit.swift",

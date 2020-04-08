@@ -1,0 +1,8 @@
+import ProjectDescription
+import ProjectDescriptionHelpers
+
+let workspace = Workspace(name: "{{ name }}", projects: [
+    "Projects/{{ name }}",
+    "Projects/{{ name }}Kit",
+    "Projects/{{ name }}Support"
+])

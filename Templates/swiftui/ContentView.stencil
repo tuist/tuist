@@ -1,0 +1,15 @@
+import SwiftUI
+
+struct ContentView: View {
+    var body: some View {
+        Text("Hello, World!"){% if platform == "macOS" %}
+            .frame(maxWidth: .infinity, maxHeight: .infinity){% endif %}
+    }
+}
+
+
+struct ContentView_Previews: PreviewProvider {
+    static var previews: some View {
+        ContentView()
+    }
+}
