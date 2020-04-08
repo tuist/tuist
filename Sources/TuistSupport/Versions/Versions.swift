@@ -11,4 +11,9 @@ public struct Versions {
 
     /// Version of Swift
     public let swift: Version
+
+    public init(xcode: Version, swift: Version) {
+        self.xcode = xcode
+        self.swift = swift
+    }
 }
