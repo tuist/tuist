@@ -221,5 +221,5 @@ let package = Package(
             dependencies: ["TuistGenerator", "TuistSupportTesting", "TuistSupport", "TuistCoreTesting"]
         ),
     ],
-    swiftLanguageVersions: [.version("5.1"), .version("5.2")]
+    swiftLanguageVersions: [.v5]
 )
