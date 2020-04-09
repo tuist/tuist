@@ -13,12 +13,16 @@ import Foundation
 /// - seealso: `ProjectDescriptor`
 /// - seealso: `WorkspaceDescriptor`
 /// - seealso: `XcodeProjWriter`
+/// - seealso: `DirectoryDescriptor`
 public enum SideEffectDescriptor: Equatable, Hashable {
     /// Create / Remove a file
     case file(FileDescriptor)
 
     /// Perform a command
     case command(CommandDescriptor)
+
+    /// Create / remove a directory
+    case directory(DirectoryDescriptor)
 }
 
 public extension Sequence where Element == SideEffectDescriptor {

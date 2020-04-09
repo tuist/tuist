@@ -21,11 +21,26 @@ public final class SideEffectDescriptorExecutor: SideEffectDescriptorExecuting {
                 try perform(command: commandDescriptor)
             case let .file(fileDescriptor):
                 try process(file: fileDescriptor)
+            case let .directory(directoryDescriptor):
+                try process(directory: directoryDescriptor)
             }
         }
     }
 
     // MARK: - Fileprivate
+
+    private func process(directory: DirectoryDescriptor) throws {
+        switch directory.state {
+        case .present:
+            if !FileHandler.shared.exists(directory.path) {
+                try FileHandler.shared.createFolder(directory.path)
+            }
+        case .absent:
+            if FileHandler.shared.exists(directory.path) {
+                try FileHandler.shared.delete(directory.path)
+            }
+        }
+    }
 
     private func process(file: FileDescriptor) throws {
         switch file.state {

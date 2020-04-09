@@ -23,6 +23,9 @@ final class GraphMapperProvider: GraphMapperProviding {
     func mappers(config _: Config) -> [GraphMapping] {
         var mappers: [GraphMapping] = []
 
+        // Resources from libraries
+        mappers.append(DeleteDerivedDirectoryGraphMapper())
+
         // Cache
         if useCache {
             mappers.append(CacheMapper())

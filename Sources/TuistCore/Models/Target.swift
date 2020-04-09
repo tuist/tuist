@@ -27,7 +27,7 @@ public struct Target: Equatable, Hashable {
     public let settings: Settings?
     public let dependencies: [Dependency]
     public let sources: [SourceFile]
-    public let resources: [FileElement]
+    public private(set) var resources: [FileElement]
     public let headers: Headers?
     public let coreDataModels: [CoreDataModel]
     public let actions: [TargetAction]
@@ -185,6 +185,15 @@ public struct Target: Equatable, Hashable {
     public func with(infoPlist: InfoPlist) -> Target {
         var copy = self
         copy.infoPlist = infoPlist
+        return copy
+    }
+
+    /// Returns a copy of the target with the given resources.
+    /// - Parameter resources: Resources to be set to the copy.
+    /// - Returns: Copy of the target with the given resources.
+    public func with(resources: [FileElement]) -> Target {
+        var copy = self
+        copy.resources = resources
         return copy
     }
 }

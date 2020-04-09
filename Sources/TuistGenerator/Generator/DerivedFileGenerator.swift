@@ -19,7 +19,6 @@ protocol DerivedFileGenerating {
 
 final class DerivedFileGenerator: DerivedFileGenerating {
     typealias ProjectTransformation = (project: Project, sideEffects: Set<SideEffectDescriptor>)
-    fileprivate static let derivedFolderName = "Derived"
     fileprivate static let infoPlistsFolderName = "InfoPlists"
 
     /// Info.plist content provider.
@@ -58,7 +57,7 @@ final class DerivedFileGenerator: DerivedFileGenerating {
         }
 
         // Getting the Info.plist files that need to be deleted
-        let glob = "\(DerivedFileGenerator.derivedFolderName)/\(DerivedFileGenerator.infoPlistsFolderName)/*.plist"
+        let glob = "\(Constants.DerivedFolder.name)/\(DerivedFileGenerator.infoPlistsFolderName)/*.plist"
         let existing = FileHandler.shared.glob(sourceRootPath, glob: glob)
         let new: [AbsolutePath] = targetsWithGeneratableInfoPlists.map {
             DerivedFileGenerator.infoPlistPath(target: $0, sourceRootPath: sourceRootPath)
@@ -124,8 +123,7 @@ final class DerivedFileGenerator: DerivedFileGenerating {
     /// - Parameter sourceRootPath: Directory where the project will be generated.
     /// - Returns: Path to the directory that contains all the derived files.
     static func path(sourceRootPath: AbsolutePath) -> AbsolutePath {
-        sourceRootPath
-            .appending(component: DerivedFileGenerator.derivedFolderName)
+        sourceRootPath.appending(component: Constants.DerivedFolder.name)
     }
 
     /// Returns the path to the directory where all generated Info.plist files will be.

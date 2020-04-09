@@ -17,6 +17,10 @@ public struct Constants {
     public static let twitterHandle: String = "tuistio"
     public static let joinSlackURL: String = "https://slack.tuist.io/"
 
+    public struct DerivedFolder {
+        public static let name = "Derived"
+    }
+
     public struct EnvironmentVariables {
         public static let colouredOutput = "TUIST_COLOURED_OUTPUT"
         public static let versionsDirectory = "TUIST_VERSIONS_DIRECTORY"
