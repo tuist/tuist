@@ -6,7 +6,7 @@ import Foundation
 /// generating a project or workspace.
 ///
 /// - seealso: `SideEffectsDescriptor`
-public struct CommandDescriptor {
+public struct CommandDescriptor: Equatable {
     public var command: [String]
 
     /// Creates a command descriptor

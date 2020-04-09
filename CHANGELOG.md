@@ -8,11 +8,16 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Only warn about copying Info.plist when it's the target's Info.plist https://github.com/tuist/tuist/pull/1203 by @sgrgrsn
 
-## 1.6.0
+### Added
+
+- Support for returning `SideEffectDescriptor`s from the graph mappers https://github.com/tuist/tuist/pull/1201 by @pepibumur.
+- SwiftUI template https://github.com/tuist/tuist/pull/1180 by @fortmarek
 
 ### Removed
 
 - **Breaking:** Deprecated methods from `ProjectDescription.Settings` https://github.com/tuist/tuist/pull/1202 by @pepibumur.
+
+## 1.6.0
 
 ### Fixed
 
@@ -24,7 +29,6 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Added
 
-- SwiftUI template https://github.com/tuist/tuist/pull/1180 by @fortmarek
 - Encrypt/decrypt command https://github.com/tuist/tuist/pull/1127 by @fortmarek
 - A link to the example app in the uFeatures documentation https://github.com/tuist/tuist/pull/1176 by @pepibumur.
 - Add ProjectGeneratorGraphMapping protocol and use it from ProjectGenerator https://github.com/tuist/tuist/pull/1178 by @pepibumur

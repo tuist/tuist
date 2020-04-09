@@ -1,21 +1,11 @@
 import Basic
 import Foundation
+import RxBlocking
 import RxSwift
 import TuistCore
 import TuistSupport
 
-/// It defines the interface to map a graph and swap those targets
-/// that have an associated .xcframework in the cache. Note that transitive
-/// dependencies should be cacheable too.
-public protocol GeneratorCacheMapping {
-    /// Given a graph, it modifies it to replace some of the nodes with their associated from the cache.
-    /// Note that cache might be remote so we model the asynchrony by returning an observable instead.
-    /// - Parameter graph: Graph.
-    /// - Returns: A single to obtain the mutated graph.
-    func map(graph: Graph) -> Single<Graph>
-}
-
-public class GeneratorCacheMapper: GeneratorCacheMapping {
+public class CacheMapper: GraphMapping {
     // MARK: - Attributes
 
     /// Cache.
@@ -40,17 +30,18 @@ public class GeneratorCacheMapper: GeneratorCacheMapping {
     init(cache: CacheStoraging,
          graphContentHasher: GraphContentHashing,
          cacheGraphMapper: CacheGraphMapping = CacheGraphMapper(),
-         queue: DispatchQueue = GeneratorCacheMapper.dispatchQueue()) {
+         queue: DispatchQueue = CacheMapper.dispatchQueue()) {
         self.cache = cache
         self.graphContentHasher = graphContentHasher
         self.queue = queue
         self.cacheGraphMapper = cacheGraphMapper
     }
 
-    // MARK: - CacheGraphMapping
+    // MARK: - GraphMapping
 
-    public func map(graph: Graph) -> Single<Graph> {
-        hashes(graph: graph).flatMap { self.map(graph: graph, hashes: $0) }
+    public func map(graph: Graph) throws -> (Graph, [SideEffectDescriptor]) {
+        let single = hashes(graph: graph).flatMap { self.map(graph: graph, hashes: $0) }
+        return try (single.toBlocking().single(), [])
     }
 
     // MARK: - Fileprivate
