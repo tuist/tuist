@@ -11,7 +11,7 @@ import XCTest
 @testable import TuistSupportTesting
 
 final class UpServiceTests: TuistUnitTestCase {
-	var subject: UpService!
+    var subject: UpService!
     var setupLoader: MockSetupLoader!
 
     override func setUp() {
@@ -35,7 +35,7 @@ final class UpServiceTests: TuistUnitTestCase {
         }
 
         // when
-		try subject.run(path: temporaryPath.pathString)
+        try subject.run(path: temporaryPath.pathString)
 
         // then
         XCTAssertEqual(receivedPaths, [temporaryPath.pathString])
@@ -51,7 +51,7 @@ final class UpServiceTests: TuistUnitTestCase {
         }
 
         // when
-		try subject.run(path: path.pathString)
+        try subject.run(path: path.pathString)
 
         // then
         XCTAssertEqual(receivedPaths, ["/path"])
