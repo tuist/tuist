@@ -13,6 +13,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Support for returning `SideEffectDescriptor`s from the graph mappers https://github.com/tuist/tuist/pull/1201 by @pepibumur.
 - SwiftUI template https://github.com/tuist/tuist/pull/1180 by @fortmarek
+- `DeleteDerivedDirectoryGraphMapper` mapper https://github.com/tuist/tuist/pull/1206 by @pepibumur.
 
 ### Removed
 
