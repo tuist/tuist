@@ -6,9 +6,12 @@ public struct TuistCommand: ParsableCommand {
     public init() {}
 
     public static var configuration: CommandConfiguration {
-        CommandConfiguration(commandName: "tuist",
-                             abstract: "Generate, build and test your Xcode projects.",
-                             subcommands: [GenerateCommand.self])
+		CommandConfiguration(commandName: "tuist",
+							 abstract: "Generate, build and test your Xcode projects.",
+							 subcommands: [
+								GenerateCommand.self,
+								UpCommand.self
+		])
     }
 
     public static func main(_ arguments: [String]? = nil) -> Never {
