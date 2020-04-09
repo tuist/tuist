@@ -7,7 +7,7 @@ import Foundation
 /// part of generating a project or workspace.
 ///
 /// - seealso: `SideEffectsDescriptor`
-public struct FileDescriptor {
+public struct FileDescriptor: Equatable {
     public enum State {
         case present
         case absent

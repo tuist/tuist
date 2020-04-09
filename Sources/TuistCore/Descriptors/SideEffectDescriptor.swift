@@ -13,7 +13,7 @@ import Foundation
 /// - seealso: `ProjectDescriptor`
 /// - seealso: `WorkspaceDescriptor`
 /// - seealso: `XcodeProjWriter`
-public enum SideEffectDescriptor {
+public enum SideEffectDescriptor: Equatable {
     /// Create / Remove a file
     case file(FileDescriptor)
 
