@@ -29,6 +29,7 @@ class TargetLinter: TargetLinting {
         issues.append(contentsOf: lintBundleIdentifier(target: target))
         issues.append(contentsOf: lintHasSourceFiles(target: target))
         issues.append(contentsOf: lintCopiedFiles(target: target))
+        issues.append(contentsOf: lintLibraryHasNoResources(target: target))
         issues.append(contentsOf: lintDeploymentTarget(target: target))
         issues.append(contentsOf: settingsLinter.lint(target: target))
         issues.append(contentsOf: lintDuplicateDependency(target: target))
@@ -149,6 +150,24 @@ class TargetLinter: TargetLinting {
             issues.append(LintingIssue(reason: "Entitlements file not found at path \(path.pathString)", severity: .error))
         }
         return issues
+    }
+
+    private func lintLibraryHasNoResources(target: Target) -> [LintingIssue] {
+        let productsNotAllowingResources: [Product] = [
+            .dynamicLibrary,
+            .staticLibrary,
+            .staticFramework,
+        ]
+
+        if productsNotAllowingResources.contains(target.product) == false {
+            return []
+        }
+
+        if target.resources.isEmpty == false {
+            return [LintingIssue(reason: "Target \(target.name) cannot contain resources. Libraries don't support resources", severity: .error)]
+        }
+
+        return []
     }
 
     private func lintDeploymentTarget(target: Target) -> [LintingIssue] {
