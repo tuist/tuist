@@ -1,6 +1,7 @@
 import Foundation
 import TuistCache
 import TuistCore
+import TuistGenerator
 
 /// It defines an interface for providing the mappers to be used for a specific configuration.
 protocol GraphMapperProviding {
@@ -23,7 +24,7 @@ final class GraphMapperProvider: GraphMapperProviding {
     func mappers(config _: Config) -> [GraphMapping] {
         var mappers: [GraphMapping] = []
 
-        // Resources from libraries
+        // Delete the derived directories
         mappers.append(DeleteDerivedDirectoryGraphMapper())
 
         // Cache
