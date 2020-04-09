@@ -5,21 +5,21 @@ import Foundation
 public protocol GraphMapping {
     /// Given a graph, it maps it into another graph.
     /// - Parameter graph: Graph to be mapped.
-    func map(graph: Graph) throws -> (Graph, Set<SideEffectDescriptor>)
+    func map(graph: Graph) throws -> (Graph, [SideEffectDescriptor])
 }
 
 /// A mapper that is initialized with a mapping function.
 public final class AnyGraphMapper: GraphMapping {
     /// A function to map the graph.
-    let mapper: (Graph) throws -> (Graph, Set<SideEffectDescriptor>)
+    let mapper: (Graph) throws -> (Graph, [SideEffectDescriptor])
 
     /// Default initializer
     /// - Parameter mapper: Function to map the graph.
-    public init(mapper: @escaping (Graph) throws -> (Graph, Set<SideEffectDescriptor>)) {
+    public init(mapper: @escaping (Graph) throws -> (Graph, [SideEffectDescriptor])) {
         self.mapper = mapper
     }
 
-    public func map(graph: Graph) throws -> (Graph, Set<SideEffectDescriptor>) {
+    public func map(graph: Graph) throws -> (Graph, [SideEffectDescriptor]) {
         try mapper(graph)
     }
 }
@@ -34,12 +34,12 @@ public final class SequentialGraphMapper: GraphMapping {
         self.mappers = mappers
     }
 
-    public func map(graph: Graph) throws -> (Graph, Set<SideEffectDescriptor>) {
-        try mappers.reduce((graph, Set<SideEffectDescriptor>())) { input, mapper in
+    public func map(graph: Graph) throws -> (Graph, [SideEffectDescriptor]) {
+        try mappers.reduce((graph, [SideEffectDescriptor]())) { input, mapper in
             let graph = input.0
             var sideEffects = input.1
             let (mappedGraph, newSideEffects) = try mapper.map(graph: graph)
-            sideEffects.formUnion(newSideEffects)
+            sideEffects.append(contentsOf: newSideEffects)
             return (mappedGraph, sideEffects)
         }
     }

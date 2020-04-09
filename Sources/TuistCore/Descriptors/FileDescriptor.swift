@@ -35,14 +35,6 @@ public struct FileDescriptor: Equatable, Hashable, CustomStringConvertible {
         self.state = state
     }
 
-    // MARK: - Hashable
-
-    public func hash(into hasher: inout Hasher) {
-        hasher.combine(path)
-        hasher.combine(state)
-        hasher.combine(contents)
-    }
-
     // MARK: - CustomStringConvertible
 
     public var description: String {

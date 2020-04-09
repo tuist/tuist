@@ -34,6 +34,6 @@ public final class DeleteDerivedDirectoryGraphMapperTests: TuistUnitTestCase {
             .directory(.init(path: projectA.path.appending(component: Constants.DerivedFolder.name), state: .absent)),
             .directory(.init(path: projectB.path.appending(component: Constants.DerivedFolder.name), state: .absent)),
         ]
-        XCTAssertEqual(sideEffects, Set(expected))
+        XCTAssertEqual(sideEffects, expected)
     }
 }

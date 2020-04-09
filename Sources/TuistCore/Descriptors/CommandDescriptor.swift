@@ -15,12 +15,6 @@ public struct CommandDescriptor: Equatable, Hashable, CustomStringConvertible {
         self.command = command
     }
 
-    // MARK: - Hashable
-
-    public func hash(into hasher: inout Hasher) {
-        hasher.combine(command)
-    }
-
     // MARK: - CustomStringConvertible
 
     public var description: String {

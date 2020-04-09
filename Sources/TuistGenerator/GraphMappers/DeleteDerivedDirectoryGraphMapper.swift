@@ -8,14 +8,14 @@ public class DeleteDerivedDirectoryGraphMapper: GraphMapping {
 
     // MARK: - GraphMapping
 
-    public func map(graph: Graph) throws -> (Graph, Set<SideEffectDescriptor>) {
+    public func map(graph: Graph) throws -> (Graph, [SideEffectDescriptor]) {
         logger.debug("Determining the /Derived directories that should be delted")
-        var sideEffects = Set<SideEffectDescriptor>()
+        var sideEffects = [SideEffectDescriptor]()
 
         graph.projects.forEach { project in
             let derivedDirectoryPath = project.path.appending(component: Constants.DerivedFolder.name)
             let directoryDescriptor = DirectoryDescriptor(path: derivedDirectoryPath, state: .absent)
-            sideEffects.insert(.directory(directoryDescriptor))
+            sideEffects.append(.directory(directoryDescriptor))
         }
 
         return (graph, sideEffects)

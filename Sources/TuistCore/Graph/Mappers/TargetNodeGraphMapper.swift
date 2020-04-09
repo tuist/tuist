@@ -9,21 +9,21 @@ import Foundation
 ///
 /// - Note: When mapping, the `transform` block receives a copy of the original `TargetNode`
 open class TargetNodeGraphMapper: GraphMapping {
-    public let mapTargetNode: (TargetNode) -> (TargetNode, Set<SideEffectDescriptor>)
-    public init(transform: @escaping (TargetNode) -> (TargetNode, Set<SideEffectDescriptor>)) {
+    public let mapTargetNode: (TargetNode) -> (TargetNode, [SideEffectDescriptor])
+    public init(transform: @escaping (TargetNode) -> (TargetNode, [SideEffectDescriptor])) {
         mapTargetNode = transform
     }
 
     // MARK: - GraphMapping
 
-    public func map(graph: Graph) -> (Graph, Set<SideEffectDescriptor>) {
+    public func map(graph: Graph) -> (Graph, [SideEffectDescriptor]) {
         var mappedCache = [GraphNodeMapKey: GraphNode]()
         let cache = GraphLoaderCache()
 
-        var sideEffects: Set<SideEffectDescriptor> = Set()
+        var sideEffects: [SideEffectDescriptor] = []
         let updatedNodes = graph.entryNodes.map { (targetNode) -> GraphNode in
             let (mappedNode, mappedSideEffects) = map(node: targetNode, mappedCache: &mappedCache, cache: cache)
-            sideEffects.formUnion(mappedSideEffects)
+            sideEffects.append(contentsOf: mappedSideEffects)
             return mappedNode
         }
 
@@ -37,7 +37,7 @@ open class TargetNodeGraphMapper: GraphMapping {
 
     private func map(node: GraphNode,
                      mappedCache: inout [GraphNodeMapKey: GraphNode],
-                     cache: GraphLoaderCache) -> (GraphNode, Set<SideEffectDescriptor>) {
+                     cache: GraphLoaderCache) -> (GraphNode, [SideEffectDescriptor]) {
         if let cached = mappedCache[node.mapperCacheKey] {
             return (cached, [])
         }
@@ -66,17 +66,17 @@ open class TargetNodeGraphMapper: GraphMapping {
 
     private func map(targetNode: TargetNode,
                      mappedCache: inout [GraphNodeMapKey: GraphNode],
-                     cache: GraphLoaderCache) -> (TargetNode, Set<SideEffectDescriptor>) {
+                     cache: GraphLoaderCache) -> (TargetNode, [SideEffectDescriptor]) {
         var updated = TargetNode(project: targetNode.project,
                                  target: targetNode.target,
                                  dependencies: targetNode.dependencies)
-        var sideEffects: Set<SideEffectDescriptor>
+        var sideEffects: [SideEffectDescriptor]
         (updated, sideEffects) = mapTargetNode(updated)
         mappedCache[updated.mapperCacheKey] = updated
 
         updated.dependencies = updated.dependencies.map {
             let (mappedDependency, mappedSideEffects) = map(node: $0, mappedCache: &mappedCache, cache: cache)
-            sideEffects.formUnion(mappedSideEffects)
+            sideEffects.append(contentsOf: mappedSideEffects)
             return mappedDependency
         }
 

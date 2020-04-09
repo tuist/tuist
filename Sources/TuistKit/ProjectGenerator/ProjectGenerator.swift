@@ -55,7 +55,7 @@ class ProjectGenerator: ProjectGenerating {
         // Load
         var (graph, project) = try graphLoader.loadProject(path: path)
         let config = try graphLoader.loadConfig(path: graph.entryPath)
-        let sideEffects: Set<SideEffectDescriptor>
+        let sideEffects: [SideEffectDescriptor]
         (graph, sideEffects) = try graphMapperProvider.mapper(config: config).map(graph: graph)
 
         // Lint
@@ -80,7 +80,7 @@ class ProjectGenerator: ProjectGenerating {
         // Load
         var (graph, workspace) = try graphLoader.loadWorkspace(path: path)
         let config = try graphLoader.loadConfig(path: graph.entryPath)
-        let sideEffects: Set<SideEffectDescriptor>
+        let sideEffects: [SideEffectDescriptor]
         (graph, sideEffects) = try graphMapperProvider.mapper(config: config).map(graph: graph)
 
         // Lint
@@ -107,7 +107,7 @@ class ProjectGenerator: ProjectGenerating {
         // Load
         var (graph, project) = try graphLoader.loadProject(path: path)
         let config = try graphLoader.loadConfig(path: graph.entryPath)
-        let sideEffects: Set<SideEffectDescriptor>
+        let sideEffects: [SideEffectDescriptor]
         (graph, sideEffects) = try graphMapperProvider.mapper(config: config).map(graph: graph)
 
         // Lint

@@ -39,9 +39,9 @@ public class CacheMapper: GraphMapping {
 
     // MARK: - GraphMapping
 
-    public func map(graph: Graph) throws -> (Graph, Set<SideEffectDescriptor>) {
+    public func map(graph: Graph) throws -> (Graph, [SideEffectDescriptor]) {
         let single = hashes(graph: graph).flatMap { self.map(graph: graph, hashes: $0) }
-        return try (single.toBlocking().single(), Set())
+        return try (single.toBlocking().single(), [])
     }
 
     // MARK: - Fileprivate

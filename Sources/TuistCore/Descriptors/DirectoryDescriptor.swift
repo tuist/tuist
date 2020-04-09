@@ -29,13 +29,6 @@ public struct DirectoryDescriptor: Equatable, Hashable, CustomStringConvertible 
         self.state = state
     }
 
-    // MARK: - Hashable
-
-    public func hash(into hasher: inout Hasher) {
-        hasher.combine(path)
-        hasher.combine(state)
-    }
-
     // MARK: - CustomStringConvertible
 
     public var description: String {
