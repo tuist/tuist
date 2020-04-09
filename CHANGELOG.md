@@ -4,6 +4,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Changed
+
+- Only warn about copying Info.plist when it's the target's Info.plist https://github.com/tuist/tuist/pull/1203 by @sgrgrsn
+
 ## 1.6.0
 
 ### Removed

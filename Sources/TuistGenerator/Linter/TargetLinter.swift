@@ -94,13 +94,13 @@ class TargetLinter: TargetLinting {
         var issues: [LintingIssue] = []
 
         let files = target.resources.map(\.path)
-        let infoPlists = files.filter { $0.pathString.contains("Info.plist") }
         let entitlements = files.filter { $0.pathString.contains(".entitlements") }
 
-        issues.append(contentsOf: infoPlists.map {
-            let reason = "Info.plist at path \($0.pathString) being copied into the target \(target.name) product."
-            return LintingIssue(reason: reason, severity: .warning)
-        })
+        if let targetInfoPlistPath = target.infoPlist?.path, files.contains(targetInfoPlistPath) {
+            let reason = "Info.plist at path \(targetInfoPlistPath) being copied into the target \(target.name) product."
+            issues.append(LintingIssue(reason: reason, severity: .warning))
+        }
+
         issues.append(contentsOf: entitlements.map {
             let reason = "Entitlements file at path \($0.pathString) being copied into the target \(target.name) product."
             return LintingIssue(reason: reason, severity: .warning)
