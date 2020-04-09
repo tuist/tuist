@@ -6,7 +6,7 @@ import Foundation
 /// generating a project or workspace.
 ///
 /// - seealso: `SideEffectsDescriptor`
-public struct CommandDescriptor: Equatable, Hashable {
+public struct CommandDescriptor: Equatable, Hashable, CustomStringConvertible {
     public var command: [String]
 
     /// Creates a command descriptor
@@ -19,5 +19,11 @@ public struct CommandDescriptor: Equatable, Hashable {
 
     public func hash(into hasher: inout Hasher) {
         hasher.combine(command)
+    }
+
+    // MARK: - CustomStringConvertible
+
+    public var description: String {
+        "execute \(command.joined(separator: " "))"
     }
 }

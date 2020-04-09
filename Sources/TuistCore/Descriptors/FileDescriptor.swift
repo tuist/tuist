@@ -7,7 +7,7 @@ import Foundation
 /// part of generating a project or workspace.
 ///
 /// - seealso: `SideEffectsDescriptor`
-public struct FileDescriptor: Equatable, Hashable {
+public struct FileDescriptor: Equatable, Hashable, CustomStringConvertible {
     public enum State {
         case present
         case absent
@@ -41,5 +41,16 @@ public struct FileDescriptor: Equatable, Hashable {
         hasher.combine(path)
         hasher.combine(state)
         hasher.combine(contents)
+    }
+
+    // MARK: - CustomStringConvertible
+
+    public var description: String {
+        switch state {
+        case .absent:
+            return "delete file \(path.pathString)"
+        case .present:
+            return "create file \(path.pathString)"
+        }
     }
 }

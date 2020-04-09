@@ -33,16 +33,19 @@ public final class SideEffectDescriptorExecutor: SideEffectDescriptorExecuting {
         switch directory.state {
         case .present:
             if !FileHandler.shared.exists(directory.path) {
+                logger.debug("Side effect: \(directory.description)")
                 try FileHandler.shared.createFolder(directory.path)
             }
         case .absent:
             if FileHandler.shared.exists(directory.path) {
+                logger.debug("Side effect: \(directory.description)")
                 try FileHandler.shared.delete(directory.path)
             }
         }
     }
 
     private func process(file: FileDescriptor) throws {
+        logger.debug("Side effect: \(file.description)")
         switch file.state {
         case .present:
             try FileHandler.shared.createFolder(file.path.parentDirectory)
@@ -57,6 +60,7 @@ public final class SideEffectDescriptorExecutor: SideEffectDescriptorExecuting {
     }
 
     private func perform(command: CommandDescriptor) throws {
+        logger.debug("Side effect: \(command.description)")
         try System.shared.run(command.command)
     }
 }

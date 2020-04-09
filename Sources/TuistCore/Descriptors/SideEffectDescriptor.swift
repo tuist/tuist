@@ -14,7 +14,7 @@ import Foundation
 /// - seealso: `WorkspaceDescriptor`
 /// - seealso: `XcodeProjWriter`
 /// - seealso: `DirectoryDescriptor`
-public enum SideEffectDescriptor: Equatable, Hashable {
+public enum SideEffectDescriptor: Equatable, Hashable, CustomStringConvertible {
     /// Create / Remove a file
     case file(FileDescriptor)
 
@@ -23,6 +23,19 @@ public enum SideEffectDescriptor: Equatable, Hashable {
 
     /// Create / remove a directory
     case directory(DirectoryDescriptor)
+
+    // MARK: - CustomStringConvertible
+
+    public var description: String {
+        switch self {
+        case let .file(fileDescriptor):
+            return fileDescriptor.description
+        case let .directory(directoryDescriptor):
+            return directoryDescriptor.description
+        case let .command(commandDescriptor):
+            return commandDescriptor.description
+        }
+    }
 }
 
 public extension Sequence where Element == SideEffectDescriptor {

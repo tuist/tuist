@@ -7,7 +7,7 @@ import Foundation
 /// part of generating a project or workspace.
 ///
 /// - seealso: `SideEffectsDescriptor`
-public struct DirectoryDescriptor: Equatable, Hashable {
+public struct DirectoryDescriptor: Equatable, Hashable, CustomStringConvertible {
     public enum State {
         case present
         case absent
@@ -34,5 +34,16 @@ public struct DirectoryDescriptor: Equatable, Hashable {
     public func hash(into hasher: inout Hasher) {
         hasher.combine(path)
         hasher.combine(state)
+    }
+
+    // MARK: - CustomStringConvertible
+
+    public var description: String {
+        switch state {
+        case .absent:
+            return "delete directory \(path.pathString)"
+        case .present:
+            return "create directory \(path.pathString)"
+        }
     }
 }
