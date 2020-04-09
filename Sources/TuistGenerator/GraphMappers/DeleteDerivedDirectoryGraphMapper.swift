@@ -9,6 +9,7 @@ public class DeleteDerivedDirectoryGraphMapper: GraphMapping {
     // MARK: - GraphMapping
 
     public func map(graph: Graph) throws -> (Graph, Set<SideEffectDescriptor>) {
+        logger.debug("Determining the /Derived directories that should be delted")
         var sideEffects = Set<SideEffectDescriptor>()
 
         graph.projects.forEach { project in
