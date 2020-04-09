@@ -25,13 +25,13 @@ public struct ProjectDescriptor {
     public var schemeDescriptors: [SchemeDescriptor]
 
     /// The side effects required for generating this project
-    public var sideEffectDescriptors: [SideEffectDescriptor]
+    public var sideEffectDescriptors: Set<SideEffectDescriptor>
 
     public init(path: AbsolutePath,
                 xcodeprojPath: AbsolutePath,
                 xcodeProj: XcodeProj,
                 schemeDescriptors: [SchemeDescriptor],
-                sideEffectDescriptors: [SideEffectDescriptor]) {
+                sideEffectDescriptors: Set<SideEffectDescriptor>) {
         self.path = path
         self.xcodeprojPath = xcodeprojPath
         self.xcodeProj = xcodeProj

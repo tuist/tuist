@@ -86,32 +86,3 @@ final class DerivedFileGeneratorTests: TuistUnitTestCase {
         XCTAssertEqual(file, oldPlistPath)
     }
 }
-
-private extension Array where Element == SideEffectDescriptor {
-    var files: [FileDescriptor] {
-        compactMap {
-            switch $0 {
-            case let .file(file):
-                return file
-            default:
-                return nil
-            }
-        }
-    }
-
-    var deletions: [AbsolutePath] {
-        compactMap {
-            switch $0 {
-            case let .file(file):
-                switch file.state {
-                case .absent:
-                    return file.path
-                default:
-                    return nil
-                }
-            default:
-                return nil
-            }
-        }
-    }
-}

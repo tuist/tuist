@@ -7,7 +7,7 @@ import Foundation
 /// part of generating a project or workspace.
 ///
 /// - seealso: `SideEffectsDescriptor`
-public struct FileDescriptor: Equatable {
+public struct FileDescriptor: Equatable, Hashable {
     public enum State {
         case present
         case absent
@@ -33,5 +33,13 @@ public struct FileDescriptor: Equatable {
         self.path = path
         self.contents = contents
         self.state = state
+    }
+
+    // MARK: - Hashable
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(path)
+        hasher.combine(state)
+        hasher.combine(contents)
     }
 }

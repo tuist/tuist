@@ -8,20 +8,23 @@ import Foundation
 /// any transformations will no longer be part of the resulting graph.
 ///
 /// - Note: When mapping, the `transform` block receives a copy of the original `TargetNode`
-public class TargetNodeGraphMapper: GraphMapping {
-    public let mapTargetNode: (TargetNode) -> TargetNode
-    public init(transform: @escaping (TargetNode) -> TargetNode) {
+open class TargetNodeGraphMapper: GraphMapping {
+    public let mapTargetNode: (TargetNode) -> (TargetNode, Set<SideEffectDescriptor>)
+    public init(transform: @escaping (TargetNode) -> (TargetNode, Set<SideEffectDescriptor>)) {
         mapTargetNode = transform
     }
 
     // MARK: - GraphMapping
 
-    public func map(graph: Graph) -> (Graph, [SideEffectDescriptor]) {
+    public func map(graph: Graph) -> (Graph, Set<SideEffectDescriptor>) {
         var mappedCache = [GraphNodeMapKey: GraphNode]()
         let cache = GraphLoaderCache()
 
-        let updatedNodes = graph.entryNodes.map {
-            map(node: $0, mappedCache: &mappedCache, cache: cache)
+        var sideEffects: Set<SideEffectDescriptor> = Set()
+        let updatedNodes = graph.entryNodes.map { (targetNode) -> GraphNode in
+            let (mappedNode, mappedSideEffects) = map(node: targetNode, mappedCache: &mappedCache, cache: cache)
+            sideEffects.formUnion(mappedSideEffects)
+            return mappedNode
         }
 
         return (Graph(name: graph.name,
@@ -34,28 +37,28 @@ public class TargetNodeGraphMapper: GraphMapping {
 
     private func map(node: GraphNode,
                      mappedCache: inout [GraphNodeMapKey: GraphNode],
-                     cache: GraphLoaderCache) -> GraphNode {
+                     cache: GraphLoaderCache) -> (GraphNode, Set<SideEffectDescriptor>) {
         if let cached = mappedCache[node.mapperCacheKey] {
-            return cached
+            return (cached, [])
         }
 
         switch node {
         case let packageProductNode as PackageProductNode:
             cache.add(package: packageProductNode)
-            return packageProductNode
+            return (packageProductNode, [])
         case let precompiledNode as PrecompiledNode:
             cache.add(precompiledNode: precompiledNode)
-            return precompiledNode
+            return (precompiledNode, [])
         case let cocoapodsNode as CocoaPodsNode:
             cache.add(cocoapods: cocoapodsNode)
-            return cocoapodsNode
+            return (cocoapodsNode, [])
         case let targetNode as TargetNode:
-            let updated = map(targetNode: targetNode,
-                              mappedCache: &mappedCache,
-                              cache: cache)
+            let (updated, sideEffects) = map(targetNode: targetNode,
+                                             mappedCache: &mappedCache,
+                                             cache: cache)
             cache.add(targetNode: updated)
             cache.add(project: updated.project)
-            return updated
+            return (updated, sideEffects)
         default:
             fatalError("Unhandled graph node type")
         }
@@ -63,18 +66,21 @@ public class TargetNodeGraphMapper: GraphMapping {
 
     private func map(targetNode: TargetNode,
                      mappedCache: inout [GraphNodeMapKey: GraphNode],
-                     cache: GraphLoaderCache) -> TargetNode {
+                     cache: GraphLoaderCache) -> (TargetNode, Set<SideEffectDescriptor>) {
         var updated = TargetNode(project: targetNode.project,
                                  target: targetNode.target,
                                  dependencies: targetNode.dependencies)
-        updated = mapTargetNode(updated)
+        var sideEffects: Set<SideEffectDescriptor>
+        (updated, sideEffects) = mapTargetNode(updated)
         mappedCache[updated.mapperCacheKey] = updated
 
         updated.dependencies = updated.dependencies.map {
-            map(node: $0, mappedCache: &mappedCache, cache: cache)
+            let (mappedDependency, mappedSideEffects) = map(node: $0, mappedCache: &mappedCache, cache: cache)
+            sideEffects.formUnion(mappedSideEffects)
+            return mappedDependency
         }
 
-        return updated
+        return (updated, sideEffects)
     }
 }
 

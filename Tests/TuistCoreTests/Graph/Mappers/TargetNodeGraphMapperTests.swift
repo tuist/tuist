@@ -6,7 +6,7 @@ class TargetNodeGraphMapperTests: XCTestCase {
     func test_map() {
         // Given
         let subject = TargetNodeGraphMapper { targetNode in
-            TargetNode(project: targetNode.project, target: targetNode.target, dependencies: [])
+            (TargetNode(project: targetNode.project, target: targetNode.target, dependencies: []), [])
         }
 
         let targetA = Target.test(name: "TargetA")
@@ -33,7 +33,7 @@ class TargetNodeGraphMapperTests: XCTestCase {
     func test_map_doesNotUpdateOriginal() {
         // Given
         let subject = TargetNodeGraphMapper { targetNode in
-            TargetNode(project: targetNode.project, target: targetNode.target, dependencies: [])
+            (TargetNode(project: targetNode.project, target: targetNode.target, dependencies: []), [])
         }
 
         let targetA = Target.test(name: "TargetA")
@@ -60,7 +60,7 @@ class TargetNodeGraphMapperTests: XCTestCase {
     func test_map_removesOrphanedNodes() {
         // Given
         let subject = TargetNodeGraphMapper { targetNode in
-            TargetNode(project: targetNode.project, target: targetNode.target, dependencies: [])
+            (TargetNode(project: targetNode.project, target: targetNode.target, dependencies: []), [])
         }
 
         let targetA = Target.test(name: "TargetA")
@@ -87,7 +87,7 @@ class TargetNodeGraphMapperTests: XCTestCase {
     func test_map_postMapOrphanedNodesdoNotUpdateOriginal() {
         // Given
         let subject = TargetNodeGraphMapper { targetNode in
-            TargetNode(project: targetNode.project, target: targetNode.target, dependencies: [])
+            (TargetNode(project: targetNode.project, target: targetNode.target, dependencies: []), [])
         }
 
         let targetA = Target.test(name: "TargetA")

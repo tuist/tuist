@@ -13,10 +13,39 @@ import Foundation
 /// - seealso: `ProjectDescriptor`
 /// - seealso: `WorkspaceDescriptor`
 /// - seealso: `XcodeProjWriter`
-public enum SideEffectDescriptor: Equatable {
+public enum SideEffectDescriptor: Equatable, Hashable {
     /// Create / Remove a file
     case file(FileDescriptor)
 
     /// Perform a command
     case command(CommandDescriptor)
+}
+
+public extension Sequence where Element == SideEffectDescriptor {
+    var files: [FileDescriptor] {
+        compactMap {
+            switch $0 {
+            case let .file(file):
+                return file
+            default:
+                return nil
+            }
+        }
+    }
+
+    var deletions: [AbsolutePath] {
+        compactMap {
+            switch $0 {
+            case let .file(file):
+                switch file.state {
+                case .absent:
+                    return file.path
+                default:
+                    return nil
+                }
+            default:
+                return nil
+            }
+        }
+    }
 }

@@ -14,11 +14,11 @@ protocol DerivedFileGenerating {
     /// - Throws: An error if the generation of the derived files errors.
     /// - Returns: A project that might have got mutated after the generation of derived files, and a
     ///     function to be called after the project generation to delete the derived files that are not necessary anymore.
-    func generate(graph: Graph, project: Project, sourceRootPath: AbsolutePath) throws -> (Project, [SideEffectDescriptor])
+    func generate(graph: Graph, project: Project, sourceRootPath: AbsolutePath) throws -> (Project, Set<SideEffectDescriptor>)
 }
 
 final class DerivedFileGenerator: DerivedFileGenerating {
-    typealias ProjectTransformation = (project: Project, sideEffects: [SideEffectDescriptor])
+    typealias ProjectTransformation = (project: Project, sideEffects: Set<SideEffectDescriptor>)
     fileprivate static let derivedFolderName = "Derived"
     fileprivate static let infoPlistsFolderName = "InfoPlists"
 
@@ -33,7 +33,7 @@ final class DerivedFileGenerator: DerivedFileGenerating {
         self.infoPlistContentProvider = infoPlistContentProvider
     }
 
-    func generate(graph: Graph, project: Project, sourceRootPath: AbsolutePath) throws -> (Project, [SideEffectDescriptor]) {
+    func generate(graph: Graph, project: Project, sourceRootPath: AbsolutePath) throws -> (Project, Set<SideEffectDescriptor>) {
         let transformation = try generateInfoPlists(graph: graph, project: project, sourceRootPath: sourceRootPath)
 
         return (transformation.project, transformation.sideEffects)
@@ -96,7 +96,7 @@ final class DerivedFileGenerator: DerivedFileGenerating {
         }
 
         return (project: project.with(targets: transformation.map { $0.0 }),
-                sideEffects: deletions + transformation.flatMap { $0.1 })
+                sideEffects: Set(deletions + transformation.flatMap { $0.1 }))
     }
 
     private func infoPlistDictionary(infoPlist: InfoPlist,

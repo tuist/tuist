@@ -6,7 +6,7 @@ import TuistSupport
 public protocol SideEffectDescriptorExecuting: AnyObject {
     /// Executes the given side effects sequentially.
     /// - Parameter sideEffects: Side effects to be executed.
-    func execute(sideEffects: [SideEffectDescriptor]) throws
+    func execute(sideEffects: Set<SideEffectDescriptor>) throws
 }
 
 public final class SideEffectDescriptorExecutor: SideEffectDescriptorExecuting {
@@ -14,7 +14,7 @@ public final class SideEffectDescriptorExecutor: SideEffectDescriptorExecuting {
 
     // MARK: - SideEffectDescriptorExecuting
 
-    public func execute(sideEffects: [SideEffectDescriptor]) throws {
+    public func execute(sideEffects: Set<SideEffectDescriptor>) throws {
         for sideEffect in sideEffects {
             switch sideEffect {
             case let .command(commandDescriptor):
