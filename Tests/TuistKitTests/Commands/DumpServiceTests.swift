@@ -1,6 +1,5 @@
 import Basic
 import Foundation
-import SPMUtility
 import TuistLoader
 import TuistSupport
 import XCTest
@@ -9,41 +8,28 @@ import XCTest
 @testable import TuistLoaderTesting
 @testable import TuistSupportTesting
 
-final class DumpCommandTests: TuistUnitTestCase {
+final class DumpServiceTests: TuistUnitTestCase {
     var errorHandler: MockErrorHandler!
-    var subject: DumpCommand!
-    var parser: ArgumentParser!
+    var subject: DumpService!
     var manifestLoading: ManifestLoading!
 
     override func setUp() {
         super.setUp()
         errorHandler = MockErrorHandler()
-        parser = ArgumentParser.test()
         manifestLoading = ManifestLoader()
-        subject = DumpCommand(manifestLoader: manifestLoading,
-                              parser: parser)
+        subject = DumpService(manifestLoader: manifestLoading)
     }
 
     override func tearDown() {
         errorHandler = nil
-        parser = nil
         manifestLoading = nil
         subject = nil
         super.tearDown()
     }
 
-    func test_name() {
-        XCTAssertEqual(DumpCommand.command, "dump")
-    }
-
-    func test_overview() {
-        XCTAssertEqual(DumpCommand.overview, "Outputs the project manifest as a JSON")
-    }
-
     func test_run_throws_when_file_doesnt_exist() throws {
         let tmpDir = try TemporaryDirectory(removeTreeOnDeinit: true)
-        let result = try parser.parse([DumpCommand.command, "-p", tmpDir.path.pathString])
-        XCTAssertThrowsSpecific(try subject.run(with: result),
+        XCTAssertThrowsSpecific(try subject.run(path: tmpDir.path.pathString),
                                 ManifestLoaderError.manifestNotFound(.project, tmpDir.path))
     }
 
@@ -52,7 +38,6 @@ final class DumpCommandTests: TuistUnitTestCase {
         try "invalid config".write(toFile: tmpDir.path.appending(component: "Project.swift").pathString,
                                    atomically: true,
                                    encoding: .utf8)
-        let result = try parser.parse([DumpCommand.command, "-p", tmpDir.path.pathString])
-        XCTAssertThrowsError(try subject.run(with: result))
+        XCTAssertThrowsError(try subject.run(path: tmpDir.path.pathString))
     }
 }
