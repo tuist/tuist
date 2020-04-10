@@ -127,7 +127,7 @@ extension InitCommand {
         var stringValue: String {
             switch self {
             case .platform:
-                return "plaform"
+                return "platform"
             case .name:
                 return "name"
             case .template:
@@ -165,39 +165,3 @@ extension InitCommand: CustomReflectable {
         return Mirror(InitCommand.init(), children: children + requiredTemplateChildren + optionalTemplateChildren)
     }
 }
-
-
-//    func parse(with parser: ArgumentParser, arguments: [String]) throws -> ArgumentParser.Result {
-//        guard arguments.contains("--template") else { return try parser.parse(arguments) }
-//        // Plucking out path and template argument
-//        let pairedArguments = stride(from: 1, to: arguments.count, by: 2).map {
-//            arguments[$0 ..< min($0 + 2, arguments.count)]
-//        }
-//        let filteredArguments = pairedArguments
-//            .filter {
-//                $0.first == "--path" || $0.first == "--template"
-//            }
-//            .flatMap { Array($0) }
-//        // We want to parse only the name of template, not its arguments which will be dynamically added
-//        let resultArguments = try parser.parse(Array(arguments.prefix(1)) + filteredArguments)
-//
-//        guard let templateName = resultArguments.get(templateArgument) else { throw InitCommandError.templateNotProvided }
-//
-//        let path = self.path(arguments: resultArguments)
-//        let directories = try templatesDirectoryLocator.templateDirectories(at: path)
-//
-//        let templateDirectory = try self.templateDirectory(templateDirectories: directories,
-//                                                           template: templateName)
-//
-//        let template = try templateLoader.loadTemplate(at: templateDirectory)
-//
-//        // Dynamically add attributes from template to `subParser`
-//        attributesArguments = template.attributes.reduce([:]) {
-//            var mutableDictionary = $0
-//            mutableDictionary[$1.name] = subParser.add(option: "--\($1.name)",
-//                                                       kind: String.self)
-//            return mutableDictionary
-//        }
-//
-//        return try parser.parse(arguments)
-//    }
