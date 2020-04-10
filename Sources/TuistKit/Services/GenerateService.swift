@@ -28,7 +28,7 @@ final class GenerateService {
         logger.notice("Total time taken: \(time)s")
     }
 
-    // MARK: - Fileprivate
+    // MARK: - Helpers
 
     private func path(_ path: String?) -> AbsolutePath {
         if let path = path {
