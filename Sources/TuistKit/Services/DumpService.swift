@@ -1,15 +1,15 @@
-import Foundation
 import Basic
+import Foundation
 import TuistLoader
 import TuistSupport
 
 final class DumpService {
     private let manifestLoader: ManifestLoading
-    
+
     init(manifestLoader: ManifestLoading = ManifestLoader()) {
         self.manifestLoader = manifestLoader
     }
-    
+
     func run(path: String?) throws {
         let projectPath: AbsolutePath
         if let path = path {

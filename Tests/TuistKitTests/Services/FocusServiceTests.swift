@@ -29,6 +29,7 @@ final class FocusServiceTests: TuistUnitTestCase {
         subject = nil
         super.tearDown()
     }
+
     func test_run_fatalErrors_when_theworkspaceGenerationFails() throws {
         let error = NSError.test()
         generator.generateStub = { _, _ in

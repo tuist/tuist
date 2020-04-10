@@ -10,7 +10,6 @@ final class GraphService {
 
     /// Manifest loader.
     private let manifestLoader: ManifestLoading
-    
 
     init(dotGraphGenerator: DotGraphGenerating = DotGraphGenerator(modelLoader: GeneratorModelLoader(manifestLoader: ManifestLoader(),
                                                                                                      manifestLinter: ManifestLinter())),
@@ -18,7 +17,7 @@ final class GraphService {
         self.dotGraphGenerator = dotGraphGenerator
         self.manifestLoader = manifestLoader
     }
-    
+
     func run() throws {
         let graph = try dotGraphGenerator.generate(at: FileHandler.shared.currentPath,
                                                    manifestLoader: manifestLoader)

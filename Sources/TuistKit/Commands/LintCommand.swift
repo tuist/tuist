@@ -1,6 +1,6 @@
+import ArgumentParser
 import Basic
 import Foundation
-import ArgumentParser
 
 /// Command that builds a target from the project in the current directory.
 struct LintCommand: ParsableCommand {

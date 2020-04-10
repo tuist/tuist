@@ -23,6 +23,7 @@ public struct TuistCommand: ParsableCommand {
                                  ScaffoldCommand.self,
                                  InitCommand.self,
                                  CloudCommand.self,
+                                 SigningCommand.self,
                              ])
     }
 
@@ -56,7 +57,7 @@ public struct TuistCommand: ParsableCommand {
 
     // MARK: - Helpers
 
-    private static func processArguments(_ arguments: [String]?) -> [String]? {
+    static func processArguments(_ arguments: [String]? = nil) -> [String]? {
         let arguments = arguments ?? Array(CommandLine.arguments.dropFirst())
         return arguments.filter { $0 != "--verbose" }
     }

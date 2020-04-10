@@ -1,18 +1,20 @@
 import Basic
 import Foundation
+import TuistCore
+import TuistSigning
 import TuistSupport
 
-final class CacheService {
-    /// Cache controller.
-    private let cacheController: CacheControlling
+final class DecryptService {
+    private let signingCipher: SigningCiphering
 
-    init(cacheController: CacheControlling = CacheController()) {
-        self.cacheController = cacheController
+    init(signingCipher: SigningCiphering = SigningCipher()) {
+        self.signingCipher = signingCipher
     }
 
     func run(path: String?) throws {
         let path = self.path(path)
-        try cacheController.cache(path: path)
+        try signingCipher.decryptSigning(at: path)
+        logger.notice("Successfully decrypted all signing files", metadata: .success)
     }
 
     // MARK: - Helpers

@@ -14,13 +14,13 @@ final class FocusService {
 
     /// Opener instance to run open in the system.
     private let opener: Opening
-    
+
     init(generator: ProjectGenerating = ProjectGenerator(),
          opener: Opening = Opener()) {
         self.generator = generator
         self.opener = opener
     }
-    
+
     func run() throws {
         let path = FileHandler.shared.currentPath
 

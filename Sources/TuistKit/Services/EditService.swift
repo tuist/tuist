@@ -1,5 +1,5 @@
-import Foundation
 import Basic
+import Foundation
 import Signals
 import TuistGenerator
 import TuistSupport
@@ -7,13 +7,13 @@ import TuistSupport
 final class EditService {
     private let projectEditor: ProjectEditing
     private let opener: Opening
-    
+
     init(projectEditor: ProjectEditing = ProjectEditor(),
          opener: Opening = Opener()) {
         self.projectEditor = projectEditor
         self.opener = opener
     }
-    
+
     func run(path: String?,
              permanent: Bool) throws {
         let path = self.path(path)
@@ -32,7 +32,7 @@ final class EditService {
             logger.notice("Xcode project generated at \(xcodeprojPath.pathString)", metadata: .success)
         }
     }
-    
+
     // MARK: - Helpers
 
     private func path(_ path: String?) -> AbsolutePath {
@@ -42,7 +42,7 @@ final class EditService {
             return FileHandler.shared.currentPath
         }
     }
-    
+
     private static var _temporaryDirectory: TemporaryDirectory?
     private static var temporaryDirectory: TemporaryDirectory {
         // swiftlint:disable:next identifier_name

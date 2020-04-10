@@ -18,4 +18,3 @@ final class BuildService {
         logger.notice("Command not available yet")
     }
 }
-

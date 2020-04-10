@@ -32,7 +32,7 @@ final class LintService {
     private let environmentLinter: EnvironmentLinting
     private let manifestLoading: ManifestLoading
     private let graphLoader: GraphLoading
-    
+
     init(graphLinter: GraphLinting = GraphLinter(),
          environmentLinter: EnvironmentLinting = EnvironmentLinter(),
          manifestLoading: ManifestLoading = ManifestLoader(),
@@ -43,7 +43,7 @@ final class LintService {
         self.manifestLoading = manifestLoading
         self.graphLoader = graphLoader
     }
-    
+
     func run(path: String?) throws {
         let path = self.path(path)
 
@@ -77,7 +77,7 @@ final class LintService {
             try issues.printAndThrowIfNeeded()
         }
     }
-    
+
     // MARK: - Helpers
 
     private func path(_ path: String?) -> AbsolutePath {

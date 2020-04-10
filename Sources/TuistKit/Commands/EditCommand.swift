@@ -1,7 +1,7 @@
+import ArgumentParser
 import Basic
 import Foundation
 import Signals
-import ArgumentParser
 import TuistGenerator
 import TuistSupport
 
@@ -11,13 +11,12 @@ struct EditCommand: ParsableCommand {
                              abstract: "Generates a temporary project to edit the project in the current directory")
     }
 
-
     @Option(
         name: .shortAndLong,
         help: "The path to the directory whose project will be edited"
     )
     var path: String?
-    
+
     @Option(
         name: .shortAndLong,
         default: false,
