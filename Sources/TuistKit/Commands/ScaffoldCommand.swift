@@ -5,23 +5,19 @@ import TuistCore
 import TuistSupport
 
 enum ScaffoldCommandError: FatalError, Equatable {
-    var type: ErrorType { .abort }
+    var type: ErrorType {
+        switch self {
+        case .templateNotProvided:
+            return .abort
+        }
+    }
 
-    case templateNotFound(String)
     case templateNotProvided
-    case nonEmptyDirectory(AbsolutePath)
-    case attributeNotProvided(String)
 
     var description: String {
         switch self {
-        case let .templateNotFound(template):
-            return "Could not find template \(template). Make sure it exists at Tuist/Templates/\(template)"
         case .templateNotProvided:
             return "You must provide template name"
-        case let .nonEmptyDirectory(path):
-            return "Can't generate a template in the non-empty directory at path \(path.pathString)."
-        case let .attributeNotProvided(name):
-            return "You must provide \(name) option. Add --\(name) desired_value to your command."
         }
     }
 }
@@ -75,8 +71,8 @@ struct ScaffoldCommand: ParsableCommand {
 // MARK: - Preprocessing
 
 extension ScaffoldCommand {
-    private static var requiredTemplateOptions: [(name: String, option: Option<String>)] = []
-    private static var optionalTemplateOptions: [(name: String, option: Option<String?>)] = []
+    static var requiredTemplateOptions: [(name: String, option: Option<String>)] = []
+    static var optionalTemplateOptions: [(name: String, option: Option<String?>)] = []
     
     /// We do not know template's option in advance -> we need to dynamically add them
     static func preprocess(_ arguments: [String]? = nil) throws {
@@ -104,7 +100,7 @@ extension ScaffoldCommand {
             (name: $0, option: Option<String>(name: .shortAndLong))
         }
         ScaffoldCommand.optionalTemplateOptions = optional.map {
-            (name: $0.name, option: Option<String?>(name: .shortAndLong))
+            (name: $0, option: Option<String?>(name: .shortAndLong))
         }
     }
 }
