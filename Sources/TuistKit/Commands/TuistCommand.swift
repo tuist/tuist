@@ -19,7 +19,7 @@ public struct TuistCommand: ParsableCommand {
         let command: ParsableCommand
         do {
             let processedArguments = processArguments(arguments)
-            if processedArguments?.first == ScaffoldCommand._commandName {
+            if processedArguments?.first == ScaffoldCommand.configuration.commandName {
                 try ScaffoldCommand.preprocess(processedArguments)
             }
             command = try parseAsRoot(processedArguments!)

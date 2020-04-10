@@ -61,10 +61,15 @@ struct ScaffoldCommand: ParsableCommand {
     }
     
     func run() throws {
-        try ScaffoldService().run(path: path,
-                                  templateName: template,
-                                  requiredTemplateOptions: requiredTemplateOptions,
-                                  optionalTemplateOptions: optionalTemplateOptions)
+        // Currently, @Argument and subcommand clashes, so we need to handle that ourselves
+        if template == ListCommand.configuration.commandName {
+            try ListService().run(path: path)
+        } else {
+            try ScaffoldService().run(path: path,
+                                      templateName: template,
+                                      requiredTemplateOptions: requiredTemplateOptions,
+                                      optionalTemplateOptions: optionalTemplateOptions)
+        }
     }
 }
 
@@ -80,6 +85,7 @@ extension ScaffoldCommand {
             let arguments = arguments,
             arguments.count >= 2
         else { throw ScaffoldCommandError.templateNotProvided }
+        guard !configuration.subcommands.contains(where: { $0.configuration.commandName == arguments[1] }) else { return }
         // We want to parse only the name of template, not its arguments which will be dynamically added
         // Plucking out path argument
         let pairedArguments: [[String]] = stride(from: 2, to: arguments.count, by: 2).map {
