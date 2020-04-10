@@ -1,6 +1,5 @@
 import Basic
 import Foundation
-import SPMUtility
 import TuistSupport
 import XcodeProj
 import XCTest
@@ -9,36 +8,24 @@ import XCTest
 @testable import TuistLoaderTesting
 @testable import TuistSupportTesting
 
-final class GraphCommandTests: TuistUnitTestCase {
-    var subject: GraphCommand!
+final class GraphServiceTests: TuistUnitTestCase {
+    var subject: GraphService!
     var dotGraphGenerator: MockDotGraphGenerator!
     var manifestLoader: MockManifestLoader!
-    var parser: ArgumentParser!
 
     override func setUp() {
         super.setUp()
         dotGraphGenerator = MockDotGraphGenerator()
         manifestLoader = MockManifestLoader()
-        parser = ArgumentParser.test()
-        subject = GraphCommand(parser: parser,
-                               dotGraphGenerator: dotGraphGenerator,
+        subject = GraphService(dotGraphGenerator: dotGraphGenerator,
                                manifestLoader: manifestLoader)
     }
 
     override func tearDown() {
         dotGraphGenerator = nil
         manifestLoader = nil
-        parser = nil
         subject = nil
         super.tearDown()
-    }
-
-    func test_command() {
-        XCTAssertEqual(GraphCommand.command, "graph")
-    }
-
-    func test_overview() {
-        XCTAssertEqual(GraphCommand.overview, "Generates a dot graph from the workspace or project in the current directory.")
     }
 
     func test_run() throws {
@@ -59,8 +46,7 @@ final class GraphCommandTests: TuistUnitTestCase {
         dotGraphGenerator.generateProjectStub = graph
 
         // When
-        let result = try parser.parse([GraphCommand.command])
-        try subject.run(with: result)
+        try subject.run()
 
         // Then
         XCTAssertEqual(try FileHandler.shared.readTextFile(graphPath), graph)

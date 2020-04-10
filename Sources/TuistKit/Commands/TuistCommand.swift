@@ -14,6 +14,7 @@ public struct TuistCommand: ParsableCommand {
                                  FocusCommand.self,
                                  EditCommand.self,
                                  DumpCommand.self,
+                                 GraphCommand.self,
                              ])
     }
 
