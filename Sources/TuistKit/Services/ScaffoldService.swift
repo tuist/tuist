@@ -111,7 +111,8 @@ class ScaffoldService {
                 attributesDictionary[name] = option
             case let .optional(name, default: defaultValue):
                 guard
-                    let option = optionalTemplateOptions[name]
+                    let unwrappedOption = optionalTemplateOptions[name],
+                    let option = unwrappedOption
                 else {
                     attributesDictionary[name] = defaultValue
                     return
