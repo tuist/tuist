@@ -18,8 +18,6 @@ public final class CommandRegistry {
     public convenience init() {
         self.init(errorHandler: ErrorHandler(),
                   processArguments: CommandRegistry.processArguments)
-        register(command: InitCommand.self)
-        register(command: ScaffoldCommand.self)
         register(command: DumpCommand.self)
         register(command: VersionCommand.self)
         register(command: CreateIssueCommand.self)

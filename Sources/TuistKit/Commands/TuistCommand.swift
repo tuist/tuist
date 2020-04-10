@@ -11,6 +11,8 @@ public struct TuistCommand: ParsableCommand {
                              subcommands: [
                                  GenerateCommand.self,
                                  UpCommand.self,
+                                 ScaffoldCommand.self,
+                                 InitCommand.self,
                              ])
     }
 
@@ -18,7 +20,14 @@ public struct TuistCommand: ParsableCommand {
         let errorHandler = ErrorHandler()
         let command: ParsableCommand
         do {
-            command = try parseAsRoot(processArguments(arguments))
+            let processedArguments = processArguments(arguments)
+            if processedArguments?.first == ScaffoldCommand.configuration.commandName {
+                try ScaffoldCommand.preprocess(processedArguments)
+            }
+            if processedArguments?.first == InitCommand.configuration.commandName {
+                try InitCommand.preprocess(processedArguments)
+            }
+            command = try parseAsRoot(processedArguments!)
         } catch {
             logger.error("\(fullMessage(for: error))")
             _exit(exitCode(for: error).rawValue)
@@ -38,6 +47,7 @@ public struct TuistCommand: ParsableCommand {
     // MARK: - Helpers
 
     private static func processArguments(_ arguments: [String]?) -> [String]? {
-        arguments?.filter { $0 != "--verbose" }
+        let arguments = arguments ?? Array(CommandLine.arguments.dropFirst())
+        return arguments.filter { $0 != "--verbose" }
     }
 }
