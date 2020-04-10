@@ -55,7 +55,9 @@ public final class SideEffectDescriptorExecutor: SideEffectDescriptorExecuting {
                 try FileHandler.shared.touch(file.path)
             }
         case .absent:
-            try FileHandler.shared.delete(file.path)
+            if FileHandler.shared.exists(file.path) {
+                try FileHandler.shared.delete(file.path)
+            }
         }
     }
 

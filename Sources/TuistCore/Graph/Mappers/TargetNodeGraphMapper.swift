@@ -9,20 +9,20 @@ import Foundation
 ///
 /// - Note: When mapping, the `transform` block receives a copy of the original `TargetNode`
 open class TargetNodeGraphMapper: GraphMapping {
-    public let mapTargetNode: (TargetNode) -> (TargetNode, [SideEffectDescriptor])
-    public init(transform: @escaping (TargetNode) -> (TargetNode, [SideEffectDescriptor])) {
+    public let mapTargetNode: (TargetNode) throws -> (TargetNode, [SideEffectDescriptor])
+    public init(transform: @escaping (TargetNode) throws -> (TargetNode, [SideEffectDescriptor])) {
         mapTargetNode = transform
     }
 
     // MARK: - GraphMapping
 
-    public func map(graph: Graph) -> (Graph, [SideEffectDescriptor]) {
+    public func map(graph: Graph) throws -> (Graph, [SideEffectDescriptor]) {
         var mappedCache = [GraphNodeMapKey: GraphNode]()
         let cache = GraphLoaderCache()
 
         var sideEffects: [SideEffectDescriptor] = []
-        let updatedNodes = graph.entryNodes.map { (targetNode) -> GraphNode in
-            let (mappedNode, mappedSideEffects) = map(node: targetNode, mappedCache: &mappedCache, cache: cache)
+        let updatedNodes = try graph.entryNodes.map { (targetNode) -> GraphNode in
+            let (mappedNode, mappedSideEffects) = try map(node: targetNode, mappedCache: &mappedCache, cache: cache)
             sideEffects.append(contentsOf: mappedSideEffects)
             return mappedNode
         }
@@ -30,14 +30,14 @@ open class TargetNodeGraphMapper: GraphMapping {
         return (Graph(name: graph.name,
                       entryPath: graph.entryPath,
                       cache: cache,
-                      entryNodes: updatedNodes), [])
+                      entryNodes: updatedNodes), sideEffects)
     }
 
     // MARK: - Private
 
     private func map(node: GraphNode,
                      mappedCache: inout [GraphNodeMapKey: GraphNode],
-                     cache: GraphLoaderCache) -> (GraphNode, [SideEffectDescriptor]) {
+                     cache: GraphLoaderCache) throws -> (GraphNode, [SideEffectDescriptor]) {
         if let cached = mappedCache[node.mapperCacheKey] {
             return (cached, [])
         }
@@ -53,9 +53,9 @@ open class TargetNodeGraphMapper: GraphMapping {
             cache.add(cocoapods: cocoapodsNode)
             return (cocoapodsNode, [])
         case let targetNode as TargetNode:
-            let (updated, sideEffects) = map(targetNode: targetNode,
-                                             mappedCache: &mappedCache,
-                                             cache: cache)
+            let (updated, sideEffects) = try map(targetNode: targetNode,
+                                                 mappedCache: &mappedCache,
+                                                 cache: cache)
             cache.add(targetNode: updated)
             cache.add(project: updated.project)
             return (updated, sideEffects)
@@ -66,16 +66,16 @@ open class TargetNodeGraphMapper: GraphMapping {
 
     private func map(targetNode: TargetNode,
                      mappedCache: inout [GraphNodeMapKey: GraphNode],
-                     cache: GraphLoaderCache) -> (TargetNode, [SideEffectDescriptor]) {
+                     cache: GraphLoaderCache) throws -> (TargetNode, [SideEffectDescriptor]) {
         var updated = TargetNode(project: targetNode.project,
                                  target: targetNode.target,
                                  dependencies: targetNode.dependencies)
         var sideEffects: [SideEffectDescriptor]
-        (updated, sideEffects) = mapTargetNode(updated)
+        (updated, sideEffects) = try mapTargetNode(updated)
         mappedCache[updated.mapperCacheKey] = updated
 
-        updated.dependencies = updated.dependencies.map {
-            let (mappedDependency, mappedSideEffects) = map(node: $0, mappedCache: &mappedCache, cache: cache)
+        updated.dependencies = try updated.dependencies.map {
+            let (mappedDependency, mappedSideEffects) = try map(node: $0, mappedCache: &mappedCache, cache: cache)
             sideEffects.append(contentsOf: mappedSideEffects)
             return mappedDependency
         }

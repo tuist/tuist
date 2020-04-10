@@ -19,6 +19,7 @@ public struct Constants {
 
     public struct DerivedFolder {
         public static let name = "Derived"
+        public static let infoPlists = "InfoPlists"
     }
 
     public struct EnvironmentVariables {

@@ -24,8 +24,9 @@ final class GraphMapperProvider: GraphMapperProviding {
     func mappers(config _: Config) -> [GraphMapping] {
         var mappers: [GraphMapping] = []
 
-        // Delete the derived directories
+        // Derived
         mappers.append(DeleteDerivedDirectoryGraphMapper())
+        mappers.append(GenerateInfoPlistGraphMapper())
 
         // Cache
         if useCache {

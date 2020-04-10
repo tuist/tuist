@@ -3,7 +3,7 @@ import XCTest
 @testable import TuistCoreTesting
 
 class TargetNodeGraphMapperTests: XCTestCase {
-    func test_map() {
+    func test_map() throws {
         // Given
         let subject = TargetNodeGraphMapper { targetNode in
             (TargetNode(project: targetNode.project, target: targetNode.target, dependencies: []), [])
@@ -21,7 +21,7 @@ class TargetNodeGraphMapperTests: XCTestCase {
                                  ])
 
         // When
-        let (results, _) = subject.map(graph: graph)
+        let (results, _) = try subject.map(graph: graph)
 
         // Then
         XCTAssertEqual(results.targets(at: project.path).count, 3)
@@ -30,7 +30,7 @@ class TargetNodeGraphMapperTests: XCTestCase {
         XCTAssertEqual(results.target(path: project.path, name: "TargetC")?.dependencies.map(\.name), [])
     }
 
-    func test_map_doesNotUpdateOriginal() {
+    func test_map_doesNotUpdateOriginal() throws {
         // Given
         let subject = TargetNodeGraphMapper { targetNode in
             (TargetNode(project: targetNode.project, target: targetNode.target, dependencies: []), [])
@@ -48,7 +48,7 @@ class TargetNodeGraphMapperTests: XCTestCase {
                                  ])
 
         // When
-        _ = subject.map(graph: graph)
+        _ = try subject.map(graph: graph)
 
         // Then
         XCTAssertEqual(graph.targets(at: project.path).count, 3)
@@ -57,7 +57,7 @@ class TargetNodeGraphMapperTests: XCTestCase {
         XCTAssertEqual(graph.target(path: project.path, name: "TargetC")?.dependencies.map(\.name), [])
     }
 
-    func test_map_removesOrphanedNodes() {
+    func test_map_removesOrphanedNodes() throws {
         // Given
         let subject = TargetNodeGraphMapper { targetNode in
             (TargetNode(project: targetNode.project, target: targetNode.target, dependencies: []), [])
@@ -77,14 +77,14 @@ class TargetNodeGraphMapperTests: XCTestCase {
                                  ])
 
         // When
-        let (results, _) = subject.map(graph: graph)
+        let (results, _) = try subject.map(graph: graph)
 
         // Then
         XCTAssertEqual(results.targets.flatMap { $0.value }.count, 1)
         XCTAssertEqual(results.projects.count, 1)
     }
 
-    func test_map_postMapOrphanedNodesdoNotUpdateOriginal() {
+    func test_map_postMapOrphanedNodesdoNotUpdateOriginal() throws {
         // Given
         let subject = TargetNodeGraphMapper { targetNode in
             (TargetNode(project: targetNode.project, target: targetNode.target, dependencies: []), [])
@@ -104,7 +104,7 @@ class TargetNodeGraphMapperTests: XCTestCase {
                                  ])
 
         // When
-        _ = subject.map(graph: graph)
+        _ = try subject.map(graph: graph)
 
         // Then
         XCTAssertEqual(graph.targets.flatMap { $0.value }.count, 3)

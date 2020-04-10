@@ -2,6 +2,7 @@ import Foundation
 import TuistCache
 import TuistCore
 import TuistCoreTesting
+import TuistGenerator
 import TuistSupport
 import XCTest
 
@@ -41,5 +42,33 @@ final class GraphMapperProviderTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(got.filter { $0 is CacheMapper }.count, 0)
+    }
+
+    func test_mappers_order() {
+        // Given
+        let mappers = subject.mappers(config: Config.test())
+
+        // Then
+        assert(mapper: DeleteDerivedDirectoryGraphMapper.self, isBeforeThan: GenerateInfoPlistGraphMapper.self, mappers: mappers)
+        assert(mapper: GenerateInfoPlistGraphMapper.self, isBeforeThan: CacheMapper.self, mappers: mappers)
+    }
+
+    fileprivate func assert<T: GraphMapping, R: GraphMapping>(mapper _: T.Type,
+                                                              isBeforeThan _: R.Type,
+                                                              mappers: [GraphMapping],
+                                                              file _: StaticString = #file,
+                                                              line _: UInt = #line) {
+        var firstFound = false
+
+        for _mapper in mappers {
+            if _mapper is T {
+                firstFound = true
+            }
+            if _mapper is R {
+                if !firstFound {
+                    XCTFail("\(R.self) found before \(T.self)")
+                }
+            }
+        }
     }
 }
