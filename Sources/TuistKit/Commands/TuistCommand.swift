@@ -38,7 +38,7 @@ public struct TuistCommand: ParsableCommand {
             if processedArguments?.first == InitCommand.configuration.commandName {
                 try InitCommand.preprocess(processedArguments)
             }
-            command = try parseAsRoot(processedArguments!)
+            command = try parseAsRoot(processedArguments)
         } catch {
             logger.error("\(fullMessage(for: error))")
             _exit(exitCode(for: error).rawValue)
@@ -46,6 +46,8 @@ public struct TuistCommand: ParsableCommand {
         do {
             try command.run()
             exit()
+        } catch let error as CleanExit {
+            _exit(exitCode(for: error).rawValue)
         } catch let error as FatalError {
             errorHandler.fatal(error: error)
             _exit(exitCode(for: error).rawValue)

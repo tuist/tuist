@@ -17,7 +17,6 @@ public final class CommandRegistry {
     public convenience init() {
         self.init(processArguments: CommandRegistry.processArguments,
                   commands: [
-                      LocalCommand.self,
                       BundleCommand.self,
                       UpdateCommand.self,
                       InstallCommand.self,

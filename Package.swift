@@ -75,7 +75,7 @@ let package = Package(
         ),
         .target(
             name: "TuistEnvKit",
-            dependencies: ["SPMUtility", "TuistSupport", "RxSwift", "RxBlocking"]
+            dependencies: ["ArgumentParser", "SPMUtility", "TuistSupport", "RxSwift", "RxBlocking"]
         ),
         .testTarget(
             name: "TuistEnvKitTests",
