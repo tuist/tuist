@@ -74,7 +74,6 @@ struct ScaffoldCommand: ParsableCommand {
 }
 
 // MARK: - Preprocessing
-
 extension ScaffoldCommand {
     static var requiredTemplateOptions: [(name: String, option: Option<String>)] = []
     static var optionalTemplateOptions: [(name: String, option: Option<String?>)] = []

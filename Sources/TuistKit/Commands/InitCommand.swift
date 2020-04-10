@@ -1,6 +1,6 @@
 import Basic
 import Foundation
-import SPMUtility
+import ArgumentParser
 import TuistCore
 import TuistGenerator
 import TuistLoader
@@ -10,253 +10,193 @@ import TuistSupport
 private typealias Platform = TuistCore.Platform
 private typealias Product = TuistCore.Product
 
-enum InitCommandError: FatalError, Equatable {
-    case ungettableProjectName(AbsolutePath)
-    case nonEmptyDirectory(AbsolutePath)
-    case templateNotFound(String)
-    case templateNotProvided
-    case attributeNotProvided(String)
-
-    var type: ErrorType {
-        .abort
+struct InitCommand: ParsableCommand {
+    static var configuration: CommandConfiguration {
+        CommandConfiguration(commandName: "init",
+                             abstract: "Bootstraps a project")
     }
 
-    var description: String {
-        switch self {
-        case let .templateNotFound(template):
-            return "Could not find template \(template). Make sure it exists at Tuist/Templates/\(template)"
-        case .templateNotProvided:
-            return "You must provide template name"
-        case let .ungettableProjectName(path):
-            return "Couldn't infer the project name from path \(path.pathString)."
-        case let .nonEmptyDirectory(path):
-            return "Can't initialize a project in the non-empty directory at path \(path.pathString)."
-        case let .attributeNotProvided(name):
-            return "You must provide \(name) option. Add --\(name) desired_value to your command."
+    @Option(
+        name: .shortAndLong,
+        help: "The platform (ios, tvos or macos) the product will be for (Default: ios)"
+    )
+    var platform: String?
+    
+    @Option(
+        name: .shortAndLong,
+        help: "The path to the folder where the project will be generated (Default: Current directory)"
+    )
+    var path: String?
+    
+    @Option(
+        name: .shortAndLong,
+        help: "The name of the project. If it's not passed (Default: Name of the directory)"
+    )
+    var name: String?
+    
+    @Option(
+        name: .shortAndLong,
+        help: "The name of the template to use (you can list available templates with tuist scaffold list)"
+    )
+    var template: String?
+    
+    var requiredTemplateOptions: [String: String] = [:]
+    var optionalTemplateOptions: [String: String?] = [:]
+    
+    init() {}
+
+    // Custom decoding to decode dynamic options
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        platform = try container.decodeIfPresent(Option<String>.self, forKey: .platform)?.wrappedValue
+        name = try container.decodeIfPresent(Option<String>.self, forKey: .name)?.wrappedValue
+        template = try container.decodeIfPresent(Option<String>.self, forKey: .template)?.wrappedValue
+        path = try container.decodeIfPresent(Option<String>.self, forKey: .path)?.wrappedValue
+        try InitCommand.requiredTemplateOptions.forEach { option in
+            requiredTemplateOptions[option.name] = try container.decode(Option<String>.self,
+                                                                        forKey: .required(option.name)).wrappedValue
+        }
+        try InitCommand.optionalTemplateOptions.forEach { option in
+            optionalTemplateOptions[option.name] = try container.decode(Option<String?>.self,
+                                                                        forKey: .optional(option.name)).wrappedValue
         }
     }
 
-    static func == (lhs: InitCommandError, rhs: InitCommandError) -> Bool {
-        switch (lhs, rhs) {
-        case let (.ungettableProjectName(lhsPath), .ungettableProjectName(rhsPath)):
-            return lhsPath == rhsPath
-        case let (.nonEmptyDirectory(lhsPath), .nonEmptyDirectory(rhsPath)):
-            return lhsPath == rhsPath
-        case let (.templateNotFound(lhsTemplate), .templateNotFound(rhsTemplate)):
-            return lhsTemplate == rhsTemplate
-        case (.templateNotProvided, .templateNotProvided):
-            return true
-        default:
-            return false
-        }
+    func run() throws {
+        try InitService().run(name: name,
+                              platform: platform,
+                              path: path,
+                              templateName: template,
+                              requiredTemplateOptions: requiredTemplateOptions,
+                              optionalTemplateOptions: optionalTemplateOptions)
     }
 }
 
-class InitCommand: NSObject, Command {
-    // MARK: - Attributes
-
-    static let command = "init"
-    static let overview = "Bootstraps a project."
-    private let platformArgument: OptionArgument<String>
-    private let pathArgument: OptionArgument<String>
-    private let nameArgument: OptionArgument<String>
-    private let templateArgument: OptionArgument<String>
-    private var attributesArguments: [String: OptionArgument<String>] = [:]
-    private let subParser: ArgumentParser
-    private let templatesDirectoryLocator: TemplatesDirectoryLocating
-    private let templateGenerator: TemplateGenerating
-    private let templateLoader: TemplateLoading
-
-    // MARK: - Init
-
-    public required convenience init(parser: ArgumentParser) {
-        self.init(parser: parser,
-                  templatesDirectoryLocator: TemplatesDirectoryLocator(),
-                  templateGenerator: TemplateGenerator(),
-                  templateLoader: TemplateLoader())
-    }
-
-    init(parser: ArgumentParser,
-         templatesDirectoryLocator: TemplatesDirectoryLocating,
-         templateGenerator: TemplateGenerating,
-         templateLoader: TemplateLoading) {
-        subParser = parser.add(subparser: InitCommand.command, overview: InitCommand.overview)
-        platformArgument = subParser.add(option: "--platform",
-                                         shortName: nil,
-                                         kind: String.self,
-                                         usage: "The platform (ios, tvos or macos) the product will be for (Default: ios).",
-                                         completion: ShellCompletion.values([
-                                             (value: "ios", description: "iOS platform"),
-                                             (value: "tvos", description: "tvOS platform"),
-                                             (value: "macos", description: "macOS platform"),
-                                         ]))
-        pathArgument = subParser.add(option: "--path",
-                                     shortName: "-p",
-                                     kind: String.self,
-                                     usage: "The path to the folder where the project will be generated (Default: Current directory).",
-                                     completion: .filename)
-        nameArgument = subParser.add(option: "--name",
-                                     shortName: "-n",
-                                     kind: String.self,
-                                     usage: "The name of the project. If it's not passed (Default: Name of the directory).",
-                                     completion: nil)
-        templateArgument = subParser.add(option: "--template",
-                                         shortName: "-t",
-                                         kind: String.self,
-                                         usage: "The name of the template to use (you can list available templates with tuist scaffold --list).",
-                                         completion: nil)
-        self.templatesDirectoryLocator = templatesDirectoryLocator
-        self.templateGenerator = templateGenerator
-        self.templateLoader = templateLoader
-    }
-
-    func parse(with parser: ArgumentParser, arguments: [String]) throws -> ArgumentParser.Result {
-        guard arguments.contains("--template") else { return try parser.parse(arguments) }
-        // Plucking out path and template argument
-        let pairedArguments = stride(from: 1, to: arguments.count, by: 2).map {
-            arguments[$0 ..< min($0 + 2, arguments.count)]
-        }
-        let filteredArguments = pairedArguments
-            .filter {
-                $0.first == "--path" || $0.first == "--template"
-            }
-            .flatMap { Array($0) }
-        // We want to parse only the name of template, not its arguments which will be dynamically added
-        let resultArguments = try parser.parse(Array(arguments.prefix(1)) + filteredArguments)
-
-        guard let templateName = resultArguments.get(templateArgument) else { throw InitCommandError.templateNotProvided }
-
-        let path = self.path(arguments: resultArguments)
-        let directories = try templatesDirectoryLocator.templateDirectories(at: path)
-
-        let templateDirectory = try self.templateDirectory(templateDirectories: directories,
-                                                           template: templateName)
-
-        let template = try templateLoader.loadTemplate(at: templateDirectory)
-
-        // Dynamically add attributes from template to `subParser`
-        attributesArguments = template.attributes.reduce([:]) {
-            var mutableDictionary = $0
-            mutableDictionary[$1.name] = subParser.add(option: "--\($1.name)",
-                                                       kind: String.self)
-            return mutableDictionary
-        }
-
-        return try parser.parse(arguments)
-    }
-
-    func run(with arguments: ArgumentParser.Result) throws {
-        let platform = try self.platform(arguments: arguments)
-        let path = self.path(arguments: arguments)
-        let name = try self.name(arguments: arguments, path: path)
-        try verifyDirectoryIsEmpty(path: path)
-
-        let directories = try templatesDirectoryLocator.templateDirectories(at: path)
-        if let template = arguments.get(templateArgument) {
-            guard
-                let templateDirectory = directories.first(where: { $0.basename == template })
-            else { throw InitCommandError.templateNotFound(template) }
-            let template = try templateLoader.loadTemplate(at: templateDirectory)
-            let parsedAttributes = try validateAttributes(attributesArguments,
-                                                          template: template,
-                                                          arguments: arguments)
-
-            try templateGenerator.generate(template: template,
-                                           to: path,
-                                           attributes: parsedAttributes)
-        } else {
-            guard
-                let templateDirectory = directories.first(where: { $0.basename == "default" })
-            else { throw InitCommandError.templateNotFound("default") }
-            let template = try templateLoader.loadTemplate(at: templateDirectory)
-            try templateGenerator.generate(template: template,
-                                           to: path,
-                                           attributes: ["name": name, "platform": platform.caseValue])
-        }
-
-        logger.notice("Project generated at path \(path.pathString).", metadata: .success)
-    }
-
-    // MARK: - Fileprivate
-
-    /// Checks if the given directory is empty, essentially that it doesn't contain any file or directory.
-    ///
-    /// - Parameter path: Directory to be checked.
-    /// - Throws: An InitCommandError.nonEmptyDirectory error when the directory is not empty.
-    private func verifyDirectoryIsEmpty(path: AbsolutePath) throws {
-        if !path.glob("*").isEmpty {
-            throw InitCommandError.nonEmptyDirectory(path)
-        }
-    }
-
-    /// Validates if all `attributes` from `template` have been provided
-    /// If those attributes are optional, they default to `default` if not provided
-    /// - Returns: Array of parsed attributes
-    private func validateAttributes(_ attributes: [String: OptionArgument<String>],
-                                    template: Template,
-                                    arguments: ArgumentParser.Result) throws -> [String: String] {
-        try template.attributes.reduce([:]) {
-            var mutableDict = $0
-            switch $1 {
-            case let .required(name):
-                guard
-                    let argument = attributes[name],
-                    let value = arguments.get(argument)
-                else { throw InitCommandError.attributeNotProvided(name) }
-                mutableDict[name] = value
-            case let .optional(name, default: defaultValue):
-                guard
-                    let argument = attributes[name],
-                    let value: String = arguments.get(argument)
-                else {
-                    mutableDict[name] = defaultValue
-                    return mutableDict
-                }
-                mutableDict[name] = value
-            }
-            return mutableDict
-        }
-    }
-
-    /// Finds template directory
-    /// - Parameters:
-    ///     - templateDirectories: Paths of available templates
-    ///     - template: Name of template
-    /// - Returns: `AbsolutePath` of template directory
-    private func templateDirectory(templateDirectories: [AbsolutePath], template: String) throws -> AbsolutePath {
+// MARK: - Preprocessing
+extension InitCommand {
+    static var requiredTemplateOptions: [(name: String, option: Option<String>)] = []
+    static var optionalTemplateOptions: [(name: String, option: Option<String?>)] = []
+    
+    /// We do not know template's option in advance -> we need to dynamically add them
+    static func preprocess(_ arguments: [String]? = nil) throws {
         guard
-            let templateDirectory = templateDirectories.first(where: { $0.basename == template })
-        else { throw InitCommandError.templateNotFound(template) }
-        return templateDirectory
-    }
-
-    private func name(arguments: ArgumentParser.Result, path: AbsolutePath) throws -> String {
-        if let name = arguments.get(nameArgument) {
-            return name
-        } else if let name = path.components.last {
-            return name
-        } else {
-            throw InitCommandError.ungettableProjectName(AbsolutePath.current)
+            let arguments = arguments,
+            arguments.contains("--template")
+        else { return }
+        
+        // We want to parse only the name of template, not its arguments which will be dynamically added
+        // Plucking out path argument
+        let pairedArguments: [[String]] = stride(from: 1, to: arguments.count, by: 2).map {
+            Array(arguments[$0 ..< min($0 + 2, arguments.count)])
         }
-    }
-
-    private func path(arguments: ArgumentParser.Result) -> AbsolutePath {
-        if let path = arguments.get(pathArgument) {
-            return AbsolutePath(path, relativeTo: FileHandler.shared.currentPath)
-        } else {
-            return FileHandler.shared.currentPath
+        let possibleValues = ["--path", "-p", "--template", "-t"]
+        let filteredArguments = pairedArguments
+        .filter {
+            possibleValues.contains($0.first ?? "")
         }
-    }
-
-    private func platform(arguments: ArgumentParser.Result) throws -> Platform {
-        if let platformString = arguments.get(platformArgument) {
-            if let platform = Platform(rawValue: platformString) {
-                return platform
-            } else {
-                throw ArgumentParserError.invalidValue(argument: "platform", error: .custom("Platform should be either ios, tvos, or macos"))
-            }
-        } else {
-            return .iOS
+        .flatMap { $0 }
+        
+        guard
+            let command = try parseAsRoot(filteredArguments) as? InitCommand,
+            let templateName = command.template
+        else { return }
+        
+        let (required, optional) = try InitService().loadTemplateOptions(templateName: templateName,
+                                                                         path: command.path)
+        
+        InitCommand.requiredTemplateOptions = required.map {
+            (name: $0, option: Option<String>(name: .shortAndLong))
+        }
+        InitCommand.optionalTemplateOptions = optional.map {
+            (name: $0, option: Option<String?>(name: .shortAndLong))
         }
     }
 }
+
+// MARK: - InitCommand.CodingKeys
+extension InitCommand {
+    enum CodingKeys: CodingKey {
+        case platform
+        case name
+        case template
+        case path
+        case required(String)
+        case optional(String)
+        
+        var stringValue: String {
+            switch self {
+            case .platform:
+                return "plaform"
+            case .name:
+                return "name"
+            case .template:
+                return "template"
+            case .path:
+                return "path"
+            case let .required(required):
+                return required
+            case let .optional(optional):
+                return optional
+            }
+        }
+        
+        // Not used
+        var intValue: Int? { nil }
+        init?(intValue: Int) { nil }
+        init?(stringValue: String) { nil }
+    }
+}
+
+/// ArgumentParser library gets the list of options from a mirror
+/// Since we do not declare template's options in advance, we need to rewrite the mirror implementation and add them ourselves
+extension InitCommand: CustomReflectable {
+    var customMirror: Mirror {
+        let requiredTemplateChildren = InitCommand.requiredTemplateOptions
+            .map { Mirror.Child(label: $0.name, value: $0.option) }
+        let optionalTemplateChildren = InitCommand.optionalTemplateOptions
+            .map { Mirror.Child(label: $0.name, value: $0.option) }
+        let children = [
+            Mirror.Child(label: "platform", value: _platform),
+            Mirror.Child(label: "name", value: _name),
+            Mirror.Child(label: "template", value: _template),
+            Mirror.Child(label: "path", value: _path),
+        ]
+        return Mirror(InitCommand.init(), children: children + requiredTemplateChildren + optionalTemplateChildren)
+    }
+}
+
+
+//    func parse(with parser: ArgumentParser, arguments: [String]) throws -> ArgumentParser.Result {
+//        guard arguments.contains("--template") else { return try parser.parse(arguments) }
+//        // Plucking out path and template argument
+//        let pairedArguments = stride(from: 1, to: arguments.count, by: 2).map {
+//            arguments[$0 ..< min($0 + 2, arguments.count)]
+//        }
+//        let filteredArguments = pairedArguments
+//            .filter {
+//                $0.first == "--path" || $0.first == "--template"
+//            }
+//            .flatMap { Array($0) }
+//        // We want to parse only the name of template, not its arguments which will be dynamically added
+//        let resultArguments = try parser.parse(Array(arguments.prefix(1)) + filteredArguments)
+//
+//        guard let templateName = resultArguments.get(templateArgument) else { throw InitCommandError.templateNotProvided }
+//
+//        let path = self.path(arguments: resultArguments)
+//        let directories = try templatesDirectoryLocator.templateDirectories(at: path)
+//
+//        let templateDirectory = try self.templateDirectory(templateDirectories: directories,
+//                                                           template: templateName)
+//
+//        let template = try templateLoader.loadTemplate(at: templateDirectory)
+//
+//        // Dynamically add attributes from template to `subParser`
+//        attributesArguments = template.attributes.reduce([:]) {
+//            var mutableDictionary = $0
+//            mutableDictionary[$1.name] = subParser.add(option: "--\($1.name)",
+//                                                       kind: String.self)
+//            return mutableDictionary
+//        }
+//
+//        return try parser.parse(arguments)
+//    }

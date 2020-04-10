@@ -10,7 +10,8 @@ public struct TuistCommand: ParsableCommand {
                              abstract: "Generate, build and test your Xcode projects.",
                              subcommands: [
                                 GenerateCommand.self,
-                                ScaffoldCommand.self
+                                ScaffoldCommand.self,
+                                InitCommand.self,
         ])
     }
 
@@ -21,6 +22,9 @@ public struct TuistCommand: ParsableCommand {
             let processedArguments = processArguments(arguments)
             if processedArguments?.first == ScaffoldCommand.configuration.commandName {
                 try ScaffoldCommand.preprocess(processedArguments)
+            }
+            if processedArguments?.first == InitCommand.configuration.commandName {
+                try InitCommand.preprocess(processedArguments)
             }
             command = try parseAsRoot(processedArguments!)
         } catch {
