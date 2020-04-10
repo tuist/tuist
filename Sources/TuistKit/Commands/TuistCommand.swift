@@ -8,14 +8,21 @@ public struct TuistCommand: ParsableCommand {
     public static var configuration: CommandConfiguration {
         CommandConfiguration(commandName: "tuist",
                              abstract: "Generate, build and test your Xcode projects.",
-                             subcommands: [GenerateCommand.self])
+                             subcommands: [
+                                GenerateCommand.self,
+                                ScaffoldCommand.self
+        ])
     }
 
     public static func main(_ arguments: [String]? = nil) -> Never {
         let errorHandler = ErrorHandler()
         let command: ParsableCommand
         do {
-            command = try parseAsRoot(processArguments(arguments))
+            let processedArguments = processArguments(arguments)
+            if processedArguments?.first == ScaffoldCommand._commandName {
+                try ScaffoldCommand.preprocess(processedArguments)
+            }
+            command = try parseAsRoot(processedArguments!)
         } catch {
             logger.error("\(fullMessage(for: error))")
             _exit(exitCode(for: error).rawValue)
@@ -35,6 +42,7 @@ public struct TuistCommand: ParsableCommand {
     // MARK: - Helpers
 
     private static func processArguments(_ arguments: [String]?) -> [String]? {
-        arguments?.filter { $0 != "--verbose" }
+        let arguments = arguments ?? Array(CommandLine.arguments.dropFirst())
+        return arguments.filter { $0 != "--verbose" }
     }
 }
