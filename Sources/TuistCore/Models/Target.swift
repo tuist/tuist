@@ -13,26 +13,26 @@ public struct Target: Equatable, Hashable {
 
     // MARK: - Attributes
 
-    public let name: String
-    public let platform: Platform
-    public let product: Product
-    public let bundleId: String
-    public let productName: String
-    public let deploymentTarget: DeploymentTarget?
+    public var name: String
+    public var platform: Platform
+    public var product: Product
+    public var bundleId: String
+    public var productName: String
+    public var deploymentTarget: DeploymentTarget?
 
     // An info.plist file is needed for (dynamic) frameworks, applications and executables
     // however is not needed for other products such as static libraries.
-    public private(set) var infoPlist: InfoPlist?
-    public let entitlements: AbsolutePath?
-    public let settings: Settings?
-    public let dependencies: [Dependency]
-    public let sources: [SourceFile]
-    public let resources: [FileElement]
-    public let headers: Headers?
-    public let coreDataModels: [CoreDataModel]
-    public let actions: [TargetAction]
-    public let environment: [String: String]
-    public let filesGroup: ProjectGroup
+    public var infoPlist: InfoPlist?
+    public var entitlements: AbsolutePath?
+    public var settings: Settings?
+    public var dependencies: [Dependency]
+    public var sources: [SourceFile]
+    public var resources: [FileElement]
+    public var headers: Headers?
+    public var coreDataModels: [CoreDataModel]
+    public var actions: [TargetAction]
+    public var environment: [String: String]
+    public var filesGroup: ProjectGroup
 
     // MARK: - Init
 

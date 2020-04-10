@@ -2,7 +2,7 @@ import Basic
 import Foundation
 import TuistSupport
 
-public class Project: Equatable, CustomStringConvertible {
+public struct Project: Equatable, CustomStringConvertible {
     public static func == (lhs: Project, rhs: Project) -> Bool {
         lhs.path == rhs.path &&
             lhs.name == rhs.name &&
@@ -20,37 +20,37 @@ public class Project: Equatable, CustomStringConvertible {
     // MARK: - Attributes
 
     /// Path to the folder that contains the project manifest.
-    public let path: AbsolutePath
+    public var path: AbsolutePath
 
     /// Project name.
-    public let name: String
+    public var name: String
 
     /// Organization name.
-    public let organizationName: String?
+    public var organizationName: String?
 
     /// Project file name.
-    public let fileName: String
+    public var fileName: String
 
     /// Project targets.
-    public private(set) var targets: [Target]
+    public var targets: [Target]
 
     /// Project swift packages.
-    public let packages: [Package]
+    public var packages: [Package]
 
     /// Project schemes
-    public let schemes: [Scheme]
+    public var schemes: [Scheme]
 
     /// Auto generate default schemes
-    public let autogenerateSchemes: Bool
+    public var autogenerateSchemes: Bool
 
     /// Project settings.
-    public let settings: Settings
+    public var settings: Settings
 
     /// The group to place project files within
-    public let filesGroup: ProjectGroup
+    public var filesGroup: ProjectGroup
 
     /// Additional files to include in the project
-    public let additionalFiles: [FileElement]
+    public var additionalFiles: [FileElement]
 
     // MARK: - Init
 
