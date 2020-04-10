@@ -37,7 +37,7 @@ final class InitServiceTests: TuistUnitTestCase {
         // Given
         let path = FileHandler.shared.currentPath
         try FileHandler.shared.touch(path.appending(component: "dummy"))
-        
+
         // Then
         XCTAssertThrowsSpecific(try subject.testRun(), InitServiceError.nonEmptyDirectory(path))
     }

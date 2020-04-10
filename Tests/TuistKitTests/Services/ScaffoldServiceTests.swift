@@ -35,21 +35,21 @@ final class ScaffoldServiceTests: TuistUnitTestCase {
         templateGenerator = nil
         super.tearDown()
     }
-    
+
     func test_load_template_options() throws {
         // Given
         templateLoader.loadTemplateStub = { _ in
             Template(description: "test",
                      attributes: [
-                        .required("required"),
-                        .optional("optional", default: "")
-            ])
+                         .required("required"),
+                         .optional("optional", default: ""),
+                     ])
         }
 
         templatesDirectoryLocator.templateDirectoriesStub = { _ in
             [try self.temporaryPath().appending(component: "template")]
         }
-        
+
         let expectedOptions: (required: [String], optional: [String]) = (required: ["required"], optional: ["optional"])
 
         // When

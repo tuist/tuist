@@ -1,6 +1,6 @@
+import ArgumentParser
 import Basic
 import Foundation
-import ArgumentParser
 import TuistCore
 import TuistGenerator
 import TuistLoader
@@ -21,28 +21,28 @@ struct InitCommand: ParsableCommand {
         help: "The platform (ios, tvos or macos) the product will be for (Default: ios)"
     )
     var platform: String?
-    
+
     @Option(
         name: .shortAndLong,
         help: "The path to the folder where the project will be generated (Default: Current directory)"
     )
     var path: String?
-    
+
     @Option(
         name: .shortAndLong,
         help: "The name of the project. If it's not passed (Default: Name of the directory)"
     )
     var name: String?
-    
+
     @Option(
         name: .shortAndLong,
         help: "The name of the template to use (you can list available templates with tuist scaffold list)"
     )
     var template: String?
-    
+
     var requiredTemplateOptions: [String: String] = [:]
     var optionalTemplateOptions: [String: String?] = [:]
-    
+
     init() {}
 
     // Custom decoding to decode dynamic options
@@ -73,17 +73,18 @@ struct InitCommand: ParsableCommand {
 }
 
 // MARK: - Preprocessing
+
 extension InitCommand {
     static var requiredTemplateOptions: [(name: String, option: Option<String>)] = []
     static var optionalTemplateOptions: [(name: String, option: Option<String?>)] = []
-    
+
     /// We do not know template's option in advance -> we need to dynamically add them
     static func preprocess(_ arguments: [String]? = nil) throws {
         guard
             let arguments = arguments,
             arguments.contains("--template")
         else { return }
-        
+
         // We want to parse only the name of template, not its arguments which will be dynamically added
         // Plucking out path argument
         let pairedArguments: [[String]] = stride(from: 1, to: arguments.count, by: 2).map {
@@ -91,20 +92,20 @@ extension InitCommand {
         }
         let possibleValues = ["--path", "-p", "--template", "-t"]
         let filteredArguments = pairedArguments
-        .filter {
-            possibleValues.contains($0.first ?? "")
-        }
-        .flatMap { $0 }
-        
+            .filter {
+                possibleValues.contains($0.first ?? "")
+            }
+            .flatMap { $0 }
+
         guard
             let command = try parseAsRoot(filteredArguments) as? InitCommand,
             let templateName = command.template,
             templateName != "default"
         else { return }
-        
+
         let (required, optional) = try InitService().loadTemplateOptions(templateName: templateName,
                                                                          path: command.path)
-        
+
         InitCommand.requiredTemplateOptions = required.map {
             (name: $0, option: Option<String>(name: .shortAndLong))
         }
@@ -115,6 +116,7 @@ extension InitCommand {
 }
 
 // MARK: - InitCommand.CodingKeys
+
 extension InitCommand {
     enum CodingKeys: CodingKey {
         case platform
@@ -123,7 +125,7 @@ extension InitCommand {
         case path
         case required(String)
         case optional(String)
-        
+
         var stringValue: String {
             switch self {
             case .platform:
@@ -140,11 +142,11 @@ extension InitCommand {
                 return optional
             }
         }
-        
+
         // Not used
         var intValue: Int? { nil }
-        init?(intValue: Int) { nil }
-        init?(stringValue: String) { nil }
+        init?(intValue _: Int) { nil }
+        init?(stringValue _: String) { nil }
     }
 }
 
@@ -162,6 +164,6 @@ extension InitCommand: CustomReflectable {
             Mirror.Child(label: "template", value: _template),
             Mirror.Child(label: "path", value: _path),
         ]
-        return Mirror(InitCommand.init(), children: children + requiredTemplateChildren + optionalTemplateChildren)
+        return Mirror(InitCommand(), children: children + requiredTemplateChildren + optionalTemplateChildren)
     }
 }

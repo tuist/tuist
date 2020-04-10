@@ -1,6 +1,6 @@
-import Foundation
-import Basic
 import ArgumentParser
+import Basic
+import Foundation
 import TuistCore
 import TuistSupport
 
@@ -25,24 +25,24 @@ enum ScaffoldCommandError: FatalError, Equatable {
 struct ScaffoldCommand: ParsableCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(commandName: "scaffold",
-                     abstract: "Generates new project based on template",
-                     subcommands: [ListCommand.self])
+                             abstract: "Generates new project based on template",
+                             subcommands: [ListCommand.self])
     }
-    
+
     @Option(
         name: .shortAndLong,
         help: "The path to the folder where the template will be generated (Default: Current directory)"
     )
     var path: String?
-    
+
     @Argument(
         help: "Name of template you want to use"
     )
     var template: String
-    
+
     var requiredTemplateOptions: [String: String] = [:]
     var optionalTemplateOptions: [String: String?] = [:]
-    
+
     init() {}
 
     // Custom decoding to decode dynamic options
@@ -59,7 +59,7 @@ struct ScaffoldCommand: ParsableCommand {
                                                                         forKey: .optional(option.name)).wrappedValue
         }
     }
-    
+
     func run() throws {
         // Currently, @Argument and subcommand clashes, so we need to handle that ourselves
         if template == ListCommand.configuration.commandName {
@@ -74,10 +74,11 @@ struct ScaffoldCommand: ParsableCommand {
 }
 
 // MARK: - Preprocessing
+
 extension ScaffoldCommand {
     static var requiredTemplateOptions: [(name: String, option: Option<String>)] = []
     static var optionalTemplateOptions: [(name: String, option: Option<String?>)] = []
-    
+
     /// We do not know template's option in advance -> we need to dynamically add them
     static func preprocess(_ arguments: [String]? = nil) throws {
         guard
@@ -91,16 +92,16 @@ extension ScaffoldCommand {
             Array(arguments[$0 ..< min($0 + 2, arguments.count)])
         }
         let filteredArguments = pairedArguments
-        .filter {
-            $0.first == "--path" || $0.first == "-p"
-        }
-        .flatMap { $0 }
-        
+            .filter {
+                $0.first == "--path" || $0.first == "-p"
+            }
+            .flatMap { $0 }
+
         guard let command = try parseAsRoot([arguments[1]] + filteredArguments) as? ScaffoldCommand else { return }
-        
+
         let (required, optional) = try ScaffoldService().loadTemplateOptions(templateName: command.template,
                                                                              path: command.path)
-        
+
         ScaffoldCommand.requiredTemplateOptions = required.map {
             (name: $0, option: Option<String>(name: .shortAndLong))
         }
@@ -111,13 +112,14 @@ extension ScaffoldCommand {
 }
 
 // MARK: - ScaffoldCommand.CodingKeys
+
 extension ScaffoldCommand {
     enum CodingKeys: CodingKey {
         case template
         case path
         case required(String)
         case optional(String)
-        
+
         var stringValue: String {
             switch self {
             case .template:
@@ -130,11 +132,11 @@ extension ScaffoldCommand {
                 return optional
             }
         }
-        
+
         // Not used
         var intValue: Int? { nil }
-        init?(intValue: Int) { nil }
-        init?(stringValue: String) { nil }
+        init?(intValue _: Int) { nil }
+        init?(stringValue _: String) { nil }
     }
 }
 
@@ -150,6 +152,6 @@ extension ScaffoldCommand: CustomReflectable {
             Mirror.Child(label: "template", value: _template),
             Mirror.Child(label: "path", value: _path),
         ]
-        return Mirror(ScaffoldCommand.init(), children: children + requiredTemplateChildren + optionalTemplateChildren)
+        return Mirror(ScaffoldCommand(), children: children + requiredTemplateChildren + optionalTemplateChildren)
     }
 }

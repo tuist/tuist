@@ -26,23 +26,23 @@ final class ListServiceTests: TuistUnitTestCase {
         templatesDirectoryLocator = nil
         super.tearDown()
     }
-    
+
     func test_lists_available_templates() throws {
         // Given
         let expectedTemplates = ["template", "customTemplate"]
         let expectedOutput = expectedTemplates.map { $0 + ": description" }
-        
+
         templatesDirectoryLocator.templateDirectoriesStub = { _ in
             try expectedTemplates.map(self.temporaryPath().appending)
         }
-        
+
         templateLoader.loadTemplateStub = { _ in
             Template(description: "description")
         }
-        
+
         // When
         try subject.run(path: nil)
-        
+
         // Then
         expectedOutput.forEach {
             XCTAssertPrinterContains($0, at: .info, ==)

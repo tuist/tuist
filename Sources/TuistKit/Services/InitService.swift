@@ -1,8 +1,8 @@
 import Basic
 import TuistCore
-import TuistSupport
 import TuistLoader
 import TuistScaffold
+import TuistSupport
 
 enum InitServiceError: FatalError, Equatable {
     case ungettableProjectName(AbsolutePath)
@@ -36,11 +36,12 @@ enum InitServiceError: FatalError, Equatable {
         }
     }
 }
+
 class InitService {
     private let templateLoader: TemplateLoading
     private let templatesDirectoryLocator: TemplatesDirectoryLocating
     private let templateGenerator: TemplateGenerating
-    
+
     init(templateLoader: TemplateLoading = TemplateLoader(),
          templatesDirectoryLocator: TemplatesDirectoryLocating = TemplatesDirectoryLocator(),
          templateGenerator: TemplateGenerating = TemplateGenerator()) {
@@ -48,7 +49,7 @@ class InitService {
         self.templatesDirectoryLocator = templatesDirectoryLocator
         self.templateGenerator = templateGenerator
     }
-    
+
     func loadTemplateOptions(templateName: String,
                              path: String?) throws -> (required: [String],
                                                        optional: [String]) {
@@ -59,7 +60,7 @@ class InitService {
                                                            template: templateName)
 
         let template = try templateLoader.loadTemplate(at: templateDirectory)
-        
+
         return template.attributes.reduce(into: (required: [], optional: [])) { currentValue, attribute in
             switch attribute {
             case let .optional(name, default: _):
@@ -69,7 +70,7 @@ class InitService {
             }
         }
     }
-    
+
     func run(name: String?,
              platform: String?,
              path: String?,
@@ -108,7 +109,7 @@ class InitService {
 
         logger.notice("Project generated at path \(path.pathString).", metadata: .success)
     }
-    
+
     // MARK: - Helpers
 
     /// Checks if the given directory is empty, essentially that it doesn't contain any file or directory.

@@ -1,8 +1,8 @@
 import Basic
 import TuistCore
-import TuistSupport
 import TuistLoader
 import TuistScaffold
+import TuistSupport
 
 enum ScaffoldServiceError: FatalError, Equatable {
     var type: ErrorType {
@@ -32,7 +32,7 @@ class ScaffoldService {
     private let templateLoader: TemplateLoading
     private let templatesDirectoryLocator: TemplatesDirectoryLocating
     private let templateGenerator: TemplateGenerating
-    
+
     init(templateLoader: TemplateLoading = TemplateLoader(),
          templatesDirectoryLocator: TemplatesDirectoryLocating = TemplatesDirectoryLocator(),
          templateGenerator: TemplateGenerating = TemplateGenerator()) {
@@ -40,7 +40,7 @@ class ScaffoldService {
         self.templatesDirectoryLocator = templatesDirectoryLocator
         self.templateGenerator = templateGenerator
     }
-    
+
     func loadTemplateOptions(templateName: String,
                              path: String?) throws -> (required: [String],
                                                        optional: [String]) {
@@ -51,7 +51,7 @@ class ScaffoldService {
                                                            template: templateName)
 
         let template = try templateLoader.loadTemplate(at: templateDirectory)
-        
+
         return template.attributes.reduce(into: (required: [], optional: [])) { currentValue, attribute in
             switch attribute {
             case let .optional(name, default: _):
@@ -61,7 +61,7 @@ class ScaffoldService {
             }
         }
     }
-    
+
     func run(path: String?,
              templateName: String,
              requiredTemplateOptions: [String: String],
@@ -71,7 +71,7 @@ class ScaffoldService {
         let templateDirectories = try templatesDirectoryLocator.templateDirectories(at: path)
 
         let templateDirectory = try self.templateDirectory(templateDirectories: templateDirectories,
-                                                          template: templateName)
+                                                           template: templateName)
 
         let template = try templateLoader.loadTemplate(at: templateDirectory)
 
@@ -85,7 +85,7 @@ class ScaffoldService {
 
         logger.notice("Template \(templateName) was successfully generated", metadata: .success)
     }
-    
+
     // MARK: - Helpers
 
     private func path(_ path: String?) -> AbsolutePath {

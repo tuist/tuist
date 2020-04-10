@@ -9,11 +9,11 @@ public struct TuistCommand: ParsableCommand {
         CommandConfiguration(commandName: "tuist",
                              abstract: "Generate, build and test your Xcode projects.",
                              subcommands: [
-                                GenerateCommand.self,
-                                UpCommand.self,
-                                ScaffoldCommand.self,
-                                InitCommand.self,
-        ])
+                                 GenerateCommand.self,
+                                 UpCommand.self,
+                                 ScaffoldCommand.self,
+                                 InitCommand.self,
+                             ])
     }
 
     public static func main(_ arguments: [String]? = nil) -> Never {
