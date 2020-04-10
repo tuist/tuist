@@ -17,6 +17,7 @@ public struct TuistCommand: ParsableCommand {
                                  GraphCommand.self,
                                  LintCommand.self,
                                  VersionCommand.self,
+                                 BuildCommand.self,
                              ])
     }
 

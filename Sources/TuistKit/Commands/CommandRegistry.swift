@@ -24,7 +24,6 @@ public final class CommandRegistry {
         register(command: CacheCommand.self)
         register(command: SigningCommand.self)
         register(command: CloudCommand.self)
-        register(rawCommand: BuildCommand.self)
     }
 
     init(errorHandler: ErrorHandling,
