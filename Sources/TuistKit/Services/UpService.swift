@@ -3,7 +3,7 @@ import TuistGenerator
 import TuistLoader
 import TuistSupport
 
-class UpService {
+final class UpService {
     // MARK: - Attributes
 
     /// Instance to load the setup manifest and perform the project setup.

@@ -11,6 +11,7 @@ public struct TuistCommand: ParsableCommand {
                              subcommands: [
                                  GenerateCommand.self,
                                  UpCommand.self,
+                                 FocusCommand.self,
                              ])
     }
 

@@ -3,7 +3,7 @@ import TuistGenerator
 import TuistLoader
 import TuistSupport
 
-class GenerateService {
+final class GenerateService {
     // MARK: - Attributes
 
     private let clock: Clock
