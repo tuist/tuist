@@ -240,7 +240,9 @@ public class FileHandler: FileHandling {
 
     public func delete(_ path: AbsolutePath) throws {
         logger.debug("Deleting item at path \(path)")
-        try fileManager.removeItem(atPath: path.pathString)
+        if exists(path) {
+            try fileManager.removeItem(atPath: path.pathString)
+        }
     }
 
     public func touch(_ path: AbsolutePath) throws {

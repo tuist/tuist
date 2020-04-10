@@ -6,12 +6,13 @@ import TuistCore
 @testable import TuistSupportTesting
 
 final class MockEmbedScriptGenerator: EmbedScriptGenerating {
-    var scriptArgs: [(AbsolutePath, [GraphDependencyReference])] = []
+    var scriptArgs: [(AbsolutePath, [GraphDependencyReference], Bool)] = []
     var scriptStub: Result<EmbedScript, Error>?
 
     func script(sourceRootPath: AbsolutePath,
-                frameworkReferences: [GraphDependencyReference]) throws -> EmbedScript {
-        scriptArgs.append((sourceRootPath, frameworkReferences))
+                frameworkReferences: [GraphDependencyReference],
+                includeSymbolsInFileLists: Bool) throws -> EmbedScript {
+        scriptArgs.append((sourceRootPath, frameworkReferences, includeSymbolsInFileLists))
         if let scriptStub = scriptStub {
             switch scriptStub {
             case let .failure(error): throw error

@@ -1,6 +1,10 @@
 import Basic
 import Foundation
+import RxBlocking
+import RxSwift
 import SPMUtility
+import TuistCache
+import TuistCore
 import TuistGenerator
 import TuistLoader
 import TuistSupport
@@ -30,7 +34,7 @@ class FocusCommand: NSObject, Command {
     /// - Parameter parser: Argument parser that parses the CLI arguments.
     required convenience init(parser: ArgumentParser) {
         self.init(parser: parser,
-                  generator: ProjectGenerator(),
+                  generator: ProjectGenerator(graphMapperProvider: GraphMapperProvider(useCache: true)),
                   opener: Opener())
     }
 

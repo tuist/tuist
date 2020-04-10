@@ -62,7 +62,10 @@ final class SchemesGenerator: SchemesGenerating {
                                generatedProjects: [project.path: generatedProject])
         }
 
-        /// Generate default schemes for targets in Project that are not defined in Manifest
+        guard project.autogenerateSchemes else {
+            return customSchemes
+        }
+
         let buildConfiguration = defaultDebugBuildConfigurationName(in: project)
         let userDefinedSchemes = Set(project.schemes.map(\.name))
         let defaultSchemeTargets = project.targets.filter { !userDefinedSchemes.contains($0.name) }

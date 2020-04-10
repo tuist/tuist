@@ -1,5 +1,5 @@
 import Foundation
 
-public final class watchOS {
+public final class macOS {
     public init() {}
 }

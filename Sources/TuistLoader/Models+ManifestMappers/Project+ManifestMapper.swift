@@ -39,6 +39,7 @@ extension TuistCore.Project {
                 targets: targets + [target],
                 packages: packages,
                 schemes: schemes,
+                autogenerateSchemes: autogenerateSchemes,
                 additionalFiles: additionalFiles)
     }
 
@@ -52,6 +53,7 @@ extension TuistCore.Project {
                 targets: targets,
                 packages: packages,
                 schemes: schemes,
+                autogenerateSchemes: autogenerateSchemes,
                 additionalFiles: additionalFiles)
     }
 
@@ -65,6 +67,21 @@ extension TuistCore.Project {
                 targets: targets,
                 packages: packages,
                 schemes: schemes,
+                autogenerateSchemes: autogenerateSchemes,
+                additionalFiles: additionalFiles)
+    }
+
+    func replacing(autogenerateSchemes: Bool) -> TuistCore.Project {
+        Project(path: path,
+                name: name,
+                organizationName: organizationName,
+                fileName: fileName,
+                settings: settings,
+                filesGroup: filesGroup,
+                targets: targets,
+                packages: packages,
+                schemes: schemes,
+                autogenerateSchemes: autogenerateSchemes,
                 additionalFiles: additionalFiles)
     }
 }

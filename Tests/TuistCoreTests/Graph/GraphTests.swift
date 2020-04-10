@@ -81,9 +81,6 @@ final class GraphTests: TuistUnitTestCase {
                                     dependencies: [precompiledNode])
         let graph = Graph.test(targets: [targetNode.path: [targetNode]])
 
-        system.succeedCommand("/usr/bin/lipo", "-info", "/test/test.framework/test",
-                              output: "Architectures in the fat file: Alamofire are: x86_64 arm64")
-
         let got = try graph.linkableDependencies(path: project.path, name: target.name)
         XCTAssertEqual(got.first, GraphDependencyReference(precompiledNode: precompiledNode))
     }
@@ -511,6 +508,7 @@ final class GraphTests: TuistUnitTestCase {
     }
 
     func test_embeddableFrameworks_when_targetIsNotApp() throws {
+        // Given
         let target = Target.test(name: "Main", product: .framework)
         let dependency = Target.test(name: "Dependency", product: .framework)
         let project = Project.test(targets: [target])
@@ -525,13 +523,16 @@ final class GraphTests: TuistUnitTestCase {
         ])
         system.succeedCommand([], output: "dynamically linked")
 
+        // When
         let got = try graph.embeddableFrameworks(path: project.path,
                                                  name: target.name)
 
+        // Then
         XCTAssertNil(got.first)
     }
 
     func test_embeddableFrameworks_when_dependencyIsATarget() throws {
+        // Given
         let target = Target.test(name: "Main")
         let dependency = Target.test(name: "Dependency", product: .framework)
         let project = Project.test(targets: [target])
@@ -544,13 +545,16 @@ final class GraphTests: TuistUnitTestCase {
         let graph = Graph.test(projects: [project],
                                targets: [project.path: [targetNode, dependencyNode]])
 
-        system.succeedCommand([], output: "dynamically linked")
+        // When
         let got = try graph.embeddableFrameworks(path: project.path,
                                                  name: target.name)
+
+        // Then
         XCTAssertEqual(got.first, GraphDependencyReference.product(target: "Dependency", productName: "Dependency.framework"))
     }
 
     func test_embeddableFrameworks_when_dependencyIsAFramework() throws {
+        // Given
         let frameworkPath = AbsolutePath("/test/test.framework")
         let target = Target.test(name: "Main", platform: .iOS)
         let frameworkNode = FrameworkNode.test(path: frameworkPath)
@@ -562,12 +566,39 @@ final class GraphTests: TuistUnitTestCase {
                                precompiled: [frameworkNode],
                                targets: [project.path: [targetNode]])
 
-        system.succeedCommand("/usr/bin/file", "/test/test.framework/test",
-                              output: "dynamically linked")
-
+        // When
         let got = try graph.embeddableFrameworks(path: project.path, name: target.name)
 
+        // Then
         XCTAssertEqual(got.first, GraphDependencyReference(precompiledNode: frameworkNode))
+    }
+
+    func test_embeddableFrameworks_when_transitiveXCFrameworks() throws {
+        // Given
+        let app = Target.test(name: "App", platform: .iOS, product: .app)
+        let project = Project.test(targets: [app])
+
+        let dNode = XCFrameworkNode.test(path: "/xcframeworks/d.xcframework")
+        let cNode = XCFrameworkNode.test(path: "/xcframeworks/c.xcframework", dependencies: [.xcframework(dNode)])
+        let appNode = TargetNode.test(target: app, dependencies: [cNode])
+
+        let cache = GraphLoaderCache()
+        cache.add(targetNode: appNode)
+        cache.add(precompiledNode: dNode)
+        cache.add(precompiledNode: cNode)
+        let graph = Graph.test(entryNodes: [appNode],
+                               projects: [project],
+                               precompiled: [cNode, dNode],
+                               targets: [project.path: [appNode]])
+
+        // When
+        let got = try graph.embeddableFrameworks(path: project.path, name: app.name)
+
+        // Then
+        XCTAssertEqual(got, [
+            GraphDependencyReference(precompiledNode: cNode),
+            GraphDependencyReference(precompiledNode: dNode),
+        ])
     }
 
     func test_embeddableFrameworks_when_dependencyIsATransitiveFramework() throws {
@@ -591,9 +622,6 @@ final class GraphTests: TuistUnitTestCase {
         let graph = Graph.test(projects: [project],
                                precompiled: [frameworkNode],
                                targets: [project.path: [targetNode, dependencyNode]])
-
-        system.succeedCommand("/usr/bin/file", "/test/test.framework/test",
-                              output: "dynamically linked")
 
         let got = try graph.embeddableFrameworks(path: project.path, name: target.name)
 

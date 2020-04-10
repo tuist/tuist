@@ -17,10 +17,14 @@ public final class MockCacheStorage: CacheStoraging {
         }
     }
 
-    var fetchStub: ((String) -> AbsolutePath)?
+    var fetchStub: ((String) throws -> AbsolutePath)?
     public func fetch(hash: String) -> Single<AbsolutePath> {
         if let fetchStub = fetchStub {
-            return Single.just(fetchStub(hash))
+            do {
+                return Single.just(try fetchStub(hash))
+            } catch {
+                return Single.error(error)
+            }
         } else {
             return Single.just(AbsolutePath.root)
         }

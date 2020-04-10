@@ -33,10 +33,10 @@ public final class MockSystem: Systeming {
     public func run(_ arguments: [String]) throws {
         let command = arguments.joined(separator: " ")
         guard let stub = stubs[command] else {
-            throw TuistSupport.SystemError.terminated(command: arguments.first!, code: 1)
+            throw TuistSupport.SystemError.terminated(command: arguments.first!, code: 1, standardError: Data())
         }
         if stub.exitstatus != 0 {
-            throw TuistSupport.SystemError.terminated(command: arguments.first!, code: 1)
+            throw TuistSupport.SystemError.terminated(command: arguments.first!, code: 1, standardError: Data())
         }
     }
 
@@ -59,10 +59,10 @@ public final class MockSystem: Systeming {
     public func capture(_ arguments: [String], verbose _: Bool, environment _: [String: String]) throws -> String {
         let command = arguments.joined(separator: " ")
         guard let stub = stubs[command] else {
-            throw TuistSupport.SystemError.terminated(command: arguments.first!, code: 1)
+            throw TuistSupport.SystemError.terminated(command: arguments.first!, code: 1, standardError: Data())
         }
         if stub.exitstatus != 0 {
-            throw TuistSupport.SystemError.terminated(command: arguments.first!, code: 1)
+            throw TuistSupport.SystemError.terminated(command: arguments.first!, code: 1, standardError: Data())
         }
         return stub.stdout ?? ""
     }
@@ -91,13 +91,13 @@ public final class MockSystem: Systeming {
     ) throws {
         let command = arguments.joined(separator: " ")
         guard let stub = stubs[command] else {
-            throw TuistSupport.SystemError.terminated(command: arguments.first!, code: 1)
+            throw TuistSupport.SystemError.terminated(command: arguments.first!, code: 1, standardError: Data())
         }
         if stub.exitstatus != 0 {
             if let error = stub.stderror {
                 redirection.outputClosures?.stderrClosure([UInt8](error.data(using: .utf8)!))
             }
-            throw TuistSupport.SystemError.terminated(command: arguments.first!, code: 1)
+            throw TuistSupport.SystemError.terminated(command: arguments.first!, code: 1, standardError: Data())
         }
     }
 
@@ -113,14 +113,14 @@ public final class MockSystem: Systeming {
         Observable.create { (observer) -> Disposable in
             let command = arguments.joined(separator: " ")
             guard let stub = self.stubs[command] else {
-                observer.onError(TuistSupport.SystemError.terminated(command: arguments.first!, code: 1))
+                observer.onError(TuistSupport.SystemError.terminated(command: arguments.first!, code: 1, standardError: Data()))
                 return Disposables.create()
             }
             guard stub.exitstatus == 0 else {
                 if let error = stub.stderror {
                     observer.onNext(.standardError(error.data(using: .utf8)!))
                 }
-                observer.onError(TuistSupport.SystemError.terminated(command: arguments.first!, code: 1))
+                observer.onError(TuistSupport.SystemError.terminated(command: arguments.first!, code: 1, standardError: Data()))
                 return Disposables.create()
             }
             if let stdout = stub.stdout {
@@ -138,10 +138,10 @@ public final class MockSystem: Systeming {
     public func async(_ arguments: [String], verbose _: Bool, environment _: [String: String]) throws {
         let command = arguments.joined(separator: " ")
         guard let stub = stubs[command] else {
-            throw TuistSupport.SystemError.terminated(command: arguments.first!, code: 1)
+            throw TuistSupport.SystemError.terminated(command: arguments.first!, code: 1, standardError: Data())
         }
         if stub.exitstatus != 0 {
-            throw TuistSupport.SystemError.terminated(command: arguments.first!, code: 1)
+            throw TuistSupport.SystemError.terminated(command: arguments.first!, code: 1, standardError: Data())
         }
     }
 

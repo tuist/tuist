@@ -105,19 +105,19 @@ public class TuistTestCase: XCTestCase {
         _ comparison: (Logger.Level, Logger.Level) -> Bool,
         file: StaticString = #file, line: UInt = #line
     ) {
-        let standardError = TestingLogHandler.collected[level, comparison]
+        let output = TestingLogHandler.collected[level, comparison]
 
         let message = """
-        The standard error:
+        The output:
         ===========
-        \(standardError)
+        \(output)
         
-        Doesn't contain the expected output:
+        Doesn't contain the expected:
         ===========
         \(expected)
         """
 
-        XCTAssertTrue(standardError.contains(expected), message, file: file, line: line)
+        XCTAssertTrue(output.contains(expected), message, file: file, line: line)
     }
 
     public func temporaryFixture(_ pathString: String) throws -> AbsolutePath {

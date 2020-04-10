@@ -1,6 +1,8 @@
 import Basic
 import Foundation
+import TuistCore
 import XcodeProj
+
 @testable import TuistGenerator
 
 public extension WorkspaceDescriptor {

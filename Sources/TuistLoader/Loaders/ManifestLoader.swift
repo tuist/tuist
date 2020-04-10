@@ -1,6 +1,8 @@
 import Basic
 import Foundation
 import ProjectDescription
+import RxBlocking
+import RxSwift
 import TuistSupport
 
 public enum ManifestLoaderError: FatalError, Equatable {
@@ -86,6 +88,7 @@ public class ManifestLoader: ManifestLoading {
     let resourceLocator: ResourceLocating
     let projectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding
     let manifestFilesLocator: ManifestFilesLocating
+    let environment: Environmenting
     private let decoder: JSONDecoder
 
     // MARK: - Init
@@ -96,9 +99,11 @@ public class ManifestLoader: ManifestLoading {
                   manifestFilesLocator: ManifestFilesLocator())
     }
 
-    init(resourceLocator: ResourceLocating,
+    init(environment: Environmenting = Environment.shared,
+         resourceLocator: ResourceLocating,
          projectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding,
          manifestFilesLocator: ManifestFilesLocating) {
+        self.environment = environment
         self.resourceLocator = resourceLocator
         self.projectDescriptionHelpersBuilder = projectDescriptionHelpersBuilder
         self.manifestFilesLocator = manifestFilesLocator
@@ -186,11 +191,15 @@ public class ManifestLoader: ManifestLoading {
         arguments.append(path.pathString)
         arguments.append("--tuist-dump")
 
-        let result = try System.shared.capture(arguments).spm_chuzzle()
-        guard let jsonString = result, let data = jsonString.data(using: .utf8) else {
-            throw ManifestLoaderError.unexpectedOutput(path)
-        }
+        let result = System.shared.observable(arguments, verbose: false, environment: environment.tuistVariables)
+            .toBlocking()
+            .materialize()
 
-        return data
+        switch result {
+        case let .completed(elements):
+            return elements.filter { $0.isStandardOutput }.map { $0.value }.reduce(into: Data()) { $0.append($1) }
+        case let .failed(_, error):
+            throw error
+        }
     }
 }
