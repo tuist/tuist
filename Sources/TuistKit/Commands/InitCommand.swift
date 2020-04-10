@@ -98,7 +98,8 @@ extension InitCommand {
         
         guard
             let command = try parseAsRoot(filteredArguments) as? InitCommand,
-            let templateName = command.template
+            let templateName = command.template,
+            templateName != "default"
         else { return }
         
         let (required, optional) = try InitService().loadTemplateOptions(templateName: templateName,

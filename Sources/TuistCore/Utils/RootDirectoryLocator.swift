@@ -15,9 +15,6 @@ public final class RootDirectoryLocator: RootDirectoryLocating {
     /// This cache avoids having to traverse the directories hierarchy every time the locate method is called.
     fileprivate var cache: [AbsolutePath: AbsolutePath] = [:]
 
-    /// Shared instance
-    public static var shared: RootDirectoryLocating = RootDirectoryLocator()
-
     /// Constructor
     public init() {}
 

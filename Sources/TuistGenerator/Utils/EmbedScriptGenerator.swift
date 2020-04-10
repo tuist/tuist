@@ -12,7 +12,10 @@ protocol EmbedScriptGenerating {
     /// to embed the given frameworks into the compiled product.
     /// - Parameter sourceRootPath: Directory where the Xcode project will be created.
     /// - Parameter frameworkReferences: Framework references.
-    func script(sourceRootPath: AbsolutePath, frameworkReferences: [GraphDependencyReference]) throws -> EmbedScript
+    /// - Parameter includeSymbolsInFileLists: Whether or not to list DSYMs/bcsymbol files in the input/output file list.
+    func script(sourceRootPath: AbsolutePath,
+                frameworkReferences: [GraphDependencyReference],
+                includeSymbolsInFileLists: Bool) throws -> EmbedScript
 }
 
 /// It represents a embed frameworks script.
@@ -30,11 +33,13 @@ struct EmbedScript {
 final class EmbedScriptGenerator: EmbedScriptGenerating {
     typealias FrameworkScript = (script: String, inputPaths: [RelativePath], outputPaths: [String])
 
-    func script(sourceRootPath: AbsolutePath, frameworkReferences: [GraphDependencyReference]) throws -> EmbedScript {
+    func script(sourceRootPath: AbsolutePath, frameworkReferences: [GraphDependencyReference], includeSymbolsInFileLists: Bool) throws -> EmbedScript {
         var script = baseScript()
         script.append("\n")
 
-        let (frameworksScript, inputPaths, outputPaths) = try self.frameworksScript(sourceRootPath: sourceRootPath, frameworkReferences: frameworkReferences)
+        let (frameworksScript, inputPaths, outputPaths) = try self.frameworksScript(sourceRootPath: sourceRootPath,
+                                                                                    frameworkReferences: frameworkReferences,
+                                                                                    includeSymbolsInFileLists: includeSymbolsInFileLists)
         script.append(frameworksScript)
 
         return EmbedScript(script: script, inputPaths: inputPaths, outputPaths: outputPaths)
@@ -42,10 +47,24 @@ final class EmbedScriptGenerator: EmbedScriptGenerating {
 
     // MARK: - Fileprivate
 
-    fileprivate func frameworksScript(sourceRootPath: AbsolutePath, frameworkReferences: [GraphDependencyReference]) throws -> FrameworkScript {
+    fileprivate func frameworksScript(sourceRootPath: AbsolutePath,
+                                      frameworkReferences: [GraphDependencyReference],
+                                      includeSymbolsInFileLists: Bool) throws -> FrameworkScript {
         var script = ""
         var inputPaths: [RelativePath] = []
         var outputPaths: [String] = []
+
+        /*
+         * This is required to prevent the new build system from failing when multiple test targets cause the same
+         * output files. The symbols aren't really required to be copied for tests so this patch excludes them.
+         * For more details see the discussion on https://github.com/tuist/tuist/issues/919.
+         */
+        func addSymbolsIfRequired(inputPath: RelativePath, outputPath: String) {
+            if includeSymbolsInFileLists {
+                inputPaths.append(inputPath)
+                outputPaths.append(outputPath)
+            }
+        }
 
         for frameworkReference in frameworkReferences {
             guard case let GraphDependencyReference.framework(path, _, _, dsymPath, bcsymbolmapPaths, _, _, _) = frameworkReference else {
@@ -63,16 +82,14 @@ final class EmbedScriptGenerator: EmbedScriptGenerating {
             if let dsymPath = dsymPath {
                 let relativeDsymPath = dsymPath.relative(to: sourceRootPath)
                 script.append("install_dsym \"\(relativeDsymPath.pathString)\"\n")
-                inputPaths.append(relativeDsymPath)
-                outputPaths.append("${DWARF_DSYM_FOLDER_PATH}/\(dsymPath.basename)")
+                addSymbolsIfRequired(inputPath: relativeDsymPath, outputPath: "${DWARF_DSYM_FOLDER_PATH}/\(dsymPath.basename)")
             }
 
             // .bcsymbolmap
             for bcsymbolmapPath in bcsymbolmapPaths {
                 let relativeDsymPath = bcsymbolmapPath.relative(to: sourceRootPath)
                 script.append("install_bcsymbolmap \"\(relativeDsymPath.pathString)\"\n")
-                inputPaths.append(relativeDsymPath)
-                outputPaths.append("${BUILT_PRODUCTS_DIR}/\(relativeDsymPath.basename)")
+                addSymbolsIfRequired(inputPath: relativeDsymPath, outputPath: "${BUILT_PRODUCTS_DIR}/\(relativeDsymPath.basename)")
             }
         }
         return (script: script, inputPaths: inputPaths, outputPaths: outputPaths)

@@ -47,4 +47,56 @@ final class SystemEventTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(got, .standardError(value))
     }
+
+    func test_isStandardOuptut_when_standardOutput() {
+        // Given
+        let value = "test"
+        let data = value.data(using: .utf8)!
+        let subject = SystemEvent<Data>.standardOutput(data)
+
+        // When
+        let got = subject.isStandardOutput
+
+        // Then
+        XCTAssertTrue(got)
+    }
+
+    func test_isStandardError_when_standardError() {
+        // Given
+        let value = "test"
+        let data = value.data(using: .utf8)!
+        let subject = SystemEvent<Data>.standardError(data)
+
+        // When
+        let got = subject.isStandardError
+
+        // Then
+        XCTAssertTrue(got)
+    }
+
+    func test_isStandardError_when_standardOutput() {
+        // Given
+        let value = "test"
+        let data = value.data(using: .utf8)!
+        let subject = SystemEvent<Data>.standardOutput(data)
+
+        // When
+        let got = subject.isStandardError
+
+        // Then
+        XCTAssertFalse(got)
+    }
+
+    func test_isStandardOuptut_when_standardError() {
+        // Given
+        let value = "test"
+        let data = value.data(using: .utf8)!
+        let subject = SystemEvent<Data>.standardError(data)
+
+        // When
+        let got = subject.isStandardOutput
+
+        // Then
+        XCTAssertFalse(got)
+    }
 }

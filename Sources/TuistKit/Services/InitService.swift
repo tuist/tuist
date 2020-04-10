@@ -87,7 +87,9 @@ class InitService {
                 let templateDirectory = directories.first(where: { $0.basename == templateName })
             else { throw InitServiceError.templateNotFound(templateName) }
             let template = try templateLoader.loadTemplate(at: templateDirectory)
-            let parsedAttributes = try parseAttributes(requiredTemplateOptions: requiredTemplateOptions,
+            let parsedAttributes = try parseAttributes(name: name,
+                                                       platform: platform,
+                                                       requiredTemplateOptions: requiredTemplateOptions,
                                                        optionalTemplateOptions: optionalTemplateOptions,
                                                        template: template)
 
@@ -122,10 +124,20 @@ class InitService {
     /// Parses all `attributes` from `template`
     /// If those attributes are optional, they default to `default` if not provided
     /// - Returns: Array of parsed attributes
-    private func parseAttributes(requiredTemplateOptions: [String: String],
+    private func parseAttributes(name: String,
+                                 platform: Platform,
+                                 requiredTemplateOptions: [String: String],
                                  optionalTemplateOptions: [String: String?],
                                  template: Template) throws -> [String: String] {
         try template.attributes.reduce(into: [:]) { attributesDictionary, attribute in
+            if attribute.name == "name" {
+                attributesDictionary[attribute.name] = name
+                return
+            }
+            if attribute.name == "platform" {
+                attributesDictionary[attribute.name] = platform.caseValue
+                return
+            }
             switch attribute {
             case let .required(name):
                 guard

@@ -10,6 +10,7 @@ public struct TuistCommand: ParsableCommand {
                              abstract: "Generate, build and test your Xcode projects.",
                              subcommands: [
                                 GenerateCommand.self,
+                                UpCommand.self,
                                 ScaffoldCommand.self,
                                 InitCommand.self,
         ])

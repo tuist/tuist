@@ -1,0 +1,8 @@
+import Foundation
+import XCTest
+
+@testable import {{ name }}Support
+
+final class {{ name }}SupportTests: XCTestCase {
+
+}

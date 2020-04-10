@@ -40,7 +40,7 @@ final class LinkGeneratorErrorTests: XCTestCase {
         dependencies.append(GraphDependencyReference.testFramework())
         dependencies.append(GraphDependencyReference.product(target: "Test", productName: "Test.framework"))
         let pbxproj = PBXProj()
-        let pbxTarget = PBXNativeTarget(name: "Test")
+        let (pbxTarget, target) = createTargets(product: .framework)
         let fileElements = ProjectFileElements()
         let wakaFile = PBXFileReference()
         pbxproj.add(object: wakaFile)
@@ -52,6 +52,7 @@ final class LinkGeneratorErrorTests: XCTestCase {
 
         // When
         try subject.generateEmbedPhase(dependencies: dependencies,
+                                       target: target,
                                        pbxTarget: pbxTarget,
                                        pbxproj: pbxproj,
                                        fileElements: fileElements,
@@ -72,15 +73,76 @@ final class LinkGeneratorErrorTests: XCTestCase {
         XCTAssertEqual(settings, ["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]])
     }
 
+    func test_generateEmbedPhase_includesSymbols_when_nonTestTarget() throws {
+        try Product.allCases.filter { !$0.testsBundle }.forEach { product in
+            // Given
+
+            var dependencies: [GraphDependencyReference] = []
+            dependencies.append(GraphDependencyReference.testFramework())
+            dependencies.append(GraphDependencyReference.product(target: "Test", productName: "Test.framework"))
+            let pbxproj = PBXProj()
+            let (pbxTarget, target) = createTargets(product: product)
+            let fileElements = ProjectFileElements()
+            let wakaFile = PBXFileReference()
+            pbxproj.add(object: wakaFile)
+            fileElements.products["Test"] = wakaFile
+            let sourceRootPath = AbsolutePath("/")
+            embedScriptGenerator.scriptStub = .success(EmbedScript(script: "script",
+                                                                   inputPaths: [RelativePath("frameworks/A.framework")],
+                                                                   outputPaths: ["output/A.framework"]))
+
+            // When
+            try subject.generateEmbedPhase(dependencies: dependencies,
+                                           target: target,
+                                           pbxTarget: pbxTarget,
+                                           pbxproj: pbxproj,
+                                           fileElements: fileElements,
+                                           sourceRootPath: sourceRootPath)
+
+            XCTAssert(embedScriptGenerator.scriptArgs.last?.2 == true, "Expected `includeSymbolsInFileLists == true` for product `\(product)`")
+        }
+    }
+
+    func test_generateEmbedPhase_doesNot_includesSymbols_when_testTarget() throws {
+        try Product.allCases.filter { $0.testsBundle }.forEach { product in
+            // Given
+
+            var dependencies: [GraphDependencyReference] = []
+            dependencies.append(GraphDependencyReference.testFramework())
+            dependencies.append(GraphDependencyReference.product(target: "Test", productName: "Test.framework"))
+            let pbxproj = PBXProj()
+            let (pbxTarget, target) = createTargets(product: product)
+            let fileElements = ProjectFileElements()
+            let wakaFile = PBXFileReference()
+            pbxproj.add(object: wakaFile)
+            fileElements.products["Test"] = wakaFile
+            let sourceRootPath = AbsolutePath("/")
+            embedScriptGenerator.scriptStub = .success(EmbedScript(script: "script",
+                                                                   inputPaths: [RelativePath("frameworks/A.framework")],
+                                                                   outputPaths: ["output/A.framework"]))
+
+            // When
+            try subject.generateEmbedPhase(dependencies: dependencies,
+                                           target: target,
+                                           pbxTarget: pbxTarget,
+                                           pbxproj: pbxproj,
+                                           fileElements: fileElements,
+                                           sourceRootPath: sourceRootPath)
+
+            XCTAssert(embedScriptGenerator.scriptArgs.last?.2 == false, "Expected `includeSymbolsInFileLists == false` for product `\(product)`")
+        }
+    }
+
     func test_generateEmbedPhase_throws_when_aProductIsMissing() throws {
         var dependencies: [GraphDependencyReference] = []
         dependencies.append(GraphDependencyReference.product(target: "Test", productName: "Test.framework"))
         let pbxproj = PBXProj()
-        let pbxTarget = PBXNativeTarget(name: "Test")
+        let (pbxTarget, target) = createTargets(product: .framework)
         let fileElements = ProjectFileElements()
         let sourceRootPath = AbsolutePath("/")
 
         XCTAssertThrowsError(try subject.generateEmbedPhase(dependencies: dependencies,
+                                                            target: target,
                                                             pbxTarget: pbxTarget,
                                                             pbxproj: pbxproj,
                                                             fileElements: fileElements,
@@ -94,7 +156,7 @@ final class LinkGeneratorErrorTests: XCTestCase {
         var dependencies: [GraphDependencyReference] = []
         dependencies.append(GraphDependencyReference.testXCFramework(path: "/Frameworks/Test.xcframework"))
         let pbxproj = PBXProj()
-        let pbxTarget = PBXNativeTarget(name: "Test")
+        let (pbxTarget, target) = createTargets(product: .framework)
         let sourceRootPath = AbsolutePath("/")
 
         let group = PBXGroup()
@@ -105,6 +167,7 @@ final class LinkGeneratorErrorTests: XCTestCase {
 
         // When
         try subject.generateEmbedPhase(dependencies: dependencies,
+                                       target: target,
                                        pbxTarget: pbxTarget,
                                        pbxproj: pbxproj,
                                        fileElements: fileElements,
@@ -537,6 +600,13 @@ final class LinkGeneratorErrorTests: XCTestCase {
         }
 
         return projectFileElements
+    }
+
+    private func createTargets(product: Product) -> (PBXTarget, Target) {
+        return (
+            PBXNativeTarget(name: "Test"),
+            Target.test(name: "Test", product: product)
+        )
     }
 
     private func createFileElements(fileAbsolutePath: AbsolutePath) -> ProjectFileElements {

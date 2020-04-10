@@ -38,12 +38,30 @@
         }
       },
       {
+        "package": "CryptoSwift",
+        "repositoryURL": "https://github.com/krzyzanowskim/CryptoSwift",
+        "state": {
+          "branch": null,
+          "revision": "a44caef0550c346e0ab9172f7c9a3852c1833599",
+          "version": "1.3.0"
+        }
+      },
+      {
         "package": "Guaka",
         "repositoryURL": "https://github.com/nsomar/Guaka.git",
         "state": {
           "branch": null,
           "revision": "6fb29b2378166a30d72120980e1c099c664598de",
           "version": "0.4.1"
+        }
+      },
+      {
+        "package": "KeychainAccess",
+        "repositoryURL": "https://github.com/kishikawakatsumi/KeychainAccess.git",
+        "state": {
+          "branch": null,
+          "revision": "b920ad7df3c73189dcdd4aa05c540849b2010dbf",
+          "version": "4.1.0"
         }
       },
       {
@@ -125,6 +143,15 @@
           "branch": null,
           "revision": "9abcc2260438177cecd7cf5185b144d13e74122b",
           "version": "0.5.0"
+        }
+      },
+      {
+        "package": "Swifter",
+        "repositoryURL": "https://github.com/httpswift/swifter.git",
+        "state": {
+          "branch": null,
+          "revision": "8b5afb48ae64d4f729f0489ddcfe09c62b9c3687",
+          "version": "1.4.7"
         }
       },
       {

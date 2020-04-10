@@ -42,6 +42,6 @@ final class OpenerTests: TuistUnitTestCase {
         let path = temporaryPath.appending(component: "tool")
         try FileHandler.shared.touch(path)
         system.succeedCommand("/usr/bin/open", path.pathString)
-        try subject.open(path: path, wait: false)
+        try subject.open(path: path)
     }
 }
