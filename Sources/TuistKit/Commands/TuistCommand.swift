@@ -31,11 +31,11 @@ public struct TuistCommand: ParsableCommand {
         let errorHandler = ErrorHandler()
         let command: ParsableCommand
         do {
-            let processedArguments = processArguments(arguments)
-            if processedArguments?.first == ScaffoldCommand.configuration.commandName {
+            let processedArguments = Array(processArguments(arguments)?.dropFirst() ?? [])
+            if processedArguments.first == ScaffoldCommand.configuration.commandName {
                 try ScaffoldCommand.preprocess(processedArguments)
             }
-            if processedArguments?.first == InitCommand.configuration.commandName {
+            if processedArguments.first == InitCommand.configuration.commandName {
                 try InitCommand.preprocess(processedArguments)
             }
             command = try parseAsRoot(processedArguments)
@@ -61,6 +61,6 @@ public struct TuistCommand: ParsableCommand {
 
     static func processArguments(_ arguments: [String]? = nil) -> [String]? {
         let arguments = arguments ?? Array(ProcessInfo.processInfo.arguments)
-        return Array(arguments.filter { $0 != "--verbose" }.dropFirst())
+        return arguments.filter { $0 != "--verbose" }
     }
 }

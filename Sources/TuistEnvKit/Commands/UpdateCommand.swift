@@ -10,9 +10,8 @@ struct UpdateCommand: ParsableCommand {
     }
 
     /// Force argument (-f). When passed, it re-installs the latest version compiling it from the source.
-    @Option(
+    @Flag(
         name: .shortAndLong,
-        default: false,
         help: "Re-installs the latest version compiling it from the source"
     )
     var force: Bool

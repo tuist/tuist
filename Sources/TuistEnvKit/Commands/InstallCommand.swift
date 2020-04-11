@@ -13,9 +13,8 @@ struct InstallCommand: ParsableCommand {
     )
     var version: String
 
-    @Option(
+    @Flag(
         name: .shortAndLong,
-        default: false,
         help: "Re-installs the version compiling it from the source"
     )
     var force: Bool

@@ -17,9 +17,8 @@ struct EditCommand: ParsableCommand {
     )
     var path: String?
 
-    @Option(
+    @Flag(
         name: .shortAndLong,
-        default: false,
         help: "It creates the project in the current directory or the one indicated by -p and doesn't block the process"
     )
     var permanent: Bool
