@@ -10,6 +10,11 @@ public struct TuistCommand: ParsableCommand {
                              abstract: "Manage the environment tuist versions",
                              subcommands: [
                                 LocalCommand.self,
+                                BundleCommand.self,
+                                UpdateCommand.self,
+                                InstallCommand.self,
+                                UninstallCommand.self,
+                                VersionCommand.self,
                              ])
     }
 

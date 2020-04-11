@@ -4,7 +4,7 @@ import XCTest
 @testable import TuistEnvKit
 @testable import TuistSupportTesting
 
-final class CommandRegistryTests: XCTestCase {
+final class TuistCommandTests: XCTestCase {
     var subject: CommandRegistry!
     var errorHandler: MockErrorHandler!
     var commandRunner: MockCommandRunner!

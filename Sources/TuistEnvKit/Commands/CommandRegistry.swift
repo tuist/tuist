@@ -17,11 +17,7 @@ public final class CommandRegistry {
     public convenience init() {
         self.init(processArguments: CommandRegistry.processArguments,
                   commands: [
-                      BundleCommand.self,
-                      UpdateCommand.self,
-                      InstallCommand.self,
-                      UninstallCommand.self,
-                      VersionCommand.self,
+                      
                   ])
     }
 
