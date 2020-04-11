@@ -13,10 +13,55 @@ import Foundation
 /// - seealso: `ProjectDescriptor`
 /// - seealso: `WorkspaceDescriptor`
 /// - seealso: `XcodeProjWriter`
-public enum SideEffectDescriptor: Equatable {
+public enum SideEffectDescriptor: Equatable, CustomStringConvertible {
     /// Create / Remove a file
     case file(FileDescriptor)
 
     /// Perform a command
     case command(CommandDescriptor)
+
+    /// Create / remove a directory
+    case directory(DirectoryDescriptor)
+
+    // MARK: - CustomStringConvertible
+
+    public var description: String {
+        switch self {
+        case let .file(fileDescriptor):
+            return fileDescriptor.description
+        case let .directory(directoryDescriptor):
+            return directoryDescriptor.description
+        case let .command(commandDescriptor):
+            return commandDescriptor.description
+        }
+    }
+}
+
+public extension Sequence where Element == SideEffectDescriptor {
+    var files: [FileDescriptor] {
+        compactMap {
+            switch $0 {
+            case let .file(file):
+                return file
+            default:
+                return nil
+            }
+        }
+    }
+
+    var deletions: [AbsolutePath] {
+        compactMap {
+            switch $0 {
+            case let .file(file):
+                switch file.state {
+                case .absent:
+                    return file.path
+                default:
+                    return nil
+                }
+            default:
+                return nil
+            }
+        }
+    }
 }

@@ -17,8 +17,7 @@ final class InfoPlistContentProviderTests: XCTestCase {
         let target = Target.test(platform: .iOS, product: .app)
 
         // When
-        let got = subject.content(graph: Graph.test(),
-                                  project: .empty(),
+        let got = subject.content(project: .empty(),
                                   target: target,
                                   extendedWith: ["ExtraAttribute": "Value"])
 
@@ -56,8 +55,7 @@ final class InfoPlistContentProviderTests: XCTestCase {
         let target = Target.test(platform: .macOS, product: .app)
 
         // When
-        let got = subject.content(graph: Graph.test(),
-                                  project: .empty(),
+        let got = subject.content(project: .empty(),
                                   target: target,
                                   extendedWith: ["ExtraAttribute": "Value"])
 
@@ -85,8 +83,7 @@ final class InfoPlistContentProviderTests: XCTestCase {
         let target = Target.test(platform: .macOS, product: .framework)
 
         // When
-        let got = subject.content(graph: Graph.test(),
-                                  project: .empty(),
+        let got = subject.content(project: .empty(),
                                   target: target,
                                   extendedWith: ["ExtraAttribute": "Value"])
 
@@ -110,8 +107,7 @@ final class InfoPlistContentProviderTests: XCTestCase {
         let target = Target.test(platform: .macOS, product: .staticLibrary)
 
         // When
-        let got = subject.content(graph: Graph.test(),
-                                  project: .empty(),
+        let got = subject.content(project: .empty(),
                                   target: target,
                                   extendedWith: ["ExtraAttribute": "Value"])
 
@@ -124,8 +120,7 @@ final class InfoPlistContentProviderTests: XCTestCase {
         let target = Target.test(platform: .macOS, product: .dynamicLibrary)
 
         // When
-        let got = subject.content(graph: Graph.test(),
-                                  project: .empty(),
+        let got = subject.content(project: .empty(),
                                   target: target,
                                   extendedWith: ["ExtraAttribute": "Value"])
 
@@ -135,8 +130,7 @@ final class InfoPlistContentProviderTests: XCTestCase {
 
     func test_contentPackageType() {
         func content(for target: Target) -> [String: Any]? {
-            subject.content(graph: Graph.test(),
-                            project: .empty(),
+            subject.content(project: .empty(),
                             target: target,
                             extendedWith: [:])
         }
@@ -157,19 +151,17 @@ final class InfoPlistContentProviderTests: XCTestCase {
                                    product: .watch2App)
         let app = Target.test(platform: .iOS,
                               product: .app,
-                              bundleId: "io.tuist.my.app.id")
+                              bundleId: "io.tuist.my.app.id",
+                              dependencies: [
+                                  .target(name: watchApp.name),
+                              ])
         let project = Project.test(targets: [
             app,
             watchApp,
         ])
-        let graph = Graph.create(project: project, dependencies: [
-            (target: app, dependencies: [watchApp]),
-            (target: watchApp, dependencies: []),
-        ])
 
         // When
-        let got = subject.content(graph: graph,
-                                  project: project,
+        let got = subject.content(project: project,
                                   target: watchApp,
                                   extendedWith: [
                                       "ExtraAttribute": "Value",
@@ -204,19 +196,17 @@ final class InfoPlistContentProviderTests: XCTestCase {
                                             product: .watch2Extension)
         let watchApp = Target.test(platform: .watchOS,
                                    product: .watch2App,
-                                   bundleId: "io.tuist.my.app.id.mywatchapp")
+                                   bundleId: "io.tuist.my.app.id.mywatchapp",
+                                   dependencies: [
+                                       .target(name: watchAppExtension.name),
+                                   ])
         let project = Project.test(targets: [
             watchApp,
             watchAppExtension,
         ])
-        let graph = Graph.create(project: project, dependencies: [
-            (target: watchApp, dependencies: [watchAppExtension]),
-            (target: watchAppExtension, dependencies: []),
-        ])
 
         // When
-        let got = subject.content(graph: graph,
-                                  project: project,
+        let got = subject.content(project: project,
                                   target: watchAppExtension,
                                   extendedWith: [
                                       "ExtraAttribute": "Value",

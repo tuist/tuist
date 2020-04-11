@@ -25,18 +25,19 @@ class ProjectGenerator: ProjectGenerating {
     private let modelLoader: GeneratorModelLoading
     private let graphLoader: GraphLoading
     private let sideEffectDescriptorExecutor: SideEffectDescriptorExecuting
-    private let projectMapper: ProjectMapping
+    private let projectMapperProvider: ProjectMapperProviding
     private let graphMapperProvider: GraphMapperProviding
 
-    init(graphMapperProvider: GraphMapperProviding = GraphMapperProvider(useCache: false)) {
+    init(projectMapperProvider: ProjectMapperProviding = ProjectMapperProvider(),
+         graphMapperProvider: GraphMapperProviding = GraphMapperProvider(useCache: false)) {
         let modelLoader = GeneratorModelLoader(manifestLoader: manifestLoader,
                                                manifestLinter: manifestLinter)
         converter = modelLoader
         graphLoader = GraphLoader(modelLoader: modelLoader)
         sideEffectDescriptorExecutor = SideEffectDescriptorExecutor()
         self.modelLoader = modelLoader
+        self.projectMapperProvider = projectMapperProvider
         self.graphMapperProvider = graphMapperProvider
-        projectMapper = SequentialProjectMapper(mappers: [])
     }
 
     func generate(path: AbsolutePath, projectOnly: Bool) throws -> AbsolutePath {
@@ -143,13 +144,14 @@ class ProjectGenerator: ProjectGenerating {
 
     private func loadProject(path: AbsolutePath) throws -> (Project, Graph, [SideEffectDescriptor]) {
         // Load all manifests
+        let config = try graphLoader.loadConfig(path: path)
         let manifests = try recursiveManifestLoader.loadProject(at: path)
 
         // Convert to models
         let models = try convert(manifests: manifests)
 
         // Apply any registered model mappers
-        let updatedModels = try models.map(projectMapper.map)
+        let updatedModels = try models.map(projectMapperProvider.mapper(config: config).map)
         let updatedProjects = updatedModels.map(\.0)
         let modelMapperSideEffects = updatedModels.flatMap { $0.1 }
 
@@ -159,7 +161,6 @@ class ProjectGenerator: ProjectGenerating {
         let (graph, project) = try cachedGraphLoader.loadProject(path: path)
 
         // Apply graph mappers
-        let config = try graphLoader.loadConfig(path: graph.entryPath)
         let (updatedGraph, graphMapperSideEffects) = try graphMapperProvider.mapper(config: config).map(graph: graph)
 
         return (project, updatedGraph, modelMapperSideEffects + graphMapperSideEffects)
@@ -167,13 +168,14 @@ class ProjectGenerator: ProjectGenerating {
 
     private func loadWorkspace(path: AbsolutePath) throws -> (Workspace, Graph, [SideEffectDescriptor]) {
         // Load all manifests
+        let config = try graphLoader.loadConfig(path: path)
         let manifests = try recursiveManifestLoader.loadWorkspace(at: path)
 
         // Convert to models
         let models = try convert(manifests: manifests)
 
         // Apply model mappers
-        let updatedModels = try models.projects.map(projectMapper.map)
+        let updatedModels = try models.projects.map(projectMapperProvider.mapper(config: config).map)
         let updatedProjects = updatedModels.map(\.0)
         let modelMapperSideEffects = updatedModels.flatMap { $0.1 }
 
@@ -183,7 +185,6 @@ class ProjectGenerator: ProjectGenerating {
         let (graph, workspace) = try cachedGraphLoader.loadWorkspace(path: path)
 
         // Apply graph mappers
-        let config = try graphLoader.loadConfig(path: graph.entryPath)
         let (updatedGraph, graphMapperSideEffects) = try graphMapperProvider.mapper(config: config).map(graph: graph)
 
         return (workspace, updatedGraph, modelMapperSideEffects + graphMapperSideEffects)

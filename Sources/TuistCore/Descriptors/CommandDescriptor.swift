@@ -6,12 +6,18 @@ import Foundation
 /// generating a project or workspace.
 ///
 /// - seealso: `SideEffectsDescriptor`
-public struct CommandDescriptor: Equatable {
+public struct CommandDescriptor: Equatable, CustomStringConvertible {
     public var command: [String]
 
     /// Creates a command descriptor
     /// - Parameter command: The command and its arguments to perform
     public init(command: [String]) {
         self.command = command
+    }
+
+    // MARK: - CustomStringConvertible
+
+    public var description: String {
+        "execute \(command.joined(separator: " "))"
     }
 }
