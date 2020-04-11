@@ -61,6 +61,6 @@ public struct TuistCommand: ParsableCommand {
 
     static func processArguments(_ arguments: [String]? = nil) -> [String]? {
         let arguments = arguments ?? Array(ProcessInfo.processInfo.arguments)
-        return arguments.filter { $0 != "--verbose" }
+        return Array(arguments.filter { $0 != "--verbose" }.dropFirst())
     }
 }
