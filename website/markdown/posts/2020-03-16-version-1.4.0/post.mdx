@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Tuist 1.4.0 - Lint command, more verbose logs, and configuration of the project organization
-categories: [tuist, release, swift, project generation, xcode, apple, "1.4.0"]
+categories: [tuist, release, swift, project generation, xcode, apple, '1.4.0']
 excerpt: The just released version of Tuist, 1.4.0, adds support for printing more verbose logs, and configuring the Xcode organization.
 author: pepibumur
 ---
@@ -15,12 +15,12 @@ Let's dive right into what those improvements are.
 ## Configure the organization name
 
 As you probably know,
-when you create a new project in Xcode, 
+when you create a new project in Xcode,
 one of the fields that you need to fill out is the name of the organization.
 That information ends up codified in your projects
 and Xcode uses it to create copyright headers when adding new files.
 
-Until today, 
+Until today,
 configuring that in Tuist was not possible,
 but thanks to [Sylvain](https://github.com/c0diq)'s [amazing contribution](https://github.com/tuist/tuist/pull/1062),
 that's finally possible.
@@ -51,7 +51,7 @@ we lint your project definition to uncover errors that otherwise would cause com
 If developers wanted to run the linting logic without generating the project,
 there was no option to do so.
 Fortunately, that changes with Tuist 1.4.0 because it introduces [a new command](https://github.com/tuist/tuist/pull/1043) `tuist lint`.
-You can read more about how it works on the [commands](/docs/usage/commands/) documentation page.
+You can read more about how it works on the [commands](/docs/commands/lint/) documentation page.
 
 If you are currently using Tuist,
 we recommend you to set up a CI pipeline that runs that command for every commit.
@@ -61,11 +61,11 @@ The developers will get faster feedback and therefore waste less time waiting fo
 ## TuistConfig.swift renamed to Config.swift
 
 Since `TuistConfig.swift` is a file that contains configuration that is global to all the projects in the same directory and subdirectories,
-we decided that it makes more sense to require it to be in a directory where other global files are *(e.g. project description helpers)*.
+we decided that it makes more sense to require it to be in a directory where other global files are _(e.g. project description helpers)_.
 That directory is the root `/Tuist` directory.
 
 For that reason, from Tuist 1.4.0 the file [is expected to be](https://github.com/tuist/tuist/pull/1083) under `/Tuist` and with the name `Config.swift` to avoid some naming redundancy.
-Since this is a minor release, 
+Since this is a minor release,
 and we follow [semantic versioning](https://semver.org/),
 we made this change a non-breaking change.
 In other words,
@@ -75,6 +75,7 @@ we encourage you to move the file to the new directory and change its name.
 That'll make the future adoption of major releases a seamless process.
 
 ## Website improvements
+
 As you might have noticed,
 the website looks a bit different than the last time you visited it.
 That's because we gave it a facelift to have consistent and themeable styling.
@@ -85,13 +86,12 @@ we used the package [theme-ui](https://theme-ui.com/),
 that provides a beautiful and concise abstraction for consistently styling [React](https://reactjs.org/) website.
 If you are considering implementing a statically-generated website,
 we strongly recommend the combo [GatsbyJS](https://www.gatsbyjs.org/) with theme-ui.
-Once you know the basic building blocks, 
+Once you know the basic building blocks,
 creating a website becomes very straightforward.
 
 ## Bug fixes and improvements
 
 - [Support](https://github.com/tuist/tuist/pull/1037) spaces in `TargetAction` for `PROJECT_DIR`.
-- [Fix](https://github.com/tuist/tuist/pull/1081) compilation issues in the code example that is shown in the "Project description helpers" documentation. 
+- [Fix](https://github.com/tuist/tuist/pull/1081) compilation issues in the code example that is shown in the "Project description helpers" documentation.
 - [Introduce descriptors](https://github.com/tuist/tuist/pull/1007) to remove side effects and IO during project generation to ease optimizations and make the process more deterministic.
 - [Add a new TuistInsights](https://github.com/tuist/tuist/pull/1084) target to start working on a cloud-based feature to help teams make informed decisions on PRs based on collected insights.
-
