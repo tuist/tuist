@@ -27,7 +27,7 @@ final class LocalServiceTests: TuistUnitTestCase {
     func test_run_when_version_argument_is_passed() throws {
         // Given
         let temporaryPath = try self.temporaryPath()
-        
+
         // When
         try subject.run(version: "3.2.1")
 
@@ -39,7 +39,7 @@ final class LocalServiceTests: TuistUnitTestCase {
     func test_run_prints_when_version_argument_is_passed() throws {
         // Given
         let temporaryPath = try self.temporaryPath()
-        
+
         // When
         try subject.run(version: "3.2.1")
 
@@ -55,7 +55,7 @@ final class LocalServiceTests: TuistUnitTestCase {
     func test_run_prints_when_no_argument_is_passed() throws {
         // Given
         versionController.semverVersionsStub = [Version(string: "1.2.3")!, Version(string: "3.2.1")!]
-        
+
         // When
         try subject.run(version: nil)
 

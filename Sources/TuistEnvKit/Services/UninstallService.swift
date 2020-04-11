@@ -7,13 +7,13 @@ final class UninstallService {
 
     /// Installer instance to run the installation.
     private let installer: Installing
-    
+
     init(versionsController: VersionsControlling = VersionsController(),
          installer: Installing = Installer()) {
-           self.versionsController = versionsController
-           self.installer = installer
+        self.versionsController = versionsController
+        self.installer = installer
     }
-    
+
     func run(version: String) throws {
         let versions = versionsController.versions().map { $0.description }
         if versions.contains(version) {

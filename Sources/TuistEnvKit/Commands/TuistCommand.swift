@@ -9,16 +9,16 @@ public struct TuistCommand: ParsableCommand {
         CommandConfiguration(commandName: "tuist",
                              abstract: "Manage the environment tuist versions",
                              subcommands: [
-                                LocalCommand.self,
-                                BundleCommand.self,
-                                UpdateCommand.self,
-                                InstallCommand.self,
-                                UninstallCommand.self,
-                                VersionCommand.self,
+                                 LocalCommand.self,
+                                 BundleCommand.self,
+                                 UpdateCommand.self,
+                                 InstallCommand.self,
+                                 UninstallCommand.self,
+                                 VersionCommand.self,
                              ])
     }
 
-    public static func main(_ arguments: [String]? = nil) -> Never {
+    public static func main(_: [String]? = nil) -> Never {
         let errorHandler = ErrorHandler()
         do {
             let processedArguments = processArguments()
@@ -40,7 +40,7 @@ public struct TuistCommand: ParsableCommand {
             _exit(exitCode(for: error).rawValue)
         }
     }
-    
+
     // MARK: - Helpers
 
     private static func parse() throws -> [String]? {
@@ -52,7 +52,7 @@ public struct TuistCommand: ParsableCommand {
         }
         return nil
     }
-    
+
     // MARK: - Static
 
     static func processArguments() -> [String] {

@@ -4,11 +4,11 @@ import TuistSupport
 
 final class LocalService {
     private let versionController: VersionsControlling
-    
+
     init(versionController: VersionsControlling = VersionsController()) {
         self.versionController = versionController
     }
-    
+
     func run(version: String?) throws {
         if let version = version {
             try createVersionFile(version: version)
@@ -16,7 +16,7 @@ final class LocalService {
             try printLocalVersions()
         }
     }
-    
+
     // MARK: - Helpers
 
     private func printLocalVersions() throws {

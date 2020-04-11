@@ -60,7 +60,7 @@ public struct TuistCommand: ParsableCommand {
     // MARK: - Helpers
 
     static func processArguments(_ arguments: [String]? = nil) -> [String]? {
-        let arguments = arguments ?? Array(CommandLine.arguments.dropFirst())
+        let arguments = arguments ?? Array(ProcessInfo.processInfo.arguments)
         return arguments.filter { $0 != "--verbose" }
     }
 }

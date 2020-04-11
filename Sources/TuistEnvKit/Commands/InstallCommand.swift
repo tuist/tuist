@@ -1,5 +1,5 @@
-import Foundation
 import ArgumentParser
+import Foundation
 
 /// Command that installs new versions of Tuist in the system.
 struct InstallCommand: ParsableCommand {
@@ -12,7 +12,7 @@ struct InstallCommand: ParsableCommand {
         help: "The version of tuist to be installed"
     )
     var version: String
-    
+
     @Option(
         name: .shortAndLong,
         default: false,

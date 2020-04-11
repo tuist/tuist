@@ -36,7 +36,7 @@ final class BundleService {
         self.versionsController = versionsController
         self.installer = installer
     }
-    
+
     func run() throws {
         let versionFilePath = FileHandler.shared.currentPath.appending(component: Constants.versionFileName)
         let binFolderPath = FileHandler.shared.currentPath.appending(component: Constants.binFolderName)

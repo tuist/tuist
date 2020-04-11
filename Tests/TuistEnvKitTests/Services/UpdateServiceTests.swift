@@ -20,7 +20,7 @@ final class UpdateServiceTests: TuistUnitTestCase {
         subject = nil
         super.tearDown()
     }
-    
+
     func test_run() throws {
         var updateCalls: [Bool] = []
         updater.updateStub = { force in

@@ -1,6 +1,6 @@
+import ArgumentParser
 import Basic
 import Foundation
-import ArgumentParser
 import TuistSupport
 
 struct LocalCommand: ParsableCommand {
@@ -14,7 +14,7 @@ struct LocalCommand: ParsableCommand {
         help: "The version that you would like to pin your current directory to"
     )
     var version: String?
-    
+
     func run() throws {
         try LocalService().run(version: version)
     }

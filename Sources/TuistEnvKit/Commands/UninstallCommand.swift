@@ -1,5 +1,5 @@
-import Foundation
 import ArgumentParser
+import Foundation
 import TuistSupport
 
 struct UninstallCommand: ParsableCommand {
@@ -12,7 +12,7 @@ struct UninstallCommand: ParsableCommand {
         help: "The version of tuist to be uninstalled"
     )
     var version: String
-    
+
     func run() throws {
         try UninstallService().run(version: version)
     }

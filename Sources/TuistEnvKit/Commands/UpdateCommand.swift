@@ -1,5 +1,5 @@
-import Foundation
 import ArgumentParser
+import Foundation
 import TuistSupport
 
 /// Command that updates the version of Tuist in the environment.
