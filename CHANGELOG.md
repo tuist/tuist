@@ -6,6 +6,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Changed
 
+- Migrate to new argument parser https://github.com/tuist/tuist/pull/1154 by @fortmarek
 - Only warn about copying Info.plist when it's the target's Info.plist https://github.com/tuist/tuist/pull/1203 by @sgrgrsn
 
 ### Added
