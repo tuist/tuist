@@ -3,6 +3,7 @@ import Foundation
 import TuistCore
 import TuistGenerator
 import TuistLoader
+import TuistSupport
 
 protocol ProjectGenerating {
     @discardableResult
@@ -11,6 +12,8 @@ protocol ProjectGenerating {
 }
 
 class ProjectGenerator: ProjectGenerating {
+    private let recursiveManifestLoader: RecursiveManifestLoading = RecursiveManifestLoader()
+    private let converter: ManifestModelConverting
     private let manifestLoader: ManifestLoading = ManifestLoader()
     private let manifestLinter: ManifestLinting = ManifestLinter()
     private let graphLinter: GraphLinting = GraphLinter()
@@ -22,14 +25,18 @@ class ProjectGenerator: ProjectGenerating {
     private let modelLoader: GeneratorModelLoading
     private let graphLoader: GraphLoading
     private let sideEffectDescriptorExecutor: SideEffectDescriptorExecuting
+    private let projectMapper: ProjectMapping
     private let graphMapperProvider: GraphMapperProviding
 
     init(graphMapperProvider: GraphMapperProviding = GraphMapperProvider(useCache: false)) {
-        modelLoader = GeneratorModelLoader(manifestLoader: manifestLoader,
-                                           manifestLinter: manifestLinter)
+        let modelLoader = GeneratorModelLoader(manifestLoader: manifestLoader,
+                                               manifestLinter: manifestLinter)
+        converter = modelLoader
         graphLoader = GraphLoader(modelLoader: modelLoader)
         sideEffectDescriptorExecutor = SideEffectDescriptorExecutor()
+        self.modelLoader = modelLoader
         self.graphMapperProvider = graphMapperProvider
+        projectMapper = SequentialProjectMapper(mappers: [])
     }
 
     func generate(path: AbsolutePath, projectOnly: Bool) throws -> AbsolutePath {
@@ -53,10 +60,7 @@ class ProjectGenerator: ProjectGenerating {
 
     private func generateProject(path: AbsolutePath) throws -> (AbsolutePath, Graph) {
         // Load
-        var (graph, project) = try graphLoader.loadProject(path: path)
-        let config = try graphLoader.loadConfig(path: graph.entryPath)
-        let sideEffects: [SideEffectDescriptor]
-        (graph, sideEffects) = try graphMapperProvider.mapper(config: config).map(graph: graph)
+        let (project, graph, sideEffects) = try loadProject(path: path)
 
         // Lint
         try lint(graph: graph)
@@ -78,10 +82,7 @@ class ProjectGenerator: ProjectGenerating {
 
     private func generateWorkspace(path: AbsolutePath) throws -> (AbsolutePath, Graph) {
         // Load
-        var (graph, workspace) = try graphLoader.loadWorkspace(path: path)
-        let config = try graphLoader.loadConfig(path: graph.entryPath)
-        let sideEffects: [SideEffectDescriptor]
-        (graph, sideEffects) = try graphMapperProvider.mapper(config: config).map(graph: graph)
+        let (workspace, graph, sideEffects) = try loadWorkspace(path: path)
 
         // Lint
         try lint(graph: graph)
@@ -105,10 +106,7 @@ class ProjectGenerator: ProjectGenerating {
 
     private func generateProjectWorkspace(path: AbsolutePath) throws -> (AbsolutePath, Graph) {
         // Load
-        var (graph, project) = try graphLoader.loadProject(path: path)
-        let config = try graphLoader.loadConfig(path: graph.entryPath)
-        let sideEffects: [SideEffectDescriptor]
-        (graph, sideEffects) = try graphMapperProvider.mapper(config: config).map(graph: graph)
+        let (project, graph, sideEffects) = try loadProject(path: path)
 
         // Lint
         try lint(graph: graph)
@@ -139,5 +137,73 @@ class ProjectGenerator: ProjectGenerating {
     private func postGenerationActions(for graph: Graph, workspaceName: String) throws {
         try swiftPackageManagerInteractor.install(graph: graph, workspaceName: workspaceName)
         try cocoapodsInteractor.install(graph: graph)
+    }
+
+    // MARK: -
+
+    private func loadProject(path: AbsolutePath) throws -> (Project, Graph, [SideEffectDescriptor]) {
+        // Load all manifests
+        let manifests = try recursiveManifestLoader.loadProject(at: path)
+
+        // Convert to models
+        let models = try convert(manifests: manifests)
+
+        // Apply any registered model mappers
+        let updatedModels = try models.map(projectMapper.map)
+        let updatedProjects = updatedModels.map(\.0)
+        let modelMapperSideEffects = updatedModels.flatMap { $0.1 }
+
+        // Load Graph
+        let cachedModelLoader = CachedModelLoader(projects: updatedProjects)
+        let cachedGraphLoader = GraphLoader(modelLoader: cachedModelLoader)
+        let (graph, project) = try cachedGraphLoader.loadProject(path: path)
+
+        // Apply graph mappers
+        let config = try graphLoader.loadConfig(path: graph.entryPath)
+        let (updatedGraph, graphMapperSideEffects) = try graphMapperProvider.mapper(config: config).map(graph: graph)
+
+        return (project, updatedGraph, modelMapperSideEffects + graphMapperSideEffects)
+    }
+
+    private func loadWorkspace(path: AbsolutePath) throws -> (Workspace, Graph, [SideEffectDescriptor]) {
+        // Load all manifests
+        let manifests = try recursiveManifestLoader.loadWorkspace(at: path)
+
+        // Convert to models
+        let models = try convert(manifests: manifests)
+
+        // Apply model mappers
+        let updatedModels = try models.projects.map(projectMapper.map)
+        let updatedProjects = updatedModels.map(\.0)
+        let modelMapperSideEffects = updatedModels.flatMap { $0.1 }
+
+        // Load Graph
+        let cachedModelLoader = CachedModelLoader(workspace: [models.workspace], projects: updatedProjects)
+        let cachedGraphLoader = GraphLoader(modelLoader: cachedModelLoader)
+        let (graph, workspace) = try cachedGraphLoader.loadWorkspace(path: path)
+
+        // Apply graph mappers
+        let config = try graphLoader.loadConfig(path: graph.entryPath)
+        let (updatedGraph, graphMapperSideEffects) = try graphMapperProvider.mapper(config: config).map(graph: graph)
+
+        return (workspace, updatedGraph, modelMapperSideEffects + graphMapperSideEffects)
+    }
+
+    func convert(manifests: LoadedProjects,
+                 context: ExecutionContext = .concurrent) throws -> [TuistCore.Project] {
+        let tuples = manifests.projects.map { (path: $0.key, manifest: $0.value) }
+        return try tuples.map(context: context) {
+            try converter.convert(manifest: $0.manifest, path: $0.path)
+        }
+    }
+
+    func convert(manifests: LoadedWorkspace,
+                 context: ExecutionContext = .concurrent) throws -> (workspace: Workspace, projects: [TuistCore.Project]) {
+        let workspace = try converter.convert(manifest: manifests.workspace.1, path: manifests.workspace.0)
+        let tuples = manifests.projects.map { (path: $0.key, manifest: $0.value) }
+        let projects = try tuples.map(context: context) {
+            try converter.convert(manifest: $0.manifest, path: $0.path)
+        }
+        return (workspace, projects)
     }
 }
