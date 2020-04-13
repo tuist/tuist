@@ -2,29 +2,24 @@ import Basic
 import Foundation
 import TuistSupport
 import XCTest
-@testable import SPMUtility
 @testable import TuistEnvKit
 @testable import TuistSupportTesting
 
-final class InstallCommandTests: TuistUnitTestCase {
-    var parser: ArgumentParser!
+final class InstallServiceTests: TuistUnitTestCase {
     var versionsController: MockVersionsController!
     var installer: MockInstaller!
-    var subject: InstallCommand!
+    var subject: InstallService!
 
     override func setUp() {
         super.setUp()
 
-        parser = ArgumentParser(usage: "test", overview: "overview")
         versionsController = try! MockVersionsController()
         installer = MockInstaller()
-        subject = InstallCommand(parser: parser,
-                                 versionsController: versionsController,
+        subject = InstallService(versionsController: versionsController,
                                  installer: installer)
     }
 
     override func tearDown() {
-        parser = nil
         versionsController = nil
         installer = nil
         subject = nil
@@ -32,39 +27,21 @@ final class InstallCommandTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_command() {
-        XCTAssertEqual(InstallCommand.command, "install")
-    }
-
-    func test_overview() {
-        XCTAssertEqual(InstallCommand.overview, "Installs a version of tuist")
-    }
-
-    func test_init_registers_the_command() {
-        XCTAssertEqual(parser.subparsers.count, 1)
-        XCTAssertEqual(parser.subparsers.first?.key, InstallCommand.command)
-        XCTAssertEqual(parser.subparsers.first?.value.overview, InstallCommand.overview)
-    }
-
     func test_run_when_version_is_already_installed() throws {
-        let result = try parser.parse(["install", "3.2.1"])
-
         versionsController.versionsStub = [InstalledVersion.reference("3.2.1")]
 
-        try subject.run(with: result)
+        try subject.run(version: "3.2.1", force: false)
 
         XCTAssertPrinterOutputContains("Version 3.2.1 already installed, skipping")
     }
 
     func test_run() throws {
-        let result = try parser.parse(["install", "3.2.1"])
-
         versionsController.versionsStub = []
 
         var installArgs: [(version: String, force: Bool)] = []
         installer.installStub = { version, force in installArgs.append((version: version, force: force)) }
 
-        try subject.run(with: result)
+        try subject.run(version: "3.2.1", force: false)
 
         XCTAssertEqual(installArgs.count, 1)
         XCTAssertEqual(installArgs.first?.version, "3.2.1")
@@ -72,14 +49,12 @@ final class InstallCommandTests: TuistUnitTestCase {
     }
 
     func test_run_when_force() throws {
-        let result = try parser.parse(["install", "3.2.1", "-f"])
-
         versionsController.versionsStub = []
 
         var installArgs: [(version: String, force: Bool)] = []
         installer.installStub = { version, force in installArgs.append((version: version, force: force)) }
 
-        try subject.run(with: result)
+        try subject.run(version: "3.2.1", force: true)
 
         XCTAssertEqual(installArgs.count, 1)
         XCTAssertEqual(installArgs.first?.version, "3.2.1")

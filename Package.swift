@@ -38,6 +38,7 @@ let package = Package(
         .package(url: "https://github.com/stencilproject/Stencil", .branch("master")),
         .package(url: "https://github.com/kishikawakatsumi/KeychainAccess.git", .upToNextMajor(from: "4.1.0")),
         .package(url: "https://github.com/httpswift/swifter.git", .upToNextMajor(from: "1.4.7")),
+        .package(url: "https://github.com/apple/swift-argument-parser", .upToNextMinor(from: "0.0.4")),
     ],
     targets: [
         .target(
@@ -58,7 +59,7 @@ let package = Package(
         ),
         .target(
             name: "TuistKit",
-            dependencies: ["XcodeProj", "SPMUtility", "TuistSupport", "TuistGenerator", "TuistCache", "TuistAutomation", "ProjectDescription", "Signals", "RxSwift", "RxBlocking", "Checksum", "TuistLoader", "TuistInsights", "TuistScaffold", "TuistSigning", "TuistCloud"]
+            dependencies: ["XcodeProj", "SPMUtility", "ArgumentParser", "TuistSupport", "TuistGenerator", "TuistCache", "TuistAutomation", "ProjectDescription", "Signals", "RxSwift", "RxBlocking", "Checksum", "TuistLoader", "TuistInsights", "TuistScaffold", "TuistSigning", "TuistCloud"]
         ),
         .testTarget(
             name: "TuistKitTests",
@@ -74,7 +75,7 @@ let package = Package(
         ),
         .target(
             name: "TuistEnvKit",
-            dependencies: ["SPMUtility", "TuistSupport", "RxSwift", "RxBlocking"]
+            dependencies: ["ArgumentParser", "SPMUtility", "TuistSupport", "RxSwift", "RxBlocking"]
         ),
         .testTarget(
             name: "TuistEnvKitTests",

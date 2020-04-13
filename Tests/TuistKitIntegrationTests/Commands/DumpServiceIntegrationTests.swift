@@ -8,24 +8,20 @@ import XCTest
 @testable import TuistLoader
 @testable import TuistSupportTesting
 
-final class DumpCommandTests: TuistTestCase {
+final class DumpServiceTests: TuistTestCase {
     var errorHandler: MockErrorHandler!
-    var subject: DumpCommand!
-    var parser: ArgumentParser!
+    var subject: DumpService!
     var manifestLoading: ManifestLoading!
 
     override func setUp() {
         super.setUp()
         errorHandler = MockErrorHandler()
-        parser = ArgumentParser.test()
         manifestLoading = ManifestLoader()
-        subject = DumpCommand(manifestLoader: manifestLoading,
-                              parser: parser)
+        subject = DumpService(manifestLoader: manifestLoading)
     }
 
     override func tearDown() {
         errorHandler = nil
-        parser = nil
         manifestLoading = nil
         subject = nil
         super.tearDown()
@@ -44,8 +40,7 @@ final class DumpCommandTests: TuistTestCase {
         try config.write(toFile: tmpDir.path.appending(component: "Project.swift").pathString,
                          atomically: true,
                          encoding: .utf8)
-        let result = try parser.parse([DumpCommand.command, "-p", tmpDir.path.pathString])
-        try subject.run(with: result)
+        try subject.run(path: tmpDir.path.pathString)
         let expected = "{\n  \"additionalFiles\": [\n\n  ],\n  \"name\": \"tuist\",\n  \"organizationName\": \"tuist\",\n  \"packages\": [\n\n  ],\n  \"schemes\": [\n\n  ],\n  \"targets\": [\n\n  ]\n}\n"
 
         XCTAssertPrinterOutputContains(expected)

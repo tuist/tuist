@@ -1,49 +1,24 @@
+import ArgumentParser
 import Basic
 import Foundation
-import SPMUtility
 import TuistLoader
 import TuistSupport
 
-class DumpCommand: NSObject, Command {
-    // MARK: - Command
-
-    static let command = "dump"
-    static let overview = "Outputs the project manifest as a JSON"
+struct DumpCommand: ParsableCommand {
+    static var configuration: CommandConfiguration {
+        CommandConfiguration(commandName: "dump",
+                             abstract: "Outputs the project manifest as a JSON")
+    }
 
     // MARK: - Attributes
 
-    private let manifestLoader: ManifestLoading
-    let pathArgument: OptionArgument<String>
+    @Option(
+        name: .shortAndLong,
+        help: "The path to the folder where the project manifest is"
+    )
+    var path: String?
 
-    // MARK: - Init
-
-    public required convenience init(parser: ArgumentParser) {
-        self.init(manifestLoader: ManifestLoader(),
-                  parser: parser)
-    }
-
-    init(manifestLoader: ManifestLoading,
-         parser: ArgumentParser) {
-        let subParser = parser.add(subparser: DumpCommand.command, overview: DumpCommand.overview)
-        self.manifestLoader = manifestLoader
-        pathArgument = subParser.add(option: "--path",
-                                     shortName: "-p",
-                                     kind: String.self,
-                                     usage: "The path to the folder where the project manifest is",
-                                     completion: .filename)
-    }
-
-    // MARK: - Command
-
-    func run(with arguments: ArgumentParser.Result) throws {
-        var path: AbsolutePath!
-        if let argumentPath = arguments.get(pathArgument) {
-            path = AbsolutePath(argumentPath, relativeTo: AbsolutePath.current)
-        } else {
-            path = AbsolutePath.current
-        }
-        let project = try manifestLoader.loadProject(at: path)
-        let json: JSON = try project.toJSON()
-        logger.notice("\(json.toString(prettyPrint: true))")
+    func run() throws {
+        try DumpService().run(path: path)
     }
 }

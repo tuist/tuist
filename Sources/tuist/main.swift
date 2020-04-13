@@ -7,5 +7,4 @@ if CommandLine.arguments.contains("--verbose") { try? ProcessEnv.setVar("TUIST_V
 LogOutput.bootstrap()
 
 import TuistKit
-var registry = CommandRegistry()
-registry.run()
+TuistCommand.main()
