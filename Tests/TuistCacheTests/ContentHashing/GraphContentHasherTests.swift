@@ -8,21 +8,21 @@ import XCTest
 @testable import TuistSupportTesting
 
 final class GraphContentHasherTests: TuistUnitTestCase {
-    private var sut: GraphContentHasher!
+    private var subject: GraphContentHasher!
 
     override func setUp() {
         super.setUp()
-        sut = GraphContentHasher()
+        subject = GraphContentHasher()
     }
 
     override func tearDown() {
-        sut = nil
+        subject = nil
         super.tearDown()
     }
 
     func test_contentHashes_emptyGraph() throws {
         let graph = Graph.test()
-        let hashes = try sut.contentHashes(for: graph)
+        let hashes = try subject.contentHashes(for: graph)
         XCTAssertEqual(hashes, Dictionary())
     }
 
@@ -46,7 +46,7 @@ final class GraphContentHasherTests: TuistUnitTestCase {
         let expectedCachableTargets = [frameworkTarget, secondFrameworkTarget].sorted(by: { $0.target.name < $1.target.name })
 
         // When
-        let hashes = try sut.contentHashes(for: graph)
+        let hashes = try subject.contentHashes(for: graph)
         let hashedTargets: [TargetNode] = hashes.keys.sorted { left, right -> Bool in
             left.project.path.pathString < right.project.path.pathString
         }.sorted(by: { $0.target.name < $1.target.name })

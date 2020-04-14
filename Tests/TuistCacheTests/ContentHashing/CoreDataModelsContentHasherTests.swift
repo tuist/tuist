@@ -10,7 +10,7 @@ import TuistCacheTesting
 
 
 final class CoreDataModelsContentHasherTests: TuistUnitTestCase {
-    private var sut: CoreDataModelsContentHasher!
+    private var subject: CoreDataModelsContentHasher!
     private var coreDataModel: CoreDataModel!
     private var temporaryDirectory: TemporaryDirectory!
     private var mockContentHasher: MockContentHashing!
@@ -18,7 +18,7 @@ final class CoreDataModelsContentHasherTests: TuistUnitTestCase {
     override func setUp() {
         super.setUp()
         mockContentHasher = MockContentHashing()
-        sut = CoreDataModelsContentHasher(contentHasher: mockContentHasher)
+        subject = CoreDataModelsContentHasher(contentHasher: mockContentHasher)
         do {
             temporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
         } catch {
@@ -27,7 +27,7 @@ final class CoreDataModelsContentHasherTests: TuistUnitTestCase {
     }
 
     override func tearDown() {
-        sut = nil
+        subject = nil
         coreDataModel = nil
         temporaryDirectory = nil
         mockContentHasher = nil
@@ -40,7 +40,7 @@ final class CoreDataModelsContentHasherTests: TuistUnitTestCase {
         coreDataModel = try buildCoreDataModel()
         mockContentHasher.hashStringsStub = "fixed"
 
-        let hash = try sut.hash(coreDataModels: [coreDataModel])
+        let hash = try subject.hash(coreDataModels: [coreDataModel])
 
         XCTAssertEqual(hash, "fixed")
     }
@@ -51,7 +51,7 @@ final class CoreDataModelsContentHasherTests: TuistUnitTestCase {
         let fakePath = buildFakePath(from: name)
         mockContentHasher.stubHashForPath[fakePath] = "different-hash"
 
-        let hash = try sut.hash(coreDataModels: [coreDataModel])
+        let hash = try subject.hash(coreDataModels: [coreDataModel])
 
         XCTAssertNotEqual(hash, defaultValuesHash)
     }
@@ -59,7 +59,7 @@ final class CoreDataModelsContentHasherTests: TuistUnitTestCase {
     func test_hash_currentVersionChangesHash() throws {
         coreDataModel = try buildCoreDataModel(currentVersion: "2")
 
-        let hash = try sut.hash(coreDataModels: [coreDataModel])
+        let hash = try subject.hash(coreDataModels: [coreDataModel])
 
         XCTAssertNotEqual(hash, defaultValuesHash)
     }
@@ -67,7 +67,7 @@ final class CoreDataModelsContentHasherTests: TuistUnitTestCase {
     func test_hash_versionsChangeHash() throws {
         coreDataModel = try buildCoreDataModel(versions: ["1", "2", "3"])
 
-        let hash = try sut.hash(coreDataModels: [coreDataModel])
+        let hash = try subject.hash(coreDataModels: [coreDataModel])
 
         XCTAssertNotEqual(hash, defaultValuesHash)
     }

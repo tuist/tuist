@@ -9,14 +9,14 @@ import TuistCacheTesting
 @testable import TuistSupportTesting
 
 final class TargetActionsContentHasherTests: TuistUnitTestCase {
-    private var sut: TargetActionsContentHasher!
+    private var subject: TargetActionsContentHasher!
     private var mockContentHasher: MockContentHashing!
     private var temporaryDirectory: TemporaryDirectory!
 
     override func setUp() {
         super.setUp()
         mockContentHasher = MockContentHashing()
-        sut = TargetActionsContentHasher(contentHasher: mockContentHasher)
+        subject = TargetActionsContentHasher(contentHasher: mockContentHasher)
         do {
             temporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
         } catch {
@@ -25,7 +25,7 @@ final class TargetActionsContentHasherTests: TuistUnitTestCase {
     }
 
     override func tearDown() {
-        sut = nil
+        subject = nil
         temporaryDirectory = nil
         mockContentHasher = nil
 
@@ -68,7 +68,7 @@ final class TargetActionsContentHasherTests: TuistUnitTestCase {
         mockContentHasher.stubHashForPath[AbsolutePath("/outputFileListPaths1")] = outputFileListPaths1
 
         let targetAction = makeTargetAction()
-        _ = try sut.hash(targetActions: [targetAction])
+        _ = try subject.hash(targetActions: [targetAction])
 
         let expected = [file1hash,
                         inputPaths1Hash,
@@ -105,7 +105,7 @@ final class TargetActionsContentHasherTests: TuistUnitTestCase {
                                             outputPaths: [AbsolutePath("/outputPaths2")],
                                             outputFileListPaths: [AbsolutePath("/outputFileListPaths2")])
         
-        _ = try sut.hash(targetActions: [targetAction])
+        _ = try subject.hash(targetActions: [targetAction])
         
         let expected = [file2hash,
                         inputPaths2Hash,

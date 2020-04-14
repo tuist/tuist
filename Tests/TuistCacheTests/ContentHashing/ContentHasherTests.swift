@@ -5,17 +5,17 @@ import TuistSupport
 @testable import TuistCache
 
 final class ContentHasherTests: TuistUnitTestCase {
-    private var sut: ContentHasher!
+    private var subject: ContentHasher!
     private var mockFileHandler: MockFileHandling!
 
     override func setUp() {
         super.setUp()
         mockFileHandler = MockFileHandling()
-        sut = ContentHasher(fileHandler: mockFileHandler)
+        subject = ContentHasher(fileHandler: mockFileHandler)
     }
 
     override func tearDown() {
-        sut = nil
+        subject = nil
         mockFileHandler = nil
         super.tearDown()
     }
@@ -23,17 +23,17 @@ final class ContentHasherTests: TuistUnitTestCase {
     // MARK: - Tests
 
     func test_hashstring_foo_returnsItsMd5() throws {
-        let hash = try sut.hash("foo")
+        let hash = try subject.hash("foo")
         XCTAssertEqual(hash, "acbd18db4cc2f85cedef654fccc4a4d8")
     }
 
     func test_hashstring_bar_returnsItsMd5() throws {
-        let hash = try sut.hash("bar")
+        let hash = try subject.hash("bar")
         XCTAssertEqual(hash, "37b51d194a7513e45b56f6524f2d51f2")
     }
 
     func test_hashstrings_foo_bar_returnsAnotherMd5() throws {
-        let hash = try sut.hash(["foo", "bar"])
+        let hash = try subject.hash(["foo", "bar"])
         XCTAssertEqual(hash, "3858f62230ac3c915f300c664312c63f")
     }
 
@@ -41,7 +41,7 @@ final class ContentHasherTests: TuistUnitTestCase {
         let data = Data(repeating: 1, count: 10)
         mockFileHandler.readFileStub = data
         let path = AbsolutePath("/foo")
-        let hash = try sut.hash(fileAtPath: path)
+        let hash = try subject.hash(fileAtPath: path)
 
         XCTAssertEqual(hash, "484c5624910e6288fad69e572a0637f7")
         XCTAssertEqual(mockFileHandler.readFileSpy, path)
@@ -51,7 +51,7 @@ final class ContentHasherTests: TuistUnitTestCase {
         let data = Data(repeating: 2, count: 10)
         mockFileHandler.readFileStub = data
         let path = AbsolutePath("/bar")
-        let hash = try sut.hash(fileAtPath: path)
+        let hash = try subject.hash(fileAtPath: path)
 
         XCTAssertEqual(hash, "0a8d20ca7c979834c6e4d486d648ce1e")
         XCTAssertEqual(mockFileHandler.readFileSpy, path)

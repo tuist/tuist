@@ -9,7 +9,7 @@ import TuistCacheTesting
 @testable import TuistSupportTesting
 
 final class SourceFilesContentHasherTests: TuistUnitTestCase {
-    private var sut: SourceFilesContentHasher!
+    private var subject: SourceFilesContentHasher!
     private var mockContentHasher: MockContentHashing!
     private var temporaryDirectory: TemporaryDirectory!
     private let sourceFile1Path = AbsolutePath("/file1")
@@ -20,7 +20,7 @@ final class SourceFilesContentHasherTests: TuistUnitTestCase {
     override func setUp() {
         super.setUp()
         mockContentHasher = MockContentHashing()
-        sut = SourceFilesContentHasher(contentHasher: mockContentHasher)
+        subject = SourceFilesContentHasher(contentHasher: mockContentHasher)
         sourceFile1 = (path: sourceFile1Path, compilerFlags: "-fno-objc-arc")
         sourceFile2 = (path: sourceFile2Path, compilerFlags: "-print-objc-runtime-info")
 
@@ -32,7 +32,7 @@ final class SourceFilesContentHasherTests: TuistUnitTestCase {
     }
 
     override func tearDown() {
-        sut = nil
+        subject = nil
         temporaryDirectory = nil
         mockContentHasher = nil
         sourceFile1 = nil
@@ -44,7 +44,7 @@ final class SourceFilesContentHasherTests: TuistUnitTestCase {
 
     func test_hash_returnsSameValue() throws {
         mockContentHasher.hashStringsStub = "fixed"
-        let hash = try sut.hash(sources: [sourceFile1, sourceFile2])
+        let hash = try subject.hash(sources: [sourceFile1, sourceFile2])
         XCTAssertEqual(hash, "fixed")
     }
 
@@ -53,7 +53,7 @@ final class SourceFilesContentHasherTests: TuistUnitTestCase {
         mockContentHasher.stubHashForPath[sourceFile2Path] = "file2-content-hash"
         mockContentHasher.hashStringStub = "-compilerflag"
 
-        _ = try sut.hash(sources: [sourceFile1, sourceFile2])
+        _ = try subject.hash(sources: [sourceFile1, sourceFile2])
 
         XCTAssertEqual(mockContentHasher.hashStringsSpy, ["file1-content-hash-compilerflag", "file2-content-hash-compilerflag"])
     }
@@ -63,7 +63,7 @@ final class SourceFilesContentHasherTests: TuistUnitTestCase {
         mockContentHasher.stubHashForPath[sourceFile2Path] = "file2-content-hash"
         mockContentHasher.hashStringStub = "-compilerflag"
 
-        _ = try sut.hash(sources: [sourceFile2, sourceFile1])
+        _ = try subject.hash(sources: [sourceFile2, sourceFile1])
 
         XCTAssertEqual(mockContentHasher.hashStringsSpy, ["file1-content-hash-compilerflag", "file2-content-hash-compilerflag"])
     }
