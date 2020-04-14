@@ -57,7 +57,7 @@ public class GenerateInfoPlistGraphMapper: GraphMapping {
         let sideEffect = SideEffectDescriptor.file(FileDescriptor(path: infoPlistPath, contents: data))
 
         let newTarget = targetNode.target.with(infoPlist: InfoPlist.file(path: infoPlistPath))
-        let newTargetNode = TargetNode(project: targetNode.project,
+        let newTargetNode = TargetNode(project: targetNode.project.replacing(target: targetNode.target, with: newTarget),
                                        target: newTarget,
                                        dependencies: targetNode.dependencies)
         return (newTargetNode, [sideEffect])

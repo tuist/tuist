@@ -2,21 +2,7 @@ import Basic
 import Foundation
 import TuistSupport
 
-public class Project: Equatable, CustomStringConvertible {
-    public static func == (lhs: Project, rhs: Project) -> Bool {
-        lhs.path == rhs.path &&
-            lhs.name == rhs.name &&
-            lhs.organizationName == rhs.organizationName &&
-            lhs.fileName == rhs.fileName &&
-            lhs.targets == rhs.targets &&
-            lhs.packages == rhs.packages &&
-            lhs.schemes == rhs.schemes &&
-            lhs.autogenerateSchemes == rhs.autogenerateSchemes &&
-            lhs.settings == rhs.settings &&
-            lhs.filesGroup == rhs.filesGroup &&
-            lhs.additionalFiles == rhs.additionalFiles
-    }
-
+public struct Project: Equatable, CustomStringConvertible {
     // MARK: - Attributes
 
     /// Path to the folder that contains the project manifest.
@@ -135,16 +121,19 @@ public class Project: Equatable, CustomStringConvertible {
     /// Returns a copy of the project with the given targets set.
     /// - Parameter targets: Targets to be set to the copy.
     public func with(targets: [Target]) -> Project {
-        Project(path: path,
-                name: name,
-                organizationName: organizationName,
-                fileName: fileName,
-                settings: settings,
-                filesGroup: filesGroup,
-                targets: targets,
-                packages: packages,
-                schemes: schemes,
-                autogenerateSchemes: autogenerateSchemes,
-                additionalFiles: additionalFiles)
+        var project = self
+        project.targets = targets
+        return project
+    }
+
+    /// Returns a copy of the project with the given target replaced with another target.
+    /// - Parameters:
+    ///   - target: Target to be replaced.
+    ///   - with: Replacement target.
+    /// - Returns: A copy of the project with the target replaced.
+    public func replacing(target: Target, with: Target) -> Project {
+        var project = self
+        project.targets = project.targets.map { ($0 == target) ? with : target }
+        return project
     }
 }

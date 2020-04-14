@@ -8,7 +8,7 @@ import Foundation
 /// any transformations will no longer be part of the resulting graph.
 ///
 /// - Note: When mapping, the `transform` block receives a copy of the original `TargetNode`
-open class TargetNodeGraphMapper: GraphMapping {
+public class TargetNodeGraphMapper: GraphMapping {
     public let mapTargetNode: (TargetNode) throws -> (TargetNode, [SideEffectDescriptor])
     public init(transform: @escaping (TargetNode) throws -> (TargetNode, [SideEffectDescriptor])) {
         mapTargetNode = transform
