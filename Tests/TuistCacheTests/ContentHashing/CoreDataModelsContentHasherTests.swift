@@ -37,38 +37,49 @@ final class CoreDataModelsContentHasherTests: TuistUnitTestCase {
     // MARK: - Tests
 
     func test_hash_returnsSameValue() throws {
+        // Given
         coreDataModel = try buildCoreDataModel()
         mockContentHasher.hashStringsStub = "fixed"
 
+        // When
         let hash = try subject.hash(coreDataModels: [coreDataModel])
 
+        // Then
         XCTAssertEqual(hash, "fixed")
     }
 
     func test_hash_fileContentChangesHash() throws {
+        // Given
         let name = "CoreDataModel"
         coreDataModel = try buildCoreDataModel()
         let fakePath = buildFakePath(from: name)
         mockContentHasher.stubHashForPath[fakePath] = "different-hash"
 
+        // When
         let hash = try subject.hash(coreDataModels: [coreDataModel])
 
+        // Then
         XCTAssertNotEqual(hash, defaultValuesHash)
     }
 
     func test_hash_currentVersionChangesHash() throws {
+        // Given
         coreDataModel = try buildCoreDataModel(currentVersion: "2")
 
+        // When
         let hash = try subject.hash(coreDataModels: [coreDataModel])
 
         XCTAssertNotEqual(hash, defaultValuesHash)
     }
 
     func test_hash_versionsChangeHash() throws {
+        // Given
         coreDataModel = try buildCoreDataModel(versions: ["1", "2", "3"])
 
+        // When
         let hash = try subject.hash(coreDataModels: [coreDataModel])
 
+        // Then
         XCTAssertNotEqual(hash, defaultValuesHash)
     }
 

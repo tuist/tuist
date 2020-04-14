@@ -21,8 +21,13 @@ final class GraphContentHasherTests: TuistUnitTestCase {
     }
 
     func test_contentHashes_emptyGraph() throws {
+        // Given
         let graph = Graph.test()
+
+        // When
         let hashes = try subject.contentHashes(for: graph)
+
+        // Then
         XCTAssertEqual(hashes, Dictionary())
     }
 
