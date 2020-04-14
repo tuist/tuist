@@ -12,8 +12,6 @@ import XCTest
 final class ContentHashingIntegrationTests: TuistTestCase {
     var subject: GraphContentHasher!
     var temporaryDirectoryPath: String!
-    var cache: GraphLoaderCache!
-    var graph: Graph!
     var source1: Target.SourceFile!
     var source2: Target.SourceFile!
     var source3: Target.SourceFile!
@@ -27,8 +25,11 @@ final class ContentHashingIntegrationTests: TuistTestCase {
 
     override func setUp() {
         super.setUp()
+<<<<<<< HEAD
         cache = GraphLoaderCache()
         graph = Graph.test(cache: cache)
+=======
+>>>>>>> Fix ContentHashingIntegrationTests
         do {
             let temporaryDirectoryPath = try temporaryPath()
             source1 = try createTemporarySourceFile(on: temporaryDirectoryPath, name: "1", content: "1")
@@ -51,8 +52,6 @@ final class ContentHashingIntegrationTests: TuistTestCase {
     }
 
     override func tearDown() {
-        cache = nil
-        graph = nil
         subject = nil
         source1 = nil
         source2 = nil
@@ -70,10 +69,12 @@ final class ContentHashingIntegrationTests: TuistTestCase {
     // MARK: - Sources
 
     func test_contentHashes_frameworksWithSameSources() throws {
+        let temporaryDirectoryPath = try temporaryPath()
         let framework1 = makeFramework(named: "f1", sources: [source1, source2])
         let framework2 = makeFramework(named: "f2", sources: [source1, source2])
-        cache.add(targetNode: framework1)
-        cache.add(targetNode: framework2)
+        let graph = Graph.test(targets: [
+            temporaryDirectoryPath: [framework1, framework2],
+        ])
 
         let contentHash = try subject.contentHashes(for: graph)
 
@@ -81,10 +82,12 @@ final class ContentHashingIntegrationTests: TuistTestCase {
     }
 
     func test_contentHashes_frameworksWithDifferentSources() throws {
+        let temporaryDirectoryPath = try temporaryPath()
         let framework1 = makeFramework(named: "f1", sources: [source1, source2])
         let framework2 = makeFramework(named: "f2", sources: [source3, source4])
-        cache.add(targetNode: framework1)
-        cache.add(targetNode: framework2)
+        let graph = Graph.test(targets: [
+            temporaryDirectoryPath: [framework1, framework2],
+        ])
 
         let contentHash = try subject.contentHashes(for: graph)
 
@@ -92,10 +95,12 @@ final class ContentHashingIntegrationTests: TuistTestCase {
     }
 
     func test_contentHashes_hashIsConsistent() throws {
+        let temporaryDirectoryPath = try temporaryPath()
         let framework1 = makeFramework(named: "f1", sources: [source1, source2])
         let framework2 = makeFramework(named: "f2", sources: [source3, source4])
-        cache.add(targetNode: framework1)
-        cache.add(targetNode: framework2)
+        let graph = Graph.test(targets: [
+            temporaryDirectoryPath: [framework1, framework2],
+        ])
 
         let contentHash = try subject.contentHashes(for: graph)
 
@@ -104,10 +109,12 @@ final class ContentHashingIntegrationTests: TuistTestCase {
     }
 
     func test_contentHashes_sourcesInDifferentOrder_hashIsConsistent() throws {
+        let temporaryDirectoryPath = try temporaryPath()
         let framework1 = makeFramework(named: "f1", sources: [source2, source1])
         let framework2 = makeFramework(named: "f2", sources: [source4, source3])
-        cache.add(targetNode: framework1)
-        cache.add(targetNode: framework2)
+        let graph = Graph.test(targets: [
+            temporaryDirectoryPath: [framework1, framework2],
+        ])
 
         let contentHash = try subject.contentHashes(for: graph)
 
@@ -118,10 +125,12 @@ final class ContentHashingIntegrationTests: TuistTestCase {
     // MARK: - Resources
 
     func test_contentHashes_differentResourceFiles() throws {
+        let temporaryDirectoryPath = try temporaryPath()
         let framework1 = makeFramework(named: "f1", resources: [resourceFile1])
         let framework2 = makeFramework(named: "f2", resources: [resourceFile2])
-        cache.add(targetNode: framework1)
-        cache.add(targetNode: framework2)
+        let graph = Graph.test(targets: [
+            temporaryDirectoryPath: [framework1, framework2],
+        ])
 
         let contentHash = try subject.contentHashes(for: graph)
 
@@ -129,35 +138,41 @@ final class ContentHashingIntegrationTests: TuistTestCase {
     }
 
     func test_contentHashes_differentResourcesFolderReferences() throws {
+        let temporaryDirectoryPath = try temporaryPath()
         let framework1 = makeFramework(named: "f1", resources: [resourceFolderReference1])
-         let framework2 = makeFramework(named: "f2", resources:[resourceFolderReference2])
-         cache.add(targetNode: framework1)
-         cache.add(targetNode: framework2)
+        let framework2 = makeFramework(named: "f2", resources:[resourceFolderReference2])
+        let graph = Graph.test(targets: [
+            temporaryDirectoryPath: [framework1, framework2],
+        ])
 
-         let contentHash = try subject.contentHashes(for: graph)
+        let contentHash = try subject.contentHashes(for: graph)
 
-         XCTAssertNotEqual(contentHash[framework1], contentHash[framework2])
+        XCTAssertNotEqual(contentHash[framework1], contentHash[framework2])
     }
 
     func test_contentHashes_sameResources() throws {
+        let temporaryDirectoryPath = try temporaryPath()
         let resources: [FileElement] = [resourceFile1, resourceFolderReference1]
         let framework1 = makeFramework(named: "f1", resources: resources)
-         let framework2 = makeFramework(named: "f2", resources: resources)
-         cache.add(targetNode: framework1)
-         cache.add(targetNode: framework2)
+        let framework2 = makeFramework(named: "f2", resources: resources)
+        let graph = Graph.test(targets: [
+            temporaryDirectoryPath: [framework1, framework2],
+        ])
 
-         let contentHash = try subject.contentHashes(for: graph)
+        let contentHash = try subject.contentHashes(for: graph)
 
-         XCTAssertEqual(contentHash[framework1], contentHash[framework2])
+        XCTAssertEqual(contentHash[framework1], contentHash[framework2])
     }
 
     // MARK: - Core Data Models
 
     func test_contentHashes_differentCoreDataModels() throws {
+        let temporaryDirectoryPath = try temporaryPath()
         let framework1 = makeFramework(named: "f1", coreDataModels: [coreDataModel1])
         let framework2 = makeFramework(named: "f2", coreDataModels: [coreDataModel2])
-        cache.add(targetNode: framework1)
-        cache.add(targetNode: framework2)
+        let graph = Graph.test(targets: [
+            temporaryDirectoryPath: [framework1, framework2],
+        ])
 
         let contentHash = try subject.contentHashes(for: graph)
 
@@ -165,10 +180,12 @@ final class ContentHashingIntegrationTests: TuistTestCase {
     }
 
     func test_contentHashes_sameCoreDataModels() throws {
+        let temporaryDirectoryPath = try temporaryPath()
         let framework1 = makeFramework(named: "f1", coreDataModels: [coreDataModel1])
         let framework2 = makeFramework(named: "f2", coreDataModels: [coreDataModel1])
-        cache.add(targetNode: framework1)
-        cache.add(targetNode: framework2)
+        let graph = Graph.test(targets: [
+            temporaryDirectoryPath: [framework1, framework2],
+        ])
 
         let contentHash = try subject.contentHashes(for: graph)
 
@@ -180,10 +197,12 @@ final class ContentHashingIntegrationTests: TuistTestCase {
     // MARK: - Platform
 
     func test_contentHashes_differentPlatform() throws {
+        let temporaryDirectoryPath = try temporaryPath()
         let framework1 = makeFramework(named: "f1", platform: .iOS)
         let framework2 = makeFramework(named: "f2", platform: .macOS)
-        cache.add(targetNode: framework1)
-        cache.add(targetNode: framework2)
+        let graph = Graph.test(targets: [
+            temporaryDirectoryPath: [framework1, framework2],
+        ])
 
         let contentHash = try subject.contentHashes(for: graph)
 
@@ -193,10 +212,12 @@ final class ContentHashingIntegrationTests: TuistTestCase {
     // MARK: - ProductName
 
     func test_contentHashes_differentProductName() throws {
+        let temporaryDirectoryPath = try temporaryPath()
         let framework1 = makeFramework(named: "f1", productName: "1")
         let framework2 = makeFramework(named: "f2", productName: "2")
-        cache.add(targetNode: framework1)
-        cache.add(targetNode: framework2)
+        let graph = Graph.test(targets: [
+            temporaryDirectoryPath: [framework1, framework2],
+        ])
 
         let contentHash = try subject.contentHashes(for: graph)
 
