@@ -16,27 +16,18 @@ public final class TargetActionsContentHasher: TargetActionsContentHashing {
 
     // MARK: - TargetActionsContentHasher
 
-    /// Returns the hash that uniquely identify an array of target actions
-    /// The hash takes into consideration the content of the script to execute, the input paths, the output paths, the outputFileListPaths, the name of the tool to execute, the order, the arguments and its name
+    /// Returns the hash that uniquely identifies an array of target actions
+    /// The hash takes into consideration the content of the script to execute, the content of input/output files, the name of the tool to execute, the order, the arguments and its name
     public func hash(targetActions: [TargetAction]) throws -> String {
         var stringsToHash: [String] = []
         for targetAction in targetActions {
-            let contentHash = try contentHasher.hash(fileAtPath: targetAction.path ?? "")
-            let inputPaths = targetAction.inputPaths.map { $0.pathString }
-            let inputFileListPaths = targetAction.inputFileListPaths.map { $0.pathString }
-            let outputPaths = targetAction.outputPaths.map { $0.pathString }
-            let outputFileListPaths = targetAction.outputFileListPaths.map { $0.pathString }
-            stringsToHash.append(contentsOf:
-                [contentHash,
-                targetAction.name,
+            let pathsToHash = [targetAction.path ?? ""] + targetAction.inputPaths + targetAction.inputFileListPaths + targetAction.outputPaths + targetAction.outputFileListPaths
+            let fileHashes = try pathsToHash.map { try contentHasher.hash(fileAtPath: $0) }
+            stringsToHash.append(contentsOf: fileHashes +
+                [targetAction.name,
                 targetAction.tool ?? "",
-                targetAction.order.rawValue])
-            stringsToHash.append(contentsOf:
-                               targetAction.arguments +
-                               inputPaths +
-                               inputFileListPaths +
-                               outputPaths +
-                               outputFileListPaths)
+                targetAction.order.rawValue] +
+            targetAction.arguments)
         }
         return try contentHasher.hash(stringsToHash)
     }
