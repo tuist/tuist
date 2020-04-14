@@ -21,7 +21,7 @@ public class MockContentHashing: ContentHashing {
     }
 
     public var stubHashForPath: [AbsolutePath: String] = [:]
-    public func hash(_ filePath: AbsolutePath) throws -> String {
+    public func hash(fileAtPath filePath: AbsolutePath) throws -> String {
         return stubHashForPath[filePath] ?? ""
     }
 }

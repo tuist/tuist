@@ -7,7 +7,7 @@ public final class MockGraphContentHasher: GraphContentHashing {
 
     public init() {}
 
-    public func contentHashes(for _: Graphing) throws -> [TargetNode: String] {
+    public func contentHashes(for _: TuistCore.Graph) throws -> [TargetNode: String] {
         contentHashesStub
     }
 }

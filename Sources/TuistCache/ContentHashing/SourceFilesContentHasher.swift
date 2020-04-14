@@ -24,7 +24,7 @@ public final class SourceFilesContentHasher: SourceFilesContentHashing {
         let sortedSources = sources.sorted(by: { $0.path < $1.path })
         var stringsToHash: [String] = []
         for source in sortedSources {
-            var sourceHash = try contentHasher.hash(source.path)
+            var sourceHash = try contentHasher.hash(fileAtPath: source.path)
             if let compilerFlags = source.compilerFlags {
                 sourceHash += try contentHasher.hash(compilerFlags)
             }

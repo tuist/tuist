@@ -6,7 +6,7 @@ import TuistSupport
 public protocol ContentHashing {
     func hash(_ string: String) throws -> String
     func hash(_ strings: Array<String>) throws -> String
-    func hash(_ filePath: AbsolutePath) throws -> String
+    func hash(fileAtPath: AbsolutePath) throws -> String
 }
 
 /// ContentHasher
@@ -33,7 +33,7 @@ public final class ContentHasher: ContentHashing {
         return try hash(strings.joined())
     }
 
-    public func hash(_ filePath: AbsolutePath) throws -> String {
+    public func hash(fileAtPath filePath: AbsolutePath) throws -> String {
         guard let sourceData = try? fileHandler.readFile(filePath) else {
             throw ContentHashingError.fileNotFound(filePath)
         }

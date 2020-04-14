@@ -21,7 +21,7 @@ public final class TargetActionsContentHasher: TargetActionsContentHashing {
     public func hash(targetActions: [TargetAction]) throws -> String {
         var stringsToHash: [String] = []
         for targetAction in targetActions {
-            let contentHash = try contentHasher.hash(targetAction.path ?? "")
+            let contentHash = try contentHasher.hash(fileAtPath: targetAction.path ?? "")
             let inputPaths = targetAction.inputPaths.map { $0.pathString }
             let inputFileListPaths = targetAction.inputFileListPaths.map { $0.pathString }
             let outputPaths = targetAction.outputPaths.map { $0.pathString }

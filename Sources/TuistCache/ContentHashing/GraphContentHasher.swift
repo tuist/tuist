@@ -79,14 +79,14 @@ public final class GraphContentHasher: GraphContentHashing {
 
     private func hash(headers: Headers) throws -> String {
         let hashes = try (headers.private + headers.project + headers.project).map { path in
-            try contentHasher.hash(path)
+            try contentHasher.hash(fileAtPath: path)
         }
         return try contentHasher.hash(hashes)
     }
 
     private func hash(resources: [FileElement]) throws -> String {
         let paths = resources.map { $0.path }
-        let hashes = try paths.map { try contentHasher.hash($0) }
+        let hashes = try paths.map { try contentHasher.hash(fileAtPath: $0) }
         return try contentHasher.hash(hashes)
     }
 }
