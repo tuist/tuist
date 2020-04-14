@@ -7,6 +7,7 @@ import XCTest
 
 @testable import TuistCache
 @testable import TuistSupportTesting
+@testable import TuistCore
 
 final class ContentHashingIntegrationTests: TuistTestCase {
     var subject: GraphContentHasher!
