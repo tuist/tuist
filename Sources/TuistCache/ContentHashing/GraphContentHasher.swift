@@ -17,7 +17,7 @@ public final class GraphContentHasher: GraphContentHashing {
     // MARK: - Init
 
     public init(
-        contentHasher: ContentHashing = ContentHasher(),
+        contentHasher: ContentHashing = CacheContentHasher(),
         sourceFilesContentHasher: SourceFilesContentHashing = SourceFilesContentHasher(),
         targetActionsContentHasher: TargetActionsContentHashing = TargetActionsContentHasher(),
         coreDataModelsContentHasher: CoreDataModelsContentHashing = CoreDataModelsContentHasher()

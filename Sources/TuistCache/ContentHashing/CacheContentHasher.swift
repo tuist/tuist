@@ -1,18 +1,19 @@
 import Foundation
 import Basic
 
-/// CacheContentHasher is a wrapper on top of ContentHasher that adds an in-memory cache to avoid recalculating the same hashes
-final class CacheContentHasher: ContentHashing {
+/// CacheContentHasher
+/// It's a wrapper on top of ContentHasher that adds an in-memory cache to avoid recalculating the same hashes
+public final class CacheContentHasher: ContentHashing {
     private let contentHasher: ContentHashing
 
     /// In memory cache for files that have already been hashed
     private var hashesCache: [String: String] = [:]
 
-    init(contentHasher: ContentHashing = ContentHasher()) {
+    public init(contentHasher: ContentHashing = ContentHasher()) {
         self.contentHasher = contentHasher
     }
 
-    func hash(_ string: String) throws -> String {
+    public func hash(_ string: String) throws -> String {
         if let cachedHash = hashesCache[string] {
             return cachedHash
         }
@@ -21,7 +22,7 @@ final class CacheContentHasher: ContentHashing {
         return hash
     }
 
-    func hash(_ strings: Array<String>) throws -> String {
+    public func hash(_ strings: Array<String>) throws -> String {
         let key = strings.joined()
         if let cachedHash = hashesCache[key] {
               return cachedHash
@@ -31,7 +32,7 @@ final class CacheContentHasher: ContentHashing {
         return hash
     }
     
-    func hash(fileAtPath filePath: AbsolutePath) throws -> String {
+    public func hash(fileAtPath filePath: AbsolutePath) throws -> String {
         if let cachedHash = hashesCache[filePath.pathString] {
             return cachedHash
         }

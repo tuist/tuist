@@ -10,7 +10,7 @@ public final class SourceFilesContentHasher: SourceFilesContentHashing {
 
     // MARK: - Init
 
-    public init(contentHasher: ContentHashing = ContentHasher()) {
+    public init(contentHasher: ContentHashing = CacheContentHasher()) {
         self.contentHasher = contentHasher
     }
 

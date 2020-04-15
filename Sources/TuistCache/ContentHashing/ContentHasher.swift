@@ -15,10 +15,10 @@ public protocol ContentHashing: FileContentHashing {
 /// ContentHasher
 /// The single source of truth for hashing content
 /// Using md5 checksum to uniquely hash strings and data
+/// Consider using CacheContentHasher to avoid recalculating the same hash twice
 
 public final class ContentHasher: ContentHashing {
     private let fileHandler: FileHandling
-
 
     public init(fileHandler: FileHandling = FileHandler.shared) {
         self.fileHandler = fileHandler

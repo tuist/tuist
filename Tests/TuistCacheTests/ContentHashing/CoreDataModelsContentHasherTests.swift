@@ -38,14 +38,13 @@ final class CoreDataModelsContentHasherTests: TuistUnitTestCase {
 
     func test_hash_returnsSameValue() throws {
         // Given
-        coreDataModel = try buildCoreDataModel()
-        mockContentHasher.hashStringsStub = "fixed"
+        coreDataModel = try buildCoreDataModel(versions: ["v1", "v2"], currentVersion: "currentV1")
 
         // When
         let hash = try subject.hash(coreDataModels: [coreDataModel])
 
         // Then
-        XCTAssertEqual(hash, "fixed")
+        XCTAssertEqual(hash, "fixed-hash;currentV1;/v1;/v2")
     }
 
     func test_hash_fileContentChangesHash() throws {

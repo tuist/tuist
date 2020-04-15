@@ -5,22 +5,20 @@ import Basic
 public class MockContentHashing: ContentHashing {
     public init(){}
 
-    public var hashStringStub = ""
     public var hashStringSpy: String?
     public var hashStringCallCount = 0
     public func hash(_ string: String) throws -> String {
         hashStringSpy = string
         hashStringCallCount += 1
-        return hashStringStub
+        return "\(string)-hash"
     }
 
-    public var hashStringsStub = ""
     public var hashStringsSpy: [String]? = nil
     public var hashStringsCallCount = 0
     public func hash(_ strings: [String]) throws -> String {
         hashStringsSpy = strings
         hashStringsCallCount += 1
-        return hashStringsStub
+        return strings.joined(separator: ";")
     }
 
     public var stubHashForPath: [AbsolutePath: String] = [:]

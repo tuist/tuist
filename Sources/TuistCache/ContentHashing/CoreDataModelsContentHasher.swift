@@ -10,7 +10,7 @@ public final class CoreDataModelsContentHasher: CoreDataModelsContentHashing {
 
     // MARK: - Init
 
-    public init(contentHasher: ContentHashing = ContentHasher()) {
+    public init(contentHasher: ContentHashing = CacheContentHasher()) {
         self.contentHasher = contentHasher
     }
 

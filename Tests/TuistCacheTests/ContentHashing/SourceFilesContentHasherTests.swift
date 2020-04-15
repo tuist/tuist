@@ -43,26 +43,22 @@ final class SourceFilesContentHasherTests: TuistUnitTestCase {
     // MARK: - Tests
 
     func test_hash_returnsSameValue() throws {
-        // Given
-        mockContentHasher.hashStringsStub = "fixed"
-
         // When
         let hash = try subject.hash(sources: [sourceFile1, sourceFile2])
 
         // Then
-        XCTAssertEqual(hash, "fixed")
+        XCTAssertEqual(hash, "-fno-objc-arc-hash;-print-objc-runtime-info-hash")
     }
 
     func test_hash_includesFileContentHashAndCompilerFlags() throws {
         // Given
         mockContentHasher.stubHashForPath[sourceFile1Path] = "file1-content-hash"
         mockContentHasher.stubHashForPath[sourceFile2Path] = "file2-content-hash"
-        mockContentHasher.hashStringStub = "-compilerflag"
 
         // When
         _ = try subject.hash(sources: [sourceFile1, sourceFile2])
 
         // Then
-        XCTAssertEqual(mockContentHasher.hashStringsSpy, ["file1-content-hash-compilerflag", "file2-content-hash-compilerflag"])
+        XCTAssertEqual(mockContentHasher.hashStringsSpy, ["file1-content-hash-fno-objc-arc-hash", "file2-content-hash-print-objc-runtime-info-hash"])
     }
 }
