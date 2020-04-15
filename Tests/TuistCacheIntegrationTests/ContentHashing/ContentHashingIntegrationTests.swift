@@ -117,23 +117,6 @@ final class ContentHashingIntegrationTests: TuistTestCase {
         XCTAssertEqual(contentHash[framework2], "9ae1f1f50f9f95d40f0463a13df90084")
     }
 
-    func test_contentHashes_sourcesInDifferentOrder_hashIsConsistent() throws {
-        // Given
-        let temporaryDirectoryPath = try temporaryPath()
-        let framework1 = makeFramework(named: "f1", sources: [source2, source1])
-        let framework2 = makeFramework(named: "f2", sources: [source4, source3])
-        let graph = Graph.test(targets: [
-            temporaryDirectoryPath: [framework1, framework2],
-        ])
-
-        // When
-        let contentHash = try subject.contentHashes(for: graph)
-
-        // Then
-        XCTAssertEqual(contentHash[framework1], "d11fac90cd291aa92dd2cb37eb6481b4")
-        XCTAssertEqual(contentHash[framework2], "9ae1f1f50f9f95d40f0463a13df90084")
-    }
-
     // MARK: - Resources
 
     func test_contentHashes_differentResourceFiles() throws {
