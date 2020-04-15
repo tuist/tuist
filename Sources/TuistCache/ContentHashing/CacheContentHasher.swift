@@ -22,7 +22,7 @@ public final class CacheContentHasher: ContentHashing {
         return hash
     }
 
-    public func hash(_ strings: Array<String>) throws -> String {
+    public func hash(_ strings: [String]) throws -> String {
         let key = strings.joined()
         if let cachedHash = hashesCache[key] {
               return cachedHash

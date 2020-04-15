@@ -14,7 +14,6 @@ public final class SourceFilesContentHasher: SourceFilesContentHashing {
         self.contentHasher = contentHasher
     }
 
-
     // MARK: - SourceFilesContentHashing
 
     /// Returns a unique hash that identifies an arry of sourceFiles

@@ -3,7 +3,7 @@ import TuistCache
 import Basic
 
 public class MockContentHashing: ContentHashing {
-    public init(){}
+    public init() {}
 
     public var hashStringSpy: String?
     public var hashStringCallCount = 0
@@ -13,7 +13,7 @@ public class MockContentHashing: ContentHashing {
         return "\(string)-hash"
     }
 
-    public var hashStringsSpy: [String]? = nil
+    public var hashStringsSpy: [String]?
     public var hashStringsCallCount = 0
     public func hash(_ strings: [String]) throws -> String {
         hashStringsSpy = strings
@@ -28,4 +28,3 @@ public class MockContentHashing: ContentHashing {
         return stubHashForPath[filePath] ?? ""
     }
 }
-

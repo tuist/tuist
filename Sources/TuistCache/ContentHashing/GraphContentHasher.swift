@@ -70,8 +70,6 @@ public final class GraphContentHasher: GraphContentHashing {
                              resourcesHash,
                              coreDataModelHash,
                              targetActionsHash]
-
-
         //TODO: hash headers, platforms, version, entitlements, info.plist, target.environment, target.filesGroup, targetNode.settings, targetNode.project, targetNode.dependencies ,targetNode.target.dependencies
 
         return try contentHasher.hash(stringsToHash)

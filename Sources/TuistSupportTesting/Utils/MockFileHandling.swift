@@ -33,7 +33,7 @@ public final class MockFileHandling: FileHandling {
         return ""
     }
 
-    public func readPlistFile<T>(_ at: AbsolutePath) throws -> T where T : Decodable {
+    public func readPlistFile<T>(_ at: AbsolutePath) throws -> T where T: Decodable {
         return try JSONDecoder().decode(T.self, from: Data(capacity: 42))
     }
 

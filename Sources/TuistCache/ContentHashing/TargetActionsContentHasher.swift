@@ -1,5 +1,6 @@
 import Foundation
 import TuistCore
+import Basic
 
 public protocol TargetActionsContentHashing {
     func hash(targetActions: [TargetAction]) throws -> String
@@ -21,7 +22,11 @@ public final class TargetActionsContentHasher: TargetActionsContentHashing {
     public func hash(targetActions: [TargetAction]) throws -> String {
         var stringsToHash: [String] = []
         for targetAction in targetActions {
-            let pathsToHash = [targetAction.path ?? ""] + targetAction.inputPaths + targetAction.inputFileListPaths + targetAction.outputPaths + targetAction.outputFileListPaths
+            var pathsToHash: [AbsolutePath] = [targetAction.path ?? ""]
+            pathsToHash.append(contentsOf: targetAction.inputPaths)
+            pathsToHash.append(contentsOf: targetAction.inputFileListPaths)
+            pathsToHash.append(contentsOf: targetAction.outputPaths)
+            pathsToHash.append(contentsOf: targetAction.outputFileListPaths)
             let fileHashes = try pathsToHash.map { try contentHasher.hash(fileAtPath: $0) }
             stringsToHash.append(contentsOf: fileHashes +
                 [targetAction.name,

@@ -9,7 +9,7 @@ public protocol FileContentHashing {
 
 public protocol ContentHashing: FileContentHashing {
     func hash(_ string: String) throws -> String
-    func hash(_ strings: Array<String>) throws -> String
+    func hash(_ strings: [String]) throws -> String
 }
 
 /// ContentHasher
@@ -33,7 +33,7 @@ public final class ContentHasher: ContentHashing {
         return hash
     }
 
-    public func hash(_ strings: Array<String>) throws -> String {
+    public func hash(_ strings: [String]) throws -> String {
         return try hash(strings.joined())
     }
 
