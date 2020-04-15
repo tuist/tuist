@@ -3,10 +3,13 @@ import Basic
 import TuistCore
 import TuistSupport
 
-public protocol ContentHashing {
+public protocol FileContentHashing {
+    func hash(fileAtPath: AbsolutePath) throws -> String
+}
+
+public protocol ContentHashing: FileContentHashing {
     func hash(_ string: String) throws -> String
     func hash(_ strings: Array<String>) throws -> String
-    func hash(fileAtPath: AbsolutePath) throws -> String
 }
 
 /// ContentHasher
@@ -16,8 +19,6 @@ public protocol ContentHashing {
 public final class ContentHasher: ContentHashing {
     private let fileHandler: FileHandling
 
-    /// In memory cache for files that have already been hashed
-    private var fileHashesCache: [String: String] = [:]
 
     public init(fileHandler: FileHandling = FileHandler.shared) {
         self.fileHandler = fileHandler
@@ -37,16 +38,12 @@ public final class ContentHasher: ContentHashing {
     }
 
     public func hash(fileAtPath filePath: AbsolutePath) throws -> String {
-        if let cachedHash = fileHashesCache[filePath.pathString] {
-            return cachedHash
-        }
         guard let sourceData = try? fileHandler.readFile(filePath) else {
             throw ContentHashingError.fileNotFound(filePath)
         }
         guard let hash = sourceData.checksum(algorithm: .md5) else {
             throw ContentHashingError.fileHashingFailed(filePath)
         }
-        fileHashesCache[filePath.pathString] = hash
         return hash
     }
 }
