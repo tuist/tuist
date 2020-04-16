@@ -53,7 +53,7 @@ class CacheGraphMapper: CacheGraphMapping {
                 }
 
                 // We load the xcframework
-                let xcframework = try self.loadXCFramework(path: xcframeworkPath, loadedXCFrameworks: &loadedXCFrameworks)
+                let xcframework = try loadXCFramework(path: xcframeworkPath, loadedXCFrameworks: &loadedXCFrameworks)
                 try mapDependencies(targetDependency.dependencies).forEach { dependency in
                     if let frameworkDependency = dependency as? FrameworkNode {
                         xcframework.add(dependency: XCFrameworkNode.Dependency.framework(frameworkDependency))
