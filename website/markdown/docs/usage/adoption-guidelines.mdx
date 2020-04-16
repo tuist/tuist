@@ -1,0 +1,88 @@
+---
+name: Adoption guidelines
+excerpt: This page contains guidelines for migrating existing Xcode projects to Tuist.
+---
+
+# Adoption guidelines
+
+Unless you bootstrap a new project using Tuist,
+in which case you get everything configured automatically,
+you'll have to define your Xcode projects using Tuist's primitives _(e.g. Project.swift and Workspace.swift files)_.
+How tedious this process is depends on how complex your projects are.
+
+As you probably know,
+Xcode doesn't prevent developers from adding accidental complexity.
+That leads to complexity in the shape of _groups that don't match the directory structure_,
+_files that are shared across targets_, or
+_file references that point to nonexisting files_ _(to mention some)._
+All that accumulated complexity makes it hard for us to provide a comman that reliably ports migrates project.
+
+Moreover, a manual migration is a **good exercise to clean up and simplify** your projects.
+Not only the developers in your project will be thankful for that,
+but Xcode,
+who will be faster processing and indexing them.
+Once you have fully adopted Tuist,
+Tuist will make sure that proejcts are consistently defined and that they remain simple.
+
+To ease that work,
+we include some guidelines in this document that are based on the feedback that we have received from the users of the project.
+
+<Message
+  info
+  title="Migration commands"
+  description="We are currently working on providing commands for to assist you in the process. Until those commands are available, you might consider building simple CLI tools that levarage [XcodeProj](https://github.com/tuist/xcodeproj)"
+/>
+
+## Guidelines
+
+#### Extract your build settings into `.xcconfig` files
+
+The leaner the projects, the easier they are to migrate.
+To make them thinner,
+you can extract information like build settings that can be defined outside Xcode projects.
+It's important that you prevent developers from defining settings using build settings.
+You can do that by implementing a simple scripts that reads the build settings using [XcodeProj](https://github.com/tuist/xcodeproj),
+and fails if the settings of projects and targets are not empty.
+
+#### Migrate the most dependant projects first
+
+Those are usually simpler and contain fewer dependencies than the rest.
+That makes them good candidates from which we can start the migration.
+
+#### Remove broken references
+
+Go through your target sources and resources build phases, and delete references to files that are missing.
+Although Xcode's build system ignores them, they might complicate the migration.
+
+#### Remove files that are not used by any target
+
+There might be files that were once part of the project,
+but that they are no longer needed.
+Find and remove them.
+Otherwise you might run into compilation issues because your glob patterns _(e.g. `**/*.swift`)_ ended up matching them,
+and adding them as sources of your targets.
+
+#### Prevent modifications of Xcode projects after they've been migrated
+
+After the migration of each project,
+add a script that fails CI if someone modifies the Xcode project directly,
+and lets developers know that they should modify the manifest files instead.
+
+You can use a tool like [xcdiff](https://github.com/bloomberg/xcdiff) for that.
+
+#### Use [project description helpers](/docs/usage/helpers/)
+
+They allow defining your own abstractions for defining your projects,
+and most importantly,
+they allow reusing content across all your manifest files.
+One of the most common use cases is defining functions that act as factories of templated projects.
+After migrating all your projects,
+go through the `Project.swift` files to identify common patterns,
+and extract them into helpers.
+
+## Tools
+
+Here's a list of community-developed tools that can aid you on the migration process:
+
+- [**xcdiff**](https://github.com/bloomberg/xcdiff): A tool which helps you diff xcodeproj files.
+- [**Xcode Build Settings**](https://xcodebuildsettings.com/): A reference for all the build settings available and their meaning.
