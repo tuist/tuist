@@ -97,7 +97,7 @@ public extension SettingsDictionary {
 
     /// Sets "VERSION_INFO_PREFIX" to `version`. If prefix is not `nil`, it's used as "VERSION_INFO_PREFIX"; and suffix as "VERSION_INFO_SUFFIX"
     func versionInfo(_ version: String, prefix: String? = nil, suffix: String? = nil) -> SettingsDictionary {
-        var versionSettings: [String: SettingValue] = ["VERSION_INFO_STRING": version.asSettingValue]
+        var versionSettings: SettingsDictionary = ["VERSION_INFO_STRING": version.asSettingValue]
         versionSettings["VERSION_INFO_PREFIX"] = prefix?.asSettingValue
         versionSettings["VERSION_INFO_SUFFIX"] = suffix?.asSettingValue
 
