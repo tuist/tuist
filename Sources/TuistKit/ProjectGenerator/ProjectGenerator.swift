@@ -128,20 +128,6 @@ class ProjectGenerator: ProjectGenerating {
         return (workspaceDescriptor.xcworkspacePath, graph)
     }
 
-    private func lint(graph: Graph) throws {
-        let config = try graphLoader.loadConfig(path: graph.entryPath)
-
-        try environmentLinter.lint(config: config).printAndThrowIfNeeded()
-        try graphLinter.lint(graph: graph).printAndThrowIfNeeded()
-    }
-
-    private func postGenerationActions(for graph: Graph, workspaceName: String) throws {
-        try swiftPackageManagerInteractor.install(graph: graph, workspaceName: workspaceName)
-        try cocoapodsInteractor.install(graph: graph)
-    }
-
-    // MARK: -
-
     private func loadProject(path: AbsolutePath) throws -> (Project, Graph, [SideEffectDescriptor]) {
         // Load all manifests
         let config = try graphLoader.loadConfig(path: path)
@@ -190,21 +176,33 @@ class ProjectGenerator: ProjectGenerating {
         return (workspace, updatedGraph, modelMapperSideEffects + graphMapperSideEffects)
     }
 
-    func convert(manifests: LoadedProjects,
+    func convert(manifests: [LoadedProjectManifest],
                  context: ExecutionContext = .concurrent) throws -> [TuistCore.Project] {
-        let tuples = manifests.projects.map { (path: $0.key, manifest: $0.value) }
-        return try tuples.map(context: context) {
-            try converter.convert(manifest: $0.manifest, path: $0.path)
+        try manifests.map(context: context) {
+            try converter.convert(manifest: $0.project, path: $0.path)
         }
     }
 
-    func convert(manifests: LoadedWorkspace,
+    func convert(manifests: (LoadedWorkspaceManifest, [LoadedProjectManifest]),
                  context: ExecutionContext = .concurrent) throws -> (workspace: Workspace, projects: [TuistCore.Project]) {
-        let workspace = try converter.convert(manifest: manifests.workspace.1, path: manifests.workspace.0)
-        let tuples = manifests.projects.map { (path: $0.key, manifest: $0.value) }
-        let projects = try tuples.map(context: context) {
-            try converter.convert(manifest: $0.manifest, path: $0.path)
+        let workspaceManifest = manifests.0
+        let projectManifests = manifests.1
+        let workspace = try converter.convert(manifest: workspaceManifest.workspace, path: workspaceManifest.path)
+        let projects = try projectManifests.map(context: context) {
+            try converter.convert(manifest: $0.project, path: $0.path)
         }
         return (workspace, projects)
+    }
+
+    private func lint(graph: Graph) throws {
+        let config = try graphLoader.loadConfig(path: graph.entryPath)
+
+        try environmentLinter.lint(config: config).printAndThrowIfNeeded()
+        try graphLinter.lint(graph: graph).printAndThrowIfNeeded()
+    }
+
+    private func postGenerationActions(for graph: Graph, workspaceName: String) throws {
+        try swiftPackageManagerInteractor.install(graph: graph, workspaceName: workspaceName)
+        try cocoapodsInteractor.install(graph: graph)
     }
 }

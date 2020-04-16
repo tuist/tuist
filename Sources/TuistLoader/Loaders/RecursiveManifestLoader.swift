@@ -2,18 +2,19 @@ import Basic
 import Foundation
 import ProjectDescription
 
-public struct LoadedProjects {
-    public var projects: [AbsolutePath: Project]
+public struct LoadedProjectManifest {
+    public var path: AbsolutePath
+    public var project: Project
 }
 
-public struct LoadedWorkspace {
-    public var workspace: (AbsolutePath, Workspace)
-    public var projects: [AbsolutePath: Project]
+public struct LoadedWorkspaceManifest {
+    public var path: AbsolutePath
+    public var workspace: Workspace
 }
 
 public protocol RecursiveManifestLoading {
-    func loadProject(at path: AbsolutePath) throws -> LoadedProjects
-    func loadWorkspace(at path: AbsolutePath) throws -> LoadedWorkspace
+    func loadProject(at path: AbsolutePath) throws -> [LoadedProjectManifest]
+    func loadWorkspace(at path: AbsolutePath) throws -> (LoadedWorkspaceManifest, [LoadedProjectManifest])
 }
 
 public class RecursiveManifestLoader: RecursiveManifestLoading {
@@ -22,11 +23,11 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
         self.manifestLoader = manifestLoader
     }
 
-    public func loadProject(at path: AbsolutePath) throws -> LoadedProjects {
+    public func loadProject(at path: AbsolutePath) throws -> [LoadedProjectManifest] {
         try loadProjects(paths: [path])
     }
 
-    public func loadWorkspace(at path: AbsolutePath) throws -> LoadedWorkspace {
+    public func loadWorkspace(at path: AbsolutePath) throws -> (LoadedWorkspaceManifest, [LoadedProjectManifest]) {
         let workspace = try manifestLoader.loadWorkspace(at: path)
 
         let generatorPaths = GeneratorPaths(manifestDirectory: path)
@@ -35,13 +36,12 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
         }
 
         let projects = try loadProjects(paths: projectPaths)
-        return LoadedWorkspace(workspace: (path, workspace),
-                               projects: projects.projects)
+        return (LoadedWorkspaceManifest(path: path, workspace: workspace), projects)
     }
 
     // MARK: - Private
 
-    private func loadProjects(paths: [AbsolutePath]) throws -> LoadedProjects {
+    private func loadProjects(paths: [AbsolutePath]) throws -> [LoadedProjectManifest] {
         var cache = [AbsolutePath: Project]()
 
         var paths = paths
@@ -55,7 +55,7 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
             paths.append(contentsOf: try dependencyPaths(for: project, path: path))
         }
 
-        return LoadedProjects(projects: cache)
+        return cache.map { LoadedProjectManifest(path: $0.key, project: $0.value) }
     }
 
     private func dependencyPaths(for project: Project, path: AbsolutePath) throws -> [AbsolutePath] {
