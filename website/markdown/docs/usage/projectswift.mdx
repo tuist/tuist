@@ -1144,8 +1144,8 @@ A `Settings` object contains an optional dictionary with build settings and rela
       name: 'Base',
       description:
         'A dictionary with build settings that are inherited from all the configurations.',
-      type: '[String: SettingValue]',
-      typeLink: '#settingvalue',
+      type: 'SettingsDictionary',
+      typeLink: '#settingsdictionary',
       optional: true,
       default: '[:]',
     },
@@ -1182,7 +1182,8 @@ properties={[
 name: 'Base',
 description:
 'A dictionary with build settings that are inherited from all the configurations.',
-type: '[String: String]',
+type: 'SettingsDictionary',
+typeLink: '#settingsdictionary',
 optional: true,
 default: '[:]',
 },
@@ -1211,6 +1212,44 @@ default: '.recommended',
   description="The list of custom configurations should have unique names and can't be empty. Please use the alternate settings initializer to leverage the default Debug & Release configurations."
 />
 
+### SettingsDictionary
+
+`SettingsDictionary` is a typealias for the `[String: SettingValue]` dictionary, which is used to define a map of `xcodebuild` settings.
+
+Besides the ability to define typed strings for these settings, Tuist has methods to avoid having typos when using strings for the keys. For example, instead of defining your dictionary this way:
+
+```
+let baseSettings: [String: SettingValue] = [
+    "CODE_SIGN_IDENTITY": "iPhone Developer",
+    "CURRENT_PROJECT_VERSION": "1",
+    "IPHONEOS_DEPLOYMENT_TARGET": "11.0",
+    "PRODUCT_NAME": "MySuperTarget",
+    "SDKROOT": "iphoneos",
+    "VERSIONING_SYSTEM": "apple-generic",
+    "VERSION_INFO_STRING": "500"
+    "VERSION_INFO_PREFIX": "MyPrefix"
+]
+```
+
+It can be written this way as well:
+
+```
+let baseSettings: SettingsDictionary = SettingsDictionary()
+    .codeSignIdentityAppleDevelopment()
+    .currentProjectVersion("1")
+    .iPhoneOSDeploymentTarget("11.0")
+    .productName("MySuperTarget")
+    .iPhoneOSasSDKRoot()
+    .appleGenericVersioningSystem()
+    .versionInfo("500", prefix: "MyPrefix")
+```
+
+<Message
+  warning
+  title="Dictionary Literal"
+  description="When using dictionary literals, it's necessary to set the type of the dictionary to `SettingsDictionary` to satisfy the compiler, as in `let mySettings: SettingsDictionary = [:]` "
+/>
+
 ## Configuration
 
 A `Configuration` object describes the build settings and the `.xcconfig` file of a project or target. It is initialized with the following attributes:
@@ -1220,8 +1259,8 @@ A `Configuration` object describes the build settings and the `.xcconfig` file o
     {
       name: 'Settings',
       description: 'A dictionary that contains the build settings',
-      type: '[String: SettingValue]',
-      typeLink: '#settingvalue',
+      type: 'SettingsDictionary',
+      typeLink: '#settingsdictionary',
       optional: true,
       default: '[:]',
     },
@@ -1247,12 +1286,12 @@ For example, a `.debug` configuration would get `SWIFT_OPTIMIZATION_LEVEL = -Ono
 <EnumTable
   cases={[
     {
-      case: '.debug(name: String, settings: [String: String], xcconfig: Path?)',
+      case: '.debug(name: String, settings: SettingsDictionary, xcconfig: Path?)',
       description: 'A custom debug configuration',
     },
     {
       case:
-        '.release(name: String, settings: [String: String], xcconfig: Path?)',
+        '.release(name: String, settings: SettingsDictionary, xcconfig: Path?)',
       description: 'A custom release configuration',
     },
   ]}

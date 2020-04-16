@@ -111,8 +111,8 @@ public extension CustomConfiguration {
 // MARK: - DefaultSettings
 
 /// Specifies the default set of settings applied to all the projects and targets.
-/// The default settings can be overridden via `Settings base: [String: String]`
-/// and `Configuration settings: [String: String]`.
+/// The default settings can be overridden via `Settings base: SettingsDictionary`
+/// and `Configuration settings: SettingsDictionary`.
 ///
 /// - all: Essential settings plus all the recommended settings (including extra warnings)
 /// - essential: Only essential settings to make the projects compile (i.e. `TARGETED_DEVICE_FAMILY`)
