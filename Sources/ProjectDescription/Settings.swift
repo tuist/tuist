@@ -1,5 +1,7 @@
 import Foundation
 
+public typealias SettingsDictionary = [String: SettingValue]
+
 // MARK: - SettingValue
 
 public enum SettingValue: ExpressibleByStringLiteral, ExpressibleByArrayLiteral, Equatable, Codable {
@@ -44,15 +46,15 @@ public enum SettingValue: ExpressibleByStringLiteral, ExpressibleByArrayLiteral,
 // MARK: - Configuration
 
 public struct Configuration: Equatable, Codable {
-    public let settings: [String: SettingValue]
+    public let settings: SettingsDictionary
     public let xcconfig: Path?
 
-    public init(settings: [String: SettingValue] = [:], xcconfig: Path? = nil) {
+    public init(settings: SettingsDictionary = [:], xcconfig: Path? = nil) {
         self.settings = settings
         self.xcconfig = xcconfig
     }
 
-    public static func settings(_ settings: [String: SettingValue], xcconfig: Path? = nil) -> Configuration {
+    public static func settings(_ settings: SettingsDictionary, xcconfig: Path? = nil) -> Configuration {
         Configuration(settings: settings, xcconfig: xcconfig)
     }
 }
@@ -88,7 +90,7 @@ public extension CustomConfiguration {
     ///   - settings: The base build settings to apply
     ///   - xcconfig: The xcconfig file to associate with this configuration
     /// - Returns: A debug `CustomConfiguration`
-    static func debug(name: String, settings: [String: SettingValue] = [:], xcconfig: Path? = nil) -> CustomConfiguration {
+    static func debug(name: String, settings: SettingsDictionary = [:], xcconfig: Path? = nil) -> CustomConfiguration {
         let configuration = Configuration(settings: settings, xcconfig: xcconfig)
         return CustomConfiguration(name: name, variant: .debug, configuration: configuration)
     }
@@ -100,7 +102,7 @@ public extension CustomConfiguration {
     ///   - settings: The base build settings to apply
     ///   - xcconfig: The xcconfig file to associate with this configuration
     /// - Returns: A release `CustomConfiguration`
-    static func release(name: String, settings: [String: SettingValue] = [:], xcconfig: Path? = nil) -> CustomConfiguration {
+    static func release(name: String, settings: SettingsDictionary = [:], xcconfig: Path? = nil) -> CustomConfiguration {
         let configuration = Configuration(settings: settings, xcconfig: xcconfig)
         return CustomConfiguration(name: name, variant: .release, configuration: configuration)
     }
@@ -123,7 +125,7 @@ public enum DefaultSettings: String, Codable {
 // MARK: - Settings
 
 public struct Settings: Equatable, Codable {
-    public let base: [String: SettingValue]
+    public let base: SettingsDictionary
     public let configurations: [CustomConfiguration]
     public let defaultSettings: DefaultSettings
 
@@ -140,7 +142,7 @@ public struct Settings: Equatable, Codable {
     ///
     /// - seealso: Configuration
     /// - seealso: DefaultSettings
-    public init(base: [String: SettingValue] = [:],
+    public init(base: SettingsDictionary = [:],
                 debug: Configuration? = nil,
                 release: Configuration? = nil,
                 defaultSettings: DefaultSettings = .recommended) {
@@ -165,7 +167,7 @@ public struct Settings: Equatable, Codable {
     ///
     /// - seealso: CustomConfiguration
     /// - seealso: DefaultSettings
-    public init(base: [String: SettingValue] = [:],
+    public init(base: SettingsDictionary = [:],
                 configurations: [CustomConfiguration],
                 defaultSettings: DefaultSettings = .recommended) {
         self.base = base

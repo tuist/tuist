@@ -2,6 +2,8 @@ import Foundation
 import TSCBasic
 import TuistSupport
 
+public typealias SettingsDictionary = [String: SettingValue]
+
 public enum SettingValue: ExpressibleByStringLiteral, ExpressibleByArrayLiteral, Equatable {
     case string(String)
     case array([String])
@@ -30,12 +32,12 @@ public enum SettingValue: ExpressibleByStringLiteral, ExpressibleByArrayLiteral,
 public struct Configuration: Equatable {
     // MARK: - Attributes
 
-    public let settings: [String: SettingValue]
+    public let settings: SettingsDictionary
     public let xcconfig: AbsolutePath?
 
     // MARK: - Init
 
-    public init(settings: [String: SettingValue] = [:], xcconfig: AbsolutePath? = nil) {
+    public init(settings: SettingsDictionary = [:], xcconfig: AbsolutePath? = nil) {
         self.settings = settings
         self.xcconfig = xcconfig
     }
@@ -53,13 +55,13 @@ public class Settings: Equatable {
 
     // MARK: - Attributes
 
-    public let base: [String: SettingValue]
+    public let base: SettingsDictionary
     public let configurations: [BuildConfiguration: Configuration?]
     public let defaultSettings: DefaultSettings
 
     // MARK: - Init
 
-    public init(base: [String: SettingValue] = [:],
+    public init(base: SettingsDictionary = [:],
                 configurations: [BuildConfiguration: Configuration?],
                 defaultSettings: DefaultSettings = .recommended) {
         self.base = base
