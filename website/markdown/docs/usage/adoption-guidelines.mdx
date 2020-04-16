@@ -42,8 +42,12 @@ The leaner the projects, the easier they are to migrate.
 To make them thinner,
 you can extract information like build settings that can be defined outside Xcode projects.
 You must prevent developers from defining settings using build settings.
-You can do that by implementing a script that reads the build settings using [XcodeProj](https://github.com/tuist/xcodeproj),
-and fails if the settings of projects and targets are not empty.
+
+You can use this snippet for that:
+
+```bash
+xcodebuild -scheme "MyScheme" -showBuildSettings >> MyScheme.xcconfig
+```
 
 #### Migrate the most dependant projects first
 
