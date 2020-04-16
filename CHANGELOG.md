@@ -14,7 +14,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Support for returning `SideEffectDescriptor`s from the graph mappers [#1201](https://github.com/tuist/tuist/pull/1201) by [@pepibumur](https://github.com/pepibumur).
 - SwiftUI template [#1180](https://github.com/tuist/tuist/pull/1180) by [@fortmarek](https://github.com/fortmarek)
-- `SettingsDictionary` is a typealias for `[String: SettingValue]`. [#1228](https://github.com/tuist/tuist/pull/1228) by [@natanrolnik](https://github.com/natanrolnik). Many useful extension methods were added to `SettingsDictionary`, allowing settings to be defined this way:
+- `SettingsDictionary` is a typealias for `[String: SettingValue]`. [#1229](https://github.com/tuist/tuist/pull/1229) by [@natanrolnik](https://github.com/natanrolnik). Many useful extension methods were added to `SettingsDictionary`, allowing settings to be defined this way:
 
 ```
 let baseSettings = SettingsDictionary()
