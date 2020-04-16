@@ -1,7 +1,7 @@
-import Basic
 import Foundation
 import RxBlocking
 import RxSwift
+import TSCBasic
 import TuistAutomation
 import TuistCache
 import TuistCore

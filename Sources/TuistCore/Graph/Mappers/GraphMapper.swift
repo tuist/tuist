@@ -1,5 +1,5 @@
-import Basic
 import Foundation
+import TSCBasic
 
 /// A protocol that defines an interface to map dependency graphs.
 public protocol GraphMapping {

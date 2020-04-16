@@ -1,5 +1,5 @@
-import Basic
 import Foundation
+import TSCBasic
 
 enum OpeningError: FatalError, Equatable {
     case notFound(AbsolutePath)

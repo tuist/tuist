@@ -1,5 +1,5 @@
-import Basic
 import Foundation
+import TSCBasic
 import TuistCore
 import TuistCoreTesting
 import TuistSupport
@@ -299,8 +299,8 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
     // MARK: - Helpers
 
     private func generateProjectConfig(config _: BuildConfiguration) throws {
-        let dir = try TemporaryDirectory(removeTreeOnDeinit: true)
-        let xcconfigsDir = dir.path.appending(component: "xcconfigs")
+        let dir = try temporaryPath()
+        let xcconfigsDir = dir.appending(component: "xcconfigs")
         try FileHandler.shared.createFolder(xcconfigsDir)
         try "".write(to: xcconfigsDir.appending(component: "debug.xcconfig").url, atomically: true, encoding: .utf8)
         try "".write(to: xcconfigsDir.appending(component: "release.xcconfig").url, atomically: true, encoding: .utf8)
@@ -314,7 +314,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
                                     xcconfig: xcconfigsDir.appending(component: "release.xcconfig")),
             .release("CustomRelease"): Configuration(settings: ["CustomRelease": "CustomRelease"], xcconfig: nil),
         ]
-        let project = Project.test(path: dir.path,
+        let project = Project.test(path: dir,
                                    name: "Test",
                                    settings: Settings(base: ["Base": "Base"], configurations: configurations),
                                    targets: [])
@@ -325,8 +325,8 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
     }
 
     private func generateTargetConfig() throws {
-        let dir = try TemporaryDirectory(removeTreeOnDeinit: true)
-        let xcconfigsDir = dir.path.appending(component: "xcconfigs")
+        let dir = try temporaryPath()
+        let xcconfigsDir = dir.appending(component: "xcconfigs")
         try FileHandler.shared.createFolder(xcconfigsDir)
         try "".write(to: xcconfigsDir.appending(component: "debug.xcconfig").url, atomically: true, encoding: .utf8)
         try "".write(to: xcconfigsDir.appending(component: "release.xcconfig").url, atomically: true, encoding: .utf8)
@@ -340,7 +340,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         ]
         let target = Target.test(name: "Test",
                                  settings: Settings(base: ["Base": "Base"], configurations: configurations))
-        let project = Project.test(path: dir.path,
+        let project = Project.test(path: dir,
                                    name: "Test",
                                    settings: .default,
                                    targets: [target])
@@ -348,7 +348,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         let groups = ProjectGroups.generate(project: project,
                                             pbxproj: pbxproj,
                                             xcodeprojPath: project.path.appending(component: "\(project.fileName).xcodeproj"),
-                                            sourceRootPath: dir.path)
+                                            sourceRootPath: dir)
         let graph = Graph.test()
         try fileElements.generateProjectFiles(project: project,
                                               graph: graph,
@@ -365,12 +365,12 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
     }
 
     private func generateTestTargetConfig(uiTest: Bool = false) throws {
-        let dir = try TemporaryDirectory(removeTreeOnDeinit: true)
+        let dir = try temporaryPath()
 
         let appTarget = Target.test(name: "App", platform: .iOS, product: .app)
 
         let target = Target.test(name: "Test", product: uiTest ? .uiTests : .unitTests)
-        let project = Project.test(path: dir.path, name: "Project", targets: [target])
+        let project = Project.test(path: dir, name: "Project", targets: [target])
 
         let appTargetNode = TargetNode(project: project, target: appTarget, dependencies: [])
         let testTargetNode = TargetNode(project: project, target: target, dependencies: [appTargetNode])
@@ -383,7 +383,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
                                              projectSettings: project.settings,
                                              fileElements: .init(),
                                              graph: graph,
-                                             sourceRootPath: dir.path)
+                                             sourceRootPath: dir)
     }
 
     func assert(config: XCBuildConfiguration?,

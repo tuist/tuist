@@ -1,5 +1,5 @@
-import Basic
 import Foundation
+import TSCBasic
 
 /// Entity responsible for providing generator models
 ///

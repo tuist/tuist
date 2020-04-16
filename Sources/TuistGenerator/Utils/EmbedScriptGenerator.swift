@@ -1,5 +1,5 @@
-import Basic
 import Foundation
+import TSCBasic
 import TuistCore
 
 /// This protocols defines the interface of an utility that given a list of embeddable frameworks

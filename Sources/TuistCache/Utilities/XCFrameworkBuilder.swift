@@ -1,6 +1,6 @@
-import Basic
 import Foundation
 import RxSwift
+import TSCBasic
 import TuistCore
 import TuistSupport
 
@@ -77,69 +77,69 @@ public final class XCFrameworkBuilder: XCFrameworkBuilding {
         let scheme = target.name.spm_shellEscaped()
 
         // Create temporary directories
-        let outputDirectory = try TemporaryDirectory(removeTreeOnDeinit: false)
-        let temporaryPath = try TemporaryDirectory(removeTreeOnDeinit: false)
+        return try withTemporaryDirectories { outputDirectory, temporaryPath in
 
-        logger.notice("Building .xcframework for \(target.name)...", metadata: .section)
+            logger.notice("Building .xcframework for \(target.name)...", metadata: .section)
 
-        // Build for the device
-        // Without the BUILD_LIBRARY_FOR_DISTRIBUTION argument xcodebuild doesn't generate the .swiftinterface file
-        let deviceArchivePath = temporaryPath.path.appending(component: "device.xcarchive")
-        let deviceArchiveObservable = xcodeBuildController.archive(projectTarget,
-                                                                   scheme: scheme,
-                                                                   clean: true,
-                                                                   archivePath: deviceArchivePath,
-                                                                   arguments: [
-                                                                       .sdk(target.platform.xcodeDeviceSDK),
-                                                                       .derivedDataPath(temporaryPath.path),
-                                                                       .buildSetting("SKIP_INSTALL", "NO"),
-                                                                       .buildSetting("BUILD_LIBRARY_FOR_DISTRIBUTION", "YES"),
-                                                                   ])
-            .printFormattedOutput()
-            .do(onSubscribed: {
-                logger.notice("Building \(target.name) for device...", metadata: .subsection)
-            })
-
-        // Build for the simulator
-        var simulatorArchiveObservable: Observable<SystemEvent<XcodeBuildOutput>>?
-        var simulatorArchivePath: AbsolutePath?
-        if target.platform.hasSimulators {
-            simulatorArchivePath = temporaryPath.path.appending(component: "simulator.xcarchive")
-            simulatorArchiveObservable = xcodeBuildController.archive(projectTarget,
-                                                                      scheme: scheme,
-                                                                      clean: false,
-                                                                      archivePath: simulatorArchivePath!,
-                                                                      arguments: [
-                                                                          .sdk(target.platform.xcodeSimulatorSDK!),
-                                                                          .derivedDataPath(temporaryPath.path),
-                                                                          .buildSetting("SKIP_INSTALL", "NO"),
-                                                                          .buildSetting("BUILD_LIBRARY_FOR_DISTRIBUTION", "YES"),
-                                                                      ])
+            // Build for the device
+            // Without the BUILD_LIBRARY_FOR_DISTRIBUTION argument xcodebuild doesn't generate the .swiftinterface file
+            let deviceArchivePath = temporaryPath.appending(component: "device.xcarchive")
+            let deviceArchiveObservable = xcodeBuildController.archive(projectTarget,
+                                                                       scheme: scheme,
+                                                                       clean: true,
+                                                                       archivePath: deviceArchivePath,
+                                                                       arguments: [
+                                                                           .sdk(target.platform.xcodeDeviceSDK),
+                                                                           .derivedDataPath(temporaryPath),
+                                                                           .buildSetting("SKIP_INSTALL", "NO"),
+                                                                           .buildSetting("BUILD_LIBRARY_FOR_DISTRIBUTION", "YES"),
+                                                                       ])
                 .printFormattedOutput()
                 .do(onSubscribed: {
-                    logger.notice("Building \(target.name) for simulator", metadata: .subsection)
+                    logger.notice("Building \(target.name) for device...", metadata: .subsection)
+                })
+
+            // Build for the simulator
+            var simulatorArchiveObservable: Observable<SystemEvent<XcodeBuildOutput>>?
+            var simulatorArchivePath: AbsolutePath?
+            if target.platform.hasSimulators {
+                simulatorArchivePath = temporaryPath.appending(component: "simulator.xcarchive")
+                simulatorArchiveObservable = xcodeBuildController.archive(projectTarget,
+                                                                          scheme: scheme,
+                                                                          clean: false,
+                                                                          archivePath: simulatorArchivePath!,
+                                                                          arguments: [
+                                                                              .sdk(target.platform.xcodeSimulatorSDK!),
+                                                                              .derivedDataPath(temporaryPath),
+                                                                              .buildSetting("SKIP_INSTALL", "NO"),
+                                                                              .buildSetting("BUILD_LIBRARY_FOR_DISTRIBUTION", "YES"),
+                                                                          ])
+                    .printFormattedOutput()
+                    .do(onSubscribed: {
+                        logger.notice("Building \(target.name) for simulator", metadata: .subsection)
+                    })
+            }
+
+            // Build the xcframework
+            var frameworkpaths = [frameworkPath(fromArchivePath: deviceArchivePath, productName: target.productName)]
+            if let simulatorArchivePath = simulatorArchivePath {
+                frameworkpaths.append(frameworkPath(fromArchivePath: simulatorArchivePath, productName: target.productName))
+            }
+            let xcframeworkPath = outputDirectory.appending(component: "\(target.productName).xcframework")
+            let xcframeworkObservable = xcodeBuildController.createXCFramework(frameworks: frameworkpaths, output: xcframeworkPath)
+                .do(onSubscribed: {
+                    logger.notice("Exporting xcframework for \(target.platform.caseValue)", metadata: .subsection)
+                })
+
+            return deviceArchiveObservable
+                .concat(simulatorArchiveObservable ?? Observable.empty())
+                .concat(xcframeworkObservable)
+                .ignoreElements()
+                .andThen(Observable.just(xcframeworkPath))
+                .do(afterCompleted: {
+                    try FileHandler.shared.delete(temporaryPath)
                 })
         }
-
-        // Build the xcframework
-        var frameworkpaths = [frameworkPath(fromArchivePath: deviceArchivePath, productName: target.productName)]
-        if let simulatorArchivePath = simulatorArchivePath {
-            frameworkpaths.append(frameworkPath(fromArchivePath: simulatorArchivePath, productName: target.productName))
-        }
-        let xcframeworkPath = outputDirectory.path.appending(component: "\(target.productName).xcframework")
-        let xcframeworkObservable = xcodeBuildController.createXCFramework(frameworks: frameworkpaths, output: xcframeworkPath)
-            .do(onSubscribed: {
-                logger.notice("Exporting xcframework for \(target.platform.caseValue)", metadata: .subsection)
-            })
-
-        return deviceArchiveObservable
-            .concat(simulatorArchiveObservable ?? Observable.empty())
-            .concat(xcframeworkObservable)
-            .ignoreElements()
-            .andThen(Observable.just(xcframeworkPath))
-            .do(afterCompleted: {
-                try FileHandler.shared.delete(temporaryPath.path)
-            })
     }
 
     /// Returns the path to the framework inside the archive.

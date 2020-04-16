@@ -1,4 +1,4 @@
-import Basic
+import TSCBasic
 import TuistCore
 import TuistCoreTesting
 import TuistSupport

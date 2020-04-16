@@ -1,5 +1,5 @@
-import Basic
 import Foundation
+import TSCBasic
 
 /// It represents arguments that can be passed to the xcodebuild command.
 public enum XcodeBuildArgument: Equatable, CustomStringConvertible {

@@ -1,6 +1,6 @@
 import ArgumentParser
-import Basic
 import Foundation
+import TSCBasic
 import TuistSupport
 
 /// Command to cache frameworks as .xcframeworks and speed up your and others' build times.

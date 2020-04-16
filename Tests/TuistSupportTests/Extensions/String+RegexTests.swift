@@ -1,4 +1,3 @@
-import SPMUtility
 import XCTest
 @testable import TuistSupport
 

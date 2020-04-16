@@ -1,5 +1,5 @@
-import Basic
 import Foundation
+import TSCBasic
 import TuistGenerator
 
 final class MockDotGraphGenerator: DotGraphGenerating {
