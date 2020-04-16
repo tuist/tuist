@@ -30,10 +30,8 @@ class ManifestLinterTests: XCTestCase {
         let results = subject.lint(project: project)
 
         // Then
-        XCTAssertEqual(results, [
-            LintingIssue(reason: "The configuration 'A' is declared multiple times within 'MyProject' settings. The last declared configuration will be used.", severity: .warning),
-            LintingIssue(reason: "The configuration 'B' is declared multiple times within 'MyProject' settings. The last declared configuration will be used.", severity: .warning),
-        ])
+        XCTAssertTrue(results.contains(LintingIssue(reason: "The configuration 'A' is declared multiple times within 'MyFramework' settings. The last declared configuration will be used.", severity: .warning)))
+        XCTAssertTrue(results.contains(LintingIssue(reason: "The configuration 'B' is declared multiple times within 'MyFramework' settings. The last declared configuration will be used.", severity: .warning)))
     }
 
     func test_lint_target_duplicateConfigurationNames() {
@@ -52,9 +50,7 @@ class ManifestLinterTests: XCTestCase {
         let results = subject.lint(project: project)
 
         // Then
-        XCTAssertEqual(results, [
-            LintingIssue(reason: "The configuration 'A' is declared multiple times within 'MyFramework' settings. The last declared configuration will be used.", severity: .warning),
-            LintingIssue(reason: "The configuration 'B' is declared multiple times within 'MyFramework' settings. The last declared configuration will be used.", severity: .warning),
-        ])
+        XCTAssertTrue(results.contains(LintingIssue(reason: "The configuration 'A' is declared multiple times within 'MyFramework' settings. The last declared configuration will be used.", severity: .warning)))
+        XCTAssertTrue(results.contains(LintingIssue(reason: "The configuration 'B' is declared multiple times within 'MyFramework' settings. The last declared configuration will be used.", severity: .warning)))
     }
 }

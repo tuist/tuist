@@ -51,6 +51,7 @@ public class ManifestLinter: ManifestLinting {
     private func lint(settings: ProjectDescription.Settings, declarationLocation: String) -> [LintingIssue] {
         let configurationNames = settings.configurations.map(\.name)
 
+        print(configurationNames)
         return configurationNames.spm_findDuplicates().map {
             LintingIssue(reason: "The configuration '\($0)' is declared multiple times within '\(declarationLocation)' settings. The last declared configuration will be used.", severity: .warning)
         }
