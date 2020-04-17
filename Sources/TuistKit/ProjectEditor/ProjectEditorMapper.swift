@@ -95,16 +95,16 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             dependencies.append(templatesNode)
         }
 
-        let manifestTargetNode = manifestsTargets.map { TargetNode(project: project, target: $0, dependencies: dependencies) }
+        let manifestTargetNodes = manifestsTargets.map { TargetNode(project: project, target: $0, dependencies: dependencies) }
 
         let graph = Graph(name: "Manifests",
                           entryPath: sourceRootPath,
-                          entryNodes: manifestTargetNode,
+                          entryNodes: manifestTargetNodes,
                           projects: [project],
                           cocoapods: [],
                           packages: [],
                           precompiled: [],
-                          targets: [sourceRootPath: manifestTargetNode + dependencies])
+                          targets: [sourceRootPath: manifestTargetNodes + dependencies])
 
         // Project
         return (project, graph)
@@ -123,6 +123,8 @@ final class ProjectEditorMapper: ProjectEditorMapping {
     }
     
     /// It returns a dictionary with unique name as key for each Manifest file
+    /// - Parameter manifests: Manifest files to assign an unique name
+    /// - Returns: Dictionary composed by unique name as key and Manifest file as value.
     fileprivate func named(manifests: [AbsolutePath]) -> [String: AbsolutePath] {
         manifests.reduce(into: [String: AbsolutePath]()) { result, manifest in
             var name = "\(manifest.parentDirectory.basename)Manifests"
