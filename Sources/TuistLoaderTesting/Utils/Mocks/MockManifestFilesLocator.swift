@@ -15,6 +15,6 @@ public final class MockManifestFilesLocator: ManifestFilesLocating {
     
     public func locateAll(at: AbsolutePath) -> [(Manifest, AbsolutePath)] {
         locateAllArgs.append(at)
-        return locateStub ?? [(.project, at.appending(component: "Project.swift"))]
+        return locateAllStubs ?? [(.project, at.appending(component: "Project.swift"))]
     }
 }
