@@ -1,7 +1,8 @@
-import Basic
 import Foundation
 import ProjectDescription
+import TSCBasic
 @testable import TuistLoader
+@testable import TuistSupportTesting
 
 public final class MockManifestLoader: ManifestLoading {
     public var loadProjectCount: UInt = 0

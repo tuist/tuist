@@ -1,6 +1,5 @@
-import Basic
 import Foundation
-import SPMUtility
+import TSCBasic
 import TuistSupport
 
 /// Protocol that represents an entity that knows how to get the environment status

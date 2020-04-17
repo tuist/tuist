@@ -1,4 +1,4 @@
-import Basic
+import TSCBasic
 import TuistCore
 import TuistLoaderTesting
 import XcodeProj
@@ -437,7 +437,7 @@ private func extractBuildSettings(path: XcodePath) throws -> ExtractedBuildSetti
         arguments.append(scheme)
     }
 
-    let rawBuildSettings = try Basic.Process.checkNonZeroExit(arguments: arguments)
+    let rawBuildSettings = try TSCBasic.Process.checkNonZeroExit(arguments: arguments)
     return ExtractedBuildSettings(rawBuildSettings: rawBuildSettings)
 }
 

@@ -1,6 +1,6 @@
 import ArgumentParser
-import Basic
 import Foundation
+import TSCBasic
 import TuistGenerator
 import TuistLoader
 import TuistSupport

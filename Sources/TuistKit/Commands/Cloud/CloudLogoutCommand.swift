@@ -1,6 +1,6 @@
 import ArgumentParser
-import Basic
 import Foundation
+import TSCBasic
 
 struct CloudLogoutCommand: ParsableCommand {
     static var configuration: CommandConfiguration {

@@ -1,6 +1,6 @@
-import Basic
 import Foundation
-import SPMUtility
+import TSCBasic
+import struct TSCUtility.Version
 import TuistCore
 import TuistSupport
 import XCTest

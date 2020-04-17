@@ -88,7 +88,6 @@ final class CacheMapperTests: TuistUnitTestCase {
         // Given
         let cFramework = Target.test(name: "C", platform: .iOS, product: .framework)
         let cNode = TargetNode.test(target: cFramework, dependencies: [])
-        let cXCFrameworkPath = path.appending(component: "C.xcframework")
         let cHash = "C"
 
         let bFramework = Target.test(name: "B", platform: .iOS, product: .framework)

@@ -1,4 +1,4 @@
-import struct SPMUtility.Version
+import struct TSCUtility.Version
 import TuistCore
 import TuistCoreTesting
 import XCTest

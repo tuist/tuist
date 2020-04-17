@@ -1,4 +1,4 @@
-import Basic
+import TSCBasic
 import TuistGenerator
 import TuistLoader
 import TuistSupport

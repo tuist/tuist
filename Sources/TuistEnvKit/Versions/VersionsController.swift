@@ -1,6 +1,6 @@
-import Basic
 import Foundation
-import SPMUtility
+import TSCBasic
+import struct TSCUtility.Version
 import TuistSupport
 
 protocol VersionsControlling: AnyObject {
@@ -40,17 +40,17 @@ class VersionsController: VersionsControlling {
     // MARK: - VersionsControlling
 
     func install(version: String, installation: Installation) throws {
-        let tmpDir = try TemporaryDirectory(removeTreeOnDeinit: true)
+        try withTemporaryDirectory { tmpDir in
+            try installation(tmpDir)
 
-        try installation(tmpDir.path)
-
-        // Copy only if there's file in the folder
-        if !tmpDir.path.glob("*").isEmpty {
-            let dstPath = path(version: version)
-            if FileHandler.shared.exists(dstPath) {
-                try FileHandler.shared.delete(dstPath)
+            // Copy only if there's file in the folder
+            if !tmpDir.glob("*").isEmpty {
+                let dstPath = path(version: version)
+                if FileHandler.shared.exists(dstPath) {
+                    try FileHandler.shared.delete(dstPath)
+                }
+                try FileHandler.shared.copy(from: tmpDir, to: dstPath)
             }
-            try FileHandler.shared.copy(from: tmpDir.path, to: dstPath)
         }
     }
 

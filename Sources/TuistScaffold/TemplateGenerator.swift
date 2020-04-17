@@ -1,6 +1,6 @@
-import Basic
 import Foundation
 import struct Stencil.Environment
+import TSCBasic
 import TuistCore
 import TuistSupport
 

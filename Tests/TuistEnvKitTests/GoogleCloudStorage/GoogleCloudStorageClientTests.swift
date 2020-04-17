@@ -1,5 +1,5 @@
 import RxBlocking
-import SPMUtility
+import struct TSCUtility.Version
 import XCTest
 @testable import TuistEnvKit
 @testable import TuistSupportTesting
@@ -83,7 +83,7 @@ final class GoogleCloudStorageClientTests: TuistUnitTestCase {
     func test_latestVersion_returns_the_version() throws {
         // Given
         let request = GoogleCloudStorageClient.releasesRequest(path: "latest/version")
-        let version = SPMUtility.Version(string: "3.2.1")!
+        let version = Version(string: "3.2.1")!
         scheduler.stub(request: request, data: version.description.data(using: .utf8)!)
 
         // When

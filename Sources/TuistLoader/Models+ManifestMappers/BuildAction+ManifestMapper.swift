@@ -1,6 +1,6 @@
-import Basic
 import Foundation
 import ProjectDescription
+import TSCBasic
 import TuistCore
 
 extension TuistCore.BuildAction {

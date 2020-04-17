@@ -1,5 +1,5 @@
-import Basic
 import Foundation
+import TSCBasic
 
 public enum GraphDependencyReference: Equatable, Comparable, Hashable {
     case xcframework(

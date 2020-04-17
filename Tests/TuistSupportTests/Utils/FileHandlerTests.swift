@@ -1,5 +1,5 @@
-import Basic
 import Foundation
+import TSCBasic
 import XCTest
 @testable import TuistSupport
 @testable import TuistSupportTesting
@@ -27,15 +27,16 @@ final class FileHandlerTests: TuistUnitTestCase {
 
     func test_replace() throws {
         // Given
-        let tempFile = try TemporaryFile()
-        let destFile = try TemporaryFile()
-        try "content".write(to: tempFile.path.asURL, atomically: true, encoding: .utf8)
+        let temporaryPath = try self.temporaryPath()
+        let tempFile = temporaryPath.appending(component: "Temporary")
+        let destFile = temporaryPath.appending(component: "Destination")
+        try "content".write(to: tempFile.asURL, atomically: true, encoding: .utf8)
 
         // When
-        try subject.replace(destFile.path, with: tempFile.path)
+        try subject.replace(destFile, with: tempFile)
 
         // Then
-        let content = try String(contentsOf: destFile.path.asURL)
+        let content = try String(contentsOf: destFile.asURL)
         XCTAssertEqual(content, "content")
     }
 

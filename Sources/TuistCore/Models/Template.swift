@@ -1,4 +1,4 @@
-import Basic
+import TSCBasic
 
 public struct Template: Equatable {
     public let description: String

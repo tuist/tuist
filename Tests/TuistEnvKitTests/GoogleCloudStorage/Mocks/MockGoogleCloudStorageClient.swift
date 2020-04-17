@@ -1,6 +1,6 @@
 import Foundation
 import RxSwift
-import SPMUtility
+import struct TSCUtility.Version
 @testable import TuistEnvKit
 @testable import TuistSupportTesting
 

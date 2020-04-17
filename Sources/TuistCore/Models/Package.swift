@@ -1,5 +1,5 @@
-import Basic
 import Foundation
+import TSCBasic
 import XcodeProj
 
 public enum Package: Equatable {
