@@ -1,6 +1,7 @@
 import Basic
 import Foundation
 import ProjectDescription
+import TuistSupport
 
 public struct LoadedProjectManifest {
     public var path: AbsolutePath
@@ -31,8 +32,13 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
         let workspace = try manifestLoader.loadWorkspace(at: path)
 
         let generatorPaths = GeneratorPaths(manifestDirectory: path)
-        let projectPaths = try workspace.projects.map {
+        let projectPaths = try workspace.projects.flatMap {
             try generatorPaths.resolve(path: $0)
+                .glob("")
+                .filter(FileHandler.shared.isFolder)
+                .filter {
+                    manifestLoader.manifests(at: $0).contains(.project)
+                }
         }
 
         let projects = try loadProjects(paths: projectPaths)
