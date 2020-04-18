@@ -16,12 +16,14 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - SwiftUI template [#1180](https://github.com/tuist/tuist/pull/1180) by [@fortmarek](https://github.com/fortmarek)
 - `SettingsDictionary` is a typealias for `[String: SettingValue]`. [#1229](https://github.com/tuist/tuist/pull/1229) by [@natanrolnik](https://github.com/natanrolnik). Many useful extension methods were added to `SettingsDictionary`, allowing settings to be defined this way:
 
-```
+```swift
 let baseSettings = SettingsDictionary()
-    .codeSignIdentityAppleDevelopment()
-    .bitcodeEnabled(true)
     .appleGenericVersioningSystem()
-    .iPhoneOSDeploymentTarget("11.0")
+    .automaticCodeSigning(devTeam: "TeamID")
+    .bitcodeEnabled(true)
+    .swiftVersion("5.2")
+    .swiftCompilationMode(.wholemodule)
+    .versionInfo("500", prefix: "MyPrefix")
 ```
 
 ### Removed

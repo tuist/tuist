@@ -1218,29 +1218,28 @@ default: '.recommended',
 
 Besides the ability to define typed strings for these settings, Tuist has methods to avoid having typos when using strings for the keys. For example, instead of defining your dictionary this way:
 
-```
+```swift
 let baseSettings: [String: SettingValue] = [
-    "CODE_SIGN_IDENTITY": "iPhone Developer",
-    "CURRENT_PROJECT_VERSION": "1",
-    "IPHONEOS_DEPLOYMENT_TARGET": "11.0",
-    "PRODUCT_NAME": "MySuperTarget",
-    "SDKROOT": "iphoneos",
-    "VERSIONING_SYSTEM": "apple-generic",
-    "VERSION_INFO_STRING": "500"
-    "VERSION_INFO_PREFIX": "MyPrefix"
+  "VERSIONING_SYSTEM": "apple-generic",
+  "CODE_SIGN_STYLE": "Automatic",
+  "DEVELOPMENT_TEAM": "TeamID",
+  "ENABLE_BITCODE": "YES",
+  "SWIFT_VERSION": "5.2",
+  "SWIFT_COMPILATION_MODE": "wholemodule",
+  "VERSION_INFO_STRING": "500",
+  "VERSION_INFO_PREFIX": "MyPrefix",
 ]
 ```
 
 It can be written this way as well:
 
-```
-let baseSettings: SettingsDictionary = SettingsDictionary()
-    .codeSignIdentityAppleDevelopment()
-    .currentProjectVersion("1")
-    .iPhoneOSDeploymentTarget("11.0")
-    .productName("MySuperTarget")
-    .iPhoneOSasSDKRoot()
+```swift
+let baseSettings = SettingsDictionary()
     .appleGenericVersioningSystem()
+    .automaticCodeSigning(devTeam: "TeamID")
+    .bitcodeEnabled(true)
+    .swiftVersion("5.2")
+    .swiftCompilationMode(.wholemodule)
     .versionInfo("500", prefix: "MyPrefix")
 ```
 
@@ -1249,6 +1248,18 @@ let baseSettings: SettingsDictionary = SettingsDictionary()
   title="Dictionary Literal"
   description="When using dictionary literals, it's necessary to set the type of the dictionary to `SettingsDictionary` to satisfy the compiler, as in `let mySettings: SettingsDictionary = [:]` "
 />
+
+Notice that you don't depend exclusively on Tuist's built-in functions.
+You can create your own `SettingsDictionary` extension methods and add them to your
+[Project description helpers](/docs/usage/helpers/) this way:
+
+  ```swift
+  public extension SettingsDictionary {
+    func setSomeBuildSetting(_ value: String) -> SettingsDictionary {
+        merging(["SOME_BUILD_SETTING": SettingValue(stringLiteral: value)])
+    }
+  }
+  ```
 
 ## Configuration
 

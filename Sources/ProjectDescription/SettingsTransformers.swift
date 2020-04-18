@@ -1,6 +1,6 @@
 import Foundation
 
-private extension SettingsDictionary {
+public extension SettingsDictionary {
     mutating func merge(_ other: SettingsDictionary) {
         merge(other) { $1 }
     }
