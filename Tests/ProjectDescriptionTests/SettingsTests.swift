@@ -85,7 +85,7 @@ final class SettingsTests: XCTestCase {
             "SWIFT_VERSION": "5.2.1",
             "OTHER_SWIFT_FLAGS": "first second third",
             "ENABLE_BITCODE": "YES",
-            "DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER": "NO"
+            "DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER": "NO",
         ])
     }
 
@@ -98,7 +98,7 @@ final class SettingsTests: XCTestCase {
         XCTAssertEqual(settings, [
             "CODE_SIGN_STYLE": "Manual",
             "CODE_SIGN_IDENTITY": "Apple Distribution",
-            "PROVISIONING_PROFILE_SPECIFIER": "ABC"
+            "PROVISIONING_PROFILE_SPECIFIER": "ABC",
         ])
     }
 
@@ -109,7 +109,7 @@ final class SettingsTests: XCTestCase {
 
         /// Then
         XCTAssertEqual(settings1, [
-            "SWIFT_COMPILATION_MODE": "singlefile"
+            "SWIFT_COMPILATION_MODE": "singlefile",
         ])
 
         /// Given/When
@@ -118,7 +118,7 @@ final class SettingsTests: XCTestCase {
 
         /// Then
         XCTAssertEqual(settings2, [
-            "SWIFT_COMPILATION_MODE": "wholemodule"
+            "SWIFT_COMPILATION_MODE": "wholemodule",
         ])
     }
 
@@ -129,7 +129,7 @@ final class SettingsTests: XCTestCase {
 
         /// Then
         XCTAssertEqual(settings1, [
-            "SWIFT_OPTIMIZATION_LEVEL": "-O"
+            "SWIFT_OPTIMIZATION_LEVEL": "-O",
         ])
 
         /// Given/When
@@ -138,7 +138,7 @@ final class SettingsTests: XCTestCase {
 
         /// Then
         XCTAssertEqual(settings2, [
-            "SWIFT_OPTIMIZATION_LEVEL": "-Onone"
+            "SWIFT_OPTIMIZATION_LEVEL": "-Onone",
         ])
 
         /// Given/When
@@ -147,7 +147,7 @@ final class SettingsTests: XCTestCase {
 
         /// Then
         XCTAssertEqual(settings3, [
-            "SWIFT_OPTIMIZATION_LEVEL": "-Osize"
+            "SWIFT_OPTIMIZATION_LEVEL": "-Osize",
         ])
     }
 }
