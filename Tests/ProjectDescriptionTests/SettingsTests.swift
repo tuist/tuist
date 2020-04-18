@@ -54,4 +54,100 @@ final class SettingsTests: XCTestCase {
             "CustomRelease",
         ])
     }
+
+    func test_settingsDictionary_chainingMultipleValues() {
+        /// Given / When
+        let settings = SettingsDictionary()
+            .sdkRoot("SomeSDK")
+            .codeSignIdentityAppleDevelopment()
+            .currentProjectVersion("999")
+            .automaticCodeSigning(devTeam: "123ABC")
+            .productName("SuperTarget")
+            .appleGenericVersioningSystem()
+            .versionInfo("NLR", prefix: "A_Prefix", suffix: "A_Suffix")
+            .swiftVersion("5.2.1")
+            .otherSwiftFlags("first", "second", "third")
+            .bitcodeEnabled(true)
+            .deriveMacCatalystProductBundleId(false)
+
+        /// Then
+        XCTAssertEqual(settings, [
+            "SDKROOT": "SomeSDK",
+            "CODE_SIGN_IDENTITY": "Apple Development",
+            "CURRENT_PROJECT_VERSION": "999",
+            "CODE_SIGN_STYLE": "Automatic",
+            "DEVELOPMENT_TEAM": "123ABC",
+            "PRODUCT_NAME": "SuperTarget",
+            "VERSIONING_SYSTEM": "apple-generic",
+            "VERSION_INFO_STRING": "NLR",
+            "VERSION_INFO_PREFIX": "A_Prefix",
+            "VERSION_INFO_SUFFIX": "A_Suffix",
+            "SWIFT_VERSION": "5.2.1",
+            "OTHER_SWIFT_FLAGS": "first second third",
+            "ENABLE_BITCODE": "YES",
+            "DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER": "NO"
+        ])
+    }
+
+    func test_settingsDictionary_codeSignManual() {
+        /// Given/When
+        let settings = SettingsDictionary()
+            .manualCodeSigning(identity: "Apple Distribution", provisioningProfileSpecifier: "ABC")
+
+        /// Then
+        XCTAssertEqual(settings, [
+            "CODE_SIGN_STYLE": "Manual",
+            "CODE_SIGN_IDENTITY": "Apple Distribution",
+            "PROVISIONING_PROFILE_SPECIFIER": "ABC"
+        ])
+    }
+
+    func test_settingsDictionary_SwiftCompilationMode() {
+        /// Given/When
+        let settings1 = SettingsDictionary()
+            .swiftCompilationMode(.singlefile)
+
+        /// Then
+        XCTAssertEqual(settings1, [
+            "SWIFT_COMPILATION_MODE": "singlefile"
+        ])
+
+        /// Given/When
+        let settings2 = SettingsDictionary()
+            .swiftCompilationMode(.wholemodule)
+
+        /// Then
+        XCTAssertEqual(settings2, [
+            "SWIFT_COMPILATION_MODE": "wholemodule"
+        ])
+    }
+
+    func test_settingsDictionary_SwiftOptimizationLevel() {
+        /// Given/When
+        let settings1 = SettingsDictionary()
+            .swiftOptimizationLevel(.o)
+
+        /// Then
+        XCTAssertEqual(settings1, [
+            "SWIFT_OPTIMIZATION_LEVEL": "-O"
+        ])
+
+        /// Given/When
+        let settings2 = SettingsDictionary()
+            .swiftOptimizationLevel(.oNone)
+
+        /// Then
+        XCTAssertEqual(settings2, [
+            "SWIFT_OPTIMIZATION_LEVEL": "-Onone"
+        ])
+
+        /// Given/When
+        let settings3 = SettingsDictionary()
+            .swiftOptimizationLevel(.oSize)
+
+        /// Then
+        XCTAssertEqual(settings3, [
+            "SWIFT_OPTIMIZATION_LEVEL": "-Osize"
+        ])
+    }
 }

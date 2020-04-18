@@ -4,7 +4,7 @@ public typealias SettingsDictionary = [String: SettingValue]
 
 // MARK: - SettingValue
 
-public enum SettingValue: ExpressibleByStringLiteral, ExpressibleByArrayLiteral, Equatable, Codable {
+public enum SettingValue: ExpressibleByStringLiteral, ExpressibleByArrayLiteral, ExpressibleByBooleanLiteral, Equatable, Codable {
     case string(String)
     case array([String])
 
@@ -14,6 +14,16 @@ public enum SettingValue: ExpressibleByStringLiteral, ExpressibleByArrayLiteral,
 
     public init(arrayLiteral elements: String...) {
         self = .array(elements)
+    }
+
+    public typealias BooleanLiteralType = Bool
+
+    public init(booleanLiteral value: Bool) {
+        self = .string(value ? "YES" : "NO")
+    }
+
+    public init<T>(_ stringRawRepresentable: T) where T: RawRepresentable, T.RawValue == String {
+        self = .init(stringLiteral: stringRawRepresentable.rawValue)
     }
 
     public init(from decoder: Decoder) throws {
