@@ -1,5 +1,5 @@
-import Basic
 import Foundation
+import TSCBasic
 import TuistSupport
 
 /// Protocol conformed by the models that are part of the manifest.

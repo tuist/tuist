@@ -1,5 +1,5 @@
-import Basic
 import Foundation
+import TSCBasic
 
 public enum XcodeBuildTarget {
     /// The target is an Xcode project.

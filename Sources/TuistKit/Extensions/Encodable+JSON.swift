@@ -1,5 +1,5 @@
-import Basic
 import Foundation
+import TSCBasic
 
 extension Encodable {
     func toJSON() throws -> JSON {

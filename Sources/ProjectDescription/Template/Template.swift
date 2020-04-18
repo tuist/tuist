@@ -25,7 +25,7 @@ public struct Template: Codable, Equatable {
         case string(String)
         /// File content is defined in a different file from `Template.swift`
         /// Can contain additional logic and anything that is defined in `ProjectDescriptionHelpers`
-        case file(String)
+        case file(Path)
 
         private enum CodingKeys: String, CodingKey {
             case type
@@ -34,11 +34,12 @@ public struct Template: Codable, Equatable {
 
         public init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
-            let value = try container.decode(String.self, forKey: .value)
             let type = try container.decode(String.self, forKey: .type)
             if type == "string" {
+                let value = try container.decode(String.self, forKey: .value)
                 self = .string(value)
             } else if type == "file" {
+                let value = try container.decode(Path.self, forKey: .value)
                 self = .file(value)
             } else {
                 fatalError("Argument '\(type)' not supported")
@@ -126,7 +127,7 @@ public extension Template.File {
     ///     - path: Path where to generate file
     ///     - templatePath: Path of file where the template is defined
     /// - Returns: `Template.File` that is `.file`
-    static func file(path: String, templatePath: String) -> Template.File {
+    static func file(path: String, templatePath: Path) -> Template.File {
         Template.File(path: path, contents: .file(templatePath))
     }
 }

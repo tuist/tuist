@@ -1,6 +1,6 @@
-import Basic
 import CryptoSwift
 import Foundation
+import TSCBasic
 import TuistCore
 import TuistSupport
 

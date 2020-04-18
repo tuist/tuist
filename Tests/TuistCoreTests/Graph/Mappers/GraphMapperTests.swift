@@ -1,5 +1,5 @@
-import Basic
 import Foundation
+import TSCBasic
 import TuistCore
 import TuistCoreTesting
 import XCTest
@@ -13,11 +13,11 @@ final class AnyGraphMapperTests: TuistUnitTestCase {
         let output = Graph.test(name: "output")
         let subject = AnyGraphMapper(mapper: { graph in
             XCTAssertEqual(graph.name, input.name)
-            return output
+            return (output, [])
         })
 
         // When
-        let got = try subject.map(graph: input)
+        let (got, _) = try subject.map(graph: input)
 
         // Then
         XCTAssertEqual(got.name, output.name)
@@ -27,21 +27,24 @@ final class AnyGraphMapperTests: TuistUnitTestCase {
 final class SequentialGraphMapperTests: TuistUnitTestCase {
     func test_map() throws {
         // Given
+        let firstSideEffect = SideEffectDescriptor.file(.init(path: "/first"))
         let input = Graph.test(name: "0")
         let first = AnyGraphMapper(mapper: { graph in
             XCTAssertEqual(graph.name, "0")
-            return Graph.test(name: "1")
+            return (Graph.test(name: "1"), [firstSideEffect])
         })
+        let secondSideEffect = SideEffectDescriptor.file(.init(path: "/second"))
         let second = AnyGraphMapper(mapper: { graph in
             XCTAssertEqual(graph.name, "1")
-            return Graph.test(name: "2")
+            return (Graph.test(name: "2"), [secondSideEffect])
         })
         let subject = SequentialGraphMapper([first, second])
 
         // When
-        let got = try subject.map(graph: input)
+        let (got, sideEffects) = try subject.map(graph: input)
 
         // Then
         XCTAssertEqual(got.name, "2")
+        XCTAssertEqual(sideEffects, [firstSideEffect, secondSideEffect])
     }
 }

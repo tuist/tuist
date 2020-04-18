@@ -1,9 +1,10 @@
-import Basic
 import Foundation
 import ProjectDescription
 import RxBlocking
 import RxSwift
+import TSCBasic
 import TuistSupport
+
 public enum ManifestLoaderError: FatalError, Equatable {
     case projectDescriptionNotFound(AbsolutePath)
     case unexpectedOutput(AbsolutePath)
@@ -87,6 +88,7 @@ public class ManifestLoader: ManifestLoading {
     let resourceLocator: ResourceLocating
     let projectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding
     let manifestFilesLocator: ManifestFilesLocating
+    let environment: Environmenting
     private let decoder: JSONDecoder
 
     // MARK: - Init
@@ -97,9 +99,11 @@ public class ManifestLoader: ManifestLoading {
                   manifestFilesLocator: ManifestFilesLocator())
     }
 
-    init(resourceLocator: ResourceLocating,
+    init(environment: Environmenting = Environment.shared,
+         resourceLocator: ResourceLocating,
          projectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding,
          manifestFilesLocator: ManifestFilesLocating) {
+        self.environment = environment
         self.resourceLocator = resourceLocator
         self.projectDescriptionHelpersBuilder = projectDescriptionHelpersBuilder
         self.manifestFilesLocator = manifestFilesLocator
@@ -187,7 +191,9 @@ public class ManifestLoader: ManifestLoading {
         arguments.append(path.pathString)
         arguments.append("--tuist-dump")
 
-        let result = System.shared.observable(arguments).toBlocking().materialize()
+        let result = System.shared.observable(arguments, verbose: false, environment: environment.tuistVariables)
+            .toBlocking()
+            .materialize()
 
         switch result {
         case let .completed(elements):

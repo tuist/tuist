@@ -1,5 +1,5 @@
-import Basic
 import Foundation
+import TSCBasic
 import TuistCore
 import TuistCoreTesting
 import TuistSupport
@@ -70,12 +70,21 @@ final class TargetLinterTests: TuistUnitTestCase {
     }
 
     func test_lint_when_a_infoplist_file_is_being_copied() {
-        let path = AbsolutePath("/Info.plist")
-        let target = Target.test(resources: [.file(path: path)])
+        let infoPlistPath = AbsolutePath("/Info.plist")
+        let googeServiceInfoPlistPath = AbsolutePath("/GoogleService-Info.plist")
+
+        let target = Target.test(
+            infoPlist: .file(path: infoPlistPath),
+            resources: [
+                .file(path: infoPlistPath),
+                .file(path: googeServiceInfoPlistPath),
+            ]
+        )
 
         let got = subject.lint(target: target)
 
-        XCTContainsLintingIssue(got, LintingIssue(reason: "Info.plist at path \(path.pathString) being copied into the target \(target.name) product.", severity: .warning))
+        XCTContainsLintingIssue(got, LintingIssue(reason: "Info.plist at path \(infoPlistPath.pathString) being copied into the target \(target.name) product.", severity: .warning))
+        XCTDoesNotContainLintingIssue(got, LintingIssue(reason: "Info.plist at path \(googeServiceInfoPlistPath.pathString) being copied into the target \(target.name) product.", severity: .warning))
     }
 
     func test_lint_when_a_entitlements_file_is_being_copied() {

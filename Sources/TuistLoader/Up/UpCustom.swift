@@ -1,5 +1,5 @@
-import Basic
 import Foundation
+import TSCBasic
 import TuistSupport
 
 /// Custom setup command defined by the user.

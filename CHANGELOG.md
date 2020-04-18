@@ -4,6 +4,21 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Changed
+
+- Point swift tools support repo instead of SPM https://github.com/tuist/tuist/pull/1230 by @fortmarek
+- Migrate to new argument parser https://github.com/tuist/tuist/pull/1154 by @fortmarek
+- Only warn about copying Info.plist when it's the target's Info.plist https://github.com/tuist/tuist/pull/1203 by @sgrgrsn
+
+### Added
+
+- Support for returning `SideEffectDescriptor`s from the graph mappers https://github.com/tuist/tuist/pull/1201 by @pepibumur.
+- SwiftUI template https://github.com/tuist/tuist/pull/1180 by @fortmarek
+
+### Removed
+
+- **Breaking:** Deprecated methods from `ProjectDescription.Settings` https://github.com/tuist/tuist/pull/1202 by @pepibumur.
+
 ## 1.6.0
 
 ### Fixed
@@ -21,6 +36,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Add ProjectGeneratorGraphMapping protocol and use it from ProjectGenerator https://github.com/tuist/tuist/pull/1178 by @pepibumur
 - `CloudSessionController` component to authenticate users https://github.com/tuist/tuist/pull/1174 by @pepibumur.
 - Minor improvements https://github.com/tuist/tuist/pull/1179 by @pepibumur
+- Configuring manifests through environment variables https://github.com/tuist/tuist/pull/1183 by @pepibumur.
 
 ## 1.5.4
 

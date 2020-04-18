@@ -1,5 +1,5 @@
-import Basic
 import Foundation
+import TSCBasic
 import TuistGenerator
 import TuistLoader
 import TuistScaffold
@@ -91,7 +91,7 @@ final class ProjectEditor: ProjectEditing {
         }
 
         // To be sure that we are using the same binary of Tuist that invoked `edit`
-        let tuistPath = AbsolutePath(CommandRegistry.processArguments().first!)
+        let tuistPath = AbsolutePath(TuistCommand.processArguments()!.first!)
 
         let (project, graph) = projectEditorMapper.map(tuistPath: tuistPath,
                                                        sourceRootPath: at,

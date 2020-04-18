@@ -1,11 +1,11 @@
 import Foundation
 import RxSwift
-import SPMUtility
+import struct TSCUtility.Version
 import TuistSupport
 
 protocol GoogleCloudStorageClienting {
     /// Returns a single that returns the latest version of Tuist that is available.
-    func latestVersion() -> Single<SPMUtility.Version>
+    func latestVersion() -> Single<TSCUtility.Version>
 
     /// Returns the URL to return the latest tuistenv.zip
     func latestTuistEnvBundleURL() -> Foundation.URL
@@ -73,12 +73,12 @@ public final class GoogleCloudStorageClient: GoogleCloudStorageClienting {
             .asObservable()
     }
 
-    func latestVersion() -> Single<SPMUtility.Version> {
+    func latestVersion() -> Single<Version> {
         let request = GoogleCloudStorageClient.releasesRequest(path: "latest/version")
         return urlSessionScheduler.single(request: request)
             .map { data in
                 if let string = String(data: data, encoding: .utf8) {
-                    if let version = SPMUtility.Version(string: string) {
+                    if let version = Version(string: string) {
                         return version
                     } else {
                         throw GoogleCloudStorageClientError.invalidVersionFormat(string)

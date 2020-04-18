@@ -1,5 +1,5 @@
-import Basic
 import Foundation
+import TSCBasic
 import TuistSupport
 
 /// Protocol that defines the interface to locate the tuist binary in the environment.

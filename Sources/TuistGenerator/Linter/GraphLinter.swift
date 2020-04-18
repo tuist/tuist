@@ -1,5 +1,5 @@
 import Foundation
-import SPMUtility
+import struct TSCUtility.Version
 import TuistCore
 import TuistSupport
 

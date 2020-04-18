@@ -2,7 +2,7 @@ name: Tuist
 
 on:
   push:
-    branches:    
+    branches:
       - master
     paths:
       - Sources/**/*
@@ -22,7 +22,7 @@ jobs:
     runs-on: macOS-latest
     strategy:
       matrix:
-        xcode: ["11.3.1", "11.4"]
+        xcode: ['11.3.1', '11.4']
     steps:
       - uses: actions/checkout@v1
       - name: Select Xcode
@@ -44,7 +44,7 @@ jobs:
     runs-on: macOS-latest
     strategy:
       matrix:
-        xcode: ["11.3.1", "11.4"]
+        xcode: ['11.3.1', '11.4']
     steps:
       - uses: actions/checkout@v1
       - name: Select Xcode
@@ -58,8 +58,20 @@ jobs:
     runs-on: macOS-latest
     strategy:
       matrix:
-        xcode: ["11.4"]
-        feature: ["generate-1", "generate-2", "generate-3", "generate-4", "generate-5", "init", "lint", "scaffold", "up"]
+        xcode: ['11.4']
+        feature:
+          [
+            'generate-1',
+            'generate-2',
+            'generate-3',
+            'generate-4',
+            'generate-5',
+            'generate-6',
+            'init',
+            'lint',
+            'scaffold',
+            'up',
+          ]
     steps:
       - uses: actions/checkout@v1
       - name: Select Xcode 11.4

@@ -1,6 +1,6 @@
-import Basic
 import Foundation
 import struct Stencil.Environment
+import TSCBasic
 import TuistCore
 import TuistSupport
 
@@ -81,7 +81,8 @@ public final class TemplateGenerator: TemplateGenerating {
                     renderedContents = fileContents
                 }
             }
-
+            // Generate file only when it has some content
+            guard !renderedContents.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
             try FileHandler.shared.write(renderedContents,
                                          path: destinationPath.appending($0.path),
                                          atomically: true)

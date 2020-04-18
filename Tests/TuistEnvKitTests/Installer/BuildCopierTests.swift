@@ -1,6 +1,7 @@
-import Basic
 import Foundation
+import TSCBasic
 import TuistSupport
+import TuistSupportTesting
 import XCTest
 @testable import TuistEnvKit
 

@@ -1,5 +1,5 @@
-import Basic
 import Foundation
+import TSCBasic
 import TuistSupport
 import XCTest
 
@@ -209,5 +209,26 @@ final class TemplateGeneratorTests: TuistTestCase {
                        expectedRenderedContents)
         XCTAssertEqual(try FileHandler.shared.readTextFile(destinationPath.appending(component: "unrendered")),
                        expectedUnrenderedContents)
+    }
+
+    func test_empty_stencil_files_are_skipped() throws {
+        // Given
+        let sourcePath = try temporaryPath()
+        let destinationPath = try temporaryPath()
+        try FileHandler.shared.write("   \n   ",
+                                     path: sourcePath.appending(component: "b.stencil"),
+                                     atomically: true)
+        let template = Template.test(files: [
+            Template.File(path: RelativePath("ignore"),
+                          contents: .file(sourcePath.appending(component: "b.stencil"))),
+        ])
+
+        // When
+        try subject.generate(template: template,
+                             to: destinationPath,
+                             attributes: ["name": "attribute name"])
+
+        // Then
+        XCTAssertFalse(FileHandler.shared.exists(destinationPath.appending(component: "ignore")))
     }
 }

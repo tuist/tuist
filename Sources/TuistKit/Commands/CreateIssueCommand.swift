@@ -1,25 +1,14 @@
-import Basic
+import ArgumentParser
 import Foundation
-import SPMUtility
-import TuistSupport
+import TSCBasic
 
-class CreateIssueCommand: NSObject, Command {
-    static let createIssueUrl: String = "https://github.com/tuist/tuist/issues/new"
-
-    // MARK: - Command
-
-    static let command = "create-issue"
-    static let overview = "Opens the GitHub page to create a new issue."
-
-    // MARK: - Init
-
-    required init(parser: ArgumentParser) {
-        parser.add(subparser: CreateIssueCommand.command, overview: CreateIssueCommand.overview)
+struct CreateIssueCommand: ParsableCommand {
+    static var configuration: CommandConfiguration {
+        CommandConfiguration(commandName: "create-issue",
+                             abstract: "Opens the GitHub page to create a new issue")
     }
 
-    // MARK: - Command
-
-    func run(with _: ArgumentParser.Result) throws {
-        try System.shared.run("/usr/bin/open", CreateIssueCommand.createIssueUrl)
+    func run() throws {
+        try CreateIssueService().run()
     }
 }

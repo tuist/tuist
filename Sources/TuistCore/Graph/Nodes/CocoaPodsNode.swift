@@ -1,5 +1,5 @@
-import Basic
 import Foundation
+import TSCBasic
 
 public class CocoaPodsNode: GraphNode {
     /// Path to the Podfile.

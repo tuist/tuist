@@ -1,7 +1,6 @@
-import Basic
 import Foundation
 import ProjectDescription
-import SPMUtility
+import TSCBasic
 import TuistCore
 import TuistSupport
 
@@ -27,17 +26,18 @@ public class TemplateLoader: TemplateLoading {
 
     public func loadTemplate(at path: AbsolutePath) throws -> TuistCore.Template {
         let template = try manifestLoader.loadTemplate(at: path)
+        let generatorPaths = GeneratorPaths(manifestDirectory: path)
         return try TuistCore.Template.from(manifest: template,
-                                           at: path)
+                                           generatorPaths: generatorPaths)
     }
 }
 
 extension TuistCore.Template {
-    static func from(manifest: ProjectDescription.Template, at path: AbsolutePath) throws -> TuistCore.Template {
+    static func from(manifest: ProjectDescription.Template, generatorPaths: GeneratorPaths) throws -> TuistCore.Template {
         let attributes = try manifest.attributes.map(TuistCore.Template.Attribute.from)
         let files = try manifest.files.map { File(path: RelativePath($0.path),
                                                   contents: try TuistCore.Template.Contents.from(manifest: $0.contents,
-                                                                                                 at: path)) }
+                                                                                                 generatorPaths: generatorPaths)) }
         return TuistCore.Template(description: manifest.description,
                                   attributes: attributes,
                                   files: files)
@@ -57,12 +57,12 @@ extension TuistCore.Template.Attribute {
 
 extension TuistCore.Template.Contents {
     static func from(manifest: ProjectDescription.Template.Contents,
-                     at path: AbsolutePath) throws -> TuistCore.Template.Contents {
+                     generatorPaths: GeneratorPaths) throws -> TuistCore.Template.Contents {
         switch manifest {
         case let .string(contents):
             return .string(contents)
-        case let .file(generatePath):
-            return .file(path.appending(component: generatePath))
+        case let .file(templatePath):
+            return .file(try generatorPaths.resolve(path: templatePath))
         }
     }
 }

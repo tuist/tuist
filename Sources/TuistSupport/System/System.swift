@@ -1,6 +1,6 @@
-import Basic
 import Foundation
 import RxSwift
+import TSCBasic
 
 public protocol Systeming {
     /// System environment.
@@ -94,7 +94,7 @@ public protocol Systeming {
     ///   - environment: Environment that should be used when running the task.
     ///   - redirection: Instance through which the output will be redirected.
     /// - Throws: An error if the command fails.
-    func runAndPrint(_ arguments: [String], verbose: Bool, environment: [String: String], redirection: Basic.Process.OutputRedirection) throws
+    func runAndPrint(_ arguments: [String], verbose: Bool, environment: [String: String], redirection: TSCBasic.Process.OutputRedirection) throws
 
     /// Runs a command in the shell and wraps the standard output and error in a observable.
     /// - Parameters:
@@ -153,11 +153,11 @@ extension ProcessResult {
     func throwIfErrored() throws {
         switch exitStatus {
         case let .signalled(code):
-            let data = try Data(stderrOutput.dematerialize())
+            let data = Data(try stderrOutput.get())
             throw TuistSupport.SystemError.signalled(command: command(), code: code, standardError: data)
         case let .terminated(code):
             if code != 0 {
-                let data = try Data(stderrOutput.dematerialize())
+                let data = Data(try stderrOutput.get())
                 throw TuistSupport.SystemError.terminated(command: command(), code: code, standardError: data)
             }
         }
@@ -392,7 +392,7 @@ public final class System: Systeming {
     public func runAndPrint(_ arguments: [String],
                             verbose: Bool,
                             environment: [String: String],
-                            redirection: Basic.Process.OutputRedirection) throws {
+                            redirection: TSCBasic.Process.OutputRedirection) throws {
         let process = Process(arguments: arguments,
                               environment: environment,
                               outputRedirection: .stream(stdout: { bytes in
@@ -440,6 +440,7 @@ public final class System: Systeming {
                 try process.launch()
                 var result = try process.waitUntilExit()
                 result = ProcessResult(arguments: result.arguments,
+                                       environment: environment,
                                        exitStatus: result.exitStatus,
                                        output: result.output,
                                        stderrOutput: result.stderrOutput.map { _ in errorData })

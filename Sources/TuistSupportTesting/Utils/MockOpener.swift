@@ -1,5 +1,5 @@
-import Basic
 import Foundation
+import TSCBasic
 import TuistSupport
 
 public final class MockOpener: Opening {

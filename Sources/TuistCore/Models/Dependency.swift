@@ -1,5 +1,5 @@
-import Basic
 import Foundation
+import TSCBasic
 
 public enum SDKStatus {
     case required

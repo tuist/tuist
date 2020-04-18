@@ -21,7 +21,7 @@ class TargetNodeGraphMapperTests: XCTestCase {
                                  ])
 
         // When
-        let results = subject.map(graph: graph)
+        let (results, _) = subject.map(graph: graph)
 
         // Then
         XCTAssertEqual(results.targets(at: project.path).count, 3)
@@ -77,7 +77,7 @@ class TargetNodeGraphMapperTests: XCTestCase {
                                  ])
 
         // When
-        let results = subject.map(graph: graph)
+        let (results, _) = subject.map(graph: graph)
 
         // Then
         XCTAssertEqual(results.targets.flatMap { $0.value }.count, 1)
