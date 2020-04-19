@@ -1,4 +1,4 @@
-import Basic
+import TSCBasic
 import Foundation
 import TuistSupport
 import XCTest
@@ -75,5 +75,56 @@ final class SigningFilesLocatorTests: TuistUnitTestCase {
 
         // Then
         XCTAssertTrue(exists)
+    }
+    
+    func test_locate_provisioning_profiles() throws {
+        // Given
+        let signingDirectory = try temporaryPath().appending(components: Constants.tuistDirectoryName, Constants.signingDirectoryName)
+        try fileHandler.createFolder(signingDirectory)
+        let expectedFileNames = ["file.mobileprovision"]
+        try (["file.cer", "file.cer.encrypted"] + expectedFileNames)
+            .map(signingDirectory.appending)
+            .forEach(fileHandler.touch)
+        let expectedFiles = expectedFileNames.map(signingDirectory.appending)
+
+        // When
+        let files = try subject.locateProvisioningProfiles(at: signingDirectory)
+
+        // Then
+        XCTAssertEqual(files, expectedFiles)
+    }
+    
+    func test_locate_unecnrypted_certificates() throws {
+        // Given
+        let signingDirectory = try temporaryPath().appending(components: Constants.tuistDirectoryName, Constants.signingDirectoryName)
+        try fileHandler.createFolder(signingDirectory)
+        let expectedFileNames = ["file.cer"]
+        try (["file.mobileprovision", "file.cer.encrypted"] + expectedFileNames)
+            .map(signingDirectory.appending)
+            .forEach(fileHandler.touch)
+        let expectedFiles = expectedFileNames.map(signingDirectory.appending)
+
+        // When
+        let files = try subject.locateUnencryptedCertificates(at: signingDirectory)
+
+        // Then
+        XCTAssertEqual(files, expectedFiles)
+    }
+    
+    func test_locate_ecnrypted_certificates() throws {
+        // Given
+        let signingDirectory = try temporaryPath().appending(components: Constants.tuistDirectoryName, Constants.signingDirectoryName)
+        try fileHandler.createFolder(signingDirectory)
+        let expectedFileNames = ["file.cer.encrypted"]
+        try (["file.mobileprovision", "file.cer"] + expectedFileNames)
+            .map(signingDirectory.appending)
+            .forEach(fileHandler.touch)
+        let expectedFiles = expectedFileNames.map(signingDirectory.appending)
+
+        // When
+        let files = try subject.locateEncryptedCertificates(at: signingDirectory)
+
+        // Then
+        XCTAssertEqual(files, expectedFiles)
     }
 }

@@ -12,6 +12,7 @@ public struct Constants {
     public static let tuistDirectoryName: String = "Tuist"
     public static let helpersDirectoryName: String = "ProjectDescriptionHelpers"
     public static let signingDirectoryName: String = "Signing"
+    public static let signingKeychain = "signing.keychain"
     public static let masterKey = "master.key"
     public static let encryptedExtension = "encrypted"
     public static let templatesDirectoryName: String = "Templates"

@@ -34,7 +34,7 @@ final class SigningCipherTests: TuistUnitTestCase {
         let masterKeyPath = temporaryPath.appending(components: Constants.tuistDirectoryName, Constants.masterKey)
         rootDirectoryLocator.locateStub = temporaryPath
         // Then
-        XCTAssertThrowsSpecific(try subject.encryptSigning(at: temporaryPath),
+        XCTAssertThrowsSpecific(try subject.encryptCertificates(at: temporaryPath),
                                 SigningCipherError.masterKeyNotFound(masterKeyPath))
     }
 
@@ -69,8 +69,8 @@ final class SigningCipherTests: TuistUnitTestCase {
         try FileHandler.shared.write(profileContent, path: profileFile, atomically: true)
 
         // When
-        try subject.encryptSigning(at: temporaryPath)
-        try subject.decryptSigning(at: temporaryPath)
+        try subject.encryptCertificates(at: temporaryPath)
+        try subject.decryptCertificates(at: temporaryPath)
 
         // Then
         XCTAssertEqual(try FileHandler.shared.readTextFile(certFile), certContent)
@@ -104,7 +104,7 @@ final class SigningCipherTests: TuistUnitTestCase {
         let encryptedProfileFile = AbsolutePath(profileFile.pathString + "." + Constants.encryptedExtension)
 
         // When
-        try subject.encryptSigning(at: temporaryPath)
+        try subject.encryptCertificates(at: temporaryPath)
 
         // Then
         XCTAssertNotEqual(try FileHandler.shared.readTextFile(encryptedCertFile), certContent)
@@ -135,7 +135,7 @@ final class SigningCipherTests: TuistUnitTestCase {
         }
 
         // When
-        try subject.encryptSigning(at: temporaryPath)
+        try subject.encryptCertificates(at: temporaryPath)
 
         // Then
         XCTAssertFalse(fileHandler.exists(certFile))
@@ -166,7 +166,7 @@ final class SigningCipherTests: TuistUnitTestCase {
         }
 
         // When
-        try subject.encryptSigning(at: temporaryPath, keepFiles: true)
+        try subject.encryptCertificates(at: temporaryPath, keepFiles: true)
 
         // Then
         XCTAssertTrue(fileHandler.exists(certFile))
@@ -197,7 +197,7 @@ final class SigningCipherTests: TuistUnitTestCase {
                 signingDirectory.appending(component: "ProfileFile.txt"),
             ]
         }
-        try subject.encryptSigning(at: temporaryPath, keepFiles: true)
+        try subject.encryptCertificates(at: temporaryPath, keepFiles: true)
         let expectedCertFile = try fileHandler.readTextFile(encryptedCertFile)
         let expectedProfileFile = try fileHandler.readTextFile(encryptedProfileFile)
         signingFilesLocator.locateUnencryptedSigningFilesStub = { _ in
@@ -205,7 +205,7 @@ final class SigningCipherTests: TuistUnitTestCase {
         }
 
         // When
-        try subject.encryptSigning(at: temporaryPath, keepFiles: true)
+        try subject.encryptCertificates(at: temporaryPath, keepFiles: true)
 
         // Then
         XCTAssertEqual(try fileHandler.readTextFile(encryptedCertFile), expectedCertFile)

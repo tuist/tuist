@@ -40,20 +40,20 @@ public protocol SigningCiphering {
     /// Encrypts all signing files at `Tuist/Signing`
     /// - Parameters:
     ///     - keepFiles: Keep unencrypted files
-    func encryptSigning(at path: AbsolutePath, keepFiles: Bool) throws
+    func encryptCertificates(at path: AbsolutePath, keepFiles: Bool) throws
     /// Decrypts all signing files at `Tuist/Signing
     /// - Parameters:
     ///     - keepFiles: Keep encrypted files
-    func decryptSigning(at path: AbsolutePath, keepFiles: Bool) throws
+    func decryptCertificates(at path: AbsolutePath, keepFiles: Bool) throws
 }
 
 public extension SigningCiphering {
-    func encryptSigning(at path: AbsolutePath) throws {
-        try encryptSigning(at: path, keepFiles: false)
+    func encryptCertificates(at path: AbsolutePath) throws {
+        try encryptCertificates(at: path, keepFiles: false)
     }
 
-    func decryptSigning(at path: AbsolutePath) throws {
-        try decryptSigning(at: path, keepFiles: false)
+    func decryptCertificates(at path: AbsolutePath) throws {
+        try decryptCertificates(at: path, keepFiles: false)
     }
 }
 
@@ -73,9 +73,9 @@ public final class SigningCipher: SigningCiphering {
         self.signingFilesLocator = signingFilesLocator
     }
 
-    public func encryptSigning(at path: AbsolutePath, keepFiles: Bool) throws {
+    public func encryptCertificates(at path: AbsolutePath, keepFiles: Bool) throws {
         let masterKey = try self.masterKey(at: path)
-        let signingKeyFiles = try signingFilesLocator.locateUnencryptedSigningFiles(at: path)
+        let signingKeyFiles = try signingFilesLocator.locateUnencryptedCertificates(at: path)
         guard !signingKeyFiles.isEmpty else { return }
         let cipheredKeys = try signingKeyFiles
             .map(FileHandler.shared.readFile)
@@ -83,7 +83,7 @@ public final class SigningCipher: SigningCiphering {
 
         let correctlyEncryptedSigningFiles = try self.correctlyEncryptedSigningFiles(at: path, masterKey: masterKey)
 
-        try signingFilesLocator.locateEncryptedSigningFiles(at: path)
+        try signingFilesLocator.locateEncryptedCertificates(at: path)
             .filter { !correctlyEncryptedSigningFiles.contains($0) }
             .forEach(FileHandler.shared.delete)
 
@@ -100,9 +100,9 @@ public final class SigningCipher: SigningCiphering {
         }
     }
 
-    public func decryptSigning(at path: AbsolutePath, keepFiles: Bool) throws {
+    public func decryptCertificates(at path: AbsolutePath, keepFiles: Bool) throws {
         let masterKey = try self.masterKey(at: path)
-        let signingKeyFiles = try signingFilesLocator.locateEncryptedSigningFiles(at: path)
+        let signingKeyFiles = try signingFilesLocator.locateEncryptedCertificates(at: path)
         guard !signingKeyFiles.isEmpty else { return }
         let decipheredKeys = try signingKeyFiles
             .map(FileHandler.shared.readFile)
@@ -110,7 +110,7 @@ public final class SigningCipher: SigningCiphering {
                 try decryptData($0, masterKey: masterKey)
             }
 
-        try signingFilesLocator.locateUnencryptedSigningFiles(at: path)
+        try signingFilesLocator.locateUnencryptedCertificates(at: path)
             .forEach(FileHandler.shared.delete)
 
         try zip(decipheredKeys, signingKeyFiles).forEach {
@@ -128,7 +128,7 @@ public final class SigningCipher: SigningCiphering {
 
     /// - Returns: Array of files that do need to be reencrypted
     private func correctlyEncryptedSigningFiles(at path: AbsolutePath, masterKey: Data) throws -> [AbsolutePath] {
-        try signingFilesLocator.locateUnencryptedSigningFiles(at: path).filter { unencryptedFile in
+        try signingFilesLocator.locateUnencryptedCertificates(at: path).filter { unencryptedFile in
             let encryptedFile = AbsolutePath(unencryptedFile.pathString + "." + Constants.encryptedExtension)
             guard FileHandler.shared.exists(encryptedFile) else { return false }
             return try isEncryptionNeeded(encryptedFile: encryptedFile, unencryptedFile: unencryptedFile, masterKey: masterKey)

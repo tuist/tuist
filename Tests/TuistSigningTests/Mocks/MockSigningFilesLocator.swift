@@ -1,4 +1,4 @@
-import Basic
+import TSCBasic
 @testable import TuistSigning
 
 final class MockSigningFilesLocator: SigningFilesLocating {

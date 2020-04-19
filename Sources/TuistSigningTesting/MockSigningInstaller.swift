@@ -1,4 +1,4 @@
-import Basic
+import TSCBasic
 @testable import TuistSigning
 
 public final class MockSigningInstaller: SigningInstalling {

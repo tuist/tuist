@@ -13,9 +13,9 @@ final class EncryptService {
 
     func run(path: String?) throws {
         let path = self.path(path)
-        try signingCipher.encryptSigning(at: path)
+        try signingCipher.encryptCertificates(at: path)
 
-        logger.notice("Successfully encrypted all signing files", metadata: .success)
+        logger.notice("Successfully encrypted all certificates", metadata: .success)
     }
 
     // MARK: - Helpers
