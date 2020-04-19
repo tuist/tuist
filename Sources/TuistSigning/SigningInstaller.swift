@@ -54,7 +54,7 @@ final class SigningInstaller: SigningInstalling {
 
 //    public func installSigning(at path: AbsolutePath) throws {
 //        guard (try? signingFilesLocator.hasSigningDirectory(at: path)) ?? false else { return }
-//        try signingCipher.decryptCertificates(at: path, keepFiles: true)
+//        try signingCipher.decryptSigning(at: path, keepFiles: true)
 //        let signingKeyFiles = try signingFilesLocator.locateUnencryptedSigningFiles(at: path)
 //        try signingKeyFiles.forEach {
 //            switch $0.extension {
@@ -66,7 +66,7 @@ final class SigningInstaller: SigningInstalling {
 //                logger.warning("File \($0.pathString) has unknown extension")
 //            }
 //        }
-//        try signingCipher.encryptCertificates(at: path)
+//        try signingCipher.encryptSigning(at: path)
 //    }
 
     func installProvisioningProfile(_ provisioningProfile: ProvisioningProfile) throws {
@@ -94,6 +94,6 @@ final class SigningInstaller: SigningInstalling {
     }
 
     func installCertificate(at path: AbsolutePath) throws {
-        try securityController.importCertificate(at: path)
+//        try securityController.importCertificate(at: path)
     }
 }

@@ -15,8 +15,7 @@ public class SigningMapper: GraphMapping {
                   signingCipher: SigningCipher(),
                   provisioningProfileParser: ProvisioningProfileParser(),
                   signingInstaller: SigningInstaller(),
-                  securityController: SecurityController(),
-                  rootDirectoryLocator: RootDirectoryLocator())
+                  securityController: SecurityController())
     }
     
     init(signingFilesLocator: SigningFilesLocating,
@@ -36,15 +35,26 @@ public class SigningMapper: GraphMapping {
         let entryPath = graph.entryPath
         guard let signingDirectory = try signingFilesLocator.locateSigningDirectory(at: entryPath) else { return (graph, []) }
         
-        try signingCipher.decryptCertificates(at: entryPath)
-        defer { try? signingCipher.encryptCertificates(at: entryPath) }
+        try signingCipher.decryptSigning(at: entryPath)
+        defer { try? signingCipher.encryptSigning(at: entryPath) }
         
+        let keychainPath = signingDirectory.appending(component: Constants.signingKeychain)
+        let masterKey = try signingCipher.readMasterKey(at: signingDirectory)
+        try securityController.createKeychain(at: keychainPath, password: masterKey)
+        try securityController.unlockKeychain(at: keychainPath, password: masterKey)
+        defer { try? securityController.lockKeychain(at: keychainPath, password: masterKey) }
         
-        
-        let certificates = try signingFilesLocator.locateUnencryptedCertificates(at: entryPath)
+        let certificateFiles = try signingFilesLocator.locateUnencryptedCertificates(at: entryPath)
+            .sorted()
+        let privateKeyFiles = try signingFilesLocator.locateUnencryptedPrivateKeys(at: entryPath)
+            .sorted()
+        let certificates = zip(certificateFiles, privateKeyFiles)
+            .map(Certificate.init)
             .reduce(into: [:]) { dict, certificate in
-                dict[certificate.basenameWithoutExt] = certificate
-        }
+                dict[certificate.publicKey.basenameWithoutExt] = certificate
+            }
+            
+        
         let configurations = (graph.projects
             .map { $0.settings.configurations }
             + graph.projects.flatMap { $0.targets.compactMap { $0.settings?.configurations } })
@@ -52,7 +62,7 @@ public class SigningMapper: GraphMapping {
         
         try configurations
             .compactMap { certificates[$0] /* TODO: Add warning if not available */ }
-            .forEach(signingInstaller.installCertificate)
+            .forEach { try securityController.importCertificate($0, keychainPath: keychainPath) }
         let provisioningProfiles: [String: [String: ProvisioningProfile]] = try signingFilesLocator.locateProvisioningProfiles(at: entryPath)
             .map(provisioningProfileParser.parse)
             .reduce(into: [:], { dict, profile in

@@ -13,7 +13,7 @@ final class DecryptService {
 
     func run(path: String?) throws {
         let path = self.path(path)
-        try signingCipher.decryptCertificates(at: path)
+        try signingCipher.decryptSigning(at: path)
         logger.notice("Successfully decrypted all signing files", metadata: .success)
     }
 

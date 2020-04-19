@@ -25,6 +25,8 @@ protocol SigningFilesLocating {
     func locateProvisioningProfiles(at path: AbsolutePath) throws -> [AbsolutePath]
     func locateUnencryptedCertificates(at path: AbsolutePath) throws -> [AbsolutePath]
     func locateEncryptedCertificates(at path: AbsolutePath) throws -> [AbsolutePath]
+    func locateUnencryptedPrivateKeys(at path: AbsolutePath) throws -> [AbsolutePath]
+    func locateEncryptedPrivateKeys(at path: AbsolutePath) throws -> [AbsolutePath]
 }
 
 final class SigningFilesLocator: SigningFilesLocating {
@@ -41,45 +43,39 @@ final class SigningFilesLocator: SigningFilesLocating {
         let signingDirectory = rootDirectory.appending(components: Constants.tuistDirectoryName, Constants.signingDirectoryName)
         return FileHandler.shared.exists(signingDirectory) ? signingDirectory : nil
     }
-
-    func locateEncryptedSigningFiles(at path: AbsolutePath) throws -> [AbsolutePath] {
-        guard
-            let rootDirectory = rootDirectoryLocator.locate(from: path)
-        else { throw SigningFilesLocatorError.signingDirectoryNotFound(path) }
-        let signingDirectory = rootDirectory.appending(components: Constants.tuistDirectoryName, Constants.signingDirectoryName)
-        return FileHandler.shared.glob(signingDirectory, glob: "*").filter { $0.extension == Constants.encryptedExtension }
-    }
-
-    func locateUnencryptedSigningFiles(at path: AbsolutePath) throws -> [AbsolutePath] {
-        guard
-            let rootDirectory = rootDirectoryLocator.locate(from: path)
-        else { throw SigningFilesLocatorError.signingDirectoryNotFound(path) }
-        let signingDirectory = rootDirectory.appending(components: Constants.tuistDirectoryName, Constants.signingDirectoryName)
-        return FileHandler.shared.glob(signingDirectory, glob: "*").filter { $0.extension != Constants.encryptedExtension }
-    }
     
     func locateProvisioningProfiles(at path: AbsolutePath) throws -> [AbsolutePath] {
+        try locateSigningFiles(at: path)
+            .filter { $0.extension == "mobileprovision" || $0.extension == "provisionprofile"  }
+    }
+    
+    func locateUnencryptedCertificates(at path: AbsolutePath) throws -> [AbsolutePath] {
+        try locateSigningFiles(at: path)
+            .filter { $0.extension == "cer" }
+    }
+    
+    func locateEncryptedCertificates(at path: AbsolutePath) throws -> [AbsolutePath] {
+        try locateSigningFiles(at: path)
+            .filter { $0.pathString.hasSuffix("cer.encrypted") }
+    }
+    
+    func locateUnencryptedPrivateKeys(at path: AbsolutePath) throws -> [AbsolutePath] {
+        try locateSigningFiles(at: path)
+            .filter { $0.extension == "p12" }
+    }
+    
+    func locateEncryptedPrivateKeys(at path: AbsolutePath) throws -> [AbsolutePath] {
+        try locateSigningFiles(at: path)
+            .filter { $0.pathString.hasSuffix("p12.encrypted") }
+    }
+    
+    // MARK: - Helpers
+    
+    private func locateSigningFiles(at path: AbsolutePath) throws -> [AbsolutePath] {
         guard
             let rootDirectory = rootDirectoryLocator.locate(from: path)
         else { throw SigningFilesLocatorError.signingDirectoryNotFound(path) }
         let signingDirectory = rootDirectory.appending(components: Constants.tuistDirectoryName, Constants.signingDirectoryName)
         return FileHandler.shared.glob(signingDirectory, glob: "*")
-            .filter { $0.extension == "mobileprovision" || $0.extension == "provisionprofile"  }
-    }
-    
-    func locateUnencryptedCertificates(at path: AbsolutePath) throws -> [AbsolutePath] {
-        guard
-            let rootDirectory = rootDirectoryLocator.locate(from: path)
-        else { throw SigningFilesLocatorError.signingDirectoryNotFound(path) }
-        let signingDirectory = rootDirectory.appending(components: Constants.tuistDirectoryName, Constants.signingDirectoryName)
-        return FileHandler.shared.glob(signingDirectory, glob: "*.cer")
-    }
-    
-    func locateEncryptedCertificates(at path: AbsolutePath) throws -> [AbsolutePath] {
-        guard
-            let rootDirectory = rootDirectoryLocator.locate(from: path)
-        else { throw SigningFilesLocatorError.signingDirectoryNotFound(path) }
-        let signingDirectory = rootDirectory.appending(components: Constants.tuistDirectoryName, Constants.signingDirectoryName)
-        return FileHandler.shared.glob(signingDirectory, glob: "*.cer.encrypted")
     }
 }
