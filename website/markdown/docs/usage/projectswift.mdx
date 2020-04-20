@@ -5,6 +5,7 @@ excerpt: 'This page documents the models that users can use to define their proj
 ---
 
 import PropertiesTable from '../components/properties-table'
+import SettingsDictionaryTable from '../components/settingsdictionary-table'
 import Message from '../components/message'
 import EnumTable from '../components/enum'
 
@@ -1220,14 +1221,8 @@ Besides the ability to define typed strings for these settings, Tuist has method
 
 ```swift
 let baseSettings: [String: SettingValue] = [
-  "VERSIONING_SYSTEM": "apple-generic",
-  "CODE_SIGN_STYLE": "Automatic",
-  "DEVELOPMENT_TEAM": "TeamID",
   "ENABLE_BITCODE": "YES",
-  "SWIFT_VERSION": "5.2",
   "SWIFT_COMPILATION_MODE": "wholemodule",
-  "VERSION_INFO_STRING": "500",
-  "VERSION_INFO_PREFIX": "MyPrefix",
 ]
 ```
 
@@ -1235,18 +1230,114 @@ It can be written this way as well:
 
 ```swift
 let baseSettings = SettingsDictionary()
-    .appleGenericVersioningSystem()
-    .automaticCodeSigning(devTeam: "TeamID")
     .bitcodeEnabled(true)
-    .swiftVersion("5.2")
     .swiftCompilationMode(.wholemodule)
-    .versionInfo("500", prefix: "MyPrefix")
 ```
 
 <Message
   warning
   title="Dictionary Literal"
   description="When using dictionary literals, it's necessary to set the type of the dictionary to `SettingsDictionary` to satisfy the compiler, as in `let mySettings: SettingsDictionary = [:]` "
+/>
+
+```swift
+let baseSettings: [String: SettingValue] = [
+  "ENABLE_BITCODE": "YES",
+  "SWIFT_COMPILATION_MODE": "wholemodule",
+]
+```
+
+It can be written this way as well:
+
+```swift
+let baseSettings = SettingsDictionary()
+    .bitcodeEnabled(true)
+    .swiftCompilationMode(.wholemodule)
+```
+
+<Message
+  warning
+  title="Dictionary Literal"
+  description="When using dictionary literals, it's necessary to set the type of the dictionary to `SettingsDictionary` to satisfy the compiler, as in `let mySettings: SettingsDictionary = [:]` "
+/>
+
+Here is the list of functions provided by Tuist:
+
+<SettingsDictionaryTable
+  methods={[
+    {
+      subject: 'Code Signing',
+      signature: 'func manualCodeSigning(identity: String? = nil, provisioningProfileSpecifier: String? = nil) -> SettingsDictionary',
+      description:
+        'Sets `"CODE_SIGN_STYLE"` to `"Manual"`, `"CODE_SIGN_IDENTITY"` to `identity`, and `"PROVISIONING_PROFILE_SPECIFIER"` to `provisioningProfileSpecifier`',
+    },
+    {
+      subject: 'Code Signing',
+      signature: 'func automaticCodeSigning(devTeam: String) -> SettingsDictionary',
+      description:
+        'Sets `"CODE_SIGN_STYLE"` to `"Automatic"` and `"DEVELOPMENT_TEAM"` to `devTeam`',
+    },
+    {
+      subject: 'Code Signing',
+      signature: 'func codeSignIdentityAppleDevelopment() -> SettingsDictionary',
+      description:
+        'Sets `"CODE_SIGN_IDENTITY"` to `"Apple Development"`',
+    },
+    {
+      subject: 'Code Signing',
+      signature: 'func codeSignIdentity(_ identity: String) -> SettingsDictionary',
+      description:
+        'Sets `"CODE_SIGN_IDENTITY"` to `identity`',
+    },
+    {
+      subject: 'Versioning',
+      signature: 'func currentProjectVersion(_ version: String) -> SettingsDictionary',
+      description:
+        'Sets `"CURRENT_PROJECT_VERSION"` to `version`',
+    },
+    {
+      subject: 'Versioning',
+      signature: 'func appleGenericVersioningSystem() -> SettingsDictionary',
+      description:
+        'Sets `"VERSIONING_SYSTEM"` to `"apple-generic"`',
+    },
+    {
+      subject: 'Versioning',
+      signature: 'func versionInfo(_ version: String, prefix: String? = nil, suffix: String? = nil) -> SettingsDictionary',
+      description:
+        'Sets `"VERSION_INFO_PREFIX"` to `version`. If `prefix` and `suffix` are not `nil`, they\'re used as `"VERSION_INFO_PREFIX"` and `"VERSION_INFO_SUFFIX"` respectively.',
+    },
+    {
+      subject: 'Swift Settings',
+      signature: 'func swiftVersion(_ version: String) -> SettingsDictionary',
+      description:
+        'Sets `"SWIFT_VERSION"` to `version`',
+    },
+    {
+      subject: 'Swift Settings',
+      signature: 'func otherSwiftFlags(_ flags: String...) -> SettingsDictionary',
+      description:
+        'Sets `"OTHER_SWIFT_FLAGS"` to `flags`',
+    },
+    {
+      subject: 'Swift Settings',
+      signature: 'func swiftCompilationMode(_ mode: SwiftCompilationMode) -> SettingsDictionary',
+      description:
+        'Sets `"SWIFT_COMPILATION_MODE"` to the available `SwiftCompilationMode` (`"singlefile"` or `"wholemodule"`)',
+    },
+    {
+      subject: 'Swift Settings',
+      signature: 'func swiftOptimizationLevel(_ level: SwiftOptimizationLevel) -> SettingsDictionary',
+      description:
+        'Sets `"SWIFT_OPTIMIZATION_LEVEL"` to the available `SwiftOptimizationLevel` (`"-O"`, `"-Onone"` or `"-Osize"`)',
+    },
+    {
+      subject: 'Bitcode',
+      signature: 'func bitcodeEnabled(_ enabled: Bool) -> SettingsDictionary',
+      description:
+        'Sets `"ENABLE_BITCODE"` to `"YES"` or `"NO"`',
+    }
+  ]}
 />
 
 Notice that you don't depend exclusively on Tuist's built-in functions.
