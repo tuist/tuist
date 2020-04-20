@@ -32,16 +32,9 @@ public enum SwiftOptimizationLevel: String {
 }
 
 public extension SettingsDictionary {
-    // MARK: - Deployment target and SDKROOT
-
-    /// Sets "SDKROOT" to `value`
-    func sdkRoot(_ value: String) -> SettingsDictionary {
-        merging(["SDKROOT": SettingValue(value)])
-    }
-
     // MARK: - Code signing
 
-    /// Sets "CODE_SIGN_STYLE" to "Manual"
+    /// Sets "CODE_SIGN_STYLE" to "Manual", "CODE_SIGN_IDENTITY" to `identity`, and "PROVISIONING_PROFILE_SPECIFIER" to `provisioningProfileSpecifier`
     func manualCodeSigning(identity: String? = nil, provisioningProfileSpecifier: String? = nil) -> SettingsDictionary {
         var manualCodeSigning: SettingsDictionary = ["CODE_SIGN_STYLE": "Manual"]
         manualCodeSigning["PROVISIONING_PROFILE_SPECIFIER"] = provisioningProfileSpecifier.map { SettingValue($0) }
@@ -74,11 +67,6 @@ public extension SettingsDictionary {
     }
 
     // MARK: - Versioning and Product Name
-
-    /// Sets "PRODUCT_NAME" to `name`
-    func productName(_ name: String) -> SettingsDictionary {
-        merging(["PRODUCT_NAME": SettingValue(name)])
-    }
 
     /// Sets "CURRENT_PROJECT_VERSION" to `version`
     func currentProjectVersion(_ version: String) -> SettingsDictionary {
@@ -126,12 +114,5 @@ public extension SettingsDictionary {
     /// Sets "ENABLE_BITCODE" to "YES" or "NO"
     func bitcodeEnabled(_ enabled: Bool) -> SettingsDictionary {
         merging(["ENABLE_BITCODE": SettingValue(enabled)])
-    }
-
-    // MARK: - Catalyst
-
-    /// Sets "DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER" to "YES" or "NO"
-    func deriveMacCatalystProductBundleId(_ enabled: Bool) -> SettingsDictionary {
-        merging(["DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER": SettingValue(enabled)])
     }
 }

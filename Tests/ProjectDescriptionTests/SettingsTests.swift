@@ -58,26 +58,21 @@ final class SettingsTests: XCTestCase {
     func test_settingsDictionary_chainingMultipleValues() {
         /// Given / When
         let settings = SettingsDictionary()
-            .sdkRoot("SomeSDK")
             .codeSignIdentityAppleDevelopment()
             .currentProjectVersion("999")
             .automaticCodeSigning(devTeam: "123ABC")
-            .productName("SuperTarget")
             .appleGenericVersioningSystem()
             .versionInfo("NLR", prefix: "A_Prefix", suffix: "A_Suffix")
             .swiftVersion("5.2.1")
             .otherSwiftFlags("first", "second", "third")
             .bitcodeEnabled(true)
-            .deriveMacCatalystProductBundleId(false)
 
         /// Then
         XCTAssertEqual(settings, [
-            "SDKROOT": "SomeSDK",
             "CODE_SIGN_IDENTITY": "Apple Development",
             "CURRENT_PROJECT_VERSION": "999",
             "CODE_SIGN_STYLE": "Automatic",
             "DEVELOPMENT_TEAM": "123ABC",
-            "PRODUCT_NAME": "SuperTarget",
             "VERSIONING_SYSTEM": "apple-generic",
             "VERSION_INFO_STRING": "NLR",
             "VERSION_INFO_PREFIX": "A_Prefix",
@@ -85,7 +80,6 @@ final class SettingsTests: XCTestCase {
             "SWIFT_VERSION": "5.2.1",
             "OTHER_SWIFT_FLAGS": "first second third",
             "ENABLE_BITCODE": "YES",
-            "DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER": "NO",
         ])
     }
 
