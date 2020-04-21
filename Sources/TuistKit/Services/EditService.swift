@@ -1,6 +1,6 @@
-import Basic
 import Foundation
 import Signals
+import TSCBasic
 import TuistGenerator
 import TuistSupport
 
@@ -17,13 +17,13 @@ final class EditService {
     func run(path: String?,
              permanent: Bool) throws {
         let path = self.path(path)
-        let generationDirectory = permanent ? path : EditService.temporaryDirectory.path
+        let generationDirectory = permanent ? path : EditService.temporaryDirectory
         let xcodeprojPath = try projectEditor.edit(at: path, in: generationDirectory)
 
         if !permanent {
             Signals.trap(signals: [.int, .abrt]) { _ in
                 // swiftlint:disable:next force_try
-                try! FileHandler.shared.delete(EditService.temporaryDirectory.path)
+                try! FileHandler.shared.delete(EditService.temporaryDirectory)
                 exit(0)
             }
             logger.pretty("Opening Xcode to edit the project. Press \(.keystroke("CTRL + C")) once you are done editing")
@@ -43,12 +43,12 @@ final class EditService {
         }
     }
 
-    private static var _temporaryDirectory: TemporaryDirectory?
-    private static var temporaryDirectory: TemporaryDirectory {
+    private static var _temporaryDirectory: AbsolutePath?
+    private static var temporaryDirectory: AbsolutePath {
         // swiftlint:disable:next identifier_name
         if let _temporaryDirectory = _temporaryDirectory { return _temporaryDirectory }
         // swiftlint:disable:next force_try
-        _temporaryDirectory = try! TemporaryDirectory(removeTreeOnDeinit: true)
+        _temporaryDirectory = try! determineTempDirectory()
         return _temporaryDirectory!
     }
 }

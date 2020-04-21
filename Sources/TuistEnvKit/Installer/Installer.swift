@@ -1,6 +1,6 @@
-import Basic
 import Foundation
 import RxBlocking
+import TSCBasic
 import TuistSupport
 
 /// Protocol that defines the interface of an instance that can install versions of Tuist.
@@ -71,11 +71,12 @@ final class Installer: Installing {
     // MARK: - Installing
 
     func install(version: String, force: Bool) throws {
-        let temporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
-        try install(version: version, temporaryDirectory: temporaryDirectory, force: force)
+        try withTemporaryDirectory { temporaryDirectory in
+            try install(version: version, temporaryDirectory: temporaryDirectory, force: force)
+        }
     }
 
-    func install(version: String, temporaryDirectory: TemporaryDirectory, force: Bool = false) throws {
+    func install(version: String, temporaryDirectory: AbsolutePath, force: Bool = false) throws {
         // We ignore the Swift version and install from the soruce code
         if force {
             logger.notice("Forcing the installation of \(version) from the source code")
@@ -98,13 +99,13 @@ final class Installer: Installing {
 
     func installFromBundle(bundleURL: URL,
                            version: String,
-                           temporaryDirectory: TemporaryDirectory) throws {
+                           temporaryDirectory: AbsolutePath) throws {
         try versionsController.install(version: version, installation: { installationDirectory in
 
             // Download bundle
             logger.notice("Downloading version \(version)")
 
-            let downloadPath = temporaryDirectory.path.appending(component: Constants.bundleName)
+            let downloadPath = temporaryDirectory.appending(component: Constants.bundleName)
             try System.shared.run("/usr/bin/curl", "-LSs", "--output", downloadPath.pathString, bundleURL.absoluteString)
 
             // Unzip
@@ -118,20 +119,20 @@ final class Installer: Installing {
 
     // swiftlint:disable:next function_body_length
     func installFromSource(version: String,
-                           temporaryDirectory: TemporaryDirectory) throws {
+                           temporaryDirectory: AbsolutePath) throws {
         try versionsController.install(version: version) { installationDirectory in
             // Paths
-            let buildDirectory = temporaryDirectory.path.appending(RelativePath(".build/release/"))
+            let buildDirectory = temporaryDirectory.appending(RelativePath(".build/release/"))
 
             // Cloning and building
             logger.notice("Pulling source code")
-            _ = try System.shared.observable(["/usr/bin/env", "git", "clone", Constants.gitRepositoryURL, temporaryDirectory.path.pathString])
+            _ = try System.shared.observable(["/usr/bin/env", "git", "clone", Constants.gitRepositoryURL, temporaryDirectory.pathString])
                 .mapToString()
                 .printStandardError()
                 .toBlocking()
                 .last()
 
-            let gitCheckoutResult = System.shared.observable(["/usr/bin/env", "git", "-C", temporaryDirectory.path.pathString, "checkout", version])
+            let gitCheckoutResult = System.shared.observable(["/usr/bin/env", "git", "-C", temporaryDirectory.pathString, "checkout", version])
                 .mapToString()
                 .toBlocking()
                 .materialize()
@@ -156,7 +157,7 @@ final class Installer: Installing {
 
             _ = try System.shared.observable([swiftPath, "build",
                                               "--product", "tuist",
-                                              "--package-path", temporaryDirectory.path.pathString,
+                                              "--package-path", temporaryDirectory.pathString,
                                               "--configuration", "release"])
                 .mapToString()
                 .printStandardError()
@@ -165,12 +166,12 @@ final class Installer: Installing {
 
             _ = try System.shared.observable([swiftPath, "build",
                                               "--product", "ProjectDescription",
-                                              "--package-path", temporaryDirectory.path.pathString,
+                                              "--package-path", temporaryDirectory.pathString,
                                               "--configuration", "release",
                                               "-Xswiftc", "-enable-library-evolution",
                                               "-Xswiftc", "-emit-module-interface",
                                               "-Xswiftc", "-emit-module-interface-path",
-                                              "-Xswiftc", temporaryDirectory.path.appending(RelativePath(".build/release/ProjectDescription.swiftinterface")).pathString]) // swiftlint:disable:this line_length
+                                              "-Xswiftc", temporaryDirectory.appending(RelativePath(".build/release/ProjectDescription.swiftinterface")).pathString]) // swiftlint:disable:this line_length
                 .mapToString()
                 .printStandardError()
                 .toBlocking()
@@ -181,7 +182,7 @@ final class Installer: Installing {
             }
             try FileHandler.shared.createFolder(installationDirectory)
 
-            let templatesDirectory = temporaryDirectory.path.appending(component: Constants.templatesDirectoryName)
+            let templatesDirectory = temporaryDirectory.appending(component: Constants.templatesDirectoryName)
             if FileHandler.shared.exists(templatesDirectory) {
                 try FileHandler.shared.copy(from: templatesDirectory,
                                             to: buildDirectory.appending(component: Constants.templatesDirectoryName))

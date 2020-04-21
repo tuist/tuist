@@ -1,5 +1,5 @@
-import Basic
 import Foundation
+import TSCBasic
 
 /// Protocol that defines an interface to interact with the project.
 protocol Playgrounding {

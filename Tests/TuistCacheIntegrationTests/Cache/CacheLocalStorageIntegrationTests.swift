@@ -1,7 +1,6 @@
-import Basic
 import Foundation
 import RxBlocking
-import SPMUtility
+import TSCBasic
 import TuistCore
 import TuistSupport
 import XCTest

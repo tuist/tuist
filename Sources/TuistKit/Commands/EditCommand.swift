@@ -1,7 +1,7 @@
 import ArgumentParser
-import Basic
 import Foundation
 import Signals
+import TSCBasic
 import TuistGenerator
 import TuistSupport
 

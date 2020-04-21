@@ -1,5 +1,5 @@
-import Basic
 import Foundation
+import TSCBasic
 
 public struct ArchiveAction: Equatable {
     // MARK: - Attributes

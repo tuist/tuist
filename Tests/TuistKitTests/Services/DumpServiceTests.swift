@@ -1,5 +1,5 @@
-import Basic
 import Foundation
+import TSCBasic
 import TuistLoader
 import TuistSupport
 import XCTest
@@ -28,16 +28,16 @@ final class DumpServiceTests: TuistUnitTestCase {
     }
 
     func test_run_throws_when_file_doesnt_exist() throws {
-        let tmpDir = try TemporaryDirectory(removeTreeOnDeinit: true)
-        XCTAssertThrowsSpecific(try subject.run(path: tmpDir.path.pathString),
-                                ManifestLoaderError.manifestNotFound(.project, tmpDir.path))
+        let tmpDir = try temporaryPath()
+        XCTAssertThrowsSpecific(try subject.run(path: tmpDir.pathString),
+                                ManifestLoaderError.manifestNotFound(.project, tmpDir))
     }
 
     func test_run_throws_when_the_manifest_loading_fails() throws {
-        let tmpDir = try TemporaryDirectory(removeTreeOnDeinit: true)
-        try "invalid config".write(toFile: tmpDir.path.appending(component: "Project.swift").pathString,
+        let tmpDir = try temporaryPath()
+        try "invalid config".write(toFile: tmpDir.appending(component: "Project.swift").pathString,
                                    atomically: true,
                                    encoding: .utf8)
-        XCTAssertThrowsError(try subject.run(path: tmpDir.path.pathString))
+        XCTAssertThrowsError(try subject.run(path: tmpDir.pathString))
     }
 }

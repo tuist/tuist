@@ -1,5 +1,5 @@
-import Basic
 import Foundation
+import TSCBasic
 import TuistCore
 import TuistSupport
 
@@ -112,9 +112,9 @@ final class ProjectEditorMapper: ProjectEditorMapping {
 
     /// It returns the build settings that should be used in the manifests target.
     /// - Parameter projectDescriptionPath: Path to the ProjectDescription framework.
-    fileprivate func settings(projectDescriptionPath: AbsolutePath) -> [String: SettingValue] {
+    fileprivate func settings(projectDescriptionPath: AbsolutePath) -> SettingsDictionary {
         let frameworkParentDirectory = projectDescriptionPath.parentDirectory
-        var buildSettings = [String: SettingValue]()
+        var buildSettings = SettingsDictionary()
         buildSettings["FRAMEWORK_SEARCH_PATHS"] = .string(frameworkParentDirectory.pathString)
         buildSettings["LIBRARY_SEARCH_PATHS"] = .string(frameworkParentDirectory.pathString)
         buildSettings["SWIFT_INCLUDE_PATHS"] = .string(frameworkParentDirectory.pathString)

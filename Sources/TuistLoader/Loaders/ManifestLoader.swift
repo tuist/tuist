@@ -1,8 +1,8 @@
-import Basic
 import Foundation
 import ProjectDescription
 import RxBlocking
 import RxSwift
+import TSCBasic
 import TuistSupport
 
 public enum ManifestLoaderError: FatalError, Equatable {

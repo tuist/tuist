@@ -1,6 +1,6 @@
-import Basic
 import Foundation
-import SPMUtility
+import TSCBasic
+import TSCUtility
 
 public protocol XcodeControlling {
     /// Returns the selected Xcode. It uses xcode-select to determine

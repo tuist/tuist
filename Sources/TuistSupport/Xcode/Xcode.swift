@@ -1,5 +1,5 @@
-import Basic
 import Foundation
+import TSCBasic
 
 public struct Xcode {
     /// It represents the content of the Info.plist file inside the Xcode app bundle.

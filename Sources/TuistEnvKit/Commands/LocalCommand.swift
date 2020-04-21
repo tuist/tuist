@@ -1,6 +1,6 @@
 import ArgumentParser
-import Basic
 import Foundation
+import TSCBasic
 import TuistSupport
 
 struct LocalCommand: ParsableCommand {

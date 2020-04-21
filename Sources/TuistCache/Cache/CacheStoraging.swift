@@ -1,6 +1,6 @@
-import Basic
 import Foundation
 import RxSwift
+import TSCBasic
 
 public protocol CacheStoraging {
     /// Returns if the target with the given hash exists in the cache.

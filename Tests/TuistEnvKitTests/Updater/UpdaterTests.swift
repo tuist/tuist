@@ -1,5 +1,5 @@
 import Foundation
-import SPMUtility
+import struct TSCUtility.Version
 import TuistSupport
 import XCTest
 @testable import TuistEnvKit
@@ -36,7 +36,7 @@ final class UpdaterTests: TuistUnitTestCase {
     }
 
     func test_update_when_force() throws {
-        googleCloudStorageClient.latestVersionStub = SPMUtility.Version(string: "3.2.1")!
+        googleCloudStorageClient.latestVersionStub = Version(string: "3.2.1")!
         var installArgs: [(version: String, force: Bool)] = []
         installer.installStub = { version, force in installArgs.append((version: version, force: force)) }
 
@@ -51,7 +51,7 @@ final class UpdaterTests: TuistUnitTestCase {
 
     func test_update_when_there_are_no_updates() throws {
         versionsController.semverVersionsStub = ["3.2.1"]
-        googleCloudStorageClient.latestVersionStub = SPMUtility.Version(string: "3.2.1")!
+        googleCloudStorageClient.latestVersionStub = Version(string: "3.2.1")!
 
         try subject.update(force: false)
 
@@ -61,7 +61,7 @@ final class UpdaterTests: TuistUnitTestCase {
 
     func test_update_when_there_are_updates() throws {
         versionsController.semverVersionsStub = ["3.1.1"]
-        googleCloudStorageClient.latestVersionStub = SPMUtility.Version(string: "3.2.1")!
+        googleCloudStorageClient.latestVersionStub = Version(string: "3.2.1")!
         var installArgs: [(version: String, force: Bool)] = []
         installer.installStub = { version, force in installArgs.append((version: version, force: force)) }
 
@@ -76,7 +76,7 @@ final class UpdaterTests: TuistUnitTestCase {
 
     func test_update_when_no_local_versions_available() throws {
         versionsController.semverVersionsStub = []
-        googleCloudStorageClient.latestVersionStub = SPMUtility.Version(string: "3.2.1")!
+        googleCloudStorageClient.latestVersionStub = Version(string: "3.2.1")!
         var installArgs: [(version: String, force: Bool)] = []
         installer.installStub = { version, force in installArgs.append((version: version, force: force)) }
 

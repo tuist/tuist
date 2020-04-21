@@ -1,6 +1,5 @@
-import Basic
 import Foundation
-import SPMUtility
+import TSCBasic
 import TuistSupport
 import XCTest
 
@@ -28,7 +27,7 @@ final class DumpServiceTests: TuistTestCase {
     }
 
     func test_prints_the_manifest_when_swift_manifest() throws {
-        let tmpDir = try TemporaryDirectory(removeTreeOnDeinit: true)
+        let tmpDir = try temporaryPath()
         let config = """
         import ProjectDescription
 
@@ -37,10 +36,10 @@ final class DumpServiceTests: TuistTestCase {
               settings: nil,
               targets: [])
         """
-        try config.write(toFile: tmpDir.path.appending(component: "Project.swift").pathString,
+        try config.write(toFile: tmpDir.appending(component: "Project.swift").pathString,
                          atomically: true,
                          encoding: .utf8)
-        try subject.run(path: tmpDir.path.pathString)
+        try subject.run(path: tmpDir.pathString)
         let expected = "{\n  \"additionalFiles\": [\n\n  ],\n  \"name\": \"tuist\",\n  \"organizationName\": \"tuist\",\n  \"packages\": [\n\n  ],\n  \"schemes\": [\n\n  ],\n  \"targets\": [\n\n  ]\n}\n"
 
         XCTAssertPrinterOutputContains(expected)

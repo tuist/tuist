@@ -1,6 +1,7 @@
-import Basic
 import Foundation
-import SPMUtility
+import TSCBasic
+import struct TSCUtility.Version
+import TuistSupportTesting
 @testable import TuistEnvKit
 
 final class MockVersionsController: VersionsControlling {

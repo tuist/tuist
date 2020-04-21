@@ -1,6 +1,5 @@
-import Basic
 import Foundation
-import SPMUtility
+import TSCBasic
 import TuistCore
 import TuistSupport
 import XcodeProj

@@ -1,6 +1,6 @@
-import Basic
 import Foundation
 import RxSwift
+import TSCBasic
 import TuistSupport
 
 public protocol XcodeBuildControlling {

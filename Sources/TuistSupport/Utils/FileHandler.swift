@@ -1,5 +1,5 @@
-import Basic
 import Foundation
+import TSCBasic
 
 enum FileHandlerError: FatalError {
     case invalidTextEncoding(AbsolutePath)
@@ -160,8 +160,7 @@ public class FileHandler: FileHandling {
     }
 
     public func inTemporaryDirectory(_ closure: (AbsolutePath) throws -> Void) throws {
-        let directory = try TemporaryDirectory(removeTreeOnDeinit: true)
-        try closure(directory.path)
+        try withTemporaryDirectory(closure)
     }
 
     public func exists(_ path: AbsolutePath) -> Bool {
