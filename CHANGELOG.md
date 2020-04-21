@@ -10,6 +10,12 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Removed
 
+## 1.7.1
+
+### Fixed
+
+- Critical bug caused by a missing `SwiftToolsSupport` dynamic library by @pepibumur.
+
 ## 1.7.0
 
 ### Changed
