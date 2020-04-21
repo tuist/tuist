@@ -38,15 +38,14 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
                                            projectDescriptionPath: projectDescriptionPath)
 
         // Then
-        let targetNodes = graph.targets.values.flatMap { targets in targets.compactMap { $0 } }.sorted(by: { $0.target.name < $1.target.name })
+        let targetNodes = graph.targets.values.lazy.flatMap { targets in targets.compactMap { $0 } }.sorted(by: { $0.target.name < $1.target.name })
         XCTAssertEqual(targetNodes.count, 3)
-        XCTAssertEqual(targetNodes.first?.dependencies, Array(targetNodes.dropFirst()))
+        XCTAssertEqual(targetNodes.last?.dependencies, Array(targetNodes.dropLast()))
 
         // Generated Manifests target
         let manifestsTarget = try XCTUnwrap(project.targets.first)
-        XCTAssertEqual(targetNodes.first?.target, manifestsTarget)
+        XCTAssertEqual(targetNodes.last?.target, manifestsTarget)
 
-        XCTAssertEqual(manifestsTarget.name, "Manifests")
         XCTAssertEqual(manifestsTarget.platform, .macOS)
         XCTAssertEqual(manifestsTarget.product, .staticFramework)
         XCTAssertEqual(manifestsTarget.settings, expectedSettings(sourceRootPath: sourceRootPath))
@@ -56,7 +55,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
 
         // Generated Helpers target
         let helpersTarget = try XCTUnwrap(project.targets.last(where: { $0.name == "ProjectDescriptionHelpers" }))
-        XCTAssertEqual(targetNodes.dropLast().last?.target, helpersTarget)
+        XCTAssertEqual(targetNodes.dropLast().first?.target, helpersTarget)
 
         XCTAssertEqual(helpersTarget.name, "ProjectDescriptionHelpers")
         XCTAssertEqual(helpersTarget.platform, .macOS)
@@ -67,9 +66,8 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(helpersTarget.dependencies, [])
 
         // Generated Templates target
-
         let templatesTarget = try XCTUnwrap(project.targets.last(where: { $0.name == "Templates" }))
-        XCTAssertEqual(targetNodes.last?.target, templatesTarget)
+        XCTAssertEqual(targetNodes.dropLast().last?.target, templatesTarget)
 
         XCTAssertEqual(templatesTarget.name, "Templates")
         XCTAssertEqual(templatesTarget.platform, .macOS)
@@ -86,7 +84,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
                                                   configurations: Settings.default.configurations,
                                                   defaultSettings: .recommended))
         XCTAssertEqual(project.filesGroup, .group(name: "Manifests"))
-        XCTAssertEqual(project.targets, targetNodes.map { $0.target })
+        XCTAssertEqual(project.targets.sorted { $0.name < $1.name }, targetNodes.map { $0.target })
 
         // Generated Scheme
         XCTAssertEqual(project.schemes.count, 1)
@@ -94,7 +92,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(scheme.name, "Manifests")
 
         let buildAction = try XCTUnwrap(scheme.buildAction)
-        XCTAssertEqual(buildAction.targets.map { $0.name }, targetNodes.map { $0.name })
+        XCTAssertEqual(buildAction.targets.lazy.map { $0.name }.sorted(), targetNodes.map { $0.name })
 
         let runAction = try XCTUnwrap(scheme.runAction)
         XCTAssertEqual(runAction.filePath, tuistPath)
@@ -128,7 +126,6 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         let manifestsTarget = try XCTUnwrap(project.targets.first)
         XCTAssertEqual(targetNodes.first?.target, manifestsTarget)
 
-        XCTAssertEqual(manifestsTarget.name, "Manifests")
         XCTAssertEqual(manifestsTarget.platform, .macOS)
         XCTAssertEqual(manifestsTarget.product, .staticFramework)
         XCTAssertEqual(manifestsTarget.settings, expectedSettings(sourceRootPath: sourceRootPath))
@@ -152,6 +149,79 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
 
         let buildAction = try XCTUnwrap(scheme.buildAction)
         XCTAssertEqual(buildAction.targets.map { $0.name }, targetNodes.map { $0.name })
+
+        let runAction = try XCTUnwrap(scheme.runAction)
+        XCTAssertEqual(runAction.filePath, tuistPath)
+        let generateArgument = "generate --path \(sourceRootPath)"
+        XCTAssertEqual(runAction.arguments, Arguments(launch: [generateArgument: true]))
+    }
+
+    func test_tuist_edit_with_more_than_one_manifest() throws {
+        // Given
+        let sourceRootPath = try temporaryPath()
+        let otherProjectPath = "Module"
+        let manifestPaths = [
+            sourceRootPath.appending(component: "Project.swift"),
+            sourceRootPath.appending(component: otherProjectPath).appending(component: "Project.swift"),
+        ]
+        let helperPaths: [AbsolutePath] = []
+        let templates: [AbsolutePath] = []
+        let projectDescriptionPath = sourceRootPath.appending(component: "ProjectDescription.framework")
+        let tuistPath = AbsolutePath("/usr/bin/foo/bar/tuist")
+
+        // When
+        let (project, graph) = subject.map(tuistPath: tuistPath,
+                                           sourceRootPath: sourceRootPath,
+                                           manifests: manifestPaths,
+                                           helpers: helperPaths,
+                                           templates: templates,
+                                           projectDescriptionPath: projectDescriptionPath)
+
+        // Then
+        let targetNodes = graph.targets.values.flatMap { targets in targets.compactMap { $0 } }.sorted(by: { $0.target.name < $1.target.name })
+        XCTAssertEqual(targetNodes.count, 2)
+        XCTAssertEqual(targetNodes.first?.dependencies, [])
+        XCTAssertEqual(targetNodes.last?.dependencies, [])
+
+        // Generated Manifests target
+        let manifestOneTarget = try XCTUnwrap(project.targets.first(where: { $0.name == "ModuleManifests" }))
+        XCTAssertEqual(targetNodes.first?.target, manifestOneTarget)
+
+        XCTAssertEqual(manifestOneTarget.name, "ModuleManifests")
+        XCTAssertEqual(manifestOneTarget.platform, .macOS)
+        XCTAssertEqual(manifestOneTarget.product, .staticFramework)
+        XCTAssertEqual(manifestOneTarget.settings, expectedSettings(sourceRootPath: sourceRootPath))
+        XCTAssertEqual(manifestOneTarget.sources.map { $0.path }, [manifestPaths.last])
+        XCTAssertEqual(manifestOneTarget.filesGroup, .group(name: "Manifests"))
+        XCTAssertEqual(manifestOneTarget.dependencies, [])
+
+        // Generated Manifests target
+        let manifestTwoTarget = try XCTUnwrap(project.targets.first(where: { $0.name != "ModuleManifests" }))
+        XCTAssertEqual(targetNodes.last?.target, manifestTwoTarget)
+
+        XCTAssertEqual(manifestTwoTarget.platform, .macOS)
+        XCTAssertEqual(manifestTwoTarget.product, .staticFramework)
+        XCTAssertEqual(manifestTwoTarget.settings, expectedSettings(sourceRootPath: sourceRootPath))
+        XCTAssertEqual(manifestTwoTarget.sources.map { $0.path }, [manifestPaths.first])
+        XCTAssertEqual(manifestTwoTarget.filesGroup, .group(name: "Manifests"))
+        XCTAssertEqual(manifestTwoTarget.dependencies, [])
+
+        // Generated Project
+        XCTAssertEqual(project.path, sourceRootPath)
+        XCTAssertEqual(project.name, "Manifests")
+        XCTAssertEqual(project.settings, Settings(base: [:],
+                                                  configurations: Settings.default.configurations,
+                                                  defaultSettings: .recommended))
+        XCTAssertEqual(project.filesGroup, .group(name: "Manifests"))
+        XCTAssertEqual(project.targets.sorted(by: { $0.name > $1.name }), targetNodes.map { $0.target }.sorted(by: { $0.name > $1.name }))
+
+        // Generated Scheme
+        XCTAssertEqual(project.schemes.count, 1)
+        let scheme = try XCTUnwrap(project.schemes.first)
+        XCTAssertEqual(scheme.name, "Manifests")
+
+        let buildAction = try XCTUnwrap(scheme.buildAction)
+        XCTAssertEqual(buildAction.targets.map { $0.name }.sorted(), targetNodes.map { $0.name }.sorted())
 
         let runAction = try XCTUnwrap(scheme.runAction)
         XCTAssertEqual(runAction.filePath, tuistPath)

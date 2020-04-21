@@ -37,15 +37,19 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         if !templates.isEmpty {
             manifestsDependencies.append(.target(name: "Templates"))
         }
-        let manifestsTarget = Target(name: "Manifests",
-                                     platform: .macOS,
-                                     product: .staticFramework,
-                                     productName: "Manifests",
-                                     bundleId: "io.tuist.${PRODUCT_NAME:rfc1034identifier}",
-                                     settings: targetSettings,
-                                     sources: manifests.map { (path: $0, compilerFlags: nil) },
-                                     filesGroup: .group(name: "Manifests"),
-                                     dependencies: manifestsDependencies)
+
+        let manifestsTargets = named(manifests: manifests).map { name, manifest in
+            Target(name: name,
+                   platform: .macOS,
+                   product: .staticFramework,
+                   productName: name,
+                   bundleId: "io.tuist.${PRODUCT_NAME:rfc1034identifier}",
+                   settings: targetSettings,
+                   sources: [(path: manifest, compilerFlags: nil)],
+                   filesGroup: .group(name: "Manifests"),
+                   dependencies: manifestsDependencies)
+        }
+
         var helpersTarget: Target?
         if !helpers.isEmpty {
             helpersTarget = Target.editorHelperTarget(name: "ProjectDescriptionHelpers",
@@ -60,7 +64,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         }
 
         var targets: [Target] = []
-        targets.append(manifestsTarget)
+        targets.append(contentsOf: manifestsTargets)
         if let helpersTarget = helpersTarget { targets.append(helpersTarget) }
         if let templatesTarget = templatesTarget { targets.append(templatesTarget) }
 
@@ -91,16 +95,16 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             dependencies.append(templatesNode)
         }
 
-        let manifestTargetNode = TargetNode(project: project, target: manifestsTarget, dependencies: dependencies)
+        let manifestTargetNodes = manifestsTargets.map { TargetNode(project: project, target: $0, dependencies: dependencies) }
 
         let graph = Graph(name: "Manifests",
                           entryPath: sourceRootPath,
-                          entryNodes: [manifestTargetNode],
+                          entryNodes: manifestTargetNodes,
                           projects: [project],
                           cocoapods: [],
                           packages: [],
                           precompiled: [],
-                          targets: [sourceRootPath: [manifestTargetNode] + dependencies])
+                          targets: [sourceRootPath: manifestTargetNodes + dependencies])
 
         // Project
         return (project, graph)
@@ -116,6 +120,19 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         buildSettings["SWIFT_INCLUDE_PATHS"] = .string(frameworkParentDirectory.pathString)
         buildSettings["SWIFT_VERSION"] = .string(Constants.swiftVersion)
         return buildSettings
+    }
+
+    /// It returns a dictionary with unique name as key for each Manifest file
+    /// - Parameter manifests: Manifest files to assign an unique name
+    /// - Returns: Dictionary composed by unique name as key and Manifest file as value.
+    fileprivate func named(manifests: [AbsolutePath]) -> [String: AbsolutePath] {
+        manifests.reduce(into: [String: AbsolutePath]()) { result, manifest in
+            var name = "\(manifest.parentDirectory.basename)Manifests"
+            while result[name] != nil {
+                name = "_\(name)"
+            }
+            result[name] = manifest
+        }
     }
 }
 

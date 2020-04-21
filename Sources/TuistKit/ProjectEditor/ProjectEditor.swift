@@ -74,7 +74,7 @@ final class ProjectEditor: ProjectEditing {
         let xcodeprojPath = dstDirectory.appending(component: "Manifests.xcodeproj")
 
         let projectDesciptionPath = try resourceLocator.projectDescription()
-        let manifests = manifestFilesLocator.locate(at: at)
+        let manifests = manifestFilesLocator.locateAll(at: at)
         var helpers: [AbsolutePath] = []
         if let helpersDirectory = helpersDirectoryLocator.locate(at: at) {
             helpers = FileHandler.shared.glob(helpersDirectory, glob: "**/*.swift")
