@@ -184,7 +184,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(targetNodes.last?.dependencies, [])
 
         // Generated Manifests target
-        let manifestOneTarget = try XCTUnwrap(project.targets.first)
+        let manifestOneTarget = try XCTUnwrap(project.targets.first(where: { $0.name == "ModuleManifests" }))
         XCTAssertEqual(targetNodes.first?.target, manifestOneTarget)
 
         XCTAssertEqual(manifestOneTarget.name, "ModuleManifests")
@@ -196,7 +196,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(manifestOneTarget.dependencies, [])
 
         // Generated Manifests target
-        let manifestTwoTarget = try XCTUnwrap(project.targets.last)
+        let manifestTwoTarget = try XCTUnwrap(project.targets.first(where: { $0.name != "ModuleManifests" }))
         XCTAssertEqual(targetNodes.last?.target, manifestTwoTarget)
 
         XCTAssertEqual(manifestTwoTarget.platform, .macOS)
@@ -213,7 +213,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
                                                   configurations: Settings.default.configurations,
                                                   defaultSettings: .recommended))
         XCTAssertEqual(project.filesGroup, .group(name: "Manifests"))
-        XCTAssertEqual(project.targets, targetNodes.map { $0.target })
+        XCTAssertEqual(project.targets.sorted(by: { $0.name > $1.name }), targetNodes.map { $0.target }.sorted(by: { $0.name > $1.name }))
 
         // Generated Scheme
         XCTAssertEqual(project.schemes.count, 1)
@@ -221,7 +221,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(scheme.name, "Manifests")
 
         let buildAction = try XCTUnwrap(scheme.buildAction)
-        XCTAssertEqual(buildAction.targets.map { $0.name }, targetNodes.map { $0.name })
+        XCTAssertEqual(buildAction.targets.map { $0.name }.sorted(), targetNodes.map { $0.name }.sorted())
 
         let runAction = try XCTUnwrap(scheme.runAction)
         XCTAssertEqual(runAction.filePath, tuistPath)
