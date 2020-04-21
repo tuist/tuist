@@ -1,5 +1,5 @@
-import TSCBasic
 import Foundation
+import TSCBasic
 import TuistSupport
 import XCTest
 
