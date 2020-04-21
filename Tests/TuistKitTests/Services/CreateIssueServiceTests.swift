@@ -1,5 +1,4 @@
 import Foundation
-import SPMUtility
 import XCTest
 @testable import TuistKit
 @testable import TuistSupportTesting

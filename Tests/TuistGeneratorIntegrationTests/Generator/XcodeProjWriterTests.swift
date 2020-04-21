@@ -1,6 +1,6 @@
 
-import Basic
 import Foundation
+import TSCBasic
 import TuistCore
 import TuistGeneratorTesting
 import TuistSupport

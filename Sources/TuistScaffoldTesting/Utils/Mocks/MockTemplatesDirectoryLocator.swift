@@ -1,5 +1,5 @@
-import Basic
 import Foundation
+import TSCBasic
 @testable import TuistScaffold
 
 public final class MockTemplatesDirectoryLocator: TemplatesDirectoryLocating {

@@ -1,6 +1,6 @@
-import Basic
 import Darwin
 import Foundation
+import TSCBasic
 
 let systemGlob = Darwin.glob
 

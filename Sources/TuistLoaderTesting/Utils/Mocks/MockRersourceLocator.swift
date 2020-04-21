@@ -1,5 +1,5 @@
-import Basic
 import Foundation
+import TSCBasic
 @testable import TuistLoader
 
 public final class MockResourceLocator: ResourceLocating {

@@ -1,4 +1,4 @@
-import Basic
+import TSCBasic
 import TuistSupport
 import XCTest
 

@@ -1,5 +1,5 @@
-import Basic
 import ProjectDescription
+import TSCBasic
 import TuistCore
 import TuistSupport
 import XCTest

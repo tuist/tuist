@@ -1,5 +1,5 @@
-import Basic
 import Foundation
+import TSCBasic
 
 struct GraphCircularDetectorNode: Hashable {
     let path: AbsolutePath

@@ -1,8 +1,8 @@
-import SPMUtility
+import TSCUtility
 import XCTest
 @testable import TuistSupport
 
-final class SPMUtilityVersionTests: XCTestCase {
+final class TSCUtilityVersionTests: XCTestCase {
     func test_version_when_allTagsPresent() {
         XCTAssertEqual(Version(unformattedString: "11.2.3"), Version(11, 2, 3))
     }

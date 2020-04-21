@@ -1,8 +1,8 @@
 import ArgumentParser
-import Basic
 import Foundation
 import RxBlocking
 import RxSwift
+import TSCBasic
 import TuistCache
 import TuistCore
 import TuistGenerator

@@ -1,5 +1,5 @@
-import Basic
 import Foundation
+import TSCBasic
 
 /// It represents th Info.plist contained in an .xcframework bundle.
 public struct XCFrameworkInfoPlist: Codable, Equatable {

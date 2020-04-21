@@ -1,6 +1,6 @@
-import Basic
 import RxBlocking
 import RxSwift
+import TSCBasic
 import XCTest
 @testable import TuistSupport
 @testable import TuistSupportTesting

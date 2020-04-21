@@ -1,6 +1,5 @@
-import Basic
 import Foundation
-import SPMUtility
+import TSCBasic
 import TuistSupport
 
 /// Protocol that defines the interface to update the environment.

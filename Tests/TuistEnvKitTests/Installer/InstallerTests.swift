@@ -1,6 +1,5 @@
-import Basic
 import Foundation
-import SPMUtility
+import TSCBasic
 import TuistSupport
 import XCTest
 @testable import TuistEnvKit
@@ -61,7 +60,7 @@ final class InstallerTests: TuistUnitTestCase {
                               "-d", temporaryPath.pathString)
 
         try subject.install(version: version,
-                            temporaryDirectory: temporaryDirectory)
+                            temporaryDirectory: temporaryDirectory.path)
 
         XCTAssertPrinterOutputContains("""
         Downloading version 3.2.1
@@ -97,7 +96,7 @@ final class InstallerTests: TuistUnitTestCase {
                             downloadURL.absoluteString,
                             error: "download_error")
 
-        XCTAssertThrowsError(try subject.install(version: version, temporaryDirectory: temporaryDirectory))
+        XCTAssertThrowsError(try subject.install(version: version, temporaryDirectory: temporaryDirectory.path))
     }
 
     func test_install_when_bundled_release_when_unzip_fails() throws {
@@ -125,7 +124,7 @@ final class InstallerTests: TuistUnitTestCase {
                             "-d", temporaryPath.pathString,
                             error: "unzip_error")
 
-        XCTAssertThrowsError(try subject.install(version: version, temporaryDirectory: temporaryDirectory))
+        XCTAssertThrowsError(try subject.install(version: version, temporaryDirectory: temporaryDirectory.path))
     }
 
     func test_install_when_no_bundled_release() throws {
@@ -163,7 +162,7 @@ final class InstallerTests: TuistUnitTestCase {
         try FileHandler.shared.createFolder(temporaryDirectory.path.appending(component: Constants.templatesDirectoryName))
         try FileHandler.shared.createFolder(temporaryDirectory.path.appending(RelativePath(".build/release")))
 
-        try subject.install(version: version, temporaryDirectory: temporaryDirectory)
+        try subject.install(version: version, temporaryDirectory: temporaryDirectory.path)
 
         XCTAssertPrinterOutputContains("""
         Pulling source code
@@ -209,7 +208,7 @@ final class InstallerTests: TuistUnitTestCase {
         try FileHandler.shared.createFolder(temporaryDirectory.path.appending(component: Constants.templatesDirectoryName))
         try FileHandler.shared.createFolder(temporaryDirectory.path.appending(RelativePath(".build/release")))
 
-        try subject.install(version: version, temporaryDirectory: temporaryDirectory, force: true)
+        try subject.install(version: version, temporaryDirectory: temporaryDirectory.path, force: true)
 
         XCTAssertPrinterOutputContains("""
         Forcing the installation of 3.2.1 from the source code
@@ -255,7 +254,7 @@ final class InstallerTests: TuistUnitTestCase {
 
         try FileHandler.shared.createFolder(temporaryDirectory.path.appending(RelativePath(".build/release")))
 
-        try subject.install(version: version, temporaryDirectory: temporaryDirectory)
+        try subject.install(version: version, temporaryDirectory: temporaryDirectory.path)
 
         XCTAssertPrinterOutputContains("""
         Pulling source code
@@ -284,7 +283,7 @@ final class InstallerTests: TuistUnitTestCase {
                             error: "did not match any file(s) known to git ")
 
         let expected = InstallerError.versionNotFound(version)
-        XCTAssertThrowsSpecific(try subject.install(version: version, temporaryDirectory: temporaryDirectory), expected)
+        XCTAssertThrowsSpecific(try subject.install(version: version, temporaryDirectory: temporaryDirectory.path), expected)
     }
 
     // MARK: - Fileprivate
