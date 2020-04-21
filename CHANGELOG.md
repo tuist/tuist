@@ -8,6 +8,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Migrate to new argument parser https://github.com/tuist/tuist/pull/1154 by @fortmarek
 - Only warn about copying Info.plist when it's the target's Info.plist https://github.com/tuist/tuist/pull/1203 by @sgrgrsn
+- `tuist edit` now edit's all project manifest https://github.com/tuist/tuist/pull/1231/ by @julianalonso
 
 ### Added
 
