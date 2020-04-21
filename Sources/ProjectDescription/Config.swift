@@ -21,21 +21,21 @@ public struct Config: Codable, Equatable {
     /// List of Xcode versions that the project supports.
     public let compatibleXcodeVersions: CompatibleXcodeVersions
 
-    /// URL to the server that caching and insights will interact with.
-    public let cloudURL: String?
+    /// Cloud configuration.
+    public let cloud: Cloud?
 
     /// Initializes the tuist cofiguration.
     ///
     /// - Parameters:
     ///   - compatibleXcodeVersions: List of Xcode versions the project is compatible with.
-    ///   - cloudURL: URL to the server that caching and insights will interact with.
+    ///   - cloud: Cloud configuration.
     ///   - generationOptions: List of options to use when generating the project.
     public init(compatibleXcodeVersions: CompatibleXcodeVersions = .all,
-                cloudURL: String? = nil,
+                cloud: Cloud? = nil,
                 generationOptions: [GenerationOptions]) {
         self.compatibleXcodeVersions = compatibleXcodeVersions
         self.generationOptions = generationOptions
-        self.cloudURL = cloudURL
+        self.cloud = cloud
         dumpIfNeeded(self)
     }
 }
