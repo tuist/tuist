@@ -3,18 +3,17 @@ import Foundation
 import TuistSupport
 import XCTest
 
+@testable import TuistCoreTesting
 @testable import TuistLoader
 @testable import TuistSupportTesting
-@testable import TuistCoreTesting
 
 final class ManifestFileLocatorTests: TuistUnitTestCase {
-    
     func test_locateAll_returns_all_manifest_no_workspace_given_child_path() throws {
         // Given
         let paths = try createFiles([
             "Module/Project.swift",
             "Project.swift",
-            "Tuist/Config.swift"
+            "Tuist/Config.swift",
         ])
         let subject = ManifestFilesLocator()
 
@@ -28,15 +27,14 @@ final class ManifestFileLocatorTests: TuistUnitTestCase {
         XCTAssertEqual(manifests.last?.0, Manifest.project)
         XCTAssertEqual(manifests.last?.1, paths.dropLast().last)
     }
-    
+
     func test_locateAll_returns_all_manifest_with_workspace_given_child_path() throws {
         // Given
         let paths = try createFiles([
             "Module/Project.swift",
             "Workspace.swift",
-            "Tuist/Config.swift"
+            "Tuist/Config.swift",
         ])
-
         let subject = ManifestFilesLocator()
 
         // When
@@ -48,5 +46,4 @@ final class ManifestFileLocatorTests: TuistUnitTestCase {
         XCTAssertEqual(manifests.last?.0, Manifest.workspace)
         XCTAssertEqual(manifests.last?.1, paths.dropLast().last)
     }
-    
 }

@@ -45,7 +45,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         // Generated Manifests target
         let manifestsTarget = try XCTUnwrap(project.targets.first)
         XCTAssertEqual(targetNodes.last?.target, manifestsTarget)
-        
+
         XCTAssertEqual(manifestsTarget.platform, .macOS)
         XCTAssertEqual(manifestsTarget.product, .staticFramework)
         XCTAssertEqual(manifestsTarget.settings, expectedSettings(sourceRootPath: sourceRootPath))
@@ -84,7 +84,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
                                                   configurations: Settings.default.configurations,
                                                   defaultSettings: .recommended))
         XCTAssertEqual(project.filesGroup, .group(name: "Manifests"))
-        XCTAssertEqual(project.targets.sorted { $0.name < $1.name } , targetNodes.map { $0.target })
+        XCTAssertEqual(project.targets.sorted { $0.name < $1.name }, targetNodes.map { $0.target })
 
         // Generated Scheme
         XCTAssertEqual(project.schemes.count, 1)
@@ -92,7 +92,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(scheme.name, "Manifests")
 
         let buildAction = try XCTUnwrap(scheme.buildAction)
-        XCTAssertEqual(buildAction.targets.lazy.map { $0.name }.sorted() , targetNodes.map { $0.name })
+        XCTAssertEqual(buildAction.targets.lazy.map { $0.name }.sorted(), targetNodes.map { $0.name })
 
         let runAction = try XCTUnwrap(scheme.runAction)
         XCTAssertEqual(runAction.filePath, tuistPath)
@@ -155,7 +155,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         let generateArgument = "generate --path \(sourceRootPath)"
         XCTAssertEqual(runAction.arguments, Arguments(launch: [generateArgument: true]))
     }
-    
+
     func test_tuist_edit_with_more_than_one_manifest() throws {
         // Given
         let sourceRootPath = try temporaryPath()
@@ -186,7 +186,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         // Generated Manifests target
         let manifestOneTarget = try XCTUnwrap(project.targets.first)
         XCTAssertEqual(targetNodes.first?.target, manifestOneTarget)
-        
+
         XCTAssertEqual(manifestOneTarget.name, "ModuleManifests")
         XCTAssertEqual(manifestOneTarget.platform, .macOS)
         XCTAssertEqual(manifestOneTarget.product, .staticFramework)
@@ -194,18 +194,18 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(manifestOneTarget.sources.map { $0.path }, [manifestPaths.last])
         XCTAssertEqual(manifestOneTarget.filesGroup, .group(name: "Manifests"))
         XCTAssertEqual(manifestOneTarget.dependencies, [])
-        
+
         // Generated Manifests target
         let manifestTwoTarget = try XCTUnwrap(project.targets.last)
         XCTAssertEqual(targetNodes.last?.target, manifestTwoTarget)
-        
+
         XCTAssertEqual(manifestTwoTarget.platform, .macOS)
         XCTAssertEqual(manifestTwoTarget.product, .staticFramework)
         XCTAssertEqual(manifestTwoTarget.settings, expectedSettings(sourceRootPath: sourceRootPath))
         XCTAssertEqual(manifestTwoTarget.sources.map { $0.path }, [manifestPaths.first])
         XCTAssertEqual(manifestTwoTarget.filesGroup, .group(name: "Manifests"))
         XCTAssertEqual(manifestTwoTarget.dependencies, [])
-        
+
         // Generated Project
         XCTAssertEqual(project.path, sourceRootPath)
         XCTAssertEqual(project.name, "Manifests")

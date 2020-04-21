@@ -37,7 +37,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         if !templates.isEmpty {
             manifestsDependencies.append(.target(name: "Templates"))
         }
-        
+
         let manifestsTargets = named(manifests: manifests).map { name, manifest in
             Target(name: name,
                    platform: .macOS,
@@ -49,7 +49,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
                    filesGroup: .group(name: "Manifests"),
                    dependencies: manifestsDependencies)
         }
-        
+
         var helpersTarget: Target?
         if !helpers.isEmpty {
             helpersTarget = Target.editorHelperTarget(name: "ProjectDescriptionHelpers",
@@ -121,7 +121,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         buildSettings["SWIFT_VERSION"] = .string(Constants.swiftVersion)
         return buildSettings
     }
-    
+
     /// It returns a dictionary with unique name as key for each Manifest file
     /// - Parameter manifests: Manifest files to assign an unique name
     /// - Returns: Dictionary composed by unique name as key and Manifest file as value.
