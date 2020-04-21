@@ -10,6 +10,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Removed
 
+### Fixed
+
+- Fix help commands (argument parser regression) [#1250](https://github.com/tuist/tuist/pull/1250) by [@fortmarek](https://github.com/fortmarek)
+
 ## 1.7.1
 
 ### Fixed
