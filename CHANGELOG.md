@@ -6,6 +6,14 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Changed
 
+### Added
+
+### Removed
+
+## 1.7.0
+
+### Changed
+
 - Point swift tools support repo instead of SPM [#1230](https://github.com/tuist/tuist/pull/1230) by [@fortmarek](https://github.com/fortmarek)
 - Migrate to new argument parser [#1154](https://github.com/tuist/tuist/pull/1154) by [@fortmarek](https://github.com/fortmarek)
 - Only warn about copying Info.plist when it's the target's Info.plist [#1203](https://github.com/tuist/tuist/pull/1203) by @sgrgrsn
