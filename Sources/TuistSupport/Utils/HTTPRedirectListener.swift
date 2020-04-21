@@ -32,7 +32,7 @@ public enum HTTPRedirectListenerError: FatalError {
     }
 }
 
-private var runningServer: HttpServerIO!
+private var runningSemaphore: DispatchSemaphore!
 
 public final class HTTPRedirectListener: HTTPRedirectListening {
     /// Default initializer.
@@ -41,28 +41,29 @@ public final class HTTPRedirectListener: HTTPRedirectListening {
     // MARK: - HTTPRedirectListening
 
     public func listen(port: UInt16, path: String, redirectMessage: String) -> Swift.Result<[String: String]?, HTTPRedirectListenerError> {
-        precondition(runningServer == nil, "Trying to start a redirect server for localhost:\(port)\(path) when there's already one running.")
+        precondition(runningSemaphore == nil, "Trying to start a redirect server for localhost:\(port)\(path) when there's already one running.")
         let httpServer = HttpServer()
         var result: Swift.Result<[String: String]?, HTTPRedirectListenerError> = .success(nil)
 
+        runningSemaphore = DispatchSemaphore(value: 0)
         httpServer[path] = { request in
             result = .success(request.queryParams.reduce(into: [String: String]()) { $0[$1.0] = $1.1 })
-            DispatchQueue.global().async { httpServer.stop() }
+            DispatchQueue.global().async { runningSemaphore.signal() }
             return HttpResponse.ok(.text(redirectMessage))
         }
 
         // If the user sends an interruption signal by pressing CTRL+C, we stop the server.
-        Signals.trap(signals: [.int, .abrt]) { _ in runningServer!.stop() }
+        Signals.trap(signals: [.int, .abrt]) { _ in runningSemaphore.signal() }
 
         do {
-            runningServer = httpServer
             logger.pretty("Press \(.keystroke("CTRL + C")) once to cancel the process.")
             try httpServer.start(port)
+            runningSemaphore.wait()
         } catch {
             result = .failure(.httpServer(error))
         }
 
-        runningServer = nil
+        runningSemaphore = nil
         return result
     }
 }

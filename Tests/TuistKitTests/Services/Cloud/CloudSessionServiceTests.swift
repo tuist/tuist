@@ -58,7 +58,7 @@ final class CloudSessionServiceTests: TuistUnitTestCase {
     func test_printSession_when_cloudURL_is_missing() {
         // Given
         generatorModelLoader.mockConfig("") { (_) -> Config in
-            Config.test(cloudURL: nil)
+            Config.test(cloud: nil)
         }
 
         // Then
@@ -69,7 +69,7 @@ final class CloudSessionServiceTests: TuistUnitTestCase {
         // Given
         let cloudURL = URL.test()
         generatorModelLoader.mockConfig("") { (_) -> Config in
-            Config.test(cloudURL: cloudURL)
+            Config.test(cloud: Cloud(url: cloudURL, projectId: "123"))
         }
 
         // When

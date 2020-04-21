@@ -43,7 +43,7 @@ public protocol CloudSessionControlling: AnyObject {
 }
 
 public final class CloudSessionController: CloudSessionControlling {
-    static let port: UInt16 = 4455
+    static let port: UInt16 = 4545
 
     /// Credentials store.
     private let credentialsStore: CredentialsStoring

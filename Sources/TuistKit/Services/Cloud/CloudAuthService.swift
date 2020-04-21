@@ -60,7 +60,7 @@ final class CloudAuthService: CloudAuthServicing {
     func authenticate() throws {
         let path = FileHandler.shared.currentPath
         let config = try generatorModelLoader.loadConfig(at: path)
-        guard let cloudURL = config.cloudURL else {
+        guard let cloudURL = config.cloud?.url else {
             throw CloudAuthServiceError.missingCloudURL
         }
         try cloudSessionController.authenticate(serverURL: cloudURL)
