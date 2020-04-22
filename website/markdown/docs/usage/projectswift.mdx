@@ -1240,27 +1240,6 @@ let baseSettings = SettingsDictionary()
   description="When using dictionary literals, it's necessary to set the type of the dictionary to `SettingsDictionary` to satisfy the compiler, as in `let mySettings: SettingsDictionary = [:]` "
 />
 
-```swift
-let baseSettings: [String: SettingValue] = [
-  "ENABLE_BITCODE": "YES",
-  "SWIFT_COMPILATION_MODE": "wholemodule",
-]
-```
-
-It can be written this way as well:
-
-```swift
-let baseSettings = SettingsDictionary()
-    .bitcodeEnabled(true)
-    .swiftCompilationMode(.wholemodule)
-```
-
-<Message
-  warning
-  title="Dictionary Literal"
-  description="When using dictionary literals, it's necessary to set the type of the dictionary to `SettingsDictionary` to satisfy the compiler, as in `let mySettings: SettingsDictionary = [:]` "
-/>
-
 Here is the list of functions provided by Tuist:
 
 <SettingsDictionaryTable
