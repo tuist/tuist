@@ -18,7 +18,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Fixed
 
-- Critical bug caused by a missing `SwiftToolsSupport` dynamic library by @pepibumur.
+- Critical bug caused by a missing `SwiftToolsSupport` dynamic library by [@pepibumur](https://github.com/pepibumur).
 
 ## 1.7.0
 
@@ -27,7 +27,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Point swift tools support repo instead of SPM [#1230](https://github.com/tuist/tuist/pull/1230) by [@fortmarek](https://github.com/fortmarek)
 - Migrate to new argument parser [#1154](https://github.com/tuist/tuist/pull/1154) by [@fortmarek](https://github.com/fortmarek)
 - Only warn about copying Info.plist when it's the target's Info.plist [#1203](https://github.com/tuist/tuist/pull/1203) by @sgrgrsn
-- `tuist edit` now edit's all project manifest [#1231](https://github.com/tuist/tuist/pull/1231/) by [@julianalonso](https://github.com/julianalonso)
+- `tuist edit` now edits all project manifest [#1231](https://github.com/tuist/tuist/pull/1231/) by [@julianalonso](https://github.com/julianalonso)
 
 ### Added
 
