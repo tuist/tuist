@@ -24,7 +24,7 @@ public struct Target: Equatable, Hashable {
     // however is not needed for other products such as static libraries.
     public private(set) var infoPlist: InfoPlist?
     public let entitlements: AbsolutePath?
-    public let settings: Settings?
+    public var settings: Settings?
     public let dependencies: [Dependency]
     public let sources: [SourceFile]
     public let resources: [FileElement]

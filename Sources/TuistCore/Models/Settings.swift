@@ -30,7 +30,7 @@ public enum SettingValue: ExpressibleByStringLiteral, ExpressibleByArrayLiteral,
 public struct Configuration: Equatable {
     // MARK: - Attributes
 
-    public let settings: [String: SettingValue]
+    public var settings: [String: SettingValue]
     public let xcconfig: AbsolutePath?
 
     // MARK: - Init

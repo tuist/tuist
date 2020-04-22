@@ -32,7 +32,7 @@ public class Project: Equatable, CustomStringConvertible {
     public let fileName: String
 
     /// Project targets.
-    public private(set) var targets: [Target]
+    public var targets: [Target]
 
     /// Project swift packages.
     public let packages: [Package]
