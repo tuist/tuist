@@ -12,31 +12,46 @@ public final class SigningInteractor: SigningInteracting {
     private let signingMatcher: SigningMatching
     private let signingInstaller: SigningInstalling
     private let signingLinter: SigningLinting
+    private let securityController: SecurityControlling
+    private let signingCipher: SigningCiphering
     
     public convenience init() {
         self.init(signingFilesLocator: SigningFilesLocator(),
                   signingMatcher: SigningMatcher(),
                   signingInstaller: SigningInstaller(),
-                  signingLinter: SigningLinter())
+                  signingLinter: SigningLinter(),
+                  securityController: SecurityController(),
+                  signingCipher: SigningCipher())
     }
     
     init(signingFilesLocator: SigningFilesLocating,
          signingMatcher: SigningMatching,
          signingInstaller: SigningInstalling,
-         signingLinter: SigningLinting) {
+         signingLinter: SigningLinting,
+         securityController: SecurityControlling,
+         signingCipher: SigningCiphering) {
         self.signingFilesLocator = signingFilesLocator
         self.signingMatcher = signingMatcher
         self.signingInstaller = signingInstaller
         self.signingLinter = signingLinter
+        self.securityController = securityController
+        self.signingCipher = signingCipher
     }
     
     public func install(graph: Graph) throws {
         let entryPath = graph.entryPath
         guard let signingDirectory = try signingFilesLocator.locateSigningDirectory(at: entryPath) else { return }
-        
+                
         let keychainPath = signingDirectory.appending(component: Constants.signingKeychain)
+        let masterKey = try signingCipher.readMasterKey(at: signingDirectory)
+        try securityController.createKeychain(at: keychainPath, password: masterKey)
+        try securityController.unlockKeychain(at: keychainPath, password: masterKey)
+        defer { try? securityController.lockKeychain(at: keychainPath, password: masterKey) }
         
         let (certificates, provisioningProfiles) = try signingMatcher.match(graph: graph)
+        
+        try signingCipher.decryptSigning(at: entryPath, keepFiles: true)
+        defer { try? signingCipher.encryptSigning(at: entryPath, keepFiles: false) }
         
         try graph.projects.forEach { project in
             try project.targets.forEach {

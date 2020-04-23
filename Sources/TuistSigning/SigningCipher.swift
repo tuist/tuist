@@ -68,18 +68,19 @@ public final class SigningCipher: SigningCiphering {
         let masterKey = try self.masterKey(at: path)
         let signingKeyFiles = try locateUnencryptedSigningFiles(at: path)
         guard !signingKeyFiles.isEmpty else { return }
-        let cipheredKeys = try signingKeyFiles
-            .map(FileHandler.shared.readFile)
-            .map { try encryptData($0, masterKey: masterKey) }
 
         let correctlyEncryptedSigningFiles = try self.correctlyEncryptedSigningFiles(at: path, masterKey: masterKey)
 
         try locateEncryptedSigningFiles(at: path)
-            .filter { !correctlyEncryptedSigningFiles.contains($0) }
+            .filter { !correctlyEncryptedSigningFiles.map(\.encrypted).contains($0) }
             .forEach(FileHandler.shared.delete)
+        
+        let cipheredKeys = try signingKeyFiles
+            .filter { !correctlyEncryptedSigningFiles.map(\.unencrypted).contains($0) }
+            .map(FileHandler.shared.readFile)
+            .map { try encryptData($0, masterKey: masterKey) }
 
         try zip(cipheredKeys, signingKeyFiles)
-            .filter { _, file in !correctlyEncryptedSigningFiles.contains(file) }
             .forEach { key, file in
                 logger.debug("Encrypting \(file.pathString)")
                 let encryptedPath = AbsolutePath(file.pathString + "." + Constants.encryptedExtension)
@@ -136,12 +137,15 @@ public final class SigningCipher: SigningCiphering {
         try signingFilesLocator.locateEncryptedCertificates(at: path) + signingFilesLocator.locateEncryptedPrivateKeys(at: path)
     }
     
-    /// - Returns: Array of files that do need to be reencrypted
-    private func correctlyEncryptedSigningFiles(at path: AbsolutePath, masterKey: Data) throws -> [AbsolutePath] {
-        try locateUnencryptedSigningFiles(at: path).filter { unencryptedFile in
+    /// - Returns: Files that are already correctly encrypted
+    private func correctlyEncryptedSigningFiles(at path: AbsolutePath, masterKey: Data) throws -> [(unencrypted: AbsolutePath, encrypted: AbsolutePath)] {
+        try locateUnencryptedSigningFiles(at: path).compactMap { unencryptedFile in
             let encryptedFile = AbsolutePath(unencryptedFile.pathString + "." + Constants.encryptedExtension)
-            guard FileHandler.shared.exists(encryptedFile) else { return false }
-            return try isEncryptionNeeded(encryptedFile: encryptedFile, unencryptedFile: unencryptedFile, masterKey: masterKey)
+            guard FileHandler.shared.exists(encryptedFile) else { return nil }
+            let isEncryptionNeeded: Bool = try self.isEncryptionNeeded(encryptedFile: encryptedFile,
+                                                                       unencryptedFile: unencryptedFile,
+                                                                       masterKey: masterKey)
+            return isEncryptionNeeded ? nil : (unencrypted: unencryptedFile, encrypted: encryptedFile)
         }
     }
 
@@ -160,7 +164,7 @@ public final class SigningCipher: SigningCiphering {
             let data = (iv.base64EncodedString() + "-" + encryptedBase64String).data(using: .utf8)
         else { throw SigningCipherError.failedToEncrypt }
 
-        return try FileHandler.shared.readFile(encryptedFile) == data
+        return try FileHandler.shared.readFile(encryptedFile) != data
     }
 
     /// Encrypts `data`

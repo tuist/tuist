@@ -55,6 +55,9 @@ final class SigningInstaller: SigningInstalling {
         guard let profileExtension = provisioningProfile.path.extension else { throw SigningInstallerError.noFileExtension(provisioningProfile.path) }
         
         let provisioningProfilePath = provisioningProfilesPath.appending(component: provisioningProfile.uuid + "." + profileExtension)
+        if FileHandler.shared.exists(provisioningProfilePath) {
+            try FileHandler.shared.delete(provisioningProfilePath)
+        }
         try FileHandler.shared.copy(from: provisioningProfile.path,
                                     to: provisioningProfilePath)
 
