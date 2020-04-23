@@ -30,7 +30,7 @@ final class SigningMatcher: SigningMatching {
         let entryPath = graph.entryPath
         
         try signingCipher.decryptSigning(at: entryPath, keepFiles: true)
-        defer { try? signingCipher.encryptSigning(at: entryPath, keepFiles: false) }
+        defer { try? signingCipher.encryptSigning(at: entryPath, keepFiles: true) }
         
         let certificateFiles = try signingFilesLocator.locateUnencryptedCertificates(at: entryPath)
             .sorted()
