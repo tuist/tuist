@@ -1,6 +1,5 @@
 import Foundation
 import TSCBasic
-import TuistSupport
 
 /// Side Effect Descriptor
 ///
@@ -21,4 +20,3 @@ public enum SideEffectDescriptor: Equatable {
     /// Perform a command
     case command(CommandDescriptor)
 }
-

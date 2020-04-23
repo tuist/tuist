@@ -65,5 +65,6 @@ DerivedData/
 ### Tuist derived files ###
 graph.dot
 
+Derived/
 Tuist/Signing/*
 !Tuist/Signing/*.encrypted

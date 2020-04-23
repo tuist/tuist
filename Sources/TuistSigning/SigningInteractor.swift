@@ -9,6 +9,7 @@ public protocol SigningInteracting {
 
 public final class SigningInteractor: SigningInteracting {
     private let signingFilesLocator: SigningFilesLocating
+    private let rootDirectoryLocator: RootDirectoryLocating
     private let signingMatcher: SigningMatching
     private let signingInstaller: SigningInstalling
     private let signingLinter: SigningLinting
@@ -17,6 +18,7 @@ public final class SigningInteractor: SigningInteracting {
     
     public convenience init() {
         self.init(signingFilesLocator: SigningFilesLocator(),
+                  rootDirectoryLocator: RootDirectoryLocator(),
                   signingMatcher: SigningMatcher(),
                   signingInstaller: SigningInstaller(),
                   signingLinter: SigningLinter(),
@@ -25,12 +27,14 @@ public final class SigningInteractor: SigningInteracting {
     }
     
     init(signingFilesLocator: SigningFilesLocating,
+         rootDirectoryLocator: RootDirectoryLocating,
          signingMatcher: SigningMatching,
          signingInstaller: SigningInstalling,
          signingLinter: SigningLinting,
          securityController: SecurityControlling,
          signingCipher: SigningCiphering) {
         self.signingFilesLocator = signingFilesLocator
+        self.rootDirectoryLocator = rootDirectoryLocator
         self.signingMatcher = signingMatcher
         self.signingInstaller = signingInstaller
         self.signingLinter = signingLinter
@@ -40,10 +44,15 @@ public final class SigningInteractor: SigningInteracting {
     
     public func install(graph: Graph) throws {
         let entryPath = graph.entryPath
-        guard let signingDirectory = try signingFilesLocator.locateSigningDirectory(at: entryPath) else { return }
+        guard
+            let signingDirectory = try signingFilesLocator.locateSigningDirectory(at: entryPath),
+            let derivedDirectory = rootDirectoryLocator.locate(from: entryPath)?.appending(component: Constants.derivedFolderName)
+        else { return }
+        
+        let keychainPath = derivedDirectory.appending(component: Constants.signingKeychain)
                 
-        let keychainPath = signingDirectory.appending(component: Constants.signingKeychain)
         let masterKey = try signingCipher.readMasterKey(at: signingDirectory)
+        try FileHandler.shared.createFolder(derivedDirectory)
         try securityController.createKeychain(at: keychainPath, password: masterKey)
         try securityController.unlockKeychain(at: keychainPath, password: masterKey)
         defer { try? securityController.lockKeychain(at: keychainPath, password: masterKey) }

@@ -5,25 +5,32 @@ import TuistSupport
 
 public class SigningMapper: GraphMapping {
     private let signingFilesLocator: SigningFilesLocating
+    private let rootDirectoryLocator: RootDirectoryLocating
     private let signingMatcher: SigningMatching
     
     public convenience init() {
         self.init(signingFilesLocator: SigningFilesLocator(),
-                  signingMatcher: SigningMatcher())
+                  signingMatcher: SigningMatcher(),
+                  rootDirectoryLocator: RootDirectoryLocator())
     }
     
     init(signingFilesLocator: SigningFilesLocating,
-         signingMatcher: SigningMatching) {
+         signingMatcher: SigningMatching,
+         rootDirectoryLocator: RootDirectoryLocating) {
         self.signingFilesLocator = signingFilesLocator
         self.signingMatcher = signingMatcher
+        self.rootDirectoryLocator = rootDirectoryLocator
     }
     
     // MARK: - GraphMapping
     public func map(graph: Graph) throws -> (Graph, [SideEffectDescriptor]) {
         let entryPath = graph.entryPath
-        guard let signingDirectory = try signingFilesLocator.locateSigningDirectory(at: entryPath) else { return (graph, []) }
+        guard
+            try signingFilesLocator.locateSigningDirectory(at: entryPath) != nil,
+            let derivedDirectory = rootDirectoryLocator.locate(from: entryPath)?.appending(component: Constants.derivedFolderName)
+        else { return (graph, []) }
         
-        let keychainPath = signingDirectory.appending(component: Constants.signingKeychain)
+        let keychainPath = derivedDirectory.appending(component: Constants.signingKeychain)
         
         let (certificates, provisioningProfiles) = try signingMatcher.match(graph: graph)
         

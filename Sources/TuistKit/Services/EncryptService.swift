@@ -15,7 +15,7 @@ final class EncryptService {
         let path = self.path(path)
         try signingCipher.encryptSigning(at: path, keepFiles: false)
 
-        logger.notice("Successfully encrypted all certificates", metadata: .success)
+        logger.notice("Successfully encrypted all signing files", metadata: .success)
     }
 
     // MARK: - Helpers
