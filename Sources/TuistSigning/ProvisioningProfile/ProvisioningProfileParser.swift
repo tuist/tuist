@@ -45,11 +45,13 @@ final class ProvisioningProfileParser: ProvisioningProfileParsing {
             let appIDName = provisioningProfileDict["AppIDName"] as? String,
             let applicationIDPrefix = provisioningProfileDict["ApplicationIdentifierPrefix"] as? [String],
             let platforms = provisioningProfileDict["Platform"] as? [String],
-            // TODO: convert to date
+            let entitlements = provisioningProfileDict["Entitlements"] as? [String: Any],
+            let appID = entitlements["application-identifier"] as? String,
             let expirationDate = provisioningProfileDict["CreationDate"] as? Date
         else {
                 fatalError()
         }
+
         
         let nameComponents = name.components(separatedBy: ".")
         guard
@@ -57,11 +59,13 @@ final class ProvisioningProfileParser: ProvisioningProfileParsing {
             let configurationName = nameComponents.last
         else { fatalError() }
         
-        return ProvisioningProfile(name: name,
+        return ProvisioningProfile(path: path,
+                                   name: name,
                                    targetName: targetName,
                                    configurationName: configurationName,
                                    uuid: uuid,
                                    teamID: teamID,
+                                   appID: appID,
                                    appIDName: appIDName,
                                    applicationIDPrefix: applicationIDPrefix,
                                    platforms: platforms,
