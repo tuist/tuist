@@ -6,10 +6,10 @@ import XcodeProj
 
 public protocol DefaultSettingsProviding {
     func projectSettings(project: Project,
-                         buildConfiguration: BuildConfiguration) throws -> [String: SettingValue]
+                         buildConfiguration: BuildConfiguration) throws -> SettingsDictionary
 
     func targetSettings(target: Target,
-                        buildConfiguration: BuildConfiguration) throws -> [String: SettingValue]
+                        buildConfiguration: BuildConfiguration) throws -> SettingsDictionary
 }
 
 public final class DefaultSettingsProvider: DefaultSettingsProviding {
@@ -73,7 +73,7 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
     // MARK: - DefaultSettingsProviding
 
     public func projectSettings(project: Project,
-                                buildConfiguration: BuildConfiguration) throws -> [String: SettingValue] {
+                                buildConfiguration: BuildConfiguration) throws -> SettingsDictionary {
         let settingsHelper = SettingsHelper()
         let defaultSettings = project.settings.defaultSettings
         let variant = settingsHelper.variant(buildConfiguration)
@@ -82,14 +82,14 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
         let filter = try createFilter(defaultSettings: defaultSettings,
                                       essentialKeys: DefaultSettingsProvider.essentialProjectSettings)
 
-        var settings: [String: SettingValue] = [:]
+        var settings: SettingsDictionary = [:]
         settingsHelper.extend(buildSettings: &settings, with: projectDefaultAll)
         settingsHelper.extend(buildSettings: &settings, with: projectDefaultVariant)
         return settings.filter(filter)
     }
 
     public func targetSettings(target: Target,
-                               buildConfiguration: BuildConfiguration) throws -> [String: SettingValue] {
+                               buildConfiguration: BuildConfiguration) throws -> SettingsDictionary {
         let settingsHelper = SettingsHelper()
         let defaultSettings = target.settings?.defaultSettings ?? .recommended
         let product = settingsHelper.settingsProviderProduct(target)
@@ -107,7 +107,7 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
                                       essentialKeys: DefaultSettingsProvider.essentialTargetSettings,
                                       newXcodeKeys: DefaultSettingsProvider.xcodeVersionSpecificSettings)
 
-        var settings: [String: SettingValue] = [:]
+        var settings: SettingsDictionary = [:]
         settingsHelper.extend(buildSettings: &settings, with: targetDefaultAll)
         settingsHelper.extend(buildSettings: &settings, with: targetDefaultVariant)
         return settings.filter(filter)
@@ -154,7 +154,7 @@ enum BuildSettingsError: FatalError {
 }
 
 extension BuildSettings {
-    func toSettings() throws -> [String: SettingValue] {
+    func toSettings() throws -> SettingsDictionary {
         try mapValues { value in
             switch value {
             case let value as String:

@@ -156,7 +156,7 @@ final class ConfigGenerator: ConfigGenerating {
         configurationList.buildConfigurations.append(variantBuildConfiguration)
     }
 
-    private func updateTargetDerived(buildSettings settings: inout [String: SettingValue],
+    private func updateTargetDerived(buildSettings settings: inout SettingsDictionary,
                                      target: Target,
                                      graph: Graph,
                                      sourceRootPath: AbsolutePath) {
@@ -167,8 +167,8 @@ final class ConfigGenerator: ConfigGenerating {
     }
 
     private func generalTargetDerivedSettings(target: Target,
-                                              sourceRootPath: AbsolutePath) -> [String: SettingValue] {
-        var settings: [String: SettingValue] = [:]
+                                              sourceRootPath: AbsolutePath) -> SettingsDictionary {
+        var settings: SettingsDictionary = [:]
         settings["PRODUCT_BUNDLE_IDENTIFIER"] = .string(target.bundleId)
 
         // Info.plist
@@ -198,7 +198,7 @@ final class ConfigGenerator: ConfigGenerating {
 
     private func testBundleTargetDerivedSettings(target: Target,
                                                  graph: Graph,
-                                                 sourceRootPath: AbsolutePath) -> [String: SettingValue] {
+                                                 sourceRootPath: AbsolutePath) -> SettingsDictionary {
         guard target.product.testsBundle else {
             return [:]
         }
@@ -212,7 +212,7 @@ final class ConfigGenerator: ConfigGenerating {
             return [:]
         }
 
-        var settings: [String: SettingValue] = [:]
+        var settings: SettingsDictionary = [:]
         settings["TEST_TARGET_NAME"] = .string("\(app.target.productName)")
         if target.product == .unitTests {
             settings["TEST_HOST"] = .string("$(BUILT_PRODUCTS_DIR)/\(app.target.productNameWithExtension)/\(app.target.productName)")
@@ -222,12 +222,12 @@ final class ConfigGenerator: ConfigGenerating {
         return settings
     }
 
-    private func deploymentTargetDerivedSettings(target: Target) -> [String: SettingValue] {
+    private func deploymentTargetDerivedSettings(target: Target) -> SettingsDictionary {
         guard let deploymentTarget = target.deploymentTarget else {
             return [:]
         }
 
-        var settings: [String: SettingValue] = [:]
+        var settings: SettingsDictionary = [:]
 
         switch deploymentTarget {
         case let .iOS(version, devices):
@@ -251,7 +251,7 @@ final class ConfigGenerator: ConfigGenerating {
 
     private func watchTargetDerivedSettings(target: Target,
                                             graph: Graph,
-                                            sourceRootPath: AbsolutePath) -> [String: SettingValue] {
+                                            sourceRootPath: AbsolutePath) -> SettingsDictionary {
         guard target.product == .watch2App else {
             return [:]
         }

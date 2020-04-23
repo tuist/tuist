@@ -60,7 +60,7 @@ final class CloudSessionService: CloudSessionServicing {
     func printSession() throws {
         let path = FileHandler.shared.currentPath
         let config = try generatorModelLoader.loadConfig(at: path)
-        guard let cloudURL = config.cloudURL else {
+        guard let cloudURL = config.cloud?.url else {
             throw CloudSessionServiceError.missingCloudURL
         }
         try cloudSessionController.printSession(serverURL: cloudURL)

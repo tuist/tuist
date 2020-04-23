@@ -29,8 +29,8 @@ final class SigningMatcher: SigningMatching {
         provisioningProfiles: [String: [String: ProvisioningProfile]]) {
         let entryPath = graph.entryPath
         
-        try signingCipher.decryptSigning(at: entryPath)
-        defer { try? signingCipher.encryptSigning(at: entryPath) }
+        try signingCipher.decryptSigning(at: entryPath, keepFiles: true)
+        defer { try? signingCipher.encryptSigning(at: entryPath, keepFiles: false) }
         
         let certificateFiles = try signingFilesLocator.locateUnencryptedCertificates(at: entryPath)
             .sorted()

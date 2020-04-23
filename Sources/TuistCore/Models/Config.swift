@@ -19,25 +19,25 @@ public struct Config: Equatable, Hashable {
     /// List of Xcode versions the project or set of projects is compatible with.
     public let compatibleXcodeVersions: CompatibleXcodeVersions
 
-    /// URL to the server that caching and insights will interact with.
-    public let cloudURL: URL?
+    /// Cloud configuration.
+    public let cloud: Cloud?
 
     /// Returns the default Tuist configuration.
     public static var `default`: Config {
-        Config(compatibleXcodeVersions: .all, cloudURL: nil, generationOptions: [])
+        Config(compatibleXcodeVersions: .all, cloud: nil, generationOptions: [])
     }
 
     /// Initializes the tuist cofiguration.
     ///
     /// - Parameters:
     ///   - compatibleXcodeVersions: List of Xcode versions the project or set of projects is compatible with.
-    ///   - cloudURL: URL to the server that caching and insights will interact with.
+    ///   - cloud: Cloud configuration.
     ///   - generationOptions: Generation options.
     public init(compatibleXcodeVersions: CompatibleXcodeVersions,
-                cloudURL: URL?,
+                cloud: Cloud?,
                 generationOptions: [GenerationOption]) {
         self.compatibleXcodeVersions = compatibleXcodeVersions
-        self.cloudURL = cloudURL
+        self.cloud = cloud
         self.generationOptions = generationOptions
     }
 
@@ -45,7 +45,7 @@ public struct Config: Equatable, Hashable {
 
     public func hash(into hasher: inout Hasher) {
         hasher.combine(generationOptions)
-        hasher.combine(cloudURL)
+        hasher.combine(cloud)
         hasher.combine(compatibleXcodeVersions)
     }
 }

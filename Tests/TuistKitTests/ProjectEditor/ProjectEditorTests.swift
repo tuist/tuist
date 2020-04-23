@@ -107,7 +107,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         try FileHandler.shared.createFolder(helpersDirectory)
 
         resourceLocator.projectDescriptionStub = { projectDescriptionPath }
-        manifestFilesLocator.locateStub = []
+        manifestFilesLocator.locateAllStubs = []
         helpersDirectoryLocator.locateStub = helpersDirectory
         projectEditorMapper.mapStub = (project, graph)
 

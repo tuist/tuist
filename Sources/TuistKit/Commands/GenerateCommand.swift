@@ -14,9 +14,7 @@ struct GenerateCommand: ParsableCommand {
     )
     var path: String?
 
-    @Option(
-        name: .shortAndLong,
-        default: false,
+    @Flag(
         help: "Only generate the local project (without generating its dependencies)."
     )
     var projectOnly: Bool

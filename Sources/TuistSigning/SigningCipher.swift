@@ -40,11 +40,11 @@ public protocol SigningCiphering {
     /// Encrypts all signing files at `Tuist/Signing`
     /// - Parameters:
     ///     - keepFiles: Keep unencrypted files
-    func encryptSigning(at path: AbsolutePath) throws
+    func encryptSigning(at path: AbsolutePath, keepFiles: Bool) throws
     /// Decrypts all signing files at `Tuist/Signing
     /// - Parameters:
     ///     - keepFiles: Keep encrypted files
-    func decryptSigning(at path: AbsolutePath) throws
+    func decryptSigning(at path: AbsolutePath, keepFiles: Bool) throws
     func readMasterKey(at path: AbsolutePath) throws -> String
 }
 
@@ -64,7 +64,7 @@ public final class SigningCipher: SigningCiphering {
         self.signingFilesLocator = signingFilesLocator
     }
 
-    public func encryptSigning(at path: AbsolutePath) throws {
+    public func encryptSigning(at path: AbsolutePath, keepFiles: Bool) throws {
         let masterKey = try self.masterKey(at: path)
         let signingKeyFiles = try locateUnencryptedSigningFiles(at: path)
         guard !signingKeyFiles.isEmpty else { return }
@@ -86,10 +86,12 @@ public final class SigningCipher: SigningCiphering {
                 try key.write(to: encryptedPath.url)
             }
 
-        try signingKeyFiles.forEach(FileHandler.shared.delete)
+        if !keepFiles {
+            try signingKeyFiles.forEach(FileHandler.shared.delete)
+        }
     }
 
-    public func decryptSigning(at path: AbsolutePath) throws {
+    public func decryptSigning(at path: AbsolutePath, keepFiles: Bool) throws {
         let masterKey = try self.masterKey(at: path)
         let signingKeyFiles = try locateEncryptedSigningFiles(at: path)
         guard !signingKeyFiles.isEmpty else { return }
@@ -107,8 +109,10 @@ public final class SigningCipher: SigningCiphering {
             let decryptedPath = AbsolutePath($1.parentDirectory.pathString + "/" + $1.basenameWithoutExt)
             try $0.write(to: decryptedPath.url)
         }
-
-        try signingKeyFiles.forEach(FileHandler.shared.delete)
+        
+        if !keepFiles {
+            try signingKeyFiles.forEach(FileHandler.shared.delete)
+        }
     }
     
     /// - Returns: Master key data
