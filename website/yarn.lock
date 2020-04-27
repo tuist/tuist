@@ -12743,6 +12743,11 @@ react-pose@^4.0.10:
     popmotion-pose "^3.4.10"
     tslib "^1.10.0"
 
+react-protected-mailto@^1.0.3:
+  version "1.0.3"
+  resolved "https://registry.yarnpkg.com/react-protected-mailto/-/react-protected-mailto-1.0.3.tgz#2017fc8f8ad1177d65c47071cf7117fe05e7cec6"
+  integrity sha512-Lv/o4+FCDDYvEhxzb0XaXuhwKu8ICqanZhxJwMBrUqLNDpbZqOGMZrFtn47iey012K0b/AkEzzFmqLkDvdYlWA==
+
 react-reconciler@^0.24.0:
   version "0.24.0"
   resolved "https://registry.yarnpkg.com/react-reconciler/-/react-reconciler-0.24.0.tgz#5a396b2c2f5efe8554134a5935f49f546723f2dd"
