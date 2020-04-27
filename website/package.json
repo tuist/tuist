@@ -33,7 +33,7 @@
     "gatsby-plugin-netlify": "^2.1.34",
     "gatsby-plugin-next-seo": "^1.4.0",
     "gatsby-plugin-offline": "^3.1.4",
-    "gatsby-plugin-react-helmet": "^3.2.2",
+    "gatsby-plugin-react-helmet": "^3.2.5",
     "gatsby-plugin-react-svg": "^3.0.0",
     "gatsby-plugin-robots-txt": "^1.5.0",
     "gatsby-plugin-sharp": "2.5.6",
