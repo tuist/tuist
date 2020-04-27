@@ -184,15 +184,15 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         }
     }
 
-    func generateCopyHeadersBuildPhase(path: AbsolutePath,
+    func generateCopyHeadersBuildPhase(path _: AbsolutePath,
                                        modulemap: AbsolutePath,
                                        target: Target,
-                                       graph: Graph,
+                                       graph _: Graph,
                                        pbxTarget: PBXTarget,
                                        fileElements: ProjectFileElements,
                                        pbxproj: PBXProj,
                                        sourceRootPath: AbsolutePath) throws {
-        var references = target.headers?.public.compactMap({ fileElements.file(path: $0) }) ?? []
+        var references = target.headers?.public.compactMap { fileElements.file(path: $0) } ?? []
         if let moduleMapReference = fileElements.file(path: modulemap) {
             references.append(moduleMapReference)
         }
