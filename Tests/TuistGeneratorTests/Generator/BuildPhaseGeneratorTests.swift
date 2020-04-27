@@ -86,6 +86,39 @@ final class BuildPhaseGeneratorTests: XCTestCase {
         }
     }
 
+    func test_generateSourcesBuildPhase_whenLocalizedFile() throws {
+        // Given
+        let target = PBXNativeTarget(name: "Test")
+        let pbxproj = PBXProj()
+        pbxproj.add(object: target)
+
+        let files: [AbsolutePath] = [
+           "/path/sources/Base.lproj/OTTSiriExtension.intentdefinition",
+           "/path/resources/en.lproj/OTTSiriExtension.intentdefinition",
+       ]
+
+       let fileElements = createLocalizedResourceFileElements(for: [
+           "/path/resources/OTTSiriExtension.intentdefinition",
+       ])
+
+        // When
+        try subject.generateSourcesBuildPhase(files: sources,
+                                              pbxTarget: target,
+                                              fileElements: fileElements,
+                                              pbxproj: pbxproj)
+
+        // Then
+        let buildPhase = try target.sourcesBuildPhase()
+        let buildFiles = buildPhase?.files ?? []
+        let buildFilesNames = buildFiles.map {
+            $0.file?.name
+        }
+
+        XCTAssertEqual(buildFilesNames, [
+           fileElements.elements["/path/resources/OTTSiriExtension.intentdefinition"],
+       ])
+    }
+
     func test_generateHeadersBuildPhase() throws {
         // Given
         let target = PBXNativeTarget(name: "Test")
