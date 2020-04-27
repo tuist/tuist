@@ -127,9 +127,24 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
 
         let sortedFiles = files.sorted(by: { $0.path < $1.path })
         try sortedFiles.forEach { buildFile in
-            guard let fileReference = fileElements.file(path: buildFile.path) else {
-                throw BuildPhaseGenerationError.missingFileReference(buildFile.path)
+            let buildFilePath = buildFile.path
+            let isLocalized = buildFilePath.pathString.contains(".lproj/")
+
+            let element: PBXFileElement
+            if !isLocalized {
+                guard let fileReference = fileElements.file(path: buildFile.path) else  {
+                    throw BuildPhaseGenerationError.missingFileReference(buildFile.path)
+                }
+                element = fileReference
+            } else {
+                let name = buildFilePath.basename
+                let path = buildFilePath.parentDirectory.parentDirectory.appending(component: name)
+                guard let group = fileElements.group(path: path) else {
+                    throw BuildPhaseGenerationError.missingFileReference(buildFilePath)
+                }
+                element = group
             }
+
             var settings: [String: Any]?
             if let compilerFlags = buildFile.compilerFlags {
                 settings = [
@@ -137,7 +152,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                 ]
             }
 
-            let pbxBuildFile = PBXBuildFile(file: fileReference, settings: settings)
+            let pbxBuildFile = PBXBuildFile(file: element, settings: settings)
             pbxproj.add(object: pbxBuildFile)
             sourcesBuildPhase.files?.append(pbxBuildFile)
         }
