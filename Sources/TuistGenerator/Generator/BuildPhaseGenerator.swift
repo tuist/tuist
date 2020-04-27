@@ -132,7 +132,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
 
             let element: PBXFileElement
             if !isLocalized {
-                guard let fileReference = fileElements.file(path: buildFile.path) else  {
+                guard let fileReference = fileElements.file(path: buildFile.path) else {
                     throw BuildPhaseGenerationError.missingFileReference(buildFile.path)
                 }
                 element = fileReference
