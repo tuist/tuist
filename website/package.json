@@ -62,6 +62,7 @@
     "react-helmet-async": "^1.0.5",
     "react-markdown": "^4.3.1",
     "react-pose": "^4.0.10",
+    "react-protected-mailto": "^1.0.3",
     "react-share": "^4.1.0",
     "react-spring": "^8.0.22",
     "react-use-visibility": "^0.3.0",
