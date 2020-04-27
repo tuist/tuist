@@ -24,7 +24,7 @@ But believe me,
 this is one that you won't regret about.
 Despite having done our best to convey the idea behind Tuist,
 and why it's an important piece when scaling up projects,
-I feel we lacked a good summary
+I feel we lacked a good summary.
 
 ## Make your projects consistent and conventional
 
@@ -48,7 +48,7 @@ All you need to do is to define what types of projects are supported,
 and codify them into functions that return templated projects:
 
 ```swift
-imporrt ProjectDescription
+import ProjectDescription
 
 // Projects+Template.swift
 
@@ -67,7 +67,7 @@ and placing the following `Project.swift` file in it:
 import ProjectDescription
 import ProjectDescriptionHelpers
 
-let project = Project.featureFramework(name: "Seach")
+let project = Project.featureFramework(name: "Search")
 ```
 
 > Note how idiomatic and concise the definition of projects is ― your project is defined in one line.
@@ -151,7 +151,6 @@ and that you'll be able to opt-in easily if you are already using Tuist:
   we are exploring adding caching at the module level.
   We'll generate projects where only the targets you plan to work on will be generated ―
   the rest will be pre-compiled frameworks and libraries that we'll pull from a remote cache.
-  And the beauty of this feature is that you'll be able to opt-in easily if you are already using Tuist.
 - **Selective builds:** As projects get larger, building everything on CI is inefficient.
   For that reason, we'll combine [Git](https://git-scm.com/) information with your project's dependency graph to determine what needs to be built.
   In plain words, we'll build
