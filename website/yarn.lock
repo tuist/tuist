@@ -809,7 +809,7 @@
     core-js-pure "^3.0.0"
     regenerator-runtime "^0.13.4"
 
-"@babel/runtime@^7", "@babel/runtime@^7.1.2", "@babel/runtime@^7.3.1", "@babel/runtime@^7.3.4", "@babel/runtime@^7.4.5", "@babel/runtime@^7.5.1", "@babel/runtime@^7.5.5", "@babel/runtime@^7.6.3", "@babel/runtime@^7.7.2", "@babel/runtime@^7.7.6", "@babel/runtime@^7.8.4", "@babel/runtime@^7.8.7", "@babel/runtime@^7.9.2":
+"@babel/runtime@^7", "@babel/runtime@^7.1.2", "@babel/runtime@^7.3.1", "@babel/runtime@^7.3.4", "@babel/runtime@^7.4.5", "@babel/runtime@^7.5.1", "@babel/runtime@^7.5.5", "@babel/runtime@^7.6.3", "@babel/runtime@^7.7.2", "@babel/runtime@^7.8.4", "@babel/runtime@^7.8.7", "@babel/runtime@^7.9.2":
   version "7.9.2"
   resolved "https://registry.yarnpkg.com/@babel/runtime/-/runtime-7.9.2.tgz#d90df0583a3a252f09aaa619665367bae518db06"
   integrity sha512-NE2DtOdufG7R5vnfQUTehdTfNycfUANEtCa9PssN9O/xmTzP4E08UI797ixaei6hBEVL9BI/PsdJS5x7mWoB9Q==
@@ -7193,12 +7193,12 @@ gatsby-plugin-meta-redirect@^1.1.1:
   dependencies:
     fs-extra "^7.0.0"
 
-gatsby-plugin-netlify@^2.1.34:
-  version "2.1.34"
-  resolved "https://registry.yarnpkg.com/gatsby-plugin-netlify/-/gatsby-plugin-netlify-2.1.34.tgz#1fe707cecd8497b7a907afcdc4f739ab18dfbdb9"
-  integrity sha512-Hf72wbUUG4vDy4LLh5c3xzCMwpl5Dmtr4wzQo8CfbpU0p961jV67gpDzI6ozciaa5TVw9ZIeQMG87dk1Tou0Kg==
+gatsby-plugin-netlify@^2.2.4:
+  version "2.2.4"
+  resolved "https://registry.yarnpkg.com/gatsby-plugin-netlify/-/gatsby-plugin-netlify-2.2.4.tgz#2e92671ab2468629a5960438854e301841fae2c6"
+  integrity sha512-/lMhoAdNL3odR1CMGREop8phgjU9oMYFUOBl2Fo+S9KHP0SK3fcqgsMjB7v5Aq97k2FuiS+JHDsy2iTb9ofohQ==
   dependencies:
-    "@babel/runtime" "^7.7.6"
+    "@babel/runtime" "^7.8.7"
     fs-extra "^8.1.0"
     kebab-hash "^0.1.2"
     lodash "^4.17.15"
