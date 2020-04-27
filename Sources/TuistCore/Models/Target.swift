@@ -33,6 +33,7 @@ public struct Target: Equatable, Hashable {
     public let actions: [TargetAction]
     public let environment: [String: String]
     public let filesGroup: ProjectGroup
+    public let modulemap: AbsolutePath?
 
     // MARK: - Init
 
@@ -52,7 +53,8 @@ public struct Target: Equatable, Hashable {
                 actions: [TargetAction] = [],
                 environment: [String: String] = [:],
                 filesGroup: ProjectGroup,
-                dependencies: [Dependency] = []) {
+                dependencies: [Dependency] = [],
+                modulemap: AbsolutePath? = nil) {
         self.name = name
         self.product = product
         self.platform = platform
@@ -70,6 +72,7 @@ public struct Target: Equatable, Hashable {
         self.environment = environment
         self.filesGroup = filesGroup
         self.dependencies = dependencies
+        self.modulemap = modulemap
     }
 
     /// Target can be included in the link phase of other targets

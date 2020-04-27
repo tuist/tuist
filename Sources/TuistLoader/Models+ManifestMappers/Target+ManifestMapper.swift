@@ -51,6 +51,8 @@ extension TuistCore.Target {
 
         let environment = manifest.environment
 
+        let modulemap = try manifest.modulemap.map { try generatorPaths.resolve(path: $0) }
+
         return TuistCore.Target(name: name,
                                 platform: platform,
                                 product: product,
@@ -67,6 +69,7 @@ extension TuistCore.Target {
                                 actions: actions,
                                 environment: environment,
                                 filesGroup: .group(name: "Project"),
-                                dependencies: dependencies)
+                                dependencies: dependencies,
+                                modulemap: modulemap)
     }
 }

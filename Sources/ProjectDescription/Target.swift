@@ -53,6 +53,9 @@ public struct Target: Codable, Equatable {
     /// Environment variables to be exposed to the target.
     public let environment: [String: String]
 
+    /// Relative path to the modulemap file.
+    public let modulemap: Path?
+
     public enum CodingKeys: String, CodingKey {
         case name
         case platform
@@ -70,6 +73,7 @@ public struct Target: Codable, Equatable {
         case actions
         case environment
         case deploymentTarget
+        case modulemap
     }
 
     /// Initializes the target.
@@ -89,6 +93,7 @@ public struct Target: Codable, Equatable {
     ///   - settings: target settings.
     ///   - coreDataModels: CoreData models.
     ///   - environment: Environment variables to be exposed to the target.
+    ///   - modulemap: Relative path to the modulemap file
     public init(name: String,
                 platform: Platform,
                 product: Product,
@@ -104,7 +109,8 @@ public struct Target: Codable, Equatable {
                 dependencies: [TargetDependency] = [],
                 settings: Settings? = nil,
                 coreDataModels: [CoreDataModel] = [],
-                environment: [String: String] = [:]) {
+                environment: [String: String] = [:],
+                modulemap: Path? = nil) {
         self.name = name
         self.platform = platform
         self.bundleId = bundleId
@@ -121,5 +127,6 @@ public struct Target: Codable, Equatable {
         self.coreDataModels = coreDataModels
         self.environment = environment
         self.deploymentTarget = deploymentTarget
+        self.modulemap = modulemap
     }
 }

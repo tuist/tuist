@@ -62,12 +62,24 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                              pbxTarget: PBXTarget,
                              fileElements: ProjectFileElements,
                              pbxproj: PBXProj,
-                             sourceRootPath _: AbsolutePath) throws {
+                             sourceRootPath: AbsolutePath) throws {
         if let headers = target.headers {
             try generateHeadersBuildPhase(headers: headers,
+                                          includePublicFiles: target.modulemap == nil,
                                           pbxTarget: pbxTarget,
                                           fileElements: fileElements,
                                           pbxproj: pbxproj)
+        }
+
+        if let modulemap = target.modulemap {
+            try generateCopyHeadersBuildPhase(path: path,
+                                              modulemap: modulemap,
+                                              target: target,
+                                              graph: graph,
+                                              pbxTarget: pbxTarget,
+                                              fileElements: fileElements,
+                                              pbxproj: pbxproj,
+                                              sourceRootPath: sourceRootPath)
         }
 
         try generateSourcesBuildPhase(files: target.sources,
@@ -144,6 +156,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
     }
 
     func generateHeadersBuildPhase(headers: Headers,
+                                   includePublicFiles: Bool,
                                    pbxTarget: PBXTarget,
                                    fileElements: ProjectFileElements,
                                    pbxproj: PBXProj) throws {
@@ -164,8 +177,61 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         }
 
         try headers.private.sorted().forEach { try addHeader($0, "private") }
-        try headers.public.sorted().forEach { try addHeader($0, "public") }
         try headers.project.sorted().forEach { try addHeader($0, nil) }
+
+        if includePublicFiles {
+            try headers.public.sorted().forEach { try addHeader($0, "public") }
+        }
+    }
+
+    func generateCopyHeadersBuildPhase(path: AbsolutePath,
+                                       modulemap: AbsolutePath,
+                                       target: Target,
+                                       graph: Graph,
+                                       pbxTarget: PBXTarget,
+                                       fileElements: ProjectFileElements,
+                                       pbxproj: PBXProj,
+                                       sourceRootPath: AbsolutePath) throws {
+        var references = target.headers?.public.compactMap({ fileElements.file(path: $0) }) ?? []
+        if let moduleMapReference = fileElements.file(path: modulemap) {
+            references.append(moduleMapReference)
+        }
+
+        if references.count == 0 { return }
+
+        let buildPhase = PBXCopyFilesBuildPhase(dstPath: "include/$(PRODUCT_NAME)",
+                                                dstSubfolderSpec: .productsDirectory,
+                                                name: "Copy Headers Phase")
+        pbxproj.add(object: buildPhase)
+
+        pbxTarget.buildPhases.append(buildPhase)
+
+        let relativeModulemap = modulemap.relative(to: sourceRootPath).pathString
+
+        pbxTarget.buildConfigurationList?.buildConfigurations.forEach { config in
+            if let definesModules = config.buildSettings["DEFINES_MODULE"] {
+                let message = "The target \(target.name) has DEFINES_MODULE build setting set to "
+                    + "\"\(definesModules)\" in \(config.name). "
+                    + "It will be set to \"YES\" because `modulemap` was set in the target to \"\(relativeModulemap)\"."
+                logger.log(level: .warning, Logger.Message(stringLiteral: message))
+            }
+
+            if let modulemapInSettings = config.buildSettings["MODULEMAP_FILE"] {
+                let message = "The target \(target.name) has MODULEMAP_FILE build setting set to "
+                    + "\"\(modulemapInSettings)\" in \(config.name). "
+                    + "It will be set to \"\(relativeModulemap)\" because it was set in the target."
+                logger.log(level: .warning, Logger.Message(stringLiteral: message))
+            }
+
+            config.buildSettings["DEFINES_MODULE"] = "YES"
+            config.buildSettings["MODULEMAP_FILE"] = relativeModulemap
+        }
+
+        references.forEach { reference in
+            let pbxBuildFile = PBXBuildFile(file: reference)
+            pbxproj.add(object: pbxBuildFile)
+            buildPhase.files?.append(pbxBuildFile)
+        }
     }
 
     func generateResourcesBuildPhase(path: AbsolutePath,

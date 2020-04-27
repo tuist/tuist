@@ -128,6 +128,10 @@ class ProjectFileElements {
             files.insert(entitlements)
         }
 
+        if let modulemap = target.modulemap {
+            files.insert(modulemap)
+        }
+
         // Config files
         target.settings?.configurations.xcconfigs().forEach { configFilePath in
             files.insert(configFilePath)
