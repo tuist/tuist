@@ -125,24 +125,25 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         pbxproj.add(object: sourcesBuildPhase)
         pbxTarget.buildPhases.append(sourcesBuildPhase)
 
+        var buildFilesCache = Set<AbsolutePath>()
         let sortedFiles = files.sorted(by: { $0.path < $1.path })
         try sortedFiles.forEach { buildFile in
             let buildFilePath = buildFile.path
             let isLocalized = buildFilePath.pathString.contains(".lproj/")
 
-            let element: PBXFileElement
+            let element: (element: PBXFileElement, path: AbsolutePath)
             if !isLocalized {
                 guard let fileReference = fileElements.file(path: buildFile.path) else {
                     throw BuildPhaseGenerationError.missingFileReference(buildFile.path)
                 }
-                element = fileReference
+                element = (fileReference, buildFilePath)
             } else {
                 let name = buildFilePath.basename
                 let path = buildFilePath.parentDirectory.parentDirectory.appending(component: name)
                 guard let group = fileElements.group(path: path) else {
                     throw BuildPhaseGenerationError.missingFileReference(buildFilePath)
                 }
-                element = group
+                element = (group, path)
             }
 
             var settings: [String: Any]?
@@ -152,9 +153,12 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                 ]
             }
 
-            let pbxBuildFile = PBXBuildFile(file: element, settings: settings)
-            pbxproj.add(object: pbxBuildFile)
-            sourcesBuildPhase.files?.append(pbxBuildFile)
+            if buildFilesCache.contains(element.path) == false {
+                let pbxBuildFile = PBXBuildFile(file: element.element, settings: settings)
+                pbxproj.add(object: pbxBuildFile)
+                sourcesBuildPhase.files?.append(pbxBuildFile)
+                buildFilesCache.insert(element.path)
+            }
         }
     }
 
