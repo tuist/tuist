@@ -112,7 +112,7 @@ final class BuildPhaseGeneratorTests: XCTestCase {
         let buildFiles = buildPhase?.files ?? []
 
         XCTAssertEqual(buildFiles.map { $0.file }, [
-             fileElements.elements["/path/sources/OTTSiriExtension.intentdefinition"],
+            fileElements.elements["/path/sources/OTTSiriExtension.intentdefinition"],
         ])
     }
 
