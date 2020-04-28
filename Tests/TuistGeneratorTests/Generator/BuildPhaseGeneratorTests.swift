@@ -92,14 +92,14 @@ final class BuildPhaseGeneratorTests: XCTestCase {
         let pbxproj = PBXProj()
         pbxproj.add(object: target)
 
-        let files: [AbsolutePath] = [
-           "/path/sources/Base.lproj/OTTSiriExtension.intentdefinition",
-           "/path/resources/en.lproj/OTTSiriExtension.intentdefinition",
-       ]
+        let sources: [Target.SourceFile] = [
+            ("/path/sources/Base.lproj/OTTSiriExtension.intentdefinition", nil),
+            ("/path/sources/en.lproj/OTTSiriExtension.intentdefinition", nil),
+        ]
 
-       let fileElements = createLocalizedResourceFileElements(for: [
-           "/path/resources/OTTSiriExtension.intentdefinition",
-       ])
+        let fileElements = createLocalizedResourceFileElements(for: [
+            "/path/sources/OTTSiriExtension.intentdefinition",
+        ])
 
         // When
         try subject.generateSourcesBuildPhase(files: sources,
@@ -110,13 +110,25 @@ final class BuildPhaseGeneratorTests: XCTestCase {
         // Then
         let buildPhase = try target.sourcesBuildPhase()
         let buildFiles = buildPhase?.files ?? []
-        let buildFilesNames = buildFiles.map {
-            $0.file?.name
-        }
 
-        XCTAssertEqual(buildFilesNames, [
-           fileElements.elements["/path/resources/OTTSiriExtension.intentdefinition"],
-       ])
+        XCTAssertEqual(buildFiles.map { $0.file }, [
+             fileElements.elements["/path/sources/OTTSiriExtension.intentdefinition"],
+        ])
+    }
+
+    func test_generateSourcesBuildPhase_throws_whenLocalizedFileAndFileReferenceIsMissing() {
+        let path = AbsolutePath("/test/Base.lproj/file.intentdefinition")
+        let target = PBXNativeTarget(name: "Test")
+        let pbxproj = PBXProj()
+        pbxproj.add(object: target)
+        let fileElements = ProjectFileElements()
+
+        XCTAssertThrowsError(try subject.generateSourcesBuildPhase(files: [(path: path, compilerFlags: nil)],
+                                                                   pbxTarget: target,
+                                                                   fileElements: fileElements,
+                                                                   pbxproj: pbxproj)) {
+            XCTAssertEqual($0 as? BuildPhaseGenerationError, BuildPhaseGenerationError.missingFileReference(path))
+        }
     }
 
     func test_generateHeadersBuildPhase() throws {
