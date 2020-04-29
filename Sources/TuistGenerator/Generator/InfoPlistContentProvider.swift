@@ -123,8 +123,6 @@ final class InfoPlistContentProvider: InfoPlistContentProviding {
     func iosApp() -> [String: Any] {
         [
             "LSRequiresIPhoneOS": true,
-            "UILaunchStoryboardName": "LaunchScreen",
-            "UIMainStoryboardFile": "Main",
             "UIRequiredDeviceCapabilities": [
                 "armv7",
             ],
