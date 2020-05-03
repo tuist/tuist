@@ -34,17 +34,18 @@ public class SigningMapper: GraphMapping {
         
         let (certificates, provisioningProfiles) = try signingMatcher.match(graph: graph)
         
-        try graph.projects.forEach { project in
-            project.targets = try project.targets.map {
+        let projects: [Project] = try graph.projects.map { project in
+            let targets = try project.targets.map {
                 try map(target: $0,
                         project: project,
                         keychainPath: keychainPath,
                         certificates: certificates,
                         provisioningProfiles: provisioningProfiles)
             }
+            return project.with(targets: targets)
         }
         
-        return (graph, [])
+        return (graph.with(projects: projects), [])
     }
     
     private func map(target: Target,
@@ -52,7 +53,6 @@ public class SigningMapper: GraphMapping {
                      keychainPath: AbsolutePath,
                      certificates: [String: Certificate],
                      provisioningProfiles: [String: [String: ProvisioningProfile]]) throws -> Target {
-        var target = target
         let targetConfigurations = target.settings?.configurations ?? [:]
         let configurations: [BuildConfiguration: Configuration?] = targetConfigurations
             .merging(project.settings.configurations,
@@ -66,18 +66,18 @@ public class SigningMapper: GraphMapping {
                         return
                     }
                 guard provisioningProfile.appID == provisioningProfile.teamID + "." + target.bundleId else { fatalError() }
-                var configuration = configurationPair.value ?? Configuration()
-                configuration.settings["CODE_SIGN_STYLE"] = "Manual"
-                configuration.settings["CODE_SIGN_IDENTITY"] = SettingValue(stringLiteral: certificate.name)
-                configuration.settings["OTHER_CODE_SIGN_FLAGS"] = SettingValue(stringLiteral: "--keychain \(keychainPath.pathString)")
-                configuration.settings["DEVELOPMENT_TEAM"] = SettingValue(stringLiteral: provisioningProfile.teamID)
-                configuration.settings["PROVISIONING_PROFILE_SPECIFIER"] = SettingValue(stringLiteral: provisioningProfile.uuid)
-                dict[configurationPair.key] = configuration
+                let configuration = configurationPair.value ?? Configuration()
+                var settings = configuration.settings
+                settings["CODE_SIGN_STYLE"] = "Manual"
+                settings["CODE_SIGN_IDENTITY"] = SettingValue(stringLiteral: certificate.name)
+                settings["OTHER_CODE_SIGN_FLAGS"] = SettingValue(stringLiteral: "--keychain \(keychainPath.pathString)")
+                settings["DEVELOPMENT_TEAM"] = SettingValue(stringLiteral: provisioningProfile.teamID)
+                settings["PROVISIONING_PROFILE_SPECIFIER"] = SettingValue(stringLiteral: provisioningProfile.uuid)
+                dict[configurationPair.key] = configuration.with(settings: settings)
         }
         
-        target.settings = Settings(base: target.settings?.base ?? [:],
-                                   configurations: configurations,
-                                   defaultSettings: target.settings?.defaultSettings ?? .recommended)
-        return target
+        return target.with(settings: Settings(base: target.settings?.base ?? [:],
+                                              configurations: configurations,
+                                              defaultSettings: target.settings?.defaultSettings ?? .recommended))
     }
 }

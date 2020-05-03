@@ -32,7 +32,7 @@ public enum SettingValue: ExpressibleByStringLiteral, ExpressibleByArrayLiteral,
 public struct Configuration: Equatable {
     // MARK: - Attributes
 
-    public var settings: SettingsDictionary
+    public let settings: SettingsDictionary
     public let xcconfig: AbsolutePath?
 
     // MARK: - Init
@@ -40,6 +40,15 @@ public struct Configuration: Equatable {
     public init(settings: SettingsDictionary = [:], xcconfig: AbsolutePath? = nil) {
         self.settings = settings
         self.xcconfig = xcconfig
+    }
+    
+    // MARK: - Public
+
+    /// Returns a copy of the configuration with the given settings set.
+    /// - Parameter settings: SettingsDictionary to be set to the copy.
+    public func with(settings: SettingsDictionary) -> Configuration {
+        Configuration(settings: settings,
+                      xcconfig: xcconfig)
     }
 }
 

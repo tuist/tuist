@@ -482,6 +482,19 @@ public class Graph: Encodable {
         } ?? nil
     }
 
+    /// Returns a copy of the graph with the given projects set.
+    /// - Parameter projects: Projects to be set to the copy.
+    public func with(projects: [Project]) -> Graph {
+        Graph(name: name,
+              entryPath: entryPath,
+              entryNodes: entryNodes,
+              projects: projects,
+              cocoapods: cocoapods,
+              packages: packages,
+              precompiled: precompiled,
+              targets: targets)
+    }
+
     // MARK: - Fileprivate
 
     fileprivate func productDependencyReference(for targetNode: TargetNode) -> GraphDependencyReference {

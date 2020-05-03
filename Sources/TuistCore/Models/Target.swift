@@ -24,7 +24,7 @@ public struct Target: Equatable, Hashable {
     // however is not needed for other products such as static libraries.
     public private(set) var infoPlist: InfoPlist?
     public let entitlements: AbsolutePath?
-    public var settings: Settings?
+    public let settings: Settings?
     public let dependencies: [Dependency]
     public let sources: [SourceFile]
     public let resources: [FileElement]
@@ -70,6 +70,28 @@ public struct Target: Equatable, Hashable {
         self.environment = environment
         self.filesGroup = filesGroup
         self.dependencies = dependencies
+    }
+    
+    /// Returns a copy of the target with the given settings set.
+    /// - Parameter settigns: Settings to be set to the copy.
+    public func with(settings: Settings) -> Target {
+        Target(name: name,
+               platform: platform,
+               product: product,
+               productName: productName,
+               bundleId: bundleId,
+               deploymentTarget: deploymentTarget,
+               infoPlist: infoPlist,
+               entitlements: entitlements,
+               settings: settings,
+               sources: sources,
+               resources: resources,
+               headers: headers,
+               coreDataModels: coreDataModels,
+               actions: actions,
+               environment: environment,
+               filesGroup: filesGroup,
+               dependencies: dependencies)
     }
 
     /// Target can be included in the link phase of other targets
