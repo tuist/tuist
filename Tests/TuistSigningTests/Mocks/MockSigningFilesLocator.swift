@@ -2,19 +2,34 @@ import TSCBasic
 @testable import TuistSigning
 
 final class MockSigningFilesLocator: SigningFilesLocating {
-    var hasSigningDirectoryStub: ((AbsolutePath) throws -> Bool)?
-    var locateEncryptedSigningFilesStub: ((AbsolutePath) throws -> [AbsolutePath])?
-    var locateUnencryptedSigningFilesStub: ((AbsolutePath) throws -> [AbsolutePath])?
-
-    func hasSigningDirectory(at path: AbsolutePath) throws -> Bool {
-        try hasSigningDirectoryStub?(path) ?? true
+    
+    var locateSigningDirectoryStub: ((AbsolutePath) throws -> AbsolutePath)?
+    func locateSigningDirectory(from path: AbsolutePath) throws -> AbsolutePath? {
+        try locateSigningDirectoryStub?(path)
     }
-
-    func locateEncryptedSigningFiles(at path: AbsolutePath) throws -> [AbsolutePath] {
-        try locateEncryptedSigningFilesStub?(path) ?? []
+    
+    var locateProvisioningProfilesStub: ((AbsolutePath) throws -> [AbsolutePath])?
+    func locateProvisioningProfiles(from path: AbsolutePath) throws -> [AbsolutePath] {
+        try locateProvisioningProfilesStub?(path) ?? []
     }
-
-    func locateUnencryptedSigningFiles(at path: AbsolutePath) throws -> [AbsolutePath] {
-        try locateUnencryptedSigningFilesStub?(path) ?? []
+    
+    var locateUnencryptedCertificatesStub: ((AbsolutePath) throws -> [AbsolutePath])?
+    func locateUnencryptedCertificates(from path: AbsolutePath) throws -> [AbsolutePath] {
+        try locateUnencryptedCertificatesStub?(path) ?? []
+    }
+    
+    var locateEncryptedCertificatesStub: ((AbsolutePath) throws -> [AbsolutePath])?
+    func locateEncryptedCertificates(from path: AbsolutePath) throws -> [AbsolutePath] {
+        try locateEncryptedCertificatesStub?(path) ?? []
+    }
+    
+    var locateUnencryptedPrivateKeysStub: ((AbsolutePath) throws -> [AbsolutePath])?
+    func locateUnencryptedPrivateKeys(from path: AbsolutePath) throws -> [AbsolutePath] {
+        try locateUnencryptedPrivateKeysStub?(path) ?? []
+    }
+    
+    var locateEncryptedPrivateKeysStub: ((AbsolutePath) throws -> [AbsolutePath])?
+    func locateEncryptedPrivateKeys(from path: AbsolutePath) throws -> [AbsolutePath] {
+        try locateEncryptedPrivateKeysStub?(path) ?? []
     }
 }
