@@ -34,41 +34,17 @@ final class ProvisioningProfileParser: ProvisioningProfileParsing {
     func parse(at path: AbsolutePath) throws -> ProvisioningProfile {
         let unencryptedProvisioningProfile = try securityController.decodeFile(at: path)
         let plistData = Data(unencryptedProvisioningProfile.utf8)
-        guard
-            let provisioningProfileDict: [String: Any] = try PropertyListSerialization.propertyList(from: plistData,
-                                                               options: .mutableContainersAndLeaves,
-                                                               format: nil) as? [String: Any],
-            let name = provisioningProfileDict["Name"] as? String,
-            let uuid = provisioningProfileDict["UUID"] as? String,
-            let teamIDs = provisioningProfileDict["TeamIdentifier"] as? [String],
-            let teamID = teamIDs.first,
-            let appIDName = provisioningProfileDict["AppIDName"] as? String,
-            let applicationIDPrefix = provisioningProfileDict["ApplicationIdentifierPrefix"] as? [String],
-            let platforms = provisioningProfileDict["Platform"] as? [String],
-            let entitlements = provisioningProfileDict["Entitlements"] as? [String: Any],
-            let appID = entitlements["application-identifier"] as? String,
-            let expirationDate = provisioningProfileDict["CreationDate"] as? Date
-        else {
-                fatalError()
-        }
-
-        
-        let nameComponents = name.components(separatedBy: ".")
-        guard
-            let targetName = nameComponents.first,
-            let configurationName = nameComponents.last
-        else { fatalError() }
-        
+        let provisioningProfile = try PropertyListDecoder().decode(ProvisioningProfile.self, from: plistData)
         return ProvisioningProfile(path: path,
-                                   name: name,
-                                   targetName: targetName,
-                                   configurationName: configurationName,
-                                   uuid: uuid,
-                                   teamID: teamID,
-                                   appID: appID,
-                                   appIDName: appIDName,
-                                   applicationIDPrefix: applicationIDPrefix,
-                                   platforms: platforms,
-                                   expirationDate: expirationDate)
+                                   name: provisioningProfile.name,
+                                   targetName: provisioningProfile.targetName,
+                                   configurationName: provisioningProfile.configurationName,
+                                   uuid: provisioningProfile.uuid,
+                                   teamId: provisioningProfile.teamId,
+                                   appId: provisioningProfile.appId,
+                                   appIdName: provisioningProfile.appIdName,
+                                   applicationIdPrefix: provisioningProfile.applicationIdPrefix,
+                                   platforms: provisioningProfile.platforms,
+                                   expirationDate: provisioningProfile.expirationDate)
     }
 }

@@ -45,7 +45,7 @@ public final class SigningInteractor: SigningInteracting {
     public func install(graph: Graph) throws {
         let entryPath = graph.entryPath
         guard
-            let signingDirectory = try signingFilesLocator.locateSigningDirectory(at: entryPath),
+            let signingDirectory = try signingFilesLocator.locateSigningDirectory(from: entryPath),
             let derivedDirectory = rootDirectoryLocator.locate(from: entryPath)?.appending(component: Constants.derivedFolderName)
         else { return }
         
@@ -57,10 +57,10 @@ public final class SigningInteractor: SigningInteracting {
         try securityController.unlockKeychain(at: keychainPath, password: masterKey)
         defer { try? securityController.lockKeychain(at: keychainPath, password: masterKey) }
         
-        let (certificates, provisioningProfiles) = try signingMatcher.match(graph: graph)
-        
         try signingCipher.decryptSigning(at: entryPath, keepFiles: true)
         defer { try? signingCipher.encryptSigning(at: entryPath, keepFiles: false) }
+        
+        let (certificates, provisioningProfiles) = try signingMatcher.match(graph: graph)
         
         try graph.projects.forEach { project in
             try project.targets.forEach {

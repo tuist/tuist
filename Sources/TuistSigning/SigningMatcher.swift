@@ -10,16 +10,13 @@ protocol SigningMatching {
 
 final class SigningMatcher: SigningMatching {
     private let signingFilesLocator: SigningFilesLocating
-    private let signingCipher: SigningCiphering
     private let provisioningProfileParser: ProvisioningProfileParsing
     private let certificateParser: CertificateParsing
     
     init(signingFilesLocator: SigningFilesLocating = SigningFilesLocator(),
-         signingCipher: SigningCiphering = SigningCipher(),
          provisioningProfileParser: ProvisioningProfileParsing = ProvisioningProfileParser(),
          certificateParser: CertificateParsing = CertificateParser()) {
         self.signingFilesLocator = signingFilesLocator
-        self.signingCipher = signingCipher
         self.provisioningProfileParser = provisioningProfileParser
         self.certificateParser = certificateParser
     }
@@ -28,13 +25,10 @@ final class SigningMatcher: SigningMatching {
         (certificates: [String: Certificate],
         provisioningProfiles: [String: [String: ProvisioningProfile]]) {
         let entryPath = graph.entryPath
-        
-        try signingCipher.decryptSigning(at: entryPath, keepFiles: true)
-        defer { try? signingCipher.encryptSigning(at: entryPath, keepFiles: false) }
-        
-        let certificateFiles = try signingFilesLocator.locateUnencryptedCertificates(at: entryPath)
+    
+        let certificateFiles = try signingFilesLocator.locateUnencryptedCertificates(from: entryPath)
             .sorted()
-        let privateKeyFiles = try signingFilesLocator.locateUnencryptedPrivateKeys(at: entryPath)
+        let privateKeyFiles = try signingFilesLocator.locateUnencryptedPrivateKeys(from: entryPath)
             .sorted()
         let certificates = try zip(certificateFiles, privateKeyFiles)
             .map(certificateParser.parse)
@@ -43,7 +37,7 @@ final class SigningMatcher: SigningMatching {
             }
         
         // Dictionary of [ProvisioningProfile.targetName: [ProvisioningProfile.configurationName: ProvisioningProfile]]
-        let provisioningProfiles: [String: [String: ProvisioningProfile]] = try signingFilesLocator.locateProvisioningProfiles(at: entryPath)
+        let provisioningProfiles: [String: [String: ProvisioningProfile]] = try signingFilesLocator.locateProvisioningProfiles(from: entryPath)
             .map(provisioningProfileParser.parse)
             .reduce(into: [:], { dict, profile in
                 var currentTargetDict = dict[profile.targetName] ?? [:]

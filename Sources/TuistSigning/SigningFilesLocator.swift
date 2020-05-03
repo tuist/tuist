@@ -21,12 +21,12 @@ enum SigningFilesLocatorError: FatalError {
 }
 
 protocol SigningFilesLocating {
-    func locateSigningDirectory(at path: AbsolutePath) throws -> AbsolutePath?
-    func locateProvisioningProfiles(at path: AbsolutePath) throws -> [AbsolutePath]
-    func locateUnencryptedCertificates(at path: AbsolutePath) throws -> [AbsolutePath]
-    func locateEncryptedCertificates(at path: AbsolutePath) throws -> [AbsolutePath]
-    func locateUnencryptedPrivateKeys(at path: AbsolutePath) throws -> [AbsolutePath]
-    func locateEncryptedPrivateKeys(at path: AbsolutePath) throws -> [AbsolutePath]
+    func locateSigningDirectory(from path: AbsolutePath) throws -> AbsolutePath?
+    func locateProvisioningProfiles(from path: AbsolutePath) throws -> [AbsolutePath]
+    func locateUnencryptedCertificates(from path: AbsolutePath) throws -> [AbsolutePath]
+    func locateEncryptedCertificates(from path: AbsolutePath) throws -> [AbsolutePath]
+    func locateUnencryptedPrivateKeys(from path: AbsolutePath) throws -> [AbsolutePath]
+    func locateEncryptedPrivateKeys(from path: AbsolutePath) throws -> [AbsolutePath]
 }
 
 final class SigningFilesLocator: SigningFilesLocating {
@@ -36,7 +36,7 @@ final class SigningFilesLocator: SigningFilesLocating {
         self.rootDirectoryLocator = rootDirectoryLocator
     }
     
-    func locateSigningDirectory(at path: AbsolutePath) throws -> AbsolutePath? {
+    func locateSigningDirectory(from path: AbsolutePath) throws -> AbsolutePath? {
         guard
             let rootDirectory = rootDirectoryLocator.locate(from: path)
         else { throw SigningFilesLocatorError.signingDirectoryNotFound(path) }
@@ -44,27 +44,27 @@ final class SigningFilesLocator: SigningFilesLocating {
         return FileHandler.shared.exists(signingDirectory) ? signingDirectory : nil
     }
     
-    func locateProvisioningProfiles(at path: AbsolutePath) throws -> [AbsolutePath] {
+    func locateProvisioningProfiles(from path: AbsolutePath) throws -> [AbsolutePath] {
         try locateSigningFiles(at: path)
             .filter { $0.extension == "mobileprovision" || $0.extension == "provisionprofile"  }
     }
     
-    func locateUnencryptedCertificates(at path: AbsolutePath) throws -> [AbsolutePath] {
+    func locateUnencryptedCertificates(from path: AbsolutePath) throws -> [AbsolutePath] {
         try locateSigningFiles(at: path)
             .filter { $0.extension == "cer" }
     }
     
-    func locateEncryptedCertificates(at path: AbsolutePath) throws -> [AbsolutePath] {
+    func locateEncryptedCertificates(from path: AbsolutePath) throws -> [AbsolutePath] {
         try locateSigningFiles(at: path)
             .filter { $0.pathString.hasSuffix("cer.encrypted") }
     }
     
-    func locateUnencryptedPrivateKeys(at path: AbsolutePath) throws -> [AbsolutePath] {
+    func locateUnencryptedPrivateKeys(from path: AbsolutePath) throws -> [AbsolutePath] {
         try locateSigningFiles(at: path)
             .filter { $0.extension == "p12" }
     }
     
-    func locateEncryptedPrivateKeys(at path: AbsolutePath) throws -> [AbsolutePath] {
+    func locateEncryptedPrivateKeys(from path: AbsolutePath) throws -> [AbsolutePath] {
         try locateSigningFiles(at: path)
             .filter { $0.pathString.hasSuffix("p12.encrypted") }
     }

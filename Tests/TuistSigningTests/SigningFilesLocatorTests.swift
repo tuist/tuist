@@ -88,7 +88,7 @@ final class SigningFilesLocatorTests: TuistUnitTestCase {
         let expectedFiles = expectedFileNames.map(signingDirectory.appending)
 
         // When
-        let files = try subject.locateProvisioningProfiles(at: signingDirectory)
+        let files = try subject.locateProvisioningProfiles(from: signingDirectory)
 
         // Then
         XCTAssertEqual(files, expectedFiles)
@@ -105,7 +105,7 @@ final class SigningFilesLocatorTests: TuistUnitTestCase {
         let expectedFiles = expectedFileNames.map(signingDirectory.appending)
 
         // When
-        let files = try subject.locateUnencryptedCertificates(at: signingDirectory)
+        let files = try subject.locateUnencryptedCertificates(from: signingDirectory)
 
         // Then
         XCTAssertEqual(files, expectedFiles)
@@ -122,7 +122,7 @@ final class SigningFilesLocatorTests: TuistUnitTestCase {
         let expectedFiles = expectedFileNames.map(signingDirectory.appending)
 
         // When
-        let files = try subject.locateEncryptedCertificates(at: signingDirectory)
+        let files = try subject.locateEncryptedCertificates(from: signingDirectory)
 
         // Then
         XCTAssertEqual(files, expectedFiles)

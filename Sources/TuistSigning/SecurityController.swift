@@ -15,8 +15,12 @@ final class SecurityController: SecurityControlling {
     }
 
     func importCertificate(_ certificate: Certificate, keychainPath: AbsolutePath) throws {
-        try importToKeychain(at: certificate.publicKey, keychainPath: keychainPath)
-        try importToKeychain(at: certificate.privateKey, keychainPath: keychainPath)
+        if try !certificateExists(at: certificate.publicKey) {
+            try importToKeychain(at: certificate.publicKey, keychainPath: keychainPath)
+        }
+        if try !keyExists(at: certificate.privateKey) {
+         try importToKeychain(at: certificate.privateKey, keychainPath: keychainPath)
+        }
         logger.debug("Imported certificate at \(certificate.publicKey.pathString)")
     }
     
@@ -47,7 +51,25 @@ final class SecurityController: SecurityControlling {
     
     // MARK: - Helpers
     
-    func importToKeychain(at path: AbsolutePath, keychainPath: AbsolutePath) throws {
+    private func keyExists(at path: AbsolutePath) throws -> Bool {
+        do {
+            try System.shared.run("/usr/bin/security", "find-key", path.pathString, "-P", "")
+            return true
+        } catch {
+            return false
+        }
+    }
+    
+    private func certificateExists(at path: AbsolutePath) throws -> Bool {
+        do {
+            try System.shared.run("/usr/bin/security", "find-certificate", path.pathString, "-P", "")
+            return true
+        } catch {
+            return false
+        }
+    }
+    
+    private func importToKeychain(at path: AbsolutePath, keychainPath: AbsolutePath) throws {
         do {
             try System.shared.run("/usr/bin/security", "import", path.pathString, "-P", "", "-k", keychainPath.pathString)
         } catch {
