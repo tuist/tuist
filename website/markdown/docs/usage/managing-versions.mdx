@@ -49,13 +49,13 @@ Note that it pins the version by creating a `.tuist-version` file in the current
 You might want to bundle `tuist` in your repository so that each git snapshot contains all the necessary elements to interact with the projects in it. The `tuist bundle` command is precisely for that:
 
 ```text
-tuist bundle 0.4.0
+tuist bundle
 
 Bundling the version 0.4.0 in the directory /Tuist/.tuist-bin
 ✅ Success: tuist bundled successfully at /Tuist/.tuist-bin
 ```
 
-It creates a `.tuist-bin` directory in the current directory that contains the `tuist` binary and its artifacts.
+It creates a `.tuist-bin` directory in the current directory that contains the `tuist` binary and its artifacts. You can use bundled version of `tuist` by running `.tuist-bin/tuist generate`.
 
 ### tuist install
 

@@ -33,10 +33,8 @@ final class InfoPlistContentProviderTests: XCTestCase {
                 "UIInterfaceOrientationLandscapeRight",
             ],
             "CFBundleShortVersionString": "1.0",
-            "UIMainStoryboardFile": "Main",
             "LSRequiresIPhoneOS": true,
             "CFBundleDevelopmentRegion": "$(DEVELOPMENT_LANGUAGE)",
-            "UILaunchStoryboardName": "LaunchScreen",
             "CFBundlePackageType": "APPL",
             "UISupportedInterfaceOrientations~ipad": [
                 "UIInterfaceOrientationPortrait",

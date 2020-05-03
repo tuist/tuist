@@ -10,8 +10,11 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Removed
 
+- Don't set the main and launch storyboard when using the default `InfoPlist` [#1289](https://github.com/tuist/tuist/pull/1289) by [@pepibumur](https://github.com/pepibumur)
+
 ### Fixed
 
+- Fix example in documentation for `scaffold` [#1273](https://github.com/tuist/tuist/pull/1273) by [@fortmarek](https://github.com/fortmarek)
 - Fix help commands (argument parser regression) [#1250](https://github.com/tuist/tuist/pull/1250) by [@fortmarek](https://github.com/fortmarek)
 
 ## 1.7.1
