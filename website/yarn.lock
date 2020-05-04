@@ -7483,12 +7483,12 @@ gatsby-plugin-meta-redirect@^1.1.1:
   dependencies:
     fs-extra "^7.0.0"
 
-gatsby-plugin-netlify@^2.2.4:
-  version "2.2.4"
-  resolved "https://registry.yarnpkg.com/gatsby-plugin-netlify/-/gatsby-plugin-netlify-2.2.4.tgz#2e92671ab2468629a5960438854e301841fae2c6"
-  integrity sha512-/lMhoAdNL3odR1CMGREop8phgjU9oMYFUOBl2Fo+S9KHP0SK3fcqgsMjB7v5Aq97k2FuiS+JHDsy2iTb9ofohQ==
+gatsby-plugin-netlify@^2.3.0:
+  version "2.3.0"
+  resolved "https://registry.yarnpkg.com/gatsby-plugin-netlify/-/gatsby-plugin-netlify-2.3.0.tgz#f28ee6cff49bab3836f46a24efca1af4ddec684a"
+  integrity sha512-6JoKNVG03GDpiVdFneVcPAdubXL3q1e5YqkZKzXbAufhX/SafxUg5fA2BKGcHysOkUjXy4jembgZ1p+p6dPTuA==
   dependencies:
-    "@babel/runtime" "^7.8.7"
+    "@babel/runtime" "^7.9.2"
     fs-extra "^8.1.0"
     kebab-hash "^0.1.2"
     lodash "^4.17.15"
