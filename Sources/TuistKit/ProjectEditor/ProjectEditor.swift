@@ -93,12 +93,12 @@ final class ProjectEditor: ProjectEditing {
         // To be sure that we are using the same binary of Tuist that invoked `edit`
         let tuistPath = AbsolutePath(TuistCommand.processArguments()!.first!)
 
-        let (project, graph) = projectEditorMapper.map(tuistPath: tuistPath,
-                                                       sourceRootPath: at,
-                                                       manifests: manifests.map { $0.1 },
-                                                       helpers: helpers,
-                                                       templates: templates,
-                                                       projectDescriptionPath: projectDesciptionPath)
+        let (project, graph) = try projectEditorMapper.map(tuistPath: tuistPath,
+                                                           sourceRootPath: at,
+                                                           manifests: manifests.map { $0.1 },
+                                                           helpers: helpers,
+                                                           templates: templates,
+                                                           projectDescriptionPath: projectDesciptionPath)
 
         let config = ProjectGenerationConfig(sourceRootPath: project.path,
                                              xcodeprojPath: xcodeprojPath)

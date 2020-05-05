@@ -12,6 +12,7 @@ class ProjectDescriptionHelpersHasherTests: TuistUnitTestCase {
 
     override func setUp() {
         super.setUp()
+        system.swiftVersionStub = { "5.2" }
         subject = ProjectDescriptionHelpersHasher(tuistVersion: "3.2.1")
     }
 
@@ -25,7 +26,7 @@ class ProjectDescriptionHelpersHasherTests: TuistUnitTestCase {
         // Then
         for _ in 0 ..< 20 {
             let got = try subject.hash(helpersDirectory: temporaryDir)
-            XCTAssertEqual(got, "d19835f96b16a558457fc33b169adb9c")
+            XCTAssertEqual(got, "c9910732734d9dcf509bdb7538aed526")
         }
     }
 

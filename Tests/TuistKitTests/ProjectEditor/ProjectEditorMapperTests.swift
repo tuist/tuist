@@ -12,6 +12,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
 
     override func setUp() {
         super.setUp()
+        system.swiftVersionStub = { "5.2" }
         subject = ProjectEditorMapper()
     }
 
@@ -30,12 +31,12 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         let tuistPath = AbsolutePath("/usr/bin/foo/bar/tuist")
 
         // When
-        let (project, graph) = subject.map(tuistPath: tuistPath,
-                                           sourceRootPath: sourceRootPath,
-                                           manifests: manifestPaths,
-                                           helpers: helperPaths,
-                                           templates: templates,
-                                           projectDescriptionPath: projectDescriptionPath)
+        let (project, graph) = try subject.map(tuistPath: tuistPath,
+                                               sourceRootPath: sourceRootPath,
+                                               manifests: manifestPaths,
+                                               helpers: helperPaths,
+                                               templates: templates,
+                                               projectDescriptionPath: projectDescriptionPath)
 
         // Then
         let targetNodes = graph.targets.values.lazy.flatMap { targets in targets.compactMap { $0 } }.sorted(by: { $0.target.name < $1.target.name })
@@ -110,12 +111,12 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         let tuistPath = AbsolutePath("/usr/bin/foo/bar/tuist")
 
         // When
-        let (project, graph) = subject.map(tuistPath: tuistPath,
-                                           sourceRootPath: sourceRootPath,
-                                           manifests: manifestPaths,
-                                           helpers: helperPaths,
-                                           templates: templates,
-                                           projectDescriptionPath: projectDescriptionPath)
+        let (project, graph) = try subject.map(tuistPath: tuistPath,
+                                               sourceRootPath: sourceRootPath,
+                                               manifests: manifestPaths,
+                                               helpers: helperPaths,
+                                               templates: templates,
+                                               projectDescriptionPath: projectDescriptionPath)
 
         // Then
         let targetNodes = graph.targets.values.flatMap { targets in targets.compactMap { $0 } }.sorted(by: { $0.target.name < $1.target.name })
@@ -170,12 +171,12 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         let tuistPath = AbsolutePath("/usr/bin/foo/bar/tuist")
 
         // When
-        let (project, graph) = subject.map(tuistPath: tuistPath,
-                                           sourceRootPath: sourceRootPath,
-                                           manifests: manifestPaths,
-                                           helpers: helperPaths,
-                                           templates: templates,
-                                           projectDescriptionPath: projectDescriptionPath)
+        let (project, graph) = try subject.map(tuistPath: tuistPath,
+                                               sourceRootPath: sourceRootPath,
+                                               manifests: manifestPaths,
+                                               helpers: helperPaths,
+                                               templates: templates,
+                                               projectDescriptionPath: projectDescriptionPath)
 
         // Then
         let targetNodes = graph.targets.values.flatMap { targets in targets.compactMap { $0 } }.sorted(by: { $0.target.name < $1.target.name })
@@ -234,7 +235,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             "FRAMEWORK_SEARCH_PATHS": .string(sourceRootPath.pathString),
             "LIBRARY_SEARCH_PATHS": .string(sourceRootPath.pathString),
             "SWIFT_INCLUDE_PATHS": .string(sourceRootPath.pathString),
-            "SWIFT_VERSION": .string(Constants.swiftVersion),
+            "SWIFT_VERSION": .string("5.2"),
         ]
         return Settings(base: base,
                         configurations: Settings.default.configurations,

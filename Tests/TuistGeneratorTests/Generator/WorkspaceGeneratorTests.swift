@@ -13,6 +13,7 @@ final class WorkspaceGeneratorTests: TuistUnitTestCase {
 
     override func setUp() {
         super.setUp()
+        system.swiftVersionStub = { "5.2" }
         subject = WorkspaceGenerator(config: .init(projectGenerationContext: .serial))
     }
 
