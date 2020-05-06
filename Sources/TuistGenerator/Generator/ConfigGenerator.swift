@@ -84,6 +84,7 @@ final class ConfigGenerator: ConfigGenerating {
         let configurations = Dictionary(uniqueKeysWithValues: configurationsTuples)
         let nonEmptyConfigurations = !configurations.isEmpty ? configurations : Settings.default.configurations
         let orderedConfigurations = nonEmptyConfigurations.sortedByBuildConfigurationName()
+        let swiftVersion = try System.shared.swiftVersion()
         try orderedConfigurations.forEach {
             try generateTargetSettingsFor(target: target,
                                           buildConfiguration: $0.key,
@@ -92,6 +93,7 @@ final class ConfigGenerator: ConfigGenerating {
                                           graph: graph,
                                           pbxproj: pbxproj,
                                           configurationList: configurationList,
+                                          swiftVersion: swiftVersion,
                                           sourceRootPath: sourceRootPath)
         }
     }
@@ -131,6 +133,7 @@ final class ConfigGenerator: ConfigGenerating {
                                            graph: Graph,
                                            pbxproj: PBXProj,
                                            configurationList: XCConfigurationList,
+                                           swiftVersion: String,
                                            sourceRootPath: AbsolutePath) throws {
         let settingsHelper = SettingsHelper()
         var settings = try defaultSettingsProvider.targetSettings(target: target,
@@ -138,6 +141,7 @@ final class ConfigGenerator: ConfigGenerating {
         updateTargetDerived(buildSettings: &settings,
                             target: target,
                             graph: graph,
+                            swiftVersion: swiftVersion,
                             sourceRootPath: sourceRootPath)
 
         settingsHelper.extend(buildSettings: &settings, with: target.settings?.base ?? [:])
@@ -159,14 +163,16 @@ final class ConfigGenerator: ConfigGenerating {
     private func updateTargetDerived(buildSettings settings: inout SettingsDictionary,
                                      target: Target,
                                      graph: Graph,
+                                     swiftVersion: String,
                                      sourceRootPath: AbsolutePath) {
-        settings.merge(generalTargetDerivedSettings(target: target, sourceRootPath: sourceRootPath)) { $1 }
+        settings.merge(generalTargetDerivedSettings(target: target, swiftVersion: swiftVersion, sourceRootPath: sourceRootPath)) { $1 }
         settings.merge(testBundleTargetDerivedSettings(target: target, graph: graph, sourceRootPath: sourceRootPath)) { $1 }
         settings.merge(deploymentTargetDerivedSettings(target: target)) { $1 }
         settings.merge(watchTargetDerivedSettings(target: target, graph: graph, sourceRootPath: sourceRootPath)) { $1 }
     }
 
     private func generalTargetDerivedSettings(target: Target,
+                                              swiftVersion: String,
                                               sourceRootPath: AbsolutePath) -> SettingsDictionary {
         var settings: SettingsDictionary = [:]
         settings["PRODUCT_BUNDLE_IDENTIFIER"] = .string(target.bundleId)
@@ -182,9 +188,9 @@ final class ConfigGenerator: ConfigGenerating {
         }
         settings["SDKROOT"] = .string(target.platform.xcodeSdkRoot)
         settings["SUPPORTED_PLATFORMS"] = .string(target.platform.xcodeSupportedPlatforms)
-        // TODO: We should show a warning here
+
         if settings["SWIFT_VERSION"] == nil {
-            settings["SWIFT_VERSION"] = .string(Constants.swiftVersion)
+            settings["SWIFT_VERSION"] = .string(swiftVersion)
         }
 
         if target.product == .staticFramework {

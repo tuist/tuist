@@ -9,7 +9,6 @@ public final class MockSystem: Systeming {
     // swiftlint:disable:next large_tuple
     private var stubs: [String: (stderror: String?, stdout: String?, exitstatus: Int?)] = [:]
     private var calls: [String] = []
-    var swiftVersionStub: (() throws -> String?)?
     var whichStub: ((String) throws -> String?)?
 
     public init() {}
@@ -145,8 +144,13 @@ public final class MockSystem: Systeming {
         }
     }
 
-    public func swiftVersion() throws -> String? {
-        try swiftVersionStub?()
+    var swiftVersionStub: (() throws -> String)?
+    public func swiftVersion() throws -> String {
+        if let swiftVersionStub = self.swiftVersionStub {
+            return try swiftVersionStub()
+        } else {
+            throw TestError("Call to non-stubbed method swiftVersion")
+        }
     }
 
     public func which(_ name: String) throws -> String {

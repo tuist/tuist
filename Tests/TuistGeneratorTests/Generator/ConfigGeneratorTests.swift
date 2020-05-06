@@ -18,6 +18,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         super.setUp()
         pbxproj = PBXProj()
         pbxTarget = PBXNativeTarget(name: "Test")
+        system.swiftVersionStub = { "5.2" }
         pbxproj.add(object: pbxTarget)
         subject = ConfigGenerator()
     }
@@ -65,7 +66,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
             "INFOPLIST_FILE": "Info.plist",
             "PRODUCT_BUNDLE_IDENTIFIER": "com.test.bundle_id",
             "CODE_SIGN_ENTITLEMENTS": "$(SRCROOT)/Test.entitlements",
-            "SWIFT_VERSION": Constants.swiftVersion,
+            "SWIFT_VERSION": "5.2",
         ]
 
         let debugSettings = [

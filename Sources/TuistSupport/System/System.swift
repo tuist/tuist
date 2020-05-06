@@ -136,7 +136,7 @@ public protocol Systeming {
     ///
     /// - Returns: Swift version.
     /// - Throws: An error if Swift is not installed or it exists unsuccessfully.
-    func swiftVersion() throws -> String?
+    func swiftVersion() throws -> String
 
     /// Runs /usr/bin/which passing the given tool.
     ///
@@ -178,6 +178,7 @@ extension ProcessResult {
 public enum SystemError: FatalError, Equatable {
     case terminated(command: String, code: Int32, standardError: Data)
     case signalled(command: String, code: Int32, standardError: Data)
+    case parseSwiftVersion(String)
 
     public var description: String {
         switch self {
@@ -193,10 +194,18 @@ public enum SystemError: FatalError, Equatable {
             } else {
                 return "The '\(command)' command exited with error code \(code)"
             }
+        case let .parseSwiftVersion(output):
+            return "Couldn't obtain the Swift version from the output: \(output)."
         }
     }
 
-    public var type: ErrorType { .abort }
+    public var type: ErrorType {
+        switch self {
+        case .signalled: return .abort
+        case .parseSwiftVersion: return .bug
+        case .terminated: return .abort
+        }
+    }
 }
 
 public final class System: Systeming {
@@ -493,10 +502,10 @@ public final class System: Systeming {
     ///
     /// - Returns: Swift version.
     /// - Throws: An error if Swift is not installed or it exists unsuccessfully.
-    public func swiftVersion() throws -> String? {
+    public func swiftVersion() throws -> String {
         let output = try capture("/usr/bin/xcrun", "swift", "--version")
         let range = NSRange(location: 0, length: output.count)
-        guard let match = System.swiftVersionRegex.firstMatch(in: output, options: [], range: range) else { return nil }
+        guard let match = System.swiftVersionRegex.firstMatch(in: output, options: [], range: range) else { throw SystemError.parseSwiftVersion(output) }
         return NSString(string: output).substring(with: match.range(at: 1)).spm_chomp()
     }
 

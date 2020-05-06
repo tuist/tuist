@@ -11,6 +11,7 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
     override func setUp() {
         super.setUp()
         do {
+            system.swiftVersionStub = { "5.2" }
             xcodeController.selectedVersionStub = .success("11.0.0")
             try setupTestProject()
         } catch {

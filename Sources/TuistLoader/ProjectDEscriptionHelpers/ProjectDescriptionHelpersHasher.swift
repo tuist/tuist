@@ -31,7 +31,7 @@ final class ProjectDescriptionHelpersHasher: ProjectDescriptionHelpersHashing {
             .compactMap { $0.sha256() }
             .compactMap { $0.compactMap { byte in String(format: "%02x", byte) }.joined() }
         let tuistEnvVariables = Environment.shared.tuistVariables.map { "\($0.key)=\($0.value)" }.sorted()
-        let swiftVersion = try System.shared.swiftVersion() ?? ""
+        let swiftVersion = try System.shared.swiftVersion()
 
         let identifiers = [swiftVersion, tuistVersion] + fileHashes + tuistEnvVariables
 
