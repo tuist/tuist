@@ -190,7 +190,6 @@ final class ConfigGenerator: ConfigGenerating {
         settings["SUPPORTED_PLATFORMS"] = .string(target.platform.xcodeSupportedPlatforms)
 
         if settings["SWIFT_VERSION"] == nil {
-            logger.log(level: .warning, "Setting the build setting SWIFT_VERSION to \(swiftVersion) for target '\(target.name)'. We recommend setting it on the manifest.")
             settings["SWIFT_VERSION"] = .string(swiftVersion)
         }
 
