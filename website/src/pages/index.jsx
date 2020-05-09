@@ -284,9 +284,8 @@ const Workspaces = () => {
               className="mt-4 max-w-2xl text-xl leading-7 lg:mx-auto"
               sx={{ color: 'gray' }}
             >
-              Describe your apps and the frameworks they depend on. If they have
-              unit or ui test targets you can define them too; even Swift
-              package dependencies.
+              Make maintaining projects everyone's task by describing them using
+              a plain language. And... no more Git conflicts!
             </p>
           </div>
           <ManifestWindow />
@@ -608,8 +607,8 @@ const Contribute = () => {
               <Link
                 to="/docs/contribution/getting-started/"
                 sx={{
-                  color: 'secondary',
-                  bg: lighten('secondary', 0.32),
+                  color: 'background',
+                  bg: lighten('secondary', 0.2),
                   '&:hover': { bg: lighten('secondary', 0.25) },
                 }}
                 className="inline-flex items-center justify-center px-5 py-3 border border-transparent text-base leading-6 font-medium rounded-md bg-indigo-100 hover:bg-indigo-50 focus:outline-none focus:shadow-outline focus:border-indigo-300 transition duration-150 ease-in-out"
