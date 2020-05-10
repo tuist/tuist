@@ -10,6 +10,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Added
 
+- Support for localized sources(e.g., .intentdefinition) [#1269](https://github.com/tuist/tuist/pull/1269) by [@Rag0n](https://github.com/Rag0n)
+
 ### Removed
 
 - Don't set the main and launch storyboard when using the default `InfoPlist` [#1289](https://github.com/tuist/tuist/pull/1289) by [@pepibumur](https://github.com/pepibumur)
