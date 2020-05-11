@@ -4,6 +4,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+## 1.8.0
+
 ### Changed
 
 - Read the Swift version from the environment [#1317](https://github.com/tuist/tuist/pull/1317) by [@pepibumur](https://github.com/pepibumur)
