@@ -1,5 +1,6 @@
 import Foundation
 import TuistCache
+import TuistCloud
 import TuistCore
 
 /// It defines an interface for providing the mappers to be used for a specific configuration.
@@ -20,12 +21,17 @@ final class GraphMapperProvider: GraphMapperProviding {
         SequentialGraphMapper(mappers(config: config))
     }
 
-    func mappers(config _: Config) -> [GraphMapping] {
+    func mappers(config: Config) -> [GraphMapping] {
         var mappers: [GraphMapping] = []
 
         // Cache
         if useCache {
             mappers.append(CacheMapper())
+        }
+
+        // Cloud
+        if let cloud = config.cloud, cloud.options.contains(.insights) {
+            mappers.append(CloudInsightsGraphMapper())
         }
 
         return mappers
