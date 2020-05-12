@@ -30,7 +30,7 @@ public struct Target: Equatable, Hashable {
     public let resources: [FileElement]
     public let headers: Headers?
     public let coreDataModels: [CoreDataModel]
-    public let actions: [TargetAction]
+    public private(set) var actions: [TargetAction]
     public let environment: [String: String]
     public let filesGroup: ProjectGroup
 
@@ -185,6 +185,14 @@ public struct Target: Equatable, Hashable {
     public func with(infoPlist: InfoPlist) -> Target {
         var copy = self
         copy.infoPlist = infoPlist
+        return copy
+    }
+
+    /// Returns a new copy of the target with the given actions.
+    /// - Parameter actions: Actions to be set to the copied instance.
+    public func with(actions: [TargetAction]) -> Target {
+        var copy = self
+        copy.actions = actions
         return copy
     }
 }

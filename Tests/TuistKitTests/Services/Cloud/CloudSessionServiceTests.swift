@@ -69,7 +69,7 @@ final class CloudSessionServiceTests: TuistUnitTestCase {
         // Given
         let cloudURL = URL.test()
         generatorModelLoader.mockConfig("") { (_) -> Config in
-            Config.test(cloud: Cloud(url: cloudURL, projectId: "123"))
+            Config.test(cloud: Cloud(url: cloudURL, projectId: "123", options: []))
         }
 
         // When
