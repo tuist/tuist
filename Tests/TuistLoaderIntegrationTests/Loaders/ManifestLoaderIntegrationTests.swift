@@ -107,7 +107,7 @@ final class ManifestLoaderTests: TuistTestCase {
         let temporaryPath = try self.temporaryPath()
         let content = """
         import ProjectDescription
-        
+
         let template = Template(
             description: "Template description"
         )

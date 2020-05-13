@@ -40,7 +40,7 @@ public class LibraryNode: PrecompiledNode {
         super.init(path: path)
     }
 
-    public override func hash(into hasher: inout Hasher) {
+    override public func hash(into hasher: inout Hasher) {
         super.hash(into: &hasher)
         hasher.combine(publicHeaders)
         hasher.combine(swiftModuleMap)
@@ -63,11 +63,11 @@ public class LibraryNode: PrecompiledNode {
             && linking == otherLibraryNode.linking
     }
 
-    public override var binaryPath: AbsolutePath {
+    override public var binaryPath: AbsolutePath {
         path
     }
 
-    public override func encode(to encoder: Encoder) throws {
+    override public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(path.pathString, forKey: .path)
         try container.encode(name, forKey: .name)
