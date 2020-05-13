@@ -264,10 +264,10 @@ final class InfoPlistContentProviderTests: XCTestCase {
         let lhsNSDictionary = NSDictionary(dictionary: lhs ?? [:])
         let rhsNSDictionary = NSDictionary(dictionary: rhs)
         let message = """
-        
+
         The dictionary:
         \(lhs ?? [:])
-        
+
         Is not equal to the expected dictionary:
         \(rhs)
         """
