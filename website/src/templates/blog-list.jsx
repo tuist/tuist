@@ -11,21 +11,28 @@ import urljoin from 'url-join'
 import moment from 'moment'
 import SEO from '../components/SEO'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faClock, faCalendarAlt, faUser } from '@fortawesome/free-regular-svg-icons'
+import {
+  faClock,
+  faCalendarAlt,
+  faUser,
+} from '@fortawesome/free-regular-svg-icons'
 
 const Post = ({ post, index, authors }) => {
-  const { theme } = useThemeUI();
+  const { theme } = useThemeUI()
   const authorHandle = post.frontmatter.author
   const author = findWhere(authors, { handle: authorHandle })
 
   return (
     <article sx={{ mt: index == 0 ? 0 : 5 }} key={index}>
       <header>
-
         <Link
           to={post.fields.slug}
           alt={`Open the blog post titled ${post.frontmatter.title}`}
-          sx={{ color: 'primary', textDecoration: 'none', "&:hover": { color: "secondary" } }}
+          sx={{
+            color: 'primary',
+            textDecoration: 'none',
+            '&:hover': { color: 'secondary' },
+          }}
         >
           <Styled.h2
             sx={{
@@ -50,10 +57,19 @@ const Post = ({ post, index, authors }) => {
               sx={{ path: { fill: theme.colors.gray }, height: 15, width: 15 }}
               icon={faCalendarAlt}
               size="sm"
-            /> {post.fields.date}
+            />{' '}
+            {post.fields.date}
           </span>
 
-          <span sx={{ ml: [0, 4] }}>
+          <span
+            sx={{
+              ml: [0, 4],
+              display: 'flex',
+              flexDirection: 'row',
+              flexWrap: 'nowrap',
+              alignItems: 'center',
+            }}
+          >
             <FontAwesomeIcon
               sx={{ path: { fill: theme.colors.gray }, height: 15, width: 15 }}
               icon={faUser}
@@ -78,7 +94,8 @@ const Post = ({ post, index, authors }) => {
               sx={{ path: { fill: theme.colors.gray }, height: 15, width: 15 }}
               icon={faClock}
               size="sm"
-            /> {post.timeToRead} min read
+            />{' '}
+            {post.timeToRead} min read
           </span>
         </div>
       </header>
@@ -150,7 +167,7 @@ const BlogList = ({
       <BlogJsonLd
         url={urljoin(siteUrl, '/blog')}
         headline="Tuist Blog"
-        posts={edges.map(edge => {
+        posts={edges.map((edge) => {
           const authorHandle = edge.node.frontmatter.author
           const author = findWhere(authors, { handle: authorHandle })
 

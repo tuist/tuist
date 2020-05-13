@@ -81,36 +81,26 @@ const Steroids = () => {
               alignItems: 'center',
             }}
           >
-            <div
-              sx={{
-                textAlign: 'center',
-                color: 'primary',
-                fontSize: [5, 6],
-                mb: 0,
-                fontWeight: '500',
-                lineHeight: 1.3,
-              }}
+            <h1
+              className="mt-2 text-3xl leading-8 font-extrabold tracking-tight sm:text-5xl sm:leading-10"
+              sx={{ color: 'text' }}
             >
               Xcode on steroids
-            </div>
+            </h1>
             <div
+              className="mt-3 text-3xl leading-8 font-extrabold tracking-tight sm:text-4xl sm:leading-10"
               sx={{
                 textAlign: 'center',
                 color: 'primary',
-                fontSize: [5, 6],
-                mt: 0,
-                fontWeight: 'heading',
-                lineHeight: 1.3,
               }}
             >
               <span>Easy</span> and <span>fast</span>
             </div>
             <div
+              className="mt-4 max-w-2xl text-xl leading-7 lg:mx-auto"
               sx={{
-                color: 'primary',
-                fontSize: [2, 3],
-                fontWeight: 'body',
-                mt: [4, 5],
+                color: 'gray',
+                mt: [4, 4],
                 textAlign: 'center',
               }}
             >
@@ -122,7 +112,10 @@ const Steroids = () => {
               link="/docs/usage/getting-started/"
             />
 
-            <div sx={{ color: 'secondary', mt: 4, textAlign: 'center' }}>
+            <div
+              sx={{ color: 'gray', mt: 5, textAlign: 'center' }}
+              className="mt-2 text-base leading-6"
+            >
               Trusted by the following companies and projects:
             </div>
             <div
@@ -135,7 +128,7 @@ const Steroids = () => {
             >
               <a href="https://soundcloud.com" target="__blank">
                 <Soundcloud
-                  sx={{ height: 30, path: { fill: theme.colors.secondary } }}
+                  sx={{ height: 30, path: { fill: theme.colors.gray } }}
                 />
               </a>
               <Devengo
@@ -143,7 +136,7 @@ const Steroids = () => {
                   ml: 3,
                   height: 30,
                   width: 150,
-                  path: { fill: theme.colors.secondary },
+                  path: { fill: theme.colors.gray },
                 }}
               />
               <a href="https://www.ackee.cz/en" target="__blank" sx={{ ml: 3 }}>
@@ -151,7 +144,7 @@ const Steroids = () => {
                   sx={{
                     height: 20,
                     width: 80,
-                    path: { fill: theme.colors.secondary },
+                    path: { fill: theme.colors.gray },
                   }}
                 />
               </a>
@@ -258,7 +251,7 @@ let project = Project.featureFramework(
 
 const Workspaces = () => {
   return (
-    <div sx={{ position: 'relative', overflow: 'hidden' }}>
+    <div sx={{ position: 'relative', overflow: 'hidden', mt: 5 }}>
       <Main>
         <div
           sx={{
@@ -331,94 +324,6 @@ const Feature = ({ color, name, description, children }) => {
   )
 }
 
-const Reflection = ({ name, avatarUrl, testimony, role, company }) => {
-  return (
-    <div
-      sx={{
-        bg: 'muted',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        ml: 3,
-        mb: [4, 0],
-        flex: '0 0 29%',
-      }}
-    >
-      <div sx={{ mt: 4, mb: 3, display: 'inherit' }}>
-        <img
-          src={avatarUrl}
-          alt={`${name} avatar`}
-          sx={{ bg: 'muted', width: 60, height: 60, borderRadius: 30, ml: 3 }}
-        />
-        <div
-          sx={{
-            position: 'relative',
-            top: 40,
-            right: 15,
-            bg: 'primary',
-            width: 20,
-            height: 20,
-            borderRadius: 20,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <Quote />
-        </div>
-      </div>
-      <div sx={{ fontSize: 0, color: 'primary', textTransform: 'uppercase' }}>
-        {name}
-      </div>
-      <div
-        sx={{
-          fontSize: 1,
-          textAlign: 'center',
-          color: 'text',
-          p: 3,
-        }}
-      >
-        {testimony}
-      </div>
-      <div sx={{ flex: 1 }} />
-      <div
-        sx={{
-          height: 50,
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'flex-start',
-          alignItems: 'stretch',
-          alignSelf: 'stretch',
-          mt: 2,
-        }}
-      >
-        <div
-          sx={{
-            height: 2,
-            bg: 'primary',
-            flex: '0 0 3px',
-            width: '30%',
-            alignSelf: 'center',
-          }}
-        />
-        <div sx={{ height: 1, bg: 'muted', flex: '0 0 1px' }} />
-        <div
-          sx={{
-            fontSize: 0,
-            color: 'primary',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            textAlign: 'center',
-            textTransform: 'uppercase',
-            py: 3,
-          }}
-        >{`${role} at ${company}`}</div>
-      </div>
-    </div>
-  )
-}
-
 const Testimonies = () => {
   const { theme } = useThemeUI()
   const testimonies = [
@@ -466,7 +371,7 @@ const Testimonies = () => {
         alignItems: 'stretch',
       }}
     >
-      <div sx={{ mb: [0, 0, 50], pb: [5, 5, 0] }}>
+      <div>
         <Main py="0">
           <div
             sx={{
@@ -520,16 +425,14 @@ const Testimonies = () => {
                         y={0}
                         width={4}
                         height={4}
-                        sx={{ path: { fill: theme.colors.muted } }}
-                        className="text-gray-200"
-                        fill="currentColor"
+                        fill={theme.colors.muted}
                       />
                     </pattern>
                   </defs>
                   <rect
                     width={784}
                     height={404}
-                    fill="url(#e56e3f81-d9c1-4b83-a3ba-0d0ac8c32f32)"
+                    fill={'url(#56409614-3d62-4985-9a10-7ca758a8f4f0)'}
                   />
                 </svg>
                 <svg
@@ -554,14 +457,14 @@ const Testimonies = () => {
                         width={4}
                         height={4}
                         className="text-gray-200"
-                        fill="currentColor"
+                        fill={theme.colors.muted}
                       />
                     </pattern>
                   </defs>
                   <rect
                     width={404}
                     height={784}
-                    fill="url(#56409614-3d62-4985-9a10-7ca758a8f4f0)"
+                    fill={'url(#56409614-3d62-4985-9a10-7ca758a8f4f0)'}
                   />
                 </svg>
                 <div className="relative lg:flex lg:items-center">
@@ -574,8 +477,8 @@ const Testimonies = () => {
                   </div>
                   <div className="relative lg:ml-10">
                     <svg
-                      className="absolute top-0 left-0 transform -translate-x-8 -translate-y-24 h-36 w-36 text-indigo-200 opacity-50"
-                      stroke="currentColor"
+                      className="absolute top-0 left-0 transform -translate-x-8 -translate-y-24 h-36 w-36 opacity-25"
+                      stroke={theme.colors.primary}
                       fill="none"
                       viewBox="0 0 144 144"
                     >
@@ -596,7 +499,7 @@ const Testimonies = () => {
                           <div className="flex-shrink-0 lg:hidden">
                             <img
                               className="h-12 w-12 rounded-full"
-                              src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80"
+                              src={testimony.avatarUrl}
                               alt=""
                             />
                           </div>
@@ -632,7 +535,7 @@ const Contribute = () => {
   return (
     <Main>
       <div sx={{ bg: 'background' }}>
-        <div className="max-w-screen-xl mx-auto text-center py-12 px-4 sm:px-6 lg:py-16 lg:px-8">
+        <div className="max-w-screen-xl mx-auto text-center py-20 px-4 sm:px-6 lg:py-16 lg:px-8">
           <h2
             className="text-3xl leading-9 font-extrabold tracking-tight sm:text-4xl sm:leading-10"
             sx={{ color: 'text' }}
