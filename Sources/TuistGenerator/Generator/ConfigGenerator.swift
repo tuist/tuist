@@ -10,6 +10,7 @@ protocol ConfigGenerating: AnyObject {
                                fileElements: ProjectFileElements) throws -> XCConfigurationList
 
     func generateTargetConfig(_ target: Target,
+                              project: Project,
                               pbxTarget: PBXTarget,
                               pbxproj: PBXProj,
                               projectSettings: Settings,
@@ -57,6 +58,7 @@ final class ConfigGenerator: ConfigGenerating {
     }
 
     func generateTargetConfig(_ target: Target,
+                              project: Project,
                               pbxTarget: PBXTarget,
                               pbxproj: PBXProj,
                               projectSettings: Settings,
@@ -87,6 +89,7 @@ final class ConfigGenerator: ConfigGenerating {
         let swiftVersion = try System.shared.swiftVersion()
         try orderedConfigurations.forEach {
             try generateTargetSettingsFor(target: target,
+                                          project: project,
                                           buildConfiguration: $0.key,
                                           configuration: $0.value,
                                           fileElements: fileElements,
@@ -127,6 +130,7 @@ final class ConfigGenerator: ConfigGenerating {
     }
 
     private func generateTargetSettingsFor(target: Target,
+                                           project: Project,
                                            buildConfiguration: BuildConfiguration,
                                            configuration: Configuration?,
                                            fileElements: ProjectFileElements,
@@ -137,6 +141,7 @@ final class ConfigGenerator: ConfigGenerating {
                                            sourceRootPath: AbsolutePath) throws {
         let settingsHelper = SettingsHelper()
         var settings = try defaultSettingsProvider.targetSettings(target: target,
+                                                                  project: project,
                                                                   buildConfiguration: buildConfiguration)
         updateTargetDerived(buildSettings: &settings,
                             target: target,

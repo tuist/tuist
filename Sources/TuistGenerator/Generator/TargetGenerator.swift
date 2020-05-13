@@ -6,6 +6,7 @@ import XcodeProj
 
 protocol TargetGenerating: AnyObject {
     func generateTarget(target: Target,
+                        project: Project,
                         pbxproj: PBXProj,
                         pbxProject: PBXProject,
                         projectSettings: Settings,
@@ -44,6 +45,7 @@ final class TargetGenerator: TargetGenerating {
 
     // swiftlint:disable:next function_body_length
     func generateTarget(target: Target,
+                        project: Project,
                         pbxproj: PBXProj,
                         pbxProject: PBXProject,
                         projectSettings: Settings,
@@ -75,6 +77,7 @@ final class TargetGenerator: TargetGenerating {
 
         /// Build configuration
         try configGenerator.generateTargetConfig(target,
+                                                 project: project,
                                                  pbxTarget: pbxTarget,
                                                  pbxproj: pbxproj,
                                                  projectSettings: projectSettings,

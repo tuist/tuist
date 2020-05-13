@@ -137,10 +137,12 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
 
     func test_generateTargetWithDeploymentTarget_whenIOS() throws {
         // Given
+        let project = Project.test()
         let target = Target.test(deploymentTarget: .iOS("12.0", [.iphone, .ipad]))
 
         // When
         try subject.generateTargetConfig(target,
+                                         project: project,
                                          pbxTarget: pbxTarget,
                                          pbxproj: pbxproj,
                                          projectSettings: .default,
@@ -164,10 +166,12 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
 
     func test_generateTargetWithDeploymentTarget_whenMac() throws {
         // Given
+        let project = Project.test()
         let target = Target.test(deploymentTarget: .macOS("10.14.1"))
 
         // When
         try subject.generateTargetConfig(target,
+                                         project: project,
                                          pbxTarget: pbxTarget,
                                          pbxproj: pbxproj,
                                          projectSettings: .default,
@@ -190,10 +194,12 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
 
     func test_generateTargetWithDeploymentTarget_whenCatalyst() throws {
         // Given
+        let project = Project.test()
         let target = Target.test(deploymentTarget: .iOS("13.1", [.iphone, .ipad, .mac]))
 
         // When
         try subject.generateTargetConfig(target,
+                                         project: project,
                                          pbxTarget: pbxTarget,
                                          pbxproj: pbxproj,
                                          projectSettings: .default,
@@ -259,10 +265,12 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
             .debug("AnotherDebug"): nil,
             .release("CustomRelease"): nil,
         ])
+        let project = Project.test()
         let target = Target.test()
 
         // When
         try subject.generateTargetConfig(target,
+                                         project: project,
                                          pbxTarget: pbxTarget,
                                          pbxproj: pbxproj,
                                          projectSettings: projectSettings,
@@ -281,10 +289,12 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
             .debug("CustomDebug"): nil,
             .debug("AnotherDebug"): nil,
         ])
+        let project = Project.test()
         let target = Target.test()
 
         // When
         try subject.generateTargetConfig(target,
+                                         project: project,
                                          pbxTarget: pbxTarget,
                                          pbxproj: pbxproj,
                                          projectSettings: projectSettings,
@@ -357,6 +367,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
                                               pbxproj: pbxproj,
                                               sourceRootPath: project.path)
         _ = try subject.generateTargetConfig(target,
+                                             project: project,
                                              pbxTarget: pbxTarget,
                                              pbxproj: pbxproj,
                                              projectSettings: project.settings,
@@ -379,6 +390,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         let graph = Graph.test(entryNodes: [appTargetNode, testTargetNode])
 
         _ = try subject.generateTargetConfig(target,
+                                             project: project,
                                              pbxTarget: pbxTarget,
                                              pbxproj: pbxproj,
                                              projectSettings: project.settings,

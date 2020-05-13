@@ -177,6 +177,7 @@ final class ProjectGenerator: ProjectGenerating {
         var nativeTargets: [String: PBXNativeTarget] = [:]
         try project.targets.forEach { target in
             let nativeTarget = try targetGenerator.generateTarget(target: target,
+                                                                  project: project,
                                                                   pbxproj: pbxproj,
                                                                   pbxProject: pbxProject,
                                                                   projectSettings: project.settings,
