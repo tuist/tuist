@@ -786,6 +786,175 @@ const Principles = () => {
   )
 }
 
+const Videos = () => {
+  const { theme } = useThemeUI()
+  return (
+    <Main>
+      <div className="py-12" sx={{ bg: 'background' }}>
+        <div className="max-w-screen-xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="lg:text-center">
+            <p
+              className="text-base leading-6 font-semibold tracking-wide uppercase"
+              sx={{ color: 'primary' }}
+            >
+              Videos
+            </p>
+            <h3
+              className="mt-2 text-3xl leading-8 font-extrabold tracking-tight sm:text-4xl sm:leading-10"
+              sx={{ color: 'text' }}
+            >
+              A video is worth a thousand words
+            </h3>
+            <p
+              className="mt-4 max-w-2xl text-xl leading-7 lg:mx-auto"
+              sx={{ color: 'gray' }}
+            >
+              Watch our series of videos that explain different features of
+              Tuist.
+            </p>
+          </div>
+          <div className="mt-12 grid gap-5 max-w-lg mx-auto lg:grid-cols-2 lg:max-w-none">
+            <div className="flex flex-col rounded-lg shadow-lg overflow-hidden">
+              <div className="flex-shrink-0">
+                <img
+                  className="h-48 w-full object-cover"
+                  src="https://i.ytimg.com/vi/wCVPWJvJGng/maxresdefault.jpg"
+                  alt=""
+                />
+              </div>
+              <div
+                className="flex-1 p-6 flex flex-col justify-between"
+                sx={{ bg: 'background' }}
+              >
+                <div className="flex-1">
+                  <p
+                    className="text-sm leading-5 font-medium"
+                    sx={{ color: 'primary' }}
+                  >
+                    Video
+                  </p>
+                  <a
+                    href="https://www.youtube.com/watch?v=wCVPWJvJGng"
+                    target="__blank"
+                    className="block"
+                  >
+                    <h3
+                      className="mt-2 text-xl leading-7 font-semibold"
+                      sx={{ color: 'text' }}
+                    >
+                      Introduction to Tuist
+                    </h3>
+                    <p
+                      className="mt-3 text-base leading-6"
+                      sx={{ color: 'gray' }}
+                    >
+                      In this video, I give a quick introduction to Tuist. I
+                      talk about how to install the tool and bootstrap a new
+                      modular app using the init command. Moreover, I show how
+                      to use the focus command to generate and open and Xcode
+                      project, as well as how to use "tuist edit" to edit the
+                      manifest files using Xcode.
+                    </p>
+                  </a>
+                </div>
+                <div className="mt-6 flex items-center">
+                  <div className="flex-shrink-0">
+                    <img
+                      className="h-10 w-10 rounded-full"
+                      src="https://avatars3.githubusercontent.com/u/663605?s=460&v=4"
+                      alt=""
+                    />
+                  </div>
+                  <div className="ml-3">
+                    <p
+                      className="text-sm leading-5 font-medium"
+                      sx={{ color: 'text' }}
+                    >
+                      Pedro Piñera
+                    </p>
+                    <div
+                      className="flex text-sm leading-5"
+                      sx={{ color: 'gray' }}
+                    >
+                      <time dateTime="2020-03-16">May 7, 2020</time>
+                      <span className="mx-1">·</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="flex flex-col rounded-lg shadow-lg overflow-hidden">
+              <div className="flex-shrink-0">
+                <img
+                  className="h-48 w-full object-cover"
+                  src="https://i.ytimg.com/vi/KHDNKdSKnkw/maxresdefault.jpg"
+                  alt=""
+                />
+              </div>
+              <div
+                className="flex-1 p-6 flex flex-col justify-between"
+                sx={{ bg: 'background' }}
+              >
+                <div className="flex-1">
+                  <p
+                    className="text-sm leading-5 font-medium"
+                    sx={{ color: 'primary' }}
+                  >
+                    Video
+                  </p>
+                  <a
+                    href="https://www.youtube.com/watch?v=KHDNKdSKnkw"
+                    target="__blank"
+                    className="block"
+                  >
+                    <h3
+                      className="mt-2 text-xl leading-7 font-semibold"
+                      sx={{ color: 'text' }}
+                    >
+                      Defining dependencies in Tuist
+                    </h3>
+                    <p
+                      className="mt-3 text-base leading-6"
+                      sx={{ color: 'gray' }}
+                    >
+                      In this video I talk about the DSL that Tuist exposes to
+                      define dependencies easy and consistently.
+                    </p>
+                  </a>
+                </div>
+                <div className="mt-6 flex items-center">
+                  <div className="flex-shrink-0">
+                    <img
+                      className="h-10 w-10 rounded-full"
+                      src="https://avatars3.githubusercontent.com/u/663605?s=460&v=4"
+                      alt=""
+                    />
+                  </div>
+                  <div className="ml-3">
+                    <p
+                      className="text-sm leading-5 font-medium"
+                      sx={{ color: 'text' }}
+                    >
+                      Pedro Piñera
+                    </p>
+                    <div
+                      className="flex text-sm leading-5"
+                      sx={{ color: 'gray' }}
+                    >
+                      <time dateTime="2020-03-16">May 13, 2020</time>
+                      <span className="mx-1">·</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Main>
+  )
+}
+
 const IndexPage = () => {
   return (
     <Layout>
@@ -793,6 +962,7 @@ const IndexPage = () => {
       <Steroids />
       <Workspaces />
       <Principles />
+      <Videos />
       <Testimonies />
       <Contribute />
     </Layout>
