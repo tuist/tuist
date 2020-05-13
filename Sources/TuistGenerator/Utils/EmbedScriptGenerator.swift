@@ -33,7 +33,9 @@ struct EmbedScript {
 final class EmbedScriptGenerator: EmbedScriptGenerating {
     typealias FrameworkScript = (script: String, inputPaths: [RelativePath], outputPaths: [String])
 
-    func script(sourceRootPath: AbsolutePath, frameworkReferences: [GraphDependencyReference], includeSymbolsInFileLists: Bool) throws -> EmbedScript {
+    func script(sourceRootPath: AbsolutePath,
+                frameworkReferences: [GraphDependencyReference],
+                includeSymbolsInFileLists: Bool) throws -> EmbedScript {
         var script = baseScript()
         script.append("\n")
 

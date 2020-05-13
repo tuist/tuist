@@ -65,7 +65,7 @@ class UpMint: Up, GraphInitiatable {
         let output = try FileHandler.shared.readTextFile(mintfile)
         let packages = output.split(separator: "\n")
         for package in packages {
-            guard let _ = try? System.shared.capture(["mint", "which", "\(package)"]) else {
+            if (try? System.shared.capture(["mint", "which", "\(package)"])) == nil {
                 return false
             }
         }
