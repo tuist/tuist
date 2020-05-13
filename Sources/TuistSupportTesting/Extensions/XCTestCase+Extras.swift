@@ -40,7 +40,7 @@ public extension XCTestCase {
         The standard output:
         ===========
         \(standardOutput)
-        
+
         Doesn't contain the expected output:
         ===========
         \(pattern)
