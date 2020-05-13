@@ -1,17 +1,32 @@
 /** @jsx jsx */
-import { jsx, Styled } from 'theme-ui'
-import { withPrefix, useStaticQuery, graphql, Link } from 'gatsby'
-import Margin from './margin'
+import { jsx, Styled, useThemeUI } from 'theme-ui'
+import { useStaticQuery, graphql, Link } from 'gatsby'
+import {
+  faDiscourse,
+  faGithub,
+  faTwitter,
+} from '@fortawesome/free-brands-svg-icons'
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 
 export default () => {
+  const { theme } = useThemeUI()
+
   const {
     site: {
-      siteMetadata: { githubUrl, slackUrl, releasesUrl },
+      siteMetadata: {
+        githubUrl,
+        slackUrl,
+        releasesUrl,
+        discourseUrl,
+        twitterUrl,
+      },
     },
   } = useStaticQuery(graphql`
     query {
       site {
         siteMetadata {
+          twitterUrl
+          discourseUrl
           githubUrl
           slackUrl
           releasesUrl
@@ -19,148 +34,116 @@ export default () => {
       }
     }
   `)
-  const copyrightMessage =
-    'Tuist © Copyright 2019. All rights reserved. Crafted with ♥ by Pedro Piñera & the contributors.'
-  const linkStyle = {
-    textDecoration: 'none',
-    fontSize: 2,
-    color: 'primary',
-    "&:hover": {
-      color: 'secondary'
-    }
-  }
   return (
-    <footer sx={{ py: 3, bg: 'muted', flex: 1 }}>
-      <Margin>
-        <div
-          sx={{
-            display: 'flex',
-            alignItems: 'center',
-            flexDirection: 'column',
-            flex: 1,
-          }}
-        >
-          <div
-            sx={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              flexDirection: ['column', 'row'],
-              flex: 1,
-              alignSelf: 'stretch',
-            }}
-          >
-            <div
-              sx={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-              }}
-            >
-              <div
-                sx={{
-                  display: 'flex',
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                }}
+    <footer>
+      <div sx={{ bg: 'background' }}>
+        <div className="max-w-screen-xl mx-auto py-12 px-4 overflow-hidden sm:px-6 lg:px-8">
+          <nav className="-mx-5 -my-2 flex flex-wrap justify-center">
+            <div className="px-5 py-2">
+              <Link
+                to="/blog"
+                className="text-base leading-6"
+                sx={{ color: 'gray', ':hover': { color: 'primary' } }}
               >
-                <img
-                  src={withPrefix('logo.svg')}
-                  sx={{ height: 30, width: 30 }}
-                  alt="Tuist's logotype"
-                />
-                <Styled.h2 sx={{ color: 'text', ml: 2, my: 0 }}>
-                  Tuist
-                </Styled.h2>
-              </div>
-            </div>
-            <div
-              sx={{
-                mt: [3, 0],
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-              }}
-            >
-              <Styled.h2 sx={{ color: 'text', mb: 9, mt: 0 }}>
-                Documentation
-              </Styled.h2>
-              <Link to="/docs/usage/getting-started/" sx={linkStyle}>
-                Getting started
-              </Link>
-              <Link to="/docs/usage/projectswift/" sx={linkStyle}>
-                Manifest specification
-              </Link>
-              <Link to="/docs/usage/dependencies/" sx={linkStyle}>
-                Dependencies
-              </Link>
-              <Link to="/docs/contribution/tuist/" sx={linkStyle}>
-                Contributors
-              </Link>
-              <div
-                sx={{
-                  fontSize: 1,
-                  mt: 3,
-                  display: ['none', 'block'],
-                  color: 'gray',
-                  textAlign: 'center'
-                }}
-              >
-                {copyrightMessage}
-              </div>
-            </div>
-            <div
-              sx={{
-                mt: [3, 0],
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-              }}
-            >
-              <Styled.h2 sx={{ color: 'text', mb: 9, mt: [3, 0] }}>
-                Other
-              </Styled.h2>
-              <a
-                sx={linkStyle}
-                target="__blank"
-                href={githubUrl}
-                alt="Opens the Tuist's organizqtion on GitHub"
-              >
-                GitHub
-              </a>
-              <a
-                sx={linkStyle}
-                target="__blank"
-                href={slackUrl}
-                alt="Join the Slack group"
-              >
-                Slack
-              </a>
-              <Link to="/blog" sx={linkStyle}>
                 Blog
               </Link>
-              <a
-                sx={linkStyle}
+            </div>
+            <div className="px-5 py-2">
+              <Link
+                alt="Opens the project documentation/"
+                to="/docs/usage/getting-started/"
+                className="text-base leading-6"
+                sx={{ color: 'gray', ':hover': { color: 'primary' } }}
+              >
+                Documentation
+              </Link>
+            </div>
+            <div className="px-5 py-2">
+              <Link
+                to="/faq"
+                alt="Opens the frequently asked questions section"
                 target="__blank"
+                className="text-base leading-6"
+                sx={{ color: 'gray', ':hover': { color: 'primary' } }}
+              >
+                FAQ
+              </Link>
+            </div>
+            <div className="px-5 py-2">
+              <a
                 href={releasesUrl}
-                alt="Check out the releases on GitHub"
+                alt="Opens the releases page."
+                target="__blank"
+                className="text-base leading-6"
+                sx={{ color: 'gray', ':hover': { color: 'primary' } }}
               >
                 Releases
               </a>
             </div>
-            <div
-              sx={{
-                fontSize: 1,
-                mt: 3,
-                display: ['block', 'none'],
-                textAlign: 'center',
-                color: 'gray'
-              }}
+          </nav>
+          <div className="mt-8 flex justify-center">
+            <a
+              href={twitterUrl}
+              target="__blank"
+              alt="Opens the Twitter account of Tuist"
+              className="ml-6 text-gray-400 hover:text-gray-500"
             >
-              {copyrightMessage}
-            </div>
+              <span className="sr-only">Twitter</span>
+              <FontAwesomeIcon
+                sx={{
+                  mt: -1,
+                  path: { fill: theme.colors.gray },
+                  '&:hover': { path: { fill: theme.colors.primary } },
+                }}
+                icon={faTwitter}
+                size="lg"
+              />
+            </a>
+            <a
+              href={githubUrl}
+              target="__blank"
+              alt="Opens the Tuist organization on GitHub"
+              className="ml-6 text-gray-400 hover:text-gray-500"
+            >
+              <span className="sr-only">GitHub</span>
+              <FontAwesomeIcon
+                sx={{
+                  mt: -1,
+                  path: { fill: theme.colors.gray },
+                  '&:hover': { path: { fill: theme.colors.primary } },
+                }}
+                icon={faGithub}
+                size="lg"
+              />
+            </a>
+            <a
+              href={discourseUrl}
+              target="__blank"
+              alt="Opens the community forum"
+              className="ml-6 text-gray-400 hover:text-gray-500"
+            >
+              <span className="sr-only">Community</span>
+              <FontAwesomeIcon
+                sx={{
+                  mt: -1,
+                  path: { fill: theme.colors.gray },
+                  '&:hover': { path: { fill: theme.colors.primary } },
+                }}
+                icon={faDiscourse}
+                size="lg"
+              />
+            </a>
+          </div>
+          <div className="mt-8">
+            <p
+              className="text-center text-base leading-6"
+              sx={{ color: 'gray' }}
+            >
+              Tuist © Copyright 2020. All rights reserved.
+            </p>
           </div>
         </div>
-      </Margin>
+      </div>
     </footer>
   )
 }
