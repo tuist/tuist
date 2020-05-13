@@ -4,7 +4,7 @@ import XCTest
 
 final class CloudTests: XCTestCase {
     func test_config_toJSON() throws {
-        let cloud = Cloud(url: "https://tuist.io", projectId: "123")
+        let cloud = Cloud(url: "https://tuist.io", projectId: "123", options: [.insights])
         XCTAssertCodable(cloud)
     }
 }
