@@ -32,7 +32,7 @@ public final class RootDirectoryLocator: RootDirectoryLocating {
         } else if fileHandler.exists(path.appending(RelativePath(Constants.tuistDirectoryName))) {
             cache(rootDirectory: path, for: source)
             return path
-        } else if fileHandler.exists(path.appending(RelativePath(".git"))) {
+        } else if fileHandler.isFolder(path.appending(RelativePath(".git"))) {
             cache(rootDirectory: path, for: source)
             return path
         } else if !path.isRoot {
