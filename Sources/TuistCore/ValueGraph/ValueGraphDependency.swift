@@ -23,13 +23,13 @@ enum ValueGraphDependency: Hashable {
     case library(
         path: AbsolutePath,
         publicHeaders: AbsolutePath,
-        architectures: [BinaryArchitecture],
         linking: BinaryLinking,
+        architectures: [BinaryArchitecture],
         swiftModuleMap: AbsolutePath?
     )
 
     /// A dependency that represents a package product.
-    case packageProduct(product: String, path: AbsolutePath)
+    case packageProduct(path: AbsolutePath, product: String)
 
     /// A dependency that represents a target that is defined in the project at the given path.
     case target(name: String, path: AbsolutePath)
@@ -42,9 +42,9 @@ enum ValueGraphDependency: Hashable {
             hasher.combine(path)
         case let .library(path, _, _, _, _):
             hasher.combine(path)
-        case let .packageProduct(product, path):
-            hasher.combine(product)
+        case let .packageProduct(path, product):
             hasher.combine(path)
+            hasher.combine(product)
         case let .target(name, path):
             hasher.combine(name)
             hasher.combine(path)
