@@ -21,4 +21,11 @@ public extension Settings {
                      configurations: [BuildConfiguration: Configuration?] = [:]) -> Settings {
         Settings(base: base, configurations: configurations)
     }
+
+    static func test(defaultSettings: DefaultSettings) -> Settings {
+        Settings(base: [:],
+                 configurations: [.debug: Configuration(settings: [:]),
+                                  .release: Configuration(settings: [:])],
+                 defaultSettings: defaultSettings)
+    }
 }
