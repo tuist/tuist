@@ -15,10 +15,11 @@ import posed from 'react-pose'
 import Code from '../gatsby-plugin-theme-ui/code'
 import SEO from '../components/SEO'
 import Soundcloud from '../../assets/soundcloud.svg'
+import Houzz from '../../assets/houzz.svg'
 import Devengo from '../../assets/devengo.svg'
 import Ackee from '../../assets/ackee.svg'
-import { darken, lighten } from '@theme-ui/color'
-import Carousel, { Dots } from '@brainhubeu/react-carousel'
+import { lighten } from '@theme-ui/color'
+import Carousel from '@brainhubeu/react-carousel'
 import '@brainhubeu/react-carousel/lib/style.css'
 import { TwitterTweetEmbed } from 'react-twitter-embed'
 import { useResponsiveValue } from '@theme-ui/match-media'
@@ -136,6 +137,16 @@ const Steroids = () => {
                   path: { fill: theme.colors.gray },
                 }}
               />
+              {/* <a href="https://www.houzz.com/" target="__blank" sx={{ ml: 3 }}>
+                <Houzz
+                  sx={{
+                    height: 22,
+                    width: 110,
+                    path: { fill: theme.colors.gray },
+                    polygon: { fill: theme.colors.gray },
+                  }}
+                />
+              </a> */}
               <a href="https://www.ackee.cz/en" target="__blank" sx={{ ml: 3 }}>
                 <Ackee
                   sx={{
@@ -348,6 +359,15 @@ const Testimonies = () => {
       company: 'Sky',
       avatarUrl:
         'https://en.gravatar.com/userimage/41347978/456ffd8f0ef3f52c6e38f9003f4c51fa.jpg?size=460',
+    },
+    {
+      name: 'Natan Rolnik',
+      testimony:
+        'Tuist brings many advantages to our routines when working with Xcode. The first is saying goodbye to Xcode project merge conflicts, which is a result of the project generation. We don’t need to stop using Xcode, on the contrary, we take the good parts, and leave the complicated ones to Tuist: dealing with targets’ dependencies, declaring Swift packages or xcframeworks, and structuring our source files in a more organized way towards a better modularization.\n\nWe’re looking forward to use Tuist’s upcoming caching feature, which will drastically improve build times, in our workflow and in the CI.',
+      role: 'iOS infrastructure',
+      company: 'Houzz',
+      avatarUrl:
+        'https://gravatar.com/avatar/c7af4f539e54c0c2b159b8d35c506306?s=600',
     },
     {
       name: 'Tyler Neveldine',
