@@ -137,7 +137,7 @@ const Steroids = () => {
                   path: { fill: theme.colors.gray },
                 }}
               />
-              <a href="https://www.houzz.com/" target="__blank" sx={{ ml: 3 }}>
+              {/* <a href="https://www.houzz.com/" target="__blank" sx={{ ml: 3 }}>
                 <Houzz
                   sx={{
                     height: 22,
@@ -146,7 +146,7 @@ const Steroids = () => {
                     polygon: { fill: theme.colors.gray },
                   }}
                 />
-              </a>
+              </a> */}
               <a href="https://www.ackee.cz/en" target="__blank" sx={{ ml: 3 }}>
                 <Ackee
                   sx={{
