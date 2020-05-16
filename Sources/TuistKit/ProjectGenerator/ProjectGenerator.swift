@@ -11,7 +11,6 @@ protocol ProjectGenerating {
 }
 
 class ProjectGenerator: ProjectGenerating {
-    private let manifestLoader: ManifestLoading = ManifestLoader()
     private let manifestLinter: ManifestLinting = ManifestLinter()
     private let graphLinter: GraphLinting = GraphLinter()
     private let environmentLinter: EnvironmentLinting = EnvironmentLinter()
@@ -23,13 +22,17 @@ class ProjectGenerator: ProjectGenerating {
     private let graphLoader: GraphLoading
     private let sideEffectDescriptorExecutor: SideEffectDescriptorExecuting
     private let graphMapperProvider: GraphMapperProviding
+    private let manifestLoader: ManifestLoading
 
-    init(graphMapperProvider: GraphMapperProviding = GraphMapperProvider(useCache: false)) {
+    init(graphMapperProvider: GraphMapperProviding = GraphMapperProvider(useCache: false),
+         manifestLoaderFactory: ManifestLoaderFactory = ManifestLoaderFactory()) {
+        let manifestLoader = manifestLoaderFactory.createManifestLoader()
         modelLoader = GeneratorModelLoader(manifestLoader: manifestLoader,
                                            manifestLinter: manifestLinter)
         graphLoader = GraphLoader(modelLoader: modelLoader)
         sideEffectDescriptorExecutor = SideEffectDescriptorExecutor()
         self.graphMapperProvider = graphMapperProvider
+        self.manifestLoader = manifestLoader
     }
 
     func generate(path: AbsolutePath, projectOnly: Bool) throws -> AbsolutePath {
