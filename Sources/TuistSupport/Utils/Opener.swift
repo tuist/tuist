@@ -27,6 +27,7 @@ enum OpeningError: FatalError, Equatable {
 }
 
 public protocol Opening: AnyObject {
+    func open(path: AbsolutePath, wait: Bool) throws
     func open(path: AbsolutePath) throws
     func open(url: URL) throws
     func open(target: String, wait: Bool) throws
@@ -37,11 +38,15 @@ public class Opener: Opening {
 
     // MARK: - Opening
 
-    public func open(path: AbsolutePath) throws {
+    public func open(path: AbsolutePath, wait: Bool) throws {
         if !FileHandler.shared.exists(path) {
             throw OpeningError.notFound(path)
         }
-        try open(target: path.pathString, wait: false)
+        try open(target: path.pathString, wait: wait)
+    }
+
+    public func open(path: AbsolutePath) throws {
+        try open(path: path, wait: false)
     }
 
     public func open(url: URL) throws {
