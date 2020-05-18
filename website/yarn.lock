@@ -7877,10 +7877,10 @@ gatsby-recipes@^0.1.15:
     ws "^7.2.5"
     xstate "^4.9.1"
 
-gatsby-redirect-from@^0.2.1:
-  version "0.2.1"
-  resolved "https://registry.yarnpkg.com/gatsby-redirect-from/-/gatsby-redirect-from-0.2.1.tgz#d5041f8730348d4652f1a8a752bca1cf7e86bc75"
-  integrity sha512-GLDM1hwOaeh95QFibTMuZORxXUrDXbSX+JOGjLDldDNC2KD8uILO0MNnwqf2UOXytD+5eTHaJAGLNiUjvWOKaw==
+gatsby-redirect-from@^0.2.2:
+  version "0.2.2"
+  resolved "https://registry.yarnpkg.com/gatsby-redirect-from/-/gatsby-redirect-from-0.2.2.tgz#43c4c010b1a4ba18057c59767af50be2275f6fa4"
+  integrity sha512-QoSpqtZdFaU/ISiojf7sMSAQp4CWSxxhSecEh7z7wYSqxwxpYiA+w64zKNgaudXIJ3B6m52CJB2zvVZFzkra9Q==
 
 gatsby-remark-check-links@^2.1.0:
   version "2.1.0"
