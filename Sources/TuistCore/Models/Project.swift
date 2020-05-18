@@ -11,7 +11,6 @@ public struct Project: Equatable, CustomStringConvertible {
             lhs.targets == rhs.targets &&
             lhs.packages == rhs.packages &&
             lhs.schemes == rhs.schemes &&
-            lhs.autogenerateSchemes == rhs.autogenerateSchemes &&
             lhs.settings == rhs.settings &&
             lhs.filesGroup == rhs.filesGroup &&
             lhs.additionalFiles == rhs.additionalFiles
@@ -39,9 +38,6 @@ public struct Project: Equatable, CustomStringConvertible {
 
     /// Project schemes
     public var schemes: [Scheme]
-
-    /// Auto generate default schemes
-    public var autogenerateSchemes: Bool
 
     /// Project settings.
     public var settings: Settings
@@ -74,7 +70,6 @@ public struct Project: Equatable, CustomStringConvertible {
                 targets: [Target] = [],
                 packages: [Package] = [],
                 schemes: [Scheme] = [],
-                autogenerateSchemes: Bool = true,
                 additionalFiles: [FileElement] = []) {
         self.path = path
         self.name = name
@@ -83,7 +78,6 @@ public struct Project: Equatable, CustomStringConvertible {
         self.targets = targets
         self.packages = packages
         self.schemes = schemes
-        self.autogenerateSchemes = autogenerateSchemes
         self.settings = settings
         self.filesGroup = filesGroup
         self.additionalFiles = additionalFiles
@@ -144,7 +138,13 @@ public struct Project: Equatable, CustomStringConvertible {
                 targets: targets,
                 packages: packages,
                 schemes: schemes,
-                autogenerateSchemes: autogenerateSchemes,
                 additionalFiles: additionalFiles)
+    }
+
+    /// Returns the name of the default configuration.
+    public var defaultDebugBuildConfigurationName: String {
+        let debugConfiguration = settings.defaultDebugBuildConfiguration()
+        let buildConfiguration = debugConfiguration ?? settings.configurations.keys.first
+        return buildConfiguration?.name ?? BuildConfiguration.debug.name
     }
 }
