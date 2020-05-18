@@ -600,39 +600,6 @@ final class SchemesGeneratorTests: XCTestCase {
         XCTAssertEqual(result.revealArchiveInOrganizer, true)
     }
 
-    func test_schemeGenerationModes_default() throws {
-        // Given
-        let app = Target.test(name: "App", product: .app)
-        let framework = Target.test(name: "Framework", product: .framework)
-        let unitTests = Target.test(name: "AppTests", product: .unitTests)
-        let uiTests = Target.test(name: "AppUITests", product: .uiTests)
-        let project = Project.test(targets: [app, framework, unitTests, uiTests])
-
-        let graph = Graph.create(
-            project: project,
-            dependencies: [
-                (target: app, dependencies: [framework]),
-                (target: framework, dependencies: []),
-                (target: unitTests, dependencies: [app]),
-                (target: uiTests, dependencies: [app]),
-            ]
-        )
-
-        // When
-        let result = try subject.generateProjectSchemes(project: project,
-                                                        generatedProject: generatedProject(targets: project.targets),
-                                                        graph: graph)
-
-        // Then
-        let schemes = result.map(\.xcScheme.name)
-        XCTAssertEqual(schemes, [
-            "App",
-            "Framework",
-            "AppTests",
-            "AppUITests",
-        ])
-    }
-
     func test_schemeGenerationModes_customOnly() throws {
         // Given
         let app = Target.test(name: "App", product: .app)

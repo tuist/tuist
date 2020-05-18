@@ -21,6 +21,7 @@ extension TuistCore.Project {
         return Project(path: generatorPaths.manifestDirectory,
                        name: name,
                        organizationName: organizationName,
+                       fileName: nil,
                        settings: settings ?? .default,
                        filesGroup: .group(name: "Project"),
                        targets: targets,

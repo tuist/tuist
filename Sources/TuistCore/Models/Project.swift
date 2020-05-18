@@ -63,14 +63,14 @@ public struct Project: Equatable, CustomStringConvertible {
     ///                      *(Those won't be included in any build phases)*
     public init(path: AbsolutePath,
                 name: String,
-                organizationName: String? = nil,
-                fileName: String? = nil,
+                organizationName: String?,
+                fileName: String?,
                 settings: Settings,
                 filesGroup: ProjectGroup,
-                targets: [Target] = [],
-                packages: [Package] = [],
-                schemes: [Scheme] = [],
-                additionalFiles: [FileElement] = []) {
+                targets: [Target],
+                packages: [Package],
+                schemes: [Scheme],
+                additionalFiles: [FileElement]) {
         self.path = path
         self.name = name
         self.organizationName = organizationName
@@ -129,6 +129,21 @@ public struct Project: Equatable, CustomStringConvertible {
     /// Returns a copy of the project with the given targets set.
     /// - Parameter targets: Targets to be set to the copy.
     public func with(targets: [Target]) -> Project {
+        Project(path: path,
+                name: name,
+                organizationName: organizationName,
+                fileName: fileName,
+                settings: settings,
+                filesGroup: filesGroup,
+                targets: targets,
+                packages: packages,
+                schemes: schemes,
+                additionalFiles: additionalFiles)
+    }
+
+    /// Returns a copy of the project with the given schemes set.
+    /// - Parameter schemes: Schemes to be set to the copy.
+    public func with(schemes: [Scheme]) -> Project {
         Project(path: path,
                 name: name,
                 organizationName: organizationName,
