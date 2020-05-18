@@ -175,6 +175,9 @@ const styles = {
     fontFamily: 'monospace',
     color: 'secondary',
   },
+  li: {
+    listStyleType: 'circle',
+  },
   inlineCode: {
     fontSize: 1,
     fontFamily: 'monospace',
