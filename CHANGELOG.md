@@ -9,6 +9,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Support for enabling the cloud insights feature [#1335](https://github.com/tuist/tuist/pull/1335) by [@pepibumur](https://github.com/pepibumur)
 - Value graph model [#1336](https://github.com/tuist/tuist/pull/1336) by [@pepibumur](https://github.com/pepibumur)
 
+### Fixed
+
+- Storing the cloud credentials failed because the Keychain syncing was enabled [#1355](https://github.com/tuist/tuist/pull/1355) by [@pepibumur](https://github.com/pepibumur)
+
 ### Changed
 
 - **Breaking** Inherit defaultSettings from the project when the target's defaultSettings is nil [#1138](https://github.com/tuist/tuist/pull/1338) by [@pepibumur](https://github.com/pepibumur)
