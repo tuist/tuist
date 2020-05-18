@@ -15,7 +15,6 @@ import posed from 'react-pose'
 import Code from '../gatsby-plugin-theme-ui/code'
 import SEO from '../components/SEO'
 import Soundcloud from '../../assets/soundcloud.svg'
-import Houzz from '../../assets/houzz.svg'
 import Devengo from '../../assets/devengo.svg'
 import Ackee from '../../assets/ackee.svg'
 import { lighten } from '@theme-ui/color'
@@ -972,6 +971,63 @@ const Videos = () => {
   )
 }
 
+const Sponsor = () => {
+  return (
+    <div className="py-12" sx={{ bg: 'muted' }}>
+      <div className="max-w-screen-xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="lg:text-center flex items-center flex-col">
+          <img
+            src="https://github.githubassets.com/images/modules/site/sponsors/logo-mona-2.svg"
+            sx={{ width: 200, my: 3 }}
+          />
+          <p
+            className="text-base leading-6 font-semibold tracking-wide uppercase"
+            sx={{ color: 'primary' }}
+          >
+            Sponsors
+          </p>
+          <h3
+            className="mt-2 text-3xl leading-8 font-extrabold tracking-tight sm:text-4xl sm:leading-10"
+            sx={{ color: 'text' }}
+          >
+            Become a backer
+          </h3>
+
+          <p
+            className="mt-4 max-w-2xl text-xl leading-7 lg:mx-auto"
+            sx={{ color: 'gray' }}
+          >
+            If you are using Tuist or packages like{' '}
+            <a href="https://github.com/tuist/xcodeproj" target="__blank">
+              XcodeProj
+            </a>{' '}
+            upon which the community is building incredible tools, consider
+            financially supporting our work. We'll use the funds for paying
+            costs and supporting the community.
+          </p>
+          <div>
+            <div className="inline-flex rounded-md shadow my-5">
+              <a
+                target="__blank"
+                href="https://opencollective.com/tuistapp"
+                sx={{
+                  color: 'background',
+                  bg: 'primary',
+                  '&:hover': { bg: lighten('primary', 0.05) },
+                }}
+                className="inline-flex items-center justify-center px-5 py-3 border border-transparent text-base leading-6 font-medium rounded-md text-white focus:outline-none focus:shadow-outline transition duration-150 ease-in-out"
+              >
+                Sponsor
+              </a>
+            </div>
+          </div>
+          <div sx={{ my: 3 }}></div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 const Social = () => {
   const slidersPerPage = useResponsiveValue([1, 2, 3, 3])
   const tweetWidth = useResponsiveValue(['100%', '100%', 200, 300])
@@ -1041,6 +1097,7 @@ const IndexPage = () => {
       <Workspaces />
       <Principles />
       <Videos />
+      <Sponsor />
       <Social />
       <Testimonies />
       <Contribute />
