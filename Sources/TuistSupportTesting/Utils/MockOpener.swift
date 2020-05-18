@@ -13,6 +13,10 @@ public final class MockOpener: Opening {
         if let openStub = openStub { throw openStub }
     }
 
+    public func open(path: AbsolutePath, wait: Bool) throws {
+        try open(target: path.pathString, wait: wait)
+    }
+
     public func open(path: AbsolutePath) throws {
         try open(target: path.pathString, wait: false)
     }
