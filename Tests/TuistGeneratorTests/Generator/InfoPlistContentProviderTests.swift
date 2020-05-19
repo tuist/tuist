@@ -131,6 +131,29 @@ final class InfoPlistContentProviderTests: XCTestCase {
         XCTAssertNil(got)
     }
 
+    func test_content_wheniOSResourceBundle() {
+        // Given
+        let target = Target.test(platform: .iOS, product: .bundle)
+
+        // When
+        let got = subject.content(graph: Graph.test(),
+                                  project: .empty(),
+                                  target: target,
+                                  extendedWith: ["ExtraAttribute": "Value"])
+
+        // Then
+        assertEqual(got, [
+            "CFBundlePackageType": "BNDL",
+            "ExtraAttribute": "Value",
+            "CFBundleDevelopmentRegion": "$(DEVELOPMENT_LANGUAGE)",
+            "CFBundleIdentifier": "$(PRODUCT_BUNDLE_IDENTIFIER)",
+            "CFBundleShortVersionString": "1.0",
+            "CFBundleVersion": "1",
+            "CFBundleInfoDictionaryVersion": "6.0",
+            "CFBundleName": "$(PRODUCT_NAME)",
+        ])
+    }
+
     func test_contentPackageType() {
         func content(for target: Target) -> [String: Any]? {
             subject.content(graph: Graph.test(),

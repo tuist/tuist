@@ -37,6 +37,9 @@ final class InfoPlistContentProvider: InfoPlistContentProviding {
         // Bundle package type
         extend(&content, with: bundlePackageType(target))
 
+        // Bundle Executable
+        extend(&content, with: bundleExecutable(target))
+
         // iOS app
         if target.product == .app, target.platform == .iOS {
             extend(&content, with: iosApp())
@@ -78,7 +81,6 @@ final class InfoPlistContentProvider: InfoPlistContentProviding {
     func base() -> [String: Any] {
         [
             "CFBundleDevelopmentRegion": "$(DEVELOPMENT_LANGUAGE)",
-            "CFBundleExecutable": "$(EXECUTABLE_NAME)",
             "CFBundleIdentifier": "$(PRODUCT_BUNDLE_IDENTIFIER)",
             "CFBundleInfoDictionaryVersion": "6.0",
             "CFBundleName": "$(PRODUCT_NAME)",
@@ -112,6 +114,25 @@ final class InfoPlistContentProvider: InfoPlistContentProviding {
 
         if let packageType = packageType {
             return ["CFBundlePackageType": packageType]
+        } else {
+            return [:]
+        }
+    }
+
+    func bundleExecutable(_ target: Target) -> [String: Any] {
+        let shouldIncludeBundleExecutableKey: (Target) -> Bool = {
+            switch ($0.platform, $0.product) {
+            case (.iOS, .bundle):
+                return false
+            default:
+                return true
+            }
+        }
+
+        if shouldIncludeBundleExecutableKey(target) {
+            return [
+                "CFBundleExecutable": "$(EXECUTABLE_NAME)",
+            ]
         } else {
             return [:]
         }
