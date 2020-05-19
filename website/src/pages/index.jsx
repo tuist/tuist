@@ -1009,7 +1009,7 @@ const Sponsor = () => {
             <div className="inline-flex rounded-md shadow my-5">
               <a
                 target="__blank"
-                href="https://opencollective.com/tuistapp"
+                href="https://github.com/sponsors/tuist"
                 sx={{
                   color: 'background',
                   bg: 'primary',
