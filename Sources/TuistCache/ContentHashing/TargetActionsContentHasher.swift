@@ -11,7 +11,7 @@ public final class TargetActionsContentHasher: TargetActionsContentHashing {
 
     // MARK: - Init
 
-    public init(contentHasher: ContentHashing = CacheContentHasher()) {
+    public init(contentHasher: ContentHashing) {
         self.contentHasher = contentHasher
     }
 

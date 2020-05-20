@@ -16,11 +16,20 @@ public final class GraphContentHasher: GraphContentHashing {
 
     // MARK: - Init
 
+    public convenience init(contentHasher: ContentHashing = CacheContentHasher()) {
+        self.init(
+            contentHasher: contentHasher,
+            sourceFilesContentHasher: SourceFilesContentHasher(contentHasher: contentHasher),
+            targetActionsContentHasher: TargetActionsContentHasher(contentHasher: contentHasher),
+            coreDataModelsContentHasher: CoreDataModelsContentHasher(contentHasher: contentHasher)
+        )
+    }
+
     public init(
-        contentHasher: ContentHashing = CacheContentHasher(),
-        sourceFilesContentHasher: SourceFilesContentHashing = SourceFilesContentHasher(),
-        targetActionsContentHasher: TargetActionsContentHashing = TargetActionsContentHasher(),
-        coreDataModelsContentHasher: CoreDataModelsContentHashing = CoreDataModelsContentHasher()
+        contentHasher: ContentHashing,
+        sourceFilesContentHasher: SourceFilesContentHashing,
+        targetActionsContentHasher: TargetActionsContentHashing,
+        coreDataModelsContentHasher: CoreDataModelsContentHashing
     ) {
         self.contentHasher = contentHasher
         self.sourceFilesContentHasher = sourceFilesContentHasher
