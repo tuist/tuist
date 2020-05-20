@@ -1,8 +1,8 @@
 import TSCBasic
-import XCTest
 import TuistSupport
-@testable import TuistSupportTesting
+import XCTest
 @testable import TuistCache
+@testable import TuistSupportTesting
 
 final class ContentHasherTests: TuistUnitTestCase {
     private var subject: ContentHasher!
@@ -67,7 +67,7 @@ final class ContentHasherTests: TuistUnitTestCase {
         let path = AbsolutePath("/bar")
         mockFileHandler.readFileStub = data
         mockFileHandler.existsForPathStub[path] = true
-        
+
         // When
         let hash = try subject.hash(fileAtPath: path)
 

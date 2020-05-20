@@ -15,7 +15,7 @@ public final class CoreDataModelsContentHasher: CoreDataModelsContentHashing {
     }
 
     // MARK: - CoreDataModelsContentHashing
-    
+
     public func hash(coreDataModels: [CoreDataModel]) throws -> String {
         var stringsToHash: [String] = []
         for cdModel in coreDataModels {

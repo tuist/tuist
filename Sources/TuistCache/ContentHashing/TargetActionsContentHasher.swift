@@ -1,6 +1,6 @@
 import Foundation
-import TuistCore
 import TSCBasic
+import TuistCore
 
 public protocol TargetActionsContentHashing {
     func hash(targetActions: [TargetAction]) throws -> String
@@ -30,9 +30,9 @@ public final class TargetActionsContentHasher: TargetActionsContentHashing {
             let fileHashes = try pathsToHash.map { try contentHasher.hash(fileAtPath: $0) }
             stringsToHash.append(contentsOf: fileHashes +
                 [targetAction.name,
-                targetAction.tool ?? "",
-                targetAction.order.rawValue] +
-            targetAction.arguments)
+                 targetAction.tool ?? "",
+                 targetAction.order.rawValue] +
+                targetAction.arguments)
         }
         return try contentHasher.hash(stringsToHash)
     }

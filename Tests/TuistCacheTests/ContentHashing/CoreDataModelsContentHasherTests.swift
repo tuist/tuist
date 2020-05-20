@@ -1,13 +1,12 @@
-import TSCBasic
 import Foundation
+import TSCBasic
+import TuistCacheTesting
 import TuistCore
 import TuistCoreTesting
-import XCTest
 import TuistSupport
-import TuistCacheTesting
+import XCTest
 @testable import TuistCache
 @testable import TuistSupportTesting
-
 
 final class CoreDataModelsContentHasherTests: TuistUnitTestCase {
     private var subject: CoreDataModelsContentHasher!
@@ -20,7 +19,7 @@ final class CoreDataModelsContentHasherTests: TuistUnitTestCase {
         mockContentHasher = MockContentHashing()
         subject = CoreDataModelsContentHasher(contentHasher: mockContentHasher)
         do {
-           _ = try TemporaryDirectory(removeTreeOnDeinit: true)
+            _ = try TemporaryDirectory(removeTreeOnDeinit: true)
         } catch {
             XCTFail("Error while creating temporary directory")
         }
@@ -84,7 +83,7 @@ final class CoreDataModelsContentHasherTests: TuistUnitTestCase {
     // MARK: - Private
 
     private func buildFakePath(from name: String) -> AbsolutePath {
-        return AbsolutePath("/\(name)+path")
+        AbsolutePath("/\(name)+path")
     }
 
     private func buildCoreDataModel(name: String = "CoreDataModel",

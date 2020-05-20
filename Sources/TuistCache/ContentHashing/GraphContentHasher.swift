@@ -1,8 +1,8 @@
 import Checksum
 import Foundation
+import TSCBasic
 import TuistCore
 import TuistSupport
-import TSCBasic
 
 public protocol GraphContentHashing {
     func contentHashes(for graph: TuistCore.Graph) throws -> [TargetNode: String]
@@ -43,14 +43,13 @@ public final class GraphContentHasher: GraphContentHashing {
         var visitedNodes: [TargetNode: Bool] = [:]
         let hashableTargets = graph.targets.values.flatMap { (targets: [TargetNode]) -> [TargetNode] in
             targets.compactMap { target in
-            if self.isCacheable(target, visited: &visitedNodes) { return target }
+                if self.isCacheable(target, visited: &visitedNodes) { return target }
                 return nil
             }
         }
         let hashes = try hashableTargets.map { try hash(targetNode: $0) }
         return Dictionary(uniqueKeysWithValues: zip(hashableTargets, hashes))
     }
-
 
     // MARK: - Private
 
@@ -79,7 +78,7 @@ public final class GraphContentHasher: GraphContentHashing {
                              resourcesHash,
                              coreDataModelHash,
                              targetActionsHash]
-        //TODO: hash headers, platforms, version, entitlements, info.plist, target.environment, target.filesGroup, targetNode.settings, targetNode.project, targetNode.dependencies ,targetNode.target.dependencies
+        // TODO: hash headers, platforms, version, entitlements, info.plist, target.environment, target.filesGroup, targetNode.settings, targetNode.project, targetNode.dependencies ,targetNode.target.dependencies
 
         return try contentHasher.hash(stringsToHash)
     }

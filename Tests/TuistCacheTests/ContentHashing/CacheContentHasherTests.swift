@@ -1,9 +1,9 @@
 import TSCBasic
-import XCTest
-import TuistSupport
 import TuistCacheTesting
-@testable import TuistSupportTesting
+import TuistSupport
+import XCTest
 @testable import TuistCache
+@testable import TuistSupportTesting
 
 final class CacheContentHasherTests: TuistUnitTestCase {
     private var subject: CacheContentHasher!

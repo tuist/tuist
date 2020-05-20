@@ -1,10 +1,10 @@
-import TSCBasic
 import Foundation
+import TSCBasic
+import TuistCacheTesting
 import TuistCore
 import TuistCoreTesting
-import XCTest
 import TuistSupport
-import TuistCacheTesting
+import XCTest
 @testable import TuistCache
 @testable import TuistSupportTesting
 
@@ -41,15 +41,15 @@ final class TargetActionsContentHasherTests: TuistUnitTestCase {
                                   inputFileListPaths: [AbsolutePath] = [AbsolutePath("/inputFileListPaths1")],
                                   outputPaths: [AbsolutePath] = [AbsolutePath("/outputPaths1")],
                                   outputFileListPaths: [AbsolutePath] = [AbsolutePath("/outputFileListPaths1")]) -> TargetAction {
-        return TargetAction(name: name,
-                            order: order,
-                            tool: tool,
-                            path: path,
-                            arguments: arguments,
-                            inputPaths: inputPaths,
-                            inputFileListPaths: inputFileListPaths,
-                            outputPaths: outputPaths,
-                            outputFileListPaths: outputFileListPaths)
+        TargetAction(name: name,
+                     order: order,
+                     tool: tool,
+                     path: path,
+                     arguments: arguments,
+                     inputPaths: inputPaths,
+                     inputFileListPaths: inputFileListPaths,
+                     outputPaths: outputPaths,
+                     outputFileListPaths: outputFileListPaths)
     }
 
     // MARK: - Tests

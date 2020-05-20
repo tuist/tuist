@@ -1,25 +1,22 @@
 import Foundation
-@testable import TuistSupport
 import TSCBasic
+@testable import TuistSupport
 
 /// Mock FileHandling without subclassing
 
 public final class MockFileHandling: FileHandling {
     public var currentPath: AbsolutePath = AbsolutePath("/")
 
-    public func replace(_ to: AbsolutePath, with: AbsolutePath) throws {
-    }
+    public func replace(_: AbsolutePath, with _: AbsolutePath) throws {}
 
     public var existsForPathStub: [AbsolutePath: Bool] = [:]
     public func exists(_ path: AbsolutePath) -> Bool {
-        return existsForPathStub[path] ?? false
+        existsForPathStub[path] ?? false
     }
 
-    public func move(from: AbsolutePath, to: AbsolutePath) throws {
-    }
+    public func move(from _: AbsolutePath, to _: AbsolutePath) throws {}
 
-    public func copy(from: AbsolutePath, to: AbsolutePath) throws {
-    }
+    public func copy(from _: AbsolutePath, to _: AbsolutePath) throws {}
 
     public var readFileStub: Data?
     public var readFileSpy: AbsolutePath?
@@ -31,50 +28,43 @@ public final class MockFileHandling: FileHandling {
         return readFileStub
     }
 
-    public func readTextFile(_ at: AbsolutePath) throws -> String {
-        return ""
+    public func readTextFile(_: AbsolutePath) throws -> String {
+        ""
     }
 
-    public func readPlistFile<T>(_ at: AbsolutePath) throws -> T where T: Decodable {
+    public func readPlistFile<T>(_: AbsolutePath) throws -> T where T: Decodable {
         return try JSONDecoder().decode(T.self, from: Data(capacity: 42))
     }
 
-    public func inTemporaryDirectory(_ closure: (AbsolutePath) throws -> Void) throws {
+    public func inTemporaryDirectory(_: (AbsolutePath) throws -> Void) throws {}
+
+    public func write(_: String, path _: AbsolutePath, atomically _: Bool) throws {}
+
+    public func locateDirectoryTraversingParents(from _: AbsolutePath, path _: String) -> AbsolutePath? {
+        nil
     }
 
-    public func write(_ content: String, path: AbsolutePath, atomically: Bool) throws {
+    public func locateDirectory(_: String, traversingFrom _: AbsolutePath) -> AbsolutePath? {
+        nil
     }
 
-    public func locateDirectoryTraversingParents(from: AbsolutePath, path: String) -> AbsolutePath? {
-        return nil
+    public func glob(_: AbsolutePath, glob _: String) -> [AbsolutePath] {
+        []
     }
 
-    public func locateDirectory(_ path: String, traversingFrom from: AbsolutePath) -> AbsolutePath? {
-        return nil
+    public func linkFile(atPath _: AbsolutePath, toPath _: AbsolutePath) throws {}
+
+    public func createFolder(_: AbsolutePath) throws {}
+
+    public func delete(_: AbsolutePath) throws {}
+
+    public func isFolder(_: AbsolutePath) -> Bool {
+        false
     }
 
-    public func glob(_ path: AbsolutePath, glob: String) -> [AbsolutePath] {
-        return []
-    }
+    public func touch(_: AbsolutePath) throws {}
 
-    public func linkFile(atPath: AbsolutePath, toPath: AbsolutePath) throws {
-    }
-
-    public func createFolder(_ path: AbsolutePath) throws {
-    }
-
-    public func delete(_ path: AbsolutePath) throws {
-    }
-
-    public func isFolder(_ path: AbsolutePath) -> Bool {
-        return false
-    }
-
-    public func touch(_ path: AbsolutePath) throws {
-    }
-
-    public func contentsOfDirectory(_ path: AbsolutePath) throws -> [AbsolutePath] {
-        return []
+    public func contentsOfDirectory(_: AbsolutePath) throws -> [AbsolutePath] {
+        []
     }
 }
-

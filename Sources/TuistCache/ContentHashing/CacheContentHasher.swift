@@ -14,13 +14,13 @@ public final class CacheContentHasher: ContentHashing {
     }
 
     public func hash(_ string: String) throws -> String {
-        return try contentHasher.hash(string)
+        try contentHasher.hash(string)
     }
 
     public func hash(_ strings: [String]) throws -> String {
-        return try contentHasher.hash(strings)
+        try contentHasher.hash(strings)
     }
-    
+
     public func hash(fileAtPath filePath: AbsolutePath) throws -> String {
         if let cachedHash = hashesCache[filePath] {
             return cachedHash

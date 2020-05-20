@@ -1,6 +1,6 @@
 import Foundation
-import TuistCache
 import TSCBasic
+import TuistCache
 
 public class MockContentHashing: ContentHashing {
     public init() {}

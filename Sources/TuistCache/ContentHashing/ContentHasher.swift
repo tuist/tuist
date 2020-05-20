@@ -34,12 +34,12 @@ public final class ContentHasher: ContentHashing {
     }
 
     public func hash(_ strings: [String]) throws -> String {
-        return try hash(strings.joined())
+        try hash(strings.joined())
     }
 
     public func hash(fileAtPath filePath: AbsolutePath) throws -> String {
         guard fileHandler.exists(filePath) else {
-          throw FileHandlerError.fileNotFound(filePath)
+            throw FileHandlerError.fileNotFound(filePath)
         }
         guard let sourceData = try? fileHandler.readFile(filePath) else {
             throw ContentHashingError.failedToReadFile(filePath)

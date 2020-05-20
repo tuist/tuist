@@ -1,12 +1,12 @@
-import TSCBasic
 import Foundation
+import TSCBasic
 import TuistCoreTesting
 import TuistSupport
 import XCTest
 
 @testable import TuistCache
-@testable import TuistSupportTesting
 @testable import TuistCore
+@testable import TuistSupportTesting
 
 final class ContentHashingIntegrationTests: TuistTestCase {
     var subject: GraphContentHasher!
@@ -19,8 +19,8 @@ final class ContentHashingIntegrationTests: TuistTestCase {
     var resourceFile2: FileElement!
     var resourceFolderReference1: FileElement!
     var resourceFolderReference2: FileElement!
-    var coreDataModel1 : CoreDataModel!
-    var coreDataModel2 : CoreDataModel!
+    var coreDataModel1: CoreDataModel!
+    var coreDataModel2: CoreDataModel!
 
     override func setUp() {
         super.setUp()
@@ -133,7 +133,7 @@ final class ContentHashingIntegrationTests: TuistTestCase {
         // Given
         let temporaryDirectoryPath = try temporaryPath()
         let framework1 = makeFramework(named: "f1", resources: [resourceFolderReference1])
-        let framework2 = makeFramework(named: "f2", resources:[resourceFolderReference2])
+        let framework2 = makeFramework(named: "f2", resources: [resourceFolderReference2])
         let graph = Graph.test(targets: [
             temporaryDirectoryPath: [framework1, framework2],
         ])

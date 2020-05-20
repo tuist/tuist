@@ -1,10 +1,10 @@
-import TSCBasic
 import Foundation
+import TSCBasic
+import TuistCacheTesting
 import TuistCore
 import TuistCoreTesting
-import XCTest
 import TuistSupport
-import TuistCacheTesting
+import XCTest
 @testable import TuistCache
 @testable import TuistSupportTesting
 
