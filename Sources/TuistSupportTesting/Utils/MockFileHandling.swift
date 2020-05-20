@@ -1,6 +1,6 @@
 import Foundation
 @testable import TuistSupport
-import Basic
+import TSCBasic
 
 /// Mock FileHandling without subclassing
 public final class MockFileHandling: FileHandling {

@@ -1,5 +1,5 @@
 import Foundation
-import Basic
+import TSCBasic
 
 /// CacheContentHasher
 /// It's a wrapper on top of ContentHasher that adds an in-memory cache to avoid recalculating the same hashes

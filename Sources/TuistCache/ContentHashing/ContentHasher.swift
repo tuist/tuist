@@ -1,5 +1,5 @@
 import Foundation
-import Basic
+import TSCBasic
 import TuistCore
 import TuistSupport
 

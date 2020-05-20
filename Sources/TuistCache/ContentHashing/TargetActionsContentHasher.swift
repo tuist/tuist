@@ -1,6 +1,6 @@
 import Foundation
 import TuistCore
-import Basic
+import TSCBasic
 
 public protocol TargetActionsContentHashing {
     func hash(targetActions: [TargetAction]) throws -> String

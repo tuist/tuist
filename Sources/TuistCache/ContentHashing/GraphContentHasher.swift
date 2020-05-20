@@ -2,7 +2,7 @@ import Checksum
 import Foundation
 import TuistCore
 import TuistSupport
-import Basic
+import TSCBasic
 
 public protocol GraphContentHashing {
     func contentHashes(for graph: TuistCore.Graph) throws -> [TargetNode: String]

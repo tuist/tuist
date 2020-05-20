@@ -1,6 +1,5 @@
-import Foundation
 import TSCBasic
-import TuistCore
+import Foundation
 import TuistCoreTesting
 import TuistSupport
 import XCTest
@@ -25,11 +24,6 @@ final class ContentHashingIntegrationTests: TuistTestCase {
 
     override func setUp() {
         super.setUp()
-<<<<<<< HEAD
-        cache = GraphLoaderCache()
-        graph = Graph.test(cache: cache)
-=======
->>>>>>> Fix ContentHashingIntegrationTests
         do {
             let temporaryDirectoryPath = try temporaryPath()
             source1 = try createTemporarySourceFile(on: temporaryDirectoryPath, name: "1", content: "1")
@@ -237,7 +231,7 @@ final class ContentHashingIntegrationTests: TuistTestCase {
 
         XCTAssertNotEqual(contentHash[framework1], contentHash[framework2])
     }
-    
+
     // MARK: - Private helpers
 
     private func createTemporarySourceFile(on temporaryDirectoryPath: AbsolutePath, name: String, content: String) throws -> Target.SourceFile {
