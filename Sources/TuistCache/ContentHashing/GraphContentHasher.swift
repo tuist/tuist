@@ -92,8 +92,7 @@ public final class GraphContentHasher: GraphContentHashing {
     }
 
     private func hash(resources: [FileElement]) throws -> String {
-        let paths = resources.map { $0.path }
-        let hashes = try paths.map { try contentHasher.hash(fileAtPath: $0) }
+        let hashes = try resources.map { try contentHasher.hash(fileAtPath: $0.path) }
         return try contentHasher.hash(hashes)
     }
 }
