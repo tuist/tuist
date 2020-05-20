@@ -32,17 +32,6 @@ final class CacheContentHasherTests: TuistUnitTestCase {
         XCTAssertEqual(mockContentHashing.hashStringSpy, "foo")
     }
 
-    func test_hashString_secondTime_doesntCallContentHasher() throws {
-        // When
-        let hash = try subject.hash("foo")
-        let cachedHash = try subject.hash("foo")
-
-        // Then
-        XCTAssertEqual(mockContentHashing.hashStringCallCount, 1)
-        XCTAssertEqual(mockContentHashing.hashStringSpy, "foo")
-        XCTAssertEqual(hash, cachedHash)
-    }
-
     func test_hashStrings_callsContentHasherWithExpectedStrings() throws {
         // When
         _ = try subject.hash(["foo", "bar"])
@@ -50,17 +39,6 @@ final class CacheContentHasherTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(mockContentHashing.hashStringsCallCount, 1)
         XCTAssertEqual(mockContentHashing.hashStringsSpy, ["foo", "bar"])
-    }
-
-    func test_hashStrings_secondTime_doesntCallContentHasher() throws {
-        // When
-        let hash = try subject.hash(["foo", "bar"])
-        let cachedHash = try subject.hash(["foo", "bar"])
-
-        // Then
-        XCTAssertEqual(mockContentHashing.hashStringsCallCount, 1)
-        XCTAssertEqual(mockContentHashing.hashStringsSpy,  ["foo", "bar"])
-        XCTAssertEqual(hash, cachedHash)
     }
 
     func test_hashFileAtPath_callsContentHasherWithExpectedPath() throws {

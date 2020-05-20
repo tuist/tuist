@@ -7,37 +7,26 @@ public final class CacheContentHasher: ContentHashing {
     private let contentHasher: ContentHashing
 
     /// In memory cache for files that have already been hashed
-    private var hashesCache: [String: String] = [:]
+    private var hashesCache: [AbsolutePath: String] = [:]
 
     public init(contentHasher: ContentHashing = ContentHasher()) {
         self.contentHasher = contentHasher
     }
 
     public func hash(_ string: String) throws -> String {
-        if let cachedHash = hashesCache[string] {
-            return cachedHash
-        }
-        let hash = try contentHasher.hash(string)
-        hashesCache[string] = hash
-        return hash
+        return try contentHasher.hash(string)
     }
 
     public func hash(_ strings: [String]) throws -> String {
-        let key = strings.joined()
-        if let cachedHash = hashesCache[key] {
-              return cachedHash
-        }
-        let hash = try contentHasher.hash(strings)
-        hashesCache[key] = hash
-        return hash
+        return try contentHasher.hash(strings)
     }
     
     public func hash(fileAtPath filePath: AbsolutePath) throws -> String {
-        if let cachedHash = hashesCache[filePath.pathString] {
+        if let cachedHash = hashesCache[filePath] {
             return cachedHash
         }
         let hash = try contentHasher.hash(fileAtPath: filePath)
-        hashesCache[filePath.pathString] = hash
+        hashesCache[filePath] = hash
         return hash
     }
 }
