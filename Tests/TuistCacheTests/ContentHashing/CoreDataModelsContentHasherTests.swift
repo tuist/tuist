@@ -12,15 +12,15 @@ import TuistCacheTesting
 final class CoreDataModelsContentHasherTests: TuistUnitTestCase {
     private var subject: CoreDataModelsContentHasher!
     private var coreDataModel: CoreDataModel!
-    private var temporaryDirectory: TemporaryDirectory!
     private var mockContentHasher: MockContentHashing!
     private let defaultValuesHash = "05c9d517e2cf12b45786787dae929a23" // Expected hash for the CoreDataModel created with the buildCoreDataModel function using default values
+
     override func setUp() {
         super.setUp()
         mockContentHasher = MockContentHashing()
         subject = CoreDataModelsContentHasher(contentHasher: mockContentHasher)
         do {
-            temporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
+           _ = try TemporaryDirectory(removeTreeOnDeinit: true)
         } catch {
             XCTFail("Error while creating temporary directory")
         }
@@ -29,7 +29,6 @@ final class CoreDataModelsContentHasherTests: TuistUnitTestCase {
     override func tearDown() {
         subject = nil
         coreDataModel = nil
-        temporaryDirectory = nil
         mockContentHasher = nil
         super.tearDown()
     }

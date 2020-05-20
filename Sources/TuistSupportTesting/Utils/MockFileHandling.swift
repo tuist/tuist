@@ -3,6 +3,7 @@ import Foundation
 import TSCBasic
 
 /// Mock FileHandling without subclassing
+
 public final class MockFileHandling: FileHandling {
     public var currentPath: AbsolutePath = AbsolutePath("/")
 

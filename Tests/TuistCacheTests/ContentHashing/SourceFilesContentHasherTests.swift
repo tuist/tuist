@@ -11,7 +11,6 @@ import TuistCacheTesting
 final class SourceFilesContentHasherTests: TuistUnitTestCase {
     private var subject: SourceFilesContentHasher!
     private var mockContentHasher: MockContentHashing!
-    private var temporaryDirectory: TemporaryDirectory!
     private let sourceFile1Path = AbsolutePath("/file1")
     private let sourceFile2Path = AbsolutePath("/file2")
     private var sourceFile1: Target.SourceFile!
@@ -25,7 +24,7 @@ final class SourceFilesContentHasherTests: TuistUnitTestCase {
         sourceFile2 = (path: sourceFile2Path, compilerFlags: "-print-objc-runtime-info")
 
         do {
-            temporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
+            _ = try TemporaryDirectory(removeTreeOnDeinit: true)
         } catch {
             XCTFail("Error while creating temporary directory")
         }
@@ -33,7 +32,6 @@ final class SourceFilesContentHasherTests: TuistUnitTestCase {
 
     override func tearDown() {
         subject = nil
-        temporaryDirectory = nil
         mockContentHasher = nil
         sourceFile1 = nil
         sourceFile2 = nil
