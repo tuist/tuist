@@ -46,11 +46,12 @@ final class ContentHasherTests: TuistUnitTestCase {
         XCTAssertEqual(hash, "3858f62230ac3c915f300c664312c63f")
     }
 
-    func test_hashFile_HashesTheExpectedFile() throws {
+    func test_hashFile_hashesTheExpectedFile() throws {
         // Given
         let data = Data(repeating: 1, count: 10)
-        mockFileHandler.readFileStub = data
         let path = AbsolutePath("/foo")
+        mockFileHandler.readFileStub = data
+        mockFileHandler.existsForPathStub[path] = true
 
         // When
         let hash = try subject.hash(fileAtPath: path)
@@ -63,14 +64,45 @@ final class ContentHasherTests: TuistUnitTestCase {
     func test_hashFile_isNotHarcoded() throws {
         // Given
         let data = Data(repeating: 2, count: 10)
-        mockFileHandler.readFileStub = data
         let path = AbsolutePath("/bar")
-
+        mockFileHandler.readFileStub = data
+        mockFileHandler.existsForPathStub[path] = true
+        
         // When
         let hash = try subject.hash(fileAtPath: path)
 
         // Then
         XCTAssertEqual(hash, "0a8d20ca7c979834c6e4d486d648ce1e")
         XCTAssertEqual(mockFileHandler.readFileSpy, path)
+    }
+
+    func test_hashFile_whenFileDoesntExist_itThrowsFileNotFound() {
+        // Given
+        let data = Data(repeating: 2, count: 10)
+        let path = AbsolutePath("/bar")
+        mockFileHandler.readFileStub = data
+
+        // When
+        mockFileHandler.existsForPathStub[path] = false
+
+        // Then
+        XCTAssertThrowsError(try subject.hash(fileAtPath: path)) { error in
+            XCTAssertEqual(error as? FileHandlerError, FileHandlerError.fileNotFound(path))
+        }
+    }
+
+    func test_hashFile_whenFailsToReadFile_itThrowsFailedToReadFile() {
+        // Given
+        let data = Data(repeating: 2, count: 10)
+        let path = AbsolutePath("/bar")
+        mockFileHandler.readFileStub = data
+
+        // When
+        mockFileHandler.existsForPathStub[path] = false
+
+        // Then
+        XCTAssertThrowsError(try subject.hash(fileAtPath: path)) { error in
+            XCTAssertEqual(error as? FileHandlerError, FileHandlerError.fileNotFound(path))
+        }
     }
 }

@@ -38,8 +38,11 @@ public final class ContentHasher: ContentHashing {
     }
 
     public func hash(fileAtPath filePath: AbsolutePath) throws -> String {
+        guard fileHandler.exists(filePath) else {
+          throw FileHandlerError.fileNotFound(filePath)
+        }
         guard let sourceData = try? fileHandler.readFile(filePath) else {
-            throw ContentHashingError.fileNotFound(filePath)
+            throw ContentHashingError.failedToReadFile(filePath)
         }
         guard let hash = sourceData.checksum(algorithm: .md5) else {
             throw ContentHashingError.fileHashingFailed(filePath)

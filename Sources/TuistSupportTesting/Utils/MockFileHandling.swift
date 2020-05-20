@@ -9,8 +9,9 @@ public final class MockFileHandling: FileHandling {
     public func replace(_ to: AbsolutePath, with: AbsolutePath) throws {
     }
 
+    public var existsForPathStub: [AbsolutePath: Bool] = [:]
     public func exists(_ path: AbsolutePath) -> Bool {
-        return false
+        return existsForPathStub[path] ?? false
     }
 
     public func move(from: AbsolutePath, to: AbsolutePath) throws {
