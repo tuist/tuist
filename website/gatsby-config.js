@@ -175,6 +175,7 @@ module.exports = {
         extensions: ['.mdx', '.md'],
         remarkPlugins: [remarkSlug],
         gatsbyRemarkPlugins: [
+          `gatsby-remark-embedder`,
           `gatsby-remark-smartypants`,
           `gatsby-remark-copy-linked-files`,
           {
