@@ -203,7 +203,7 @@ class ProjectGenerator: ProjectGenerating {
     }
 
     private func convert(manifests: LoadedProjects,
-                         context: ExecutionContext = .serial) throws -> [TuistCore.Project] {
+                         context: ExecutionContext = .concurrent) throws -> [TuistCore.Project] {
         let tuples = manifests.projects.map { (path: $0.key, manifest: $0.value) }
         return try tuples.map(context: context) {
             try converter.convert(manifest: $0.manifest, path: $0.path)
@@ -211,7 +211,7 @@ class ProjectGenerator: ProjectGenerating {
     }
 
     private func convert(manifests: LoadedWorkspace,
-                         context: ExecutionContext = .serial) throws -> (workspace: Workspace, projects: [TuistCore.Project]) {
+                         context: ExecutionContext = .concurrent) throws -> (workspace: Workspace, projects: [TuistCore.Project]) {
         let workspace = try converter.convert(manifest: manifests.workspace, path: manifests.path)
         let tuples = manifests.projects.map { (path: $0.key, manifest: $0.value) }
         let projects = try tuples.map(context: context) {
