@@ -13,6 +13,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Storing the cloud credentials failed because the Keychain syncing was enabled [#1355](https://github.com/tuist/tuist/pull/1355) by [@pepibumur](https://github.com/pepibumur).
 - `tuist edit` doesn't wait while the user edits the project in Xcode [#1650](https://github.com/Shopify/react-native/pull/1650) by [@pepibumur](https://github.com/pepibumur).
+- Remove CFBundleExecutable from iOS resource bundle target plists [#1361](https://github.com/tuist/tuist/pull/1361) by [@kwridan](https://github.com/kwridan).
 
 ### Changed
 
