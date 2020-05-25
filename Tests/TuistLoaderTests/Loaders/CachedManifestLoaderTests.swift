@@ -13,9 +13,10 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
     private var manifestLoader = MockManifestLoader()
     private var projectDescriptionHelpersHasher = MockProjectDescriptionHelpersHasher()
     private var helpersDirectoryLocator = MockHelpersDirectoryLocator()
-    private var subject: CachedManifestLoader!
     private var projectManifests: [AbsolutePath: Project] = [:]
     private var recordedLoadProjectCalls: Int = 0
+
+    private var subject: CachedManifestLoader!
 
     override func setUp() {
         super.setUp()
@@ -105,6 +106,72 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
         XCTAssertEqual(recordedLoadProjectCalls, 2)
     }
 
+    func test_load_environmentVariablesRemainTheSame() throws {
+        // Given
+        let path = try temporaryPath().appending(component: "App")
+        let project = Project.test(name: "App")
+        try stub(manifest: project, at: path)
+        environment.tuistVariables = ["NAME": "A"]
+
+        // When
+        _ = try subject.loadProject(at: path)
+        _ = try subject.loadProject(at: path)
+        _ = try subject.loadProject(at: path)
+        let result = try subject.loadProject(at: path)
+
+        // Then
+        XCTAssertEqual(result, project)
+        XCTAssertEqual(recordedLoadProjectCalls, 1)
+    }
+
+    func test_load_environmentVariablesChange() throws {
+        // Given
+        let path = try temporaryPath().appending(component: "App")
+        let project = Project.test(name: "App")
+        try stub(manifest: project, at: path)
+        environment.tuistVariables = ["NAME": "A"]
+        _ = try subject.loadProject(at: path)
+
+        // When
+        environment.tuistVariables = ["NAME": "B"]
+        _ = try subject.loadProject(at: path)
+
+        // Then
+        XCTAssertEqual(recordedLoadProjectCalls, 2)
+    }
+
+    func test_load_tuistVersionRemainsTheSame() throws {
+        // Given
+        let path = try temporaryPath().appending(component: "App")
+        let project = Project.test(name: "App")
+        try stub(manifest: project, at: path)
+        subject = createSubject(tuistVersion: "1.0")
+        _ = try subject.loadProject(at: path)
+
+        // When
+        subject = createSubject(tuistVersion: "1.0")
+        _ = try subject.loadProject(at: path)
+
+        // Then
+        XCTAssertEqual(recordedLoadProjectCalls, 1)
+    }
+
+    func test_load_tuistVersionChanged() throws {
+        // Given
+        let path = try temporaryPath().appending(component: "App")
+        let project = Project.test(name: "App")
+        try stub(manifest: project, at: path)
+        subject = createSubject(tuistVersion: "1.0")
+        _ = try subject.loadProject(at: path)
+
+        // When
+        subject = createSubject(tuistVersion: "2.0")
+        _ = try subject.loadProject(at: path)
+
+        // Then
+        XCTAssertEqual(recordedLoadProjectCalls, 2)
+    }
+
     func test_load_corruptedCache() throws {
         // Given
         let path = try temporaryPath().appending(component: "App")
@@ -123,12 +190,14 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
 
     // MARK: - Helpers
 
-    private func createSubject() -> CachedManifestLoader {
+    private func createSubject(tuistVersion: String = "1.0") -> CachedManifestLoader {
         CachedManifestLoader(manifestLoader: manifestLoader,
                              projectDescriptionHelpersHasher: projectDescriptionHelpersHasher,
                              helpersDirectoryLocator: helpersDirectoryLocator,
                              cacheDirectory: cacheDirectory,
-                             fileHandler: fileHandler)
+                             fileHandler: fileHandler,
+                             environment: environment,
+                             tuistVersion: tuistVersion)
     }
 
     private func stub(manifest: Project,

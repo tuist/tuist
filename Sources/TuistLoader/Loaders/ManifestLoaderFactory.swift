@@ -4,7 +4,8 @@ import TuistSupport
 public final class ManifestLoaderFactory {
     private let useCache: Bool
     public convenience init() {
-        let cacheSetting = Environment.shared.tuistVariables["TUIST_CACHE_MANIFESTS"] ?? "1"
+        let key = Constants.EnvironmentVariables.cacheManifests
+        let cacheSetting = Environment.shared.tuistVariables[key, default: "1"]
         self.init(useCache: cacheSetting == "1")
     }
 
