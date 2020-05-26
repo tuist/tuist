@@ -44,6 +44,7 @@ const Subtitle = ({ post, author }) => {
         mb: 0,
         color: 'gray',
         fontSize: 2,
+        my: 4,
         display: 'flex',
         alignItems: 'center',
         flexDirection: ['column', 'row'],
@@ -166,9 +167,7 @@ const IndexPage = ({
         <Styled.h1 sx={{ textAlign: 'center', pb: 0, mb: 0 }}>
           {post.frontmatter.title}
         </Styled.h1>
-        <Styled.p sx={{ textAlign: 'center', color: 'gray', my: 4 }}>
-          <Subtitle post={post} author={author} />
-        </Styled.p>
+        <Subtitle post={post} author={author} />
         <div sx={{ pb: 4 }}>
           <MDXRenderer>{post.body}</MDXRenderer>
         </div>
