@@ -16,7 +16,7 @@ things are dynamic.
 Personally, **I think the dynamic approach at scale is terrible**. If the project is considerably large, it might take long and a lot of CPU power for Gradle to become responsive. The matter gets worse if we use tasks with side effects that might cause Gradle to yield different results in different environments.
 
 For that reason,
-if I was Apple, I would keep Xcode projects as static as possible. With Xcode 11,
+if I were Apple, I would keep Xcode projects as static as possible. With Xcode 11,
 they [added support](https://developer.apple.com/documentation/xcode/adding_package_dependencies_to_your_app) for the Swift Package Manager,
 which,
 as you might have noticed,
@@ -49,7 +49,7 @@ That's awesome,
 but when combined together around Xcode projects,
 teams end up with workflows that don't play well with each other and layers of indirection that add complexity and make the projects hard to reason about.
 
-Here are some concrete examples to illustrate that the above:
+Here are some concrete examples to illustrate the above:
 
 - Inconsistent [Swiftlint](https://github.com/realm/SwiftLint) errors because [Homebrew](https://brew.sh) installed different versions of Swiftlint.
 - Fastlane lanes printing errors but exiting with a exit status 0.
