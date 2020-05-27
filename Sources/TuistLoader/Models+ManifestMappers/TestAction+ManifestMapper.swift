@@ -21,6 +21,7 @@ extension TuistCore.TestAction {
                                                                                           generatorPaths: generatorPaths) }
         let postActions = try manifest.postActions.map { try TuistCore.ExecutionAction.from(manifest: $0,
                                                                                             generatorPaths: generatorPaths) }
+        let diagnosticsOptions = Set(manifest.diagnosticsOptions.map { TuistCore.SchemeDiagnosticsOption.from(manifest: $0) })
 
         return TestAction(targets: targets,
                           arguments: arguments,
@@ -28,6 +29,7 @@ extension TuistCore.TestAction {
                           coverage: coverage,
                           codeCoverageTargets: codeCoverageTargets,
                           preActions: preActions,
-                          postActions: postActions)
+                          postActions: postActions,
+                          diagnosticsOptions: diagnosticsOptions)
     }
 }
