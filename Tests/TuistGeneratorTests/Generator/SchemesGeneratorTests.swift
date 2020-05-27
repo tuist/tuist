@@ -460,7 +460,9 @@ final class SchemesGeneratorTests: XCTestCase {
         let target = Target.test(name: "Library", platform: .iOS, product: .dynamicLibrary)
 
         let buildAction = BuildAction.test(targets: [TargetReference(projectPath: projectPath, name: "Library")])
-        let launchAction = RunAction.test(configurationName: "Debug", filePath: "/usr/bin/foo")
+        let launchAction = RunAction.test(configurationName: "Debug",
+                                          filePath: "/usr/bin/foo",
+                                          diagnosticsOptions: Set(arrayLiteral: .mainThreadChecker))
 
         let scheme = Scheme.test(name: "Library", buildAction: buildAction, runAction: launchAction)
         let project = Project.test(path: projectPath, targets: [target])
@@ -477,6 +479,7 @@ final class SchemesGeneratorTests: XCTestCase {
         XCTAssertNil(result.runnable?.buildableReference)
         XCTAssertEqual(result.buildConfiguration, "Debug")
         XCTAssertEqual(result.pathRunnable?.filePath, "/usr/bin/foo")
+        XCTAssertFalse(result.disableMainThreadChecker)
     }
 
     func test_schemeLaunchAction_with_path() throws {
@@ -485,7 +488,8 @@ final class SchemesGeneratorTests: XCTestCase {
         let target = Target.test(name: "Library", platform: .iOS, product: .dynamicLibrary)
 
         let buildAction = BuildAction.test(targets: [TargetReference(projectPath: projectPath, name: "Library")])
-        let testAction = TestAction.test(targets: [TestableTarget(target: TargetReference(projectPath: projectPath, name: "Library"))])
+        let testAction = TestAction.test(targets: [TestableTarget(target: TargetReference(projectPath: projectPath, name: "Library"))],
+                                         diagnosticsOptions: Set(arrayLiteral: .mainThreadChecker))
 
         let scheme = Scheme.test(name: "Library", buildAction: buildAction, testAction: testAction, runAction: nil)
         let project = Project.test(path: projectPath, targets: [target])
@@ -506,6 +510,7 @@ final class SchemesGeneratorTests: XCTestCase {
         XCTAssertEqual(result.macroExpansion?.buildableName, "libLibrary.dylib")
         XCTAssertEqual(result.macroExpansion?.blueprintName, "Library")
         XCTAssertEqual(result.macroExpansion?.buildableIdentifier, "primary")
+        XCTAssertFalse(result.disableMainThreadChecker)
     }
 
     // MARK: - Profile Action Tests
