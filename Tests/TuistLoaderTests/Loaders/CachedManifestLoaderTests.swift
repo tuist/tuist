@@ -14,7 +14,9 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
     private var projectDescriptionHelpersHasher = MockProjectDescriptionHelpersHasher()
     private var helpersDirectoryLocator = MockHelpersDirectoryLocator()
     private var projectManifests: [AbsolutePath: Project] = [:]
+    private var configManifests: [AbsolutePath: Config] = [:]
     private var recordedLoadProjectCalls: Int = 0
+    private var recordedLoadConfigCalls: Int = 0
 
     private var subject: CachedManifestLoader!
 
@@ -34,6 +36,14 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
                 throw ManifestLoaderError.manifestNotFound(.project, path)
             }
             self.recordedLoadProjectCalls += 1
+            return manifest
+        }
+
+        manifestLoader.loadConfigStub = { [unowned self] path in
+            guard let manifest = self.configManifests[path] else {
+                throw ManifestLoaderError.manifestNotFound(.config, path)
+            }
+            self.recordedLoadConfigCalls += 1
             return manifest
         }
     }
@@ -188,6 +198,31 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
         XCTAssertEqual(recordedLoadProjectCalls, 2)
     }
 
+    func test_load_missingManifest() throws {
+        // Given
+        let path = try temporaryPath().appending(component: "App")
+
+        // When / Then
+        XCTAssertThrowsSpecific(try subject.loadProject(at: path),
+                                ManifestLoaderError.manifestNotFound(.project, path))
+    }
+
+    func test_load_deprecatedFileName() throws {
+        // Given
+        let path = try temporaryPath().appending(component: "App")
+        let config = Config.test(generationOptions: [.organizationName("Foo")])
+        try stub(deprecatedManifest: config, at: path)
+
+        // When
+        _ = try subject.loadConfig(at: path)
+        _ = try subject.loadConfig(at: path)
+        let result = try subject.loadConfig(at: path)
+
+        // Then
+        XCTAssertEqual(result, config)
+        XCTAssertEqual(recordedLoadConfigCalls, 1)
+    }
+
     // MARK: - Helpers
 
     private func createSubject(tuistVersion: String = "1.0") -> CachedManifestLoader {
@@ -207,6 +242,15 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
         let manifestData = try JSONEncoder().encode(manifest)
         try fileHandler.write(String(data: manifestData, encoding: .utf8)!, path: manifestPath, atomically: true)
         projectManifests[path] = manifest
+    }
+
+    private func stub(deprecatedManifest manifest: Config,
+                      at path: AbsolutePath) throws {
+        let manifestPath = path.appending(component: Manifest.config.deprecatedFileName ?? Manifest.config.fileName)
+        try fileHandler.touch(manifestPath)
+        let manifestData = try JSONEncoder().encode(manifest)
+        try fileHandler.write(String(data: manifestData, encoding: .utf8)!, path: manifestPath, atomically: true)
+        configManifests[path] = manifest
     }
 
     private func stubHelpers(withHash hash: String) throws {

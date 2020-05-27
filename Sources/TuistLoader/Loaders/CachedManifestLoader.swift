@@ -49,7 +49,9 @@ public class CachedManifestLoader: ManifestLoading {
     }
 
     public func loadConfig(at path: AbsolutePath) throws -> Config {
-        try manifestLoader.loadConfig(at: path)
+        try load(manifest: .config, at: path) {
+            try manifestLoader.loadConfig(at: path)
+        }
     }
 
     public func loadProject(at path: AbsolutePath) throws -> Project {
@@ -81,8 +83,7 @@ public class CachedManifestLoader: ManifestLoading {
     // MARK: - Private
 
     private func load<T: Codable>(manifest: Manifest, at path: AbsolutePath, loader: () throws -> T) throws -> T {
-        let manifestPath = path.appending(component: manifest.fileName)
-        guard fileHandler.exists(manifestPath) else {
+        guard let manifestPath = findManifestPath(for: manifest, at: path) else {
             throw ManifestLoaderError.manifestNotFound(manifest, path)
         }
 
@@ -109,6 +110,14 @@ public class CachedManifestLoader: ManifestLoading {
                           to: cachedManifestPath)
 
         return loadedManifest
+    }
+
+    private func findManifestPath(for manifest: Manifest, at path: AbsolutePath) -> AbsolutePath? {
+        let manifestFileNames = [manifest.fileName, manifest.deprecatedFileName]
+        return manifestFileNames
+            .compactMap { $0 }
+            .map { path.appending(component: $0) }
+            .first(where: { fileHandler.exists($0) })
     }
 
     private func calculateHashes(path: AbsolutePath,
