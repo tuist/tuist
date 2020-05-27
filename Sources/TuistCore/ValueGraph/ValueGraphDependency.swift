@@ -1,7 +1,7 @@
 import Foundation
 import TSCBasic
 
-enum ValueGraphDependency: Hashable {
+public enum ValueGraphDependency: Hashable {
     /// A dependency that represents a pre-compiled .xcframework.
     case xcframework(
         path: AbsolutePath,
@@ -34,7 +34,7 @@ enum ValueGraphDependency: Hashable {
     /// A dependency that represents a target that is defined in the project at the given path.
     case target(name: String, path: AbsolutePath)
 
-    func hash(into hasher: inout Hasher) {
+    public func hash(into hasher: inout Hasher) {
         switch self {
         case let .xcframework(path, _, _, _):
             hasher.combine(path)
