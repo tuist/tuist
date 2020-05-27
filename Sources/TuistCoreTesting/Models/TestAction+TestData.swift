@@ -9,13 +9,15 @@ public extension TestAction {
                      coverage: Bool = false,
                      codeCoverageTargets: [TargetReference] = [],
                      preActions: [ExecutionAction] = [],
-                     postActions: [ExecutionAction] = []) -> TestAction {
+                     postActions: [ExecutionAction] = [],
+                     diagnosticsOptions: Set<SchemeDiagnosticsOption> = Set()) -> TestAction {
         TestAction(targets: targets,
                    arguments: arguments,
                    configurationName: configurationName,
                    coverage: coverage,
                    codeCoverageTargets: codeCoverageTargets,
                    preActions: preActions,
-                   postActions: postActions)
+                   postActions: postActions,
+                   diagnosticsOptions: diagnosticsOptions)
     }
 }

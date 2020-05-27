@@ -817,6 +817,14 @@ It represents the scheme action that runs the built products on the supported pl
       optional: true,
       default: 'nil',
     },
+    {
+      name: 'Diagnostics options',
+      description: 'List of diagnostics options to set to the action.',
+      type: '[SchemeDiagnosticsOption]',
+      typeLink: '#scheme-diagnostics-option',
+      optional: true,
+      default: '[]',
+    },
   ]}
 />
 
@@ -896,6 +904,14 @@ Alternatively, when leveraging custom configurations, the configuration name can
         'A list of actions that are executed after the tests-run process.',
       type: '[ExecutionAction]',
       typeLink: '#execution-action',
+      optional: true,
+      default: '[]',
+    },
+    {
+      name: 'Diagnostics options',
+      description: 'List of diagnostics options to set to the action.',
+      type: '[SchemeDiagnosticsOption]',
+      typeLink: '#scheme-diagnostics-option',
       optional: true,
       default: '[]',
     },
@@ -1004,6 +1020,19 @@ Arguments contain commandline arguments passed on launch and Environment variabl
       type: '[String: Bool]',
       optional: true,
       default: '[:]',
+    },
+  ]}
+/>
+
+### Scheme Diagnostics Option
+
+Diagnostics options represent the configurable diagnostics-related settings in the schemes' run and test actions.
+
+<EnumTable
+  cases={[
+    {
+      case: '.mainThreadChecker',
+      description: 'Enable the main thread checker.',
     },
   ]}
 />
@@ -1246,76 +1275,78 @@ Here is the list of functions provided by Tuist:
   methods={[
     {
       subject: 'Code Signing',
-      signature: 'func manualCodeSigning(identity: String? = nil, provisioningProfileSpecifier: String? = nil) -> SettingsDictionary',
+      signature:
+        'func manualCodeSigning(identity: String? = nil, provisioningProfileSpecifier: String? = nil) -> SettingsDictionary',
       description:
         'Sets `"CODE_SIGN_STYLE"` to `"Manual"`, `"CODE_SIGN_IDENTITY"` to `identity`, and `"PROVISIONING_PROFILE_SPECIFIER"` to `provisioningProfileSpecifier`',
     },
     {
       subject: 'Code Signing',
-      signature: 'func automaticCodeSigning(devTeam: String) -> SettingsDictionary',
+      signature:
+        'func automaticCodeSigning(devTeam: String) -> SettingsDictionary',
       description:
         'Sets `"CODE_SIGN_STYLE"` to `"Automatic"` and `"DEVELOPMENT_TEAM"` to `devTeam`',
     },
     {
       subject: 'Code Signing',
-      signature: 'func codeSignIdentityAppleDevelopment() -> SettingsDictionary',
-      description:
-        'Sets `"CODE_SIGN_IDENTITY"` to `"Apple Development"`',
+      signature:
+        'func codeSignIdentityAppleDevelopment() -> SettingsDictionary',
+      description: 'Sets `"CODE_SIGN_IDENTITY"` to `"Apple Development"`',
     },
     {
       subject: 'Code Signing',
-      signature: 'func codeSignIdentity(_ identity: String) -> SettingsDictionary',
-      description:
-        'Sets `"CODE_SIGN_IDENTITY"` to `identity`',
+      signature:
+        'func codeSignIdentity(_ identity: String) -> SettingsDictionary',
+      description: 'Sets `"CODE_SIGN_IDENTITY"` to `identity`',
     },
     {
       subject: 'Versioning',
-      signature: 'func currentProjectVersion(_ version: String) -> SettingsDictionary',
-      description:
-        'Sets `"CURRENT_PROJECT_VERSION"` to `version`',
+      signature:
+        'func currentProjectVersion(_ version: String) -> SettingsDictionary',
+      description: 'Sets `"CURRENT_PROJECT_VERSION"` to `version`',
     },
     {
       subject: 'Versioning',
       signature: 'func appleGenericVersioningSystem() -> SettingsDictionary',
-      description:
-        'Sets `"VERSIONING_SYSTEM"` to `"apple-generic"`',
+      description: 'Sets `"VERSIONING_SYSTEM"` to `"apple-generic"`',
     },
     {
       subject: 'Versioning',
-      signature: 'func versionInfo(_ version: String, prefix: String? = nil, suffix: String? = nil) -> SettingsDictionary',
+      signature:
+        'func versionInfo(_ version: String, prefix: String? = nil, suffix: String? = nil) -> SettingsDictionary',
       description:
         'Sets `"VERSION_INFO_PREFIX"` to `version`. If `prefix` and `suffix` are not `nil`, they\'re used as `"VERSION_INFO_PREFIX"` and `"VERSION_INFO_SUFFIX"` respectively.',
     },
     {
       subject: 'Swift Settings',
       signature: 'func swiftVersion(_ version: String) -> SettingsDictionary',
-      description:
-        'Sets `"SWIFT_VERSION"` to `version`',
+      description: 'Sets `"SWIFT_VERSION"` to `version`',
     },
     {
       subject: 'Swift Settings',
-      signature: 'func otherSwiftFlags(_ flags: String...) -> SettingsDictionary',
-      description:
-        'Sets `"OTHER_SWIFT_FLAGS"` to `flags`',
+      signature:
+        'func otherSwiftFlags(_ flags: String...) -> SettingsDictionary',
+      description: 'Sets `"OTHER_SWIFT_FLAGS"` to `flags`',
     },
     {
       subject: 'Swift Settings',
-      signature: 'func swiftCompilationMode(_ mode: SwiftCompilationMode) -> SettingsDictionary',
+      signature:
+        'func swiftCompilationMode(_ mode: SwiftCompilationMode) -> SettingsDictionary',
       description:
         'Sets `"SWIFT_COMPILATION_MODE"` to the available `SwiftCompilationMode` (`"singlefile"` or `"wholemodule"`)',
     },
     {
       subject: 'Swift Settings',
-      signature: 'func swiftOptimizationLevel(_ level: SwiftOptimizationLevel) -> SettingsDictionary',
+      signature:
+        'func swiftOptimizationLevel(_ level: SwiftOptimizationLevel) -> SettingsDictionary',
       description:
         'Sets `"SWIFT_OPTIMIZATION_LEVEL"` to the available `SwiftOptimizationLevel` (`"-O"`, `"-Onone"` or `"-Osize"`)',
     },
     {
       subject: 'Bitcode',
       signature: 'func bitcodeEnabled(_ enabled: Bool) -> SettingsDictionary',
-      description:
-        'Sets `"ENABLE_BITCODE"` to `"YES"` or `"NO"`',
-    }
+      description: 'Sets `"ENABLE_BITCODE"` to `"YES"` or `"NO"`',
+    },
   ]}
 />
 
@@ -1323,13 +1354,13 @@ Notice that you don't depend exclusively on Tuist's built-in functions.
 You can create your own `SettingsDictionary` extension methods and add them to your
 [Project description helpers](/docs/usage/helpers/) this way:
 
-  ```swift
-  public extension SettingsDictionary {
-    func setSomeBuildSetting(_ value: String) -> SettingsDictionary {
-        merging(["SOME_BUILD_SETTING": SettingValue(stringLiteral: value)])
-    }
+```swift
+public extension SettingsDictionary {
+  func setSomeBuildSetting(_ value: String) -> SettingsDictionary {
+      merging(["SOME_BUILD_SETTING": SettingValue(stringLiteral: value)])
   }
-  ```
+}
+```
 
 ## Configuration
 
@@ -1367,7 +1398,8 @@ For example, a `.debug` configuration would get `SWIFT_OPTIMIZATION_LEVEL = -Ono
 <EnumTable
   cases={[
     {
-      case: '.debug(name: String, settings: SettingsDictionary, xcconfig: Path?)',
+      case:
+        '.debug(name: String, settings: SettingsDictionary, xcconfig: Path?)',
       description: 'A custom debug configuration',
     },
     {

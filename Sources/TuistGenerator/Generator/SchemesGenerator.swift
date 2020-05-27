@@ -110,10 +110,19 @@ final class SchemesGenerator: SchemesGenerating {
         return Scheme(name: target.name,
                       shared: true,
                       buildAction: BuildAction(targets: [targetReference]),
-                      testAction: TestAction(targets: testTargets, configurationName: buildConfiguration),
+                      testAction: TestAction(targets: testTargets,
+                                             arguments: nil,
+                                             configurationName: buildConfiguration,
+                                             coverage: false,
+                                             codeCoverageTargets: [],
+                                             preActions: [],
+                                             postActions: [],
+                                             diagnosticsOptions: Set()),
                       runAction: RunAction(configurationName: buildConfiguration,
                                            executable: targetReference,
-                                           arguments: Arguments(environment: target.environment)))
+                                           filePath: nil,
+                                           arguments: Arguments(environment: target.environment),
+                                           diagnosticsOptions: Set()))
     }
 
     /// Generate schemes for a project or workspace.
@@ -269,6 +278,7 @@ final class SchemesGenerator: SchemesGenerating {
 
         let onlyGenerateCoverageForSpecifiedTargets = codeCoverageTargets.count > 0 ? true : nil
 
+        let disableMainThreadChecker = !testAction.diagnosticsOptions.contains(.mainThreadChecker)
         let shouldUseLaunchSchemeArgsEnv: Bool = args == nil && environments == nil
 
         return XCScheme.TestAction(buildConfiguration: testAction.configurationName,
@@ -280,6 +290,7 @@ final class SchemesGenerator: SchemesGenerating {
                                    codeCoverageEnabled: testAction.coverage,
                                    codeCoverageTargets: codeCoverageTargets,
                                    onlyGenerateCoverageForSpecifiedTargets: onlyGenerateCoverageForSpecifiedTargets,
+                                   disableMainThreadChecker: disableMainThreadChecker,
                                    commandlineArguments: args,
                                    environmentVariables: environments)
     }
@@ -333,10 +344,13 @@ final class SchemesGenerator: SchemesGenerating {
         }
 
         let buildConfiguration = scheme.runAction?.configurationName ?? defaultBuildConfiguration
+        let disableMainThreadChecker = scheme.runAction?.diagnosticsOptions.contains(.mainThreadChecker) == false
+
         return XCScheme.LaunchAction(runnable: buildableProductRunnable,
                                      buildConfiguration: buildConfiguration,
                                      macroExpansion: macroExpansion,
                                      pathRunnable: pathRunnable,
+                                     disableMainThreadChecker: disableMainThreadChecker,
                                      commandlineArguments: commandlineArguments,
                                      environmentVariables: environments)
     }
