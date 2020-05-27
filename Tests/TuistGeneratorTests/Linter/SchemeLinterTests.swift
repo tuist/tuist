@@ -79,7 +79,14 @@ class SchemeLinterTests: XCTestCase {
                                    schemes: [
                                        .init(name: "SchemeWithTargetThatDoesNotExist",
                                              shared: true,
-                                             testAction: .init(targets: [.init(target: .init(projectPath: AbsolutePath("/Project/../Framework"), name: "Framework"))], configurationName: "Beta")),
+                                             testAction: .init(targets: [.init(target: .init(projectPath: AbsolutePath("/Project/../Framework"), name: "Framework"))],
+                                                               arguments: nil,
+                                                               configurationName: "Beta",
+                                                               coverage: false,
+                                                               codeCoverageTargets: [],
+                                                               preActions: [],
+                                                               postActions: [],
+                                                               diagnosticsOptions: Set())),
                                    ])
 
         // When
