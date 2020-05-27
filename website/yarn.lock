@@ -7601,10 +7601,10 @@ gatsby-plugin-netlify@^2.3.2:
     lodash "^4.17.15"
     webpack-assets-manifest "^3.1.1"
 
-gatsby-plugin-next-seo@^1.5.0:
-  version "1.5.0"
-  resolved "https://registry.yarnpkg.com/gatsby-plugin-next-seo/-/gatsby-plugin-next-seo-1.5.0.tgz#8ae50cca6fbbdb5047f5fc64cd8693f04e09f9ee"
-  integrity sha512-sc38DJHse8UfbMvghgR1EfEosdiUMxTbXamr7WqXSectF85LsRIibZjaxRomNLzNpnOnCKJ25Ephv9RSlcUOTw==
+gatsby-plugin-next-seo@^1.5.1:
+  version "1.5.1"
+  resolved "https://registry.yarnpkg.com/gatsby-plugin-next-seo/-/gatsby-plugin-next-seo-1.5.1.tgz#161532b6af4e548b1e6ee3fe01a8ea1fd62ee55c"
+  integrity sha512-oEMAqJTh7I4GiFTdd4v0ZR2NvYetahrY1Sz02aYG3yqVZgQjlNLAMwnMWpbb05J86AJAUzj1mHGCLLwApjJGag==
   dependencies:
     "@babel/runtime" "^7.9.2"
     "@types/react-helmet" "^5"
