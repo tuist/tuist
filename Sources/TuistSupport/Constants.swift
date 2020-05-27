@@ -21,6 +21,7 @@ public struct Constants {
         public static let versionsDirectory = "TUIST_VERSIONS_DIRECTORY"
         public static let cacheDirectory = "TUIST_CACHE_DIRECTORY"
         public static let cloudToken = "TUIST_CLOUD_TOKEN"
+        public static let cacheManifests = "TUIST_CACHE_MANIFESTS"
     }
 
     public struct GoogleCloud {

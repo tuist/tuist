@@ -9,6 +9,7 @@ public enum ManifestLoaderError: FatalError, Equatable {
     case projectDescriptionNotFound(AbsolutePath)
     case unexpectedOutput(AbsolutePath)
     case manifestNotFound(Manifest?, AbsolutePath)
+    case manifestCachingFailed(Manifest?, AbsolutePath)
 
     public static func manifestNotFound(_ path: AbsolutePath) -> ManifestLoaderError {
         .manifestNotFound(nil, path)
@@ -22,6 +23,8 @@ public enum ManifestLoaderError: FatalError, Equatable {
             return "Unexpected output trying to parse the manifest at path \(path.pathString)"
         case let .manifestNotFound(manifest, path):
             return "\(manifest?.fileName ?? "Manifest") not found at path \(path.pathString)"
+        case let .manifestCachingFailed(manifest, path):
+            return "Could not cache \(manifest?.fileName ?? "Manifest") at path \(path.pathString)"
         }
     }
 
@@ -32,6 +35,8 @@ public enum ManifestLoaderError: FatalError, Equatable {
         case .projectDescriptionNotFound:
             return .bug
         case .manifestNotFound:
+            return .abort
+        case .manifestCachingFailed:
             return .abort
         }
     }
