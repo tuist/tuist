@@ -1,21 +1,49 @@
 import Foundation
 
+/// It represents the test action of a scheme.
 public struct TestAction: Equatable, Codable {
+    /// List of targets to be tested.
     public let targets: [TestableTarget]
+
+    /// Arguments passed to the process running the tests.
     public let arguments: Arguments?
+
+    /// Name of the configuration that should be used for building the test targets.
     public let configurationName: String
+
+    /// True to collect the test coverage results.
     public let coverage: Bool
+
+    /// List of targets for which Xcode will collect the coverage results.
     public let codeCoverageTargets: [TargetReference]
+
+    /// List of actions to be executed before running the tests.
     public let preActions: [ExecutionAction]
+
+    /// List of actions to be executed after running the tests.
     public let postActions: [ExecutionAction]
 
+    /// Diagnostics options.
+    public let diagnosticsOptions: [SchemeDiagnosticsOption]
+
+    /// Initializes a new instance of a test action
+    /// - Parameters:
+    ///   - targets: List of targets to be tested.
+    ///   - arguments: Arguments passed to the process running the tests.
+    ///   - configurationName: Name of the configuration that should be used for building the test targets.
+    ///   - coverage: True to collect the test coverage results.
+    ///   - codeCoverageTargets: List of targets for which Xcode will collect the coverage results.
+    ///   - preActions: ist of actions to be executed before running the tests.
+    ///   - postActions: List of actions to be executed after running the tests.
+    ///   - diagnosticsOptions: Diagnostics options.
     public init(targets: [TestableTarget] = [],
                 arguments: Arguments? = nil,
                 configurationName: String,
                 coverage: Bool = false,
                 codeCoverageTargets: [TargetReference] = [],
                 preActions: [ExecutionAction] = [],
-                postActions: [ExecutionAction] = []) {
+                postActions: [ExecutionAction] = [],
+                diagnosticsOptions: [SchemeDiagnosticsOption] = []) {
         self.targets = targets
         self.arguments = arguments
         self.configurationName = configurationName
@@ -23,21 +51,34 @@ public struct TestAction: Equatable, Codable {
         self.preActions = preActions
         self.postActions = postActions
         self.codeCoverageTargets = codeCoverageTargets
+        self.diagnosticsOptions = diagnosticsOptions
     }
 
+    /// Initializes a new instance of a test action
+    /// - Parameters:
+    ///   - targets: List of targets to be tested.
+    ///   - arguments: Arguments passed to the process running the tests.
+    ///   - config: Configuration that should be used for building the test targets.
+    ///   - coverage: True to collect the test coverage results.
+    ///   - codeCoverageTargets: List of targets for which Xcode will collect the coverage results.
+    ///   - preActions: ist of actions to be executed before running the tests.
+    ///   - postActions: List of actions to be executed after running the tests.
+    ///   - diagnosticsOptions: Diagnostics options.
     public init(targets: [TestableTarget],
                 arguments: Arguments? = nil,
                 config: PresetBuildConfiguration = .debug,
                 coverage: Bool = false,
                 codeCoverageTargets: [TargetReference] = [],
                 preActions: [ExecutionAction] = [],
-                postActions: [ExecutionAction] = []) {
+                postActions: [ExecutionAction] = [],
+                diagnosticsOptions: [SchemeDiagnosticsOption] = []) {
         self.init(targets: targets,
                   arguments: arguments,
                   configurationName: config.name,
                   coverage: coverage,
                   codeCoverageTargets: codeCoverageTargets,
                   preActions: preActions,
-                  postActions: postActions)
+                  postActions: postActions,
+                  diagnosticsOptions: diagnosticsOptions)
     }
 }
