@@ -8,6 +8,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Support for enabling the cloud insights feature [#1335](https://github.com/tuist/tuist/pull/1335) by [@pepibumur](https://github.com/pepibumur)
 - Value graph model [#1336](https://github.com/tuist/tuist/pull/1336) by [@pepibumur](https://github.com/pepibumur)
+- **Breaking** Support for setting diagnostics options to the test and run actions [#1382](https://github.com/tuist/tuist/pull/1382) by [@pepibumur](https://github.com/pepibumur)
 
 ### Fixed
 
