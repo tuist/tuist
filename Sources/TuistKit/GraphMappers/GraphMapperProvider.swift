@@ -33,6 +33,9 @@ final class GraphMapperProvider: GraphMapperProviding {
         if let cloud = config.cloud, cloud.options.contains(.insights) {
             mappers.append(CloudInsightsGraphMapper())
         }
+        
+        // Support for resources in static libraries
+        mappers.append(StaticLibWithResourcesGraphMapper())
 
         return mappers
     }
