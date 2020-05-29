@@ -17,7 +17,7 @@ export default ({ path }) => {
       }
     }
   `)
-  const url = `${editUrl}/${path}`
+  const url = `${editUrl}/markdown/${path}`
   return (
     <Styled.a
       href={url}

@@ -108,7 +108,7 @@ export default ({ menuOpen, setMenuOpen, menuRef }) => {
           display: 'flex',
           flexDirection: ['column', 'row'],
           py: 3,
-          px: [4, 6],
+          px: [2, 4, 4, 6],
         }}
       >
         <div
@@ -143,15 +143,18 @@ export default ({ menuOpen, setMenuOpen, menuRef }) => {
           >
             <img
               src={logo}
-              sx={{ height: 30, width: 30 }}
+              sx={{ height: 30, width: 30, flex: '0 0 30', minWidth: 30 }}
               alt="Tuist's logotype"
             />
-            <Styled.h2 sx={{ color: 'gray1', ml: 2, my: 0 }}>Tuist</Styled.h2>
+            <Styled.h2 sx={{ color: 'gray1', ml: 2, my: 0, flex: 1 }}>
+              Tuist
+            </Styled.h2>
           </Link>
         </div>
         <Location>
           {({ location }) => {
             const isDocs = location.pathname.startsWith('/docs')
+            const isResources = location.pathname.startsWith('/resources')
             const isBlog = location.pathname.startsWith('/blog')
             const isFaq = location.pathname.startsWith('/faq')
             return (
@@ -175,6 +178,18 @@ export default ({ menuOpen, setMenuOpen, menuRef }) => {
                     to={firstDocumentationPagePath}
                   >
                     DOCS
+                  </Link>
+                  <Link
+                    sx={{
+                      ...linkStyle,
+                      ...(isResources ? hoverStyle : {}),
+                      ml: 4,
+                      variant: 'text.header',
+                    }}
+                    to="/resources"
+                    alt="Resources"
+                  >
+                    RESOURCES
                   </Link>
                   <Link
                     sx={{
