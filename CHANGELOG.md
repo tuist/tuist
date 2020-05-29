@@ -4,6 +4,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+## 1.9.0 - Speedy Gonzales
+
 ### Added
 
 - Support for enabling the cloud insights feature [#1335](https://github.com/tuist/tuist/pull/1335) by [@pepibumur](https://github.com/pepibumur)
@@ -19,7 +21,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Changed
 
 - **Breaking** Inherit defaultSettings from the project when the target's defaultSettings is nil [#1138](https://github.com/tuist/tuist/pull/1338) by [@pepibumur](https://github.com/pepibumur)
-- Manifests are now cached to speed up generation times _(opt out via setting `TUIST_CACHE_MANIFESTS=0`)_ [1341](https://github.com/tuist/tuist/pull/1341) by [@kwridan](https://github.com/kwridan) 
+- Manifests are now cached to speed up generation times _(opt out via setting `TUIST_CACHE_MANIFESTS=0`)_ [1341](https://github.com/tuist/tuist/pull/1341) by [@kwridan](https://github.com/kwridan)
 
 ## 1.8.0
 
