@@ -93,7 +93,7 @@ If you open `MyApp.xcworkspace` and try to run the `MyApp` scheme, it should bui
 By default all projects that `MyApp` depends on will also be generated, this ensures the generated workspace is complete. Sometimes we may want to only re-generate individual projects in our workspace without re-generating all their dependencies too. Tuist supports this workflow via including the `--project-only` flag:
 
 ```bash
-tuist generate --project-only
+tuist generate --project-only true
 ```
 
 This will generate an Xcode project for the local project only.
