@@ -6,11 +6,11 @@ import XCTest
 
 final class ContentHasherTests: TuistUnitTestCase {
     private var subject: ContentHasher!
-    private var mockFileHandler: MockFileHandling!
+    private var mockFileHandler: MockFileHandler!
 
     override func setUp() {
         super.setUp()
-        mockFileHandler = MockFileHandling()
+        mockFileHandler = MockFileHandler(temporaryDirectory: { try self.temporaryPath() })
         subject = ContentHasher(fileHandler: mockFileHandler)
     }
 
@@ -27,7 +27,7 @@ final class ContentHasherTests: TuistUnitTestCase {
         let hash = try subject.hash("foo")
 
         // Then
-        XCTAssertEqual(hash, "acbd18db4cc2f85cedef654fccc4a4d8")
+        XCTAssertEqual(hash, "acbd18db4cc2f85cedef654fccc4a4d8") // This is the md5 of "foo"
     }
 
     func test_hashstring_bar_returnsItsMd5() throws {
@@ -35,7 +35,7 @@ final class ContentHasherTests: TuistUnitTestCase {
         let hash = try subject.hash("bar")
 
         // Then
-        XCTAssertEqual(hash, "37b51d194a7513e45b56f6524f2d51f2")
+        XCTAssertEqual(hash, "37b51d194a7513e45b56f6524f2d51f2") // This is the md5 of "bar"
     }
 
     func test_hashstrings_foo_bar_returnsAnotherMd5() throws {
@@ -43,66 +43,46 @@ final class ContentHasherTests: TuistUnitTestCase {
         let hash = try subject.hash(["foo", "bar"])
 
         // Then
-        XCTAssertEqual(hash, "3858f62230ac3c915f300c664312c63f")
+        XCTAssertEqual(hash, "3858f62230ac3c915f300c664312c63f") // This is the md5 of "foobar"
     }
 
     func test_hashFile_hashesTheExpectedFile() throws {
         // Given
-        let data = Data(repeating: 1, count: 10)
-        let path = AbsolutePath("/foo")
-        mockFileHandler.readFileStub = data
-        mockFileHandler.existsForPathStub[path] = true
+        let path = try writeToTemporaryPath(content: "foo")
 
         // When
         let hash = try subject.hash(fileAtPath: path)
 
         // Then
-        XCTAssertEqual(hash, "484c5624910e6288fad69e572a0637f7")
-        XCTAssertEqual(mockFileHandler.readFileSpy, path)
+        XCTAssertEqual(hash, "acbd18db4cc2f85cedef654fccc4a4d8") // This is the md5 of "foo"
     }
 
     func test_hashFile_isNotHarcoded() throws {
         // Given
-        let data = Data(repeating: 2, count: 10)
-        let path = AbsolutePath("/bar")
-        mockFileHandler.readFileStub = data
-        mockFileHandler.existsForPathStub[path] = true
+        let path = try writeToTemporaryPath(content: "bar")
 
         // When
         let hash = try subject.hash(fileAtPath: path)
 
         // Then
-        XCTAssertEqual(hash, "0a8d20ca7c979834c6e4d486d648ce1e")
-        XCTAssertEqual(mockFileHandler.readFileSpy, path)
+        XCTAssertEqual(hash, "37b51d194a7513e45b56f6524f2d51f2") // This is the md5 of "bar"
     }
 
     func test_hashFile_whenFileDoesntExist_itThrowsFileNotFound() {
         // Given
-        let data = Data(repeating: 2, count: 10)
-        let path = AbsolutePath("/bar")
-        mockFileHandler.readFileStub = data
-
-        // When
-        mockFileHandler.existsForPathStub[path] = false
+        let wrongPath = AbsolutePath("/shakirashakira")
 
         // Then
-        XCTAssertThrowsError(try subject.hash(fileAtPath: path)) { error in
-            XCTAssertEqual(error as? FileHandlerError, FileHandlerError.fileNotFound(path))
+        XCTAssertThrowsError(try subject.hash(fileAtPath: wrongPath)) { error in
+            XCTAssertEqual(error as? FileHandlerError, FileHandlerError.fileNotFound(wrongPath))
         }
     }
 
-    func test_hashFile_whenFailsToReadFile_itThrowsFailedToReadFile() {
-        // Given
-        let data = Data(repeating: 2, count: 10)
-        let path = AbsolutePath("/bar")
-        mockFileHandler.readFileStub = data
+    // MARK: - Private
 
-        // When
-        mockFileHandler.existsForPathStub[path] = false
-
-        // Then
-        XCTAssertThrowsError(try subject.hash(fileAtPath: path)) { error in
-            XCTAssertEqual(error as? FileHandlerError, FileHandlerError.fileNotFound(path))
-        }
+    private func writeToTemporaryPath(fileName: String = "foo", content: String = "foo") throws -> AbsolutePath {
+        let path = try temporaryPath().appending(component: fileName)
+        try mockFileHandler.write(content, path: path, atomically: true)
+        return path
     }
 }
