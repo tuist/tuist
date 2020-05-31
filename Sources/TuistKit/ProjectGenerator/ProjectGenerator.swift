@@ -12,7 +12,7 @@ protocol ProjectGenerating {
 }
 
 class ProjectGenerator: ProjectGenerating {
-    private let recursiveManifestLoader: RecursiveManifestLoading = RecursiveManifestLoader()
+    private let recursiveManifestLoader: RecursiveManifestLoading
     private let converter: ManifestModelConverting
     private let manifestLinter: ManifestLinting = ManifestLinter()
     private let graphLinter: GraphLinting = GraphLinter()
@@ -28,9 +28,10 @@ class ProjectGenerator: ProjectGenerating {
     private let graphMapperProvider: GraphMapperProviding
     private let manifestLoader: ManifestLoading
 
-    init(graphMapperProvider: GraphMapperProviding = GraphMapperProvider(useCache: false), 
+    init(graphMapperProvider: GraphMapperProviding = GraphMapperProvider(useCache: false),
          manifestLoaderFactory: ManifestLoaderFactory = ManifestLoaderFactory()) {
         let manifestLoader = manifestLoaderFactory.createManifestLoader()
+        recursiveManifestLoader = RecursiveManifestLoader(manifestLoader: manifestLoader)
         let modelLoader = GeneratorModelLoader(manifestLoader: manifestLoader,
                                                manifestLinter: manifestLinter)
         converter = modelLoader
