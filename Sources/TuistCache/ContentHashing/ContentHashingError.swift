@@ -4,7 +4,7 @@ import TuistCore
 import TuistSupport
 
 enum ContentHashingError: FatalError, Equatable {
-    case fileNotFound(AbsolutePath)
+    case failedToReadFile(AbsolutePath)
     case fileHashingFailed(AbsolutePath)
     case stringHashingFailed(String)
 
@@ -14,7 +14,7 @@ enum ContentHashingError: FatalError, Equatable {
 
     var description: String {
         switch self {
-        case let .fileNotFound(path):
+        case let .failedToReadFile(path):
             return "Couldn't find file at path \(path.pathString) while hashing the target for caching."
         case let .fileHashingFailed(path):
             return "Couldn't calculate hash of file at path \(path.pathString) for caching."
@@ -25,7 +25,7 @@ enum ContentHashingError: FatalError, Equatable {
 
     static func == (lhs: ContentHashingError, rhs: ContentHashingError) -> Bool {
         switch (lhs, rhs) {
-        case let (.fileNotFound(lhsPath), .fileNotFound(rhsPath)):
+        case let (.failedToReadFile(lhsPath), .failedToReadFile(rhsPath)):
             return lhsPath == rhsPath
         case let (.fileHashingFailed(lhsPath), .fileHashingFailed(rhsPath)):
             return lhsPath == rhsPath

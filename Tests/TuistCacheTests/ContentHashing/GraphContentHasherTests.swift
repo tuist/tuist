@@ -3,24 +3,31 @@ import TSCBasic
 import TuistCore
 import TuistCoreTesting
 import XCTest
-@testable import TuistCache
 
-final class GraphContentHasherTests: XCTestCase {
-    private var sut: GraphContentHasher!
+@testable import TuistCache
+@testable import TuistSupportTesting
+
+final class GraphContentHasherTests: TuistUnitTestCase {
+    private var subject: GraphContentHasher!
 
     override func setUp() {
         super.setUp()
-        sut = GraphContentHasher()
+        subject = GraphContentHasher()
     }
 
     override func tearDown() {
-        sut = nil
+        subject = nil
         super.tearDown()
     }
 
     func test_contentHashes_emptyGraph() throws {
+        // Given
         let graph = Graph.test()
-        let hashes = try sut.contentHashes(for: graph)
+
+        // When
+        let hashes = try subject.contentHashes(for: graph)
+
+        // Then
         XCTAssertEqual(hashes, Dictionary())
     }
 
@@ -44,7 +51,7 @@ final class GraphContentHasherTests: XCTestCase {
         let expectedCachableTargets = [frameworkTarget, secondFrameworkTarget].sorted(by: { $0.target.name < $1.target.name })
 
         // When
-        let hashes = try sut.contentHashes(for: graph)
+        let hashes = try subject.contentHashes(for: graph)
         let hashedTargets: [TargetNode] = hashes.keys.sorted { left, right -> Bool in
             left.project.path.pathString < right.project.path.pathString
         }.sorted(by: { $0.target.name < $1.target.name })
