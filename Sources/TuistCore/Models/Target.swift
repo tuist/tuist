@@ -87,7 +87,7 @@ public struct Target: Equatable, Hashable {
         actions.filter { $0.order == .post }
     }
 
-    /// Target can link staitc products (e.g. an app can link a staticLibrary)
+    /// Target can link static products (e.g. an app can link a staticLibrary)
     public func canLinkStaticProducts() -> Bool {
         [
             .framework,
