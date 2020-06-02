@@ -16,6 +16,7 @@ public final class TargetContentHasher: TargetContentHashing {
     private let targetActionsContentHasher: TargetActionsContentHashing
     private let resourcesContentHasher: ResourcesContentHashing
     private let headersContentHasher: HeadersContentHashing
+    private let deploymentTargetContentHasher: DeploymentTargetContentHashing
 
     // MARK: - Init
 
@@ -26,7 +27,8 @@ public final class TargetContentHasher: TargetContentHashing {
             targetActionsContentHasher: TargetActionsContentHasher(contentHasher: contentHasher),
             coreDataModelsContentHasher: CoreDataModelsContentHasher(contentHasher: contentHasher),
             resourcesContentHasher: ResourcesContentHasher(contentHasher: contentHasher),
-            headersContentHasher: HeadersContentHasher(contentHasher: contentHasher)
+            headersContentHasher: HeadersContentHasher(contentHasher: contentHasher),
+            deploymentTargetContentHasher: DeploymentTargetContentHasher(contentHasher: contentHasher)
         )
     }
 
@@ -36,7 +38,8 @@ public final class TargetContentHasher: TargetContentHashing {
         targetActionsContentHasher: TargetActionsContentHashing,
         coreDataModelsContentHasher: CoreDataModelsContentHashing,
         resourcesContentHasher: ResourcesContentHashing,
-        headersContentHasher: HeadersContentHashing
+        headersContentHasher: HeadersContentHashing,
+        deploymentTargetContentHasher: DeploymentTargetContentHashing
     ) {
         self.contentHasher = contentHasher
         self.sourceFilesContentHasher = sourceFilesContentHasher
@@ -44,6 +47,7 @@ public final class TargetContentHasher: TargetContentHashing {
         self.targetActionsContentHasher = targetActionsContentHasher
         self.resourcesContentHasher = resourcesContentHasher
         self.headersContentHasher = headersContentHasher
+        self.deploymentTargetContentHasher = deploymentTargetContentHasher
     }
 
     // MARK: - TargetContentHashing
@@ -67,11 +71,15 @@ public final class TargetContentHasher: TargetContentHashing {
             let headersHash = try headersContentHasher.hash(headers: headers)
             stringsToHash.append(headersHash)
         }
+        if let deploymentTarget = target.deploymentTarget {
+            let deploymentTargetHash = try deploymentTargetContentHasher.hash(deploymentTarget: deploymentTarget)
+            stringsToHash.append(deploymentTargetHash)
+        }
 
         return try contentHasher.hash(stringsToHash)
     }
 
-    // TODO: hash headers, platforms, version, entitlements, info.plist, target.environment, target.filesGroup, targetNode.settings, targetNode.project, targetNode.dependencies ,targetNode.target.dependencies
+    // TODO: hash  version, entitlements, info.plist, target.environment, target.filesGroup, targetNode.settings, targetNode.project, targetNode.dependencies ,targetNode.target.dependencies
 
     // TODO: test TargetContentHasher
 }
