@@ -3,6 +3,8 @@ import TSCBasic
 import TuistCore
 import TuistSupport
 
+/// `ContentHashingError`
+/// defines all the errors that can happen while cashing the content of a target
 enum ContentHashingError: FatalError, Equatable {
     case failedToReadFile(AbsolutePath)
     case fileHashingFailed(AbsolutePath)

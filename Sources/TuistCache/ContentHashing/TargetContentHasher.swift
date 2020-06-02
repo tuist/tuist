@@ -7,6 +7,8 @@ public protocol TargetContentHashing {
     func contentHash(for target: TargetNode) throws -> String
 }
 
+/// `TargetContentHasher`
+/// is responsible for computing a unique hash that identifies a target
 public final class TargetContentHasher: TargetContentHashing {
     private let contentHasher: ContentHashing
     private let coreDataModelsContentHasher: CoreDataModelsContentHashing

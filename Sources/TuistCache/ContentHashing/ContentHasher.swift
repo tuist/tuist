@@ -12,11 +12,10 @@ public protocol ContentHashing: FileContentHashing {
     func hash(_ strings: [String]) throws -> String
 }
 
-/// ContentHasher
-/// The single source of truth for hashing content
-/// Using md5 checksum to uniquely hash strings and data
-/// Consider using CacheContentHasher to avoid recalculating the same hash twice
-
+/// `ContentHasher`
+/// is the single source of truth for hashing content.
+/// It uses md5 checksum to uniquely hash strings and data
+/// Consider using CacheContentHasher to avoid computing the same hash twice
 public final class ContentHasher: ContentHashing {
     private let fileHandler: FileHandling
 

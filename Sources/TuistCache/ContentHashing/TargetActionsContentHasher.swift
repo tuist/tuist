@@ -6,6 +6,8 @@ public protocol TargetActionsContentHashing {
     func hash(targetActions: [TargetAction]) throws -> String
 }
 
+/// `TargetActionsContentHasher`
+/// is responsible for computing a unique hash that identifies a list of target actions
 public final class TargetActionsContentHasher: TargetActionsContentHashing {
     private let contentHasher: ContentHashing
 

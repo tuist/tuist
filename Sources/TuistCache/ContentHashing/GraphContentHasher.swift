@@ -8,6 +8,9 @@ public protocol GraphContentHashing {
     func contentHashes(for graph: TuistCore.Graph) throws -> [TargetNode: String]
 }
 
+/// `GraphContentHasher`
+/// is responsible for computing an hash that uniquely identifies a Tuist `Graph`.
+/// It considers only targets that are considered cacheable: frameworks without dependencies on XCTest or on non-cacheable targets
 public final class GraphContentHasher: GraphContentHashing {
     private let targetContentHasher: TargetContentHashing
 
