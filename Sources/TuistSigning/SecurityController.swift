@@ -1,6 +1,7 @@
 import TSCBasic
 import TuistSupport
 
+/// Controller for command line utility `security`
 protocol SecurityControlling {
     func decodeFile(at path: AbsolutePath) throws -> String
     func importCertificate(_ certificate: Certificate, keychainPath: AbsolutePath) throws
@@ -13,13 +14,13 @@ final class SecurityController: SecurityControlling {
     func decodeFile(at path: AbsolutePath) throws -> String {
         try System.shared.capture("/usr/bin/security", "cms", "-D", "-i", path.pathString)
     }
-
+    
     func importCertificate(_ certificate: Certificate, keychainPath: AbsolutePath) throws {
         if try !certificateExists(at: certificate.publicKey) {
             try importToKeychain(at: certificate.publicKey, keychainPath: keychainPath)
         }
         if try !keyExists(at: certificate.privateKey) {
-         try importToKeychain(at: certificate.privateKey, keychainPath: keychainPath)
+            try importToKeychain(at: certificate.privateKey, keychainPath: keychainPath)
         }
         logger.debug("Imported certificate at \(certificate.publicKey.pathString)")
     }
@@ -70,16 +71,6 @@ final class SecurityController: SecurityControlling {
     }
     
     private func importToKeychain(at path: AbsolutePath, keychainPath: AbsolutePath) throws {
-        do {
-            try System.shared.run("/usr/bin/security", "import", path.pathString, "-P", "", "-k", keychainPath.pathString)
-        } catch {
-            if let systemError = error as? TuistSupport.SystemError,
-                systemError.description.contains("The specified item already exists in the keychain") {
-                logger.debug("Certificate at \(path.pathString) is already present in keychain")
-                return
-            } else {
-                throw error
-            }
-        }
+        try System.shared.run("/usr/bin/security", "import", path.pathString, "-P", "", "-k", keychainPath.pathString)
     }
 }
