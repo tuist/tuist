@@ -13,7 +13,7 @@ public protocol RootDirectoryLocating {
 public final class RootDirectoryLocator: RootDirectoryLocating {
     private let fileHandler: FileHandling = FileHandler.shared
     /// This cache avoids having to traverse the directories hierarchy every time the locate method is called.
-    fileprivate var cache: [AbsolutePath: AbsolutePath] = [:]
+    @Atomic private var cache: [AbsolutePath: AbsolutePath] = [:]
 
     /// Constructor
     public init() {}
@@ -53,10 +53,10 @@ public final class RootDirectoryLocator: RootDirectoryLocating {
     ///   - path: Path for which we are caching the root directory.
     fileprivate func cache(rootDirectory: AbsolutePath, for path: AbsolutePath) {
         if path != rootDirectory {
-            cache[path] = rootDirectory
+            _cache.modify { $0[path] = rootDirectory }
             cache(rootDirectory: rootDirectory, for: path.parentDirectory)
         } else if path == rootDirectory {
-            cache[path] = rootDirectory
+            _cache.modify { $0[path] = rootDirectory }
         }
     }
 }
