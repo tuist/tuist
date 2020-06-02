@@ -9,12 +9,16 @@ on:
       - Tests/**/*
       - fixtures/**/*
       - .github/workflows/tuist.yml
+      - Package.swift
+      - Package.resolved
   pull_request:
     paths:
       - Sources/**/*
       - Tests/**/*
       - fixtures/**/*
       - .github/workflows/tuist.yml
+      - Package.swift
+      - Package.resolved
 
 jobs:
   unit_tests:
