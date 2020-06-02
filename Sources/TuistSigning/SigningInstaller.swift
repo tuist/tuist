@@ -29,8 +29,13 @@ enum SigningInstallerError: FatalError, Equatable {
     }
 }
 
+/// Handles installing for signing (provisioning profiles, certificates ...)
 protocol SigningInstalling {
     func installProvisioningProfile(_ provisioningProfile: ProvisioningProfile) throws
+    /// Installs certificate to a given keychain
+    /// - Parameters:
+    ///     - certificate: Certificate to be installed
+    ///     - keychainPath: Path to keychain where the certificate should be installed to
     func installCertificate(_ certificate: Certificate, keychainPath: AbsolutePath) throws
 }
 
@@ -66,6 +71,6 @@ final class SigningInstaller: SigningInstalling {
 
     func installCertificate(_ certificate: Certificate, keychainPath: AbsolutePath) throws {
         try securityController.importCertificate(certificate, keychainPath: keychainPath)
-        logger.notice("Installed certificate with public key at \(certificate.publicKey.pathString) and private key \(certificate.privateKey.pathString) at to keychain at \(keychainPath.pathString)")
+        logger.notice("Installed certificate with public key at \(certificate.publicKey.pathString) and private key at \(certificate.privateKey.pathString) to keychain at \(keychainPath.pathString)")
     }
 }

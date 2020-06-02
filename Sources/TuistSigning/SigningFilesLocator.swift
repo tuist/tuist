@@ -2,7 +2,7 @@ import TSCBasic
 import TuistCore
 import TuistSupport
 
-enum SigningFilesLocatorError: FatalError {
+enum SigningFilesLocatorError: FatalError, Equatable {
     case signingDirectoryNotFound(AbsolutePath)
 
     var type: ErrorType {

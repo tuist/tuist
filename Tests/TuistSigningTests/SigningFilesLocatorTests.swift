@@ -8,10 +8,12 @@ import XCTest
 
 final class SigningFilesLocatorTests: TuistUnitTestCase {
     var subject: SigningFilesLocator!
+    var rootDirectoryLocator: MockRootDirectoryLocator!
 
     override func setUp() {
         super.setUp()
-        subject = SigningFilesLocator()
+        rootDirectoryLocator = MockRootDirectoryLocator()
+        subject = SigningFilesLocator(rootDirectoryLocator: rootDirectoryLocator)
     }
 
     override func tearDown() {
@@ -19,67 +21,76 @@ final class SigningFilesLocatorTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-//    func test_locate_encrypted_signing_files() throws {
-//        // Given
-//        let signingDirectory = try temporaryPath().appending(components: Constants.tuistDirectoryName, Constants.signingDirectoryName)
-//        try fileHandler.createFolder(signingDirectory)
-//        let expectedFileNames = ["file.encrypted", "file2.encrypted"]
-//        try (["file", "file.txt", "file.not_encrypted"] + expectedFileNames)
-//            .map(signingDirectory.appending)
-//            .forEach(fileHandler.touch)
-//        let expectedFiles = expectedFileNames.map(signingDirectory.appending)
-//
-//        // When
-//        let files = try subject.locateEncryptedSigningFiles(at: signingDirectory)
-//
-//        // Then
-//        XCTAssertEqual(files, expectedFiles)
-//    }
-//
-//    func test_locate_unencrypted_signing_files() throws {
-//        // Given
-//        let signingDirectory = try temporaryPath().appending(components: Constants.tuistDirectoryName, Constants.signingDirectoryName)
-//        try fileHandler.createFolder(signingDirectory)
-//        let expectedFileNames = ["file", "file.txt"]
-//        try (["file.encrypted"] + expectedFileNames)
-//            .map(signingDirectory.appending)
-//            .forEach(fileHandler.touch)
-//        let expectedFiles = expectedFileNames.map(signingDirectory.appending)
-//
-//        // When
-//        let files = try subject.locateUnencryptedSigningFiles(at: signingDirectory)
-//
-//        // Then
-//        XCTAssertEqual(files, expectedFiles)
-//    }
-//
-//    func test_has_signing_directory_when_none_exists() throws {
-//        // Given
-//        let tuistDirectory = try temporaryPath().appending(components: Constants.tuistDirectoryName)
-//        try fileHandler.createFolder(tuistDirectory)
-//
-//        // When
-//        let exists = try subject.hasSigningDirectory(at: tuistDirectory)
-//
-//        // Then
-//        XCTAssertFalse(exists)
-//    }
-//
-//    func test_has_signing_directory_when_exists() throws {
-//        // Given
-//        let tuistDirectory = try temporaryPath().appending(components: Constants.tuistDirectoryName, Constants.signingDirectoryName)
-//        try fileHandler.createFolder(tuistDirectory)
-//
-//        // When
-//        let exists = try subject.hasSigningDirectory(at: tuistDirectory)
-//
-//        // Then
-//        XCTAssertTrue(exists)
-//    }
+    func test_locate_encrypted_certificates() throws {
+        // Given
+        let rootDirectory = try temporaryPath()
+        rootDirectoryLocator.locateStub = rootDirectory
+        let signingDirectory = rootDirectory.appending(components: Constants.tuistDirectoryName, Constants.signingDirectoryName)
+        try fileHandler.createFolder(signingDirectory)
+        let expectedFileNames = ["file.cer.encrypted", "file2.cer.encrypted"]
+        try (["file", "file.txt", "file.encrypted"] + expectedFileNames)
+            .map(signingDirectory.appending)
+            .forEach(fileHandler.touch)
+        let expectedFiles = expectedFileNames.map(signingDirectory.appending)
+
+        // When
+        let files = try subject.locateEncryptedCertificates(from: signingDirectory)
+
+        // Then
+        XCTAssertEqual(files, expectedFiles)
+    }
+    
+    func test_locate_encrypted_private_keys() throws {
+        // Given
+        let rootDirectory = try temporaryPath()
+        rootDirectoryLocator.locateStub = rootDirectory
+        let signingDirectory = rootDirectory.appending(components: Constants.tuistDirectoryName, Constants.signingDirectoryName)
+        try fileHandler.createFolder(signingDirectory)
+        let expectedFileNames = ["file.p12.encrypted", "file2.p12.encrypted"]
+        try (["file", "file.txt", "file.encrypted"] + expectedFileNames)
+            .map(signingDirectory.appending)
+            .forEach(fileHandler.touch)
+        let expectedFiles = expectedFileNames.map(signingDirectory.appending)
+
+        // When
+        let files = try subject.locateEncryptedPrivateKeys(from: signingDirectory)
+
+        // Then
+        XCTAssertEqual(files, expectedFiles)
+    }
+    
+
+    func test_locate_signing_directory_when_none_exists() throws {
+        // Given
+        let path = try temporaryPath()
+        rootDirectoryLocator.locateStub = nil
+
+        // When
+        XCTAssertThrowsSpecific(
+            try subject.locateSigningDirectory(from: path),
+            SigningFilesLocatorError.signingDirectoryNotFound(path)
+        )
+    }
+
+    func test_locate_signing_directory_when_exists() throws {
+        // Given
+        let rootDirectory = try temporaryPath()
+        rootDirectoryLocator.locateStub = rootDirectory
+        let expectedSigningDirectory = rootDirectory.appending(components: Constants.tuistDirectoryName, Constants.signingDirectoryName)
+        try fileHandler.createFolder(expectedSigningDirectory)
+
+        // When
+        let signingDirectory = try subject.locateSigningDirectory(from: rootDirectory)
+
+        // Then
+        XCTAssertEqual(signingDirectory, expectedSigningDirectory)
+    }
     
     func test_locate_provisioning_profiles() throws {
         // Given
-        let signingDirectory = try temporaryPath().appending(components: Constants.tuistDirectoryName, Constants.signingDirectoryName)
+        let rootDirectory = try temporaryPath()
+        rootDirectoryLocator.locateStub = rootDirectory
+        let signingDirectory = rootDirectory.appending(components: Constants.tuistDirectoryName, Constants.signingDirectoryName)
         try fileHandler.createFolder(signingDirectory)
         let expectedFileNames = ["file.mobileprovision"]
         try (["file.cer", "file.cer.encrypted"] + expectedFileNames)
@@ -94,9 +105,11 @@ final class SigningFilesLocatorTests: TuistUnitTestCase {
         XCTAssertEqual(files, expectedFiles)
     }
     
-    func test_locate_unecnrypted_certificates() throws {
+    func test_locate_unencrypted_certificates() throws {
         // Given
-        let signingDirectory = try temporaryPath().appending(components: Constants.tuistDirectoryName, Constants.signingDirectoryName)
+        let rootDirectory = try temporaryPath()
+        rootDirectoryLocator.locateStub = rootDirectory
+        let signingDirectory = rootDirectory.appending(components: Constants.tuistDirectoryName, Constants.signingDirectoryName)
         try fileHandler.createFolder(signingDirectory)
         let expectedFileNames = ["file.cer"]
         try (["file.mobileprovision", "file.cer.encrypted"] + expectedFileNames)
@@ -111,18 +124,20 @@ final class SigningFilesLocatorTests: TuistUnitTestCase {
         XCTAssertEqual(files, expectedFiles)
     }
     
-    func test_locate_ecnrypted_certificates() throws {
+    func test_locate_unencrypted_private_keys() throws {
         // Given
-        let signingDirectory = try temporaryPath().appending(components: Constants.tuistDirectoryName, Constants.signingDirectoryName)
+        let rootDirectory = try temporaryPath()
+        rootDirectoryLocator.locateStub = rootDirectory
+        let signingDirectory = rootDirectory.appending(components: Constants.tuistDirectoryName, Constants.signingDirectoryName)
         try fileHandler.createFolder(signingDirectory)
-        let expectedFileNames = ["file.cer.encrypted"]
-        try (["file.mobileprovision", "file.cer"] + expectedFileNames)
+        let expectedFileNames = ["file.p12"]
+        try (["file.mobileprovision", "file.p12.encrypted"] + expectedFileNames)
             .map(signingDirectory.appending)
             .forEach(fileHandler.touch)
         let expectedFiles = expectedFileNames.map(signingDirectory.appending)
 
         // When
-        let files = try subject.locateEncryptedCertificates(from: signingDirectory)
+        let files = try subject.locateUnencryptedPrivateKeys(from: signingDirectory)
 
         // Then
         XCTAssertEqual(files, expectedFiles)

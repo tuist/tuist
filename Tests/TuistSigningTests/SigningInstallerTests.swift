@@ -22,71 +22,80 @@ final class SigningInstallerTests: TuistUnitTestCase {
         securityController = nil
         super.tearDown()
     }
-
-    func test_provisioning_profile_is_installed() throws {
-//        // Given
-//        let uuidString = "c17e88b5-23bf-4427-8dca-e98bb7e7be4f"
-//        let xml = self.xml("""
-//        <key>AppIDName</key>
-//        <string>SignApp</string>
-//        <key>UUID</key>
-//        <string>\(uuidString)</string>
-//        """)
-//        let temporaryPath = try self.temporaryPath()
-//        let provisioningProfilePath = temporaryPath.appending(component: "profile.mobileProvision")
-//        try fileHandler.write(xml, path: provisioningProfilePath, atomically: true)
-//
-//        let homeDirectory = try self.temporaryPath()
-//        fileHandler.homeDirectoryStub = homeDirectory
-//
-//        signingFilesLocator.locateUnencryptedSigningFilesStub = {
-//            [$0.appending(component: "profile.mobileprovision")]
-//        }
-//
-//        securityController.decodeFileStub = { _ in
-//            xml
-//        }
-//
-//        // When
-//        try subject.installSigning(at: temporaryPath)
-//
-//        // Then
-//        XCTAssertEqual(try fileHandler.readTextFile(homeDirectory
-//                           .appending(RelativePath("Library/MobileDevice/Provisioning Profiles/\(uuidString).mobileprovision"))),
-//                       xml)
+    
+    func test_installing_provisioning_profile_fails_when_expired() throws {
+        // Given
+        let provisioningProfile = ProvisioningProfile.test(expirationDate: Date().addingTimeInterval(-1))
+        
+        // When
+        XCTAssertThrowsSpecific(
+            try subject.installProvisioningProfile(provisioningProfile),
+            SigningInstallerError.expiredProvisioningProfile(provisioningProfile)
+        )
     }
-
-//    func test_certificate_is_imported() throws {
-//        // Given
-//        let temporaryPath = try self.temporaryPath()
-//        let certificatePath = temporaryPath.appending(component: "development.cer")
-//        try fileHandler.write("CERT", path: certificatePath, atomically: true)
-//
-//        signingFilesLocator.locateUnencryptedSigningFilesStub = {
-//            [$0.appending(component: "development.cer")]
-//        }
-//
-//        var importedCertificatePath: AbsolutePath?
-//        securityController.importCertificateStub = {
-//            importedCertificatePath = $0
-//        }
-//
-//        // When
-//        try subject.installSigning(at: temporaryPath)
-//
-//        // Then
-//        XCTAssertEqual(importedCertificatePath, certificatePath)
-//    }
-//
-//    private func xml(_ string: String) -> String {
-//        """
-//        <?xml version="1.0" encoding="UTF-8"?>
-//        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-//        <plist version="1.0">
-//        <dict>
-//            \(string)
-//        </dict>
-//        </plist>
-//        """
-//    }
+    
+    func test_installling_provisioning_profile_fails_when_no_path() throws {
+        // Given
+        let provisioningProfile = ProvisioningProfile.test(path: nil)
+        
+        // When
+        XCTAssertThrowsSpecific(
+            try subject.installProvisioningProfile(provisioningProfile),
+            SigningInstallerError.provisioningProfilePathNotFound(provisioningProfile)
+        )
+    }
+    
+    func test_installing_provisioning_profile_fails_when_no_extension() throws {
+        // Given
+        let provisioningProfilePath = try temporaryPath().appending(component: "file")
+        let provisioningProfile = ProvisioningProfile.test(path: provisioningProfilePath)
+        
+        // When
+        XCTAssertThrowsSpecific(
+            try subject.installProvisioningProfile(provisioningProfile),
+            SigningInstallerError.noFileExtension(provisioningProfilePath)
+        )
+    }
+    
+    func test_provisioning_profile_is_installed() throws {
+        // Given
+        let homeDirectoryPath = try temporaryPath()
+        fileHandler.homeDirectoryStub = homeDirectoryPath
+        let provisioningProfilesDirectoryPath = homeDirectoryPath.appending(RelativePath("Library/MobileDevice/Provisioning Profiles"))
+        let sourceProvisioningProfilePath = try temporaryPath().appending(component: "file.mobileprovision")
+        try "my provisioning".write(to: sourceProvisioningProfilePath.url, atomically: true, encoding: .utf8)
+        let provisioningProfile = ProvisioningProfile.test(
+            path: sourceProvisioningProfilePath,
+            uuid: UUID().uuidString
+        )
+        let destinationProvisioningProfilePath = provisioningProfilesDirectoryPath.appending(component: "\(provisioningProfile.uuid).mobileprovision")
+        
+        // When
+        try subject.installProvisioningProfile(provisioningProfile)
+        
+        // Then
+        XCTAssertEqual(
+            try fileHandler.readFile(sourceProvisioningProfilePath),
+            try fileHandler.readFile(destinationProvisioningProfilePath)
+        )
+    }
+    
+    func test_certificate_is_imported() throws {
+        // Given
+        let expectedCertificate = Certificate.test()
+        let expectedPath = try temporaryPath()
+        var certificate: Certificate?
+        var path: AbsolutePath?
+        securityController.importCertificateStub = {
+            certificate = $0
+            path = $1
+        }
+        
+        // When
+        try subject.installCertificate(expectedCertificate, keychainPath: expectedPath)
+        
+        // Then
+        XCTAssertEqual(expectedCertificate, certificate)
+        XCTAssertEqual(expectedPath, path)
+    }
 }

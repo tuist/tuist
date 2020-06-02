@@ -3,7 +3,9 @@ import TSCBasic
 import TuistCore
 import TuistSupport
 
+/// Interacts with signing
 public protocol SigningInteracting {
+    /// Install signing for a given graph
     func install(graph: Graph) throws
 }
 
@@ -73,16 +75,21 @@ public final class SigningInteractor: SigningInteracting {
         }
     }
     
+    // MARK: - Helpers
+    
     private func install(target: Target,
                          project: Project,
                          keychainPath: AbsolutePath,
                          certificates: [String: Certificate],
                          provisioningProfiles: [String: [String: ProvisioningProfile]]) throws {
         let targetConfigurations = target.settings?.configurations ?? [:]
-        let signingPairs = Set(targetConfigurations
-            .merging(project.settings.configurations,
-                     uniquingKeysWith: { config, _ in config })
-            .keys)
+        /// Filtering certificate-provisioning profile pairs, so they are installed only when necessary (they correspond to some configuration and target in the project)
+        let signingPairs = Set(
+            targetConfigurations
+                .merging(project.settings.configurations,
+                         uniquingKeysWith: { config, _ in config })
+                .keys
+        )
             .compactMap { configuration -> (certificate: Certificate, provisioningProfile: ProvisioningProfile)? in
                 guard
                     let provisioningProfile = provisioningProfiles[target.name]?[configuration.name],
