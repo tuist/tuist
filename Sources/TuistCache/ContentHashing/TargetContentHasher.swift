@@ -15,6 +15,7 @@ public final class TargetContentHasher: TargetContentHashing {
     private let sourceFilesContentHasher: SourceFilesContentHashing
     private let targetActionsContentHasher: TargetActionsContentHashing
     private let resourcesContentHasher: ResourcesContentHashing
+    private let headersContentHasher: HeadersContentHashing
 
     // MARK: - Init
 
@@ -24,7 +25,8 @@ public final class TargetContentHasher: TargetContentHashing {
             sourceFilesContentHasher: SourceFilesContentHasher(contentHasher: contentHasher),
             targetActionsContentHasher: TargetActionsContentHasher(contentHasher: contentHasher),
             coreDataModelsContentHasher: CoreDataModelsContentHasher(contentHasher: contentHasher),
-            resourcesContentHasher: ResourcesContentHasher(contentHasher: contentHasher)
+            resourcesContentHasher: ResourcesContentHasher(contentHasher: contentHasher),
+            headersContentHasher: HeadersContentHasher(contentHasher: contentHasher)
         )
     }
 
@@ -33,13 +35,15 @@ public final class TargetContentHasher: TargetContentHashing {
         sourceFilesContentHasher: SourceFilesContentHashing,
         targetActionsContentHasher: TargetActionsContentHashing,
         coreDataModelsContentHasher: CoreDataModelsContentHashing,
-        resourcesContentHasher: ResourcesContentHashing
+        resourcesContentHasher: ResourcesContentHashing,
+        headersContentHasher: HeadersContentHashing
     ) {
         self.contentHasher = contentHasher
         self.sourceFilesContentHasher = sourceFilesContentHasher
         self.coreDataModelsContentHasher = coreDataModelsContentHasher
         self.targetActionsContentHasher = targetActionsContentHasher
         self.resourcesContentHasher = resourcesContentHasher
+        self.headersContentHasher = headersContentHasher
     }
 
     // MARK: - TargetContentHashing
@@ -50,7 +54,7 @@ public final class TargetContentHasher: TargetContentHashing {
         let resourcesHash = try resourcesContentHasher.hash(resources: target.resources)
         let coreDataModelHash = try coreDataModelsContentHasher.hash(coreDataModels: target.coreDataModels)
         let targetActionsHash = try targetActionsContentHasher.hash(targetActions: target.actions)
-        let stringsToHash = [sourcesHash,
+        var stringsToHash = [sourcesHash,
                              target.name,
                              target.platform.rawValue,
                              target.product.rawValue,
@@ -59,9 +63,15 @@ public final class TargetContentHasher: TargetContentHashing {
                              resourcesHash,
                              coreDataModelHash,
                              targetActionsHash]
+        if let headers = target.headers {
+            let headersHash = try headersContentHasher.hash(headers: headers)
+            stringsToHash.append(headersHash)
+        }
+
         return try contentHasher.hash(stringsToHash)
     }
 
     // TODO: hash headers, platforms, version, entitlements, info.plist, target.environment, target.filesGroup, targetNode.settings, targetNode.project, targetNode.dependencies ,targetNode.target.dependencies
+
     // TODO: test TargetContentHasher
 }

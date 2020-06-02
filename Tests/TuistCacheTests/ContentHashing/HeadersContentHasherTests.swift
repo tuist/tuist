@@ -1,0 +1,52 @@
+import Foundation
+import TSCBasic
+import TuistCacheTesting
+import TuistCore
+import TuistCoreTesting
+import TuistSupport
+import XCTest
+@testable import TuistCache
+@testable import TuistSupportTesting
+
+final class HeadersContentHasherTests: TuistUnitTestCase {
+    private var subject: HeadersContentHasher!
+    private var mockContentHasher: MockContentHashing!
+    private let filePath1 = AbsolutePath("/file1")
+    private let filePath2 = AbsolutePath("/file2")
+    private let filePath3 = AbsolutePath("/file3")
+    private let filePath4 = AbsolutePath("/file4")
+    private let filePath5 = AbsolutePath("/file5")
+    private let filePath6 = AbsolutePath("/file6")
+    
+    override func setUp() {
+        super.setUp()
+        mockContentHasher = MockContentHashing()
+        subject = HeadersContentHasher(contentHasher: mockContentHasher)
+    }
+
+    override func tearDown() {
+        subject = nil
+        mockContentHasher = nil
+        super.tearDown()
+    }
+
+    func test_hash_callsContentHasherWithTheExpectedParameters() throws {
+        // Given
+        mockContentHasher.stubHashForPath[filePath1] = "1"
+        mockContentHasher.stubHashForPath[filePath2] = "2"
+        mockContentHasher.stubHashForPath[filePath3] = "3"
+        mockContentHasher.stubHashForPath[filePath4] = "4"
+        mockContentHasher.stubHashForPath[filePath5] = "5"
+        mockContentHasher.stubHashForPath[filePath6] = "6"
+
+        // When
+        let headers = Headers(public: [filePath1, filePath2],
+                              private: [filePath3, filePath4],
+                              project: [filePath5, filePath6])
+
+        // Then
+        let hash = try subject.hash(headers: headers)
+        XCTAssertEqual(hash, "1;2;3;4;5;6")
+        XCTAssertEqual(mockContentHasher.hashFileAtPathCallCount, 6)
+    }
+}

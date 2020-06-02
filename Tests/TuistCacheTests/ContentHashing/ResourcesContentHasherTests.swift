@@ -18,11 +18,6 @@ final class ResourcesContentHasherTests: TuistUnitTestCase {
         super.setUp()
         mockContentHasher = MockContentHashing()
         subject = ResourcesContentHasher(contentHasher: mockContentHasher)
-        do {
-            _ = try TemporaryDirectory(removeTreeOnDeinit: true)
-        } catch {
-            XCTFail("Error while creating temporary directory")
-        }
     }
 
     override func tearDown() {
@@ -33,7 +28,7 @@ final class ResourcesContentHasherTests: TuistUnitTestCase {
 
     // MARK: - Tests
 
-    func test_hash_returnsExpectedValue() throws {
+    func test_hash_callsContentHasherWithTheExpectedParameter() throws {
         // Given
         let file1 = FileElement.file(path: filePath1)
         let file2 = FileElement.file(path: filePath2)
