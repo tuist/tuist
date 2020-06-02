@@ -31,8 +31,8 @@ public final class CredentialsStore: CredentialsStoring {
 
     public func read(serverURL: URL) throws -> Credentials? {
         let keychain = self.keychain(serverURL: serverURL)
-        guard let account = keychain.allKeys().first else { return nil }
-        guard let token = try keychain.get(account) else { return nil }
+        guard let token = keychain.allKeys().first else { return nil }
+        guard let account = try keychain.get(token) else { return nil }
         return Credentials(token: token, account: account)
     }
 
@@ -47,7 +47,7 @@ public final class CredentialsStore: CredentialsStoring {
 
     fileprivate func keychain(serverURL: URL) -> Keychain {
         Keychain(server: serverURL, protocolType: .https, authenticationType: .default)
-            .synchronizable(true)
+            .synchronizable(false)
             .label("\(serverURL.absoluteString)")
     }
 }

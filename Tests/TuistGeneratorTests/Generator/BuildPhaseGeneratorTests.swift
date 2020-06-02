@@ -86,6 +86,51 @@ final class BuildPhaseGeneratorTests: XCTestCase {
         }
     }
 
+    func test_generateSourcesBuildPhase_whenLocalizedFile() throws {
+        // Given
+        let target = PBXNativeTarget(name: "Test")
+        let pbxproj = PBXProj()
+        pbxproj.add(object: target)
+
+        let sources: [Target.SourceFile] = [
+            ("/path/sources/Base.lproj/OTTSiriExtension.intentdefinition", nil),
+            ("/path/sources/en.lproj/OTTSiriExtension.intentdefinition", nil),
+        ]
+
+        let fileElements = createLocalizedResourceFileElements(for: [
+            "/path/sources/OTTSiriExtension.intentdefinition",
+        ])
+
+        // When
+        try subject.generateSourcesBuildPhase(files: sources,
+                                              pbxTarget: target,
+                                              fileElements: fileElements,
+                                              pbxproj: pbxproj)
+
+        // Then
+        let buildPhase = try target.sourcesBuildPhase()
+        let buildFiles = buildPhase?.files ?? []
+
+        XCTAssertEqual(buildFiles.map { $0.file }, [
+            fileElements.elements["/path/sources/OTTSiriExtension.intentdefinition"],
+        ])
+    }
+
+    func test_generateSourcesBuildPhase_throws_whenLocalizedFileAndFileReferenceIsMissing() {
+        let path = AbsolutePath("/test/Base.lproj/file.intentdefinition")
+        let target = PBXNativeTarget(name: "Test")
+        let pbxproj = PBXProj()
+        pbxproj.add(object: target)
+        let fileElements = ProjectFileElements()
+
+        XCTAssertThrowsError(try subject.generateSourcesBuildPhase(files: [(path: path, compilerFlags: nil)],
+                                                                   pbxTarget: target,
+                                                                   fileElements: fileElements,
+                                                                   pbxproj: pbxproj)) {
+            XCTAssertEqual($0 as? BuildPhaseGenerationError, BuildPhaseGenerationError.missingFileReference(path))
+        }
+    }
+
     func test_generateHeadersBuildPhase() throws {
         // Given
         let target = PBXNativeTarget(name: "Test")

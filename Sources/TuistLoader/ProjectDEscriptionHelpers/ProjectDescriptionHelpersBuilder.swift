@@ -51,9 +51,12 @@ final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding 
         let helpersCachePath = cacheDirectory.appending(component: prefixHash)
         let helpersModuleCachePath = helpersCachePath.appending(component: hash)
         let dylibName = "libProjectDescriptionHelpers.dylib"
+        let modulePath = helpersModuleCachePath.appending(component: dylibName)
+
+        builtHelpers[helpersDirectory] = modulePath
 
         if FileHandler.shared.exists(helpersModuleCachePath) {
-            return helpersModuleCachePath.appending(component: dylibName)
+            return modulePath
         }
 
         // If the same helpers directory has been previously compiled
@@ -68,8 +71,6 @@ final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding 
                                    projectDescriptionPath: projectDescriptionPath)
         try System.shared.runAndPrint(command, verbose: false, environment: Environment.shared.tuistVariables)
 
-        let modulePath = helpersModuleCachePath.appending(component: dylibName)
-        builtHelpers[helpersDirectory] = modulePath
         return modulePath
     }
 

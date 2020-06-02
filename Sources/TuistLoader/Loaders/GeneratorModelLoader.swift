@@ -4,7 +4,7 @@ import TSCBasic
 import TuistCore
 import TuistSupport
 
-public class GeneratorModelLoader: GeneratorModelLoading {
+public class GeneratorModelLoader {
     private let manifestLoader: ManifestLoading
     private let manifestLinter: ManifestLinting
     private let rootDirectoryLocator: RootDirectoryLocating
@@ -23,7 +23,9 @@ public class GeneratorModelLoader: GeneratorModelLoading {
         self.manifestLinter = manifestLinter
         self.rootDirectoryLocator = rootDirectoryLocator
     }
+}
 
+extension GeneratorModelLoader: GeneratorModelLoading {
     /// Load a Project model at the specified path
     ///
     /// - Parameters:
@@ -32,21 +34,13 @@ public class GeneratorModelLoader: GeneratorModelLoading {
     /// - Throws: Error encountered during the loading process (e.g. Missing project)
     public func loadProject(at path: AbsolutePath) throws -> TuistCore.Project {
         let manifest = try manifestLoader.loadProject(at: path)
-        let config = try loadConfig(at: path)
-        let generatorPaths = GeneratorPaths(manifestDirectory: path)
         try manifestLinter.lint(project: manifest).printAndThrowIfNeeded()
-        let project = try TuistCore.Project.from(manifest: manifest, generatorPaths: generatorPaths)
-        return try enriched(model: project, with: config)
+        return try convert(manifest: manifest, path: path)
     }
 
     public func loadWorkspace(at path: AbsolutePath) throws -> TuistCore.Workspace {
         let manifest = try manifestLoader.loadWorkspace(at: path)
-        let generatorPaths = GeneratorPaths(manifestDirectory: path)
-        let workspace = try TuistCore.Workspace.from(manifest: manifest,
-                                                     path: path,
-                                                     generatorPaths: generatorPaths,
-                                                     manifestLoader: manifestLoader)
-        return workspace
+        return try convert(manifest: manifest, path: path)
     }
 
     public func loadConfig(at path: AbsolutePath) throws -> TuistCore.Config {
@@ -75,7 +69,27 @@ public class GeneratorModelLoader: GeneratorModelLoading {
 
         return TuistCore.Config.default
     }
+}
 
+extension GeneratorModelLoader: ManifestModelConverting {
+    public func convert(manifest: ProjectDescription.Project, path: AbsolutePath) throws -> TuistCore.Project {
+        let config = try loadConfig(at: path)
+        let generatorPaths = GeneratorPaths(manifestDirectory: path)
+        let project = try TuistCore.Project.from(manifest: manifest, generatorPaths: generatorPaths)
+        return try enriched(model: project, with: config)
+    }
+
+    public func convert(manifest: ProjectDescription.Workspace, path: AbsolutePath) throws -> TuistCore.Workspace {
+        let generatorPaths = GeneratorPaths(manifestDirectory: path)
+        let workspace = try TuistCore.Workspace.from(manifest: manifest,
+                                                     path: path,
+                                                     generatorPaths: generatorPaths,
+                                                     manifestLoader: manifestLoader)
+        return workspace
+    }
+}
+
+extension GeneratorModelLoader {
     private func enriched(model: TuistCore.Project, with config: TuistCore.Config) throws -> TuistCore.Project {
         var enrichedModel = model
 

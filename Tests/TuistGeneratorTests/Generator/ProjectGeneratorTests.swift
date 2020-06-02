@@ -14,6 +14,7 @@ final class ProjectGeneratorTests: TuistUnitTestCase {
 
     override func setUp() {
         super.setUp()
+        system.swiftVersionStub = { "5.2" }
         subject = ProjectGenerator()
     }
 

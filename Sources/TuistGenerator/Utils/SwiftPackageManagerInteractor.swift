@@ -1,4 +1,5 @@
 import Foundation
+import RxBlocking
 import TSCBasic
 import TuistCore
 import TuistSupport
@@ -60,8 +61,20 @@ public class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting {
         }
 
         let workspacePath = path.appending(component: workspaceName)
+        logger.notice("Resolving package dependencies using xcodebuild")
         // -list parameter is a workaround to resolve package dependencies for given workspace without specifying scheme
-        try System.shared.runAndPrint(["xcodebuild", "-resolvePackageDependencies", "-workspace", workspacePath.pathString, "-list"])
+        _ = try System.shared.observable(["xcodebuild", "-resolvePackageDependencies", "-workspace", workspacePath.pathString, "-list"])
+            .mapToString()
+            .do(onNext: { event in
+                switch event {
+                case let .standardError(error):
+                    logger.error("\(error)")
+                case let .standardOutput(output):
+                    logger.debug("\(output)")
+                }
+            })
+            .toBlocking()
+            .last()
 
         if fileHandler.exists(rootPackageResolvedPath) {
             try fileHandler.delete(rootPackageResolvedPath)

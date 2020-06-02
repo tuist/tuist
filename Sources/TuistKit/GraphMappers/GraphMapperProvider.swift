@@ -1,5 +1,6 @@
 import Foundation
 import TuistCache
+import TuistCloud
 import TuistCore
 import TuistSigning
 
@@ -21,7 +22,7 @@ final class GraphMapperProvider: GraphMapperProviding {
         SequentialGraphMapper(mappers(config: config))
     }
 
-    func mappers(config _: Config) -> [GraphMapping] {
+    func mappers(config: Config) -> [GraphMapping] {
         var mappers: [GraphMapping] = []
 
         // Cache
@@ -30,6 +31,11 @@ final class GraphMapperProvider: GraphMapperProviding {
         }
         
         mappers.append(SigningMapper())
+
+        // Cloud
+        if let cloud = config.cloud, cloud.options.contains(.insights) {
+            mappers.append(CloudInsightsGraphMapper())
+        }
 
         return mappers
     }

@@ -14,18 +14,18 @@ const ColorButton = ({ mode, ...props }) => (
     {...props}
     title="Cycle Color Mode"
     sx={{
-      display: "inline-block",
-      appearance: "none",
-      bg: "transparent",
-      color: "inherit",
+      display: 'inline-block',
+      appearance: 'none',
+      bg: 'transparent',
+      color: 'inherit',
       p: 1,
       ml: 4,
       border: 0,
       borderRadius: 9999,
-      ":hover,:focus": {
-        color: "primary",
-        boxShadow: "0 0 0 3px",
-        outline: "none",
+      ':hover,:focus': {
+        color: 'primary',
+        boxShadow: '0 0 0 3px',
+        outline: 'none',
       },
     }}
   >
@@ -35,7 +35,7 @@ const ColorButton = ({ mode, ...props }) => (
       height="20"
       fill="currentcolor"
       sx={{
-        display: "block",
+        display: 'block',
       }}
     >
       <circle
@@ -57,7 +57,7 @@ const ColorButton = ({ mode, ...props }) => (
   </button>
 )
 
-const modes = ["light", "black", "dark", "deep", "hack", "pink"]
+const modes = ['light', 'black', 'dark', 'deep', 'hack', 'pink']
 
 export default ({ menuOpen, setMenuOpen, menuRef }) => {
   const hoverStyle = {
@@ -66,7 +66,7 @@ export default ({ menuOpen, setMenuOpen, menuRef }) => {
   const focusStyle = {
     marginTop: '3px',
     borderBottom: '3px solid',
-    borderBottomColor: theme => theme.colors.primary,
+    borderBottomColor: (theme) => theme.colors.primary,
   }
   const linkStyle = {
     fontSize: 2,
@@ -75,7 +75,12 @@ export default ({ menuOpen, setMenuOpen, menuRef }) => {
   }
   const {
     site: {
-      siteMetadata: { githubUrl, discourseUrl, slackUrl, firstDocumentationPagePath },
+      siteMetadata: {
+        githubUrl,
+        discourseUrl,
+        slackUrl,
+        firstDocumentationPagePath,
+      },
     },
   } = useStaticQuery(graphql`
     query {
@@ -89,9 +94,9 @@ export default ({ menuOpen, setMenuOpen, menuRef }) => {
       }
     }
   `)
-  const { theme } = useThemeUI();
+  const { theme } = useThemeUI()
   const [mode, setMode] = useColorMode()
-  const cycleMode = e => {
+  const cycleMode = (e) => {
     const i = modes.indexOf(mode)
     const n = (i + 1) % modes.length
     setMode(modes[n])
@@ -103,25 +108,33 @@ export default ({ menuOpen, setMenuOpen, menuRef }) => {
           display: 'flex',
           flexDirection: ['column', 'row'],
           py: 3,
-          px: [4, 6],
+          px: [2, 4, 4, 6],
         }}
       >
-        <div sx={{ display: 'flex', flexDirection: 'horizontal', justifyContent: 'center' }}>
-          {setMenuOpen && <MenuButton
-            sx={{ display: ['inherit', 'none'], zIndex: 1 }}
-            onClick={e => {
-              setMenuOpen(!menuOpen)
-              if (!menuRef.current) return
-              const navLink = menuRef.current.querySelector('a')
-              if (navLink) navLink.focus()
-            }}
-          />}
+        <div
+          sx={{
+            display: 'flex',
+            flexDirection: 'horizontal',
+            justifyContent: 'center',
+          }}
+        >
+          {setMenuOpen && (
+            <MenuButton
+              sx={{ display: ['inherit', 'none'], zIndex: 1 }}
+              onClick={(e) => {
+                setMenuOpen(!menuOpen)
+                if (!menuRef.current) return
+                const navLink = menuRef.current.querySelector('a')
+                if (navLink) navLink.focus()
+              }}
+            />
+          )}
           {setMenuOpen && <div sx={{ flex: 1 }} />}
           <Link
             to="/"
             sx={{
               variant: 'text.header',
-              flex: "0 0",
+              flex: '0 0',
               display: 'flex',
               flexDirection: 'row',
               justifyContent: 'flex-start',
@@ -130,15 +143,18 @@ export default ({ menuOpen, setMenuOpen, menuRef }) => {
           >
             <img
               src={logo}
-              sx={{ height: 30, width: 30 }}
+              sx={{ height: 30, width: 30, flex: '0 0 30', minWidth: 30 }}
               alt="Tuist's logotype"
             />
-            <Styled.h2 sx={{ color: 'gray1', ml: 2, my: 0 }}>Tuist</Styled.h2>
+            <Styled.h2 sx={{ color: 'gray1', ml: 2, my: 0, flex: 1 }}>
+              Tuist
+            </Styled.h2>
           </Link>
         </div>
         <Location>
           {({ location }) => {
             const isDocs = location.pathname.startsWith('/docs')
+            const isResources = location.pathname.startsWith('/resources')
             const isBlog = location.pathname.startsWith('/blog')
             const isFaq = location.pathname.startsWith('/faq')
             return (
@@ -149,7 +165,7 @@ export default ({ menuOpen, setMenuOpen, menuRef }) => {
                   flex: 1,
                   justifyContent: ['center', 'center', 'flex-end'],
                   alignItems: 'center',
-                  mt: [3, 0]
+                  mt: [3, 0],
                 }}
               >
                 <div sx={{ display: 'flex', flexDirection: 'row' }}>
@@ -157,36 +173,48 @@ export default ({ menuOpen, setMenuOpen, menuRef }) => {
                     sx={{
                       ...linkStyle,
                       ...(isDocs ? hoverStyle : {}),
-                      variant: 'text.header'
+                      variant: 'text.header',
                     }}
                     to={firstDocumentationPagePath}
                   >
                     DOCS
-                </Link>
+                  </Link>
+                  <Link
+                    sx={{
+                      ...linkStyle,
+                      ...(isResources ? hoverStyle : {}),
+                      ml: 4,
+                      variant: 'text.header',
+                    }}
+                    to="/resources"
+                    alt="Resources"
+                  >
+                    RESOURCES
+                  </Link>
                   <Link
                     sx={{
                       ...linkStyle,
                       ...(isBlog ? hoverStyle : {}),
                       ml: 4,
-                      variant: 'text.header'
+                      variant: 'text.header',
                     }}
                     to="/blog"
                     alt="Blog"
                   >
                     BLOG
-                </Link>
+                  </Link>
                   <Link
                     sx={{
                       ...linkStyle,
                       ...(isFaq ? hoverStyle : {}),
                       ml: 4,
-                      variant: 'text.header'
+                      variant: 'text.header',
                     }}
                     to="/faq"
                     alt="Frequently asked questions"
                   >
                     FAQ
-                </Link>
+                  </Link>
                 </div>
 
                 <div sx={{ flexDirection: 'row', display: 'flex', mt: [3, 0] }}>
@@ -203,7 +231,11 @@ export default ({ menuOpen, setMenuOpen, menuRef }) => {
                     alt="The project's GitHub organization"
                   >
                     <FontAwesomeIcon
-                      sx={{ mt: -1, path: { fill: theme.colors.text }, "&:hover": { path: { fill: theme.colors.primary } } }}
+                      sx={{
+                        mt: -1,
+                        path: { fill: theme.colors.text },
+                        '&:hover': { path: { fill: theme.colors.primary } },
+                      }}
                       icon={faGithub}
                       size="lg"
                     />
@@ -221,7 +253,11 @@ export default ({ menuOpen, setMenuOpen, menuRef }) => {
                     alt="The project's Discourse"
                   >
                     <FontAwesomeIcon
-                      sx={{ mt: -1, path: { fill: theme.colors.text }, "&:hover": { path: { fill: theme.colors.primary } } }}
+                      sx={{
+                        mt: -1,
+                        path: { fill: theme.colors.text },
+                        '&:hover': { path: { fill: theme.colors.primary } },
+                      }}
                       icon={faDiscourse}
                       size="lg"
                     />
@@ -239,7 +275,11 @@ export default ({ menuOpen, setMenuOpen, menuRef }) => {
                     alt="Join the organization's Slack channel"
                   >
                     <FontAwesomeIcon
-                      sx={{ mt: -1, path: { fill: theme.colors.text }, "&:hover": { path: { fill: theme.colors.primary } } }}
+                      sx={{
+                        mt: -1,
+                        path: { fill: theme.colors.text },
+                        '&:hover': { path: { fill: theme.colors.primary } },
+                      }}
                       icon={faSlack}
                       size="lg"
                     />
@@ -251,6 +291,6 @@ export default ({ menuOpen, setMenuOpen, menuRef }) => {
           }}
         </Location>
       </nav>
-    </header >
+    </header>
   )
 }

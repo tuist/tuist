@@ -3,12 +3,12 @@ import TSCBasic
 import TuistSupport
 
 /// It represents a target script build phase
-public struct TargetAction {
+public struct TargetAction: Equatable {
     /// Order when the action gets executed.
     ///
     /// - pre: Before the sources and resources build phase.
     /// - post: After the sources and resources build phase.
-    public enum Order: String {
+    public enum Order: String, Equatable {
         case pre
         case post
     }

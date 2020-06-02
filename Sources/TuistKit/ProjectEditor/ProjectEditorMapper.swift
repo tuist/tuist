@@ -9,7 +9,7 @@ protocol ProjectEditorMapping: AnyObject {
              manifests: [AbsolutePath],
              helpers: [AbsolutePath],
              templates: [AbsolutePath],
-             projectDescriptionPath: AbsolutePath) -> (Project, Graph)
+             projectDescriptionPath: AbsolutePath) throws -> (Project, Graph)
 }
 
 final class ProjectEditorMapper: ProjectEditorMapping {
@@ -19,13 +19,14 @@ final class ProjectEditorMapper: ProjectEditorMapping {
              manifests: [AbsolutePath],
              helpers: [AbsolutePath],
              templates: [AbsolutePath],
-             projectDescriptionPath: AbsolutePath) -> (Project, Graph) {
+             projectDescriptionPath: AbsolutePath) throws -> (Project, Graph) {
         // Settings
         let projectSettings = Settings(base: [:],
                                        configurations: Settings.default.configurations,
                                        defaultSettings: .recommended)
 
-        let targetSettings = Settings(base: settings(projectDescriptionPath: projectDescriptionPath),
+        let swiftVersion = try System.shared.swiftVersion()
+        let targetSettings = Settings(base: settings(projectDescriptionPath: projectDescriptionPath, swiftVersion: swiftVersion),
                                       configurations: Settings.default.configurations,
                                       defaultSettings: .recommended)
 
@@ -71,8 +72,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         // Run Scheme
         let buildAction = BuildAction(targets: targets.map { TargetReference(projectPath: sourceRootPath, name: $0.name) })
         let arguments = Arguments(launch: ["generate --path \(sourceRootPath)": true])
-
-        let runAction = RunAction(configurationName: "Debug", filePath: tuistPath, arguments: arguments)
+        let runAction = RunAction(configurationName: "Debug", executable: nil, filePath: tuistPath, arguments: arguments, diagnosticsOptions: Set())
         let scheme = Scheme(name: "Manifests", shared: true, buildAction: buildAction, runAction: runAction)
 
         // Project
@@ -112,13 +112,14 @@ final class ProjectEditorMapper: ProjectEditorMapping {
 
     /// It returns the build settings that should be used in the manifests target.
     /// - Parameter projectDescriptionPath: Path to the ProjectDescription framework.
-    fileprivate func settings(projectDescriptionPath: AbsolutePath) -> SettingsDictionary {
+    /// - Parameter swiftVersion: The system's Swift version.
+    fileprivate func settings(projectDescriptionPath: AbsolutePath, swiftVersion: String) -> SettingsDictionary {
         let frameworkParentDirectory = projectDescriptionPath.parentDirectory
         var buildSettings = SettingsDictionary()
         buildSettings["FRAMEWORK_SEARCH_PATHS"] = .string(frameworkParentDirectory.pathString)
         buildSettings["LIBRARY_SEARCH_PATHS"] = .string(frameworkParentDirectory.pathString)
         buildSettings["SWIFT_INCLUDE_PATHS"] = .string(frameworkParentDirectory.pathString)
-        buildSettings["SWIFT_VERSION"] = .string(Constants.swiftVersion)
+        buildSettings["SWIFT_VERSION"] = .string(swiftVersion)
         return buildSettings
     }
 

@@ -1,6 +1,6 @@
 /** @jsx jsx */
 import { jsx, Styled, NavLink } from 'theme-ui'
-import { useState, useRef } from "react";
+import { useState, useRef } from 'react'
 import { MDXRenderer } from 'gatsby-plugin-mdx'
 import { graphql, Link, withPrefix } from 'gatsby'
 import Layout from '../components/layout'
@@ -8,7 +8,7 @@ import { ArticleJsonLd, BreadcrumbJsonLd } from 'gatsby-plugin-next-seo'
 import urljoin from 'url-join'
 import moment from 'moment'
 import SEO from '../components/SEO'
-import Links from "../../markdown/docs/links.mdx"
+import Links from '../../markdown/docs/links.mdx'
 import { AccordionNav, Sidenav } from '@theme-ui/sidenav'
 import { Location } from '@reach/router'
 import isAbsoluteURL from 'is-absolute-url'
@@ -16,15 +16,15 @@ import isAbsoluteURL from 'is-absolute-url'
 const NavigationLink = ({ href, ...props }) => {
   const style = {
     display: 'inline-block',
-    fontWeight: 'bold',
     color: 'inherit',
     textDecoration: 'none',
     ':hover,:focus': {
       color: 'primary',
     },
+    pl: '20px !important',
     '&.active': {
       color: 'primary',
-    }
+    },
   }
   const isExternal = isAbsoluteURL(href || '')
   if (isExternal) {
@@ -34,14 +34,17 @@ const NavigationLink = ({ href, ...props }) => {
   return <Link {...props} to={to} sx={style} activeClassName="active" />
 }
 
-const DocumentationPage = ({
-  data: {
-    mdx,
-    site: {
-      siteMetadata: { siteUrl },
+const DocumentationPage = (
+  {
+    data: {
+      mdx,
+      site: {
+        siteMetadata: { siteUrl },
+      },
     },
   },
-}, ...props) => {
+  ...props
+) => {
   const ref = useRef(null)
   const page = mdx
   const [menuOpen, setMenuOpen] = useState(false)
@@ -77,35 +80,46 @@ const DocumentationPage = ({
         ]}
       />
       <div
-        sx={{ display: 'flex', flexDirection: ['column', 'row'], flex: '1', overflow: 'auto' }}
+        sx={{
+          display: 'flex',
+          flexDirection: ['column', 'row'],
+          flex: '1',
+          overflow: 'auto',
+        }}
       >
         <div
           ref={ref}
-          onFocus={e => {
+          onFocus={(e) => {
             // setMenuOpen(true)
           }}
-          onBlur={e => {
+          onBlur={(e) => {
             setMenuOpen(false)
           }}
-          onClick={e => {
+          onClick={(e) => {
             setMenuOpen(false)
-          }}>
+          }}
+        >
           <Location
             children={({ location }) => {
-              return <Links
-                open={menuOpen}
-                components={{ wrapper: Sidenav, a: NavigationLink }}
-                pathname={location.pathname}
-                sx={{
-                  display: [null, 'block'],
-                  width: [250, 400],
-                  mt: [64, 0],
-                  flex: 'none',
-                  pl: [2, 6],
-                  pr: [2, 0],
-                  pt: [0, 5],
-                }}
-              />
+              return (
+                <Links
+                  open={menuOpen}
+                  components={{ wrapper: Sidenav, a: NavigationLink }}
+                  pathname={location.pathname}
+                  sx={{
+                    li: {
+                      listStyleType: 'none',
+                    },
+                    display: [null, 'block'],
+                    width: [250, 400],
+                    mt: [64, 0],
+                    flex: 'none',
+                    pl: [2, 6],
+                    pr: [2, 0],
+                    pt: [0, 5],
+                  }}
+                />
+              )
             }}
           />
         </div>

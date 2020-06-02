@@ -9,6 +9,8 @@ struct CloudCommand: ParsableCommand {
                                  CloudAuthCommand.self,
                                  CloudSessionCommand.self,
                                  CloudLogoutCommand.self,
+                                 CloudStartTargetBuildCommand.self,
+                                 CloudFinishTargetBuildCommand.self,
                              ])
     }
 }

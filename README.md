@@ -4,6 +4,7 @@
 
 [![code style: prettier](https://img.shields.io/badge/code_style-prettier-ff69b4.svg?style=flat-square)](https://github.com/prettier/prettier)
 [![Slack](http://slack.tuist.io/badge.svg)](http://slack.tuist.io)
+![Tuist](https://github.com/tuist/tuist/workflows/Tuist/badge.svg)
 
 ## What's Tuist 🕺
 

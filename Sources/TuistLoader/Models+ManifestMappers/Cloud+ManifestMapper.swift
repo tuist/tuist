@@ -32,6 +32,16 @@ extension TuistCore.Cloud {
         } else {
             throw CloudManifestMapperError.invalidCloudURL(manifest.url)
         }
-        return TuistCore.Cloud(url: cloudURL, projectId: manifest.projectId)
+        let options = manifest.options.map(TuistCore.Cloud.Option.from)
+        return TuistCore.Cloud(url: cloudURL, projectId: manifest.projectId, options: options)
+    }
+}
+
+extension TuistCore.Cloud.Option {
+    static func from(manifest: ProjectDescription.Cloud.Option) -> TuistCore.Cloud.Option {
+        switch manifest {
+        case .insights:
+            return .insights
+        }
     }
 }

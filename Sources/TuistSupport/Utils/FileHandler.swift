@@ -1,12 +1,12 @@
 import Foundation
 import TSCBasic
 
-enum FileHandlerError: FatalError {
+public enum FileHandlerError: FatalError, Equatable {
     case invalidTextEncoding(AbsolutePath)
     case writingError(AbsolutePath)
     case fileNotFound(AbsolutePath)
 
-    var description: String {
+    public var description: String {
         switch self {
         case let .invalidTextEncoding(path):
             return "The file at \(path.pathString) is not a utf8 text file"
@@ -17,7 +17,7 @@ enum FileHandlerError: FatalError {
         }
     }
 
-    var type: ErrorType {
+    public var type: ErrorType {
         switch self {
         case .invalidTextEncoding:
             return .bug

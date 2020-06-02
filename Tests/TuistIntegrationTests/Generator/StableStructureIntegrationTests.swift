@@ -291,6 +291,7 @@ final class StableXcodeProjIntegrationTests: TuistTestCase {
         let targets = try ([appTarget] + frameworkTargets).map(targetReference(from:))
         return (0 ..< 10).map {
             let boolStub = $0 % 2 == 0
+
             return Scheme(
                 name: "Scheme \($0)",
                 shared: boolStub,
@@ -303,10 +304,13 @@ final class StableXcodeProjIntegrationTests: TuistTestCase {
                                        coverage: boolStub,
                                        codeCoverageTargets: targets,
                                        preActions: createExecutionActions(),
-                                       postActions: createExecutionActions()),
+                                       postActions: createExecutionActions(),
+                                       diagnosticsOptions: Set()),
                 runAction: RunAction(configurationName: "Debug",
                                      executable: nil,
-                                     arguments: createArguments()),
+                                     filePath: nil,
+                                     arguments: createArguments(),
+                                     diagnosticsOptions: Set()),
                 archiveAction: ArchiveAction(configurationName: "Debug",
                                              revealArchiveInOrganizer: boolStub,
                                              preActions: createExecutionActions(),

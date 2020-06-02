@@ -159,10 +159,12 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let settings = Settings(base: [:],
                                 configurations: [buildConfiguration: nil],
                                 defaultSettings: .essential)
+        let project = Project.test()
         let target = Target.test(product: .app, settings: settings)
 
         // When
         let got = try subject.targetSettings(target: target,
+                                             project: project,
                                              buildConfiguration: buildConfiguration)
 
         // Then
@@ -175,10 +177,12 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let settings = Settings(base: [:],
                                 configurations: [buildConfiguration: nil],
                                 defaultSettings: .essential)
+        let project = Project.test()
         let target = Target.test(product: .framework, settings: settings)
 
         // When
         let got = try subject.targetSettings(target: target,
+                                             project: project,
                                              buildConfiguration: buildConfiguration)
 
         // Then
@@ -191,10 +195,12 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let settings = Settings(base: [:],
                                 configurations: [buildConfiguration: nil],
                                 defaultSettings: .essential)
+        let project = Project.test()
         let target = Target.test(product: .framework, settings: settings)
 
         // When
         let got = try subject.targetSettings(target: target,
+                                             project: project,
                                              buildConfiguration: buildConfiguration)
 
         // Then
@@ -274,16 +280,32 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let settings = Settings(base: [:],
                                 configurations: [buildConfiguration: nil],
                                 defaultSettings: .recommended)
+        let project = Project.test()
         let target = Target.test(settings: settings)
         xcodeController.selectedVersionStub = .success(Version(11, 0, 0))
 
         // When
         let got = try subject.targetSettings(target: target,
+                                             project: project,
                                              buildConfiguration: buildConfiguration)
 
         // Then
         XCTAssertSettings(got, containsAll: appTargetEssentialDebugSettings)
         XCTAssertEqual(got.count, 9)
+    }
+
+    func testTargetSettings_inheritsProjectDefaultSettings_when_targetBuildSettings_are_nil() throws {
+        // Given
+        let project = Project.test(settings: .test(defaultSettings: .essential))
+        let target = Target.test(settings: nil)
+
+        // When
+        let got = try subject.targetSettings(target: target,
+                                             project: project,
+                                             buildConfiguration: .debug)
+
+        // Then
+        XCTAssertSettings(got, containsAll: appTargetEssentialDebugSettings)
     }
 
     func testTargetSettings_whenXcode10() throws {
@@ -293,10 +315,12 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
                                 configurations: [buildConfiguration: nil],
                                 defaultSettings: .recommended)
         let target = Target.test(settings: settings)
+        let project = Project.test()
         xcodeController.selectedVersionStub = .success(Version(10, 0, 0))
 
         // When
         let got = try subject.targetSettings(target: target,
+                                             project: project,
                                              buildConfiguration: buildConfiguration)
 
         // Then
@@ -310,10 +334,12 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
                                 configurations: [buildConfiguration: nil],
                                 defaultSettings: .recommended)
         let target = Target.test(settings: settings)
+        let project = Project.test()
         xcodeController.selectedVersionStub = .success(Version(11, 0, 0))
 
         // When
         let got = try subject.targetSettings(target: target,
+                                             project: project,
                                              buildConfiguration: buildConfiguration)
 
         // Then
@@ -327,10 +353,12 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
                                 configurations: [buildConfiguration: nil],
                                 defaultSettings: .recommended)
         let target = Target.test(product: .app, settings: settings)
+        let project = Project.test()
         xcodeController.selectedVersionStub = .success(Version(11, 0, 0))
 
         // When
         let got = try subject.targetSettings(target: target,
+                                             project: project,
                                              buildConfiguration: buildConfiguration)
 
         // Then
@@ -344,10 +372,12 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let settings = Settings(base: [:],
                                 configurations: [buildConfiguration: nil],
                                 defaultSettings: .recommended)
+        let project = Project.test()
         let target = Target.test(product: .framework, settings: settings)
 
         // When
         let got = try subject.targetSettings(target: target,
+                                             project: project,
                                              buildConfiguration: buildConfiguration)
 
         // Then
@@ -361,10 +391,12 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let settings = Settings(base: [:],
                                 configurations: [buildConfiguration: nil],
                                 defaultSettings: .recommended)
+        let project = Project.test()
         let target = Target.test(product: .framework, settings: settings)
 
         // When
         let got = try subject.targetSettings(target: target,
+                                             project: project,
                                              buildConfiguration: buildConfiguration)
 
         // Then
@@ -378,10 +410,12 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let settings = Settings(base: [:],
                                 configurations: [buildConfiguration: nil],
                                 defaultSettings: .none)
+        let project = Project.test()
         let target = Target.test(product: .framework, settings: settings)
 
         // When
         let got = try subject.targetSettings(target: target,
+                                             project: project,
                                              buildConfiguration: buildConfiguration)
 
         // Then
@@ -394,10 +428,12 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let settings = Settings(base: [:],
                                 configurations: [buildConfiguration: nil],
                                 defaultSettings: .none)
+        let project = Project.test()
         let target = Target.test(product: .framework, settings: settings)
 
         // When
         let got = try subject.targetSettings(target: target,
+                                             project: project,
                                              buildConfiguration: buildConfiguration)
 
         // Then
@@ -410,10 +446,12 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let settings = Settings(base: [:],
                                 configurations: [buildConfiguration: nil],
                                 defaultSettings: .recommended)
+        let project = Project.test()
         let target = Target.test(product: .unitTests, settings: settings)
 
         // When
         let got = try subject.targetSettings(target: target,
+                                             project: project,
                                              buildConfiguration: buildConfiguration)
 
         // Then
@@ -426,10 +464,12 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let settings = Settings(base: [:],
                                 configurations: [buildConfiguration: nil],
                                 defaultSettings: .recommended)
+        let project = Project.test()
         let target = Target.test(product: .uiTests, settings: settings)
 
         // When
         let got = try subject.targetSettings(target: target,
+                                             project: project,
                                              buildConfiguration: buildConfiguration)
 
         // Then
@@ -442,10 +482,12 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let settings = Settings(base: [:],
                                 configurations: [buildConfiguration: nil],
                                 defaultSettings: .essential)
+        let project = Project.test()
         let target = Target.test(product: .unitTests, settings: settings)
 
         // When
         let got = try subject.targetSettings(target: target,
+                                             project: project,
                                              buildConfiguration: buildConfiguration)
 
         // Then
@@ -458,10 +500,12 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let settings = Settings(base: [:],
                                 configurations: [buildConfiguration: nil],
                                 defaultSettings: .essential)
+        let project = Project.test()
         let target = Target.test(product: .uiTests, settings: settings)
 
         // When
         let got = try subject.targetSettings(target: target,
+                                             project: project,
                                              buildConfiguration: buildConfiguration)
 
         // Then

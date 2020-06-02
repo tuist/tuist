@@ -3,7 +3,7 @@ name: Checks
 
 on:
   push:
-    branches:    
+    branches:
       - master
     paths:
       - Sources/**/*
@@ -26,7 +26,7 @@ jobs:
       - name: Select Xcode 11.4
         run: sudo xcode-select -switch /Applications/Xcode_11.4.app
       - name: Install swiftformat by homebrew
-        run: brew install swiftformat
+        run: brew install swiftformat && brew upgrade swiftformat
       - uses: actions/setup-ruby@v1
         with:
           ruby-version: '2.x'

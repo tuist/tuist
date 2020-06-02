@@ -9,6 +9,7 @@ public protocol DefaultSettingsProviding {
                          buildConfiguration: BuildConfiguration) throws -> SettingsDictionary
 
     func targetSettings(target: Target,
+                        project: Project,
                         buildConfiguration: BuildConfiguration) throws -> SettingsDictionary
 }
 
@@ -89,9 +90,10 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
     }
 
     public func targetSettings(target: Target,
+                               project: Project,
                                buildConfiguration: BuildConfiguration) throws -> SettingsDictionary {
         let settingsHelper = SettingsHelper()
-        let defaultSettings = target.settings?.defaultSettings ?? .recommended
+        let defaultSettings = target.settings?.defaultSettings ?? project.settings.defaultSettings
         let product = settingsHelper.settingsProviderProduct(target)
         let platform = settingsHelper.settingsProviderPlatform(target)
         let variant = settingsHelper.variant(buildConfiguration)

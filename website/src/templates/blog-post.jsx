@@ -12,7 +12,11 @@ import urljoin from 'url-join'
 import SEO from '../components/SEO'
 import { NewsArticleJsonLd, BreadcrumbJsonLd } from 'gatsby-plugin-next-seo'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faClock, faCalendarAlt, faUser } from '@fortawesome/free-regular-svg-icons'
+import {
+  faClock,
+  faCalendarAlt,
+  faUser,
+} from '@fortawesome/free-regular-svg-icons'
 
 const Avatar = ({ author: { avatar, twitter } }) => {
   return (
@@ -32,55 +36,68 @@ const Avatar = ({ author: { avatar, twitter } }) => {
 }
 
 const Subtitle = ({ post, author }) => {
-  const { theme } = useThemeUI();
-  return <div
-    sx={{
-      flex: 1,
-      mb: 0,
-      color: 'gray',
-      fontSize: 2,
-      display: 'flex',
-      alignItems: 'center',
-      flexDirection: ['column', 'row'],
-      justifyContent: 'center',
-    }}
-  >
-    <span>
-      <FontAwesomeIcon
-        sx={{ path: { fill: theme.colors.gray }, height: 15, width: 15 }}
-        icon={faCalendarAlt}
-        size="sm"
-      /> {post.fields.date}
-    </span>
+  const { theme } = useThemeUI()
+  return (
+    <div
+      sx={{
+        flex: 1,
+        mb: 0,
+        color: 'gray',
+        fontSize: 2,
+        my: 4,
+        display: 'flex',
+        alignItems: 'center',
+        flexDirection: ['column', 'row'],
+        justifyContent: 'center',
+      }}
+    >
+      <span>
+        <FontAwesomeIcon
+          sx={{ path: { fill: theme.colors.gray }, height: 15, width: 15 }}
+          icon={faCalendarAlt}
+          size="sm"
+        />{' '}
+        {post.fields.date}
+      </span>
 
-    <span sx={{ ml: [0, 4] }}>
-      <FontAwesomeIcon
-        sx={{ path: { fill: theme.colors.gray }, height: 15, width: 15 }}
-        icon={faUser}
-        size="sm"
-      />
-      <Styled.a
-        href={`https://twitter.com/${author.twitter}`}
-        target="__blank"
-        alt={`Open the Twitter profile of ${author.name}`}
-        sx={{ ml: 2 }}
+      <span
+        sx={{
+          ml: [0, 4],
+          display: 'flex',
+          flexDirection: 'row',
+          flexWrap: 'nowrap',
+          alignItems: 'center',
+        }}
       >
-        {author.name}
-      </Styled.a>
-      <img
-        src={author.avatar}
-        sx={{ width: 14, height: 14, borderRadius: 7, ml: 2 }}
-      />
-    </span>
+        <FontAwesomeIcon
+          sx={{ path: { fill: theme.colors.gray }, height: 15, width: 15 }}
+          icon={faUser}
+          size="sm"
+        />
+        <Styled.a
+          href={`https://twitter.com/${author.twitter}`}
+          target="__blank"
+          alt={`Open the Twitter profile of ${author.name}`}
+          sx={{ ml: 2 }}
+        >
+          {author.name}
+        </Styled.a>
+        <img
+          src={author.avatar}
+          sx={{ width: 14, height: 14, borderRadius: 7, ml: 2 }}
+        />
+      </span>
 
-    <span sx={{ ml: [0, 4] }}>
-      <FontAwesomeIcon
-        sx={{ path: { fill: theme.colors.gray }, height: 15, width: 15 }}
-        icon={faClock}
-        size="sm"
-      /> {post.timeToRead} min read
-  </span>
-  </div>
+      <span sx={{ ml: [0, 4] }}>
+        <FontAwesomeIcon
+          sx={{ path: { fill: theme.colors.gray }, height: 15, width: 15 }}
+          icon={faClock}
+          size="sm"
+        />{' '}
+        {post.timeToRead} min read
+      </span>
+    </div>
+  )
 }
 
 const IndexPage = ({
@@ -93,9 +110,9 @@ const IndexPage = ({
   },
 }) => {
   const post = mdx
-  const authors = edges.map(edge => edge.node)
+  const authors = edges.map((edge) => edge.node)
   const author = authors.find(
-    author => author.handle === post.frontmatter.author
+    (author) => author.handle === post.frontmatter.author
   )
 
   const breadcrumb = [
@@ -150,9 +167,7 @@ const IndexPage = ({
         <Styled.h1 sx={{ textAlign: 'center', pb: 0, mb: 0 }}>
           {post.frontmatter.title}
         </Styled.h1>
-        <Styled.p sx={{ textAlign: 'center', color: 'gray', my: 4 }}>
-          <Subtitle post={post} author={author} />
-        </Styled.p>
+        <Subtitle post={post} author={author} />
         <div sx={{ pb: 4 }}>
           <MDXRenderer>{post.body}</MDXRenderer>
         </div>

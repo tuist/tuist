@@ -16,11 +16,11 @@ const Main = ({ children, py }) => {
       <div
         sx={{
           mt: 3,
-          px: [2, 5],
+          px: [0, 0],
           py: py,
           borderTopLeftRadius: 2,
           borderTopRightRadius: 2,
-          width: theme => ['90%', '90%', '80%', '80%', theme.breakpoints.md],
+          width: (theme) => ['90%', '90%', '90%', '90%', theme.breakpoints.md],
         }}
       >
         {children}

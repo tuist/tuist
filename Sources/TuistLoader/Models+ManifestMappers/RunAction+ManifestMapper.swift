@@ -18,9 +18,11 @@ extension TuistCore.RunAction {
             executableResolved = TargetReference(projectPath: try generatorPaths.resolveSchemeActionProjectPath(executable.projectPath),
                                                  name: executable.targetName)
         }
-
-        return RunAction(configurationName: configurationName,
-                         executable: executableResolved,
-                         arguments: arguments)
+        let diagnosticsOptions = Set(manifest.diagnosticsOptions.map { TuistCore.SchemeDiagnosticsOption.from(manifest: $0) })
+        return TuistCore.RunAction(configurationName: configurationName,
+                                   executable: executableResolved,
+                                   filePath: nil,
+                                   arguments: arguments,
+                                   diagnosticsOptions: diagnosticsOptions)
     }
 }
