@@ -244,7 +244,6 @@ final class SchemesGenerator: SchemesGenerating {
                                                                graph: graph,
                                                                rootPath: rootPath,
                                                                generatedProjects: generatedProjects) else { return }
-
             let testable = XCScheme.TestableReference(skipped: testableTarget.isSkipped,
                                                       parallelizable: testableTarget.isParallelizable,
                                                       randomExecutionOrdering: testableTarget.isRandomExecutionOrdering,
@@ -280,6 +279,8 @@ final class SchemesGenerator: SchemesGenerating {
 
         let disableMainThreadChecker = !testAction.diagnosticsOptions.contains(.mainThreadChecker)
         let shouldUseLaunchSchemeArgsEnv: Bool = args == nil && environments == nil
+        let language = testAction.language
+        let region = testAction.region
 
         return XCScheme.TestAction(buildConfiguration: testAction.configurationName,
                                    macroExpansion: nil,
@@ -292,7 +293,9 @@ final class SchemesGenerator: SchemesGenerating {
                                    onlyGenerateCoverageForSpecifiedTargets: onlyGenerateCoverageForSpecifiedTargets,
                                    disableMainThreadChecker: disableMainThreadChecker,
                                    commandlineArguments: args,
-                                   environmentVariables: environments)
+                                   environmentVariables: environments,
+                                   language: language,
+                                   region: region)
     }
 
     /// Generates the scheme launch action.

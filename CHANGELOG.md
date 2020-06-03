@@ -4,6 +4,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Added
+
+- Adds a possibility to set Options > Application Language and Application Region for a `TestAction` on a scheme [#1055](https://github.com/tuist/tuist/pull/1055) by [@paciej00](https://github.com/paciej00)
+
 ### Changed
 
 - Upgrade XcodeProj to 7.11.0 [#1398](https://github.com/tuist/tuist/pull/1398) by [@pepibumur](https://github.com/pepibumur)

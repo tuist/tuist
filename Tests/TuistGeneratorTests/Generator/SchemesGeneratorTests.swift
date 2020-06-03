@@ -366,7 +366,7 @@ final class SchemesGeneratorTests: XCTestCase {
 
         let preAction = ExecutionAction(title: "Pre Action", scriptText: "echo Pre Actions", target: TargetReference(projectPath: projectPath, name: "AppTests"))
         let postAction = ExecutionAction(title: "Post Action", scriptText: "echo Post Actions", target: TargetReference(projectPath: projectPath, name: "AppTests"))
-        let testAction = TestAction.test(targets: [TestableTarget(target: TargetReference(projectPath: projectPath, name: "AppTests"))], preActions: [preAction], postActions: [postAction])
+        let testAction = TestAction.test(targets: [TestableTarget(target: TargetReference(projectPath: projectPath, name: "AppTests"))], preActions: [preAction], postActions: [postAction], language: "es", region: "ES")
 
         let scheme = Scheme.test(name: "AppTests", shared: true, testAction: testAction)
         let project = Project.test(path: projectPath, targets: [testTarget])
@@ -380,6 +380,9 @@ final class SchemesGeneratorTests: XCTestCase {
         // Then
         // Pre Action
         let result = try XCTUnwrap(got)
+        XCTAssertEqual(result.language, "es")
+        XCTAssertEqual(result.region, "ES")
+
         XCTAssertEqual(result.preActions.first?.title, "Pre Action")
         XCTAssertEqual(result.preActions.first?.scriptText, "echo Pre Actions")
 
