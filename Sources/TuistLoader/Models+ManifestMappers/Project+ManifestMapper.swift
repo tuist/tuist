@@ -68,17 +68,4 @@ extension TuistCore.Project {
                 schemes: schemes,
                 additionalFiles: additionalFiles)
     }
-
-    func replacing(autogenerateSchemes _: Bool) -> TuistCore.Project {
-        Project(path: path,
-                name: name,
-                organizationName: organizationName,
-                fileName: fileName,
-                settings: settings,
-                filesGroup: filesGroup,
-                targets: targets,
-                packages: packages,
-                schemes: schemes,
-                additionalFiles: additionalFiles)
-    }
 }

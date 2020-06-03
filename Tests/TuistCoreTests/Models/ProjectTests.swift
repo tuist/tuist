@@ -51,16 +51,13 @@ final class ProjectTests: XCTestCase {
 
     func test_defaultDebugBuildConfigurationName_when_defaultDebugConfigExists() {
         // Given
-        let settings = Settings.test(base: [:],
-                                     debug: .test(),
-                                     release: .test())
         let project = Project.test(settings: Settings.test())
 
         // When
         let got = project.defaultDebugBuildConfigurationName
 
         // Then
-        XCTAssertEqual(got, settings.defaultDebugBuildConfiguration()?.name)
+        XCTAssertEqual(got, "Debug")
     }
 
     func test_defaultDebugBuildConfigurationName_when_defaultDebugConfigDoesntExist() {
