@@ -3,6 +3,7 @@ import TuistCache
 import TuistCloud
 import TuistCore
 import TuistCoreTesting
+import TuistGenerator
 import TuistSupport
 import XCTest
 

@@ -17,68 +17,6 @@ final class SchemesGeneratorTests: XCTestCase {
         subject = SchemesGenerator()
     }
 
-    // MARK: - Scheme Generation
-
-    func test_defaultGeneratedScheme_RegularTarget() throws {
-        // Given
-        let target = Target.test(name: "App", product: .app)
-        let testTarget1 = Target.test(name: "AppTests1", product: .unitTests)
-        let testTarget2 = Target.test(name: "AppTests2", product: .unitTests)
-        let testTarget3 = Target.test(name: "AppTests3", product: .unitTests)
-        let testTargets = [testTarget1, testTarget2, testTarget3]
-        let project = Project.test(targets: [target] + testTargets)
-
-        let graph = Graph.create(dependencies: [(project: project, target: target, dependencies: []),
-                                                (project: project, target: testTarget1, dependencies: [target]),
-                                                (project: project, target: testTarget2, dependencies: [target]),
-                                                (project: project, target: testTarget3, dependencies: [target])])
-
-        // When
-        let got = subject.createDefaultScheme(target: target, project: project, buildConfiguration: "Debug", graph: graph)
-
-        // Then
-        let result = try XCTUnwrap(got)
-        XCTAssertEqual(result.name, target.name)
-        XCTAssertTrue(result.shared)
-
-        let buildAction = try XCTUnwrap(result.buildAction)
-        let targetReference = TargetReference(projectPath: project.path, name: target.name)
-        XCTAssertEqual(buildAction.targets, [targetReference])
-
-        let testAction = try XCTUnwrap(result.testAction)
-        let testableTargests = testTargets
-            .map { TargetReference(projectPath: project.path, name: $0.name) }
-            .map { TestableTarget(target: $0) }
-        XCTAssertEqual(testAction.targets, testableTargests)
-    }
-
-    func test_defaultGeneratedScheme_TestTarget() throws {
-        // Given
-        let target = Target.test(name: "App", product: .app)
-        let testTarget = Target.test(name: "AppTests", product: .unitTests)
-        let project = Project.test(targets: [target, testTarget])
-
-        let graph = Graph.create(dependencies: [(project: project, target: target, dependencies: []),
-                                                (project: project, target: testTarget, dependencies: [target])])
-
-        // When
-        let got = subject.createDefaultScheme(target: testTarget, project: project, buildConfiguration: "Debug", graph: graph)
-
-        // Then
-        let result = try XCTUnwrap(got)
-        XCTAssertEqual(result.name, testTarget.name)
-        XCTAssertTrue(result.shared)
-
-        let buildAction = try XCTUnwrap(result.buildAction)
-        let targetReference = TargetReference(projectPath: project.path, name: testTarget.name)
-        XCTAssertEqual(buildAction.targets, [targetReference])
-
-        let testAction = try XCTUnwrap(result.testAction)
-        let testTargetReference = TargetReference(projectPath: project.path, name: testTarget.name)
-        let testableTarget = TestableTarget(target: testTargetReference)
-        XCTAssertEqual(testAction.targets, [testableTarget])
-    }
-
     // MARK: - Build Action Tests
 
     func test_schemeBuildAction_whenSingleProject() throws {
@@ -662,39 +600,6 @@ final class SchemesGeneratorTests: XCTestCase {
         XCTAssertEqual(result.revealArchiveInOrganizer, true)
     }
 
-    func test_schemeGenerationModes_default() throws {
-        // Given
-        let app = Target.test(name: "App", product: .app)
-        let framework = Target.test(name: "Framework", product: .framework)
-        let unitTests = Target.test(name: "AppTests", product: .unitTests)
-        let uiTests = Target.test(name: "AppUITests", product: .uiTests)
-        let project = Project.test(targets: [app, framework, unitTests, uiTests])
-
-        let graph = Graph.create(
-            project: project,
-            dependencies: [
-                (target: app, dependencies: [framework]),
-                (target: framework, dependencies: []),
-                (target: unitTests, dependencies: [app]),
-                (target: uiTests, dependencies: [app]),
-            ]
-        )
-
-        // When
-        let result = try subject.generateProjectSchemes(project: project,
-                                                        generatedProject: generatedProject(targets: project.targets),
-                                                        graph: graph)
-
-        // Then
-        let schemes = result.map(\.xcScheme.name)
-        XCTAssertEqual(schemes, [
-            "App",
-            "Framework",
-            "AppTests",
-            "AppUITests",
-        ])
-    }
-
     func test_schemeGenerationModes_customOnly() throws {
         // Given
         let app = Target.test(name: "App", product: .app)
@@ -702,7 +607,7 @@ final class SchemesGeneratorTests: XCTestCase {
         let unitTests = Target.test(name: "AppTests", product: .unitTests)
         let uiTests = Target.test(name: "AppUITests", product: .uiTests)
         let scheme = Scheme.test()
-        let project = Project.test(targets: [app, framework, unitTests, uiTests], schemes: [scheme], autogenerateSchemes: false)
+        let project = Project.test(targets: [app, framework, unitTests, uiTests], schemes: [scheme])
 
         let graph = Graph.create(
             project: project,

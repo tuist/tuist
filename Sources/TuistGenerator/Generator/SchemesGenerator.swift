@@ -55,29 +55,12 @@ final class SchemesGenerator: SchemesGenerating {
     func generateProjectSchemes(project: Project,
                                 generatedProject: GeneratedProject,
                                 graph: Graph) throws -> [SchemeDescriptor] {
-        let customSchemes: [SchemeDescriptor] = try project.schemes.map { scheme in
+        try project.schemes.map { scheme in
             try generateScheme(scheme: scheme,
                                path: project.path,
                                graph: graph,
                                generatedProjects: [project.path: generatedProject])
         }
-
-        guard project.autogenerateSchemes else {
-            return customSchemes
-        }
-
-        let buildConfiguration = defaultDebugBuildConfigurationName(in: project)
-        let userDefinedSchemes = Set(project.schemes.map(\.name))
-        let defaultSchemeTargets = project.targets.filter { !userDefinedSchemes.contains($0.name) }
-        let defaultSchemes: [SchemeDescriptor] = try defaultSchemeTargets.map { target in
-            let scheme = createDefaultScheme(target: target, project: project, buildConfiguration: buildConfiguration, graph: graph)
-            return try generateScheme(scheme: scheme,
-                                      path: project.path,
-                                      graph: graph,
-                                      generatedProjects: [project.path: generatedProject])
-        }
-
-        return customSchemes + defaultSchemes
     }
 
     /// Wipes shared and user schemes at a workspace or project path. This is needed
@@ -92,37 +75,6 @@ final class SchemesGenerator: SchemesGenerating {
         let sharedPath = schemeDirectory(path: path, shared: true)
         if fileHandler.exists(userPath) { try fileHandler.delete(userPath) }
         if fileHandler.exists(sharedPath) { try fileHandler.delete(sharedPath) }
-    }
-
-    func createDefaultScheme(target: Target, project: Project, buildConfiguration: String, graph: Graph) -> Scheme {
-        let targetReference = TargetReference(projectPath: project.path, name: target.name)
-
-        let testTargets: [TestableTarget]
-
-        if target.product.testsBundle {
-            testTargets = [TestableTarget(target: targetReference)]
-        } else {
-            testTargets = graph.testTargetsDependingOn(path: project.path, name: target.name)
-                .map { TargetReference(projectPath: $0.project.path, name: $0.target.name) }
-                .map { TestableTarget(target: $0) }
-        }
-
-        return Scheme(name: target.name,
-                      shared: true,
-                      buildAction: BuildAction(targets: [targetReference]),
-                      testAction: TestAction(targets: testTargets,
-                                             arguments: nil,
-                                             configurationName: buildConfiguration,
-                                             coverage: false,
-                                             codeCoverageTargets: [],
-                                             preActions: [],
-                                             postActions: [],
-                                             diagnosticsOptions: Set()),
-                      runAction: RunAction(configurationName: buildConfiguration,
-                                           executable: targetReference,
-                                           filePath: nil,
-                                           arguments: Arguments(environment: target.environment),
-                                           diagnosticsOptions: Set()))
     }
 
     /// Generate schemes for a project or workspace.
@@ -325,7 +277,7 @@ final class SchemesGenerator: SchemesGenerating {
             pathRunnable = XCScheme.PathRunnable(filePath: filePath.pathString)
         } else {
             guard let targetNode = graph.target(path: target.projectPath, name: target.name) else { return nil }
-            defaultBuildConfiguration = defaultDebugBuildConfigurationName(in: targetNode.project)
+            defaultBuildConfiguration = targetNode.project.defaultDebugBuildConfigurationName
             guard let buildableReference = try createBuildableReference(targetReference: target,
                                                                         graph: graph,
                                                                         rootPath: rootPath,
@@ -426,7 +378,7 @@ final class SchemesGenerator: SchemesGenerating {
         guard let target = try defaultTargetReference(scheme: scheme),
             let targetNode = graph.target(path: target.projectPath, name: target.name) else { return nil }
 
-        let buildConfiguration = scheme.analyzeAction?.configurationName ?? defaultDebugBuildConfigurationName(in: targetNode.project)
+        let buildConfiguration = scheme.analyzeAction?.configurationName ?? targetNode.project.defaultDebugBuildConfigurationName
         return XCScheme.AnalyzeAction(buildConfiguration: buildConfiguration)
     }
 
@@ -609,13 +561,6 @@ final class SchemesGenerator: SchemesGenerating {
         environments.map { key, value in
             XCScheme.EnvironmentVariable(variable: key, value: value, enabled: true)
         }.sorted { $0.variable < $1.variable }
-    }
-
-    private func defaultDebugBuildConfigurationName(in project: Project) -> String {
-        let debugConfiguration = project.settings.defaultDebugBuildConfiguration()
-        let buildConfiguration = debugConfiguration ?? project.settings.configurations.keys.first
-
-        return buildConfiguration?.name ?? BuildConfiguration.debug.name
     }
 
     /// Returns the scheme buildable reference for a given target.

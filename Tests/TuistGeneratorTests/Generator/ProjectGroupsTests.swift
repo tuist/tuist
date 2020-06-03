@@ -23,6 +23,8 @@ final class ProjectGroupsTests: XCTestCase {
         sourceRootPath = AbsolutePath("/test/")
         project = Project(path: path,
                           name: "Project",
+                          organizationName: nil,
+                          fileName: nil,
                           settings: .default,
                           filesGroup: .group(name: "Project"),
                           targets: [
@@ -30,7 +32,8 @@ final class ProjectGroupsTests: XCTestCase {
                               .test(),
                           ],
                           packages: [],
-                          schemes: [])
+                          schemes: [],
+                          additionalFiles: [])
         pbxproj = PBXProj()
     }
 
