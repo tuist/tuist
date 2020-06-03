@@ -5,7 +5,7 @@ public protocol ProjectMapping {
 }
 
 public class SequentialProjectMapper: ProjectMapping {
-    private let mappers: [ProjectMapping]
+    let mappers: [ProjectMapping]
 
     public init(mappers: [ProjectMapping]) {
         self.mappers = mappers
