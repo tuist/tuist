@@ -25,7 +25,7 @@ extension TuistCore.TestAction {
 
         let language: String? = manifest.language
         let region: String? = manifest.region
-        
+
         return TestAction(targets: targets,
                           arguments: arguments,
                           configurationName: configurationName,

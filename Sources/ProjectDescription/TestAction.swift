@@ -25,7 +25,7 @@ public struct TestAction: Equatable, Codable {
 
     /// Language
     public let language: String?
-    
+
     /// Region
     public let region: String?
 
@@ -42,6 +42,8 @@ public struct TestAction: Equatable, Codable {
     ///   - preActions: ist of actions to be executed before running the tests.
     ///   - postActions: List of actions to be executed after running the tests.
     ///   - diagnosticsOptions: Diagnostics options.
+    ///   - language: Language (e.g. "pl")
+    ///   - region: Region (e.g. "PL")
     public init(targets: [TestableTarget] = [],
                 arguments: Arguments? = nil,
                 configurationName: String,
@@ -74,6 +76,8 @@ public struct TestAction: Equatable, Codable {
     ///   - preActions: ist of actions to be executed before running the tests.
     ///   - postActions: List of actions to be executed after running the tests.
     ///   - diagnosticsOptions: Diagnostics options.
+    ///   - language: Language (e.g. "pl")
+    ///   - region: Region (e.g. "PL")
     public init(targets: [TestableTarget],
                 arguments: Arguments? = nil,
                 config: PresetBuildConfiguration = .debug,

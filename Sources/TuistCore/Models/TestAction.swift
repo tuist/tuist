@@ -14,7 +14,7 @@ public struct TestAction: Equatable {
     public let diagnosticsOptions: Set<SchemeDiagnosticsOption>
     public let language: String?
     public let region: String?
-    
+
     // MARK: - Init
 
     public init(targets: [TestableTarget],

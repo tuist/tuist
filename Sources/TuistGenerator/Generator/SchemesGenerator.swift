@@ -244,7 +244,6 @@ final class SchemesGenerator: SchemesGenerating {
                                                                graph: graph,
                                                                rootPath: rootPath,
                                                                generatedProjects: generatedProjects) else { return }
-
             let testable = XCScheme.TestableReference(skipped: testableTarget.isSkipped,
                                                       parallelizable: testableTarget.isParallelizable,
                                                       randomExecutionOrdering: testableTarget.isRandomExecutionOrdering,
@@ -282,7 +281,7 @@ final class SchemesGenerator: SchemesGenerating {
         let shouldUseLaunchSchemeArgsEnv: Bool = args == nil && environments == nil
         let language = testAction.language
         let region = testAction.region
-        
+
         return XCScheme.TestAction(buildConfiguration: testAction.configurationName,
                                    macroExpansion: nil,
                                    testables: testables,
