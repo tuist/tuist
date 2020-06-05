@@ -10,7 +10,7 @@ public class CacheMapper: GraphMapping {
     // MARK: - Attributes
     
     /// Cache.
-    private let cache: CacheStoraging
+    private let cache: CacheStoring
     
     /// Graph content hasher.
     private let graphContentHasher: GraphContentHashing
@@ -33,7 +33,7 @@ public class CacheMapper: GraphMapping {
     }
     
     init(config: Config,
-         cache: CacheStoraging,
+         cache: CacheStoring,
          graphContentHasher: GraphContentHashing,
          cacheGraphMapper: CacheGraphMapping = CacheGraphMapper(),
          queue: DispatchQueue = CacheMapper.dispatchQueue()) {

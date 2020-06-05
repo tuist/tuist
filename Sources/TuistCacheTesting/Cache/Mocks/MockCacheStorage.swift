@@ -4,7 +4,7 @@ import TSCBasic
 import TuistCache
 import TuistCore
 
-public final class MockCacheStorage: CacheStoraging {
+public final class MockCacheStorage: CacheStoring {
     var existsStub: ((String) -> Bool)?
 
     public init() {}

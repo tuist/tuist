@@ -26,11 +26,11 @@ final class CacheController: CacheControlling {
     private let graphContentHasher: GraphContentHashing
 
     /// Cache.
-    private let cache: CacheStoraging
+    private let cache: CacheStoring
 
     init(generator: ProjectGenerating = ProjectGenerator(),
          xcframeworkBuilder: XCFrameworkBuilding = XCFrameworkBuilder(xcodeBuildController: XcodeBuildController()),
-         cache: CacheStoraging = Cache(),
+         cache: CacheStoring = Cache(),
          graphContentHasher: GraphContentHashing = GraphContentHasher()) {
         self.generator = generator
         self.xcframeworkBuilder = xcframeworkBuilder

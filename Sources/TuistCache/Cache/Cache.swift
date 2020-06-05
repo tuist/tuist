@@ -3,11 +3,11 @@ import RxSwift
 import TSCBasic
 import TuistCore
 
-public final class Cache: CacheStoraging {
+public final class Cache: CacheStoring {
     // MARK: - Attributes
 
     /// Storages where the targest will be cached.
-    private let storages: [CacheStoraging]
+    private let storages: [CacheStoring]
 
     // MARK: - Init
 
@@ -17,11 +17,11 @@ public final class Cache: CacheStoraging {
 
     /// Initializes the cache with its attributes.
     /// - Parameter storages: Storages where the targest will be cached.
-    init(storages: [CacheStoraging]) {
+    init(storages: [CacheStoring]) {
         self.storages = storages
     }
 
-    // MARK: - CacheStoraging
+    // MARK: - CacheStoring
 
     public func exists(hash: String, userConfig: Config) -> Single<Bool> {
         /// It calls exists sequentially until one of the storages returns true.

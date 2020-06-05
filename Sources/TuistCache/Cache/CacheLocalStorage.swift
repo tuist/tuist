@@ -21,7 +21,7 @@ enum CacheLocalStorageError: FatalError, Equatable {
     }
 }
 
-final class CacheLocalStorage: CacheStoraging {
+final class CacheLocalStorage: CacheStoring {
     // MARK: - Attributes
 
     private let cacheDirectory: AbsolutePath
@@ -32,7 +32,7 @@ final class CacheLocalStorage: CacheStoraging {
         self.cacheDirectory = cacheDirectory
     }
 
-    // MARK: - CacheStoraging
+    // MARK: - CacheStoring
 
     func exists(hash: String, userConfig: Config) -> Single<Bool> {
         Single.create { (completed) -> Disposable in

@@ -3,7 +3,7 @@ import RxSwift
 import TSCBasic
 import TuistCore
 
-public protocol CacheStoraging {
+public protocol CacheStoring {
     /// Returns if the target with the given hash exists in the cache.
     /// - Parameters:
     ///   - hash: Target's hash.
