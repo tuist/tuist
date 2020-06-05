@@ -5,4 +5,4 @@ Feature: Build projects using Tuist build
     And I have a working directory
     When I initialize a ios application named MyApp
     Then tuist builds the project
-    Then tuist builds the scheme MyApp from project
+    Then tuist builds the scheme MyApp from the project
