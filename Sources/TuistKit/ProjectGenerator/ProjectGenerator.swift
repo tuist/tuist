@@ -7,6 +7,7 @@ import TuistSupport
 
 protocol ProjectGenerating {
     @discardableResult
+    func load(path: AbsolutePath) throws -> Graph
     func generate(path: AbsolutePath, projectOnly: Bool) throws -> AbsolutePath
     func generateWithGraph(path: AbsolutePath, projectOnly: Bool) throws -> (AbsolutePath, Graph)
 }
@@ -58,6 +59,18 @@ class ProjectGenerator: ProjectGenerating {
             return try generateWorkspace(path: path)
         } else if manifests.contains(.project) {
             return try generateProjectWorkspace(path: path)
+        } else {
+            throw ManifestLoaderError.manifestNotFound(path)
+        }
+    }
+
+    func load(path: AbsolutePath) throws -> Graph {
+        let manifests = manifestLoader.manifests(at: path)
+
+        if manifests.contains(.workspace) {
+            return try loadWorkspace(path: path).1
+        } else if manifests.contains(.project) {
+            return try loadProject(path: path).1
         } else {
             throw ManifestLoaderError.manifestNotFound(path)
         }

@@ -2,7 +2,7 @@ import Foundation
 import TSCBasic
 import TuistSupport
 
-public struct Project: Equatable, CustomStringConvertible {
+public struct Project: Hashable, Equatable, CustomStringConvertible {
     public static func == (lhs: Project, rhs: Project) -> Bool {
         lhs.path == rhs.path &&
             lhs.name == rhs.name &&
@@ -122,6 +122,12 @@ public struct Project: Equatable, CustomStringConvertible {
 
     public var description: String {
         name
+    }
+
+    // MARK: - Hashable
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(path)
     }
 
     // MARK: - Public
