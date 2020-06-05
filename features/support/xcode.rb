@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+require 'minitest/assertions'
 
 module Xcode
   include MiniTest::Assertions
