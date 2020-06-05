@@ -26,7 +26,7 @@ jobs:
     runs-on: macOS-latest
     strategy:
       matrix:
-        xcode: ['11.3.1', '11.4']
+        xcode: ['11.3.1', '11.5']
     steps:
       - uses: actions/checkout@v1
       - name: Select Xcode
@@ -62,7 +62,7 @@ jobs:
     runs-on: macOS-latest
     strategy:
       matrix:
-        xcode: ['11.4']
+        xcode: ['11.5']
         feature:
           [
             'generate-1',
@@ -75,10 +75,11 @@ jobs:
             'lint',
             'scaffold',
             'up',
+            'build',
           ]
     steps:
       - uses: actions/checkout@v1
-      - name: Select Xcode 11.4
+      - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_${{ matrix.xcode }}.app
       - uses: actions/setup-ruby@v1
         with:
@@ -96,7 +97,7 @@ jobs:
     steps:
       - uses: actions/checkout@v1
       - name: Select Xcode 11.4
-        run: sudo xcode-select -switch /Applications/Xcode_11.4.app
+        run: sudo xcode-select -switch /Applications/Xcode_11.5.app
       - uses: actions/setup-ruby@v1
         with:
           ruby-version: '2.x'

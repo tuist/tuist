@@ -18,11 +18,11 @@ jobs:
     runs-on: macOS-latest
     steps:
       - uses: actions/checkout@v1
-      - name: Select Xcode 11.4
-        run: sudo xcode-select -switch /Applications/Xcode_11.4.app
+      - name: Select Xcode 11.5
+        run: sudo xcode-select -switch /Applications/Xcode_11.5.app
       - name: Build Package
         working-directory: ./tools/fixturegen
-        run: swift build 
+        run: swift build
       - name: Generate Fixture
         working-directory: ./tools/fixturegen
         run: swift run fixturegen --projects 1 --targets 1 --sources 1
@@ -30,4 +30,3 @@ jobs:
         run: swift build
       - name: Generate Fixture Project
         run: swift run tuist generate --path ./tools/fixturegen/Fixture
-  
