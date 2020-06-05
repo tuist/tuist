@@ -2,6 +2,7 @@ import Foundation
 import RxSwift
 import TSCBasic
 import TuistSupport
+import TuistCore
 
 enum CacheLocalStorageError: FatalError, Equatable {
     case xcframeworkNotFound(hash: String)
@@ -33,14 +34,14 @@ final class CacheLocalStorage: CacheStoraging {
 
     // MARK: - CacheStoraging
 
-    func exists(hash: String) -> Single<Bool> {
+    func exists(hash: String, userConfig: Config) -> Single<Bool> {
         Single.create { (completed) -> Disposable in
             completed(.success(FileHandler.shared.glob(self.cacheDirectory, glob: "\(hash)/*").count != 0))
             return Disposables.create()
         }
     }
 
-    func fetch(hash: String) -> Single<AbsolutePath> {
+    func fetch(hash: String, userConfig: Config) -> Single<AbsolutePath> {
         Single.create { (completed) -> Disposable in
             if let path = FileHandler.shared.glob(self.cacheDirectory, glob: "\(hash)/*").first {
                 completed(.success(path))
@@ -51,7 +52,7 @@ final class CacheLocalStorage: CacheStoraging {
         }
     }
 
-    func store(hash: String, xcframeworkPath: AbsolutePath) -> Completable {
+    func store(hash: String, userConfig: Config, xcframeworkPath: AbsolutePath) -> Completable {
         let copy = Completable.create { (completed) -> Disposable in
             let hashFolder = self.cacheDirectory.appending(component: hash)
             let destinationPath = hashFolder.appending(component: xcframeworkPath.basename)

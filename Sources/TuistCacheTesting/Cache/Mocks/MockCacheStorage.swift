@@ -9,7 +9,7 @@ public final class MockCacheStorage: CacheStoraging {
 
     public init() {}
 
-    public func exists(hash: String) -> Single<Bool> {
+    public func exists(hash: String, userConfig: Config) -> Single<Bool> {
         if let existsStub = existsStub {
             return Single.just(existsStub(hash))
         } else {
@@ -18,7 +18,7 @@ public final class MockCacheStorage: CacheStoraging {
     }
 
     var fetchStub: ((String) throws -> AbsolutePath)?
-    public func fetch(hash: String) -> Single<AbsolutePath> {
+    public func fetch(hash: String, userConfig: Config) -> Single<AbsolutePath> {
         if let fetchStub = fetchStub {
             do {
                 return Single.just(try fetchStub(hash))
@@ -30,10 +30,10 @@ public final class MockCacheStorage: CacheStoraging {
         }
     }
 
-    var storeStub: ((_ hash: String, _ xcframeworkPath: AbsolutePath) -> Void)?
-    public func store(hash: String, xcframeworkPath: AbsolutePath) -> Completable {
+    var storeStub: ((_ hash: String, _ userConfig: Config, _ xcframeworkPath: AbsolutePath) -> Void)?
+    public func store(hash: String, userConfig: Config, xcframeworkPath: AbsolutePath) -> Completable {
         if let storeStub = storeStub {
-            storeStub(hash, xcframeworkPath)
+            storeStub(hash, userConfig, xcframeworkPath)
         }
         return Completable.empty()
     }

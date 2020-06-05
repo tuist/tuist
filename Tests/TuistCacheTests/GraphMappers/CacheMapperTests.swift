@@ -14,12 +14,15 @@ final class CacheMapperTests: TuistUnitTestCase {
     var graphContentHasher: MockGraphContentHasher!
     var cacheGraphMapper: MockCacheGraphMapper!
     var subject: CacheMapper!
+    var config: Config!
 
     override func setUp() {
         cache = MockCacheStorage()
         graphContentHasher = MockGraphContentHasher()
         cacheGraphMapper = MockCacheGraphMapper()
-        subject = CacheMapper(cache: cache,
+        config = .test()
+        subject = CacheMapper(config: config,
+                              cache: cache,
                               graphContentHasher: graphContentHasher,
                               cacheGraphMapper: cacheGraphMapper,
                               queue: DispatchQueue.main)
@@ -28,6 +31,7 @@ final class CacheMapperTests: TuistUnitTestCase {
 
     override func tearDown() {
         super.tearDown()
+        config = nil
         cache = nil
         graphContentHasher = nil
         cacheGraphMapper = nil

@@ -1,6 +1,7 @@
 import Foundation
 import RxSwift
 import TSCBasic
+import TuistCore
 
 public final class Cache: CacheStoraging {
     // MARK: - Attributes
@@ -22,9 +23,9 @@ public final class Cache: CacheStoraging {
 
     // MARK: - CacheStoraging
 
-    public func exists(hash: String) -> Single<Bool> {
+    public func exists(hash: String, userConfig: Config) -> Single<Bool> {
         /// It calls exists sequentially until one of the storages returns true.
-        storages.map { $0.exists(hash: hash) }.reduce(Single.just(false)) { (result, next) -> Single<Bool> in
+        storages.map { $0.exists(hash: hash, userConfig: userConfig) }.reduce(Single.just(false)) { (result, next) -> Single<Bool> in
             result.flatMap { exists in
                 if exists {
                     return Single.just(exists)
@@ -37,9 +38,9 @@ public final class Cache: CacheStoraging {
         }
     }
 
-    public func fetch(hash: String) -> Single<AbsolutePath> {
+    public func fetch(hash: String, userConfig: Config) -> Single<AbsolutePath> {
         storages
-            .map { $0.fetch(hash: hash) }
+            .map { $0.fetch(hash: hash, userConfig: userConfig) }
             .reduce(nil) { (result, next) -> Single<AbsolutePath> in
                 if let result = result {
                     return result.catchError { _ in next }
@@ -49,7 +50,7 @@ public final class Cache: CacheStoraging {
             }!
     }
 
-    public func store(hash: String, xcframeworkPath: AbsolutePath) -> Completable {
-        Completable.zip(storages.map { $0.store(hash: hash, xcframeworkPath: xcframeworkPath) })
+    public func store(hash: String, userConfig: Config, xcframeworkPath: AbsolutePath) -> Completable {
+        Completable.zip(storages.map { $0.store(hash: hash, userConfig: userConfig, xcframeworkPath: xcframeworkPath) })
     }
 }
