@@ -71,8 +71,7 @@ final class ProjectGeneratorTests: TuistUnitTestCase {
                                    fileName: "SomeAwesomeName",
                                    targets: [])
         let graph = Graph.create(project: project,
-                                 dependencies: [
-                                 ])
+                                 dependencies: [])
 
         // When
         let got = try subject.generate(project: project, graph: graph)

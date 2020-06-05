@@ -23,6 +23,9 @@ extension TuistCore.TestAction {
                                                                                             generatorPaths: generatorPaths) }
         let diagnosticsOptions = Set(manifest.diagnosticsOptions.map { TuistCore.SchemeDiagnosticsOption.from(manifest: $0) })
 
+        let language: String? = manifest.language
+        let region: String? = manifest.region
+
         return TestAction(targets: targets,
                           arguments: arguments,
                           configurationName: configurationName,
@@ -30,6 +33,8 @@ extension TuistCore.TestAction {
                           codeCoverageTargets: codeCoverageTargets,
                           preActions: preActions,
                           postActions: postActions,
-                          diagnosticsOptions: diagnosticsOptions)
+                          diagnosticsOptions: diagnosticsOptions,
+                          language: language,
+                          region: region)
     }
 }

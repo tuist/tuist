@@ -29,4 +29,13 @@ final class MockProjectGenerator: ProjectGenerating {
         generateWithGraphCalls.append((path, projectOnly))
         return try generateWithGraphStub(path, projectOnly)
     }
+
+    var loadStub: ((AbsolutePath) throws -> Graph)?
+    func load(path: AbsolutePath) throws -> Graph {
+        if let loadStub = loadStub {
+            return try loadStub(path)
+        } else {
+            return Graph.test()
+        }
+    }
 }

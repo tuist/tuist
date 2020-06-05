@@ -1,7 +1,7 @@
 import Foundation
 import TSCBasic
 
-public enum XcodeBuildTarget {
+public enum XcodeBuildTarget: Equatable {
     /// The target is an Xcode project.
     case project(AbsolutePath)
 

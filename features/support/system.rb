@@ -4,7 +4,7 @@ require "open3"
 
 module System
   def system(*args)
-    puts args.join(" ")
+    log(args.join(" "))
     _, err, status = Open3.capture3(args.join(" "))
     assert(status.success?, err)
   end

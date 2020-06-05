@@ -23,6 +23,12 @@ public struct TestAction: Equatable, Codable {
     /// List of actions to be executed after running the tests.
     public let postActions: [ExecutionAction]
 
+    /// Language
+    public let language: String?
+
+    /// Region
+    public let region: String?
+
     /// Diagnostics options.
     public let diagnosticsOptions: [SchemeDiagnosticsOption]
 
@@ -36,6 +42,8 @@ public struct TestAction: Equatable, Codable {
     ///   - preActions: ist of actions to be executed before running the tests.
     ///   - postActions: List of actions to be executed after running the tests.
     ///   - diagnosticsOptions: Diagnostics options.
+    ///   - language: Language (e.g. "pl")
+    ///   - region: Region (e.g. "PL")
     public init(targets: [TestableTarget] = [],
                 arguments: Arguments? = nil,
                 configurationName: String,
@@ -43,7 +51,9 @@ public struct TestAction: Equatable, Codable {
                 codeCoverageTargets: [TargetReference] = [],
                 preActions: [ExecutionAction] = [],
                 postActions: [ExecutionAction] = [],
-                diagnosticsOptions: [SchemeDiagnosticsOption] = []) {
+                diagnosticsOptions: [SchemeDiagnosticsOption] = [],
+                language: String? = nil,
+                region: String? = nil) {
         self.targets = targets
         self.arguments = arguments
         self.configurationName = configurationName
@@ -52,6 +62,8 @@ public struct TestAction: Equatable, Codable {
         self.postActions = postActions
         self.codeCoverageTargets = codeCoverageTargets
         self.diagnosticsOptions = diagnosticsOptions
+        self.language = language
+        self.region = region
     }
 
     /// Initializes a new instance of a test action
@@ -64,6 +76,8 @@ public struct TestAction: Equatable, Codable {
     ///   - preActions: ist of actions to be executed before running the tests.
     ///   - postActions: List of actions to be executed after running the tests.
     ///   - diagnosticsOptions: Diagnostics options.
+    ///   - language: Language (e.g. "pl")
+    ///   - region: Region (e.g. "PL")
     public init(targets: [TestableTarget],
                 arguments: Arguments? = nil,
                 config: PresetBuildConfiguration = .debug,
@@ -71,7 +85,9 @@ public struct TestAction: Equatable, Codable {
                 codeCoverageTargets: [TargetReference] = [],
                 preActions: [ExecutionAction] = [],
                 postActions: [ExecutionAction] = [],
-                diagnosticsOptions: [SchemeDiagnosticsOption] = []) {
+                diagnosticsOptions: [SchemeDiagnosticsOption] = [],
+                language: String? = nil,
+                region: String? = nil) {
         self.init(targets: targets,
                   arguments: arguments,
                   configurationName: config.name,
@@ -79,6 +95,8 @@ public struct TestAction: Equatable, Codable {
                   codeCoverageTargets: codeCoverageTargets,
                   preActions: preActions,
                   postActions: postActions,
-                  diagnosticsOptions: diagnosticsOptions)
+                  diagnosticsOptions: diagnosticsOptions,
+                  language: language,
+                  region: region)
     }
 }

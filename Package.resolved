@@ -150,8 +150,8 @@
         "repositoryURL": "https://github.com/thii/xcbeautify.git",
         "state": {
           "branch": null,
-          "revision": "b3a98e2588e22955a97b98e67d0aa494b7898f2a",
-          "version": "0.7.3"
+          "revision": "77bf4eae0f090dbf7cbcabb68fcaf0e7ff9826db",
+          "version": "0.8.0"
         }
       },
       {
@@ -159,8 +159,8 @@
         "repositoryURL": "https://github.com/tuist/XcodeProj",
         "state": {
           "branch": null,
-          "revision": "912d40cc2ea4a300eff6dd7c6a10b4f4dedbcbec",
-          "version": "7.10.0"
+          "revision": "b8798bc3544c083dc5dc290f0f30f50971d5d8d9",
+          "version": "7.11.0"
         }
       },
       {

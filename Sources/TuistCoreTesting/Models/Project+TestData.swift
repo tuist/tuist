@@ -12,7 +12,6 @@ public extension Project {
                      targets: [Target] = [Target.test()],
                      packages: [Package] = [],
                      schemes: [Scheme] = [],
-                     autogenerateSchemes: Bool = true,
                      additionalFiles: [FileElement] = []) -> Project {
         Project(path: path,
                 name: name,
@@ -23,29 +22,28 @@ public extension Project {
                 targets: targets,
                 packages: packages,
                 schemes: schemes,
-                autogenerateSchemes: autogenerateSchemes,
                 additionalFiles: additionalFiles)
     }
 
     static func empty(path: AbsolutePath = AbsolutePath("/test/"),
                       name: String = "Project",
                       organizationName: String? = nil,
+                      fileName: String? = nil,
                       settings: Settings = .default,
                       filesGroup: ProjectGroup = .group(name: "Project"),
                       targets: [Target] = [],
                       packages: [Package] = [],
                       schemes: [Scheme] = [],
-                      autogenerateSchemes: Bool = true,
                       additionalFiles: [FileElement] = []) -> Project {
         Project(path: path,
                 name: name,
                 organizationName: organizationName,
+                fileName: fileName,
                 settings: settings,
                 filesGroup: filesGroup,
                 targets: targets,
                 packages: packages,
                 schemes: schemes,
-                autogenerateSchemes: autogenerateSchemes,
                 additionalFiles: additionalFiles)
     }
 }

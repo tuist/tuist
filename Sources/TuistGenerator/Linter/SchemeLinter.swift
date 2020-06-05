@@ -44,15 +44,6 @@ private extension SchemeLinter {
             }
         }
 
-        if let testAction = scheme.testAction {
-            if !buildConfigurationNames.contains(testAction.configurationName) {
-                issues.append(
-                    missingBuildConfigurationIssue(buildConfigurationName: testAction.configurationName,
-                                                   actionDescription: "the scheme's test action")
-                )
-            }
-        }
-
         return issues
     }
 

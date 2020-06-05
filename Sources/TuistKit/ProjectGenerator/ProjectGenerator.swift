@@ -8,6 +8,7 @@ import TuistSupport
 
 protocol ProjectGenerating {
     @discardableResult
+    func load(path: AbsolutePath) throws -> Graph
     func generate(path: AbsolutePath, projectOnly: Bool) throws -> AbsolutePath
     func generateWithGraph(path: AbsolutePath, projectOnly: Bool) throws -> (AbsolutePath, Graph)
 }
@@ -26,11 +27,12 @@ class ProjectGenerator: ProjectGenerating {
     private let modelLoader: GeneratorModelLoading
     private let graphLoader: GraphLoading
     private let sideEffectDescriptorExecutor: SideEffectDescriptorExecuting
-    private let projectMapper: ProjectMapping
     private let graphMapperProvider: GraphMapperProviding
+    private let projectMapperProvider: ProjectMapperProviding
     private let manifestLoader: ManifestLoading
 
     init(graphMapperProvider: GraphMapperProviding = GraphMapperProvider(useCache: false),
+         projectMapperProvider: ProjectMapperProviding = ProjectMapperProvider(),
          manifestLoaderFactory: ManifestLoaderFactory = ManifestLoaderFactory()) {
         let manifestLoader = manifestLoaderFactory.createManifestLoader()
         recursiveManifestLoader = RecursiveManifestLoader(manifestLoader: manifestLoader)
@@ -41,7 +43,7 @@ class ProjectGenerator: ProjectGenerating {
         sideEffectDescriptorExecutor = SideEffectDescriptorExecutor()
         self.modelLoader = modelLoader
         self.graphMapperProvider = graphMapperProvider
-        projectMapper = SequentialProjectMapper(mappers: [])
+        self.projectMapperProvider = projectMapperProvider
         self.manifestLoader = manifestLoader
     }
 
@@ -59,6 +61,18 @@ class ProjectGenerator: ProjectGenerating {
             return try generateWorkspace(path: path)
         } else if manifests.contains(.project) {
             return try generateProjectWorkspace(path: path)
+        } else {
+            throw ManifestLoaderError.manifestNotFound(path)
+        }
+    }
+
+    func load(path: AbsolutePath) throws -> Graph {
+        let manifests = manifestLoader.manifests(at: path)
+
+        if manifests.contains(.workspace) {
+            return try loadWorkspace(path: path).1
+        } else if manifests.contains(.project) {
+            return try loadProject(path: path).1
         } else {
             throw ManifestLoaderError.manifestNotFound(path)
         }
@@ -157,10 +171,14 @@ class ProjectGenerator: ProjectGenerating {
             manifestLinter.lint(project: $0.value)
         }.printAndThrowIfNeeded()
 
+        // Load config
+        let config = try graphLoader.loadConfig(path: path)
+
         // Convert to models
         let models = try convert(manifests: manifests)
 
         // Apply any registered model mappers
+        let projectMapper = projectMapperProvider.mapper(config: config)
         let updatedModels = try models.map(projectMapper.map)
         let updatedProjects = updatedModels.map(\.0)
         let modelMapperSideEffects = updatedModels.flatMap { $0.1 }
@@ -171,7 +189,6 @@ class ProjectGenerator: ProjectGenerating {
         let (graph, project) = try cachedGraphLoader.loadProject(path: path)
 
         // Apply graph mappers
-        let config = try graphLoader.loadConfig(path: graph.entryPath)
         let (updatedGraph, graphMapperSideEffects) = try graphMapperProvider.mapper(config: config).map(graph: graph)
 
         return (project, updatedGraph, modelMapperSideEffects + graphMapperSideEffects)
@@ -186,10 +203,14 @@ class ProjectGenerator: ProjectGenerating {
             manifestLinter.lint(project: $0.value)
         }.printAndThrowIfNeeded()
 
+        // Load config
+        let config = try graphLoader.loadConfig(path: path)
+
         // Convert to models
         let models = try convert(manifests: manifests)
 
         // Apply model mappers
+        let projectMapper = projectMapperProvider.mapper(config: config)
         let updatedModels = try models.projects.map(projectMapper.map)
         let updatedProjects = updatedModels.map(\.0)
         let modelMapperSideEffects = updatedModels.flatMap { $0.1 }
@@ -200,7 +221,6 @@ class ProjectGenerator: ProjectGenerating {
         let (graph, workspace) = try cachedGraphLoader.loadWorkspace(path: path)
 
         // Apply graph mappers
-        let config = try graphLoader.loadConfig(path: graph.entryPath)
         let (updatedGraph, graphMapperSideEffects) = try graphMapperProvider.mapper(config: config).map(graph: graph)
 
         return (workspace, updatedGraph, modelMapperSideEffects + graphMapperSideEffects)
