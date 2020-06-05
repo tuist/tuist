@@ -20,7 +20,7 @@ final class GenerateService {
         let timer = clock.startTimer()
         let path = self.path(path)
 
-        try generator.generate(path: path, projectOnly: projectOnly)
+        _ = try generator.generate(path: path, projectOnly: projectOnly)
 
         let time = String(format: "%.3f", timer.stop())
 
