@@ -4,6 +4,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+## 1.10.0 - Alma
+
 ### Added
 
 - Build command [#1412](https://github.com/tuist/tuist/pull/1412) by [@pepibumur](https://github.com/pepibumur)

@@ -166,5 +166,5 @@ def storage
 end
 
 def print_section(text)
-  log(text.bold.green)
+  puts(text.bold.green)
 end
