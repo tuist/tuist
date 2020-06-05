@@ -216,25 +216,9 @@ public final class System: Systeming {
     // swiftlint:disable:next force_try
     private static var swiftVersionRegex = try! NSRegularExpression(pattern: "Apple Swift version\\s(.+)\\s\\(.+\\)", options: [])
 
-    /// List of variables that are accepted from the user environment.
-    private static let acceptedEnvironmentVariables: [String] = [
-        // Shell
-        "ZSH", "SHELL",
-        // User,
-        "PATH", "HOME", "USER", "LANG", "NSUnbufferedIO", "LC_ALL", "LC_CTYPE",
-        // Node
-        "NVM_DIR",
-        // Ruby
-        "GEM_PATH", "RUBY_ENGINE", "GEM_ROOT", "GEM_HOME", "RUBY_ROOT", "RUBY_VERSION",
-        // Xcode
-        "DEVELOPER_DIR",
-        // Proxy
-        "HTTP_PROXY", "HTTPS_PROXY", "FTP_PROXY", "ALL_PROXY", "NO_PROXY",
-    ]
-
-    /// Environment filtering out the variables that are not defined in 'acceptedEnvironmentVariables'.
+    /// Convenience shortcut to the environment.
     public var env: [String: String] {
-        ProcessInfo.processInfo.environment.filter { System.acceptedEnvironmentVariables.contains($0.key) }
+        ProcessInfo.processInfo.environment
     }
 
     func escaped(arguments: [String]) -> String {
