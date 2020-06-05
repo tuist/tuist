@@ -2,7 +2,10 @@ import Foundation
 import TSCBasic
 import TuistCore
 
+/// Matching signing artifacts
 protocol SigningMatching {
+    /// - Returns: Certificates and provisioning profiles matched with their configuration and target
+    /// - Warning: Expects certificates and provisioning profiles already decrypted
     func match(graph: Graph) throws ->
     (certificates: [String: Certificate],
     provisioningProfiles: [String: [String: ProvisioningProfile]])
@@ -36,7 +39,7 @@ final class SigningMatcher: SigningMatching {
                 dict[certificate.publicKey.basenameWithoutExt] = certificate
             }
         
-        // Dictionary of [ProvisioningProfile.targetName: [ProvisioningProfile.configurationName: ProvisioningProfile]]
+        /// Dictionary of [ProvisioningProfile.targetName: [ProvisioningProfile.configurationName: ProvisioningProfile]]
         let provisioningProfiles: [String: [String: ProvisioningProfile]] = try signingFilesLocator.locateProvisioningProfiles(from: entryPath)
             .map(provisioningProfileParser.parse)
             .reduce(into: [:], { dict, profile in

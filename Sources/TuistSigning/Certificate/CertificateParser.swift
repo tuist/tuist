@@ -16,7 +16,7 @@ enum CertificateParserError: FatalError, Equatable {
     var description: String {
         switch self {
         case let .nameParsingFailed(path, input):
-            return "We couldn't parse the development team while parsing the following output from the file \(path.pathString): \(input)"
+            return "We couldn't parse the name while parsing the following output from the file \(path.pathString): \(input)"
         case let .developmentTeamParsingFailed(path, input):
             return "We couldn't parse the development team while parsing the following output from the file \(path.pathString): \(input)"
         }
