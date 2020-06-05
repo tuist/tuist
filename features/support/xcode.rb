@@ -2,7 +2,7 @@
 require 'minitest/assertions'
 
 module Xcode
-  include MiniTest::Assertions
+  include Minitest::Assertions
 
   def self.product_with_name(name, destination:, derived_data_path:)
     glob = File.join(derived_data_path, "**/Build/**/Products/#{destination}/#{name}/")
