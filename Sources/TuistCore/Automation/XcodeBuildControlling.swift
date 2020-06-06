@@ -33,4 +33,13 @@ public protocol XcodeBuildControlling {
     ///   - frameworks: Frameworks to be combined.
     ///   - output: Path to the output .xcframework.
     func createXCFramework(frameworks: [AbsolutePath], output: AbsolutePath) -> Observable<SystemEvent<XcodeBuildOutput>>
+
+    /// Gets the build settings of a scheme targets.
+    /// - Parameters:
+    ///   - target: Project of workspace where the scheme is defined.
+    ///   - scheme: Scheme whose target build settings will be obtained.
+    ///   - configuration: Build configuration.
+    func showBuildSettings(_ target: XcodeBuildTarget,
+                           scheme: String,
+                           configuration: String) -> Single<[String: XcodeBuildSettings]>
 }

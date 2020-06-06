@@ -39,4 +39,13 @@ final class MockXcodeBuildController: XcodeBuildControlling {
             return Observable.error(TestError("\(String(describing: MockXcodeBuildController.self)) received an unexpected call to createXCFramework"))
         }
     }
+
+    var showBuildSettingsStub: ((XcodeBuildTarget, String, String) -> Single<[String: XcodeBuildSettings]>)?
+    func showBuildSettings(_ target: XcodeBuildTarget, scheme: String, configuration: String) -> Single<[String: XcodeBuildSettings]> {
+        if let showBuildSettingsStub = showBuildSettingsStub {
+            return showBuildSettingsStub(target, scheme, configuration)
+        } else {
+            return Single.error(TestError("\(String(describing: MockXcodeBuildController.self)) received an unexpected call to showBuildSettings"))
+        }
+    }
 }
