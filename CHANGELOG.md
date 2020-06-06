@@ -8,6 +8,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Add support for watch architectures [#1417](https://github.com/tuist/tuist/pull/1417) by [@davidbrunow](https://github.com/davidbrunow)
 
+### Fixed
+
+- `tuist edit` always creates a project in a new temp dir [#1424](https://github.com/tuist/tuist/pull/1424) by [@fortmarek](https://github.com/fortmarek)
+
 ## 1.10.0 - Alma
 
 ### Added

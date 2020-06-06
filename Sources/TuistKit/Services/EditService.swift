@@ -21,13 +21,13 @@ final class EditService {
         if !permanent {
             try withTemporaryDirectory { generationDirectory in
                 EditService.temporaryDirectory = generationDirectory
-                
+
                 Signals.trap(signals: [.int, .abrt]) { _ in
                     // swiftlint:disable:next force_try
                     try! EditService.temporaryDirectory.map(FileHandler.shared.delete)
                     exit(0)
                 }
-                
+
                 let xcodeprojPath = try projectEditor.edit(at: path, in: generationDirectory)
                 logger.pretty("Opening Xcode to edit the project. Press \(.keystroke("CTRL + C")) once you are done editing")
                 try opener.open(path: xcodeprojPath, wait: true)
