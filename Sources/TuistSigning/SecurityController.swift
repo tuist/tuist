@@ -16,11 +16,11 @@ final class SecurityController: SecurityControlling {
     }
     
     func importCertificate(_ certificate: Certificate, keychainPath: AbsolutePath) throws {
-        if try !certificateExists(at: certificate.publicKey) {
+        if try !certificateExists(at: certificate.publicKey, keychainPath: keychainPath) {
             try importToKeychain(at: certificate.publicKey, keychainPath: keychainPath)
             logger.debug("Imported certificate at \(certificate.publicKey.pathString)")
         }
-        if try !keyExists(at: certificate.privateKey) {
+        if try !keyExists(at: certificate.privateKey, keychainPath: keychainPath) {
             try importToKeychain(at: certificate.privateKey, keychainPath: keychainPath)
             logger.debug("Imported certificate private key at \(certificate.privateKey.pathString)")
         }
@@ -53,9 +53,9 @@ final class SecurityController: SecurityControlling {
     
     // MARK: - Helpers
     
-    private func keyExists(at path: AbsolutePath) throws -> Bool {
+    private func keyExists(at path: AbsolutePath, keychainPath: AbsolutePath) throws -> Bool {
         do {
-            try System.shared.run("/usr/bin/security", "find-key", path.pathString, "-P", "")
+            try System.shared.run("/usr/bin/security", "find-key", path.pathString, "-P", "", "-k")
             logger.debug("Skipping importing private key at \(path.pathString) because it is already present")
             return true
         } catch {
@@ -63,9 +63,9 @@ final class SecurityController: SecurityControlling {
         }
     }
     
-    private func certificateExists(at path: AbsolutePath) throws -> Bool {
+    private func certificateExists(at path: AbsolutePath, keychainPath: AbsolutePath) throws -> Bool {
         do {
-            try System.shared.run("/usr/bin/security", "find-certificate", path.pathString, "-P", "")
+            try System.shared.run("/usr/bin/security", "find-certificate", path.pathString, "-P", "", "-k", keychainPath.pathString)
             logger.debug("Skipping importing certificate at \(path.pathString) because it is already present")
             return true
         } catch {
