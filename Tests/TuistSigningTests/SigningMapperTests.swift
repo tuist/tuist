@@ -105,8 +105,8 @@ final class SigningMapperTests: TuistUnitTestCase {
         // Then
         XCTAssertEmpty(sideEffects)
         let configurations = mappedGraph.projects
-            .flatMap(\.targets)
-            .map(\.settings)
+            .flatMap { $0.targets }
+            .map { $0.settings }
             .map { $0?.configurations }
 
         XCTAssertEqual(configurations.first, expectedConfigurations)
