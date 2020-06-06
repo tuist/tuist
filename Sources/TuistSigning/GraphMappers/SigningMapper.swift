@@ -51,7 +51,7 @@ public class SigningMapper: GraphMapping {
             try signingFilesLocator.locateSigningDirectory(from: entryPath) != nil,
             let derivedDirectory = rootDirectoryLocator.locate(from: entryPath)?.appending(component: Constants.derivedFolderName)
         else {
-            logger.debug("No Signing artifacts found")
+            logger.debug("No signing artifacts found")
             return (graph, [])
         }
         
@@ -82,7 +82,7 @@ public class SigningMapper: GraphMapping {
                      certificates: [String: Certificate],
                      provisioningProfiles: [String: [String: ProvisioningProfile]]) throws -> Target {
         let targetConfigurations = target.settings?.configurations ?? [:]
-        let configurations: [BuildConfiguration: Configuration?] = targetConfigurations
+        let configurations: [BuildConfiguration: Configuration?] = try targetConfigurations
             .merging(project.settings.configurations,
                      uniquingKeysWith: { config, _ in config })
             .reduce(into: [:]) { dict, configurationPair in
@@ -93,7 +93,15 @@ public class SigningMapper: GraphMapping {
                         dict[configurationPair.key] = configurationPair.value
                         return
                     }
-                guard provisioningProfile.appId == provisioningProfile.teamId + "." + target.bundleId else { fatalError() }
+                guard
+                    provisioningProfile.appId == provisioningProfile.teamId + "." + target.bundleId
+                    else {
+                        throw SigningMapperError.appIdMismatch(
+                            provisioningProfile.appId,
+                            provisioningProfile.teamId,
+                            target.bundleId
+                        )
+                }
                 let configuration = configurationPair.value ?? Configuration()
                 var settings = configuration.settings
                 settings["CODE_SIGN_STYLE"] = "Manual"
