@@ -55,7 +55,7 @@ final class SecurityController: SecurityControlling {
     
     private func keyExists(at path: AbsolutePath, keychainPath: AbsolutePath) throws -> Bool {
         do {
-            try System.shared.run("/usr/bin/security", "find-key", path.pathString, "-P", "", "-k")
+            try System.shared.run("/usr/bin/security", "find-key", path.pathString, "-P", "", "-k", keychainPath.pathString)
             logger.debug("Skipping importing private key at \(path.pathString) because it is already present")
             return true
         } catch {

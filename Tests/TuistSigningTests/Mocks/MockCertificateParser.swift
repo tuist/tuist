@@ -1,4 +1,5 @@
 import TSCBasic
+@testable import TuistSigningTesting
 @testable import TuistSigning
 
 final class MockCertificateParser: CertificateParsing {

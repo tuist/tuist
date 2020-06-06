@@ -5,6 +5,7 @@ import XCTest
 @testable import TuistCoreTesting
 @testable import TuistSigning
 @testable import TuistSupportTesting
+@testable import TuistSigningTesting
 
 final class SecurityControllerTests: TuistUnitTestCase {
     var subject: SecurityController!

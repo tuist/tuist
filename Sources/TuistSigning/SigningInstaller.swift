@@ -66,11 +66,11 @@ final class SigningInstaller: SigningInstalling {
         try FileHandler.shared.copy(from: provisioningProfileSourcePath,
                                     to: provisioningProfilePath)
 
-        logger.notice("Installed provisioning profile \(provisioningProfileSourcePath.pathString) to \(provisioningProfilePath.pathString)")
+        logger.debug("Installed provisioning profile \(provisioningProfileSourcePath.pathString) to \(provisioningProfilePath.pathString)")
     }
 
     func installCertificate(_ certificate: Certificate, keychainPath: AbsolutePath) throws {
         try securityController.importCertificate(certificate, keychainPath: keychainPath)
-        logger.notice("Installed certificate with public key at \(certificate.publicKey.pathString) and private key at \(certificate.privateKey.pathString) to keychain at \(keychainPath.pathString)")
+        logger.debug("Installed certificate with public key at \(certificate.publicKey.pathString) and private key at \(certificate.privateKey.pathString) to keychain at \(keychainPath.pathString)")
     }
 }

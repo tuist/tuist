@@ -3,6 +3,7 @@ import TSCBasic
 import TuistCore
 @testable import TuistSupportTesting
 @testable import TuistSigning
+@testable import TuistSigningTesting
 
 final class SigningMatcherTests: TuistUnitTestCase {
     var subject: SigningMatcher!
