@@ -141,7 +141,7 @@ extension InitCommand {
                 return optional
             }
         }
-        
+
         init?(stringValue: String) {
             switch stringValue {
             case "platform":
@@ -177,18 +177,18 @@ extension InitCommand: CustomReflectable {
             .map { Mirror.Child(label: $0.name, value: $0.option) }
         let optionalTemplateChildren = InitCommand.optionalTemplateOptions
             .map { Mirror.Child(label: $0.name, value: $0.option) }
-        
+
         let children = [
             Mirror.Child(label: "platform", value: _platform),
             Mirror.Child(label: "name", value: _name),
             Mirror.Child(label: "template", value: _template),
             Mirror.Child(label: "path", value: _path),
-            ].filter {
-                // Prefer attributes defined in a template if it clashes with predefined ones
-                $0.label.map { label in
-                    !(InitCommand.requiredTemplateOptions.map(\.name) + InitCommand.optionalTemplateOptions.map(\.name))
-                        .contains(label)
-                    } ?? true
+        ].filter {
+            // Prefer attributes defined in a template if it clashes with predefined ones
+            $0.label.map { label in
+                !(InitCommand.requiredTemplateOptions.map(\.name) + InitCommand.optionalTemplateOptions.map(\.name))
+                    .contains(label)
+            } ?? true
         }
         return Mirror(InitCommand(), children: children + requiredTemplateChildren + optionalTemplateChildren)
     }

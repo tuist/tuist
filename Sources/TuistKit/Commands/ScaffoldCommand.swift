@@ -132,7 +132,7 @@ extension ScaffoldCommand {
                 return optional
             }
         }
-        
+
         init?(stringValue: String) {
             switch stringValue {
             case "template":
@@ -167,12 +167,12 @@ extension ScaffoldCommand: CustomReflectable {
         let children = [
             Mirror.Child(label: "template", value: _template),
             Mirror.Child(label: "path", value: _path),
-            ].filter {
-                // Prefer attributes defined in a template if it clashes with predefined ones
-                $0.label.map { label in
-                    !(ScaffoldCommand.requiredTemplateOptions.map(\.name) + ScaffoldCommand.optionalTemplateOptions.map(\.name))
-                        .contains(label)
-                    } ?? true
+        ].filter {
+            // Prefer attributes defined in a template if it clashes with predefined ones
+            $0.label.map { label in
+                !(ScaffoldCommand.requiredTemplateOptions.map(\.name) + ScaffoldCommand.optionalTemplateOptions.map(\.name))
+                    .contains(label)
+            } ?? true
         }
         return Mirror(ScaffoldCommand(), children: children + requiredTemplateChildren + optionalTemplateChildren)
     }
