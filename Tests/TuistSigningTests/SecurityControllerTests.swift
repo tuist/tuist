@@ -41,8 +41,8 @@ final class SecurityControllerTests: TuistUnitTestCase {
         let certificate = Certificate.test(publicKey: certificatePath, privateKey: privateKeyPath)
         let keychainPath = try temporaryPath()
 
-        system.errorCommand("/usr/bin/security", "find-certificate", certificatePath.pathString, "-P", "")
-        system.errorCommand("/usr/bin/security", "find-key", privateKeyPath.pathString, "-P", "")
+        system.errorCommand("/usr/bin/security", "find-certificate", certificatePath.pathString, "-P", "", "-k", keychainPath.pathString)
+        system.errorCommand("/usr/bin/security", "find-key", privateKeyPath.pathString, "-P", "", "-k", keychainPath.pathString)
         system.succeedCommand("/usr/bin/security", "import", certificatePath.pathString, "-P", "", "-k", keychainPath.pathString)
         system.succeedCommand("/usr/bin/security", "import", privateKeyPath.pathString, "-P", "", "-k", keychainPath.pathString)
 
@@ -61,8 +61,8 @@ final class SecurityControllerTests: TuistUnitTestCase {
         let certificate = Certificate.test(publicKey: certificatePath, privateKey: privateKeyPath)
         let keychainPath = try temporaryPath()
 
-        system.succeedCommand("/usr/bin/security", "find-certificate", certificatePath.pathString, "-P", "")
-        system.succeedCommand("/usr/bin/security", "find-key", privateKeyPath.pathString, "-P", "")
+        system.succeedCommand("/usr/bin/security", "find-certificate", certificatePath.pathString, "-P", "", "-k", keychainPath.pathString)
+        system.succeedCommand("/usr/bin/security", "find-key", privateKeyPath.pathString, "-P", "", "-k", keychainPath.pathString)
 
         // When
         try subject.importCertificate(certificate, keychainPath: keychainPath)
