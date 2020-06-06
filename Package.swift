@@ -175,7 +175,7 @@ let package = Package(
         ),
         .testTarget(
             name: "TuistAutomationTests",
-            dependencies: ["TuistAutomation", "TuistSupportTesting"]
+            dependencies: ["TuistAutomation", "TuistSupportTesting", "TuistCoreTesting"]
         ),
         .target(
             name: "TuistAutomationTesting",
