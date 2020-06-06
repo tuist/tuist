@@ -9,14 +9,14 @@ enum ProvisioningProfileParserError: FatalError {
             return .abort
         }
     }
-    
+
     var description: String {
         switch self {
         case let .valueNotFound(value, path):
             return "Could not find \(value). Check if the provided xml at \(path.pathString) is valid."
         }
     }
-    
+
     case valueNotFound(String, AbsolutePath)
 }
 
@@ -26,11 +26,11 @@ protocol ProvisioningProfileParsing {
 
 final class ProvisioningProfileParser: ProvisioningProfileParsing {
     private let securityController: SecurityControlling
-    
+
     init(securityController: SecurityControlling = SecurityController()) {
         self.securityController = securityController
     }
-    
+
     func parse(at path: AbsolutePath) throws -> ProvisioningProfile {
         let unencryptedProvisioningProfile = try securityController.decodeFile(at: path)
         let plistData = Data(unencryptedProvisioningProfile.utf8)

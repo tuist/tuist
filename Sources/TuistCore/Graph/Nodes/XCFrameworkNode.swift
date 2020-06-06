@@ -47,7 +47,7 @@ public class XCFrameworkNode: PrecompiledNode {
     public private(set) var dependencies: [Dependency]
 
     /// Path to the binary.
-    override public var binaryPath: AbsolutePath { primaryBinaryPath }
+    public override var binaryPath: AbsolutePath { primaryBinaryPath }
 
     /// Initializes the node with its attributes.
     /// - Parameters:
@@ -68,7 +68,7 @@ public class XCFrameworkNode: PrecompiledNode {
         super.init(path: path)
     }
 
-    override public func encode(to encoder: Encoder) throws {
+    public override func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: XCFrameworkNodeCodingKeys.self)
         try container.encode(path.pathString, forKey: .path)
         try container.encode(name, forKey: .name)

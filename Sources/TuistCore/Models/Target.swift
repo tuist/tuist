@@ -71,7 +71,7 @@ public struct Target: Equatable, Hashable {
         self.filesGroup = filesGroup
         self.dependencies = dependencies
     }
-    
+
     /// Returns a copy of the target with the given settings set.
     /// - Parameter settigns: Settings to be set to the copy.
     public func with(settings: Settings) -> Target {

@@ -1,5 +1,5 @@
-import TSCBasic
 import Foundation
+import TSCBasic
 import TuistSupport
 import XCTest
 @testable import TuistCoreTesting
@@ -22,41 +22,41 @@ final class SigningInstallerTests: TuistUnitTestCase {
         securityController = nil
         super.tearDown()
     }
-    
+
     func test_installing_provisioning_profile_fails_when_expired() throws {
         // Given
         let provisioningProfile = ProvisioningProfile.test(expirationDate: Date().addingTimeInterval(-1))
-        
+
         // When
         XCTAssertThrowsSpecific(
             try subject.installProvisioningProfile(provisioningProfile),
             SigningInstallerError.expiredProvisioningProfile(provisioningProfile)
         )
     }
-    
+
     func test_installling_provisioning_profile_fails_when_no_path() throws {
         // Given
         let provisioningProfile = ProvisioningProfile.test(path: nil)
-        
+
         // When
         XCTAssertThrowsSpecific(
             try subject.installProvisioningProfile(provisioningProfile),
             SigningInstallerError.provisioningProfilePathNotFound(provisioningProfile)
         )
     }
-    
+
     func test_installing_provisioning_profile_fails_when_no_extension() throws {
         // Given
         let provisioningProfilePath = try temporaryPath().appending(component: "file")
         let provisioningProfile = ProvisioningProfile.test(path: provisioningProfilePath)
-        
+
         // When
         XCTAssertThrowsSpecific(
             try subject.installProvisioningProfile(provisioningProfile),
             SigningInstallerError.noFileExtension(provisioningProfilePath)
         )
     }
-    
+
     func test_provisioning_profile_is_installed() throws {
         // Given
         let homeDirectoryPath = try temporaryPath()
@@ -69,17 +69,17 @@ final class SigningInstallerTests: TuistUnitTestCase {
             uuid: UUID().uuidString
         )
         let destinationProvisioningProfilePath = provisioningProfilesDirectoryPath.appending(component: "\(provisioningProfile.uuid).mobileprovision")
-        
+
         // When
         try subject.installProvisioningProfile(provisioningProfile)
-        
+
         // Then
         XCTAssertEqual(
             try fileHandler.readFile(sourceProvisioningProfilePath),
             try fileHandler.readFile(destinationProvisioningProfilePath)
         )
     }
-    
+
     func test_certificate_is_imported() throws {
         // Given
         let expectedCertificate = Certificate.test()
@@ -90,10 +90,10 @@ final class SigningInstallerTests: TuistUnitTestCase {
             certificate = $0
             path = $1
         }
-        
+
         // When
         try subject.installCertificate(expectedCertificate, keychainPath: expectedPath)
-        
+
         // Then
         XCTAssertEqual(expectedCertificate, certificate)
         XCTAssertEqual(expectedPath, path)

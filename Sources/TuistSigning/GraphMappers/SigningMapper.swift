@@ -5,14 +5,14 @@ import TuistSupport
 
 enum SigningMapperError: FatalError, Equatable {
     case appIdMismatch(String, String, String)
-    
+
     var type: ErrorType {
         switch self {
         case .appIdMismatch:
             return .abort
         }
     }
-    
+
     var description: String {
         switch self {
         case let .appIdMismatch(appId, developmentTeamId, bundleId):
@@ -26,14 +26,14 @@ public class SigningMapper: GraphMapping {
     private let rootDirectoryLocator: RootDirectoryLocating
     private let signingMatcher: SigningMatching
     private let signingCipher: SigningCiphering
-    
+
     public convenience init() {
         self.init(signingFilesLocator: SigningFilesLocator(),
                   signingMatcher: SigningMatcher(),
                   rootDirectoryLocator: RootDirectoryLocator(),
                   signingCipher: SigningCipher())
     }
-    
+
     init(signingFilesLocator: SigningFilesLocating,
          signingMatcher: SigningMatching,
          rootDirectoryLocator: RootDirectoryLocating,
@@ -43,8 +43,9 @@ public class SigningMapper: GraphMapping {
         self.rootDirectoryLocator = rootDirectoryLocator
         self.signingCipher = signingCipher
     }
-    
+
     // MARK: - GraphMapping
+
     public func map(graph: Graph) throws -> (Graph, [SideEffectDescriptor]) {
         let entryPath = graph.entryPath
         guard
@@ -54,14 +55,14 @@ public class SigningMapper: GraphMapping {
             logger.debug("No signing artifacts found")
             return (graph, [])
         }
-        
+
         try signingCipher.decryptSigning(at: entryPath, keepFiles: true)
         defer { try? signingCipher.encryptSigning(at: entryPath, keepFiles: false) }
-        
+
         let keychainPath = derivedDirectory.appending(component: Constants.signingKeychain)
-        
+
         let (certificates, provisioningProfiles) = try signingMatcher.match(graph: graph)
-        
+
         let projects: [Project] = try graph.projects.map { project in
             let targets = try project.targets.map {
                 try map(target: $0,
@@ -72,12 +73,12 @@ public class SigningMapper: GraphMapping {
             }
             return project.with(targets: targets)
         }
-        
+
         return (graph.with(projects: projects), [])
     }
-    
+
     // MARK: - Helpers
-    
+
     private func map(target: Target,
                      project: Project,
                      keychainPath: AbsolutePath,
@@ -91,18 +92,18 @@ public class SigningMapper: GraphMapping {
                 guard
                     let provisioningProfile = provisioningProfiles[target.name]?[configurationPair.key.name],
                     let certificate = certificates[configurationPair.key.name.lowercased()]
-                    else {
-                        dict[configurationPair.key] = configurationPair.value
-                        return
-                    }
+                else {
+                    dict[configurationPair.key] = configurationPair.value
+                    return
+                }
                 guard
                     provisioningProfile.appId == provisioningProfile.teamId + "." + target.bundleId
-                    else {
-                        throw SigningMapperError.appIdMismatch(
-                            provisioningProfile.appId,
-                            provisioningProfile.teamId,
-                            target.bundleId
-                        )
+                else {
+                    throw SigningMapperError.appIdMismatch(
+                        provisioningProfile.appId,
+                        provisioningProfile.teamId,
+                        target.bundleId
+                    )
                 }
                 let configuration = configurationPair.value ?? Configuration()
                 var settings = configuration.settings
@@ -112,8 +113,8 @@ public class SigningMapper: GraphMapping {
                 settings["DEVELOPMENT_TEAM"] = SettingValue(stringLiteral: provisioningProfile.teamId)
                 settings["PROVISIONING_PROFILE_SPECIFIER"] = SettingValue(stringLiteral: provisioningProfile.uuid)
                 dict[configurationPair.key] = configuration.with(settings: settings)
-        }
-        
+            }
+
         return target.with(settings: Settings(base: target.settings?.base ?? [:],
                                               configurations: configurations,
                                               defaultSettings: target.settings?.defaultSettings ?? .recommended))

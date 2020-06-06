@@ -1,28 +1,28 @@
-import XCTest
 import TSCBasic
-@testable import TuistSupportTesting
+import XCTest
 @testable import TuistSigning
+@testable import TuistSupportTesting
 
 final class ProvisioningProfileParserTests: TuistUnitTestCase {
     var subject: ProvisioningProfileParser!
     var securityController: MockSecurityController!
-    
+
     override func setUp() {
         super.setUp()
         securityController = MockSecurityController()
-        
+
         subject = ProvisioningProfileParser(
             securityController: securityController
         )
     }
-    
+
     override func tearDown() {
         super.tearDown()
-        
+
         securityController = nil
         subject = nil
     }
-    
+
     func test_parse_provisioning_profile() throws {
         // Given
         let path = try temporaryPath()
@@ -37,7 +37,7 @@ final class ProvisioningProfileParserTests: TuistUnitTestCase {
             appIdName: "AppIDName",
             applicationIdPrefix: ["Prefix"],
             platforms: ["iOS"],
-            expirationDate: Date(timeIntervalSinceReferenceDate: 640729461)
+            expirationDate: Date(timeIntervalSinceReferenceDate: 640_729_461)
         )
         securityController.decodeFileStub = { _ in
             .testProvisioningProfile(
@@ -51,10 +51,10 @@ final class ProvisioningProfileParserTests: TuistUnitTestCase {
                 expirationDate: "2021-04-21T20:24:21Z"
             )
         }
-        
+
         // When
         let provisioningProfile = try subject.parse(at: path)
-        
+
         // Then
         XCTAssertEqual(provisioningProfile, expectedProvisioningProfile)
     }

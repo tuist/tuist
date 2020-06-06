@@ -3,12 +3,12 @@ import TSCBasic
 
 public final class MockSigningCipher: SigningCiphering {
     public init() {}
-    
+
     public var readMasterKeyStub: ((AbsolutePath) throws -> String)?
     public func readMasterKey(at path: AbsolutePath) throws -> String {
         try readMasterKeyStub?(path) ?? ""
     }
-    
+
     public var decryptSigningStub: ((AbsolutePath, Bool) throws -> Void)?
     public func decryptSigning(at path: AbsolutePath, keepFiles: Bool) throws {
         try decryptSigningStub?(path, keepFiles)

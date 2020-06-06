@@ -1,11 +1,11 @@
-import XCTest
 import TSCBasic
 import TuistCore
 import TuistSupport
+import XCTest
 @testable import TuistCoreTesting
-@testable import TuistSupportTesting
-@testable import TuistSigningTesting
 @testable import TuistSigning
+@testable import TuistSigningTesting
+@testable import TuistSupportTesting
 
 final class SigningInteractorTests: TuistUnitTestCase {
     var subject: SigningInteractor!
@@ -16,8 +16,7 @@ final class SigningInteractorTests: TuistUnitTestCase {
     var signingLinter: MockSigningLinter!
     var securityController: MockSecurityController!
     var signingCipher: MockSigningCipher!
-    
-    
+
     override func setUp() {
         super.setUp()
         signingFilesLocator = MockSigningFilesLocator()
@@ -27,7 +26,7 @@ final class SigningInteractorTests: TuistUnitTestCase {
         signingLinter = MockSigningLinter()
         securityController = MockSecurityController()
         signingCipher = MockSigningCipher()
-        
+
         subject = SigningInteractor(
             signingFilesLocator: signingFilesLocator,
             rootDirectoryLocator: rootDirectoryLocator,
@@ -38,7 +37,7 @@ final class SigningInteractorTests: TuistUnitTestCase {
             signingCipher: signingCipher
         )
     }
-    
+
     override func tearDown() {
         super.tearDown()
         signingFilesLocator = nil
@@ -50,7 +49,7 @@ final class SigningInteractorTests: TuistUnitTestCase {
         signingCipher = nil
         subject = nil
     }
-    
+
     func test_install_creates_keychain() throws {
         // Given
         let graph = Graph.test()
@@ -62,26 +61,26 @@ final class SigningInteractorTests: TuistUnitTestCase {
         signingCipher.readMasterKeyStub = { _ in
             masterKey
         }
-        
+
         let rootDirectory = try temporaryPath()
         rootDirectoryLocator.locateStub = rootDirectory
         let keychainDirectory = rootDirectory.appending(components: Constants.derivedFolderName, Constants.signingKeychain)
-        
+
         var receivedKeychainDirectory: AbsolutePath?
         var receivedMasterKey: String?
         securityController.createKeychainStub = {
             receivedKeychainDirectory = $0
             receivedMasterKey = $1
         }
-        
+
         // When
         try subject.install(graph: graph)
-        
+
         // Then
         XCTAssertEqual(masterKey, receivedMasterKey)
         XCTAssertEqual(keychainDirectory, receivedKeychainDirectory)
     }
-    
+
     func test_install_unlocks_keychain() throws {
         // Given
         let graph = Graph.test()
@@ -93,26 +92,26 @@ final class SigningInteractorTests: TuistUnitTestCase {
         signingCipher.readMasterKeyStub = { _ in
             masterKey
         }
-        
+
         let rootDirectory = try temporaryPath()
         rootDirectoryLocator.locateStub = rootDirectory
         let keychainDirectory = rootDirectory.appending(components: Constants.derivedFolderName, Constants.signingKeychain)
-        
+
         var receivedKeychainDirectory: AbsolutePath?
         var receivedMasterKey: String?
         securityController.unlockKeychainStub = {
             receivedKeychainDirectory = $0
             receivedMasterKey = $1
         }
-        
+
         // When
         try subject.install(graph: graph)
-        
+
         // Then
         XCTAssertEqual(masterKey, receivedMasterKey)
         XCTAssertEqual(keychainDirectory, receivedKeychainDirectory)
     }
-    
+
     func test_install_locks_keychain() throws {
         // Given
         let graph = Graph.test()
@@ -123,26 +122,26 @@ final class SigningInteractorTests: TuistUnitTestCase {
         signingCipher.readMasterKeyStub = { _ in
             masterKey
         }
-        
+
         let rootDirectory = try temporaryPath()
         rootDirectoryLocator.locateStub = rootDirectory
         let keychainDirectory = rootDirectory.appending(components: Constants.derivedFolderName, Constants.signingKeychain)
-        
+
         var receivedKeychainDirectory: AbsolutePath?
         var receivedMasterKey: String?
         securityController.lockKeychainStub = {
             receivedKeychainDirectory = $0
             receivedMasterKey = $1
         }
-        
+
         // When
         try subject.install(graph: graph)
-        
+
         // Then
         XCTAssertEqual(masterKey, receivedMasterKey)
         XCTAssertEqual(keychainDirectory, receivedKeychainDirectory)
     }
-    
+
     func test_install_decrypts_signing() throws {
         // Given
         let entryPath = try temporaryPath()
@@ -153,52 +152,52 @@ final class SigningInteractorTests: TuistUnitTestCase {
         signingCipher.readMasterKeyStub = { _ in
             "master-key"
         }
-        
+
         rootDirectoryLocator.locateStub = try temporaryPath()
-        
+
         var signingPath: AbsolutePath?
         var keepFiles: Bool?
         signingCipher.decryptSigningStub = {
             signingPath = $0
             keepFiles = $1
         }
-        
+
         // When
         try subject.install(graph: graph)
-        
+
         // Then
         XCTAssertEqual(signingPath, entryPath)
         XCTAssertTrue(keepFiles ?? false)
     }
-    
+
     func test_install_encrypts_signing() throws {
-           // Given
-           let entryPath = try temporaryPath()
-           let graph = Graph.test(entryPath: entryPath)
-           signingFilesLocator.locateSigningDirectoryStub = { _ in
-               try self.temporaryPath()
-           }
-           signingCipher.readMasterKeyStub = { _ in
-               "master-key"
-           }
-           
-           rootDirectoryLocator.locateStub = try temporaryPath()
-           
-           var signingPath: AbsolutePath?
-           var keepFiles: Bool?
-           signingCipher.encryptSigningStub = {
-               signingPath = $0
-               keepFiles = $1
-           }
-           
-           // When
-           try subject.install(graph: graph)
-           
-           // Then
-           XCTAssertEqual(signingPath, entryPath)
-           XCTAssertFalse(keepFiles ?? true)
-       }
-    
+        // Given
+        let entryPath = try temporaryPath()
+        let graph = Graph.test(entryPath: entryPath)
+        signingFilesLocator.locateSigningDirectoryStub = { _ in
+            try self.temporaryPath()
+        }
+        signingCipher.readMasterKeyStub = { _ in
+            "master-key"
+        }
+
+        rootDirectoryLocator.locateStub = try temporaryPath()
+
+        var signingPath: AbsolutePath?
+        var keepFiles: Bool?
+        signingCipher.encryptSigningStub = {
+            signingPath = $0
+            keepFiles = $1
+        }
+
+        // When
+        try subject.install(graph: graph)
+
+        // Then
+        XCTAssertEqual(signingPath, entryPath)
+        XCTAssertFalse(keepFiles ?? true)
+    }
+
     func test_installs_signing() throws {
         // Given
         try prepareSigning()
@@ -210,16 +209,16 @@ final class SigningInteractorTests: TuistUnitTestCase {
             (certificates: [
                 configuration: expectedCertificate,
                 // Used to ensure only certificates that have configuration are installed
-                "other-config": Certificate.test(name: "certB")
+                "other-config": Certificate.test(name: "certB"),
             ],
              provisioningProfiles: [
                 targetName: [
                     configuration: expectedProvisioningProfile,
-                    "some-other-config": ProvisioningProfile.test()
-                ]
-            ])
+                    "some-other-config": ProvisioningProfile.test(),
+                ],
+             ])
         }
-        
+
         let target = Target.test(
             name: targetName,
             settings: Settings(
@@ -227,12 +226,13 @@ final class SigningInteractorTests: TuistUnitTestCase {
                     BuildConfiguration(
                         name: configuration,
                         variant: .debug
-                    ): Configuration.test()
-            ]
-        ))
+                    ): Configuration.test(),
+                ]
+            )
+        )
         let project = Project.test(targets: [target])
         let graph = Graph.test(projects: [project])
-        
+
         var installedCertificates: [Certificate] = []
         signingInstaller.installCertificateStub = { certificate, _ in
             installedCertificates.append(certificate)
@@ -241,17 +241,17 @@ final class SigningInteractorTests: TuistUnitTestCase {
         signingInstaller.installProvisioningProfileStub = { profile in
             installedProvisioningProfiles.append(profile)
         }
-        
+
         // When
         try subject.install(graph: graph)
-        
+
         // Then
         XCTAssertEqual([expectedCertificate], installedCertificates)
         XCTAssertEqual([expectedProvisioningProfile], installedProvisioningProfiles)
     }
-    
+
     // MARK: - Helpers
-    
+
     private func prepareSigning() throws {
         signingFilesLocator.locateSigningDirectoryStub = { _ in
             try self.temporaryPath()
@@ -259,7 +259,7 @@ final class SigningInteractorTests: TuistUnitTestCase {
         signingCipher.readMasterKeyStub = { _ in
             "master-key"
         }
-        
+
         rootDirectoryLocator.locateStub = try temporaryPath()
     }
 }

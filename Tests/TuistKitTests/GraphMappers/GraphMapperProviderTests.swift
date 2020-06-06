@@ -1,10 +1,10 @@
 import Foundation
 import TuistCache
-import TuistSigning
 import TuistCloud
 import TuistCore
 import TuistCoreTesting
 import TuistGenerator
+import TuistSigning
 import TuistSupport
 import XCTest
 
@@ -45,14 +45,14 @@ final class GraphMapperProviderTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(got.filter { $0 is CacheMapper }.count, 0)
     }
-    
+
     func test_mappers_returns_theSigningMapper() {
         // Given
         subject = GraphMapperProvider(useCache: false)
-        
+
         // When
         let got = subject.mappers(config: Config.test())
-        
+
         // Then
         XCTAssertEqual(got.filter { $0 is SigningMapper }.count, 1)
     }

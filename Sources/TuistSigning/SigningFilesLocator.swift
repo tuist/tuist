@@ -35,7 +35,7 @@ final class SigningFilesLocator: SigningFilesLocating {
     init(rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator()) {
         self.rootDirectoryLocator = rootDirectoryLocator
     }
-    
+
     func locateSigningDirectory(from path: AbsolutePath) throws -> AbsolutePath? {
         guard
             let rootDirectory = rootDirectoryLocator.locate(from: path)
@@ -43,34 +43,34 @@ final class SigningFilesLocator: SigningFilesLocating {
         let signingDirectory = rootDirectory.appending(components: Constants.tuistDirectoryName, Constants.signingDirectoryName)
         return FileHandler.shared.exists(signingDirectory) ? signingDirectory : nil
     }
-    
+
     func locateProvisioningProfiles(from path: AbsolutePath) throws -> [AbsolutePath] {
         try locateSigningFiles(at: path)
-            .filter { $0.extension == "mobileprovision" || $0.extension == "provisionprofile"  }
+            .filter { $0.extension == "mobileprovision" || $0.extension == "provisionprofile" }
     }
-    
+
     func locateUnencryptedCertificates(from path: AbsolutePath) throws -> [AbsolutePath] {
         try locateSigningFiles(at: path)
             .filter { $0.extension == "cer" }
     }
-    
+
     func locateEncryptedCertificates(from path: AbsolutePath) throws -> [AbsolutePath] {
         try locateSigningFiles(at: path)
             .filter { $0.pathString.hasSuffix("cer.encrypted") }
     }
-    
+
     func locateUnencryptedPrivateKeys(from path: AbsolutePath) throws -> [AbsolutePath] {
         try locateSigningFiles(at: path)
             .filter { $0.extension == "p12" }
     }
-    
+
     func locateEncryptedPrivateKeys(from path: AbsolutePath) throws -> [AbsolutePath] {
         try locateSigningFiles(at: path)
             .filter { $0.pathString.hasSuffix("p12.encrypted") }
     }
-    
+
     // MARK: - Helpers
-    
+
     private func locateSigningFiles(at path: AbsolutePath) throws -> [AbsolutePath] {
         guard
             let rootDirectory = rootDirectoryLocator.locate(from: path)

@@ -1,39 +1,39 @@
-import XCTest
 import TSCBasic
 import TuistCore
-@testable import TuistSupportTesting
+import XCTest
 @testable import TuistSigning
 @testable import TuistSigningTesting
+@testable import TuistSupportTesting
 
 final class SigningMatcherTests: TuistUnitTestCase {
     var subject: SigningMatcher!
     var signingFilesLocator: MockSigningFilesLocator!
     var provisioningProfileParser: MockProvisioningProfileParser!
     var certificateParser: MockCertificateParser!
-    
+
     override func setUp() {
         super.setUp()
-        
+
         signingFilesLocator = MockSigningFilesLocator()
         provisioningProfileParser = MockProvisioningProfileParser()
         certificateParser = MockCertificateParser()
-        
+
         subject = SigningMatcher(
             signingFilesLocator: signingFilesLocator,
             provisioningProfileParser: provisioningProfileParser,
             certificateParser: certificateParser
         )
     }
-    
+
     override func tearDown() {
         super.tearDown()
-        
+
         subject = nil
         signingFilesLocator = nil
         provisioningProfileParser = nil
         certificateParser = nil
     }
-    
+
     func test_locates_certificates_from_entry_path() throws {
         // Given
         let entryPath = try temporaryPath()
@@ -43,14 +43,14 @@ final class SigningMatcherTests: TuistUnitTestCase {
             locatePath = $0
             return []
         }
-        
+
         // When
-        let _ = try subject.match(graph: graph)
-        
+        _ = try subject.match(graph: graph)
+
         // Then
         XCTAssertEqual(entryPath, locatePath)
     }
-    
+
     func test_match_returns_pairs() throws {
         // Given
         let debugConfiguration = "debug"
@@ -77,9 +77,9 @@ final class SigningMatcherTests: TuistUnitTestCase {
         }
         let expectedCertificates: [String: Certificate] = [
             debugConfiguration: Certificate.test(publicKey: publicKeyPath, privateKey: privateKeyPath),
-            releaseConfiguration: Certificate.test(publicKey: releasePublicKeyPath, privateKey: releasePrivateKeyPath)
+            releaseConfiguration: Certificate.test(publicKey: releasePublicKeyPath, privateKey: releasePrivateKeyPath),
         ]
-        
+
         let debugProvisioningProfilePath = AbsolutePath("/\(debugConfiguration).mobileprovision")
         let releaseProvisioningProfilePath = AbsolutePath("/\(releaseConfiguration).mobileprovision")
         signingFilesLocator.locateProvisioningProfilesStub = { _ in
@@ -118,12 +118,12 @@ final class SigningMatcherTests: TuistUnitTestCase {
                     configurationName: releaseConfiguration,
                     expirationDate: date
                 ),
-            ]
+            ],
         ]
-        
+
         // When
         let (certificates, provisioningProfiles) = try subject.match(graph: graph)
-        
+
         // Then
         XCTAssertEqual(certificates, expectedCertificates)
         XCTAssertEqual(provisioningProfiles, expectedProvisioningProfiles)

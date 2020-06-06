@@ -41,7 +41,7 @@ public struct Configuration: Equatable {
         self.settings = settings
         self.xcconfig = xcconfig
     }
-    
+
     // MARK: - Public
 
     /// Returns a copy of the configuration with the given settings set.

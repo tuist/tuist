@@ -1,11 +1,11 @@
-import TSCBasic
 import Foundation
+import TSCBasic
 import TuistSupport
 import XCTest
 @testable import TuistCoreTesting
 @testable import TuistSigning
-@testable import TuistSupportTesting
 @testable import TuistSigningTesting
+@testable import TuistSupportTesting
 
 final class SecurityControllerTests: TuistUnitTestCase {
     var subject: SecurityController!
@@ -48,7 +48,7 @@ final class SecurityControllerTests: TuistUnitTestCase {
 
         // When
         try subject.importCertificate(certificate, keychainPath: keychainPath)
-        
+
         // Then
         XCTAssertPrinterContains("Imported certificate at \(certificate.publicKey.pathString)", at: .debug, ==)
         XCTAssertPrinterContains("Imported certificate private key at \(certificate.privateKey.pathString)", at: .debug, ==)
@@ -66,7 +66,7 @@ final class SecurityControllerTests: TuistUnitTestCase {
 
         // When
         try subject.importCertificate(certificate, keychainPath: keychainPath)
-        
+
         // Then
         XCTAssertPrinterContains(
             "Skipping importing certificate at \(certificate.publicKey.pathString) because it is already present",
@@ -77,20 +77,20 @@ final class SecurityControllerTests: TuistUnitTestCase {
             at: .debug, ==
         )
     }
-    
+
     func test_keychain_is_created() throws {
         // Given
         let keychainPath = try temporaryPath()
         let password = ""
         system.succeedCommand("/usr/bin/security", "create-keychain", "-p", password, keychainPath.pathString)
-        
+
         // When
         try subject.createKeychain(at: keychainPath, password: password)
-        
+
         // Then
         XCTAssertPrinterContains("Created keychain at \(keychainPath.pathString)", at: .debug, ==)
     }
-    
+
     func test_keychain_already_exists() throws {
         // Given
         let keychainPath = try temporaryPath()
@@ -99,36 +99,36 @@ final class SecurityControllerTests: TuistUnitTestCase {
             ["/usr/bin/security", "create-keychain", "-p", password, keychainPath.pathString],
             error: "A keychain with the same name already exists."
         )
-        
+
         // When
         try subject.createKeychain(at: keychainPath, password: password)
-        
+
         // Then
         XCTAssertPrinterContains("Keychain at \(keychainPath.pathString) already exists", at: .debug, ==)
     }
-    
+
     func test_keychain_is_unlocked() throws {
         // Given
         let keychainPath = try temporaryPath()
         let password = ""
         system.succeedCommand("/usr/bin/security", "unlock-keychain", "-p", password, keychainPath.pathString)
-        
+
         // When
         try subject.unlockKeychain(at: keychainPath, password: password)
-        
+
         // Then
         XCTAssertPrinterContains("Unlocked keychain at \(keychainPath.pathString)", at: .debug, ==)
     }
-    
+
     func test_keychain_is_locked() throws {
         // Given
         let keychainPath = try temporaryPath()
         let password = ""
         system.succeedCommand("/usr/bin/security", "lock-keychain", "-p", password, keychainPath.pathString)
-        
+
         // When
         try subject.lockKeychain(at: keychainPath, password: password)
-        
+
         // Then
         XCTAssertPrinterContains("Locked keychain at \(keychainPath.pathString)", at: .debug, ==)
     }

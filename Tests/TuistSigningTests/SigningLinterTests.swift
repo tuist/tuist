@@ -1,25 +1,25 @@
-import XCTest
 import TSCBasic
 import TuistCore
+import XCTest
+@testable import TuistSigning
 @testable import TuistSigningTesting
 @testable import TuistSupportTesting
-@testable import TuistSigning
 
 final class SigningLinterTests: TuistUnitTestCase {
     var subject: SigningLinter!
-    
+
     override func setUp() {
         super.setUp()
-        
+
         subject = SigningLinter()
     }
-    
+
     override func tearDown() {
         super.tearDown()
-        
+
         subject = nil
     }
-    
+
     func test_lint_when_development_team_and_team_id_mismatch() {
         // Given
         let certificate = Certificate.test(developmentTeam: "TeamA")
@@ -31,16 +31,16 @@ final class SigningLinterTests: TuistUnitTestCase {
                 Make sure they are the same.
                 """,
                 severity: .error
-            )
+            ),
         ]
-        
+
         // When
         let got = subject.lint(certificate: certificate, provisioningProfile: provisioningProfile)
-        
+
         // Then
         XCTAssertEqual(got, expectedIssues)
     }
-    
+
     func test_lint_when_certificate_is_revoked() {
         // Given
         let certificate = Certificate.test(isRevoked: true)
@@ -48,12 +48,12 @@ final class SigningLinterTests: TuistUnitTestCase {
             LintingIssue(
                 reason: "Certificate \(certificate.name) is revoked. Create a new one and replace it to resolve the issue.",
                 severity: .warning
-            )
+            ),
         ]
-        
+
         // When
         let got = subject.lint(certificate: certificate)
-        
+
         // Then
         XCTAssertEqual(got, expectedIssues)
     }

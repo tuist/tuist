@@ -1,5 +1,5 @@
-import TSCBasic
 import Foundation
+import TSCBasic
 import TuistSupport
 import XCTest
 @testable import TuistCoreTesting
@@ -39,7 +39,7 @@ final class SigningFilesLocatorTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(files, expectedFiles)
     }
-    
+
     func test_locate_encrypted_private_keys() throws {
         // Given
         let rootDirectory = try temporaryPath()
@@ -58,7 +58,6 @@ final class SigningFilesLocatorTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(files, expectedFiles)
     }
-    
 
     func test_locate_signing_directory_when_none_exists() throws {
         // Given
@@ -85,7 +84,7 @@ final class SigningFilesLocatorTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(signingDirectory, expectedSigningDirectory)
     }
-    
+
     func test_locate_provisioning_profiles() throws {
         // Given
         let rootDirectory = try temporaryPath()
@@ -104,7 +103,7 @@ final class SigningFilesLocatorTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(files, expectedFiles)
     }
-    
+
     func test_locate_unencrypted_certificates() throws {
         // Given
         let rootDirectory = try temporaryPath()
@@ -123,7 +122,7 @@ final class SigningFilesLocatorTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(files, expectedFiles)
     }
-    
+
     func test_locate_unencrypted_private_keys() throws {
         // Given
         let rootDirectory = try temporaryPath()

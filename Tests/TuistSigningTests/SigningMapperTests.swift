@@ -1,11 +1,11 @@
-import XCTest
 import TSCBasic
 import TuistCore
 import TuistSupport
-@testable import TuistSigningTesting
+import XCTest
 @testable import TuistCoreTesting
-@testable import TuistSupportTesting
 @testable import TuistSigning
+@testable import TuistSigningTesting
+@testable import TuistSupportTesting
 
 final class SigningMapperTests: TuistUnitTestCase {
     var subject: SigningMapper!
@@ -13,14 +13,14 @@ final class SigningMapperTests: TuistUnitTestCase {
     var signingMatcher: MockSigningMatcher!
     var rootDirectoryLocator: MockRootDirectoryLocator!
     var signingCipher: MockSigningCipher!
-    
+
     override func setUp() {
         super.setUp()
         signingFilesLocator = MockSigningFilesLocator()
         signingMatcher = MockSigningMatcher()
         rootDirectoryLocator = MockRootDirectoryLocator()
         signingCipher = MockSigningCipher()
-        
+
         subject = SigningMapper(
             signingFilesLocator: signingFilesLocator,
             signingMatcher: signingMatcher,
@@ -28,7 +28,7 @@ final class SigningMapperTests: TuistUnitTestCase {
             signingCipher: signingCipher
         )
     }
-    
+
     override func tearDown() {
         super.tearDown()
         signingFilesLocator = nil
@@ -37,7 +37,7 @@ final class SigningMapperTests: TuistUnitTestCase {
         signingCipher = nil
         subject = nil
     }
-    
+
     func test_signing_mapping() throws {
         // Given
         let signingDirectory = try temporaryPath()
@@ -63,10 +63,10 @@ final class SigningMapperTests: TuistUnitTestCase {
              provisioningProfiles: [
                 targetName: [
                     configuration: provisioningProfile,
-                ]
-            ])
+                ],
+             ])
         }
-        
+
         let target = Target.test(
             name: targetName,
             bundleId: "BundleID",
@@ -76,11 +76,12 @@ final class SigningMapperTests: TuistUnitTestCase {
                         name: configuration,
                         variant: .debug
                     ): Configuration.test(settings: [
-                        "SOME_SETTING": "Value"
-                    ])
-            ]
-        ))
-        
+                        "SOME_SETTING": "Value",
+                    ]),
+                ]
+            )
+        )
+
         let expectedConfigurations: [BuildConfiguration: Configuration] = [
             BuildConfiguration(
                 name: configuration,
@@ -91,26 +92,26 @@ final class SigningMapperTests: TuistUnitTestCase {
                 "CODE_SIGN_IDENTITY": SettingValue(stringLiteral: certificate.name),
                 "OTHER_CODE_SIGN_FLAGS": SettingValue(stringLiteral: "--keychain \(keychainPath.pathString)"),
                 "DEVELOPMENT_TEAM": SettingValue(stringLiteral: provisioningProfile.teamId),
-                "PROVISIONING_PROFILE_SPECIFIER": SettingValue(stringLiteral: provisioningProfile.uuid)
-            ])
+                "PROVISIONING_PROFILE_SPECIFIER": SettingValue(stringLiteral: provisioningProfile.uuid),
+            ]),
         ]
-        
+
         let project = Project.test(targets: [target])
         let graph = Graph.test(projects: [project])
-        
+
         // When
         let (mappedGraph, sideEffects) = try subject.map(graph: graph)
-        
+
         // Then
         XCTAssertEmpty(sideEffects)
         let configurations = mappedGraph.projects
             .flatMap(\.targets)
             .map(\.settings)
             .map { $0?.configurations }
-        
+
         XCTAssertEqual(configurations.first, expectedConfigurations)
     }
-    
+
     func test_signing_mapping_when_mismatched_app_id() throws {
         // Given
         let signingDirectory = try temporaryPath()
@@ -134,10 +135,10 @@ final class SigningMapperTests: TuistUnitTestCase {
              provisioningProfiles: [
                 targetName: [
                     configuration: provisioningProfile,
-                ]
-            ])
+                ],
+             ])
         }
-        
+
         let target = Target.test(
             name: targetName,
             bundleId: "BundleID",
@@ -146,13 +147,14 @@ final class SigningMapperTests: TuistUnitTestCase {
                     BuildConfiguration(
                         name: configuration,
                         variant: .debug
-                    ): Configuration.test()
-            ]
-        ))
-        
+                    ): Configuration.test(),
+                ]
+            )
+        )
+
         let project = Project.test(targets: [target])
         let graph = Graph.test(projects: [project])
-        
+
         // When
         XCTAssertThrowsSpecific(
             try subject.map(graph: graph),

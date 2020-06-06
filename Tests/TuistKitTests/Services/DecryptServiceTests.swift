@@ -1,27 +1,27 @@
-import XCTest
 import TSCBasic
 import TuistSigningTesting
-@testable import TuistSupportTesting
+import XCTest
 @testable import TuistKit
+@testable import TuistSupportTesting
 
 final class DecryptServiceTests: TuistUnitTestCase {
     var subject: DecryptService!
     var signingCipher: MockSigningCipher!
-    
+
     override func setUp() {
         super.setUp()
-        
+
         signingCipher = MockSigningCipher()
         subject = DecryptService(signingCipher: signingCipher)
     }
-    
+
     override func tearDown() {
         super.tearDown()
-        
+
         signingCipher = nil
         subject = nil
     }
-    
+
     func test_calls_decrypt_with_provided_path() throws {
         // Given
         let expectedPath = AbsolutePath("/path")
@@ -29,10 +29,10 @@ final class DecryptServiceTests: TuistUnitTestCase {
         signingCipher.decryptSigningStub = { decryptPath, _ in
             path = decryptPath
         }
-        
+
         // When
         try subject.run(path: expectedPath.pathString)
-        
+
         // Then
         XCTAssertEqual(path, expectedPath)
     }

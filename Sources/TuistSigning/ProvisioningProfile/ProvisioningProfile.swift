@@ -1,5 +1,5 @@
-import TSCBasic
 import Foundation
+import TSCBasic
 
 /// Model of a provisioning profile
 struct ProvisioningProfile: Equatable {
@@ -15,7 +15,7 @@ struct ProvisioningProfile: Equatable {
     let applicationIdPrefix: [String]
     let platforms: [String]
     let expirationDate: Date
-    
+
     init(path: AbsolutePath? = nil,
          name: String,
          targetName: String,
@@ -44,17 +44,17 @@ struct ProvisioningProfile: Equatable {
 extension ProvisioningProfile: Decodable {
     private struct Entitlements: Decodable {
         let appId: String
-        
+
         private enum CodingKeys: String, CodingKey {
             case appId = "application-identifier"
         }
-        
+
         init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             appId = try container.decode(String.self, forKey: .appId)
         }
     }
-    
+
     private enum CodingKeys: String, CodingKey {
         case name = "Name"
         case uuid = "UUID"
@@ -65,7 +65,7 @@ extension ProvisioningProfile: Decodable {
         case entitlements = "Entitlements"
         case expirationDate = "ExpirationDate"
     }
-    
+
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         name = try container.decode(String.self, forKey: .name)
@@ -73,8 +73,8 @@ extension ProvisioningProfile: Decodable {
         let teamIds = try container.decode([String].self, forKey: .teamIds)
         guard
             let teamId = teamIds.first
-            else { throw DecodingError.valueNotFound(String.self, DecodingError.Context(codingPath: container.codingPath,
-                                                                                        debugDescription: "Array of teamID must be non-empty"))
+        else { throw DecodingError.valueNotFound(String.self, DecodingError.Context(codingPath: container.codingPath,
+                                                                                    debugDescription: "Array of teamID must be non-empty"))
         }
         self.teamId = teamId
         appIdName = try container.decode(String.self, forKey: .appIdName)
@@ -83,14 +83,14 @@ extension ProvisioningProfile: Decodable {
         let entitlements = try container.decode(Entitlements.self, forKey: .entitlements)
         appId = entitlements.appId
         expirationDate = try container.decode(Date.self, forKey: .expirationDate)
-        
+
         let nameComponents = name.components(separatedBy: ".")
         guard
             let targetName = nameComponents.first,
             let configurationName = nameComponents.last
-            else { throw DecodingError.dataCorruptedError(forKey: .name,
-                                                          in: container,
-                                                          debugDescription: "Provisioning profile's name is not in format {Target}.{Configuration}")
+        else { throw DecodingError.dataCorruptedError(forKey: .name,
+                                                      in: container,
+                                                      debugDescription: "Provisioning profile's name is not in format {Target}.{Configuration}")
         }
         self.targetName = targetName
         self.configurationName = configurationName

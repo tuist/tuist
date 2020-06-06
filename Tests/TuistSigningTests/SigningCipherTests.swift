@@ -233,10 +233,10 @@ final class SigningCipherTests: TuistUnitTestCase {
         let expectedCertFile = try fileHandler.readTextFile(encryptedCertFile)
         let expectedProfileFile = try fileHandler.readTextFile(encryptedProfileFile)
         signingFilesLocator.locateUnencryptedCertificatesStub = { _ in
-            return [certFile]
+            [certFile]
         }
-        signingFilesLocator.locateUnencryptedPrivateKeysStub = { path in
-            return [profileFile]
+        signingFilesLocator.locateUnencryptedPrivateKeysStub = { _ in
+            [profileFile]
         }
 
         // When

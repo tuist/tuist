@@ -1,5 +1,5 @@
-import TSCBasic
 import Foundation
+import TSCBasic
 import TuistSupport
 
 enum SigningInstallerError: FatalError, Equatable {
@@ -54,11 +54,11 @@ final class SigningInstaller: SigningInstalling {
         }
         guard
             let provisioningProfileSourcePath = provisioningProfile.path
-            else { throw SigningInstallerError.provisioningProfilePathNotFound(provisioningProfile) }
+        else { throw SigningInstallerError.provisioningProfilePathNotFound(provisioningProfile) }
         guard
             let profileExtension = provisioningProfileSourcePath.extension
-            else { throw SigningInstallerError.noFileExtension(provisioningProfileSourcePath) }
-        
+        else { throw SigningInstallerError.noFileExtension(provisioningProfileSourcePath) }
+
         let provisioningProfilePath = provisioningProfilesPath.appending(component: provisioningProfile.uuid + "." + profileExtension)
         if FileHandler.shared.exists(provisioningProfilePath) {
             try FileHandler.shared.delete(provisioningProfilePath)

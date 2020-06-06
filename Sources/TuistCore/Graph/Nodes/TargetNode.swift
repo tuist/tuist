@@ -32,7 +32,7 @@ public class TargetNode: GraphNode {
 
     // MARK: - Hashable
 
-    override public func hash(into hasher: inout Hasher) {
+    public override func hash(into hasher: inout Hasher) {
         super.hash(into: &hasher)
         hasher.combine(target.name)
     }
@@ -53,7 +53,7 @@ public class TargetNode: GraphNode {
 
     // MARK: - Encodable
 
-    override public func encode(to encoder: Encoder) throws {
+    public override func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(path.pathString, forKey: .path)
         try container.encode(target.name, forKey: .name)

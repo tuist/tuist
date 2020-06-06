@@ -1,24 +1,24 @@
-import XCTest
 import TSCBasic
-@testable import TuistSupportTesting
-@testable import TuistSigningTesting
+import XCTest
 @testable import TuistSigning
+@testable import TuistSigningTesting
+@testable import TuistSupportTesting
 
 final class CertificateParserIntegrationTests: TuistTestCase {
     var subject: CertificateParser!
-    
+
     override func setUp() {
         super.setUp()
-        
+
         subject = CertificateParser()
     }
-    
+
     override func tearDown() {
         super.tearDown()
-        
+
         subject = nil
     }
-    
+
     func test_parse_certificate() throws {
         // Given
         let currentDirectory = AbsolutePath(#file.replacingOccurrences(of: "file://", with: "")).removingLastComponent()
@@ -31,10 +31,10 @@ final class CertificateParserIntegrationTests: TuistTestCase {
             name: "Apple Development: Marek Fort (54GSF6G47V)",
             isRevoked: false
         )
-        
+
         // When
         let certificate = try subject.parse(publicKey: publicKey, privateKey: privateKey)
-        
+
         // Then
         XCTAssertEqual(certificate, expectedCertificate)
     }

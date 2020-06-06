@@ -16,10 +16,10 @@ final class SigningLinter: SigningLinting {
             """
             issues.append(LintingIssue(reason: reason, severity: .error))
         }
-        
+
         return issues
     }
-    
+
     func lint(certificate: Certificate) -> [LintingIssue] {
         var issues: [LintingIssue] = []
         if certificate.isRevoked {
@@ -31,4 +31,3 @@ final class SigningLinter: SigningLinting {
         return issues
     }
 }
-

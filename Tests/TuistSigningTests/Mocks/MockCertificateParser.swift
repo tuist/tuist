@@ -1,6 +1,6 @@
 import TSCBasic
-@testable import TuistSigningTesting
 @testable import TuistSigning
+@testable import TuistSigningTesting
 
 final class MockCertificateParser: CertificateParsing {
     var parseStub: ((AbsolutePath, AbsolutePath) throws -> Certificate)?

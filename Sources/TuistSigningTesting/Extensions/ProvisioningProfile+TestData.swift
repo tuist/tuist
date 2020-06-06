@@ -1,5 +1,5 @@
-import XCTest
 import TSCBasic
+import XCTest
 @testable import TuistSigning
 
 extension ProvisioningProfile {
@@ -31,4 +31,3 @@ extension ProvisioningProfile {
         )
     }
 }
-

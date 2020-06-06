@@ -2,8 +2,8 @@ import Foundation
 import TuistCache
 import TuistCloud
 import TuistCore
-import TuistSigning
 import TuistGenerator
+import TuistSigning
 
 /// It defines an interface for providing the mappers to be used for a specific configuration.
 protocol GraphMapperProviding {
@@ -30,7 +30,7 @@ final class GraphMapperProvider: GraphMapperProviding {
         if useCache {
             mappers.append(CacheMapper())
         }
-        
+
         mappers.append(SigningMapper())
 
         // Cloud

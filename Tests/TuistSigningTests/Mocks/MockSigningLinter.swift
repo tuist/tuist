@@ -7,7 +7,7 @@ final class MockSigningLinter: SigningLinting {
     func lint(certificate: Certificate, provisioningProfile: ProvisioningProfile) -> [LintingIssue] {
         lintStub?(certificate, provisioningProfile) ?? []
     }
-    
+
     var lintCertificateStub: ((Certificate) -> [LintingIssue])?
     func lint(certificate: Certificate) -> [LintingIssue] {
         lintCertificateStub?(certificate) ?? []

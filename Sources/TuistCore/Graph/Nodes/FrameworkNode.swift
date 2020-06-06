@@ -33,7 +33,7 @@ public class FrameworkNode: PrecompiledNode {
     }
 
     /// Return the framework's binary path.
-    override public var binaryPath: AbsolutePath {
+    public override var binaryPath: AbsolutePath {
         FrameworkNode.binaryPath(frameworkPath: path)
     }
 
@@ -51,7 +51,7 @@ public class FrameworkNode: PrecompiledNode {
         super.init(path: path)
     }
 
-    override public func encode(to encoder: Encoder) throws {
+    public override func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(path.pathString, forKey: .path)
         try container.encode(name, forKey: .name)

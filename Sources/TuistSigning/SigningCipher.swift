@@ -74,7 +74,7 @@ public final class SigningCipher: SigningCiphering {
         try locateEncryptedSigningFiles(at: path)
             .filter { !correctlyEncryptedSigningFiles.map(\.encrypted).contains($0) }
             .forEach(FileHandler.shared.delete)
-        
+
         let cipheredKeys = try signingKeyFiles
             .filter { !correctlyEncryptedSigningFiles.map(\.unencrypted).contains($0) }
             .map(FileHandler.shared.readFile)
@@ -110,12 +110,12 @@ public final class SigningCipher: SigningCiphering {
             let decryptedPath = AbsolutePath(keyFile.parentDirectory.pathString + "/" + keyFile.basenameWithoutExt)
             try key.write(to: decryptedPath.url)
         }
-        
+
         if !keepFiles {
             try signingKeyFiles.forEach(FileHandler.shared.delete)
         }
     }
-    
+
     /// - Returns: Master key data
     public func readMasterKey(at path: AbsolutePath) throws -> String {
         guard
@@ -128,15 +128,15 @@ public final class SigningCipher: SigningCiphering {
     }
 
     // MARK: - Helpers
-    
+
     private func locateUnencryptedSigningFiles(at path: AbsolutePath) throws -> [AbsolutePath] {
         try signingFilesLocator.locateUnencryptedCertificates(from: path) + signingFilesLocator.locateUnencryptedPrivateKeys(from: path)
     }
-    
+
     private func locateEncryptedSigningFiles(at path: AbsolutePath) throws -> [AbsolutePath] {
         try signingFilesLocator.locateEncryptedCertificates(from: path) + signingFilesLocator.locateEncryptedPrivateKeys(from: path)
     }
-    
+
     /// - Returns: Files that are already correctly encrypted
     private func correctlyEncryptedSigningFiles(at path: AbsolutePath, masterKey: Data) throws -> [(unencrypted: AbsolutePath, encrypted: AbsolutePath)] {
         try locateUnencryptedSigningFiles(at: path).compactMap { unencryptedFile in

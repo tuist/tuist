@@ -1,23 +1,23 @@
-import XCTest
 import TSCBasic
-@testable import TuistSupportTesting
+import XCTest
 @testable import TuistSigning
+@testable import TuistSupportTesting
 
 final class CertificateParserTests: TuistUnitTestCase {
     var subject: CertificateParser!
-    
+
     override func setUp() {
         super.setUp()
-        
+
         subject = CertificateParser()
     }
-    
+
     override func tearDown() {
         super.tearDown()
-        
+
         subject = nil
     }
-    
+
     func test_name_parsing_fails_when_not_present() throws {
         // Given
         let publicKey = try temporaryPath()
@@ -27,14 +27,14 @@ final class CertificateParserTests: TuistUnitTestCase {
             "openssl", "x509", "-inform", "der", "-in", publicKey.pathString, "-noout", "-subject",
             output: subjectOutput
         )
-        
+
         // When
         XCTAssertThrowsSpecific(
             try subject.parse(publicKey: publicKey, privateKey: privateKey),
             CertificateParserError.nameParsingFailed(publicKey, subjectOutput)
         )
     }
-    
+
     func test_development_team_fails_when_not_present() throws {
         // Given
         let publicKey = try temporaryPath()
@@ -44,14 +44,14 @@ final class CertificateParserTests: TuistUnitTestCase {
             "openssl", "x509", "-inform", "der", "-in", publicKey.pathString, "-noout", "-subject",
             output: subjectOutput
         )
-        
+
         // When
         XCTAssertThrowsSpecific(
             try subject.parse(publicKey: publicKey, privateKey: privateKey),
             CertificateParserError.developmentTeamParsingFailed(publicKey, subjectOutput)
         )
     }
-    
+
     func test_parsing_succeeds() throws {
         // Given
         let publicKey = try temporaryPath()
@@ -68,10 +68,10 @@ final class CertificateParserTests: TuistUnitTestCase {
             name: "Apple Development: Name (54GSF6G47V)",
             isRevoked: false
         )
-        
+
         // When
         let certificate = try subject.parse(publicKey: publicKey, privateKey: privateKey)
-        
+
         // Then
         XCTAssertEqual(certificate, expectedCertificate)
     }
