@@ -2,24 +2,6 @@ import TSCBasic
 import TuistCore
 import TuistSupport
 
-enum SigningFilesLocatorError: FatalError, Equatable {
-    case signingDirectoryNotFound(AbsolutePath)
-
-    var type: ErrorType {
-        switch self {
-        case .signingDirectoryNotFound:
-            return .abort
-        }
-    }
-
-    var description: String {
-        switch self {
-        case let .signingDirectoryNotFound(fromPath):
-            return "Could not find signing directory from \(fromPath.pathString)"
-        }
-    }
-}
-
 protocol SigningFilesLocating {
     func locateSigningDirectory(from path: AbsolutePath) throws -> AbsolutePath?
     func locateProvisioningProfiles(from path: AbsolutePath) throws -> [AbsolutePath]
@@ -39,7 +21,7 @@ final class SigningFilesLocator: SigningFilesLocating {
     func locateSigningDirectory(from path: AbsolutePath) throws -> AbsolutePath? {
         guard
             let rootDirectory = rootDirectoryLocator.locate(from: path)
-        else { throw SigningFilesLocatorError.signingDirectoryNotFound(path) }
+        else { return nil }
         let signingDirectory = rootDirectory.appending(components: Constants.tuistDirectoryName, Constants.signingDirectoryName)
         return FileHandler.shared.exists(signingDirectory) ? signingDirectory : nil
     }
@@ -74,7 +56,7 @@ final class SigningFilesLocator: SigningFilesLocating {
     private func locateSigningFiles(at path: AbsolutePath) throws -> [AbsolutePath] {
         guard
             let rootDirectory = rootDirectoryLocator.locate(from: path)
-        else { throw SigningFilesLocatorError.signingDirectoryNotFound(path) }
+        else { return [] }
         let signingDirectory = rootDirectory.appending(components: Constants.tuistDirectoryName, Constants.signingDirectoryName)
         return FileHandler.shared.glob(signingDirectory, glob: "*")
     }

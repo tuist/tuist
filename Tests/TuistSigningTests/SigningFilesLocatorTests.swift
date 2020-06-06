@@ -59,18 +59,6 @@ final class SigningFilesLocatorTests: TuistUnitTestCase {
         XCTAssertEqual(files, expectedFiles)
     }
 
-    func test_locate_signing_directory_when_none_exists() throws {
-        // Given
-        let path = try temporaryPath()
-        rootDirectoryLocator.locateStub = nil
-
-        // When
-        XCTAssertThrowsSpecific(
-            try subject.locateSigningDirectory(from: path),
-            SigningFilesLocatorError.signingDirectoryNotFound(path)
-        )
-    }
-
     func test_locate_signing_directory_when_exists() throws {
         // Given
         let rootDirectory = try temporaryPath()

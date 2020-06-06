@@ -61,9 +61,9 @@ final class SigningMapperTests: TuistUnitTestCase {
                 configuration: certificate,
             ],
              provisioningProfiles: [
-                targetName: [
-                    configuration: provisioningProfile,
-                ],
+                 targetName: [
+                     configuration: provisioningProfile,
+                 ],
              ])
         }
 
@@ -133,9 +133,9 @@ final class SigningMapperTests: TuistUnitTestCase {
                 configuration: certificate,
             ],
              provisioningProfiles: [
-                targetName: [
-                    configuration: provisioningProfile,
-                ],
+                 targetName: [
+                     configuration: provisioningProfile,
+                 ],
              ])
         }
 
