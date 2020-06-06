@@ -23,7 +23,10 @@ enum CertificateParserError: FatalError, Equatable {
     }
 }
 
+/// Used to parse and extract info from a certificate
 protocol CertificateParsing {
+    /// Parse public-private key pair
+    /// - Returns: Parse `Certificate`
     func parse(publicKey: AbsolutePath, privateKey: AbsolutePath) throws -> Certificate
 }
 

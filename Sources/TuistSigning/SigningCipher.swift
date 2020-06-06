@@ -105,10 +105,10 @@ public final class SigningCipher: SigningCiphering {
         try locateUnencryptedSigningFiles(at: path)
             .forEach(FileHandler.shared.delete)
 
-        try zip(decipheredKeys, signingKeyFiles).forEach {
-            logger.debug("Decrypting \($1.pathString)")
-            let decryptedPath = AbsolutePath($1.parentDirectory.pathString + "/" + $1.basenameWithoutExt)
-            try $0.write(to: decryptedPath.url)
+        try zip(decipheredKeys, signingKeyFiles).forEach { key, keyFile in
+            logger.debug("Decrypting \(keyFile.pathString)")
+            let decryptedPath = AbsolutePath(keyFile.parentDirectory.pathString + "/" + keyFile.basenameWithoutExt)
+            try key.write(to: decryptedPath.url)
         }
         
         if !keepFiles {

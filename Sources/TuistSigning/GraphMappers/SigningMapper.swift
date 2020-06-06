@@ -76,6 +76,8 @@ public class SigningMapper: GraphMapping {
         return (graph.with(projects: projects), [])
     }
     
+    // MARK: - Helpers
+    
     private func map(target: Target,
                      project: Project,
                      keychainPath: AbsolutePath,
