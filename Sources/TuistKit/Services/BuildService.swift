@@ -48,7 +48,7 @@ final class BuildService {
         self.buildGraphInspector = buildGraphInspector
     }
 
-    func run(schemeName: String?, generate: Bool, path: AbsolutePath) throws {
+    func run(schemeName: String?, generate: Bool, clean: Bool, path: AbsolutePath) throws {
         let graph: Graph
         if generate || buildGraphInspector.workspacePath(directory: path) == nil {
             graph = try projectGenerator.generateWithGraph(path: path, projectOnly: false).1
@@ -67,7 +67,7 @@ final class BuildService {
         } else {
             var cleaned: Bool = false
             try buildableSchemes.forEach {
-                try buildScheme(scheme: $0, graph: graph, path: path, clean: !cleaned)
+                try buildScheme(scheme: $0, graph: graph, path: path, clean: !cleaned && clean)
                 cleaned = true
             }
         }
