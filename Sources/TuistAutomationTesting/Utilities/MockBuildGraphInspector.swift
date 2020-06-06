@@ -1,9 +1,9 @@
 import Foundation
 import TSCBasic
 import TuistCore
+import TuistCoreTesting
 
 @testable import TuistAutomation
-@testable import TuistCoreTesting
 
 public final class MockBuildGraphInspector: BuildGraphInspecting {
     public init() {}

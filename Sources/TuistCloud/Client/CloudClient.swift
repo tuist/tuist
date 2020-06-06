@@ -1,10 +1,7 @@
 import Foundation
 import RxSwift
+import TuistCore
 import TuistSupport
-
-public protocol CloudClienting {
-    func request<T>(_ resource: HTTPResource<T, CloudResponseError>) -> Single<(object: T, response: HTTPURLResponse)>
-}
 
 public class CloudClient: CloudClienting {
     // MARK: - Attributes

@@ -3,7 +3,6 @@ import RxBlocking
 import RxSwift
 import TSCBasic
 import TuistCore
-import TuistLoader
 import TuistSupport
 
 public class CacheMapper: GraphMapping {

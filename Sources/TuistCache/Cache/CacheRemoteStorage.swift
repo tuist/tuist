@@ -1,7 +1,6 @@
 import Foundation
 import RxSwift
 import TSCBasic
-import TuistCloud
 import TuistCore
 import TuistSupport
 
@@ -12,7 +11,7 @@ enum CacheRemoteStorageError: LocalizedError {
 
 struct CloudHEADResponse: Decodable {}
 
-// TODO: Later, aßdd a warmup function to check if it's correctly authenticated ONCE
+// TODO: Later, add a warmup function to check if it's correctly authenticated ONCE
 final class CacheRemoteStorage: CacheStoring {
     // MARK: - Attributes
 
