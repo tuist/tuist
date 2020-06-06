@@ -31,7 +31,7 @@ final class CacheLocalStorageIntegrationTests: TuistTestCase {
         let xcframeworkPath = hashDirectory.appending(component: "framework.xcframework")
         try FileHandler.shared.createFolder(hashDirectory)
         try FileHandler.shared.createFolder(xcframeworkPath)
-        
+
         // When
         let got = try subject.exists(hash: hash, userConfig: config).toBlocking().first()
 

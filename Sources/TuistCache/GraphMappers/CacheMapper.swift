@@ -3,35 +3,35 @@ import RxBlocking
 import RxSwift
 import TSCBasic
 import TuistCore
-import TuistSupport
 import TuistLoader
+import TuistSupport
 
 public class CacheMapper: GraphMapping {
     // MARK: - Attributes
-    
+
     /// Cache.
     private let cache: CacheStoring
-    
+
     /// Graph content hasher.
     private let graphContentHasher: GraphContentHashing
-    
+
     /// Cache graph mapper.
     private let cacheGraphMapper: CacheGraphMapping
-    
+
     /// Configuration object
     private let config: Config
-    
+
     /// Dispatch queue.
     private let queue: DispatchQueue
-    
+
     // MARK: - Init
-    
+
     public convenience init(config: Config) {
         self.init(config: config,
                   cache: Cache(),
                   graphContentHasher: GraphContentHasher())
     }
-    
+
     init(config: Config,
          cache: CacheStoring,
          graphContentHasher: GraphContentHashing,
@@ -43,21 +43,21 @@ public class CacheMapper: GraphMapping {
         self.queue = queue
         self.cacheGraphMapper = cacheGraphMapper
     }
-    
+
     // MARK: - GraphMapping
-    
+
     public func map(graph: Graph) throws -> (Graph, [SideEffectDescriptor]) {
         let single = hashes(graph: graph).flatMap { self.map(graph: graph, hashes: $0) }
         return try (single.toBlocking().single(), [])
     }
-    
+
     // MARK: - Fileprivate
-    
+
     fileprivate static func dispatchQueue() -> DispatchQueue {
         let qos: DispatchQoS = .userInitiated
         return DispatchQueue(label: "io.tuist.generator-cache-mapper.\(qos)", qos: qos, attributes: [], target: nil)
     }
-    
+
     fileprivate func hashes(graph: Graph) -> Single<[TargetNode: String]> {
         Single.create { (observer) -> Disposable in
             do {
@@ -70,13 +70,13 @@ public class CacheMapper: GraphMapping {
         }
         .subscribeOn(ConcurrentDispatchQueueScheduler(queue: queue))
     }
-    
+
     fileprivate func map(graph: Graph, hashes: [TargetNode: String]) -> Single<Graph> {
         fetch(hashes: hashes).map { xcframeworkPaths in
             try self.cacheGraphMapper.map(graph: graph, xcframeworks: xcframeworkPaths)
         }
     }
-    
+
     fileprivate func fetch(hashes: [TargetNode: String]) -> Single<[TargetNode: AbsolutePath]> {
         let userConfig = config
         return Single.zip(hashes.map { target, hash in
@@ -84,13 +84,13 @@ public class CacheMapper: GraphMapping {
                 .flatMap { (exists) -> Single<(target: TargetNode, path: AbsolutePath?)> in
                     guard exists else { return Single.just((target: target, path: nil)) }
                     return self.cache.fetch(hash: hash, userConfig: userConfig).map { (target: target, path: $0) }
-            }
+                }
         })
             .map { result in
                 result.reduce(into: [TargetNode: AbsolutePath]()) { acc, next in
                     guard let path = next.path else { return }
                     acc[next.target] = path
                 }
-        }
+            }
     }
 }

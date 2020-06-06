@@ -1,13 +1,13 @@
 import Foundation
 import TSCBasic
-import TuistSupport
 import TuistCore
 import TuistLoader
+import TuistSupport
 
 final class CacheService {
     /// Cache controller.
     private let cacheController: CacheControlling
-    
+
     /// Generator Model Loader, used for getting the user config
     private let generatorModelLoader: GeneratorModelLoader
 
@@ -15,8 +15,8 @@ final class CacheService {
          manifestLoader: ManifestLoader = ManifestLoader(),
          manifestLinter: ManifestLinter = ManifestLinter()) {
         self.cacheController = cacheController
-        self.generatorModelLoader = GeneratorModelLoader(manifestLoader: manifestLoader,
-                                                         manifestLinter: manifestLinter)
+        generatorModelLoader = GeneratorModelLoader(manifestLoader: manifestLoader,
+                                                    manifestLinter: manifestLinter)
     }
 
     func run(path: String?) throws {
@@ -34,11 +34,11 @@ final class CacheService {
             return currentPath
         }
     }
-    
+
     private func loadConfig() throws -> Config {
-        return try generatorModelLoader.loadConfig(at: currentPath)
+        try generatorModelLoader.loadConfig(at: currentPath)
     }
-    
+
     private var currentPath: AbsolutePath {
         FileHandler.shared.currentPath
     }

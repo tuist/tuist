@@ -71,7 +71,7 @@ final class CacheController: CacheControlling {
     fileprivate func buildAndCacheXCFramework(path: AbsolutePath, target: TargetNode, hash: String, userConfig: Config) throws -> Completable {
         // Build targets sequentially
         let xcframeworkPath: AbsolutePath!
-        
+
         // Note: Since building XCFrameworks involves calling xcodebuild, we run the building process sequentially.
         if path.extension == "xcworkspace" {
             xcframeworkPath = try xcframeworkBuilder.build(workspacePath: path, target: target.target).toBlocking().single()

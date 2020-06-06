@@ -19,7 +19,7 @@ final class CacheControllerTests: TuistUnitTestCase {
     var cache: MockCacheStorage!
     var subject: CacheController!
     var config: Config!
-    
+
     override func setUp() {
         generator = MockProjectGenerator()
         xcframeworkBuilder = MockXCFrameworkBuilder()
