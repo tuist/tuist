@@ -25,23 +25,23 @@ final class CacheRemoteStorage: CacheStoring {
 
     // MARK: - CacheStoring
 
-    func exists(hash: String, userConfig: Config) -> Single<Bool> {
-        let resource = existsResource(hash: hash, userConfig: userConfig)
+    func exists(hash: String, config: Config) -> Single<Bool> {
+        let resource = existsResource(hash: hash, config: config)
         return cloudClient.request(resource).map { response in
             let successRange = 200 ..< 300
             return successRange.contains(response.response.statusCode)
         }
     }
 
-    func fetch(hash: String, userConfig: Config) -> Single<AbsolutePath> {
-        let resource = fetchResource(hash: hash, userConfig: userConfig)
+    func fetch(hash: String, config: Config) -> Single<AbsolutePath> {
+        let resource = fetchResource(hash: hash, config: config)
         return cloudClient.request(resource).map { _ in
             AbsolutePath.root // TODO:
         }
     }
 
-    func store(hash: String, userConfig: Config, xcframeworkPath _: AbsolutePath) -> Completable {
-        let resource = storeResource(hash: hash, userConfig: userConfig)
+    func store(hash: String, config: Config, xcframeworkPath _: AbsolutePath) -> Completable {
+        let resource = storeResource(hash: hash, config: config)
         return cloudClient.request(resource).map { responseTuple in
             let cacheResponse = responseTuple.object.data
             let artefactToDownloadURL = cacheResponse.url
@@ -52,8 +52,8 @@ final class CacheRemoteStorage: CacheStoring {
 
     // MARK: - Fileprivate
 
-    fileprivate func apiCacheURL(hash: String, userConfig: Config, contentMD5: String? = nil) throws -> URL {
-        guard let cloudConfig = userConfig.cloud else { throw CacheRemoteStorageError.missingCloudConfig }
+    fileprivate func apiCacheURL(hash: String, config: Config, contentMD5: String? = nil) throws -> URL {
+        guard let cloudConfig = config.cloud else { throw CacheRemoteStorageError.missingCloudConfig }
         guard var urlComponents = URLComponents(url: cloudConfig.url, resolvingAgainstBaseURL: false) else {
             throw CacheRemoteStorageError.incorrectCloudConfig
         }
@@ -72,42 +72,42 @@ final class CacheRemoteStorage: CacheStoring {
         return urlComponents.url!
     }
 
-    fileprivate func existsRequest(hash: String, userConfig: Config) throws -> URLRequest {
-        var urlRequest = URLRequest(url: try apiCacheURL(hash: hash, userConfig: userConfig))
+    fileprivate func existsRequest(hash: String, config: Config) throws -> URLRequest {
+        var urlRequest = URLRequest(url: try apiCacheURL(hash: hash, config: config))
         urlRequest.httpMethod = "HEAD"
         return urlRequest
     }
 
-    fileprivate func fetchRequest(hash: String, userConfig: Config) throws -> URLRequest {
-        var urlRequest = URLRequest(url: try apiCacheURL(hash: hash, userConfig: userConfig))
+    fileprivate func fetchRequest(hash: String, config: Config) throws -> URLRequest {
+        var urlRequest = URLRequest(url: try apiCacheURL(hash: hash, config: config))
         urlRequest.httpMethod = "GET"
         return urlRequest
     }
 
-    fileprivate func storeRequest(hash: String, userConfig: Config) throws -> URLRequest {
+    fileprivate func storeRequest(hash: String, config: Config) throws -> URLRequest {
         // TODO: Manage md5 hashing
-        var urlRequest = URLRequest(url: try apiCacheURL(hash: hash, userConfig: userConfig, contentMD5: "TODO"))
+        var urlRequest = URLRequest(url: try apiCacheURL(hash: hash, config: config, contentMD5: "TODO"))
         urlRequest.httpMethod = "POST"
         return urlRequest
     }
 
-    fileprivate func existsResource(hash: String, userConfig: Config) -> HTTPResource<CloudResponse<CloudHEADResponse>, CloudResponseError> {
+    fileprivate func existsResource(hash: String, config: Config) -> HTTPResource<CloudResponse<CloudHEADResponse>, CloudResponseError> {
         let resource: HTTPResource<CloudResponse<CloudHEADResponse>, CloudResponseError> = .jsonResource { () -> URLRequest in
-            try! self.existsRequest(hash: hash, userConfig: userConfig)
+            try! self.existsRequest(hash: hash, config: config)
         }
         return resource
     }
 
-    fileprivate func fetchResource(hash: String, userConfig: Config) -> HTTPResource<CloudResponse<CloudCacheResponse>, CloudResponseError> {
+    fileprivate func fetchResource(hash: String, config: Config) -> HTTPResource<CloudResponse<CloudCacheResponse>, CloudResponseError> {
         let resource: HTTPResource<CloudResponse<CloudCacheResponse>, CloudResponseError> = .jsonResource { () -> URLRequest in
-            try! self.fetchRequest(hash: hash, userConfig: userConfig)
+            try! self.fetchRequest(hash: hash, config: config)
         }
         return resource
     }
 
-    fileprivate func storeResource(hash: String, userConfig: Config) -> HTTPResource<CloudResponse<CloudCacheResponse>, CloudResponseError> {
+    fileprivate func storeResource(hash: String, config: Config) -> HTTPResource<CloudResponse<CloudCacheResponse>, CloudResponseError> {
         let resource: HTTPResource<CloudResponse<CloudCacheResponse>, CloudResponseError> = .jsonResource { () -> URLRequest in
-            try! self.storeRequest(hash: hash, userConfig: userConfig)
+            try! self.storeRequest(hash: hash, config: config)
         }
         return resource
     }

@@ -77,12 +77,11 @@ public class CacheMapper: GraphMapping {
     }
 
     fileprivate func fetch(hashes: [TargetNode: String]) -> Single<[TargetNode: AbsolutePath]> {
-        let userConfig = config
         return Single.zip(hashes.map { target, hash in
-            self.cache.exists(hash: hash, userConfig: userConfig)
+            self.cache.exists(hash: hash, config: config)
                 .flatMap { (exists) -> Single<(target: TargetNode, path: AbsolutePath?)> in
                     guard exists else { return Single.just((target: target, path: nil)) }
-                    return self.cache.fetch(hash: hash, userConfig: userConfig).map { (target: target, path: $0) }
+                    return self.cache.fetch(hash: hash, config: self.config).map { (target: target, path: $0) }
                 }
         })
             .map { result in
