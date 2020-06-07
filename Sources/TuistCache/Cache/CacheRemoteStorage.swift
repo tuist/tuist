@@ -18,7 +18,7 @@ final class CacheRemoteStorage: CacheStoring {
     
     // MARK: - CacheStoring
     
-    func exists(hash: String, config: Config) -> Single<Bool> {
+    func exists(hash: String, config: Config) throws -> Single<Bool> {
         let resource = try CloudHEADResponse.existsResource(hash: hash, config: config)
         return cloudClient.request(resource).map { response in
             let successRange = 200 ..< 300
@@ -26,14 +26,14 @@ final class CacheRemoteStorage: CacheStoring {
         }
     }
     
-    func fetch(hash: String, config: Config) -> Single<AbsolutePath> {
+    func fetch(hash: String, config: Config) throws -> Single<AbsolutePath> {
         let resource = try CloudCacheResponse.fetchResource(hash: hash, config: config)
         return cloudClient.request(resource).map { _ in
             AbsolutePath.root // TODO:
         }
     }
     
-    func store(hash: String, config: Config, xcframeworkPath _: AbsolutePath) -> Completable {
+    func store(hash: String, config: Config, xcframeworkPath _: AbsolutePath) throws -> Completable {
         let resource = try CloudCacheResponse.storeResource(hash: hash, config: config)
         return cloudClient.request(resource).map { responseTuple in
             let cacheResponse = responseTuple.object.data
