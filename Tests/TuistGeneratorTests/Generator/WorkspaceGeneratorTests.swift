@@ -24,6 +24,28 @@ final class WorkspaceGeneratorTests: TuistUnitTestCase {
 
     // MARK: - Tests
 
+    func test_generate_workspace_generated_file_side_effect() throws {
+        // Given
+        let graph = Graph.test()
+        let workspace = Workspace.test()
+        let path = try temporaryPath()
+        let expectedSideEffects: [SideEffectDescriptor] = [
+            .file(FileDescriptor(
+                path: path.appending(components: "\(graph.name).xcworkspace", Constants.tuistGeneratedFileName)
+            )),
+        ]
+
+        // When
+        let got = try subject.generate(
+            workspace: workspace,
+            path: path,
+            graph: graph
+        )
+
+        // Then
+        XCTAssertEqual(got.sideEffectDescriptors, expectedSideEffects)
+    }
+
     func test_generate_workspaceStructure() throws {
         // Given
         let temporaryPath = try self.temporaryPath()

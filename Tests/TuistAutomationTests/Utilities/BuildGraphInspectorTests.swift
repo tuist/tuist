@@ -145,7 +145,23 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         try FileHandler.shared.touch(workspacePath)
 
         // When
-        let got = subject.workspacePath(directory: path)
+        let got = try subject.workspacePath(directory: path)
+
+        // Then
+        XCTAssertEqual(got, workspacePath)
+    }
+
+    func test_workspacePath_when_multiple_workspaces_are_present() throws {
+        // Given
+        let path = try temporaryPath()
+        let nonTuistWorkspacePath = path.appending(components: "SPM.xcworkspace")
+        try FileHandler.shared.createFolder(nonTuistWorkspacePath)
+        let workspacePath = path.appending(component: "TuistApp.xcworkspace")
+        try FileHandler.shared.createFolder(workspacePath)
+        try FileHandler.shared.touch(workspacePath.appending(component: Constants.tuistGeneratedFileName))
+
+        // When
+        let got = try subject.workspacePath(directory: path)
 
         // Then
         XCTAssertEqual(got, workspacePath)

@@ -15,6 +15,7 @@ public struct Constants {
     public static let templatesDirectoryName: String = "Templates"
     public static let twitterHandle: String = "tuistio"
     public static let joinSlackURL: String = "https://slack.tuist.io/"
+    public static let tuistGeneratedFileName = ".tuist-generated"
 
     public struct EnvironmentVariables {
         public static let colouredOutput = "TUIST_COLOURED_OUTPUT"

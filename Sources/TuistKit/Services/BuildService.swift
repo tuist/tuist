@@ -50,7 +50,7 @@ final class BuildService {
 
     func run(schemeName: String?, generate: Bool, path: AbsolutePath) throws {
         let graph: Graph
-        if generate || buildGraphInspector.workspacePath(directory: path) == nil {
+        if try (generate || buildGraphInspector.workspacePath(directory: path) == nil) {
             graph = try projectGenerator.generateWithGraph(path: path, projectOnly: false).1
         } else {
             graph = try projectGenerator.load(path: path)
@@ -82,7 +82,7 @@ final class BuildService {
         guard let buildableTarget = buildGraphInspector.buildableTarget(scheme: scheme, graph: graph) else {
             throw BuildServiceError.schemeWithoutBuildableTargets(scheme: scheme.name)
         }
-        let workspacePath = buildGraphInspector.workspacePath(directory: path)!
+        let workspacePath = try buildGraphInspector.workspacePath(directory: path)!
         _ = try xcodebuildController.build(.workspace(workspacePath),
                                            scheme: scheme.name,
                                            clean: clean,
