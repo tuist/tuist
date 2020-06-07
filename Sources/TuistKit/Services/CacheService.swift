@@ -21,8 +21,8 @@ final class CacheService {
 
     func run(path: String?) throws {
         let path = self.path(path)
-        let userConfig = try loadConfig()
-        try cacheController.cache(path: path, userConfig: userConfig)
+        let config = try generatorModelLoader.loadConfig(at: currentPath)
+        try cacheController.cache(path: path, config: config)
     }
 
     // MARK: - Helpers
@@ -33,10 +33,6 @@ final class CacheService {
         } else {
             return currentPath
         }
-    }
-
-    private func loadConfig() throws -> Config {
-        try generatorModelLoader.loadConfig(at: currentPath)
     }
 
     private var currentPath: AbsolutePath {
