@@ -10,8 +10,9 @@ struct BuildCommand: ParsableCommand {
                              abstract: "Builds a project")
     }
 
-    @Argument(default: nil,
-              help: "The scheme to be built. By default it builds all the buildable schemes of the project in the current directory.")
+    @Argument(
+        help: "The scheme to be built. By default it builds all the buildable schemes of the project in the current directory."
+    )
     var scheme: String?
 
     @Flag(
