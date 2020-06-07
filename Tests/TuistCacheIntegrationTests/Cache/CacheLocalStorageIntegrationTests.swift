@@ -33,7 +33,7 @@ final class CacheLocalStorageIntegrationTests: TuistTestCase {
         try FileHandler.shared.createFolder(xcframeworkPath)
 
         // When
-        let got = try subject.exists(hash: hash, config: Config).toBlocking().first()
+        let got = try subject.exists(hash: hash, config: config).toBlocking().first()
 
         // Then
         XCTAssertTrue(got == true)
@@ -44,7 +44,7 @@ final class CacheLocalStorageIntegrationTests: TuistTestCase {
         let hash = "abcde"
         let config: Config = .test()
 
-        let got = try subject.exists(hash: hash, config: Config).toBlocking().first()
+        let got = try subject.exists(hash: hash, config: config).toBlocking().first()
 
         // Then
         XCTAssertTrue(got == false)
@@ -61,7 +61,7 @@ final class CacheLocalStorageIntegrationTests: TuistTestCase {
         try FileHandler.shared.createFolder(xcframeworkPath)
 
         // When
-        let got = try subject.fetch(hash: hash, config: Config).toBlocking().first()
+        let got = try subject.fetch(hash: hash, config: config).toBlocking().first()
 
         // Then
         XCTAssertTrue(got == xcframeworkPath)
@@ -71,7 +71,7 @@ final class CacheLocalStorageIntegrationTests: TuistTestCase {
         let hash = "abcde"
         let config: Config = .test()
 
-        XCTAssertThrowsSpecific(try subject.fetch(hash: hash, config: Config).toBlocking().first(),
+        XCTAssertThrowsSpecific(try subject.fetch(hash: hash, config: config).toBlocking().first(),
                                 CacheLocalStorageError.xcframeworkNotFound(hash: hash))
     }
 
@@ -84,7 +84,7 @@ final class CacheLocalStorageIntegrationTests: TuistTestCase {
         try FileHandler.shared.createFolder(xcframeworkPath)
 
         // When
-        _ = try subject.store(hash: hash, config: Config, xcframeworkPath: xcframeworkPath).toBlocking().first()
+        _ = try subject.store(hash: hash, config: config, xcframeworkPath: xcframeworkPath).toBlocking().first()
 
         // Then
         XCTAssertTrue(FileHandler.shared.exists(cacheDirectory.appending(RelativePath("\(hash)/framework.xcframework"))))

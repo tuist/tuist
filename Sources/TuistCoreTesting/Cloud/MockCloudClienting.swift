@@ -3,6 +3,8 @@ import RxSwift
 import TuistCloud
 import TuistSupport
 
+@testable import TuistCore
+
 public final class MockCloudClienting<U>: CloudClienting {
     public init() {}
 
@@ -48,7 +50,8 @@ public final class MockCloudClienting<U>: CloudClienting {
         if let stubbedError = self.stubbedError {
             return Single.error(stubbedError)
         } else {
-            return Single.just((stubbedObject as! T, stubbedResponse!))
+            guard let obj = stubbedObject as? T else { fatalError("This function input parameter type should equal to the class one") }
+            return Single.just((obj, stubbedResponse!))
         }
     }
 }

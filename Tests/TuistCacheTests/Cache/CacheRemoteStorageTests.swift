@@ -11,6 +11,19 @@ import XCTest
 final class CacheRemoteStorageTests: TuistUnitTestCase {
     var subject: CacheRemoteStorage!
     var cloudClient: CloudClienting!
+    var config: Config!
+
+    override func setUp() {
+        super.setUp()
+        config = TuistCore.Config.test()
+    }
+
+    override func tearDown() {
+        config = nil
+        subject = nil
+        cloudClient = nil
+        super.tearDown()
+    }
 
     // - exists
 
@@ -20,7 +33,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         subject = CacheRemoteStorage(cloudClient: cloudClient)
 
         // When
-        let result = subject.exists(hash: "acho tio", userConfig: .test())
+        let result = try subject.exists(hash: "acho tio", config: config)
             .toBlocking()
             .materialize()
 
@@ -41,7 +54,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         subject = CacheRemoteStorage(cloudClient: cloudClient)
 
         // When
-        let result = try subject.exists(hash: "acho tio", userConfig: .test())
+        let result = try subject.exists(hash: "acho tio", config: config)
             .toBlocking()
             .single()
 
@@ -57,7 +70,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         subject = CacheRemoteStorage(cloudClient: cloudClient)
 
         // When
-        let result = try subject.exists(hash: "acho tio", userConfig: .test())
+        let result = try subject.exists(hash: "acho tio", config: config)
             .toBlocking()
             .single()
 
@@ -73,7 +86,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         subject = CacheRemoteStorage(cloudClient: cloudClient)
 
         // When
-        let result = try subject.exists(hash: "acho tio", userConfig: .test())
+        let result = try subject.exists(hash: "acho tio", config: config)
             .toBlocking()
             .single()
 
@@ -90,7 +103,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         subject = CacheRemoteStorage(cloudClient: cloudClient)
 
         // When
-        let result = subject.fetch(hash: "acho tio", userConfig: .test())
+        let result = try subject.fetch(hash: "acho tio", config: config)
             .toBlocking()
             .materialize()
 
@@ -112,7 +125,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         subject = CacheRemoteStorage(cloudClient: cloudClient)
 
         // When
-        let result = try subject.fetch(hash: "acho tio", userConfig: .test())
+        let result = try subject.fetch(hash: "acho tio", config: config)
             .toBlocking()
             .single()
 
@@ -129,7 +142,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         subject = CacheRemoteStorage(cloudClient: cloudClient)
 
         // When
-        let result = subject.store(hash: "acho tio", userConfig: .test(), xcframeworkPath: .root)
+        let result = try subject.store(hash: "acho tio", config: config, xcframeworkPath: .root)
             .toBlocking()
             .materialize()
 
@@ -140,22 +153,5 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         case let .failed(_, error):
             XCTAssertEqual(error as! CloudClientError, CloudClientError.unauthorized)
         }
-    }
-
-    func test_store_whenClientReturnsASuccess() throws {
-        // Given
-        let httpResponse: HTTPURLResponse = .test()
-        let cacheResponse = CloudCacheResponse(url: .test(), expiresAt: 123)
-        let cloudResponse = CloudResponse<CloudCacheResponse>(status: "shaki", data: cacheResponse)
-        cloudClient = MockCloudClienting.makeForSuccess(object: cloudResponse, response: httpResponse)
-        subject = CacheRemoteStorage(cloudClient: cloudClient)
-
-        // When
-        _ = try subject.store(hash: "acho tio", userConfig: .test(), xcframeworkPath: .root)
-            .toBlocking()
-            .last()
-
-        // Then
-//        XCTAssertEqual(result, [AbsolutePath("/")])
     }
 }

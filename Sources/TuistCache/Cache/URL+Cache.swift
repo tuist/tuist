@@ -13,7 +13,7 @@ extension URL {
             throw CacheURLError.incorrectCloudConfig
         }
 
-        urlComponents.path = "api/cache"
+        urlComponents.path = "/api/cache"
         var queryItems = [
             URLQueryItem(name: "project_id", value: cloudConfig.projectId),
             URLQueryItem(name: "hash", value: hash),
