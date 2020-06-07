@@ -14,11 +14,11 @@ extension String {
 
     public func chomp(separator: String? = nil) -> String {
         func scrub(_ separator: String) -> String {
-            var E = endIndex
-            while String(self[startIndex ..< E]).hasSuffix(separator), E > startIndex {
-                E = index(before: E)
+            var e = endIndex
+            while String(self[startIndex ..< e]).hasSuffix(separator), e > startIndex {
+                e = index(before: e)
             }
-            return String(self[startIndex ..< E])
+            return String(self[startIndex ..< e])
         }
 
         if let separator = separator {
