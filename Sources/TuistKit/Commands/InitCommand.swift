@@ -17,7 +17,6 @@ struct InitCommand: ParsableCommand {
     }
 
     @Option(
-        name: .shortAndLong,
         help: "The platform (ios, tvos or macos) the product will be for (Default: ios)"
     )
     var platform: String?
@@ -107,10 +106,10 @@ extension InitCommand {
                                                                          path: command.path)
 
         InitCommand.requiredTemplateOptions = required.map {
-            (name: $0, option: Option<String>(name: .shortAndLong))
+            (name: $0, option: Option<String>())
         }
         InitCommand.optionalTemplateOptions = optional.map {
-            (name: $0, option: Option<String?>(name: .shortAndLong))
+            (name: $0, option: Option<String?>())
         }
     }
 }
@@ -143,10 +142,30 @@ extension InitCommand {
             }
         }
 
+        init?(stringValue: String) {
+            switch stringValue {
+            case "platform":
+                self = .platform
+            case "name":
+                self = .template
+            case "template":
+                self = .template
+            case "path":
+                self = .path
+            default:
+                if InitCommand.requiredTemplateOptions.map(\.name).contains(stringValue) {
+                    self = .required(stringValue)
+                } else if InitCommand.optionalTemplateOptions.map(\.name).contains(stringValue) {
+                    self = .optional(stringValue)
+                } else {
+                    return nil
+                }
+            }
+        }
+
         // Not used
         var intValue: Int? { nil }
         init?(intValue _: Int) { nil }
-        init?(stringValue _: String) { nil }
     }
 }
 
@@ -158,12 +177,19 @@ extension InitCommand: CustomReflectable {
             .map { Mirror.Child(label: $0.name, value: $0.option) }
         let optionalTemplateChildren = InitCommand.optionalTemplateOptions
             .map { Mirror.Child(label: $0.name, value: $0.option) }
+
         let children = [
             Mirror.Child(label: "platform", value: _platform),
             Mirror.Child(label: "name", value: _name),
             Mirror.Child(label: "template", value: _template),
             Mirror.Child(label: "path", value: _path),
-        ]
+        ].filter {
+            // Prefer attributes defined in a template if it clashes with predefined ones
+            $0.label.map { label in
+                !(InitCommand.requiredTemplateOptions.map(\.name) + InitCommand.optionalTemplateOptions.map(\.name))
+                    .contains(label)
+            } ?? true
+        }
         return Mirror(InitCommand(), children: children + requiredTemplateChildren + optionalTemplateChildren)
     }
 }
