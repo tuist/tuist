@@ -152,6 +152,19 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         XCTAssertEqual(got, workspacePath)
     }
 
+    func test_workspacePath_when_no_tuist_workspace_is_present() throws {
+        // Given
+        let path = try temporaryPath()
+        let workspacePath = path.appending(component: "App.xcworkspace")
+        try FileHandler.shared.createFolder(workspacePath)
+
+        // When
+        let got = try subject.workspacePath(directory: path)
+
+        // Then
+        XCTAssertNil(got)
+    }
+
     func test_workspacePath_when_multiple_workspaces_are_present() throws {
         // Given
         let path = try temporaryPath()
