@@ -1,6 +1,5 @@
 import Foundation
 import RxSwift
-import TuistCloud
 import TuistSupport
 
 @testable import TuistCore
