@@ -29,7 +29,7 @@ public struct TuistCommand: ParsableCommand {
 
     public static func main(_ arguments: [String]? = nil) -> Never {
         let errorHandler = ErrorHandler()
-        let command: ParsableCommand
+        var command: ParsableCommand
         do {
             let processedArguments = Array(processArguments(arguments)?.dropFirst() ?? [])
             if processedArguments.first == ScaffoldCommand.configuration.commandName {
