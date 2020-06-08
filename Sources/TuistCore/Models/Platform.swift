@@ -5,6 +5,7 @@ public enum Platform: String, CaseIterable {
     case macOS = "macos"
     case tvOS = "tvos"
     case watchOS = "watchos"
+    case notSpecified = ""
 
     public var caseValue: String {
         switch self {
@@ -12,12 +13,13 @@ public enum Platform: String, CaseIterable {
         case .macOS: return "macOS"
         case .tvOS: return "tvOS"
         case .watchOS: return "watchOS"
+        case .notSpecified: return ""
         }
     }
 }
 
 extension Platform {
-    public var xcodeSdkRoot: String {
+    public var xcodeSdkRoot: String? {
         switch self {
         case .macOS:
             return "macosx"
@@ -27,6 +29,8 @@ extension Platform {
             return "appletvos"
         case .watchOS:
             return "watchos"
+        case .notSpecified:
+            return nil
         }
     }
 
@@ -55,11 +59,12 @@ extension Platform {
         case .iOS: return "iphonesimulator"
         case .watchOS: return "watchsimulator"
         case .macOS: return nil
+        case .notSpecified: return nil
         }
     }
 
     /// Returns the SDK to build for the platform's device.
-    public var xcodeDeviceSDK: String {
+    public var xcodeDeviceSDK: String? {
         switch self {
         case .tvOS:
             return "appletvos"
@@ -69,10 +74,12 @@ extension Platform {
             return "macosx"
         case .watchOS:
             return "watchos"
+        case .notSpecified:
+            return nil
         }
     }
 
-    public var xcodeSupportedPlatforms: String {
+    public var xcodeSupportedPlatforms: String? {
         switch self {
         case .tvOS:
             return "appletvsimulator appletvos"
@@ -82,11 +89,13 @@ extension Platform {
             return "macosx"
         case .watchOS:
             return "watchsimulator watchos"
+        case .notSpecified:
+            return nil
         }
     }
 
     /// The SDK Root Path within Xcode's developer directory
-    public var xcodeSdkRootPath: String {
+    public var xcodeSdkRootPath: String? {
         switch self {
         case .iOS:
             return "Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk"
@@ -96,6 +105,8 @@ extension Platform {
             return "Platforms/AppleTVOS.platform/Developer/SDKs/AppleTVOS.sdk"
         case .watchOS:
             return "Platforms/WatchOS.platform/Developer/SDKs/WatchOS.sdk"
+        case .notSpecified:
+            return nil
         }
     }
 }

@@ -7,4 +7,5 @@ public enum Platform: String, Codable, Equatable {
     case macOS = "macos"
     case watchOS = "watchos"
     case tvOS = "tvos"
+    case notSpecified = ""
 }

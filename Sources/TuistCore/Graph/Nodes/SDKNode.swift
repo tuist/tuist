@@ -6,7 +6,7 @@ public class SDKNode: GraphNode {
     public let status: SDKStatus
     public let type: Type
 
-    public init(name: String,
+    public init?(name: String,
                 platform: Platform,
                 status: SDKStatus) throws {
         let sdk = AbsolutePath("/\(name)")
@@ -20,7 +20,9 @@ public class SDKNode: GraphNode {
         self.status = status
         self.type = type
 
-        let sdkRootPath = AbsolutePath(platform.xcodeSdkRootPath,
+        guard let xcodeSdkRootPath = platform.xcodeSdkRootPath else { return nil }
+
+        let sdkRootPath = AbsolutePath(xcodeSdkRootPath,
                                        relativeTo: AbsolutePath("/"))
 
         let path: AbsolutePath

@@ -23,6 +23,7 @@ final class SettingsHelper {
         case .macOS: return .macOS
         case .tvOS: return .tvOS
         case .watchOS: return .watchOS
+        case .notSpecified: return nil
         }
     }
 

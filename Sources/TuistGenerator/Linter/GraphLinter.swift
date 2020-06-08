@@ -261,6 +261,7 @@ public class GraphLinter: GraphLinting {
             LintableTarget(platform: .iOS, product: .appExtension),
             //            LintableTarget(platform: .iOS, product: .messagesExtension),
             LintableTarget(platform: .iOS, product: .stickerPackExtension),
+            LintableTarget(platform: .notSpecified, product: .framework),
             LintableTarget(platform: .watchOS, product: .watch2App),
 //            LintableTarget(platform: .watchOS, product: .watchApp),
         ],
@@ -290,6 +291,7 @@ public class GraphLinter: GraphLinting {
             LintableTarget(platform: .iOS, product: .framework),
             LintableTarget(platform: .iOS, product: .staticFramework),
             LintableTarget(platform: .iOS, product: .bundle),
+            LintableTarget(platform: .notSpecified, product: .framework),
         ],
         LintableTarget(platform: .iOS, product: .uiTests): [
             LintableTarget(platform: .iOS, product: .app),

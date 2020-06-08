@@ -159,7 +159,7 @@ public class GraphLoader: GraphLoading {
         let targetNode = TargetNode(project: project, target: target, dependencies: [])
         graphLoaderCache.add(targetNode: targetNode)
 
-        let dependencies: [GraphNode] = try target.dependencies.map {
+        let dependencies: [GraphNode] = try target.dependencies.compactMap {
             try loadDependency(for: $0,
                                path: path,
                                name: name,
@@ -188,7 +188,7 @@ public class GraphLoader: GraphLoading {
                                     name: String,
                                     platform: Platform,
                                     graphLoaderCache: GraphLoaderCaching,
-                                    graphCircularDetector: GraphCircularDetecting) throws -> GraphNode {
+                                    graphCircularDetector: GraphCircularDetecting) throws -> GraphNode? {
         switch dependency {
         // A target within the same project.
         case let .target(target):

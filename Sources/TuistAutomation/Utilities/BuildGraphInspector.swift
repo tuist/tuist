@@ -28,7 +28,7 @@ public class BuildGraphInspector: BuildGraphInspecting {
     public func buildArguments(target: Target) -> [XcodeBuildArgument] {
         let arguments: [XcodeBuildArgument]
         if target.platform == .macOS {
-            arguments = [.sdk(target.platform.xcodeDeviceSDK)]
+            arguments = [.sdk(target.platform.xcodeDeviceSDK!)]
         } else {
             arguments = [.sdk(target.platform.xcodeSimulatorSDK!)]
         }

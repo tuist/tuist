@@ -17,6 +17,8 @@ extension TuistCore.Platform {
             return .tvOS
         case .watchOS:
             return .watchOS
+        case .notSpecified:
+            return .notSpecified
         }
     }
 }

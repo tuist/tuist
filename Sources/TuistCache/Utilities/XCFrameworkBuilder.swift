@@ -6,11 +6,13 @@ import TuistSupport
 
 enum XCFrameworkBuilderError: FatalError {
     case nonFrameworkTarget(String)
+    case platformNotSpecified(String)
 
     /// Error type.
     var type: ErrorType {
         switch self {
         case .nonFrameworkTarget: return .abort
+        case .platformNotSpecified: return .abort
         }
     }
 
@@ -19,6 +21,8 @@ enum XCFrameworkBuilderError: FatalError {
         switch self {
         case let .nonFrameworkTarget(name):
             return "Can't generate an .xcframework from the target '\(name)' because it's not a framework target"
+        case let .platformNotSpecified(name):
+            return "Can't generate an .xcframework from the target '\(name)' because its platform is not specified"
         }
     }
 }
@@ -74,6 +78,11 @@ public final class XCFrameworkBuilder: XCFrameworkBuilding {
         if target.product != .framework {
             throw XCFrameworkBuilderError.nonFrameworkTarget(target.name)
         }
+
+        guard let xcodeDeviceSDK = target.platform.xcodeDeviceSDK else {
+            throw XCFrameworkBuilderError.platformNotSpecified(target.name)
+        }
+        
         let scheme = target.name.spm_shellEscaped()
 
         // Create temporary directories
@@ -89,7 +98,7 @@ public final class XCFrameworkBuilder: XCFrameworkBuilding {
                                                                        clean: true,
                                                                        archivePath: deviceArchivePath,
                                                                        arguments: [
-                                                                           .sdk(target.platform.xcodeDeviceSDK),
+                                                                           .sdk(xcodeDeviceSDK),
                                                                            .derivedDataPath(temporaryPath),
                                                                            .buildSetting("SKIP_INSTALL", "NO"),
                                                                            .buildSetting("BUILD_LIBRARY_FOR_DISTRIBUTION", "YES"),
