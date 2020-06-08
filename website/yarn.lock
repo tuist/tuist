@@ -5128,7 +5128,7 @@ d3-format@^1.2.0:
   resolved "https://registry.yarnpkg.com/d3-format/-/d3-format-1.4.3.tgz#4e8eb4dff3fdcb891a8489ec6e698601c41b96f1"
   integrity sha512-mm/nE2Y9HgGyjP+rKIekeITVgBtX97o1nrvHCWX8F/yBYyevUTvu9vb5pUnKwrcSw7o7GuwMOWjS9gFDs4O+uQ==
 
-d3-graphviz@^2.6.0:
+d3-graphviz@^2.6.1:
   version "2.6.1"
   resolved "https://registry.yarnpkg.com/d3-graphviz/-/d3-graphviz-2.6.1.tgz#61b93fe330e6339198fd2090f8080d7d4282c514"
   integrity sha512-878AFSagQyr5tTOrM7YiVYeUC2/NoFcOB3/oew+LAML0xekyJSw9j3WOCUMBsc95KYe9XBYZ+SKKuObVya1tJQ==
@@ -7628,11 +7628,11 @@ gatsby-remark-smartypants@^2.3.2:
     retext "^5.0.0"
     retext-smartypants "^3.0.3"
     unist-util-visit "^1.4.1"
+
 gatsby-source-filesystem@^2.3.10:
   version "2.3.10"
   resolved "https://registry.yarnpkg.com/gatsby-source-filesystem/-/gatsby-source-filesystem-2.3.10.tgz#3cbf31dbf52349928db564e13b5bf182e1394708"
   integrity sha512-hX58a6eAjkmViq2Esvg9Q2JNN12UScCktvv7ci4u9dgxmQ+1GQCGtwfRm2WmI8EIiH8+ifbXSNxyFDpPr8yTgQ==
-
   dependencies:
     "@babel/runtime" "^7.10.2"
     better-queue "^3.8.10"
@@ -8228,13 +8228,13 @@ graphql@^14.6.0:
   dependencies:
     iterall "^1.2.2"
 
-graphviz-react@^1.0.4:
-  version "1.0.4"
-  resolved "https://registry.yarnpkg.com/graphviz-react/-/graphviz-react-1.0.4.tgz#86af1f88bf50e7ead4addc0886eb1af7404061e1"
-  integrity sha512-pD9BlD7By+mLL3F4MHWdZhlBJNKR9aqmX6awysQSs1+ztNcELaVbnsUn2WZmcd0c49O6EWUye3aXGw25ypSnWQ==
+graphviz-react@^1.0.5:
+  version "1.0.5"
+  resolved "https://registry.yarnpkg.com/graphviz-react/-/graphviz-react-1.0.5.tgz#5613bd5e57d9abcaba066a7e9e83294a9001d40e"
+  integrity sha512-fBTakiFKq1Sk1XYghE+s6Pl4fgAK0InDFY6o2JczibQxMDjDnsUGNYz6CRwW81zhYGlKD/GQqS91pc3T077Hnw==
   dependencies:
-    d3-graphviz "^2.6.0"
-    react "^16.6.0"
+    d3-graphviz "^2.6.1"
+    react "^16.13.1"
 
 gray-matter@^4.0.2:
   version "4.0.2"
@@ -13221,7 +13221,7 @@ react@15:
     object-assign "^4.1.0"
     prop-types "^15.5.10"
 
-react@^16.13.1, react@^16.6.0, react@^16.8.0, react@^16.8.6:
+react@^16.13.1, react@^16.8.0, react@^16.8.6:
   version "16.13.1"
   resolved "https://registry.yarnpkg.com/react/-/react-16.13.1.tgz#2e818822f1a9743122c063d6410d85c1e3afe48e"
   integrity sha512-YMZQQq32xHLX0bz5Mnibv1/LHb3Sqzngu7xstSM+vrkE5Kzr9xE0yMByK5kMoTK30YVJE61WfbxIFFvfeDKT1w==
