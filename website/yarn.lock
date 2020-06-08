@@ -944,10 +944,10 @@
     lodash "^4.17.13"
     to-fast-properties "^2.0.0"
 
-"@brainhubeu/react-carousel@^1.17.0":
-  version "1.17.0"
-  resolved "https://registry.yarnpkg.com/@brainhubeu/react-carousel/-/react-carousel-1.17.0.tgz#59384d135ded066b969391e56172a26d37868538"
-  integrity sha512-BOZjErZegt6Z6KGtF39Bwx7MjsnbqcZdkgmp/CIidFWtXieRKU8eV0uez/PeymxwrjOcwOeURp3W5OFS5kDhqQ==
+"@brainhubeu/react-carousel@^1.18.2":
+  version "1.18.2"
+  resolved "https://registry.yarnpkg.com/@brainhubeu/react-carousel/-/react-carousel-1.18.2.tgz#35097ea7498dcc8976a9d398db7dc6d7eadde5d0"
+  integrity sha512-Bj29XoQoLoInpACLSr34RK25pBHAq1i7Ws3Wt3H38eCbBX8zamWfmxLM6qkmnaQ3/r2kbncDKXXUi7qAQmO7pg==
 
 "@emotion/babel-plugin-jsx-pragmatic@^0.1.5":
   version "0.1.5"
@@ -7628,11 +7628,11 @@ gatsby-remark-smartypants@^2.3.2:
     retext "^5.0.0"
     retext-smartypants "^3.0.3"
     unist-util-visit "^1.4.1"
+
 gatsby-source-filesystem@^2.3.10:
   version "2.3.10"
   resolved "https://registry.yarnpkg.com/gatsby-source-filesystem/-/gatsby-source-filesystem-2.3.10.tgz#3cbf31dbf52349928db564e13b5bf182e1394708"
   integrity sha512-hX58a6eAjkmViq2Esvg9Q2JNN12UScCktvv7ci4u9dgxmQ+1GQCGtwfRm2WmI8EIiH8+ifbXSNxyFDpPr8yTgQ==
-
   dependencies:
     "@babel/runtime" "^7.10.2"
     better-queue "^3.8.10"
