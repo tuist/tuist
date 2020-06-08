@@ -7619,20 +7619,20 @@ gatsby-remark-images@^3.3.9:
     unist-util-select "^1.5.0"
     unist-util-visit-parents "^2.1.2"
 
-gatsby-remark-smartypants@^2.3.2:
-  version "2.3.2"
-  resolved "https://registry.yarnpkg.com/gatsby-remark-smartypants/-/gatsby-remark-smartypants-2.3.2.tgz#3e8e437466e7a812e4167acfca04e603888c112e"
-  integrity sha512-nZoLBeuld+kHeRfvQUNFTHBVc4e7qRqyU/k60QNvpJhjAPoZj9OrF7sAJk8VdQR0Kzp5OkFnreAiwggoiCqYpQ==
+gatsby-remark-smartypants@^2.3.3:
+  version "2.3.3"
+  resolved "https://registry.yarnpkg.com/gatsby-remark-smartypants/-/gatsby-remark-smartypants-2.3.3.tgz#f537acd467d0e62ed007c2026118382e75d20462"
+  integrity sha512-omvpz6HzgjIiHOIsr/mC9Qml2O3/TovUeRNo50g7rhQxWatA52Ha9dBfyt0u1wJMap/quymTtWjPOD5r6VFplw==
   dependencies:
-    "@babel/runtime" "^7.9.6"
+    "@babel/runtime" "^7.10.2"
     retext "^5.0.0"
     retext-smartypants "^3.0.3"
     unist-util-visit "^1.4.1"
+
 gatsby-source-filesystem@^2.3.10:
   version "2.3.10"
   resolved "https://registry.yarnpkg.com/gatsby-source-filesystem/-/gatsby-source-filesystem-2.3.10.tgz#3cbf31dbf52349928db564e13b5bf182e1394708"
   integrity sha512-hX58a6eAjkmViq2Esvg9Q2JNN12UScCktvv7ci4u9dgxmQ+1GQCGtwfRm2WmI8EIiH8+ifbXSNxyFDpPr8yTgQ==
-
   dependencies:
     "@babel/runtime" "^7.10.2"
     better-queue "^3.8.10"
