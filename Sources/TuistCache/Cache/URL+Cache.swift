@@ -1,29 +1,28 @@
 import Foundation
-import TuistCore
-
-enum CacheURLError: LocalizedError {
-    case missingCloudConfig
-    case incorrectCloudConfig
-}
 
 extension URL {
-    static func apiCacheURL(hash: String, config: Config, contentMD5: String? = nil) throws -> URL {
-        guard let cloudConfig = config.cloud else { throw CacheURLError.missingCloudConfig }
-        guard var urlComponents = URLComponents(url: cloudConfig.url, resolvingAgainstBaseURL: false) else {
-            throw CacheURLError.incorrectCloudConfig
+    static func apiCacheURL(hash: String,
+                            cloudURL: URL,
+                            projectId: String) throws -> URL {
+        guard var urlComponents = URLComponents(url: cloudURL, resolvingAgainstBaseURL: false) else {
+            throw CacheAPIError.incorrectCloudURL
         }
 
         urlComponents.path = "/api/cache"
-        var queryItems = [
-            URLQueryItem(name: "project_id", value: cloudConfig.projectId),
+        urlComponents.queryItems = [
+            URLQueryItem(name: "project_id", value: projectId),
             URLQueryItem(name: "hash", value: hash),
         ]
+        return urlComponents.url!
+    }
 
-        if let contentMD5 = contentMD5 {
-            queryItems.append(URLQueryItem(name: "content_md5", value: contentMD5))
-        }
+    func addingQueryItem(name: String, value: String) -> URL {
+        var urlComponents = URLComponents(url: self, resolvingAgainstBaseURL: false)!
 
-        urlComponents.queryItems = queryItems
+        var existingQueryItems = urlComponents.queryItems ?? [URLQueryItem]()
+        existingQueryItems.append(URLQueryItem(name: name, value: value))
+        urlComponents.queryItems = existingQueryItems
+
         return urlComponents.url!
     }
 }
