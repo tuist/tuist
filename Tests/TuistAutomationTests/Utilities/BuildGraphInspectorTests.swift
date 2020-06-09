@@ -26,7 +26,7 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         let target = Target.test(platform: .macOS)
 
         // When
-        let got = subject.buildArguments(target: target)
+        let got = subject.buildArguments(target: target, configuration: nil)
 
         // Then
         XCTAssertEqual(got, [
@@ -39,7 +39,7 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         let target = Target.test(platform: .iOS)
 
         // When
-        let got = subject.buildArguments(target: target)
+        let got = subject.buildArguments(target: target, configuration: nil)
 
         // Then
         XCTAssertEqual(got, [
@@ -52,7 +52,7 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         let target = Target.test(platform: .watchOS)
 
         // When
-        let got = subject.buildArguments(target: target)
+        let got = subject.buildArguments(target: target, configuration: nil)
 
         // Then
         XCTAssertEqual(got, [
@@ -65,12 +65,36 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         let target = Target.test(platform: .tvOS)
 
         // When
-        let got = subject.buildArguments(target: target)
+        let got = subject.buildArguments(target: target, configuration: nil)
 
         // Then
         XCTAssertEqual(got, [
             .sdk(Platform.tvOS.xcodeSimulatorSDK!),
         ])
+    }
+
+    func test_buildArguments_when_theGivenConfigurationExists() throws {
+        // Given
+        let settings = Settings.test(base: [:], debug: .test(), release: .test())
+        let target = Target.test(settings: settings)
+
+        // When
+        let got = subject.buildArguments(target: target, configuration: "Release")
+
+        // Then
+        XCTAssertTrue(got.contains(.configuration("Release")))
+    }
+
+    func test_buildArguments_when_theGivenConfigurationDoesntExist() throws {
+        // Given
+        let settings = Settings.test(base: [:], configurations: [:])
+        let target = Target.test(settings: settings)
+
+        // When
+        let got = subject.buildArguments(target: target, configuration: "Release")
+
+        // Then
+        XCTAssertFalse(got.contains(.configuration("Release")))
     }
 
     func test_buildableTarget() throws {

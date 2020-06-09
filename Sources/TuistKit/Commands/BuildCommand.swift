@@ -31,6 +31,10 @@ struct BuildCommand: ParsableCommand {
     )
     var path: String?
 
+    @Option(name: .customShort("C"),
+            help: "The configuration to be used when building the scheme.")
+    var configuration: String?
+
     func run() throws {
         let absolutePath: AbsolutePath
         if let path = path {
@@ -41,6 +45,7 @@ struct BuildCommand: ParsableCommand {
         try BuildService().run(schemeName: scheme,
                                generate: generate,
                                clean: clean,
+                               configuration: configuration,
                                path: absolutePath)
     }
 }
