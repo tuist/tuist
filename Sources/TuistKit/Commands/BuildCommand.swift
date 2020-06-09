@@ -19,7 +19,7 @@ struct BuildCommand: ParsableCommand {
         help: "Force the generation of the project before building."
     )
     var generate: Bool
-    
+
     @Flag(
         help: "When passed, it cleans the project before building it"
     )
