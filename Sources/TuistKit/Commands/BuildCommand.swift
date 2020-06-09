@@ -20,6 +20,11 @@ struct BuildCommand: ParsableCommand {
     )
     var generate: Bool
 
+    @Flag(
+        help: "When passed, it cleans the project before building it"
+    )
+    var clean: Bool
+
     @Option(
         name: .shortAndLong,
         help: "The path to the directory that contains the project to be built."
@@ -33,6 +38,9 @@ struct BuildCommand: ParsableCommand {
         } else {
             absolutePath = FileHandler.shared.currentPath
         }
-        try BuildService().run(schemeName: scheme, generate: generate, path: absolutePath)
+        try BuildService().run(schemeName: scheme,
+                               generate: generate,
+                               clean: clean,
+                               path: absolutePath)
     }
 }
