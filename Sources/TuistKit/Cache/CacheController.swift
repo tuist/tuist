@@ -85,7 +85,7 @@ final class CacheController: CacheControlling {
             completed(.completed)
             return Disposables.create()
         })
-        return try cache
+        return cache
             .store(hash: hash, config: config, xcframeworkPath: xcframeworkPath)
             .concat(deleteXCFrameworkCompletable)
             .catchError { error in

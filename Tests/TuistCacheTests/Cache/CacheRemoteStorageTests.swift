@@ -33,7 +33,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         subject = CacheRemoteStorage(cloudClient: cloudClient)
 
         // When
-        let result = try subject.exists(hash: "acho tio", config: config)
+        let result = subject.exists(hash: "acho tio", config: config)
             .toBlocking()
             .materialize()
 
@@ -103,7 +103,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         subject = CacheRemoteStorage(cloudClient: cloudClient)
 
         // When
-        let result = try subject.fetch(hash: "acho tio", config: config)
+        let result = subject.fetch(hash: "acho tio", config: config)
             .toBlocking()
             .materialize()
 
@@ -142,7 +142,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         subject = CacheRemoteStorage(cloudClient: cloudClient)
 
         // When
-        let result = try subject.store(hash: "acho tio", config: config, xcframeworkPath: .root)
+        let result = subject.store(hash: "acho tio", config: config, xcframeworkPath: .root)
             .toBlocking()
             .materialize()
 

@@ -46,7 +46,7 @@ public class CacheMapper: GraphMapping {
     // MARK: - GraphMapping
 
     public func map(graph: Graph) throws -> (Graph, [SideEffectDescriptor]) {
-        let single = hashes(graph: graph).flatMap { try self.map(graph: graph, hashes: $0) }
+        let single = hashes(graph: graph).flatMap { self.map(graph: graph, hashes: $0) }
         return try (single.toBlocking().single(), [])
     }
 
@@ -70,18 +70,18 @@ public class CacheMapper: GraphMapping {
         .subscribeOn(ConcurrentDispatchQueueScheduler(queue: queue))
     }
 
-    fileprivate func map(graph: Graph, hashes: [TargetNode: String]) throws -> Single<Graph> {
-        try fetch(hashes: hashes).map { xcframeworkPaths in
+    fileprivate func map(graph: Graph, hashes: [TargetNode: String]) -> Single<Graph> {
+        fetch(hashes: hashes).map { xcframeworkPaths in
             try self.cacheGraphMapper.map(graph: graph, xcframeworks: xcframeworkPaths)
         }
     }
 
-    fileprivate func fetch(hashes: [TargetNode: String]) throws -> Single<[TargetNode: AbsolutePath]> {
-        try Single.zip(hashes.map { target, hash in
-            try self.cache.exists(hash: hash, config: config)
+    fileprivate func fetch(hashes: [TargetNode: String]) -> Single<[TargetNode: AbsolutePath]> {
+        Single.zip(hashes.map { target, hash in
+            self.cache.exists(hash: hash, config: config)
                 .flatMap { (exists) -> Single<(target: TargetNode, path: AbsolutePath?)> in
                     guard exists else { return Single.just((target: target, path: nil)) }
-                    return try self.cache.fetch(hash: hash, config: self.config).map { (target: target, path: $0) }
+                    return self.cache.fetch(hash: hash, config: self.config).map { (target: target, path: $0) }
                 }
         })
             .map { result in

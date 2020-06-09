@@ -18,28 +18,40 @@ final class CacheRemoteStorage: CacheStoring {
 
     // MARK: - CacheStoring
 
-    func exists(hash: String, config: Config) throws -> Single<Bool> {
-        let resource = try CloudHEADResponse.existsResource(hash: hash, config: config)
-        return cloudClient.request(resource).map { response in
-            let successRange = 200 ..< 300
-            return successRange.contains(response.response.statusCode)
+    func exists(hash: String, config: Config) -> Single<Bool> {
+        do {
+            let resource = try CloudHEADResponse.existsResource(hash: hash, config: config)
+            return cloudClient.request(resource).map { (response) -> Bool in
+                let successRange = 200 ..< 300
+                return successRange.contains(response.response.statusCode)
+            }
+        } catch {
+            return Single.error(error)
         }
     }
 
-    func fetch(hash: String, config: Config) throws -> Single<AbsolutePath> {
-        let resource = try CloudCacheResponse.fetchResource(hash: hash, config: config)
-        return cloudClient.request(resource).map { _ in
-            AbsolutePath.root // TODO:
+    func fetch(hash: String, config: Config) -> Single<AbsolutePath> {
+        do {
+            let resource = try CloudCacheResponse.fetchResource(hash: hash, config: config)
+            return cloudClient.request(resource).map { _ in
+                AbsolutePath.root // TODO:
+            }
+        } catch {
+            return Single.error(error)
         }
     }
 
-    func store(hash: String, config: Config, xcframeworkPath _: AbsolutePath) throws -> Completable {
-        let resource = try CloudCacheResponse.storeResource(hash: hash, config: config)
-        return cloudClient.request(resource).map { responseTuple in
-            let cacheResponse = responseTuple.object.data
-            let artefactToDownloadURL = cacheResponse.url
-            print(artefactToDownloadURL)
-            // TODO: Download file at given url
-        }.asCompletable()
+    func store(hash: String, config: Config, xcframeworkPath _: AbsolutePath) -> Completable {
+        do {
+            let resource = try CloudCacheResponse.storeResource(hash: hash, config: config)
+            return cloudClient.request(resource).map { responseTuple in
+                let cacheResponse = responseTuple.object.data
+                let artefactToDownloadURL = cacheResponse.url
+                print(artefactToDownloadURL)
+                // TODO: Download file at given url
+            }.asCompletable()
+        } catch {
+            return Completable.error(error)
+        }
     }
 }

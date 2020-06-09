@@ -23,9 +23,9 @@ public final class Cache: CacheStoring {
 
     // MARK: - CacheStoring
 
-    public func exists(hash: String, config: Config) throws -> Single<Bool> {
+    public func exists(hash: String, config: Config) -> Single<Bool> {
         /// It calls exists sequentially until one of the storages returns true.
-        try storages.map { try $0.exists(hash: hash, config: config) }.reduce(Single.just(false)) { (result, next) -> Single<Bool> in
+        storages.map { $0.exists(hash: hash, config: config) }.reduce(Single.just(false)) { (result, next) -> Single<Bool> in
             result.flatMap { exists in
                 if exists {
                     return Single.just(exists)
@@ -38,9 +38,9 @@ public final class Cache: CacheStoring {
         }
     }
 
-    public func fetch(hash: String, config: Config) throws -> Single<AbsolutePath> {
-        try storages
-            .map { try $0.fetch(hash: hash, config: config) }
+    public func fetch(hash: String, config: Config) -> Single<AbsolutePath> {
+        storages
+            .map { $0.fetch(hash: hash, config: config) }
             .reduce(nil) { (result, next) -> Single<AbsolutePath> in
                 if let result = result {
                     return result.catchError { _ in next }
@@ -50,7 +50,7 @@ public final class Cache: CacheStoring {
             }!
     }
 
-    public func store(hash: String, config: Config, xcframeworkPath: AbsolutePath) throws -> Completable {
-        try Completable.zip(storages.map { try $0.store(hash: hash, config: config, xcframeworkPath: xcframeworkPath) })
+    public func store(hash: String, config: Config, xcframeworkPath: AbsolutePath) -> Completable {
+        Completable.zip(storages.map { $0.store(hash: hash, config: config, xcframeworkPath: xcframeworkPath) })
     }
 }
