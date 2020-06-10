@@ -12,7 +12,7 @@ import TuistSupport
 protocol CacheControlling {
     /// Caches the cacheable targets that are part of the workspace or project at the given path.
     /// - Parameter path: Path to the directory that contains a workspace or a project.
-    func cache(path: AbsolutePath) throws
+    func cache(path: AbsolutePath, config: Config) throws
 }
 
 final class CacheController: CacheControlling {
@@ -26,11 +26,11 @@ final class CacheController: CacheControlling {
     private let graphContentHasher: GraphContentHashing
 
     /// Cache.
-    private let cache: CacheStoraging
+    private let cache: CacheStoring
 
     init(generator: ProjectGenerating = ProjectGenerator(),
          xcframeworkBuilder: XCFrameworkBuilding = XCFrameworkBuilder(xcodeBuildController: XcodeBuildController()),
-         cache: CacheStoraging = Cache(),
+         cache: CacheStoring = Cache(),
          graphContentHasher: GraphContentHashing = GraphContentHasher()) {
         self.generator = generator
         self.xcframeworkBuilder = xcframeworkBuilder
@@ -38,13 +38,13 @@ final class CacheController: CacheControlling {
         self.graphContentHasher = graphContentHasher
     }
 
-    func cache(path: AbsolutePath) throws {
+    func cache(path: AbsolutePath, config: Config) throws {
         let (path, graph) = try generator.generateWithGraph(path: path, projectOnly: false)
 
         logger.notice("Hashing cacheable frameworks")
-        let cacheableTargets = try self.cacheableTargets(graph: graph)
+        let cacheableTargets = try self.cacheableTargets(graph: graph, config: config)
 
-        let completables = try cacheableTargets.map { try buildAndCacheXCFramework(path: path, target: $0.key, hash: $0.value) }
+        let completables = try cacheableTargets.map { try buildAndCacheXCFramework(path: path, target: $0.key, hash: $0.value, config: config) }
         _ = try Completable.zip(completables).toBlocking().last()
 
         logger.notice("All cacheable frameworks have been cached successfully", metadata: .success)
@@ -52,10 +52,10 @@ final class CacheController: CacheControlling {
 
     /// Returns all the targets that are cacheable and their hashes.
     /// - Parameter graph: Graph that contains all the dependency graph nodes.
-    fileprivate func cacheableTargets(graph: Graph) throws -> [TargetNode: String] {
+    fileprivate func cacheableTargets(graph: Graph, config: Config) throws -> [TargetNode: String] {
         try graphContentHasher.contentHashes(for: graph)
             .filter { target, hash in
-                if let exists = try self.cache.exists(hash: hash).toBlocking().first(), exists {
+                if let exists = try self.cache.exists(hash: hash, config: config).toBlocking().first(), exists {
                     logger.pretty("The target \(.bold(.raw(target.name))) with hash \(.bold(.raw(hash))) is already in the cache. Skipping...")
                     return false
                 }
@@ -68,7 +68,7 @@ final class CacheController: CacheControlling {
     ///   - path: Path to either the .xcodeproj or .xcworkspace that contains the framework to be cached.
     ///   - target: Target whose .xcframework will be built and cached.
     ///   - hash: Hash of the target.
-    fileprivate func buildAndCacheXCFramework(path: AbsolutePath, target: TargetNode, hash: String) throws -> Completable {
+    fileprivate func buildAndCacheXCFramework(path: AbsolutePath, target: TargetNode, hash: String, config: Config) throws -> Completable {
         // Build targets sequentially
         let xcframeworkPath: AbsolutePath!
 
@@ -86,7 +86,7 @@ final class CacheController: CacheControlling {
             return Disposables.create()
         })
         return cache
-            .store(hash: hash, xcframeworkPath: xcframeworkPath)
+            .store(hash: hash, config: config, xcframeworkPath: xcframeworkPath)
             .concat(deleteXCFrameworkCompletable)
             .catchError { error in
                 // We propagate the error downstream

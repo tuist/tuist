@@ -24,6 +24,7 @@ final class CacheLocalStorageIntegrationTests: TuistTestCase {
 
     func test_exists_when_a_cached_xcframework_exists() throws {
         // Given
+        let config: Config = .test()
         let cacheDirectory = try temporaryPath()
         let hash = "abcde"
         let hashDirectory = cacheDirectory.appending(component: hash)
@@ -32,7 +33,7 @@ final class CacheLocalStorageIntegrationTests: TuistTestCase {
         try FileHandler.shared.createFolder(xcframeworkPath)
 
         // When
-        let got = try subject.exists(hash: hash).toBlocking().first()
+        let got = try subject.exists(hash: hash, config: config).toBlocking().first()
 
         // Then
         XCTAssertTrue(got == true)
@@ -41,7 +42,9 @@ final class CacheLocalStorageIntegrationTests: TuistTestCase {
     func test_exists_when_a_cached_xcframework_does_not_exist() throws {
         // When
         let hash = "abcde"
-        let got = try subject.exists(hash: hash).toBlocking().first()
+        let config: Config = .test()
+
+        let got = try subject.exists(hash: hash, config: config).toBlocking().first()
 
         // Then
         XCTAssertTrue(got == false)
@@ -49,6 +52,7 @@ final class CacheLocalStorageIntegrationTests: TuistTestCase {
 
     func test_fetch_when_a_cached_xcframework_exists() throws {
         // Given
+        let config: Config = .test()
         let cacheDirectory = try temporaryPath()
         let hash = "abcde"
         let hashDirectory = cacheDirectory.appending(component: hash)
@@ -57,7 +61,7 @@ final class CacheLocalStorageIntegrationTests: TuistTestCase {
         try FileHandler.shared.createFolder(xcframeworkPath)
 
         // When
-        let got = try subject.fetch(hash: hash).toBlocking().first()
+        let got = try subject.fetch(hash: hash, config: config).toBlocking().first()
 
         // Then
         XCTAssertTrue(got == xcframeworkPath)
@@ -65,19 +69,22 @@ final class CacheLocalStorageIntegrationTests: TuistTestCase {
 
     func test_fetch_when_a_cached_xcframework_does_not_exist() throws {
         let hash = "abcde"
-        XCTAssertThrowsSpecific(try subject.fetch(hash: hash).toBlocking().first(),
+        let config: Config = .test()
+
+        XCTAssertThrowsSpecific(try subject.fetch(hash: hash, config: config).toBlocking().first(),
                                 CacheLocalStorageError.xcframeworkNotFound(hash: hash))
     }
 
     func test_store() throws {
         // Given
+        let config: Config = .test()
         let hash = "abcde"
         let cacheDirectory = try temporaryPath()
         let xcframeworkPath = cacheDirectory.appending(component: "framework.xcframework")
         try FileHandler.shared.createFolder(xcframeworkPath)
 
         // When
-        _ = try subject.store(hash: hash, xcframeworkPath: xcframeworkPath).toBlocking().first()
+        _ = try subject.store(hash: hash, config: config, xcframeworkPath: xcframeworkPath).toBlocking().first()
 
         // Then
         XCTAssertTrue(FileHandler.shared.exists(cacheDirectory.appending(RelativePath("\(hash)/framework.xcframework"))))

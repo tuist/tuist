@@ -9,7 +9,7 @@ public class CacheMapper: GraphMapping {
     // MARK: - Attributes
 
     /// Cache.
-    private let cache: CacheStoraging
+    private let cache: CacheStoring
 
     /// Graph content hasher.
     private let graphContentHasher: GraphContentHashing
@@ -17,20 +17,26 @@ public class CacheMapper: GraphMapping {
     /// Cache graph mapper.
     private let cacheGraphMapper: CacheGraphMapping
 
+    /// Configuration object
+    private let config: Config
+
     /// Dispatch queue.
     private let queue: DispatchQueue
 
     // MARK: - Init
 
-    public convenience init() {
-        self.init(cache: Cache(),
+    public convenience init(config: Config) {
+        self.init(config: config,
+                  cache: Cache(),
                   graphContentHasher: GraphContentHasher())
     }
 
-    init(cache: CacheStoraging,
+    init(config: Config,
+         cache: CacheStoring,
          graphContentHasher: GraphContentHashing,
          cacheGraphMapper: CacheGraphMapping = CacheGraphMapper(),
          queue: DispatchQueue = CacheMapper.dispatchQueue()) {
+        self.config = config
         self.cache = cache
         self.graphContentHasher = graphContentHasher
         self.queue = queue
@@ -72,10 +78,10 @@ public class CacheMapper: GraphMapping {
 
     fileprivate func fetch(hashes: [TargetNode: String]) -> Single<[TargetNode: AbsolutePath]> {
         Single.zip(hashes.map { target, hash in
-            self.cache.exists(hash: hash)
+            self.cache.exists(hash: hash, config: config)
                 .flatMap { (exists) -> Single<(target: TargetNode, path: AbsolutePath?)> in
                     guard exists else { return Single.just((target: target, path: nil)) }
-                    return self.cache.fetch(hash: hash).map { (target: target, path: $0) }
+                    return self.cache.fetch(hash: hash, config: self.config).map { (target: target, path: $0) }
                 }
         })
             .map { result in
