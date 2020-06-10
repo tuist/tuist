@@ -31,7 +31,7 @@ struct BuildCommand: ParsableCommand {
     )
     var path: String?
 
-    @Option(name: .customShort("C"),
+    @Option(name: [.long, .customShort("C")],
             help: "The configuration to be used when building the scheme.")
     var configuration: String?
 
