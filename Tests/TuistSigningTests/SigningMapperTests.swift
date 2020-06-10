@@ -97,15 +97,13 @@ final class SigningMapperTests: TuistUnitTestCase {
         ]
 
         let project = Project.test(targets: [target])
-        let graph = Graph.test(projects: [project])
 
         // When
-        let (mappedGraph, sideEffects) = try subject.map(graph: graph)
+        let (mappedProject, sideEffects) = try subject.map(project: project)
 
         // Then
         XCTAssertEmpty(sideEffects)
-        let configurations = mappedGraph.projects
-            .flatMap { $0.targets }
+        let configurations = mappedProject.targets
             .map { $0.settings }
             .map { $0?.configurations }
 
@@ -153,11 +151,10 @@ final class SigningMapperTests: TuistUnitTestCase {
         )
 
         let project = Project.test(targets: [target])
-        let graph = Graph.test(projects: [project])
 
         // When
         XCTAssertThrowsSpecific(
-            try subject.map(graph: graph),
+            try subject.map(project: project),
             SigningMapperError.appIdMismatch(
                 "TeamID.MismatchedBundleID",
                 "TeamID",

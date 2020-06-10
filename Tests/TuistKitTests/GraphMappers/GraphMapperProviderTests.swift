@@ -46,17 +46,6 @@ final class GraphMapperProviderTests: TuistUnitTestCase {
         XCTAssertEqual(got.filter { $0 is CacheMapper }.count, 0)
     }
 
-    func test_mappers_returns_theSigningMapper() {
-        // Given
-        subject = GraphMapperProvider(useCache: false)
-
-        // When
-        let got = subject.mappers(config: Config.test())
-
-        // Then
-        XCTAssertEqual(got.filter { $0 is SigningMapper }.count, 1)
-    }
-
     func test_mappers_returns_cloud_insights_mapper_when_insights_option_is_passed() {
         // Given
         subject = GraphMapperProvider(useCache: false)

@@ -21,7 +21,7 @@ enum SigningMapperError: FatalError, Equatable {
     }
 }
 
-public class SigningMapper: GraphMapping {
+public class SigningMapper: ProjectMapping {
     private let signingFilesLocator: SigningFilesLocating
     private let rootDirectoryLocator: RootDirectoryLocating
     private let signingMatcher: SigningMatching
@@ -46,35 +46,33 @@ public class SigningMapper: GraphMapping {
 
     // MARK: - GraphMapping
 
-    public func map(graph: Graph) throws -> (Graph, [SideEffectDescriptor]) {
-        let entryPath = graph.entryPath
+    public func map(project: Project) throws -> (Project, [SideEffectDescriptor]) {
+        var project = project
+        let path = project.path
         guard
-            try signingFilesLocator.locateSigningDirectory(from: entryPath) != nil,
-            let derivedDirectory = rootDirectoryLocator.locate(from: entryPath)?.appending(component: Constants.derivedFolderName)
+            try signingFilesLocator.locateSigningDirectory(from: path) != nil,
+            let derivedDirectory = rootDirectoryLocator.locate(from: path)?.appending(component: Constants.derivedFolderName)
         else {
             logger.debug("No signing artifacts found")
-            return (graph, [])
+            return (project, [])
         }
 
-        try signingCipher.decryptSigning(at: entryPath, keepFiles: true)
-        defer { try? signingCipher.encryptSigning(at: entryPath, keepFiles: false) }
+        try signingCipher.decryptSigning(at: path, keepFiles: true)
+        defer { try? signingCipher.encryptSigning(at: path, keepFiles: false) }
 
         let keychainPath = derivedDirectory.appending(component: Constants.signingKeychain)
 
-        let (certificates, provisioningProfiles) = try signingMatcher.match(graph: graph)
-
-        let projects: [Project] = try graph.projects.map { project in
-            let targets = try project.targets.map {
-                try map(target: $0,
-                        project: project,
-                        keychainPath: keychainPath,
-                        certificates: certificates,
-                        provisioningProfiles: provisioningProfiles)
-            }
-            return project.with(targets: targets)
+        let (certificates, provisioningProfiles) = try signingMatcher.match(from: project.path)
+        
+        project.targets = try project.targets.map {
+            try map(target: $0,
+                    project: project,
+                    keychainPath: keychainPath,
+                    certificates: certificates,
+                    provisioningProfiles: provisioningProfiles)
         }
 
-        return (graph.with(projects: projects), [])
+        return (project, [])
     }
 
     // MARK: - Helpers
@@ -84,6 +82,7 @@ public class SigningMapper: GraphMapping {
                      keychainPath: AbsolutePath,
                      certificates: [String: Certificate],
                      provisioningProfiles: [String: [String: ProvisioningProfile]]) throws -> Target {
+        var target = target
         let targetConfigurations = target.settings?.configurations ?? [:]
         let configurations: [BuildConfiguration: Configuration?] = try targetConfigurations
             .merging(project.settings.configurations,
@@ -115,8 +114,11 @@ public class SigningMapper: GraphMapping {
                 dict[configurationPair.key] = configuration.with(settings: settings)
             }
 
-        return target.with(settings: Settings(base: target.settings?.base ?? [:],
-                                              configurations: configurations,
-                                              defaultSettings: target.settings?.defaultSettings ?? .recommended))
+        target.settings = Settings(
+            base: target.settings?.base ?? [:],
+            configurations: configurations,
+            defaultSettings: target.settings?.defaultSettings ?? .recommended
+        )
+        return target
     }
 }

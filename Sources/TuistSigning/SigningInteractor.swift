@@ -62,7 +62,7 @@ public final class SigningInteractor: SigningInteracting {
         try signingCipher.decryptSigning(at: entryPath, keepFiles: true)
         defer { try? signingCipher.encryptSigning(at: entryPath, keepFiles: false) }
 
-        let (certificates, provisioningProfiles) = try signingMatcher.match(graph: graph)
+        let (certificates, provisioningProfiles) = try signingMatcher.match(from: graph.entryPath)
 
         try graph.projects.forEach { project in
             try project.targets.forEach {

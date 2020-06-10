@@ -37,7 +37,6 @@ final class SigningMatcherTests: TuistUnitTestCase {
     func test_locates_certificates_from_entry_path() throws {
         // Given
         let entryPath = try temporaryPath()
-        let graph = Graph.test(entryPath: entryPath)
         var locatePath: AbsolutePath?
         signingFilesLocator.locateUnencryptedCertificatesStub = {
             locatePath = $0
@@ -45,7 +44,7 @@ final class SigningMatcherTests: TuistUnitTestCase {
         }
 
         // When
-        _ = try subject.match(graph: graph)
+        _ = try subject.match(from: entryPath)
 
         // Then
         XCTAssertEqual(entryPath, locatePath)
@@ -59,7 +58,6 @@ final class SigningMatcherTests: TuistUnitTestCase {
         let privateKeyPath = AbsolutePath("/\(debugConfiguration).p12")
         let releasePublicKeyPath = AbsolutePath("/\(releaseConfiguration).cer")
         let releasePrivateKeyPath = AbsolutePath("/\(releaseConfiguration).p12")
-        let graph = Graph.test()
         signingFilesLocator.locateUnencryptedCertificatesStub = { _ in
             [
                 publicKeyPath,
@@ -122,7 +120,7 @@ final class SigningMatcherTests: TuistUnitTestCase {
         ]
 
         // When
-        let (certificates, provisioningProfiles) = try subject.match(graph: graph)
+        let (certificates, provisioningProfiles) = try subject.match(from: try temporaryPath())
 
         // Then
         XCTAssertEqual(certificates, expectedCertificates)

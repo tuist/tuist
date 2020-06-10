@@ -72,28 +72,6 @@ public struct Target: Equatable, Hashable {
         self.dependencies = dependencies
     }
 
-    /// Returns a copy of the target with the given settings set.
-    /// - Parameter settigns: Settings to be set to the copy.
-    public func with(settings: Settings) -> Target {
-        Target(name: name,
-               platform: platform,
-               product: product,
-               productName: productName,
-               bundleId: bundleId,
-               deploymentTarget: deploymentTarget,
-               infoPlist: infoPlist,
-               entitlements: entitlements,
-               settings: settings,
-               sources: sources,
-               resources: resources,
-               headers: headers,
-               coreDataModels: coreDataModels,
-               actions: actions,
-               environment: environment,
-               filesGroup: filesGroup,
-               dependencies: dependencies)
-    }
-
     /// Target can be included in the link phase of other targets
     public func isLinkable() -> Bool {
         [.dynamicLibrary, .staticLibrary, .framework, .staticFramework].contains(product)
