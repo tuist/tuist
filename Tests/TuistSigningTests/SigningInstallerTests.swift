@@ -13,13 +13,13 @@ final class SigningInstallerTests: TuistUnitTestCase {
 
     override func setUp() {
         super.setUp()
-        try? ProcessEnv.setVar("TUIST_VERBOSE", value: "true")
         securityController = MockSecurityController()
         subject = SigningInstaller(securityController: securityController)
     }
 
     override func tearDown() {
         securityController = nil
+        subject = nil
         super.tearDown()
     }
 

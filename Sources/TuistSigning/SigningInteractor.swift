@@ -80,8 +80,8 @@ public final class SigningInteractor: SigningInteracting {
     private func install(target: Target,
                          project: Project,
                          keychainPath: AbsolutePath,
-                         certificates: [String: Certificate],
-                         provisioningProfiles: [String: [String: ProvisioningProfile]]) throws {
+                         certificates: [TargetName: [ConfigurationName: Certificate]],
+                         provisioningProfiles: [TargetName: [ConfigurationName: ProvisioningProfile]]) throws {
         let targetConfigurations = target.settings?.configurations ?? [:]
         /// Filtering certificate-provisioning profile pairs, so they are installed only when necessary (they correspond to some configuration and target in the project)
         let signingPairs = Set(
@@ -93,7 +93,7 @@ public final class SigningInteractor: SigningInteracting {
         .compactMap { configuration -> (certificate: Certificate, provisioningProfile: ProvisioningProfile)? in
             guard
                 let provisioningProfile = provisioningProfiles[target.name]?[configuration.name],
-                let certificate = certificates[configuration.name.lowercased()]
+                let certificate = certificates[target.name]?[configuration.name]
             else {
                 return nil
             }

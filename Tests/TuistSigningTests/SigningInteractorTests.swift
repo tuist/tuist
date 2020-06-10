@@ -207,9 +207,11 @@ final class SigningInteractorTests: TuistUnitTestCase {
         let expectedProvisioningProfile = ProvisioningProfile.test(name: "profileA")
         signingMatcher.matchStub = { _ in
             (certificates: [
-                configuration: expectedCertificate,
-                // Used to ensure only certificates that have configuration are installed
-                "other-config": Certificate.test(name: "certB"),
+                targetName: [
+                    configuration: expectedCertificate,
+                    // Used to ensure only certificates that have configuration are installed
+                    "other-config": Certificate.test(name: "certB"),
+                ],
             ],
              provisioningProfiles: [
                  targetName: [

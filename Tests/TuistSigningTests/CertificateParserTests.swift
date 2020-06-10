@@ -52,9 +52,21 @@ final class CertificateParserTests: TuistUnitTestCase {
         )
     }
 
+    func test_throws_invalid_name_when_wrong_format() throws {
+        // Given
+        let publicKey = try temporaryPath().appending(component: "Debug.p12")
+        let privateKey = try temporaryPath()
+
+        // When
+        XCTAssertThrowsSpecific(
+            try subject.parse(publicKey: publicKey, privateKey: privateKey),
+            CertificateParserError.invalidFormat(publicKey.pathString)
+        )
+    }
+
     func test_parsing_succeeds() throws {
         // Given
-        let publicKey = try temporaryPath()
+        let publicKey = try temporaryPath().appending(component: "Target.Debug.p12")
         let privateKey = try temporaryPath()
         let subjectOutput = "subject= /UID=VD55TKL3V6/CN=Apple Development: Name (54GSF6G47V)/OU=QH95ER52SG/O=Name/C=US\n"
         system.succeedCommand(
@@ -66,6 +78,8 @@ final class CertificateParserTests: TuistUnitTestCase {
             privateKey: privateKey,
             developmentTeam: "QH95ER52SG",
             name: "Apple Development: Name (54GSF6G47V)",
+            targetName: "Target",
+            configurationName: "Debug",
             isRevoked: false
         )
 

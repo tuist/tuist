@@ -22,13 +22,15 @@ final class CertificateParserIntegrationTests: TuistTestCase {
     func test_parse_certificate() throws {
         // Given
         let currentDirectory = AbsolutePath(#file.replacingOccurrences(of: "file://", with: "")).removingLastComponent()
-        let publicKey = currentDirectory.appending(component: "debug.cer")
-        let privateKey = currentDirectory.appending(component: "debug.p12")
+        let publicKey = currentDirectory.appending(component: "Target.Debug.cer")
+        let privateKey = currentDirectory.appending(component: "Target.Debug.p12")
         let expectedCertificate = Certificate(
             publicKey: publicKey,
             privateKey: privateKey,
             developmentTeam: "QH95ER52SG",
             name: "Apple Development: Marek Fort (54GSF6G47V)",
+            targetName: "Target",
+            configurationName: "Debug",
             isRevoked: false
         )
 

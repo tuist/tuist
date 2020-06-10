@@ -54,10 +54,12 @@ final class SigningMatcherTests: TuistUnitTestCase {
         // Given
         let debugConfiguration = "debug"
         let releaseConfiguration = "release"
-        let publicKeyPath = AbsolutePath("/\(debugConfiguration).cer")
-        let privateKeyPath = AbsolutePath("/\(debugConfiguration).p12")
-        let releasePublicKeyPath = AbsolutePath("/\(releaseConfiguration).cer")
-        let releasePrivateKeyPath = AbsolutePath("/\(releaseConfiguration).p12")
+        let date = Date()
+        let targetName = "TargetOne"
+        let publicKeyPath = AbsolutePath("/\(targetName)/\(debugConfiguration).cer")
+        let privateKeyPath = AbsolutePath("/\(targetName)/\(debugConfiguration).p12")
+        let releasePublicKeyPath = AbsolutePath("/\(targetName)/\(releaseConfiguration).cer")
+        let releasePrivateKeyPath = AbsolutePath("/\(targetName)/\(releaseConfiguration).p12")
         signingFilesLocator.locateUnencryptedCertificatesStub = { _ in
             [
                 publicKeyPath,
@@ -71,11 +73,35 @@ final class SigningMatcherTests: TuistUnitTestCase {
             ]
         }
         certificateParser.parseStub = { publicKey, privateKey in
-            Certificate.test(publicKey: publicKey, privateKey: privateKey)
+            let configurationName: String
+            if publicKey == publicKeyPath {
+                configurationName = debugConfiguration
+            } else {
+                configurationName = releaseConfiguration
+            }
+            return Certificate.test(
+                publicKey: publicKey,
+                privateKey: privateKey,
+                targetName: targetName,
+                configurationName: configurationName
+            )
         }
-        let expectedCertificates: [String: Certificate] = [
-            debugConfiguration: Certificate.test(publicKey: publicKeyPath, privateKey: privateKeyPath),
-            releaseConfiguration: Certificate.test(publicKey: releasePublicKeyPath, privateKey: releasePrivateKeyPath),
+
+        let expectedCertificates: [String: [String: Certificate]] = [
+            targetName: [
+                debugConfiguration: Certificate.test(
+                    publicKey: publicKeyPath,
+                    privateKey: privateKeyPath,
+                    targetName: targetName,
+                    configurationName: debugConfiguration
+                ),
+                releaseConfiguration: Certificate.test(
+                    publicKey: releasePublicKeyPath,
+                    privateKey: releasePrivateKeyPath,
+                    targetName: targetName,
+                    configurationName: releaseConfiguration
+                ),
+            ],
         ]
 
         let debugProvisioningProfilePath = AbsolutePath("/\(debugConfiguration).mobileprovision")
@@ -86,8 +112,6 @@ final class SigningMatcherTests: TuistUnitTestCase {
                 releaseProvisioningProfilePath,
             ]
         }
-        let date = Date()
-        let targetName = "TargetOne"
         provisioningProfileParser.parseStub = { profilePath in
             let configurationName: String
             if profilePath == debugProvisioningProfilePath {

@@ -51,7 +51,9 @@ final class SigningMapperTests: TuistUnitTestCase {
         )
         signingMatcher.matchStub = { _ in
             (certificates: [
-                configuration: certificate,
+                targetName: [
+                    configuration: certificate,
+                ],
             ],
              provisioningProfiles: [
                  targetName: [
@@ -74,14 +76,13 @@ final class SigningMapperTests: TuistUnitTestCase {
                 ]
             )
         )
-        
+
         let project = Project.test(
             path: try temporaryPath(),
             targets: [target]
         )
         let derivedDirectory = project.path.appending(component: Constants.derivedFolderName)
         let keychainPath = derivedDirectory.appending(component: Constants.signingKeychain)
-
 
         let expectedConfigurations: [BuildConfiguration: Configuration] = [
             BuildConfiguration(
@@ -125,7 +126,9 @@ final class SigningMapperTests: TuistUnitTestCase {
         )
         signingMatcher.matchStub = { _ in
             (certificates: [
-                configuration: certificate,
+                targetName: [
+                    configuration: certificate,
+                ],
             ],
              provisioningProfiles: [
                  targetName: [

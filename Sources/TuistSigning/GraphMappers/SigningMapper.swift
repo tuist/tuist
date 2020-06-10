@@ -59,7 +59,7 @@ public class SigningMapper: ProjectMapping {
         let keychainPath = derivedDirectory.appending(component: Constants.signingKeychain)
 
         let (certificates, provisioningProfiles) = try signingMatcher.match(from: project.path)
-        
+
         project.targets = try project.targets.map {
             try map(target: $0,
                     project: project,
@@ -76,8 +76,8 @@ public class SigningMapper: ProjectMapping {
     private func map(target: Target,
                      project: Project,
                      keychainPath: AbsolutePath,
-                     certificates: [String: Certificate],
-                     provisioningProfiles: [String: [String: ProvisioningProfile]]) throws -> Target {
+                     certificates: [TargetName: [ConfigurationName: Certificate]],
+                     provisioningProfiles: [TargetName: [ConfigurationName: ProvisioningProfile]]) throws -> Target {
         var target = target
         let targetConfigurations = target.settings?.configurations ?? [:]
         let configurations: [BuildConfiguration: Configuration?] = try targetConfigurations
@@ -86,7 +86,7 @@ public class SigningMapper: ProjectMapping {
             .reduce(into: [:]) { dict, configurationPair in
                 guard
                     let provisioningProfile = provisioningProfiles[target.name]?[configurationPair.key.name],
-                    let certificate = certificates[configurationPair.key.name.lowercased()]
+                    let certificate = certificates[target.name]?[configurationPair.key.name]
                 else {
                     dict[configurationPair.key] = configurationPair.value
                     return

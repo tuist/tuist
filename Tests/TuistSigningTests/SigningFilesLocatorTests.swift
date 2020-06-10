@@ -18,6 +18,7 @@ final class SigningFilesLocatorTests: TuistUnitTestCase {
 
     override func tearDown() {
         subject = nil
+        rootDirectoryLocator = nil
         super.tearDown()
     }
 
