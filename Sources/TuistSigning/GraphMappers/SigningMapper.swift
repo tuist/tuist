@@ -23,24 +23,20 @@ enum SigningMapperError: FatalError, Equatable {
 
 public class SigningMapper: ProjectMapping {
     private let signingFilesLocator: SigningFilesLocating
-    private let rootDirectoryLocator: RootDirectoryLocating
     private let signingMatcher: SigningMatching
     private let signingCipher: SigningCiphering
 
     public convenience init() {
         self.init(signingFilesLocator: SigningFilesLocator(),
                   signingMatcher: SigningMatcher(),
-                  rootDirectoryLocator: RootDirectoryLocator(),
                   signingCipher: SigningCipher())
     }
 
     init(signingFilesLocator: SigningFilesLocating,
          signingMatcher: SigningMatching,
-         rootDirectoryLocator: RootDirectoryLocating,
          signingCipher: SigningCiphering) {
         self.signingFilesLocator = signingFilesLocator
         self.signingMatcher = signingMatcher
-        self.rootDirectoryLocator = rootDirectoryLocator
         self.signingCipher = signingCipher
     }
 
@@ -50,8 +46,7 @@ public class SigningMapper: ProjectMapping {
         var project = project
         let path = project.path
         guard
-            try signingFilesLocator.locateSigningDirectory(from: path) != nil,
-            let derivedDirectory = rootDirectoryLocator.locate(from: path)?.appending(component: Constants.derivedFolderName)
+            try signingFilesLocator.locateSigningDirectory(from: path) != nil
         else {
             logger.debug("No signing artifacts found")
             return (project, [])
@@ -60,6 +55,7 @@ public class SigningMapper: ProjectMapping {
         try signingCipher.decryptSigning(at: path, keepFiles: true)
         defer { try? signingCipher.encryptSigning(at: path, keepFiles: false) }
 
+        let derivedDirectory = project.path.appending(component: Constants.derivedFolderName)
         let keychainPath = derivedDirectory.appending(component: Constants.signingKeychain)
 
         let (certificates, provisioningProfiles) = try signingMatcher.match(from: project.path)

@@ -11,20 +11,17 @@ final class SigningMapperTests: TuistUnitTestCase {
     var subject: SigningMapper!
     var signingFilesLocator: MockSigningFilesLocator!
     var signingMatcher: MockSigningMatcher!
-    var rootDirectoryLocator: MockRootDirectoryLocator!
     var signingCipher: MockSigningCipher!
 
     override func setUp() {
         super.setUp()
         signingFilesLocator = MockSigningFilesLocator()
         signingMatcher = MockSigningMatcher()
-        rootDirectoryLocator = MockRootDirectoryLocator()
         signingCipher = MockSigningCipher()
 
         subject = SigningMapper(
             signingFilesLocator: signingFilesLocator,
             signingMatcher: signingMatcher,
-            rootDirectoryLocator: rootDirectoryLocator,
             signingCipher: signingCipher
         )
     }
@@ -33,7 +30,6 @@ final class SigningMapperTests: TuistUnitTestCase {
         super.tearDown()
         signingFilesLocator = nil
         signingMatcher = nil
-        rootDirectoryLocator = nil
         signingCipher = nil
         subject = nil
     }
@@ -44,10 +40,7 @@ final class SigningMapperTests: TuistUnitTestCase {
         signingFilesLocator.locateSigningDirectoryStub = { _ in
             signingDirectory
         }
-        let rootDirectory = try temporaryPath()
-        let derivedDirectory = rootDirectory.appending(component: Constants.derivedFolderName)
-        let keychainPath = derivedDirectory.appending(component: Constants.signingKeychain)
-        rootDirectoryLocator.locateStub = rootDirectory
+
         let targetName = "target"
         let configuration = "configuration"
         let certificate = Certificate.test(name: "certA")
@@ -81,6 +74,14 @@ final class SigningMapperTests: TuistUnitTestCase {
                 ]
             )
         )
+        
+        let project = Project.test(
+            path: try temporaryPath(),
+            targets: [target]
+        )
+        let derivedDirectory = project.path.appending(component: Constants.derivedFolderName)
+        let keychainPath = derivedDirectory.appending(component: Constants.signingKeychain)
+
 
         let expectedConfigurations: [BuildConfiguration: Configuration] = [
             BuildConfiguration(
@@ -95,8 +96,6 @@ final class SigningMapperTests: TuistUnitTestCase {
                 "PROVISIONING_PROFILE_SPECIFIER": SettingValue(stringLiteral: provisioningProfile.uuid),
             ]),
         ]
-
-        let project = Project.test(targets: [target])
 
         // When
         let (mappedProject, sideEffects) = try subject.map(project: project)
@@ -116,8 +115,6 @@ final class SigningMapperTests: TuistUnitTestCase {
         signingFilesLocator.locateSigningDirectoryStub = { _ in
             signingDirectory
         }
-        let rootDirectory = try temporaryPath()
-        rootDirectoryLocator.locateStub = rootDirectory
         let targetName = "target"
         let configuration = "configuration"
         let certificate = Certificate.test(name: "certA")
