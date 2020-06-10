@@ -5,7 +5,8 @@ import TuistCore
 public protocol BuildGraphInspecting {
     /// Returns the build arguments to be used with the given target.
     /// - Parameter target: Target whose build arguments will be returned.
-    func buildArguments(target: Target) -> [XcodeBuildArgument]
+    /// - Parameter configuration: The configuration to be built. When nil, it defaults to the configuration specified in the scheme.
+    func buildArguments(target: Target, configuration: String?) -> [XcodeBuildArgument]
 
     /// Given a directory, it returns the first .xcworkspace found.
     /// - Parameter path: Found .xcworkspace.
@@ -25,13 +26,23 @@ public protocol BuildGraphInspecting {
 public class BuildGraphInspector: BuildGraphInspecting {
     public init() {}
 
-    public func buildArguments(target: Target) -> [XcodeBuildArgument] {
-        let arguments: [XcodeBuildArgument]
+    public func buildArguments(target: Target, configuration: String?) -> [XcodeBuildArgument] {
+        var arguments: [XcodeBuildArgument]
         if target.platform == .macOS {
             arguments = [.sdk(target.platform.xcodeDeviceSDK)]
         } else {
             arguments = [.sdk(target.platform.xcodeSimulatorSDK!)]
         }
+
+        // Configuration
+        if let configuration = configuration {
+            if target.settings?.configurations.first(where: { $0.key.name == configuration }) != nil {
+                arguments.append(.configuration(configuration))
+            } else {
+                logger.warning("The scheme's targets don't have the given configuration \(configuration). Defaulting to the scheme's default.")
+            }
+        }
+
         return arguments
     }
 

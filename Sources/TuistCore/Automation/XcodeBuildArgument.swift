@@ -6,6 +6,9 @@ public enum XcodeBuildArgument: Equatable, CustomStringConvertible {
     /// Use SDK as the name or path of the base SDK when building the project
     case sdk(String)
 
+    /// Use the given configuration for building the scheme.
+    case configuration(String)
+
     /// Use the destination described by DESTINATIONSPECIFIER (a comma-separated set of key=value pairs describing the destination to use)
     case destination(String)
 
@@ -20,6 +23,8 @@ public enum XcodeBuildArgument: Equatable, CustomStringConvertible {
         switch self {
         case let .sdk(sdk):
             return ["-sdk", sdk]
+        case let .configuration(configuration):
+            return ["-configuration", configuration]
         case let .destination(destination):
             return ["-destination", "\(destination)"]
         case let .derivedDataPath(path):
@@ -34,6 +39,8 @@ public enum XcodeBuildArgument: Equatable, CustomStringConvertible {
         switch self {
         case let .sdk(sdk):
             return "Xcodebuild's SDK argument: \(sdk)"
+        case let .configuration(configuration):
+            return "Xcodebuild's configuration argument: \(configuration)"
         case let .destination(destination):
             return "Xcodebuild's destination argument: \(destination)"
         case let .derivedDataPath(path):
