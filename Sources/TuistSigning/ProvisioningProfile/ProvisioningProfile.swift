@@ -1,4 +1,5 @@
 import Foundation
+import TuistSupport
 import TSCBasic
 
 /// Model of a provisioning profile
@@ -15,30 +16,6 @@ struct ProvisioningProfile: Equatable {
     let applicationIdPrefix: [String]
     let platforms: [String]
     let expirationDate: Date
-
-    init(path: AbsolutePath? = nil,
-         name: String,
-         targetName: String,
-         configurationName: String,
-         uuid: String,
-         teamId: String,
-         appId: String,
-         appIdName: String,
-         applicationIdPrefix: [String],
-         platforms: [String],
-         expirationDate: Date) {
-        self.path = path
-        self.name = name
-        self.targetName = targetName
-        self.configurationName = configurationName
-        self.uuid = uuid
-        self.teamId = teamId
-        self.appId = appId
-        self.appIdName = appIdName
-        self.applicationIdPrefix = applicationIdPrefix
-        self.platforms = platforms
-        self.expirationDate = expirationDate
-    }
 }
 
 extension ProvisioningProfile: Decodable {
@@ -70,13 +47,7 @@ extension ProvisioningProfile: Decodable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         name = try container.decode(String.self, forKey: .name)
         uuid = try container.decode(String.self, forKey: .uuid)
-        let teamIds = try container.decode([String].self, forKey: .teamIds)
-        guard
-            let teamId = teamIds.first
-        else { throw DecodingError.valueNotFound(String.self, DecodingError.Context(codingPath: container.codingPath,
-                                                                                    debugDescription: "Array of teamID must be non-empty"))
-        }
-        self.teamId = teamId
+        teamId = try container.decode(DecodingFirst<String>.self, forKey: .teamIds).wrappedValue
         appIdName = try container.decode(String.self, forKey: .appIdName)
         applicationIdPrefix = try container.decode([String].self, forKey: .applicationIdPrefix)
         platforms = try container.decode([String].self, forKey: .platforms)

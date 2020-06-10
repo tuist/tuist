@@ -4,6 +4,7 @@ import TuistCore
 protocol SigningLinting {
     func lint(certificate: Certificate, provisioningProfile: ProvisioningProfile) -> [LintingIssue]
     func lint(certificate: Certificate) -> [LintingIssue]
+    func lint(provisioningProfile: ProvisioningProfile, target: Target) -> [LintingIssue]
 }
 
 final class SigningLinter: SigningLinting {
@@ -29,5 +30,28 @@ final class SigningLinter: SigningLinting {
             ))
         }
         return issues
+    }
+    
+    func lint(provisioningProfile: ProvisioningProfile, target: Target) -> [LintingIssue] {
+        let appId = provisioningProfile.teamId + "." + target.bundleId
+        let invalidProvisioningProfileIssue = LintingIssue(
+            reason: """
+                    App id \(provisioningProfile.appId) does not correspond to \(provisioningProfile.teamId).\(target.bundleId). Make sure the provisioning profile has been added to the right target.
+                    """,
+            severity: .error
+        )
+        var issues: [LintingIssue] = []
+        if provisioningProfile.appId.last == "*" {
+            if !appId.hasPrefix(provisioningProfile.appId.dropLast()) {
+                issues.append(invalidProvisioningProfileIssue)
+            }
+        } else {
+            if provisioningProfile.appId != provisioningProfile.teamId + "." + target.bundleId {
+                issues.append(invalidProvisioningProfileIssue)
+            }
+        }
+        
+        return issues
+        
     }
 }

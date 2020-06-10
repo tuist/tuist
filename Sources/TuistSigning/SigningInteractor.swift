@@ -104,6 +104,9 @@ public final class SigningInteractor: SigningInteracting {
             try signingInstaller.installCertificate($0, keychainPath: keychainPath)
         }
         try signingPairs.map(\.provisioningProfile).forEach(signingInstaller.installProvisioningProfile)
+        try signingPairs.map(\.provisioningProfile).flatMap {
+            signingLinter.lint(provisioningProfile: $0, target: target)
+        }.printAndThrowIfNeeded()
 
         try signingPairs.flatMap(signingLinter.lint).printAndThrowIfNeeded()
         try signingPairs.map(\.certificate).flatMap(signingLinter.lint).printAndThrowIfNeeded()

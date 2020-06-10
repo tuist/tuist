@@ -3,24 +3,6 @@ import TSCBasic
 import TuistCore
 import TuistSupport
 
-enum SigningMapperError: FatalError, Equatable {
-    case appIdMismatch(String, String, String)
-
-    var type: ErrorType {
-        switch self {
-        case .appIdMismatch:
-            return .abort
-        }
-    }
-
-    var description: String {
-        switch self {
-        case let .appIdMismatch(appId, developmentTeamId, bundleId):
-            return "App id \(appId) does not correspond to \(developmentTeamId).\(bundleId). Make sure the provisioning profile has been added to the right target."
-        }
-    }
-}
-
 public class SigningMapper: ProjectMapping {
     private let signingFilesLocator: SigningFilesLocating
     private let signingMatcher: SigningMatching
@@ -80,7 +62,7 @@ public class SigningMapper: ProjectMapping {
                      provisioningProfiles: [TargetName: [ConfigurationName: ProvisioningProfile]]) throws -> Target {
         var target = target
         let targetConfigurations = target.settings?.configurations ?? [:]
-        let configurations: [BuildConfiguration: Configuration?] = try targetConfigurations
+        let configurations: [BuildConfiguration: Configuration?] = targetConfigurations
             .merging(project.settings.configurations,
                      uniquingKeysWith: { config, _ in config })
             .reduce(into: [:]) { dict, configurationPair in
@@ -90,15 +72,6 @@ public class SigningMapper: ProjectMapping {
                 else {
                     dict[configurationPair.key] = configurationPair.value
                     return
-                }
-                guard
-                    provisioningProfile.appId == provisioningProfile.teamId + "." + target.bundleId
-                else {
-                    throw SigningMapperError.appIdMismatch(
-                        provisioningProfile.appId,
-                        provisioningProfile.teamId,
-                        target.bundleId
-                    )
                 }
                 let configuration = configurationPair.value ?? Configuration()
                 var settings = configuration.settings

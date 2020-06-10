@@ -33,6 +33,19 @@ protocol CertificateParsing {
     func parse(publicKey: AbsolutePath, privateKey: AbsolutePath) throws -> Certificate
 }
 
+/// Subject attributes that are returnen with `openssl x509 -subject`
+private enum SubjectAttribute: String {
+    case commonName = "CN"
+    case country = "C"
+    case description = "description"
+    case emailAddress = "emailAddress"
+    case locality = "L"
+    case organization = "O"
+    case organizationalUnit = "OU"
+    case state = "ST"
+    case uid = "UID"
+}
+
 final class CertificateParser: CertificateParsing {
     func parse(publicKey: AbsolutePath, privateKey: AbsolutePath) throws -> Certificate {
         let publicKeyComponents = publicKey.basenameWithoutExt.components(separatedBy: ".")
@@ -43,13 +56,19 @@ final class CertificateParser: CertificateParsing {
         let subject = try self.subject(at: publicKey)
         let isRevoked = subject.contains("REVOKED")
 
-        let nameRegex = try NSRegularExpression(pattern: "CN=([^/]+)/", options: [])
+        let nameRegex = try NSRegularExpression(
+            pattern: SubjectAttribute.commonName.rawValue + "=([^/]+)/",
+            options: []
+        )
         guard
             let result = nameRegex.firstMatch(in: subject, options: [], range: NSRange(location: 0, length: subject.count))
         else { throw CertificateParserError.nameParsingFailed(publicKey, subject) }
         let name = NSString(string: subject).substring(with: result.range(at: 1)).spm_chomp()
 
-        let developmentTeamRegex = try NSRegularExpression(pattern: "OU=([^/]+)/", options: [])
+        let developmentTeamRegex = try NSRegularExpression(
+            pattern: SubjectAttribute.organizationalUnit.rawValue + "=([^/]+)/",
+            options: []
+        )
         guard
             let developmentTeamResult = developmentTeamRegex.firstMatch(in: subject, options: [], range: NSRange(location: 0, length: subject.count))
         else { throw CertificateParserError.developmentTeamParsingFailed(publicKey, subject) }
