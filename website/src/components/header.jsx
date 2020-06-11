@@ -9,56 +9,6 @@ import { faSlack } from '@fortawesome/free-brands-svg-icons'
 import { faDiscourse } from '@fortawesome/free-brands-svg-icons'
 import logo from '../../static/logo.svg'
 
-const ColorButton = ({ mode, ...props }) => (
-  <button
-    {...props}
-    title="Cycle Color Mode"
-    sx={{
-      display: 'inline-block',
-      appearance: 'none',
-      bg: 'transparent',
-      color: 'inherit',
-      p: 1,
-      ml: 4,
-      border: 0,
-      borderRadius: 9999,
-      ':hover,:focus': {
-        color: 'primary',
-        boxShadow: '0 0 0 3px',
-        outline: 'none',
-      },
-    }}
-  >
-    <svg
-      viewBox="0 0 32 32"
-      width="20"
-      height="20"
-      fill="currentcolor"
-      sx={{
-        display: 'block',
-      }}
-    >
-      <circle
-        cx="16"
-        cy="16"
-        r="14"
-        fill="none"
-        stroke="currentcolor"
-        strokeWidth="4"
-      />
-      <path
-        d={`
-          M 16 0
-          A 16 16 0 0 0 16 32
-          z
-        `}
-      />
-    </svg>
-  </button>
-)
-
-const modes = ['light', 'black', 'dark', 'deep', 'hack', 'pink']
-
 export default ({ menuOpen, setMenuOpen, menuRef }) => {
   const hoverStyle = {
     color: 'primary',
@@ -95,12 +45,6 @@ export default ({ menuOpen, setMenuOpen, menuRef }) => {
     }
   `)
   const { theme } = useThemeUI()
-  const [mode, setMode] = useColorMode()
-  const cycleMode = (e) => {
-    const i = modes.indexOf(mode)
-    const n = (i + 1) % modes.length
-    setMode(modes[n])
-  }
   return (
     <header>
       <nav
@@ -156,6 +100,7 @@ export default ({ menuOpen, setMenuOpen, menuRef }) => {
             const isDocs = location.pathname.startsWith('/docs')
             const isResources = location.pathname.startsWith('/resources')
             const isBlog = location.pathname.startsWith('/blog')
+            const isAppsAtScale = location.pathname.startsWith('/apps-at-scale')
             const isFaq = location.pathname.startsWith('/faq')
             return (
               <div
@@ -202,6 +147,18 @@ export default ({ menuOpen, setMenuOpen, menuRef }) => {
                     alt="Blog"
                   >
                     BLOG
+                  </Link>
+                  <Link
+                    sx={{
+                      ...linkStyle,
+                      ...(isBlog ? hoverStyle : {}),
+                      ml: 4,
+                      variant: 'text.header',
+                    }}
+                    to="/apps-at-scale"
+                    alt="Interviews to developers doing app development at scale"
+                  >
+                    APPS AT SCALE
                   </Link>
                   <Link
                     sx={{
@@ -284,7 +241,6 @@ export default ({ menuOpen, setMenuOpen, menuRef }) => {
                       size="lg"
                     />
                   </a>
-                  <ColorButton mode={mode} onClick={cycleMode} />
                 </div>
               </div>
             )

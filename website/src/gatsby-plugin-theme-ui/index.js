@@ -53,53 +53,6 @@ const colors = {
   accent: '#b624ff',
   muted: '#f9f9fc',
   gray: '#555',
-  modes: {
-    black: {
-      text: '#ffffff',
-      background: '#000',
-      primary: '#00ffff',
-      secondary: '#00ffcc',
-      accent: '#ff00ff',
-      muted: '#111111',
-      gray: '#888888',
-    },
-    dark: {
-      text: '#ffffff',
-      background: '#242828',
-      primary: '#24ffff',
-      secondary: '#ffda24',
-      accent: '#ff24da',
-      muted: '#0c0d0d',
-      gray: '#b3b3b3',
-    },
-    deep: {
-      text: '#ffffff',
-      background: '#222639',
-      primary: '#bb99ff',
-      secondary: '#ee99ff',
-      accent: '#ee99ff',
-      muted: '#000000',
-      gray: '#6699cc',
-    },
-    hack: {
-      text: '#80ff80',
-      background: '#141f14',
-      primary: '#00cc00',
-      secondary: '#339933',
-      accent: '#ccffcc',
-      muted: '#0e150e',
-      gray: '#527a52',
-    },
-    pink: {
-      text: '#2e050c',
-      background: '#ffccd5',
-      primary: '#ff002b',
-      secondary: '#aa00ff',
-      accent: '#440066',
-      muted: '#ffc2cc',
-      gray: '#b34d5e',
-    },
-  },
 }
 
 // Styles
