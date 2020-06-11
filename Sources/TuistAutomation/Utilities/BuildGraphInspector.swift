@@ -1,6 +1,7 @@
 import Foundation
 import TSCBasic
 import TuistCore
+import TuistSupport
 
 public protocol BuildGraphInspecting {
     /// Returns the build arguments to be used with the given target.
@@ -10,7 +11,7 @@ public protocol BuildGraphInspecting {
 
     /// Given a directory, it returns the first .xcworkspace found.
     /// - Parameter path: Found .xcworkspace.
-    func workspacePath(directory: AbsolutePath) -> AbsolutePath?
+    func workspacePath(directory: AbsolutePath) throws -> AbsolutePath?
 
     ///  From the list of buildable targets of the given scheme, it returns the first one.
     /// - Parameters:
@@ -62,7 +63,13 @@ public class BuildGraphInspector: BuildGraphInspecting {
             .sorted(by: { $0.name < $1.name })
     }
 
-    public func workspacePath(directory: AbsolutePath) -> AbsolutePath? {
-        directory.glob("**/*.xcworkspace").first
+    public func workspacePath(directory: AbsolutePath) throws -> AbsolutePath? {
+        try directory.glob("**/*.xcworkspace")
+            .filter {
+                try FileHandler.shared.contentsOfDirectory($0)
+                    .map(\.basename)
+                    .contains(Constants.tuistGeneratedFileName)
+            }
+            .first
     }
 }
