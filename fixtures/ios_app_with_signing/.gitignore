@@ -67,4 +67,5 @@ graph.dot
 
 Derived/
 Tuist/Signing/*
+!Tuist/Signing/*.mobileprovision
 !Tuist/Signing/*.encrypted
