@@ -40,6 +40,16 @@ Feature: Generate a new project using Tuist (suite 1)
     Then I copy the fixture invalid_workspace_manifest_name into the working directory
     Then tuist generate yields error "Manifest not found at path ${ARG_PATH}"
 
+  Scenario: The project is an iOS application with signing (ios_app_with_signing)
+    Given that tuist is available
+    And I have a working directory
+    Then I copy the fixture ios_app_with_signing into the working directory
+    Then tuist generates the project
+    Then the scheme SignApp has a build setting CODE_SIGN_IDENTITY with value Apple Development: Marek Fort (54GSF6G47V) for the configuration Debug
+    Then the scheme SignApp has a build setting PROVISIONING_PROFILE_SPECIFIER with value d34fb066-f494-4d85-a556-d469c2196f46 for the configuration Debug
+    Then the scheme SignApp has a build setting CODE_SIGN_IDENTITY with value Apple Development: Marek Fort (54GSF6G47V) for the configuration Release
+    Then the scheme SignApp has a build setting PROVISIONING_PROFILE_SPECIFIER with value 76a7d75c-01d4-4c7f-9140-1d829227883a for the configuration Release
+
   Scenario: The project is an iOS application with frameworks and tests (ios_app_with_static_libraries)
     Given that tuist is available
     And I have a working directory
