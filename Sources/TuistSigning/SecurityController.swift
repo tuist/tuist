@@ -27,17 +27,7 @@ final class SecurityController: SecurityControlling {
     }
 
     func createKeychain(at path: AbsolutePath, password: String) throws {
-        do {
-            try System.shared.run("/usr/bin/security", "create-keychain", "-p", password, path.pathString)
-        } catch {
-            if let systemError = error as? TuistSupport.SystemError,
-                systemError.description.contains("A keychain with the same name already exists.") {
-                logger.debug("Keychain at \(path.pathString) already exists")
-                return
-            } else {
-                throw error
-            }
-        }
+        try System.shared.run("/usr/bin/security", "create-keychain", "-p", password, path.pathString)
         logger.debug("Created keychain at \(path.pathString)")
     }
 

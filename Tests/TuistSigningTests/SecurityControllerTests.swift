@@ -91,22 +91,6 @@ final class SecurityControllerTests: TuistUnitTestCase {
         XCTAssertPrinterContains("Created keychain at \(keychainPath.pathString)", at: .debug, ==)
     }
 
-    func test_keychain_already_exists() throws {
-        // Given
-        let keychainPath = try temporaryPath()
-        let password = ""
-        system.errorCommand(
-            ["/usr/bin/security", "create-keychain", "-p", password, keychainPath.pathString],
-            error: "A keychain with the same name already exists."
-        )
-
-        // When
-        try subject.createKeychain(at: keychainPath, password: password)
-
-        // Then
-        XCTAssertPrinterContains("Keychain at \(keychainPath.pathString) already exists", at: .debug, ==)
-    }
-
     func test_keychain_is_unlocked() throws {
         // Given
         let keychainPath = try temporaryPath()

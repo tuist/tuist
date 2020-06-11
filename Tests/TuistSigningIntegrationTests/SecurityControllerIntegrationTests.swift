@@ -85,22 +85,6 @@ final class SecurityControllerIntegrationTests: TuistTestCase {
         )
     }
 
-    func test_create_keychain_when_already_created() throws {
-        // Given
-        let keychainPath = try temporaryPath().appending(component: Constants.signingKeychain)
-
-        // When
-        try subject.createKeychain(at: keychainPath, password: "")
-        try subject.createKeychain(at: keychainPath, password: "")
-
-        // Then
-        XCTAssertPrinterContains(
-            "Keychain at \(keychainPath.pathString) already exists",
-            at: .debug,
-            ==
-        )
-    }
-
     func test_decode_file() throws {
         // Given
         let currentDirectory = AbsolutePath(#file.replacingOccurrences(of: "file://", with: "")).removingLastComponent()

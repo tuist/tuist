@@ -55,7 +55,9 @@ public final class SigningInteractor: SigningInteracting {
 
         let masterKey = try signingCipher.readMasterKey(at: signingDirectory)
         try FileHandler.shared.createFolder(derivedDirectory)
-        try securityController.createKeychain(at: keychainPath, password: masterKey)
+        if !FileHandler.shared.exists(keychainPath) {
+            try securityController.createKeychain(at: keychainPath, password: masterKey)
+        }
         try securityController.unlockKeychain(at: keychainPath, password: masterKey)
         defer { try? securityController.lockKeychain(at: keychainPath, password: masterKey) }
 
