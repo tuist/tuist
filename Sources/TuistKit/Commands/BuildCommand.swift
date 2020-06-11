@@ -10,8 +10,9 @@ struct BuildCommand: ParsableCommand {
                              abstract: "Builds a project")
     }
 
-    @Argument(default: nil,
-              help: "The scheme to be built. By default it builds all the buildable schemes of the project in the current directory.")
+    @Argument(
+        help: "The scheme to be built. By default it builds all the buildable schemes of the project in the current directory."
+    )
     var scheme: String?
 
     @Flag(
@@ -19,11 +20,20 @@ struct BuildCommand: ParsableCommand {
     )
     var generate: Bool
 
+    @Flag(
+        help: "When passed, it cleans the project before building it"
+    )
+    var clean: Bool
+
     @Option(
         name: .shortAndLong,
         help: "The path to the directory that contains the project to be built."
     )
     var path: String?
+
+    @Option(name: [.long, .customShort("C")],
+            help: "The configuration to be used when building the scheme.")
+    var configuration: String?
 
     func run() throws {
         let absolutePath: AbsolutePath
@@ -32,6 +42,10 @@ struct BuildCommand: ParsableCommand {
         } else {
             absolutePath = FileHandler.shared.currentPath
         }
-        try BuildService().run(schemeName: scheme, generate: generate, path: absolutePath)
+        try BuildService().run(schemeName: scheme,
+                               generate: generate,
+                               clean: clean,
+                               configuration: configuration,
+                               path: absolutePath)
     }
 }

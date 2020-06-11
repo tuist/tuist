@@ -6,3 +6,4 @@ Feature: Build projects using Tuist build
     When I initialize a ios application named MyApp
     Then tuist builds the project
     Then tuist builds the scheme MyApp from the project
+    Then tuist builds the scheme MyApp and configuration Debug from the project

@@ -103,10 +103,10 @@ extension ScaffoldCommand {
                                                                              path: command.path)
 
         ScaffoldCommand.requiredTemplateOptions = required.map {
-            (name: $0, option: Option<String>(name: .shortAndLong))
+            (name: $0, option: Option<String>())
         }
         ScaffoldCommand.optionalTemplateOptions = optional.map {
-            (name: $0, option: Option<String?>(name: .shortAndLong))
+            (name: $0, option: Option<String?>())
         }
     }
 }
@@ -133,10 +133,26 @@ extension ScaffoldCommand {
             }
         }
 
+        init?(stringValue: String) {
+            switch stringValue {
+            case "template":
+                self = .template
+            case "path":
+                self = .path
+            default:
+                if ScaffoldCommand.requiredTemplateOptions.map(\.name).contains(stringValue) {
+                    self = .required(stringValue)
+                } else if ScaffoldCommand.optionalTemplateOptions.map(\.name).contains(stringValue) {
+                    self = .optional(stringValue)
+                } else {
+                    return nil
+                }
+            }
+        }
+
         // Not used
         var intValue: Int? { nil }
         init?(intValue _: Int) { nil }
-        init?(stringValue _: String) { nil }
     }
 }
 
@@ -151,7 +167,13 @@ extension ScaffoldCommand: CustomReflectable {
         let children = [
             Mirror.Child(label: "template", value: _template),
             Mirror.Child(label: "path", value: _path),
-        ]
+        ].filter {
+            // Prefer attributes defined in a template if it clashes with predefined ones
+            $0.label.map { label in
+                !(ScaffoldCommand.requiredTemplateOptions.map(\.name) + ScaffoldCommand.optionalTemplateOptions.map(\.name))
+                    .contains(label)
+            } ?? true
+        }
         return Mirror(ScaffoldCommand(), children: children + requiredTemplateChildren + optionalTemplateChildren)
     }
 }

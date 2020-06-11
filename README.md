@@ -25,6 +25,7 @@ bash <(curl -Ls https://install.tuist.io)
 ```bash
 tuist init --platform ios
 tuist generate # Generates Xcode project & workspace
+tuist build # Builds your project
 ```
 
 [Check out](https://tuist.io/docs) the project "Getting Started" guide to learn more about Tuist and all its features.

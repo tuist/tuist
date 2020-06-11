@@ -25,7 +25,8 @@ public struct TuistCommand: ParsableCommand {
             if processedArguments.dropFirst().first == "--help-env" {
                 throw CleanExit.helpRequest(self)
             } else if let parsedArguments = try parse() {
-                try parseAsRoot(parsedArguments).run()
+                var command = try parseAsRoot(parsedArguments)
+                try command.run()
             } else {
                 try CommandRunner().run()
             }

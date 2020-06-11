@@ -1,9 +1,9 @@
 import Foundation
 import TSCBasic
 import TuistCore
+import TuistCoreTesting
 
 @testable import TuistAutomation
-@testable import TuistCoreTesting
 
 public final class MockBuildGraphInspector: BuildGraphInspecting {
     public init() {}
@@ -30,10 +30,10 @@ public final class MockBuildGraphInspector: BuildGraphInspecting {
         }
     }
 
-    public var buildArgumentsStub: ((Target) -> [XcodeBuildArgument])?
-    public func buildArguments(target: Target) -> [XcodeBuildArgument] {
+    public var buildArgumentsStub: ((Target, String?) -> [XcodeBuildArgument])?
+    public func buildArguments(target: Target, configuration: String?) -> [XcodeBuildArgument] {
         if let buildArgumentsStub = buildArgumentsStub {
-            return buildArgumentsStub(target)
+            return buildArgumentsStub(target, configuration)
         } else {
             return []
         }

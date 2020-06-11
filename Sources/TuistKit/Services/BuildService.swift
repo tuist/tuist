@@ -48,7 +48,7 @@ final class BuildService {
         self.buildGraphInspector = buildGraphInspector
     }
 
-    func run(schemeName: String?, generate: Bool, path: AbsolutePath) throws {
+    func run(schemeName: String?, generate: Bool, clean: Bool, configuration: String?, path: AbsolutePath) throws {
         let graph: Graph
         if generate || buildGraphInspector.workspacePath(directory: path) == nil {
             graph = try projectGenerator.generateWithGraph(path: path, projectOnly: false).1
@@ -63,11 +63,11 @@ final class BuildService {
             guard let scheme = buildableSchemes.first(where: { $0.name == schemeName }) else {
                 throw BuildServiceError.schemeNotFound(scheme: schemeName, existing: buildableSchemes.map(\.name))
             }
-            try buildScheme(scheme: scheme, graph: graph, path: path, clean: true)
+            try buildScheme(scheme: scheme, graph: graph, path: path, clean: true, configuration: configuration)
         } else {
             var cleaned: Bool = false
             try buildableSchemes.forEach {
-                try buildScheme(scheme: $0, graph: graph, path: path, clean: !cleaned)
+                try buildScheme(scheme: $0, graph: graph, path: path, clean: !cleaned && clean, configuration: configuration)
                 cleaned = true
             }
         }
@@ -77,7 +77,7 @@ final class BuildService {
 
     // MARK: - private
 
-    private func buildScheme(scheme: Scheme, graph: Graph, path: AbsolutePath, clean: Bool) throws {
+    private func buildScheme(scheme: Scheme, graph: Graph, path: AbsolutePath, clean: Bool, configuration: String?) throws {
         logger.log(level: .notice, "Building scheme \(scheme.name)", metadata: .section)
         guard let buildableTarget = buildGraphInspector.buildableTarget(scheme: scheme, graph: graph) else {
             throw BuildServiceError.schemeWithoutBuildableTargets(scheme: scheme.name)
@@ -86,7 +86,7 @@ final class BuildService {
         _ = try xcodebuildController.build(.workspace(workspacePath),
                                            scheme: scheme.name,
                                            clean: clean,
-                                           arguments: buildGraphInspector.buildArguments(target: buildableTarget))
+                                           arguments: buildGraphInspector.buildArguments(target: buildableTarget, configuration: configuration))
             .printFormattedOutput()
             .toBlocking()
             .last()

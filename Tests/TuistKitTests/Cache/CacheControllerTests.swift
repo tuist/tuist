@@ -18,6 +18,7 @@ final class CacheControllerTests: TuistUnitTestCase {
     var manifestLoader: MockManifestLoader!
     var cache: MockCacheStorage!
     var subject: CacheController!
+    var config: Config!
 
     override func setUp() {
         generator = MockProjectGenerator()
@@ -25,6 +26,7 @@ final class CacheControllerTests: TuistUnitTestCase {
         cache = MockCacheStorage()
         manifestLoader = MockManifestLoader()
         graphContentHasher = MockGraphContentHasher()
+        config = .test()
         subject = CacheController(generator: generator,
                                   xcframeworkBuilder: xcframeworkBuilder,
                                   cache: cache,
@@ -41,6 +43,7 @@ final class CacheControllerTests: TuistUnitTestCase {
         manifestLoader = nil
         cache = nil
         subject = nil
+        config = nil
     }
 
     func test_cache_builds_and_caches_the_frameworks() throws {
@@ -80,7 +83,7 @@ final class CacheControllerTests: TuistUnitTestCase {
             }
         }
 
-        try subject.cache(path: path)
+        try subject.cache(path: path, config: config)
 
         // Then
         XCTAssertPrinterOutputContains("""

@@ -70,7 +70,7 @@ final class BuildServiceTests: TuistUnitTestCase {
             XCTAssertEqual(_path, path)
             return workspacePath
         }
-        buildgraphInspector.buildArgumentsStub = { _target in
+        buildgraphInspector.buildArgumentsStub = { _target, _ in
             XCTAssertEqual(_target, target)
             return buildArguments
         }
@@ -83,7 +83,7 @@ final class BuildServiceTests: TuistUnitTestCase {
         }
 
         // Then
-        try subject.run(schemeName: scheme.name, generate: true, path: path)
+        try subject.run(schemeName: scheme.name, generate: true, clean: true, configuration: nil, path: path)
     }
 
     func test_run_when_the_project_is_already_generated() throws {
@@ -110,7 +110,7 @@ final class BuildServiceTests: TuistUnitTestCase {
             XCTAssertEqual(_path, path)
             return workspacePath
         }
-        buildgraphInspector.buildArgumentsStub = { _target in
+        buildgraphInspector.buildArgumentsStub = { _target, _ in
             XCTAssertEqual(_target, target)
             return buildArguments
         }
@@ -123,7 +123,7 @@ final class BuildServiceTests: TuistUnitTestCase {
         }
 
         // Then
-        try subject.run(schemeName: scheme.name, generate: false, path: path)
+        try subject.run(schemeName: scheme.name, generate: false, clean: true, configuration: nil, path: path)
     }
 
     func test_run_only_cleans_the_first_time() throws {
@@ -153,7 +153,7 @@ final class BuildServiceTests: TuistUnitTestCase {
             XCTAssertEqual(_path, path)
             return workspacePath
         }
-        buildgraphInspector.buildArgumentsStub = { _ in
+        buildgraphInspector.buildArgumentsStub = { _, _ in
             buildArguments
         }
         xcodebuildController.buildStub = { _target, _scheme, _clean, _arguments in
@@ -174,7 +174,7 @@ final class BuildServiceTests: TuistUnitTestCase {
         }
 
         // Then
-        try subject.run(schemeName: nil, generate: false, path: path)
+        try subject.run(schemeName: nil, generate: false, clean: true, configuration: nil, path: path)
     }
 
     func test_run_only_runs_the_given_scheme_when_passed() throws {
@@ -204,7 +204,7 @@ final class BuildServiceTests: TuistUnitTestCase {
             XCTAssertEqual(_path, path)
             return workspacePath
         }
-        buildgraphInspector.buildArgumentsStub = { _ in
+        buildgraphInspector.buildArgumentsStub = { _, _ in
             buildArguments
         }
         xcodebuildController.buildStub = { _target, _scheme, _clean, _arguments in
@@ -221,6 +221,6 @@ final class BuildServiceTests: TuistUnitTestCase {
         }
 
         // Then
-        try subject.run(schemeName: "A", generate: false, path: path)
+        try subject.run(schemeName: "A", generate: false, clean: true, configuration: nil, path: path)
     }
 }

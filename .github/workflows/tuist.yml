@@ -36,13 +36,6 @@ jobs:
           rm -rf .coverage
           mkdir -p .coverage
           swift test --enable-code-coverage
-      - name: Convert code coverage to lcov format
-        run: xcrun llvm-cov export -format="lcov" .build/debug/tuist -instr-profile .build/debug/codecov/default.profdata > ./.coverage/coverage.lcov
-      - name: Send test coverage report
-        run: |
-          bash <(curl -s https://codecov.io/bash) -D .coverage
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
   release_build:
     name: Release build
     runs-on: macOS-latest
