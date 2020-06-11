@@ -1,6 +1,6 @@
 import Foundation
-import TuistSupport
 import TSCBasic
+import TuistSupport
 
 /// Model of a provisioning profile
 struct ProvisioningProfile: Equatable {

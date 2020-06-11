@@ -20,7 +20,7 @@ final class CertificateParserTests: TuistUnitTestCase {
 
     func test_name_parsing_fails_when_not_present() throws {
         // Given
-        let publicKey = try temporaryPath()
+        let publicKey = try temporaryPath().appending(component: "Target.Debug.p12")
         let privateKey = try temporaryPath()
         let subjectOutput = "subject= /UID=VD55TKL3V6/OU=QH95ER52SG/O=Name/C=US\n"
         system.succeedCommand(
@@ -37,7 +37,7 @@ final class CertificateParserTests: TuistUnitTestCase {
 
     func test_development_team_fails_when_not_present() throws {
         // Given
-        let publicKey = try temporaryPath()
+        let publicKey = try temporaryPath().appending(component: "Target.Debug.p12")
         let privateKey = try temporaryPath()
         let subjectOutput = "subject= /UID=VD55TKL3V6/CN=Apple Development: Name (54GSF6G47V)/O=Name/C=US\n"
         system.succeedCommand(
@@ -54,7 +54,7 @@ final class CertificateParserTests: TuistUnitTestCase {
 
     func test_throws_invalid_name_when_wrong_format() throws {
         // Given
-        let publicKey = try temporaryPath().appending(component: "Debug.p12")
+        let publicKey = try temporaryPath()
         let privateKey = try temporaryPath()
 
         // When

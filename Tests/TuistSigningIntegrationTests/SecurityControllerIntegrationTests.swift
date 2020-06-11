@@ -25,8 +25,8 @@ final class SecurityControllerIntegrationTests: TuistTestCase {
         let keychainPath = try temporaryPath().appending(component: Constants.signingKeychain)
 
         let currentDirectory = AbsolutePath(#file.replacingOccurrences(of: "file://", with: "")).removingLastComponent()
-        let publicKey = currentDirectory.appending(component: "debug.cer")
-        let privateKey = currentDirectory.appending(component: "debug.p12")
+        let publicKey = currentDirectory.appending(component: "Target.Debug.cer")
+        let privateKey = currentDirectory.appending(component: "Target.Debug.p12")
 
         try subject.createKeychain(at: keychainPath, password: "")
         try subject.unlockKeychain(at: keychainPath, password: "")
@@ -57,8 +57,8 @@ final class SecurityControllerIntegrationTests: TuistTestCase {
         let keychainPath = try temporaryPath().appending(component: Constants.signingKeychain)
 
         let currentDirectory = AbsolutePath(#file.replacingOccurrences(of: "file://", with: "")).removingLastComponent()
-        let publicKey = currentDirectory.appending(component: "debug.cer")
-        let privateKey = currentDirectory.appending(component: "debug.p12")
+        let publicKey = currentDirectory.appending(component: "Target.Debug.cer")
+        let privateKey = currentDirectory.appending(component: "Target.Debug.p12")
 
         try subject.createKeychain(at: keychainPath, password: "")
         try subject.unlockKeychain(at: keychainPath, password: "")

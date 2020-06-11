@@ -7,14 +7,14 @@ public struct DecodingFirst<Value>: Codable where Value: Codable {
     public init(wrappedValue: Value) {
         self.wrappedValue = wrappedValue
     }
-    
+
     public init(from decoder: Decoder) throws {
         guard let value = try [Value](from: decoder).first else {
             throw "Expected an array with at least one value"
         }
-        self.wrappedValue = value
+        wrappedValue = value
     }
-    
+
     public func encode(to encoder: Encoder) throws {
         try [wrappedValue].encode(to: encoder)
     }

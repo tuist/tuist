@@ -37,8 +37,8 @@ protocol CertificateParsing {
 private enum SubjectAttribute: String {
     case commonName = "CN"
     case country = "C"
-    case description = "description"
-    case emailAddress = "emailAddress"
+    case description
+    case emailAddress
     case locality = "L"
     case organization = "O"
     case organizationalUnit = "OU"

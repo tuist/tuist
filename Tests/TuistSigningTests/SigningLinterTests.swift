@@ -7,19 +7,19 @@ import XCTest
 
 final class SigningLinterTests: TuistUnitTestCase {
     var subject: SigningLinter!
-    
+
     override func setUp() {
         super.setUp()
-        
+
         subject = SigningLinter()
     }
-    
+
     override func tearDown() {
         super.tearDown()
-        
+
         subject = nil
     }
-    
+
     func test_lint_when_development_team_and_team_id_mismatch() {
         // Given
         let certificate = Certificate.test(developmentTeam: "TeamA")
@@ -33,14 +33,14 @@ final class SigningLinterTests: TuistUnitTestCase {
                 severity: .error
             ),
         ]
-        
+
         // When
         let got = subject.lint(certificate: certificate, provisioningProfile: provisioningProfile)
-        
+
         // Then
         XCTAssertEqual(got, expectedIssues)
     }
-    
+
     func test_lint_when_certificate_is_revoked() {
         // Given
         let certificate = Certificate.test(isRevoked: true)
@@ -50,14 +50,14 @@ final class SigningLinterTests: TuistUnitTestCase {
                 severity: .warning
             ),
         ]
-        
+
         // When
         let got = subject.lint(certificate: certificate)
-        
+
         // Then
         XCTAssertEqual(got, expectedIssues)
     }
-    
+
     func test_lint_when_provisioning_profile_and_app_id_match() {
         // Given
         let provisioningProfile = ProvisioningProfile.test(
@@ -65,14 +65,14 @@ final class SigningLinterTests: TuistUnitTestCase {
             appId: "team.io.tuist"
         )
         let target = Target.test(bundleId: "io.tuist")
-        
+
         // When
         let got = subject.lint(provisioningProfile: provisioningProfile, target: target)
-        
+
         // Then
         XCTAssertEmpty(got)
     }
-    
+
     func test_lint_when_provisioning_profile_and_app_id_mismatch() {
         // Given
         let provisioningProfile = ProvisioningProfile.test(
@@ -80,10 +80,10 @@ final class SigningLinterTests: TuistUnitTestCase {
             appId: "team.io.not-tuist"
         )
         let target = Target.test(bundleId: "io.tuist")
-        
+
         // When
         let got = subject.lint(provisioningProfile: provisioningProfile, target: target)
-        
+
         // Then
         XCTAssertEqual(
             got,
@@ -92,10 +92,10 @@ final class SigningLinterTests: TuistUnitTestCase {
                 App id \(provisioningProfile.appId) does not correspond to \(provisioningProfile.teamId).\(target.bundleId). Make sure the provisioning profile has been added to the right target.
                 """,
                 severity: .error
-                )]
+            )]
         )
     }
-    
+
     func test_lint_when_provisioning_profile_has_wildcard() {
         // Given
         let provisioningProfile = ProvisioningProfile.test(
@@ -103,14 +103,14 @@ final class SigningLinterTests: TuistUnitTestCase {
             appId: "team.io.*"
         )
         let target = Target.test(bundleId: "io.tuist")
-        
+
         // When
         let got = subject.lint(provisioningProfile: provisioningProfile, target: target)
-        
+
         // Then
         XCTAssertEmpty(got)
     }
-    
+
     func test_lint_when_provisioning_profile_has_wildcard_mismatch() {
         // Given
         let provisioningProfile = ProvisioningProfile.test(
@@ -118,10 +118,10 @@ final class SigningLinterTests: TuistUnitTestCase {
             appId: "team.not-io.*"
         )
         let target = Target.test(bundleId: "io.tuist")
-        
+
         // When
         let got = subject.lint(provisioningProfile: provisioningProfile, target: target)
-        
+
         // Then
         XCTAssertEqual(
             got,
@@ -130,7 +130,7 @@ final class SigningLinterTests: TuistUnitTestCase {
                 App id \(provisioningProfile.appId) does not correspond to \(provisioningProfile.teamId).\(target.bundleId). Make sure the provisioning profile has been added to the right target.
                 """,
                 severity: .error
-                )]
+            )]
         )
     }
 }
