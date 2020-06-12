@@ -50,14 +50,14 @@ public struct HTTPResource<T, E: Error>: Equatable, Hashable, CustomStringConver
 
 extension HTTPResource where T: Decodable, E: Decodable {
     public static func jsonResource(request: @escaping () -> URLRequest) -> HTTPResource<T, E> {
-        return jsonResource(request: request, parseError: decode)
+        jsonResource(request: request, parseError: decode)
     }
-  
+
     public static func jsonResource(request: @escaping () -> URLRequest, parseError: @escaping (Data, HTTPURLResponse) throws -> E) -> HTTPResource<T, E> {
-        return HTTPResource(request: request, parse: decode, parseError: parseError)
+        HTTPResource(request: request, parse: decode, parseError: parseError)
     }
-    
-    private static func decode<T: Decodable>(from data: Data, _ urlResponse: HTTPURLResponse) throws -> T {
+
+    private static func decode<T: Decodable>(from data: Data, _: HTTPURLResponse) throws -> T {
         let jsonDecoder = JSONDecoder()
         jsonDecoder.keyDecodingStrategy = .convertFromSnakeCase
         return try jsonDecoder.decode(T.self, from: data)

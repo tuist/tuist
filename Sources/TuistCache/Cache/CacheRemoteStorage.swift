@@ -23,16 +23,16 @@ final class CacheRemoteStorage: CacheStoring {
             let successRange = 200 ..< 300
             let resource = try CloudHEADResponse.existsResource(hash: hash, config: config)
             return cloudClient.request(resource)
-                .flatMap({ (object, response) in
-                    return .just(successRange.contains(response.statusCode))
-                })
-                .catchError({ error in
+                .flatMap { _, response in
+                    .just(successRange.contains(response.statusCode))
+                }
+                .catchError { error in
                     if case let HTTPRequestDispatcherError.serverSideError(_, response) = error, response.statusCode == 404 {
                         return .just(false)
                     } else {
-                      throw error
+                        throw error
                     }
-                })
+                }
         } catch {
             return Single.error(error)
         }
@@ -49,13 +49,15 @@ final class CacheRemoteStorage: CacheStoring {
         }
     }
 
-    func store(hash: String, config: Config, xcframeworkPath _: AbsolutePath) -> Completable {
+    func store(hash: String, config: Config, xcframeworkPath: AbsolutePath) -> Completable {
         do {
             let resource = try CloudCacheResponse.storeResource(hash: hash, config: config)
             return cloudClient.request(resource).map { responseTuple in
                 let cacheResponse = responseTuple.object.data
-                let artefactToDownloadURL = cacheResponse.url
-                print(artefactToDownloadURL)
+                let artefactToUploadURL = cacheResponse.url
+                print(artefactToUploadURL)
+                print("---")
+                print(xcframeworkPath.pathString)
                 // TODO: Download file at given url
             }.asCompletable()
         } catch {

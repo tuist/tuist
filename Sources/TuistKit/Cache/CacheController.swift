@@ -4,11 +4,11 @@ import RxSwift
 import TSCBasic
 import TuistAutomation
 import TuistCache
+import TuistCloud
 import TuistCore
 import TuistGenerator
 import TuistLoader
 import TuistSupport
-import TuistCloud
 
 protocol CacheControlling {
     /// Caches the cacheable targets that are part of the workspace or project at the given path.

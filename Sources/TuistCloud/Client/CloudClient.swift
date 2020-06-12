@@ -4,7 +4,6 @@ import TuistCore
 import TuistSupport
 
 public class CloudClient: CloudClienting {
-    
     // MARK: - Attributes
 
     let cloudHTTPRequestAuthenticator: CloudHTTPRequestAuthenticating
@@ -19,7 +18,7 @@ public class CloudClient: CloudClienting {
     }
 
     // MARK: - Public
-    
+
     public func request<T, E>(_ resource: HTTPResource<T, E>) -> Single<(object: T, response: HTTPURLResponse)> {
         Single<HTTPResource<T, E>>.create { (observer) -> Disposable in
             do {

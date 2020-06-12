@@ -53,4 +53,13 @@ final class AbsolutePathExtrasTests: XCTestCase {
         // Then
         XCTAssertEqual(resultA, resultB)
     }
+
+    func test_md5() throws {
+        let testZippedFrameworkPath = fixturePath(path: RelativePath("uUI.xcframework.zip"))
+
+        let result = try testZippedFrameworkPath.md5()
+
+        // Then
+        XCTAssertEqual(result, "5f4bec192d0f1884fdcf4975b37067dc")
+    }
 }

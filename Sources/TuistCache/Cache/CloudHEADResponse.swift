@@ -8,6 +8,6 @@ struct CloudHEADResponse: Decodable {
         let url = try URL.apiCacheURL(hash: hash, cloudURL: configCloud.url, projectId: configCloud.projectId)
         var request = URLRequest(url: url)
         request.httpMethod = "HEAD"
-        return .jsonResource(request: { request }, parseError: { (_, _) in CloudHEADResponseError() })
+        return .jsonResource(request: { request }, parseError: { _, _ in CloudHEADResponseError() })
     }
 }

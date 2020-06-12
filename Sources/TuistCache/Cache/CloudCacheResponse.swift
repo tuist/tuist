@@ -20,10 +20,10 @@ struct CloudCacheResponse: Decodable {
         return .jsonResource { request }
     }
 
-    public static func storeResource(hash: String, config: Config) throws -> CloudCacheResource {
+    public static func storeResource(hash: String, config: Config, content_md5: String) throws -> CloudCacheResource {
         guard let configCloud = config.cloud else { throw CacheAPIError.missingCloudConfig }
         let url = try URL.apiCacheURL(hash: hash, cloudURL: configCloud.url, projectId: configCloud.projectId)
-        var request = URLRequest(url: url.addingQueryItem(name: "content_md5", value: "TODO"))
+        var request = URLRequest(url: url.addingQueryItem(name: "content_md5", value: content_md5))
         request.httpMethod = "POST"
         return .jsonResource { request }
     }

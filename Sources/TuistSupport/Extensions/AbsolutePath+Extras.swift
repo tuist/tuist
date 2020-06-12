@@ -60,6 +60,15 @@ extension AbsolutePath {
     public func sha256() -> Data? {
         try? SHA256Digest.file(at: url)
     }
+
+    public func md5() throws -> String {
+        try Data(contentsOf: url).md5
+    }
+    
+    public func base64MD5() throws -> String {
+        guard let utf8str = try self.md5().data(using: .utf8) else { throw "Can't convert md5 into Data" }
+        return utf8str.base64EncodedString(options: NSData.Base64EncodingOptions(rawValue: 0))
+    }
 }
 
 extension AbsolutePath: ExpressibleByStringLiteral {

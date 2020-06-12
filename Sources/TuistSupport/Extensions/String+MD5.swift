@@ -22,22 +22,26 @@
 
 import Foundation
 
+public extension Data {
+    var md5: String {
+        let message = withUnsafeBytes { (pointer) -> [UInt8] in
+            Array(pointer)
+        }
+
+        let md5Calculator = MD5(message)
+        let md5Data = md5Calculator.calculate()
+        var md5String = String()
+        for c in md5Data {
+            md5String += String(format: "%02x", c)
+        }
+        return md5String
+    }
+}
+
 public extension String {
     var md5: String {
         if let data = data(using: .utf8, allowLossyConversion: true) {
-            let message = data.withUnsafeBytes { (pointer) -> [UInt8] in
-                Array(pointer)
-            }
-
-            let MD5Calculator = MD5(message)
-            let MD5Data = MD5Calculator.calculate()
-
-            var MD5String = String()
-            for c in MD5Data {
-                MD5String += String(format: "%02x", c)
-            }
-            return MD5String
-
+            return data.md5
         } else {
             return self
         }
