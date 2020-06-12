@@ -115,7 +115,7 @@ public extension Graph {
                 return nil
             }
             node.dependencies.append(contentsOf: sdkDependencies.compactMap {
-                try? SDKNode(name: $0.name, platform: platform, status: $0.status)
+                try? SDKNode(name: $0.name, platform: platform, status: $0.status, source: .developer)
             })
             let packageDependencies: [String] = $0.target.dependencies.compactMap {
                 if case let .package(packageType) = $0 {

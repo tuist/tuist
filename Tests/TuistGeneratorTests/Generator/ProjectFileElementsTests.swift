@@ -609,8 +609,9 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
 
         let sdk = try SDKNode(name: "ARKit.framework",
                               platform: .iOS,
-                              status: .required)
-        let sdkDependency = GraphDependencyReference.sdk(path: sdk.path, status: sdk.status)
+                              status: .required,
+                              source: .developer)
+        let sdkDependency = GraphDependencyReference.sdk(path: sdk.path, status: sdk.status, source: .developer)
 
         // When
         try subject.generate(dependencyReferences: [sdkDependency],

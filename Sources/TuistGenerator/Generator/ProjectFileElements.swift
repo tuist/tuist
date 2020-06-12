@@ -196,7 +196,7 @@ class ProjectFileElements {
                 try generatePrecompiled(path)
             case let .library(path, _, _, _, _):
                 try generatePrecompiled(path)
-            case let .sdk(sdkNodePath, _):
+            case let .sdk(sdkNodePath, _, _):
                 generateSDKFileElement(sdkNodePath: sdkNodePath,
                                        toGroup: groups.frameworks,
                                        pbxproj: pbxproj)

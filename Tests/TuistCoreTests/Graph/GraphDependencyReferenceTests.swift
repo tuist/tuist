@@ -13,8 +13,8 @@ final class GraphDependencyReferenceTests: TuistUnitTestCase {
         let subject = makeReferences().sorted()
 
         XCTAssertEqual(subject, [
-            .sdk(path: "/A.framework", status: .required),
-            .sdk(path: "/B.framework", status: .optional),
+            .sdk(path: "/A.framework", status: .required, source: .developer),
+            .sdk(path: "/B.framework", status: .optional, source: .developer),
             .product(target: "A", productName: "A.framework"),
             .product(target: "B", productName: "B.framework"),
             .testLibrary(path: "/libraries/A.library"),
@@ -48,8 +48,8 @@ final class GraphDependencyReferenceTests: TuistUnitTestCase {
             .testLibrary(path: "/libraries/B.library"),
             .product(target: "A", productName: "A.framework"),
             .product(target: "B", productName: "B.framework"),
-            .sdk(path: "/A.framework", status: .required),
-            .sdk(path: "/B.framework", status: .optional),
+            .sdk(path: "/A.framework", status: .required, source: .developer),
+            .sdk(path: "/B.framework", status: .optional, source: .developer),
         ]
     }
 }

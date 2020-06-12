@@ -182,7 +182,7 @@ public class Graph: Encodable {
         if targetNode.target.canLinkStaticProducts() {
             let transitiveSystemLibraries = transitiveStaticTargetNodes(for: targetNode).flatMap {
                 $0.sdkDependencies.map {
-                    GraphDependencyReference.sdk(path: $0.path, status: $0.status)
+                    GraphDependencyReference.sdk(path: $0.path, status: $0.status, source: $0.source)
                 }
             }
 
@@ -190,7 +190,7 @@ public class Graph: Encodable {
         }
 
         let directSystemLibrariesAndFrameworks = targetNode.sdkDependencies.map {
-            GraphDependencyReference.sdk(path: $0.path, status: $0.status)
+            GraphDependencyReference.sdk(path: $0.path, status: $0.status, source: $0.source)
         }
 
         references = references.union(directSystemLibrariesAndFrameworks)

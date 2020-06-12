@@ -47,9 +47,12 @@ public extension GraphDependencyReference {
                                          product: product)
     }
 
-    static func testSDK(path: AbsolutePath = "/path/CoreData.framework", status: SDKStatus = .required) -> GraphDependencyReference {
+    static func testSDK(path: AbsolutePath = "/path/CoreData.framework",
+                        status: SDKStatus = .required,
+                        source: SDKSource = .developer) -> GraphDependencyReference {
         GraphDependencyReference.sdk(path: path,
-                                     status: status)
+                                     status: status,
+                                     source: source)
     }
 
     static func testProduct(target: String = "Target", productName: String = "Target.framework") -> GraphDependencyReference {

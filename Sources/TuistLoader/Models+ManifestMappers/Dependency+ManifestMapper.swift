@@ -30,6 +30,8 @@ extension TuistCore.Dependency {
             return .cocoapods(path: try generatorPaths.resolve(path: path))
         case let .xcFramework(path):
             return .xcFramework(path: try generatorPaths.resolve(path: path))
+        case .xctest:
+            return .xctest
         }
     }
 }

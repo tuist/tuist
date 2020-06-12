@@ -68,6 +68,9 @@ public enum TargetDependency: Codable, Equatable {
 
     case xcFramework(path: Path)
 
+    /// Dependency on XCTest.
+    case xctest
+
     /// Dependency on system library or framework
     ///
     /// - Parameters:
@@ -97,6 +100,8 @@ public enum TargetDependency: Codable, Equatable {
             return "cocoapods"
         case .xcFramework:
             return "xcframework"
+        case .xctest:
+            return "xctest"
         }
     }
 }
@@ -164,6 +169,9 @@ extension TargetDependency {
         case "cocoapods":
             self = .cocoapods(path: try container.decode(Path.self, forKey: .path))
 
+        case "xctest":
+            self = .xctest
+
         default:
             throw CodingError.unknownType(type)
         }
@@ -195,6 +203,8 @@ extension TargetDependency {
             try container.encode(path, forKey: .path)
         case let .xcFramework(path):
             try container.encode(path, forKey: .path)
+        case .xctest:
+            break
         }
     }
 }

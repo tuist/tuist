@@ -26,7 +26,7 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
         product: Product
     )
     case product(target: String, productName: String)
-    case sdk(path: AbsolutePath, status: SDKStatus)
+    case sdk(path: AbsolutePath, status: SDKStatus, source: SDKSource)
 
     init(precompiledNode: PrecompiledNode) {
         if let frameworkNode = precompiledNode as? FrameworkNode {
@@ -65,9 +65,10 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
         case let .product(target, productName):
             hasher.combine(target)
             hasher.combine(productName)
-        case let .sdk(path, status):
+        case let .sdk(path, status, source):
             hasher.combine(path)
             hasher.combine(status)
+            hasher.combine(source)
         }
     }
 
@@ -99,7 +100,7 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
                 return lhsProductName < rhsProductName
             }
             return lhsTarget < rhsTarget
-        case let (.sdk(lhsPath, _), .sdk(rhsPath, _)):
+        case let (.sdk(lhsPath, _, _), .sdk(rhsPath, _, _)):
             return lhsPath < rhsPath
         case (.sdk, .framework):
             return true

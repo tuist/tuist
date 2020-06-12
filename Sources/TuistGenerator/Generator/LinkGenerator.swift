@@ -52,6 +52,23 @@ protocol LinkGenerating: AnyObject {
                        graph: Graph) throws
 }
 
+/// When generating build settings like "framework search path", some of the path might be relative to paths
+/// defined by environment variables like $(DEVELOPER_FRAMEWORKS_DIR). This enum represents both
+/// types of supported paths.
+enum LinkGeneratorPath: Hashable {
+    case absolutePath(AbsolutePath)
+    case string(String)
+
+    func xcodeValue(sourceRootPath: AbsolutePath) -> String {
+        switch self {
+        case let .absolutePath(path):
+            return "$(SRCROOT)/\(path.relative(to: sourceRootPath).pathString)"
+        case let .string(value):
+            return value
+        }
+    }
+}
+
 // swiftlint:disable type_body_length
 final class LinkGenerator: LinkGenerating {
     /// An instance to locate tuist binaries.
@@ -216,10 +233,17 @@ final class LinkGenerator: LinkGenerating {
     func setupFrameworkSearchPath(dependencies: [GraphDependencyReference],
                                   pbxTarget: PBXTarget,
                                   sourceRootPath: AbsolutePath) throws {
-        let paths = dependencies.compactMap { $0.precompiledPath }
-            .map { $0.removingLastComponent() }
+        let precompiledPaths = dependencies.compactMap { $0.precompiledPath }
+            .map { LinkGeneratorPath.absolutePath($0.removingLastComponent()) }
+        let sdkPaths = dependencies.compactMap { (dependency: GraphDependencyReference) -> LinkGeneratorPath? in
+            if case let GraphDependencyReference.sdk(_, _, source) = dependency {
+                return LinkGeneratorPath.string(source.frameworkSearchPath)
+            } else {
+                return nil
+            }
+        }
 
-        let uniquePaths = Array(Set(paths))
+        let uniquePaths = Array(Set(precompiledPaths + sdkPaths))
         try setup(setting: "FRAMEWORK_SEARCH_PATHS",
                   paths: uniquePaths,
                   pbxTarget: pbxTarget,
@@ -230,7 +254,7 @@ final class LinkGenerator: LinkGenerating {
                                 pbxTarget: PBXTarget,
                                 sourceRootPath: AbsolutePath) throws {
         try setup(setting: "HEADER_SEARCH_PATHS",
-                  paths: paths,
+                  paths: paths.map(LinkGeneratorPath.absolutePath),
                   pbxTarget: pbxTarget,
                   sourceRootPath: sourceRootPath)
     }
@@ -239,7 +263,7 @@ final class LinkGenerator: LinkGenerating {
                                  pbxTarget: PBXTarget,
                                  sourceRootPath: AbsolutePath) throws {
         try setup(setting: "LIBRARY_SEARCH_PATHS",
-                  paths: paths,
+                  paths: paths.map(LinkGeneratorPath.absolutePath),
                   pbxTarget: pbxTarget,
                   sourceRootPath: sourceRootPath)
     }
@@ -248,13 +272,13 @@ final class LinkGenerator: LinkGenerating {
                                 pbxTarget: PBXTarget,
                                 sourceRootPath: AbsolutePath) throws {
         try setup(setting: "SWIFT_INCLUDE_PATHS",
-                  paths: paths,
+                  paths: paths.map(LinkGeneratorPath.absolutePath),
                   pbxTarget: pbxTarget,
                   sourceRootPath: sourceRootPath)
     }
 
     private func setup(setting name: String,
-                       paths: [AbsolutePath],
+                       paths: [LinkGeneratorPath],
                        pbxTarget: PBXTarget,
                        sourceRootPath: AbsolutePath) throws {
         guard let configurationList = pbxTarget.buildConfigurationList else {
@@ -264,9 +288,7 @@ final class LinkGenerator: LinkGenerating {
             return
         }
         let value = SettingValue
-            .array(["$(inherited)"] + paths.uniqued().sorted()
-                .map { $0.relative(to: sourceRootPath).pathString }
-                .map { "$(SRCROOT)/\($0)" })
+            .array(["$(inherited)"] + paths.map { $0.xcodeValue(sourceRootPath: sourceRootPath) }.uniqued().sorted())
         let newSetting = [name: value]
         let helper = SettingsHelper()
         try configurationList.buildConfigurations.forEach { configuration in
@@ -308,7 +330,7 @@ final class LinkGenerator: LinkGenerating {
                     let buildFile = PBXBuildFile(file: fileRef)
                     pbxproj.add(object: buildFile)
                     buildPhase.files?.append(buildFile)
-                case let .sdk(sdkPath, sdkStatus):
+                case let .sdk(sdkPath, sdkStatus, _):
                     guard let fileRef = fileElements.sdk(path: sdkPath) else {
                         throw LinkGeneratorError.missingReference(path: sdkPath)
                     }

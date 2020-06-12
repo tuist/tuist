@@ -22,7 +22,7 @@ let project = Project(name: "Project",
                                  infoPlist: .default,
                                  sources: "MyTestFramework/**",
                                  dependencies: [
-                                     .sdk(name: "XCTest.framework")
+                                     .xctest
                           ]),
                           Target(name: "AppTests",
                                  platform: .iOS,

@@ -6,6 +6,5 @@ public class MyTestHelper {
     }
 
     public func customAssert(_ value: Bool, file: StaticString = #file, line: Int = #line) {
-        XCTAssertTrue(value, file: file, line: line)
     }
 }
