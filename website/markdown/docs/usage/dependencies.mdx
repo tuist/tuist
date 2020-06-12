@@ -86,6 +86,16 @@ It defines a dependency with a pre-compiled library. It allows specifying the pa
 
 It defines a dependency on a system library (`.tbd`) or framework (`.framework`) and optionally if it is `required` or `optional` (i.e. gets weakly linked).
 
+## XCTest dependencies
+
+It's used to indicate a dependency with the system's `XCTest` framework. Unlike SDK dependencies, `XCTest.framework` is located under the directory `$(PLATFORM_DIR)/Developer/Library/Frameworks` and requires Tuist to expose that path through the `FRAMEWORK_SEARCH_PATH` build setting.
+
+You can read more about the different locations of frameworks on [this issue](https://github.com/tuist/tuist/issues/837).
+
+```swift
+.xctest
+```
+
 ## SPM dependencies
 
 Targets can add Swift package products as dependencies:
