@@ -58,4 +58,35 @@ final class CloudInsightsGraphMapperTests: TuistUnitTestCase {
         XCTAssertTrue(lastTarget.actions.contains(preAction))
         XCTAssertTrue(lastTarget.actions.contains(postAction))
     }
+
+    func test_when_value_graph() throws {
+        // Given
+        let project = Project.test()
+        let targetA = Target.test(name: "A")
+        let targetB = Target.test(name: "B")
+        let graph = ValueGraph.test(projects: [project.path: project],
+                                    targets: [project.path: [targetA.name: targetA, targetB.name: targetB]])
+
+        // When
+        let (mappedGraph, _) = try subject.map(graph: graph)
+
+        // Then
+        let targets = mappedGraph.targets.values.flatMap { $0.values }
+        let preAction = TargetAction(name: "[Tuist] Track target build start",
+                                     order: .pre,
+                                     tool: "tuist",
+                                     path: nil,
+                                     arguments: ["cloud", "start-target-build"])
+        let postAction = TargetAction(name: "[Tuist] Track target build finish",
+                                      order: .post,
+                                      tool: "tuist",
+                                      path: nil,
+                                      arguments: ["cloud", "finish-target-build"])
+        let firstTarget = targets.first!
+        let lastTarget = targets.last!
+        XCTAssertEqual(firstTarget.preActions, [preAction])
+        XCTAssertEqual(firstTarget.postActions, [postAction])
+        XCTAssertEqual(lastTarget.preActions, [preAction])
+        XCTAssertEqual(lastTarget.postActions, [postAction])
+    }
 }

@@ -25,4 +25,28 @@ public class CloudInsightsGraphMapper: GraphMapping {
         }
         return mapper.map(graph: graph)
     }
+
+    public func map(graph: ValueGraph) throws -> (ValueGraph, [SideEffectDescriptor]) {
+        let targets = graph.targets.mapValues { (targets: [String: Target]) in
+            targets.mapValues { (target: Target) -> Target in
+                var actions = target.actions
+                actions.append(.init(name: "[Tuist] Track target build start",
+                                     order: .pre,
+                                     tool: "tuist",
+                                     path: nil,
+                                     arguments: ["cloud", "start-target-build"]))
+                actions.append(.init(name: "[Tuist] Track target build finish",
+                                     order: .post,
+                                     tool: "tuist",
+                                     path: nil,
+                                     arguments: ["cloud", "finish-target-build"]))
+                return target.with(actions: actions)
+            }
+        }
+        let graph = ValueGraph(projects: graph.projects,
+                               packages: graph.packages,
+                               targets: targets,
+                               dependencies: graph.dependencies)
+        return (graph, [])
+    }
 }
