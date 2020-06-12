@@ -6,6 +6,9 @@ public protocol GraphMapping {
     /// Given a graph, it maps it into another graph.
     /// - Parameter graph: Graph to be mapped.
     func map(graph: Graph) throws -> (Graph, [SideEffectDescriptor])
+
+    /// Given a value graph, it maps it into another value graph.
+    /// - Parameter graph: Graph to be mapped.
     func map(graph: ValueGraph) throws -> (ValueGraph, [SideEffectDescriptor])
 }
 

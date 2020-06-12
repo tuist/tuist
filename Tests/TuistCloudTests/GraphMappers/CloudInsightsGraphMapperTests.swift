@@ -84,9 +84,9 @@ final class CloudInsightsGraphMapperTests: TuistUnitTestCase {
                                       arguments: ["cloud", "finish-target-build"])
         let firstTarget = targets.first!
         let lastTarget = targets.last!
-        XCTAssertTrue(firstTarget.actions.contains(preAction))
-        XCTAssertTrue(firstTarget.actions.contains(postAction))
-        XCTAssertTrue(lastTarget.actions.contains(preAction))
-        XCTAssertTrue(lastTarget.actions.contains(postAction))
+        XCTAssertEqual(firstTarget.preActions, [preAction])
+        XCTAssertEqual(firstTarget.postActions, [postAction])
+        XCTAssertEqual(lastTarget.preActions, [preAction])
+        XCTAssertEqual(lastTarget.postActions, [postAction])
     }
 }

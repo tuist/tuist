@@ -77,6 +77,16 @@ public struct Target: Equatable, Hashable {
         [.dynamicLibrary, .staticLibrary, .framework, .staticFramework].contains(product)
     }
 
+    /// Returns target's pre actions.
+    public var preActions: [TargetAction] {
+        actions.filter { $0.order == .pre }
+    }
+
+    /// Returns target's post actions.
+    public var postActions: [TargetAction] {
+        actions.filter { $0.order == .post }
+    }
+
     /// Target can link staitc products (e.g. an app can link a staticLibrary)
     public func canLinkStaticProducts() -> Bool {
         [
