@@ -4,12 +4,15 @@ const path = require(`path`)
 
 exports.onCreateNode = ({ node, getNode, actions }) => {
   const { createNodeField, createRedirect } = actions
+
+  // Redirect
   createRedirect({
     fromPath: '/docs',
     toPath: '/docs/usage/getting-started/',
     isPermanent: true,
   })
 
+  // Auto-generated pages
   if (node.internal.type === `Mdx`) {
     const fileNode = getNode(node.parent)
 
@@ -27,6 +30,24 @@ exports.onCreateNode = ({ node, getNode, actions }) => {
       createNodeField({ node, name: `slug`, value: slug })
       createNodeField({ node, name: `date`, value: date })
       createNodeField({ node, name: `path`, value: fileNode.relativePath })
+    } else if (fileNode.dir.includes('markdown/apps-at-scale/')) {
+      const filename = createFilePath({
+        node,
+        getNode,
+        basePath: `apps-at-scale`,
+      })
+
+      const postName = filename
+      const [, date, title] = postName
+        .split('/')[1]
+        .match(/^([\d]{4}-[\d]{2}-[\d]{2})-{1}(.+)$/)
+
+      const slug = `/apps-at-scale/${slugify([date].join('-'), '/')}/${title}/`
+
+      createNodeField({ node, name: `type`, value: 'apps-at-scale' })
+      createNodeField({ node, name: `slug`, value: slug })
+      createNodeField({ node, name: `date`, value: date })
+      createNodeField({ node, name: `path`, value: fileNode.relativePath })
     } else {
       const filename = createFilePath({ node, getNode })
       createNodeField({ node, name: `slug`, value: filename })
@@ -39,8 +60,20 @@ exports.createPages = ({ graphql, actions }) => {
   const createBlogPages = graphql(
     `
       {
-        allMdx(
+        posts: allMdx(
           filter: { fields: { type: { eq: "blog-post" } } }
+          sort: { order: DESC, fields: [fields___date] }
+        ) {
+          edges {
+            node {
+              fields {
+                slug
+              }
+            }
+          }
+        }
+        appsAtScale: allMdx(
+          filter: { fields: { type: { eq: "apps-at-scale" } } }
           sort: { order: DESC, fields: [fields___date] }
         ) {
           edges {
@@ -53,30 +86,57 @@ exports.createPages = ({ graphql, actions }) => {
         }
       }
     `
-  ).then(result => {
-    const posts = result.data.allMdx.edges
+  ).then((result) => {
+    // POSTS
+    const posts = result.data.posts.edges
     const postsPerPage = 10
-    const numPages = Math.ceil(posts.length / postsPerPage)
+    const numPostPages = Math.ceil(posts.length / postsPerPage)
 
-    // Create blog lists
-    Array.from({ length: numPages }).forEach((_, i) => {
+    Array.from({ length: numPostPages }).forEach((_, i) => {
       createPage({
         path: i === 0 ? `/blog` : `/blog/${i + 1}`,
         component: path.resolve('./src/templates/blog-list.jsx'),
         context: {
           limit: postsPerPage,
           skip: i * postsPerPage,
-          numPages,
+          numPostPages,
           currentPage: i + 1,
         },
       })
     })
 
-    // Create blog posts
-    result.data.allMdx.edges.forEach(({ node }, index) => {
+    result.data.posts.edges.forEach(({ node }, index) => {
       createPage({
         path: node.fields.slug,
         component: path.resolve(`./src/templates/blog-post.jsx`),
+        context: {
+          slug: node.fields.slug,
+        },
+      })
+    })
+
+    // APPS AT SCALE
+    const appsAtScale = result.data.appsAtScale.edges
+    const appsAtScalePerPage = 10
+    const appsAtScalePages = Math.ceil(posts.length / postsPerPage)
+    Array.from({ length: appsAtScalePerPage }).forEach((_, i) => {
+      createPage({
+        path: i === 0 ? `/apps-at-scale` : `/apps-at-scale/${i + 1}`,
+        component: path.resolve('./src/templates/apps-at-scale-list.jsx'),
+        context: {
+          limit: appsAtScalePerPage,
+          skip: i * appsAtScalePerPage,
+          appsAtScalePages,
+          currentPage: i + 1,
+        },
+      })
+    })
+
+    // Create app at scale posts
+    result.data.appsAtScale.edges.forEach(({ node }, index) => {
+      createPage({
+        path: node.fields.slug,
+        component: path.resolve(`./src/templates/apps-at-scale.jsx`),
         context: {
           slug: node.fields.slug,
         },
@@ -97,7 +157,7 @@ exports.createPages = ({ graphql, actions }) => {
         }
       }
     `
-  ).then(result => {
+  ).then((result) => {
     return result.data.allMdx.nodes.forEach((node, index) => {
       return createPage({
         path: node.fields.slug,
