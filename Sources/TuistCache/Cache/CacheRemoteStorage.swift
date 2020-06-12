@@ -20,11 +20,19 @@ final class CacheRemoteStorage: CacheStoring {
 
     func exists(hash: String, config: Config) -> Single<Bool> {
         do {
+            let successRange = 200 ..< 300
             let resource = try CloudHEADResponse.existsResource(hash: hash, config: config)
-            return cloudClient.request(resource).map { (response) -> Bool in
-                let successRange = 200 ..< 300
-                return successRange.contains(response.response.statusCode)
-            }
+            return cloudClient.request(resource)
+                .flatMap({ (object, response) in
+                    return .just(successRange.contains(response.statusCode))
+                })
+                .catchError({ error in
+                    if case let HTTPRequestDispatcherError.serverSideError(_, response) = error, response.statusCode == 404 {
+                        return .just(false)
+                    } else {
+                      throw error
+                    }
+                })
         } catch {
             return Single.error(error)
         }

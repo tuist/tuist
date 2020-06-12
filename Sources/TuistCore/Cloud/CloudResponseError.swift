@@ -14,3 +14,7 @@ public struct CloudResponseError: Decodable, LocalizedError {
         errors?.map { $0.message.capitalizingFirstLetter() }.joined(separator: "\n")
     }
 }
+
+public struct CloudHEADResponseError: Decodable, LocalizedError {
+    public init() {}
+}

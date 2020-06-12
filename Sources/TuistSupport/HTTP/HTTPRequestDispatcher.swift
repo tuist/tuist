@@ -5,7 +5,8 @@ public enum HTTPRequestDispatcherError: LocalizedError {
     case urlSessionError(Error)
     case parseError(Error)
     case invalidResponse
-
+    case serverSideError(Error, HTTPURLResponse)
+    
     public var errorDescription: String? {
         switch self {
         case let .urlSessionError(error):
@@ -21,6 +22,8 @@ public enum HTTPRequestDispatcherError: LocalizedError {
                 return "Error parsing the network response."
             }
         case .invalidResponse: return "Received unexpected response from the network."
+        case .serverSideError(let error, let response):
+            return "Error returned by the server, code: \(response.statusCode). Error: \(error.localizedDescription)"
         }
     }
 }
@@ -35,6 +38,7 @@ public final class HTTPRequestDispatcher: HTTPRequestDispatching {
     public init(session: URLSession = URLSession.shared) {
         self.session = session
     }
+    
 
     public func dispatch<T, E: Error>(resource: HTTPResource<T, E>) -> Single<(object: T, response: HTTPURLResponse)> {
         Single.create { observer in
@@ -53,7 +57,7 @@ public final class HTTPRequestDispatcher: HTTPRequestDispatching {
                     default: // Error
                         do {
                             let error = try resource.parseError(data, response)
-                            observer(.error(error))
+                            observer(.error(HTTPRequestDispatcherError.serverSideError(error, response)))
                         } catch {
                             observer(.error(HTTPRequestDispatcherError.parseError(error)))
                         }
