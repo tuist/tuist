@@ -1,6 +1,24 @@
 import Foundation
 import TSCBasic
 
+public enum XcodeError: FatalError, Equatable {
+    case infoPlistNotFound(AbsolutePath)
+
+    public var description: String {
+        switch self {
+        case let .infoPlistNotFound(path):
+            return "Couldn't find Xcode's Info.plist at \(path.pathString). Make sure your Xcode installation is selected by running: sudo xcode-select -s /Applications/Xcode.app"
+        }
+    }
+
+    public var type: ErrorType {
+        switch self {
+        case .infoPlistNotFound:
+            return .abort
+        }
+    }
+}
+
 public struct Xcode {
     /// It represents the content of the Info.plist file inside the Xcode app bundle.
     public struct InfoPlist: Codable {
@@ -32,6 +50,9 @@ public struct Xcode {
     /// - Throws: An error if the local installation can't be read.
     static func read(path: AbsolutePath) throws -> Xcode {
         let infoPlistPath = path.appending(RelativePath("Contents/Info.plist"))
+        if !FileHandler.shared.exists(infoPlistPath) {
+            throw XcodeError.infoPlistNotFound(infoPlistPath)
+        }
         let plistDecoder = PropertyListDecoder()
         let data = try Data(contentsOf: infoPlistPath.url)
         let infoPlist = try plistDecoder.decode(InfoPlist.self, from: data)
