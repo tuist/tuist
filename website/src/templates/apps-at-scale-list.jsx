@@ -151,6 +151,21 @@ const AppsAtScaleList = ({
       />
       <Main>
         <Styled.h1>Apps at scale</Styled.h1>
+        <Styled.p>
+          Apps at scale is a series of interviews to companies and projects that
+          are doing app development at scale. Discussions about how to overcome
+          the challenges that come with scaling up projects and teams are often
+          scattered and privately held. Therefore, our aim with these interviews
+          is to have a public and central place for projects to share their
+          experiences. If you would like to share your experience too, let us
+          know on{' '}
+          <Styled.a
+            href="https://community.tuist.io/t/interview-blog-posts/59/6"
+            target="__blank"
+          >
+            this discussion.
+          </Styled.a>
+        </Styled.p>
         {edges.map(({ node }, index) => {
           return <Post post={node} key={index} />
         })}

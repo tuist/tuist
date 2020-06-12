@@ -113,7 +113,13 @@ export default ({ menuOpen, setMenuOpen, menuRef }) => {
                   mt: [3, 0],
                 }}
               >
-                <div sx={{ display: 'flex', flexDirection: 'row' }}>
+                <div
+                  sx={{
+                    display: 'flex',
+                    flexDirection: ['column', 'row'],
+                    alignItems: ['center'],
+                  }}
+                >
                   <Link
                     sx={{
                       ...linkStyle,
@@ -128,7 +134,7 @@ export default ({ menuOpen, setMenuOpen, menuRef }) => {
                     sx={{
                       ...linkStyle,
                       ...(isResources ? hoverStyle : {}),
-                      ml: 4,
+                      ml: [0, 4],
                       variant: 'text.header',
                     }}
                     to="/resources"
@@ -140,7 +146,7 @@ export default ({ menuOpen, setMenuOpen, menuRef }) => {
                     sx={{
                       ...linkStyle,
                       ...(isBlog ? hoverStyle : {}),
-                      ml: 4,
+                      ml: [0, 4],
                       variant: 'text.header',
                     }}
                     to="/blog"
@@ -152,7 +158,7 @@ export default ({ menuOpen, setMenuOpen, menuRef }) => {
                     sx={{
                       ...linkStyle,
                       ...(isBlog ? hoverStyle : {}),
-                      ml: 4,
+                      ml: [0, 4],
                       variant: 'text.header',
                     }}
                     to="/apps-at-scale"
@@ -164,7 +170,7 @@ export default ({ menuOpen, setMenuOpen, menuRef }) => {
                     sx={{
                       ...linkStyle,
                       ...(isFaq ? hoverStyle : {}),
-                      ml: 4,
+                      ml: [0, 4],
                       variant: 'text.header',
                     }}
                     to="/faq"
@@ -178,7 +184,7 @@ export default ({ menuOpen, setMenuOpen, menuRef }) => {
                   <a
                     sx={{
                       ...linkStyle,
-                      ml: 4,
+                      ml: [0, 4],
                       display: 'flex',
                       flexDirection: 'row',
                       alignItems: 'center',
