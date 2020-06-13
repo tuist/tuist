@@ -5,6 +5,15 @@ import TuistCoreTesting
 import XcodeProj
 import XCTest
 @testable import TuistGenerator
+@testable import TuistSupportTesting
+
+final class LinkGeneratorPathTests: TuistUnitTestCase {
+    func test_xcodeValue() {
+        let path = AbsolutePath("/my-path")
+        XCTAssertEqual(LinkGeneratorPath.absolutePath(path).xcodeValue(sourceRootPath: .root), "$(SRCROOT)/my-path")
+        XCTAssertEqual(LinkGeneratorPath.string("$(DEVELOPER_FRAMEWORKS_DIR)").xcodeValue(sourceRootPath: .root), "$(DEVELOPER_FRAMEWORKS_DIR)")
+    }
+}
 
 final class LinkGeneratorErrorTests: XCTestCase {
     var embedScriptGenerator: MockEmbedScriptGenerator!
@@ -207,6 +216,7 @@ final class LinkGeneratorErrorTests: XCTestCase {
         // Then
         let config = xcodeprojElements.config
         XCTAssertEqual(config.buildSettings["FRAMEWORK_SEARCH_PATHS"] as? [String], [
+            "$(DEVELOPER_FRAMEWORKS_DIR)",
             "$(inherited)",
             "$(SRCROOT)/Dependencies/Frameworks",
             "$(SRCROOT)/Dependencies/Libraries",
@@ -436,8 +446,8 @@ final class LinkGeneratorErrorTests: XCTestCase {
     func test_generateLinkingPhase_sdkNodes() throws {
         // Given
         let dependencies: [GraphDependencyReference] = [
-            .sdk(path: "/Strong/Foo.framework", status: .required),
-            .sdk(path: "/Weak/Bar.framework", status: .optional),
+            .sdk(path: "/Strong/Foo.framework", status: .required, source: .developer),
+            .sdk(path: "/Weak/Bar.framework", status: .optional, source: .developer),
         ]
         let pbxproj = PBXProj()
         let pbxTarget = PBXNativeTarget(name: "Test")

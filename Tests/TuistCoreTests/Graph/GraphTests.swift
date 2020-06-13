@@ -1007,7 +1007,7 @@ final class GraphTests: TuistUnitTestCase {
 
     private func sdkDependency(from dependency: GraphDependencyReference) -> SDKPathAndStatus? {
         switch dependency {
-        case let .sdk(path, status):
+        case let .sdk(path, status, _):
             return SDKPathAndStatus(name: path.basename, status: status)
         default:
             return nil

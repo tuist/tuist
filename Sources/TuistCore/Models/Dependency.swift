@@ -15,4 +15,5 @@ public enum Dependency: Equatable, Hashable {
     case package(product: String)
     case sdk(name: String, status: SDKStatus)
     case cocoapods(path: AbsolutePath)
+    case xctest
 }

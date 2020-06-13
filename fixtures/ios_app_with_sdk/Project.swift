@@ -15,6 +15,15 @@ let project = Project(name: "Project",
                                      .sdk(name: "MobileCoreServices.framework", status: .required),
                                      .project(target: "StaticFramework", path: "Modules/StaticFramework")
                           ]),
+                          Target(name: "MyTestFramework",
+                                 platform: .iOS,
+                                 product: .framework,
+                                 bundleId: "io.tuist.MyTestFramework",
+                                 infoPlist: .default,
+                                 sources: "MyTestFramework/**",
+                                 dependencies: [
+                                     .xctest
+                          ]),
                           Target(name: "AppTests",
                                  platform: .iOS,
                                  product: .unitTests,
@@ -23,6 +32,7 @@ let project = Project(name: "Project",
                                  sources: "Tests/**",
                                  dependencies: [
                                      .target(name: "App"),
+                                     .target(name: "MyTestFramework")
                           ]),
                           Target(name: "MacFramework",
                                  platform: .macOS,
