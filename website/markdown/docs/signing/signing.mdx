@@ -1,6 +1,6 @@
 ---
 name: Signing
-excerpt: 'Tuist offers a deterministic, pain-free solution to signing. Read one if you'd like to learn more about how it works and how you can set it up.'
+excerpt: 'Tuist offers a deterministic, pain-free solution to signing. Read on if you would like to learn more about how it works and how you can set it up.'
 ---
 
 # Signing
@@ -8,17 +8,17 @@ excerpt: 'Tuist offers a deterministic, pain-free solution to signing. Read one 
 ## Context
 
 Signing is one of the most complicated things that developers have to deal with
-when working with Xcode. While Xcode does an option of automatic signing,
-most teams choose not to use it since it creates an unmanagable mess in their accounts.
+when working with Xcode. While Xcode does offer an option of automatic signing,
+most teams choose not to use it since it creates an unmanagable mess in their team accounts.
 But manually working with signing artifacts is tedious, error-prone and tools
-automating this process are always non-deterministic and you still have to manually change
+automating this process are often non-deterministic and you still have to manually change
 settings of your Xcode projects.
 
 Tuist aims to solve all of the above pain points in a simple and *deterministic* interface.
 
 ## How to Get Started
 
-As a first step, download all your provisioning profiles and certficates that you'll need.
+As the first step, download all your provisioning profiles and certficates that you'll need.
 Once you download them, make sure to rename the files, so they abide by the following convention:
 `Target.Configuration.extension`
 Where `Target` should be a name of the target, `Configuration` a name of the configuration and leave the default extension
@@ -35,7 +35,7 @@ that means, yes, also build settings!
 `tuist generate` automatically encrypts all signing artifacts.
 If you want to decrypt your signing files,
 feel free to run `tuist decrypt`.
-To reencrypt them run `tuist encrypt`.
+To reencrypt them run `tuist encrypt` (note that encryption is done automatically in `tuist generate`)
 
 ## Vendor
 
