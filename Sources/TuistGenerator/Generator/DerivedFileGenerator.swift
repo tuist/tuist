@@ -19,7 +19,6 @@ protocol DerivedFileGenerating {
 
 final class DerivedFileGenerator: DerivedFileGenerating {
     typealias ProjectTransformation = (project: Project, sideEffects: [SideEffectDescriptor])
-    fileprivate static let derivedFolderName = "Derived"
     fileprivate static let infoPlistsFolderName = "InfoPlists"
 
     /// Info.plist content provider.
@@ -58,7 +57,7 @@ final class DerivedFileGenerator: DerivedFileGenerating {
         }
 
         // Getting the Info.plist files that need to be deleted
-        let glob = "\(DerivedFileGenerator.derivedFolderName)/\(DerivedFileGenerator.infoPlistsFolderName)/*.plist"
+        let glob = "\(Constants.derivedFolderName)/\(DerivedFileGenerator.infoPlistsFolderName)/*.plist"
         let existing = FileHandler.shared.glob(sourceRootPath, glob: glob)
         let new: [AbsolutePath] = targetsWithGeneratableInfoPlists.map {
             DerivedFileGenerator.infoPlistPath(target: $0, sourceRootPath: sourceRootPath)
@@ -89,10 +88,10 @@ final class DerivedFileGenerator: DerivedFileGenerating {
                                                           format: .xml,
                                                           options: 0)
 
-            let sideEffet = SideEffectDescriptor.file(FileDescriptor(path: path, contents: data))
+            let sideEffect = SideEffectDescriptor.file(FileDescriptor(path: path, contents: data))
 
             // Override the Info.plist value to point to te generated one
-            return (target.with(infoPlist: InfoPlist.file(path: path)), [sideEffet])
+            return (target.with(infoPlist: InfoPlist.file(path: path)), [sideEffect])
         }
 
         return (project: project.with(targets: transformation.map { $0.0 }),
@@ -125,7 +124,7 @@ final class DerivedFileGenerator: DerivedFileGenerating {
     /// - Returns: Path to the directory that contains all the derived files.
     static func path(sourceRootPath: AbsolutePath) -> AbsolutePath {
         sourceRootPath
-            .appending(component: DerivedFileGenerator.derivedFolderName)
+            .appending(component: Constants.derivedFolderName)
     }
 
     /// Returns the path to the directory where all generated Info.plist files will be.

@@ -3,6 +3,7 @@ import TSCBasic
 import TuistCore
 import TuistGenerator
 import TuistLoader
+import TuistSigning
 import TuistSupport
 
 protocol ProjectGenerating {
@@ -22,6 +23,7 @@ class ProjectGenerator: ProjectGenerating {
     private let writer: XcodeProjWriting = XcodeProjWriter()
     private let cocoapodsInteractor: CocoaPodsInteracting = CocoaPodsInteractor()
     private let swiftPackageManagerInteractor: SwiftPackageManagerInteracting = SwiftPackageManagerInteractor()
+    private let signingInteractor: SigningInteracting = SigningInteractor()
     private let modelLoader: GeneratorModelLoading
     private let graphLoader: GraphLoading
     private let sideEffectDescriptorExecutor: SideEffectDescriptorExecuting
@@ -153,6 +155,7 @@ class ProjectGenerator: ProjectGenerating {
     }
 
     private func postGenerationActions(for graph: Graph, workspaceName: String) throws {
+        try signingInteractor.install(graph: graph)
         try swiftPackageManagerInteractor.install(graph: graph, workspaceName: workspaceName)
         try cocoapodsInteractor.install(graph: graph)
     }

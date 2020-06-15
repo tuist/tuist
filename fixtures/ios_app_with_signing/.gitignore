@@ -65,5 +65,7 @@ DerivedData/
 ### Tuist derived files ###
 graph.dot
 
-# Should be added to .gitignore
-#Tuist/master.key
+Derived/
+Tuist/Signing/*
+!Tuist/Signing/*.mobileprovision
+!Tuist/Signing/*.encrypted

@@ -14,4 +14,8 @@ public struct CommandDescriptor: Equatable {
     public init(command: [String]) {
         self.command = command
     }
+
+    public init(command: String...) {
+        self.init(command: command)
+    }
 }

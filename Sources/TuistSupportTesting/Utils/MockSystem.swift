@@ -35,7 +35,10 @@ public final class MockSystem: Systeming {
             throw TuistSupport.SystemError.terminated(command: arguments.first!, code: 1, standardError: Data())
         }
         if stub.exitstatus != 0 {
-            throw TuistSupport.SystemError.terminated(command: arguments.first!, code: 1, standardError: Data())
+            let standardError = (stub.stderror?.data(using: .utf8)) ?? Data()
+            throw TuistSupport.SystemError.terminated(command: arguments.first!,
+                                                      code: Int32(stub.exitstatus ?? 1),
+                                                      standardError: standardError)
         }
     }
 

@@ -1,0 +1,49 @@
+---
+name: Signing
+excerpt: 'Tuist offers a deterministic, pain-free solution to signing. Read on if you would like to learn more about how it works and how you can set it up.'
+---
+
+# Signing
+
+## Context
+
+Signing is one of the most complicated things that developers have to deal with
+when working with Xcode. While Xcode does offer an option of automatic signing,
+most teams choose not to use it since it creates an unmanagable mess in their team accounts.
+But manually working with signing artifacts is tedious, error-prone and tools
+automating this process are often non-deterministic and you still have to manually change
+settings of your Xcode projects.
+
+Tuist aims to solve all of the above pain points in a simple and *deterministic* interface.
+
+## How to Get Started
+
+As the first step, download all your provisioning profiles and certficates that you'll need.
+Once you download them, make sure to rename the files, so they abide by the following convention:
+`Target.Configuration.extension`
+Where `Target` should be a name of the target, `Configuration` a name of the configuration and leave the default extension
+that you downloaded the file with (eg. `p12` for certificate, etc.).
+Now you can put all those files in `Tuist/Signing` directory.
+To make it all work, create a secure password and place its contents into `Tuist/master.key` that will be used
+for encrypting and decrypting your files.
+
+After that, feel free to run `tuist generate` and everything else should be done for you -
+that means, yes, also build settings!
+
+## Additional commands
+
+`tuist generate` automatically encrypts all signing artifacts.
+If you want to decrypt your signing files,
+feel free to run `tuist decrypt`.
+To reencrypt them run `tuist encrypt` (note that encryption is done automatically in `tuist generate`)
+
+## Vendor
+
+In the future we plan to also automate creating provisioning profiles and certificates.
+Just by running `tuist vendor` and `tuist generate` will get you all setup,
+nothing else needed!
+
+<Message 
+    info 
+    title="Work in progress" 
+    description={`We are currently working on the implementation of generating provisioning profiles and certificates. If you'd like to stay up to date with the progress that we are making, we suggest following us on [Twitter](https://twitter.com/tuistio).`}/>

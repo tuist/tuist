@@ -286,6 +286,7 @@ class WorkspaceStructureGeneratorTests: XCTestCase {
         private var cache: [AbsolutePath: Node] = [:]
 
         var currentPath: AbsolutePath = "/"
+        var homeDirectory: AbsolutePath = "/"
 
         func replace(_: AbsolutePath, with _: AbsolutePath) throws {}
 

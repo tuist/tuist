@@ -63,7 +63,7 @@ let package = Package(
         ),
         .testTarget(
             name: "TuistKitTests",
-            dependencies: ["TuistKit", "TuistAutomation", "TuistSupportTesting", "TuistCoreTesting", "ProjectDescription", "RxBlocking", "TuistLoaderTesting", "TuistCacheTesting", "TuistGeneratorTesting", "TuistScaffoldTesting", "TuistCloudTesting", "TuistAutomationTesting"]
+            dependencies: ["TuistKit", "TuistAutomation", "TuistSupportTesting", "TuistCoreTesting", "ProjectDescription", "RxBlocking", "TuistLoaderTesting", "TuistCacheTesting", "TuistGeneratorTesting", "TuistScaffoldTesting", "TuistCloudTesting", "TuistAutomationTesting", "TuistSigningTesting"]
         ),
         .testTarget(
             name: "TuistKitIntegrationTests",
@@ -119,7 +119,7 @@ let package = Package(
         ),
         .testTarget(
             name: "TuistGeneratorTests",
-            dependencies: ["TuistGenerator", "TuistSupportTesting", "TuistCoreTesting", "TuistGeneratorTesting"]
+            dependencies: ["TuistGenerator", "TuistSupportTesting", "TuistCoreTesting", "TuistGeneratorTesting", "TuistSigningTesting"]
         ),
         .testTarget(
             name: "TuistGeneratorIntegrationTests",
@@ -201,9 +201,17 @@ let package = Package(
             name: "TuistSigning",
             dependencies: ["TuistCore", "TuistSupport", "CryptoSwift"]
         ),
+        .target(
+            name: "TuistSigningTesting",
+            dependencies: ["TuistSigning"]
+        ),
         .testTarget(
             name: "TuistSigningTests",
-            dependencies: ["TuistSigning", "TuistSupportTesting", "TuistCoreTesting"]
+            dependencies: ["TuistSigning", "TuistSupportTesting", "TuistCoreTesting", "TuistSigningTesting"]
+        ),
+        .testTarget(
+            name: "TuistSigningIntegrationTests",
+            dependencies: ["TuistSigning", "TuistSupportTesting", "TuistCoreTesting", "TuistSigningTesting"]
         ),
         .target(
             name: "TuistLoader",

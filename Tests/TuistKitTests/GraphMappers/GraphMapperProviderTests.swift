@@ -4,6 +4,7 @@ import TuistCloud
 import TuistCore
 import TuistCoreTesting
 import TuistGenerator
+import TuistSigning
 import TuistSupport
 import XCTest
 

@@ -1,8 +1,8 @@
 import ProjectDescription
 
-let project = Project(name: "App",
+let project = Project(name: "SignApp",
                       targets: [
-                          Target(name: "App",
+                          Target(name: "SignApp",
                                  platform: .iOS,
                                  product: .app,
                                  bundleId: "io.tuist.SignApp",

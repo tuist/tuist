@@ -41,6 +41,15 @@ public struct Configuration: Equatable {
         self.settings = settings
         self.xcconfig = xcconfig
     }
+
+    // MARK: - Public
+
+    /// Returns a copy of the configuration with the given settings set.
+    /// - Parameter settings: SettingsDictionary to be set to the copy.
+    public func with(settings: SettingsDictionary) -> Configuration {
+        Configuration(settings: settings,
+                      xcconfig: xcconfig)
+    }
 }
 
 public enum DefaultSettings {

@@ -33,6 +33,9 @@ public protocol FileHandling: AnyObject {
     /// Returns the current path.
     var currentPath: AbsolutePath { get }
 
+    /// Returns `AbsolutePath` to home directory
+    var homeDirectory: AbsolutePath { get }
+
     /// Replaces a file/directory in a given path with another one.
     ///
     /// - Parameters:
@@ -138,6 +141,10 @@ public class FileHandler: FileHandling {
 
     public var currentPath: AbsolutePath {
         AbsolutePath(fileManager.currentDirectoryPath)
+    }
+
+    public var homeDirectory: AbsolutePath {
+        AbsolutePath(NSHomeDirectory())
     }
 
     public func replace(_ to: AbsolutePath, with: AbsolutePath) throws {

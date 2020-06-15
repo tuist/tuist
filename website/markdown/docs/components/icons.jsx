@@ -4,12 +4,18 @@ import { jsx, MenuButton } from 'theme-ui'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import {
   faCloud,
+  faKey,
   faUsers,
   faFileCode,
   faLayerGroup,
   faTerminal,
 } from '@fortawesome/free-solid-svg-icons'
 
+const Signing = () => {
+  return (
+    <FontAwesomeIcon sx={{ width: 20, height: 20 }} icon={faKey} size="sm" />
+  )
+}
 const Cloud = () => {
   return (
     <FontAwesomeIcon sx={{ width: 20, height: 20 }} icon={faCloud} size="sm" />
@@ -48,4 +54,4 @@ const Architectures = () => {
     />
   )
 }
-export { Cloud, Users, Contributors, Architectures, Terminal }
+export { Signing, Cloud, Users, Contributors, Architectures, Terminal }
