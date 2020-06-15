@@ -49,7 +49,7 @@
     "gatsby-source-filesystem": "^2.3.10",
     "gatsby-theme-tailwindcss": "^1.1.0",
     "gatsby-transformer-yaml": "^2.4.2",
-    "graphviz-react": "^1.0.5",
+    "graphviz-react": "^1.0.6",
     "is-absolute-url": "^3.0.3",
     "moment": "^2.26.0",
     "polished": "^3.6.4",
