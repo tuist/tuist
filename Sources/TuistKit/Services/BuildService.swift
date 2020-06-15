@@ -63,7 +63,7 @@ final class BuildService {
             guard let scheme = buildableSchemes.first(where: { $0.name == schemeName }) else {
                 throw BuildServiceError.schemeNotFound(scheme: schemeName, existing: buildableSchemes.map(\.name))
             }
-            try buildScheme(scheme: scheme, graph: graph, path: path, clean: true, configuration: configuration)
+            try buildScheme(scheme: scheme, graph: graph, path: path, clean: clean, configuration: configuration)
         } else {
             var cleaned: Bool = false
             try buildableSchemes.forEach {
