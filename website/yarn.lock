@@ -14196,10 +14196,10 @@ react-animated-term@^1.3.2:
     classnames "^2.2.5"
     prop-types "^15.6.1"
 
-react-burger-menu@^2.6.14:
-  version "2.6.14"
-  resolved "https://registry.yarnpkg.com/react-burger-menu/-/react-burger-menu-2.6.14.tgz#a0dd080b1c3c082856fc6ef73b335a7779add918"
-  integrity sha512-lPdxd4JzDL+FQivFcdOaO2zKd3wa8u4831VaMPjVpQccIcPnA+iST7/YxZ3RTB2ngEplfdQ62inTItLVa3Av2A==
+react-burger-menu@^2.6.15:
+  version "2.6.15"
+  resolved "https://registry.yarnpkg.com/react-burger-menu/-/react-burger-menu-2.6.15.tgz#a43f92ddad6247dc74efba202ea50381a64f139a"
+  integrity sha512-F4cq48CAZFG3G3eMC7cY83jNFky9V9on1J2JPrgXYRMhIikdGVvh22WciYXFipuS9SL6y0+lu13wbvLgRnjYbQ==
   dependencies:
     browserify-optional "^1.0.0"
     classnames "^2.2.6"
