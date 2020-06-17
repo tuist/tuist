@@ -297,7 +297,6 @@ public class Graph: Encodable {
             .lazy
             .map(\.path)
             .map(\.parentDirectory)
-            .map { AbsolutePath($0.pathString.lowercased()) }
         
         references.formUnion(precompiledFrameworks)
 
