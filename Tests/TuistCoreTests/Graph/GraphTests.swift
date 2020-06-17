@@ -724,7 +724,7 @@ final class GraphTests: TuistUnitTestCase {
         // Then
         XCTAssertTrue(result.isEmpty)
     }
-    
+
     func test_embeddableDependencies_when_nonHostedTestTarget_dynamic_dependencies() throws {
         // Given
         let precompiledNode = mockDynamicFrameworkNode(at: AbsolutePath("/test/test.framework"))
@@ -804,7 +804,7 @@ final class GraphTests: TuistUnitTestCase {
         // Then
         XCTAssertTrue(result.isEmpty)
     }
-    
+
     func test_runPathSearchPaths() throws {
         // Given
         let precompiledNode = mockDynamicFrameworkNode(at: AbsolutePath("/test/test.framework"))
@@ -834,7 +834,7 @@ final class GraphTests: TuistUnitTestCase {
             [AbsolutePath("/path/to")]
         )
     }
-    
+
     func test_runPathSearchPaths_when_unit_tests_with_hosted_target() throws {
         // Given
         let precompiledNode = mockDynamicFrameworkNode(at: AbsolutePath("/test/test.framework"))

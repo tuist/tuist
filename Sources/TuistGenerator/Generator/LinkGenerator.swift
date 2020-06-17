@@ -155,10 +155,10 @@ final class LinkGenerator: LinkGenerating {
         try setupSwiftIncludePaths(swiftIncludePaths,
                                    pbxTarget: pbxTarget,
                                    sourceRootPath: sourceRootPath)
-        
+
         try setupRunPathSearchPaths(runPathSearchPaths,
-                                     pbxTarget: pbxTarget,
-                                     sourceRootPath: sourceRootPath)
+                                    pbxTarget: pbxTarget,
+                                    sourceRootPath: sourceRootPath)
     }
 
     func generatePackages(target: Target,
@@ -281,7 +281,7 @@ final class LinkGenerator: LinkGenerating {
                   pbxTarget: pbxTarget,
                   sourceRootPath: sourceRootPath)
     }
-    
+
     func setupRunPathSearchPaths(_ paths: [AbsolutePath],
                                  pbxTarget: PBXTarget,
                                  sourceRootPath: AbsolutePath) throws {

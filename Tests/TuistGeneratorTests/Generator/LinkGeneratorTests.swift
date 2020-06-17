@@ -191,7 +191,7 @@ final class LinkGeneratorErrorTests: XCTestCase {
             ["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]],
         ])
     }
-    
+
     func test_setupRunPathSearchPath() throws {
         // Given
         let paths = [

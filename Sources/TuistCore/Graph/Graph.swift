@@ -274,7 +274,7 @@ public class Graph: Encodable {
         return targetNode.libraryDependencies
             .compactMap { $0.swiftModuleMap?.removingLastComponent() }
     }
-    
+
     /// Returns all runpath search paths of the given target
     /// Currently applied only to test targets with no host application
     /// - Parameters:
@@ -297,7 +297,7 @@ public class Graph: Encodable {
             .lazy
             .map(\.path)
             .map(\.parentDirectory)
-        
+
         references.formUnion(precompiledFrameworks)
 
         return references.sorted()
@@ -520,7 +520,7 @@ public class Graph: Encodable {
     }
 
     // MARK: - Fileprivate
-    
+
     fileprivate func isDynamicAndLinkable(node: PrecompiledNode) -> Bool {
         if let framework = node as? FrameworkNode { return framework.linking == .dynamic }
         if let xcframework = node as? XCFrameworkNode { return xcframework.linking == .dynamic }
