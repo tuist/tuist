@@ -191,6 +191,33 @@ final class LinkGeneratorErrorTests: XCTestCase {
             ["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]],
         ])
     }
+    
+    func test_setupRunPathSearchPath() throws {
+        // Given
+        let paths = [
+            AbsolutePath("/path/Dependencies/Frameworks/"),
+            AbsolutePath("/path/Dependencies/XCFrameworks/"),
+        ].shuffled()
+        let sourceRootPath = AbsolutePath("/path")
+        let xcodeprojElements = createXcodeprojElements()
+        xcodeprojElements.config.buildSettings["LD_RUNPATH_SEARCH_PATHS"] = "my/custom/path"
+
+        // When
+        try subject.setupRunPathSearchPaths(
+            paths,
+            pbxTarget: xcodeprojElements.pbxTarget,
+            sourceRootPath: sourceRootPath
+        )
+
+        // Then
+        let config = xcodeprojElements.config
+        XCTAssertEqual(config.buildSettings["LD_RUNPATH_SEARCH_PATHS"] as? [String], [
+            "$(inherited)",
+            "$(SRCROOT)/Dependencies/Frameworks",
+            "$(SRCROOT)/Dependencies/XCFrameworks",
+            "my/custom/path",
+        ])
+    }
 
     func test_setupFrameworkSearchPath() throws {
         // Given

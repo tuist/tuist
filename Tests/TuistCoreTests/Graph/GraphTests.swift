@@ -724,6 +724,31 @@ final class GraphTests: TuistUnitTestCase {
         // Then
         XCTAssertTrue(result.isEmpty)
     }
+    
+    func test_embeddableDependencies_when_nonHostedTestTarget_dynamic_dependencies() throws {
+        // Given
+        let precompiledNode = mockDynamicFrameworkNode(at: AbsolutePath("/test/test.framework"))
+        let unitTests = Target.test(name: "AppUnitTests", product: .unitTests)
+        let project = Project.test(path: "/path/a")
+
+        let unitTestsNode = TargetNode(project: project, target: unitTests, dependencies: [precompiledNode])
+
+        let cache = GraphLoaderCache()
+        cache.add(project: project)
+        cache.add(precompiledNode: precompiledNode)
+        cache.add(targetNode: unitTestsNode)
+
+        let graph = Graph(name: "Graph",
+                          entryPath: project.path,
+                          cache: cache,
+                          entryNodes: [unitTestsNode])
+
+        // When
+        let result = try graph.embeddableFrameworks(path: project.path, name: unitTests.name)
+
+        // Then
+        XCTAssertTrue(result.isEmpty)
+    }
 
     func test_embeddableDependencies_whenHostedTestTarget_transitiveDepndencies() throws {
         // Given
@@ -778,6 +803,64 @@ final class GraphTests: TuistUnitTestCase {
 
         // Then
         XCTAssertTrue(result.isEmpty)
+    }
+    
+    func test_runPathSearchPaths() throws {
+        // Given
+        let precompiledNode = mockDynamicFrameworkNode(at: AbsolutePath("/test/test.framework"))
+        let precompiledNodeB = mockDynamicFrameworkNode(at: AbsolutePath("/test/test.framework"))
+        let unitTests = Target.test(name: "AppUnitTests", product: .unitTests)
+        let project = Project.test(path: "/path/a")
+
+        let unitTestsNode = TargetNode(project: project, target: unitTests, dependencies: [precompiledNode, precompiledNodeB])
+
+        let cache = GraphLoaderCache()
+        cache.add(project: project)
+        cache.add(precompiledNode: precompiledNode)
+        cache.add(precompiledNode: precompiledNodeB)
+        cache.add(targetNode: unitTestsNode)
+
+        let graph = Graph(name: "Graph",
+                          entryPath: project.path,
+                          cache: cache,
+                          entryNodes: [unitTestsNode])
+
+        // When
+        let got = graph.runPathSearchPaths(path: project.path, name: unitTests.name)
+
+        // Then
+        XCTAssertEqual(
+            got,
+            [AbsolutePath("/path/to")]
+        )
+    }
+    
+    func test_runPathSearchPaths_when_unit_tests_with_hosted_target() throws {
+        // Given
+        let precompiledNode = mockDynamicFrameworkNode(at: AbsolutePath("/test/test.framework"))
+        let app = Target.test(name: "App", product: .app)
+        let unitTests = Target.test(name: "AppUnitTests", product: .unitTests)
+        let project = Project.test(path: "/path/a")
+
+        let appNode = TargetNode(project: project, target: app, dependencies: [precompiledNode])
+        let unitTestsNode = TargetNode(project: project, target: unitTests, dependencies: [appNode, precompiledNode])
+
+        let cache = GraphLoaderCache()
+        cache.add(project: project)
+        cache.add(targetNode: appNode)
+        cache.add(precompiledNode: precompiledNode)
+        cache.add(targetNode: unitTestsNode)
+
+        let graph = Graph(name: "Graph",
+                          entryPath: project.path,
+                          cache: cache,
+                          entryNodes: [unitTestsNode])
+
+        // When
+        let got = graph.runPathSearchPaths(path: project.path, name: unitTests.name)
+
+        // Then
+        XCTAssertEmpty(got)
     }
 
     func test_librariesSearchPaths() throws {
