@@ -30,22 +30,21 @@ Signing is one of the most complicated domains that iOS developers
 have to deal with in Xcode. And although Apple has introduced automatic signing feature,
 most teams have decided not to use it as it creates a messy environment for their team.
 
-While for automating the process of generating provisioning profiles you'll have to wait as
-that is still work in progress, in this release we bring you easy integration of already
-created provisioning profiles and certificates.
-
 With the new feature, you'll be able to put your provisioning profiles and certificates 
 into `Tuist/Signing` directory and ... just run `tuist generate`. That's it!
 No figuring out how to set up the Xcode build settings as that is done for you.
 And as a plus your signing artifacts will be automatically encrypted with
 your key at `master.key`, so you can safely push it to your remote
 repository, so other team members can run the apps on a device, too ✨
-You can find more info in the [documentation](https://tuist.io/docs/signing/signing/)
+You can find more info in the [documentation](/docs/signing/signing/)
 
-You can also check out an introduction [video](https://youtu.be/WGKp1EHcpME) where we
-show you the feature in action.
+You can also check out an introduction video where we
+show you the feature in action: https://youtu.be/WGKp1EHcpME
 
 Feel free to try it out and let us know your feedback! 🙂
+
+Note that we are also working hard on automating the process
+of generating provisioning profiles and certificates for you. Stay tuned 👀
 
 ## Build
 
