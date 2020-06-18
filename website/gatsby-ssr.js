@@ -1,3 +1,4 @@
+/// https://github.com/gatsbyjs/gatsby/issues/9979#issuecomment-627344993
 exports.onPreRenderHTML = function onPreRenderHTML({
   getHeadComponents,
   replaceHeadComponents,
