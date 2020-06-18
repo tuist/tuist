@@ -5,6 +5,16 @@ public struct Environment {
     public enum Value {
         case boolean(Bool)
         case string(String)
+
+        public func getString(default defaultString: String = "") -> String? {
+            if case let .string(value) = self { return value }
+            return defaultString
+        }
+
+        public func getBoolean() -> Bool {
+            if case let .boolean(value) = self { return value }
+            return false
+        }
     }
 
     public static subscript(dynamicMember member: String) -> Value? {
