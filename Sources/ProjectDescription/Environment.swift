@@ -6,7 +6,7 @@ public struct Environment {
         case boolean(Bool)
         case string(String)
 
-        public func getString(default defaultString: String = "") -> String? {
+        public func getString(default defaultString: String = "") -> String {
             if case let .string(value) = self { return value }
             return defaultString
         }
