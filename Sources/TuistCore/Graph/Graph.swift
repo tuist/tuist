@@ -293,7 +293,8 @@ public class Graph: Encodable {
         var references: Set<AbsolutePath> = Set([])
 
         /// Precompiled frameworks
-        let precompiledFrameworks = findAll(targetNode: targetNode, test: { ($0 as PrecompiledNode).isDynamicAndLinkable() }, skip: canEmbedProducts)
+        let precompiledFrameworkNodes: Set<PrecompiledNode> = findAll(targetNode: targetNode, test: { $0.isDynamicAndLinkable() }, skip: canEmbedProducts)
+        let precompiledFrameworks = precompiledFrameworkNodes
             .lazy
             .map(\.path)
             .map(\.parentDirectory)
@@ -316,7 +317,9 @@ public class Graph: Encodable {
         var references: Set<GraphDependencyReference> = Set([])
 
         /// Precompiled frameworks
-        let precompiledFrameworks = findAll(targetNode: targetNode, test: { ($0 as PrecompiledNode).isDynamicAndLinkable() }, skip: canEmbedProducts)
+        let precompiledFrameworkNodes: Set<PrecompiledNode> = findAll(targetNode: targetNode, test: { $0.isDynamicAndLinkable() }, skip: canEmbedProducts)
+
+        let precompiledFrameworks = precompiledFrameworkNodes
             .lazy
             .map(GraphDependencyReference.init)
 
