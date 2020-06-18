@@ -1,3 +1,12 @@
+- name: Introduction to Tuist Signing
+  url: https://youtu.be/WGKp1EHcpME
+  author: Marek Fořt
+  author_url: https://twitter.com/marekfort
+  author_subtitle: Tuist
+  type: Video
+  date: '2020-06-18'
+  icon_url: https://i.pinimg.com/originals/31/23/9a/31239a2f70e4f8e4e3263fafb00ace1c.png
+
 - name: The Magic of Generating an Xcode Project
   url: https://developers.soundcloud.com/blog/tuist-project-generation
   author: Andrea Cipriani
