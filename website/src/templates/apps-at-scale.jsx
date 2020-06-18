@@ -76,7 +76,6 @@ const CommunityCard = ({ mdx }) => {
                 <a
                   href={mdx.frontmatter.community_topic}
                   target="__blank"
-                  type="button"
                   className="inline-flex items-center px-4 py-2 border border-transparent text-sm leading-5 font-medium rounded-md text-white bg-blue-600 hover:bg-blue-500 focus:outline-none focus:border-indigo-700 focus:shadow-outline-indigo active:bg-indigo-700 transition ease-in-out duration-150"
                 >
                   Ask {mdx.frontmatter.interviewee_name}

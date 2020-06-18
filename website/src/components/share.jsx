@@ -30,7 +30,7 @@ export default ({ path, title, tags }) => {
       }
     }
   `)
-  const { theme } = useThemeUI();
+  const { theme } = useThemeUI()
   const url = `${siteUrl}/${path}`
   return (
     <div sx={{ mt: 4 }}>
@@ -47,7 +47,11 @@ export default ({ path, title, tags }) => {
           alt="Share the blog post on Twitter"
         >
           <FontAwesomeIcon
-            sx={{ mx: 3, path: { fill: theme.colors.text }, "&:hover": { path: { fill: theme.colors.primary } } }}
+            sx={{
+              mx: 3,
+              path: { fill: theme.colors.text },
+              '&:hover': { path: { fill: theme.colors.primary } },
+            }}
             icon={faTwitter}
             size="lg"
           />
@@ -58,7 +62,11 @@ export default ({ path, title, tags }) => {
           alt="Share the blog post on Facebook"
         >
           <FontAwesomeIcon
-            sx={{ mx: 3, path: { fill: theme.colors.text }, "&:hover": { path: { fill: theme.colors.primary } } }}
+            sx={{
+              mx: 3,
+              path: { fill: theme.colors.text },
+              '&:hover': { path: { fill: theme.colors.primary } },
+            }}
             icon={faFacebook}
             size="lg"
           />
@@ -69,7 +77,11 @@ export default ({ path, title, tags }) => {
           alt="Share the blog post via email"
         >
           <FontAwesomeIcon
-            sx={{ mx: 3, path: { fill: theme.colors.text }, "&:hover": { path: { fill: theme.colors.primary } } }}
+            sx={{
+              mx: 3,
+              path: { fill: theme.colors.text },
+              '&:hover': { path: { fill: theme.colors.primary } },
+            }}
             icon={faEnvelope}
             size="lg"
           />

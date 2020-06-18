@@ -21,6 +21,7 @@ export default ({ path }) => {
   return (
     <Styled.a
       href={url}
+      sx={{ textAlign: 'center' }}
       target="__blank"
       alt="Open GitHub to edit the content of the current page"
     >
