@@ -8,8 +8,8 @@ import XCTest
 @testable import TuistCache
 @testable import TuistSupportTesting
 
-final class DependencyContentHasherTests: TuistUnitTestCase {
-    private var subject: DependencyContentHasher!
+final class DependenciesContentHasherTests: TuistUnitTestCase {
+    private var subject: DependenciesContentHasher!
     private var mockContentHasher: MockContentHashing!
     private let filePath1 = AbsolutePath("/file1")
     private let filePath2 = AbsolutePath("/file2")
@@ -18,7 +18,7 @@ final class DependencyContentHasherTests: TuistUnitTestCase {
     override func setUp() {
         super.setUp()
         mockContentHasher = MockContentHashing()
-        subject = DependencyContentHasher(contentHasher: mockContentHasher)
+        subject = DependenciesContentHasher(contentHasher: mockContentHasher)
     }
 
     override func tearDown() {
@@ -32,7 +32,7 @@ final class DependencyContentHasherTests: TuistUnitTestCase {
         let dependency = Dependency.target(name: "foo")
 
         // When
-        let hash = try subject.hash(dependency: dependency)
+        let hash = try subject.hash(dependencies: [dependency])
 
         // Then
         XCTAssertEqual(hash, "target-foo-hash")
@@ -44,7 +44,7 @@ final class DependencyContentHasherTests: TuistUnitTestCase {
         let dependency = Dependency.project(target: "foo", path: filePath1)
 
         // When
-        let hash = try subject.hash(dependency: dependency)
+        let hash = try subject.hash(dependencies: [dependency])
 
         // Then
         XCTAssertEqual(hash, "project-;foo;/file1")
@@ -56,7 +56,7 @@ final class DependencyContentHasherTests: TuistUnitTestCase {
         let dependency = Dependency.framework(path: filePath1)
 
         // When
-        let hash = try subject.hash(dependency: dependency)
+        let hash = try subject.hash(dependencies: [dependency])
 
         // Then
         XCTAssertEqual(hash, "framework-/file1-hash")
@@ -68,7 +68,7 @@ final class DependencyContentHasherTests: TuistUnitTestCase {
         let dependency = Dependency.xcFramework(path: filePath1)
 
         // When
-        let hash = try subject.hash(dependency: dependency)
+        let hash = try subject.hash(dependencies: [dependency])
 
         // Then
         XCTAssertEqual(hash, "xcframework-/file1-hash")
@@ -82,7 +82,7 @@ final class DependencyContentHasherTests: TuistUnitTestCase {
                                             swiftModuleMap: filePath3)
 
         // When
-        let hash = try subject.hash(dependency: dependency)
+        let hash = try subject.hash(dependencies: [dependency])
 
         // Then
         XCTAssertEqual(hash, "library;/file1;/file2;/file3")
@@ -94,7 +94,7 @@ final class DependencyContentHasherTests: TuistUnitTestCase {
         let dependency = Dependency.package(product: "foo")
 
         // When
-        let hash = try subject.hash(dependency: dependency)
+        let hash = try subject.hash(dependencies: [dependency])
 
         // Then
         XCTAssertEqual(hash, "package-foo-hash")
@@ -106,7 +106,7 @@ final class DependencyContentHasherTests: TuistUnitTestCase {
         let dependency = Dependency.sdk(name: "foo", status: .optional)
 
         // When
-        let hash = try subject.hash(dependency: dependency)
+        let hash = try subject.hash(dependencies: [dependency])
 
         // Then
         XCTAssertEqual(hash, "sdk-foo-optional-hash")
@@ -118,7 +118,7 @@ final class DependencyContentHasherTests: TuistUnitTestCase {
         let dependency = Dependency.sdk(name: "foo", status: .required)
 
         // When
-        let hash = try subject.hash(dependency: dependency)
+        let hash = try subject.hash(dependencies: [dependency])
 
         // Then
         XCTAssertEqual(hash, "sdk-foo-required-hash")
@@ -130,7 +130,7 @@ final class DependencyContentHasherTests: TuistUnitTestCase {
         let dependency = Dependency.cocoapods(path: filePath1)
 
         // When
-        let hash = try subject.hash(dependency: dependency)
+        let hash = try subject.hash(dependencies: [dependency])
 
         // Then
         XCTAssertEqual(hash, "cocoapods;/file1")

@@ -10,6 +10,7 @@ public protocol FileContentHashing {
 public protocol ContentHashing: FileContentHashing {
     func hash(_ string: String) throws -> String
     func hash(_ strings: [String]) throws -> String
+    func hash(_ dictionary: [String: String]) throws -> String
 }
 
 /// `ContentHasher`
@@ -34,6 +35,11 @@ public final class ContentHasher: ContentHashing {
 
     public func hash(_ strings: [String]) throws -> String {
         try hash(strings.joined())
+    }
+
+    public func hash(_ dictionary: [String: String]) throws -> String {
+        let concatenatedStrings = dictionary.map { "\($0):\($1)" }.joined(separator: "-")
+        return try hash(concatenatedStrings)
     }
 
     public func hash(fileAtPath filePath: AbsolutePath) throws -> String {

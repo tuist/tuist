@@ -1,13 +1,13 @@
 import Foundation
 import TuistCore
 
-public protocol DependencyContentHashing {
-    func hash(dependency: Dependency) throws -> String
+public protocol DependenciesContentHashing {
+    func hash(dependencies: [Dependency]) throws -> String
 }
 
 /// `DependencyContentHasher`
 /// is responsible for computing a hash that uniquely identifies a target dependency
-public final class DependencyContentHasher: DependencyContentHashing {
+public final class DependenciesContentHasher: DependenciesContentHashing {
     private let contentHasher: ContentHashing
 
     // MARK: - Init
@@ -18,8 +18,15 @@ public final class DependencyContentHasher: DependencyContentHashing {
 
     // MARK: - HeadersContentHashing
 
-    public func hash(dependency: Dependency) throws -> String {
+    public func hash(dependencies: [Dependency]) throws -> String {
         // We don't need to hash the content of dependencies since they live in another target
+        let hashes = dependencies.map { try? hash(dependency: $0) }
+        return hashes.compactMap { $0 }.joined()
+    }
+
+    // MARK: - Private
+
+    private func hash(dependency: Dependency) throws -> String {
         switch dependency {
         case let .target(name):
             return try contentHasher.hash("target-\(name)")

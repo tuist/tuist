@@ -21,6 +21,10 @@ public final class CacheContentHasher: ContentHashing {
         try contentHasher.hash(strings)
     }
 
+    public func hash(_ dictionary: [String: String]) throws -> String {
+        try contentHasher.hash(dictionary)
+    }
+
     public func hash(fileAtPath filePath: AbsolutePath) throws -> String {
         if let cachedHash = hashesCache[filePath] {
             return cachedHash

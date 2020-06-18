@@ -46,6 +46,14 @@ final class ContentHasherTests: TuistUnitTestCase {
         XCTAssertEqual(hash, "3858f62230ac3c915f300c664312c63f") // This is the md5 of "foobar"
     }
 
+    func test_hashdict_returnsMd5OfConcatenation() throws {
+        // Given
+        let hash = try subject.hash(["1": "foo", "2": "bar"])
+        let expectedHash = try subject.hash("1:foo-2:bar")
+        // Then
+        XCTAssertEqual(hash, expectedHash)
+    }
+
     func test_hashFile_hashesTheExpectedFile() throws {
         // Given
         let path = try writeToTemporaryPath(content: "foo")
