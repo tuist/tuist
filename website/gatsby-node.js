@@ -24,7 +24,7 @@ exports.onCreateNode = ({ node, getNode, actions }) => {
         .split('/')[1]
         .match(/^([\d]{4}-[\d]{2}-[\d]{2})-{1}(.+)$/)
 
-      const slug = `/blog/${slugify([date].join('-'), '/')}/${title}/`
+      const slug = `/blog/${date.replace(/-/g, '/')}/${title}/`
 
       createNodeField({ node, name: `type`, value: 'blog-post' })
       createNodeField({ node, name: `slug`, value: slug })
@@ -41,8 +41,7 @@ exports.onCreateNode = ({ node, getNode, actions }) => {
       const [, date, title] = postName
         .split('/')[1]
         .match(/^([\d]{4}-[\d]{2}-[\d]{2})-{1}(.+)$/)
-
-      const slug = `/apps-at-scale/${slugify([date].join('-'), '/')}/${title}/`
+      const slug = `/apps-at-scale/${date.replace(/-/g, '/')}/${title}/`
 
       createNodeField({ node, name: `type`, value: 'apps-at-scale' })
       createNodeField({ node, name: `slug`, value: slug })
