@@ -23,6 +23,51 @@ module.exports = {
   },
   plugins: [
     `gatsby-plugin-react-helmet`,
+    {
+      resolve: 'gatsby-plugin-next-seo',
+      options: {
+        titleTemplate: '%s | Tuist',
+        openGraph: {
+          type: 'website',
+          title: title,
+          locale: 'en_IE',
+          url: siteUrl,
+          site_name: title,
+          images: [
+            {
+              url: `${siteUrl}/squared-logo.png`,
+              width: 400,
+              height: 400,
+              alt: "Tuist's logo",
+            },
+          ],
+          keywords: [
+            `tuist`,
+            `engineering`,
+            `xcode`,
+            `swift`,
+            `project generation`,
+            `xcode project generation`,
+            `xcodeproj`,
+            `xcodegen`,
+            'ios',
+            'uikit',
+            'foundation',
+            'tvos',
+            'ios',
+            'watchos',
+            'objective-c',
+            'swift package manager',
+            'swift packages',
+          ],
+        },
+        twitter: {
+          site: '@tuistio',
+          handle: '@tuistio',
+          cardType: 'summary',
+        },
+      },
+    },
     `gatsby-plugin-sharp`,
     `gatsby-plugin-sitemap`,
     `gatsby-plugin-offline`,
@@ -198,51 +243,6 @@ module.exports = {
         mergeCachingHeaders: true, // boolean to turn off the default caching headers
         transformHeaders: (headers, path) => headers, // optional transform for manipulating headers under each path (e.g.sorting), etc.
         generateMatchPathRewrites: true, // boolean to turn off automatic creation of redirect rules for client only paths
-      },
-    },
-    {
-      resolve: 'gatsby-plugin-next-seo',
-      options: {
-        titleTemplate: '%s | Tuist',
-        openGraph: {
-          type: 'website',
-          title: title,
-          locale: 'en_IE',
-          url: siteUrl,
-          site_name: title,
-          images: [
-            {
-              url: `${siteUrl}/squared-logo.png`,
-              width: 400,
-              height: 400,
-              alt: "Tuist's logo",
-            },
-          ],
-          keywords: [
-            `tuist`,
-            `engineering`,
-            `xcode`,
-            `swift`,
-            `project generation`,
-            `xcode project generation`,
-            `xcodeproj`,
-            `xcodegen`,
-            'ios',
-            'uikit',
-            'foundation',
-            'tvos',
-            'ios',
-            'watchos',
-            'objective-c',
-            'swift package manager',
-            'swift packages',
-          ],
-        },
-        twitter: {
-          site: '@tuistio',
-          handle: '@tuistio',
-          cardType: 'summary',
-        },
       },
     },
     'gatsby-plugin-meta-redirect',
