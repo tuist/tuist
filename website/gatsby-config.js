@@ -22,6 +22,12 @@ module.exports = {
     ],
   },
   plugins: [
+    {
+      resolve: `gatsby-theme-tailwindcss`,
+      options: {
+        postCssPlugins: [require('autoprefixer')],
+      },
+    },
     `gatsby-plugin-react-helmet`,
     {
       resolve: 'gatsby-plugin-next-seo',
@@ -74,12 +80,6 @@ module.exports = {
     `gatsby-plugin-theme-ui`,
     `gatsby-transformer-yaml`,
     {
-      resolve: `gatsby-plugin-google-analytics`,
-      options: {
-        trackingId: 'UA-125584790-1',
-      },
-    },
-    {
       resolve: `gatsby-source-filesystem`,
       name: 'data',
       options: {
@@ -111,37 +111,6 @@ module.exports = {
         theme_color: `#12344F`,
         display: `minimal-ui`,
         icon: `static/favicon.png`, // This path is relative to the root of the site.
-      },
-    },
-    {
-      resolve: `gatsby-plugin-favicon`,
-      options: {
-        logo: './static/favicon.png',
-        appName: 'Tuist',
-        appDescription:
-          'Bootstrap, maintain, and interact with Xcode projects at any scale',
-        developerName: 'Pedro Piñera',
-        developerURL: 'https://ppinera.es',
-        dir: 'auto',
-        lang: 'en-US',
-        background: '#12344F',
-        theme_color: '#12344F',
-        display: 'standalone',
-        orientation: 'any',
-        version: '1.0',
-        start_url: '/',
-        icons: {
-          android: true,
-          appleIcon: true,
-          appleStartup: true,
-          coast: false,
-          favicons: true,
-          firefox: true,
-          opengraph: false,
-          twitter: true,
-          yandex: false,
-          windows: false,
-        },
       },
     },
     {
@@ -248,9 +217,9 @@ module.exports = {
     'gatsby-plugin-meta-redirect',
     `gatsby-plugin-robots-txt`,
     {
-      resolve: `gatsby-theme-tailwindcss`,
+      resolve: `gatsby-plugin-google-analytics`,
       options: {
-        postCssPlugins: [require('autoprefixer')],
+        trackingId: 'UA-125584790-1',
       },
     },
   ],
