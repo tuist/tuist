@@ -41,12 +41,12 @@ final class InfoPlistContentHasherTests: TuistUnitTestCase {
     func test_hash_whenPlistIsDictionary_allDictionaryValuesAreConsideredForHash() throws {
         // Given
         let infoPlist = InfoPlist.dictionary([
-            "1" : 23,
-            "2" : "foo",
-            "3" : true,
-            "4" : false,
-            "5" : ["5a", "5b"],
-            "6" : ["6a" : "6value"]
+            "1": 23,
+            "2": "foo",
+            "3": true,
+            "4": false,
+            "5": ["5a", "5b"],
+            "6": ["6a": "6value"],
         ])
         // When
         let hash = try subject.hash(plist: infoPlist)
@@ -59,12 +59,12 @@ final class InfoPlistContentHasherTests: TuistUnitTestCase {
     func test_hash_whenPlistIsExtendingDefault_allDictionaryValuesAreConsideredForHash() throws {
         // Given
         let infoPlist = InfoPlist.extendingDefault(with: [
-            "1" : 23,
-            "2" : "foo",
-            "3" : true,
-            "4" : false,
-            "5" : ["5a", "5b"],
-            "6" : ["6a" : "6value"]
+            "1": 23,
+            "2": "foo",
+            "3": true,
+            "4": false,
+            "5": ["5a", "5b"],
+            "6": ["6a": "6value"],
         ])
 
         // When

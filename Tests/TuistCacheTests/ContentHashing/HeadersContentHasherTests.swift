@@ -17,7 +17,7 @@ final class HeadersContentHasherTests: TuistUnitTestCase {
     private let filePath4 = AbsolutePath("/file4")
     private let filePath5 = AbsolutePath("/file5")
     private let filePath6 = AbsolutePath("/file6")
-    
+
     override func setUp() {
         super.setUp()
         mockContentHasher = MockContentHashing()

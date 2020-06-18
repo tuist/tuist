@@ -21,4 +21,3 @@ public final class ResourcesContentHasher: ResourcesContentHashing {
         return try contentHasher.hash(hashes)
     }
 }
-

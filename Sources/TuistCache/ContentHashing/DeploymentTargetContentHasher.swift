@@ -21,12 +21,11 @@ public final class DeploymentTargetContentHasher: DeploymentTargetContentHashing
     public func hash(deploymentTarget: DeploymentTarget) throws -> String {
         let stringToHash: String
         switch deploymentTarget {
-        case .iOS(let version, let device):
+        case let .iOS(version, device):
             stringToHash = "iOS-\(version)-\(device.rawValue)"
-        case .macOS(let version):
+        case let .macOS(version):
             stringToHash = "macOS-\(version)"
         }
         return try contentHasher.hash(stringToHash)
     }
 }
-
