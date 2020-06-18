@@ -15,6 +15,13 @@ public class PrecompiledNode: GraphNode {
         fatalError("This method should be overriden by the subclasses")
     }
 
+    /// - Returns: True if node is dynamic and linkable
+    public func isDynamicAndLinkable() -> Bool {
+        if let framework = self as? FrameworkNode { return framework.linking == .dynamic }
+        if let xcframework = self as? XCFrameworkNode { return xcframework.linking == .dynamic }
+        return false
+    }
+
     enum CodingKeys: String, CodingKey {
         case path
         case name

@@ -293,7 +293,7 @@ public class Graph: Encodable {
         var references: Set<AbsolutePath> = Set([])
 
         /// Precompiled frameworks
-        let precompiledFrameworks = findAll(targetNode: targetNode, test: isDynamicAndLinkable, skip: canEmbedProducts)
+        let precompiledFrameworks = findAll(targetNode: targetNode, test: { ($0 as PrecompiledNode).isDynamicAndLinkable() }, skip: canEmbedProducts)
             .lazy
             .map(\.path)
             .map(\.parentDirectory)
@@ -316,7 +316,7 @@ public class Graph: Encodable {
         var references: Set<GraphDependencyReference> = Set([])
 
         /// Precompiled frameworks
-        let precompiledFrameworks = findAll(targetNode: targetNode, test: isDynamicAndLinkable, skip: canEmbedProducts)
+        let precompiledFrameworks = findAll(targetNode: targetNode, test: { ($0 as PrecompiledNode).isDynamicAndLinkable() }, skip: canEmbedProducts)
             .lazy
             .map(GraphDependencyReference.init)
 
@@ -520,12 +520,6 @@ public class Graph: Encodable {
     }
 
     // MARK: - Fileprivate
-
-    fileprivate func isDynamicAndLinkable(node: PrecompiledNode) -> Bool {
-        if let framework = node as? FrameworkNode { return framework.linking == .dynamic }
-        if let xcframework = node as? XCFrameworkNode { return xcframework.linking == .dynamic }
-        return false
-    }
 
     fileprivate func productDependencyReference(for targetNode: TargetNode) -> GraphDependencyReference {
         .product(target: targetNode.target.name, productName: targetNode.target.productNameWithExtension)
