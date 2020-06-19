@@ -74,13 +74,11 @@ public final class TargetContentHasher: TargetContentHashing {
         let targetActionsHash = try targetActionsContentHasher.hash(targetActions: target.actions)
         let dependenciesHash = try dependenciesContentHasher.hash(dependencies: target.dependencies)
         let environmentHash = try contentHasher.hash(target.environment)
-
         var stringsToHash = [target.name,
                              target.platform.rawValue,
                              target.product.rawValue,
                              target.bundleId,
                              target.productName,
-                             // settings
                              dependenciesHash,
                              sourcesHash,
                              resourcesHash,
