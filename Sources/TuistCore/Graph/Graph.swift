@@ -275,6 +275,35 @@ public class Graph: Encodable {
             .compactMap { $0.swiftModuleMap?.removingLastComponent() }
     }
 
+    /// Returns all runpath search paths of the given target
+    /// Currently applied only to test targets with no host application
+    /// - Parameters:
+    ///     - path; Path to the directory where the project that defines the target
+    ///     - name: Name of the target
+    public func runPathSearchPaths(path: AbsolutePath, name: String) -> [AbsolutePath] {
+        guard
+            let targetNode = findTargetNode(path: path, name: name),
+            canEmbedProducts(targetNode: targetNode),
+            targetNode.target.product == .unitTests,
+            hostApplication(for: targetNode) == nil
+        else {
+            return []
+        }
+
+        var references: Set<AbsolutePath> = Set([])
+
+        /// Precompiled frameworks
+        let precompiledFrameworkNodes: Set<PrecompiledNode> = findAll(targetNode: targetNode, test: { $0.isDynamicAndLinkable() }, skip: canEmbedProducts)
+        let precompiledFrameworks = precompiledFrameworkNodes
+            .lazy
+            .map(\.path)
+            .map(\.parentDirectory)
+
+        references.formUnion(precompiledFrameworks)
+
+        return references.sorted()
+    }
+
     /// Returns the list of products that should be embedded into the product of the given target.
     /// - Parameters:
     ///   - path: Path to the directory where the project that defines the target is located.
@@ -287,14 +316,10 @@ public class Graph: Encodable {
 
         var references: Set<GraphDependencyReference> = Set([])
 
-        let isDynamicAndLinkable = { (node: PrecompiledNode) -> Bool in
-            if let framework = node as? FrameworkNode { return framework.linking == .dynamic }
-            if let xcframework = node as? XCFrameworkNode { return xcframework.linking == .dynamic }
-            return false
-        }
-
         /// Precompiled frameworks
-        let precompiledFrameworks = findAll(targetNode: targetNode, test: isDynamicAndLinkable, skip: canEmbedProducts)
+        let precompiledFrameworkNodes: Set<PrecompiledNode> = findAll(targetNode: targetNode, test: { $0.isDynamicAndLinkable() }, skip: canEmbedProducts)
+
+        let precompiledFrameworks = precompiledFrameworkNodes
             .lazy
             .map(GraphDependencyReference.init)
 
@@ -310,6 +335,8 @@ public class Graph: Encodable {
         if targetNode.target.product == .unitTests {
             if let hostApp = hostApplication(for: targetNode) {
                 references.subtract(try embeddableFrameworks(path: hostApp.path, name: hostApp.name))
+            } else {
+                references.subtract(precompiledFrameworks)
             }
         }
 

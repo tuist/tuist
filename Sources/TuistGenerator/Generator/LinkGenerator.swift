@@ -138,6 +138,7 @@ final class LinkGenerator: LinkGenerating {
         let headersSearchPaths = graph.librariesPublicHeadersFolders(path: path, name: target.name)
         let librarySearchPaths = graph.librariesSearchPaths(path: path, name: target.name)
         let swiftIncludePaths = graph.librariesSwiftIncludePaths(path: path, name: target.name)
+        let runPathSearchPaths = graph.runPathSearchPaths(path: path, name: target.name)
 
         try setupFrameworkSearchPath(dependencies: linkableModules,
                                      pbxTarget: pbxTarget,
@@ -154,6 +155,10 @@ final class LinkGenerator: LinkGenerating {
         try setupSwiftIncludePaths(swiftIncludePaths,
                                    pbxTarget: pbxTarget,
                                    sourceRootPath: sourceRootPath)
+
+        try setupRunPathSearchPaths(runPathSearchPaths,
+                                    pbxTarget: pbxTarget,
+                                    sourceRootPath: sourceRootPath)
     }
 
     func generatePackages(target: Target,
@@ -272,6 +277,15 @@ final class LinkGenerator: LinkGenerating {
                                 pbxTarget: PBXTarget,
                                 sourceRootPath: AbsolutePath) throws {
         try setup(setting: "SWIFT_INCLUDE_PATHS",
+                  paths: paths.map(LinkGeneratorPath.absolutePath),
+                  pbxTarget: pbxTarget,
+                  sourceRootPath: sourceRootPath)
+    }
+
+    func setupRunPathSearchPaths(_ paths: [AbsolutePath],
+                                 pbxTarget: PBXTarget,
+                                 sourceRootPath: AbsolutePath) throws {
+        try setup(setting: "LD_RUNPATH_SEARCH_PATHS",
                   paths: paths.map(LinkGeneratorPath.absolutePath),
                   pbxTarget: pbxTarget,
                   sourceRootPath: sourceRootPath)
