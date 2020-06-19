@@ -24,7 +24,11 @@ enum FileUploaderError: LocalizedError {
     }
 }
 
-public class FileUploader {
+public protocol FileUploading {
+    func upload(file: AbsolutePath, hash: String, to url: URL) -> Single<Bool>
+}
+
+public class FileUploader: FileUploading {
     // MARK: - Attributes
 
     let session: URLSession
