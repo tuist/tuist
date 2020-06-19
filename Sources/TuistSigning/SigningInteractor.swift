@@ -48,10 +48,10 @@ public final class SigningInteractor: SigningInteracting {
         let entryPath = graph.entryPath
         guard
             let signingDirectory = try signingFilesLocator.locateSigningDirectory(from: entryPath),
-            let derivedDirectory = rootDirectoryLocator.locate(from: entryPath)?.appending(component: Constants.derivedFolderName)
+            let derivedDirectory = rootDirectoryLocator.locate(from: entryPath)?.appending(component: Constants.DerivedDirectory.name)
         else { return }
 
-        let keychainPath = derivedDirectory.appending(component: Constants.signingKeychain)
+        let keychainPath = derivedDirectory.appending(component: Constants.DerivedDirectory.signingKeychain)
 
         let masterKey = try signingCipher.readMasterKey(at: signingDirectory)
         try FileHandler.shared.createFolder(derivedDirectory)

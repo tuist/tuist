@@ -64,7 +64,8 @@ final class SigningInteractorTests: TuistUnitTestCase {
 
         let rootDirectory = try temporaryPath()
         rootDirectoryLocator.locateStub = rootDirectory
-        let keychainDirectory = rootDirectory.appending(components: Constants.derivedFolderName, Constants.signingKeychain)
+        let keychainDirectory = rootDirectory
+            .appending(components: Constants.DerivedDirectory.name, Constants.DerivedDirectory.signingKeychain)
 
         var receivedKeychainDirectory: AbsolutePath?
         var receivedMasterKey: String?
@@ -95,7 +96,8 @@ final class SigningInteractorTests: TuistUnitTestCase {
 
         let rootDirectory = try temporaryPath()
         rootDirectoryLocator.locateStub = rootDirectory
-        let keychainDirectory = rootDirectory.appending(components: Constants.derivedFolderName, Constants.signingKeychain)
+        let keychainDirectory = rootDirectory
+            .appending(components: Constants.DerivedDirectory.name, Constants.DerivedDirectory.signingKeychain)
 
         var receivedKeychainDirectory: AbsolutePath?
         var receivedMasterKey: String?
@@ -125,7 +127,8 @@ final class SigningInteractorTests: TuistUnitTestCase {
 
         let rootDirectory = try temporaryPath()
         rootDirectoryLocator.locateStub = rootDirectory
-        let keychainDirectory = rootDirectory.appending(components: Constants.derivedFolderName, Constants.signingKeychain)
+        let keychainDirectory = rootDirectory
+            .appending(components: Constants.DerivedDirectory.name, Constants.DerivedDirectory.signingKeychain)
 
         var receivedKeychainDirectory: AbsolutePath?
         var receivedMasterKey: String?
@@ -214,10 +217,10 @@ final class SigningInteractorTests: TuistUnitTestCase {
                 ],
             ],
              provisioningProfiles: [
-                 targetName: [
-                     configuration: expectedProvisioningProfile,
-                     "some-other-config": ProvisioningProfile.test(),
-                 ],
+                targetName: [
+                    configuration: expectedProvisioningProfile,
+                    "some-other-config": ProvisioningProfile.test(),
+                ],
              ])
         }
 

@@ -17,6 +17,9 @@ public enum SideEffectDescriptor: Equatable {
     /// Create / Remove a file
     case file(FileDescriptor)
 
+    /// Create / remove a directory
+    case directory(DirectoryDescriptor)
+
     /// Perform a command
     case command(CommandDescriptor)
 }

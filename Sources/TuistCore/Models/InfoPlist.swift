@@ -44,6 +44,7 @@ public enum InfoPlist: Equatable {
     }
 
     case file(path: AbsolutePath)
+    case generatedFile(path: AbsolutePath)
     case dictionary([String: Value])
     case extendingDefault(with: [String: Value])
 
@@ -51,7 +52,7 @@ public enum InfoPlist: Equatable {
 
     public var path: AbsolutePath? {
         switch self {
-        case let .file(path):
+        case let .file(path), let .generatedFile(path: path):
             return path
         default:
             return nil

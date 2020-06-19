@@ -16,11 +16,14 @@ public final class SideEffectDescriptorExecutor: SideEffectDescriptorExecuting {
 
     public func execute(sideEffects: [SideEffectDescriptor]) throws {
         for sideEffect in sideEffects {
+            logger.debug("Side effect: \(sideEffect)")
             switch sideEffect {
             case let .command(commandDescriptor):
                 try perform(command: commandDescriptor)
             case let .file(fileDescriptor):
                 try process(file: fileDescriptor)
+            case let .directory(directoryDescriptor):
+                try process(directory: directoryDescriptor)
             }
         }
     }
@@ -38,6 +41,19 @@ public final class SideEffectDescriptorExecutor: SideEffectDescriptorExecuting {
             }
         case .absent:
             try FileHandler.shared.delete(file.path)
+        }
+    }
+
+    private func process(directory: DirectoryDescriptor) throws {
+        switch directory.state {
+        case .present:
+            if !FileHandler.shared.exists(directory.path) {
+                try FileHandler.shared.createFolder(directory.path)
+            }
+        case .absent:
+            if FileHandler.shared.exists(directory.path) {
+                try FileHandler.shared.delete(directory.path)
+            }
         }
     }
 
