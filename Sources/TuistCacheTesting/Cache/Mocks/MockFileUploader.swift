@@ -3,6 +3,8 @@ import RxSwift
 import TSCBasic
 import TuistCache
 
+// swiftlint:disable large_tuple
+
 public final class MockFileUploader: FileUploading {
     public init() {}
 
@@ -20,3 +22,5 @@ public final class MockFileUploader: FileUploading {
         return stubbedUploadResult
     }
 }
+
+// swiftlint:enable large_tuple

@@ -61,7 +61,7 @@ final class CacheRemoteStorage: CacheStoring {
             let resource = try CloudCacheResponse.storeResource(
                 hash: hash,
                 config: config,
-                content_md5: try destinationZipPath.base64MD5()
+                contentMD5: try destinationZipPath.base64MD5()
             )
 
             return cloudClient
