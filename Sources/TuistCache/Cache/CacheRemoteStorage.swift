@@ -3,19 +3,22 @@ import RxSwift
 import TSCBasic
 import TuistCore
 import TuistSupport
-import Zip
 
 // TODO: Later, add a warmup function to check if it's correctly authenticated ONCE
 final class CacheRemoteStorage: CacheStoring {
     // MARK: - Attributes
 
     private let cloudClient: CloudClienting
-    private let fileUploader: FileUploader
+    private let fileUploader: FileUploading
+    private let fileArchiver: FileArchiving
 
     // MARK: - Init
 
-    init(cloudClient: CloudClienting, fileUploader: FileUploader = FileUploader()) {
+    init(cloudClient: CloudClienting,
+         fileArchiver: FileArchiving = FileArchiver(),
+         fileUploader: FileUploading = FileUploader()) {
         self.cloudClient = cloudClient
+        self.fileArchiver = fileArchiver
         self.fileUploader = fileUploader
     }
 
@@ -54,12 +57,11 @@ final class CacheRemoteStorage: CacheStoring {
 
     func store(hash: String, config: Config, xcframeworkPath: AbsolutePath) -> Completable {
         do {
-            let destinationZipPath = try zip(xcframeworkPath: xcframeworkPath, hash: hash)
-            let md5 = try destinationZipPath.base64MD5()
+            let destinationZipPath = try fileArchiver.zip(xcframeworkPath: xcframeworkPath, hash: hash)
             let resource = try CloudCacheResponse.storeResource(
                 hash: hash,
                 config: config,
-                content_md5: md5
+                content_md5: try destinationZipPath.base64MD5()
             )
 
             return cloudClient
@@ -71,11 +73,5 @@ final class CacheRemoteStorage: CacheStoring {
         } catch {
             return Completable.error(error)
         }
-    }
-
-    private func zip(xcframeworkPath: AbsolutePath, hash: String) throws -> AbsolutePath {
-        let destinationZipPath = xcframeworkPath.removingLastComponent().appending(component: "\(hash).zip")
-        try Zip.zipFiles(paths: [xcframeworkPath.url], zipFilePath: destinationZipPath.url, password: nil, progress: nil)
-        return destinationZipPath
     }
 }
