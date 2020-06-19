@@ -16,8 +16,7 @@ public struct HTTPResource<T, E: Error>: Equatable, Hashable, CustomStringConver
     public func withURL(_ url: URL) -> HTTPResource<T, E> {
         HTTPResource(request: {
             URLRequest(url: url)
-        }, parse: parse,
-                     parseError: parseError)
+        }, parse: parse, parseError: parseError)
     }
 
     public func mappingRequest(_ requestMapper: @escaping (URLRequest) throws -> URLRequest) throws -> HTTPResource<T, E> {
@@ -50,16 +49,12 @@ public struct HTTPResource<T, E: Error>: Equatable, Hashable, CustomStringConver
 
 extension HTTPResource where T: Decodable, E: Decodable {
     public static func jsonResource(request: @escaping () -> URLRequest) -> HTTPResource<T, E> {
-        jsonResource(request: request, parseError: decode)
-    }
-
-    public static func jsonResource(request: @escaping () -> URLRequest, parseError: @escaping (Data, HTTPURLResponse) throws -> E) -> HTTPResource<T, E> {
-        HTTPResource(request: request, parse: decode, parseError: parseError)
-    }
-
-    private static func decode<T: Decodable>(from data: Data, _: HTTPURLResponse) throws -> T {
         let jsonDecoder = JSONDecoder()
         jsonDecoder.keyDecodingStrategy = .convertFromSnakeCase
-        return try jsonDecoder.decode(T.self, from: data)
+        return HTTPResource<T, E>(
+            request: request,
+            parse: { data, _ in try jsonDecoder.decode(T.self, from: data) },
+            parseError: { data, _ in try jsonDecoder.decode(E.self, from: data) }
+        )
     }
 }

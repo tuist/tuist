@@ -40,7 +40,7 @@ public final class MockCloudClienting<U>: CloudClienting {
         stubbedResponse = response
     }
 
-    public func request<T>(_ resource: HTTPResource<T, CloudResponseError>) -> Single<(object: T, response: HTTPURLResponse)> {
+    public func request<T, E>(_ resource: HTTPResource<T, E>) -> Single<(object: T, response: HTTPURLResponse)> where E: Error {
         invokedRequest = true
         invokedRequestCount += 1
         invokedRequestParameter = resource as? HTTPResource<U, CloudResponseError>
