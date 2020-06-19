@@ -136,4 +136,16 @@ final class DependenciesContentHasherTests: TuistUnitTestCase {
         XCTAssertEqual(hash, "cocoapods;/file1")
         XCTAssertEqual(mockContentHasher.hashStringsCallCount, 1)
     }
+
+    func test_hash_whenDependencyIsXCTest_callsContentHasherAsExpected() throws {
+        // Given
+        let dependency = Dependency.xctest
+
+        // When
+        let hash = try subject.hash(dependencies: [dependency])
+
+        // Then
+        XCTAssertEqual(hash, "xctest-hash")
+        XCTAssertEqual(mockContentHasher.hashStringCallCount, 1)
+    }
 }

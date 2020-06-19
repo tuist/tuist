@@ -44,6 +44,8 @@ public final class DependenciesContentHasher: DependenciesContentHashing {
             return try contentHasher.hash("sdk-\(name)-\(status)")
         case let .cocoapods(path):
             return try contentHasher.hash(["cocoapods", path.pathString])
+        case .xctest:
+            return try contentHasher.hash("xctest")
         }
     }
 }
