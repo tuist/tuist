@@ -23,3 +23,16 @@ public enum SideEffectDescriptor: Equatable {
     /// Perform a command
     case command(CommandDescriptor)
 }
+
+extension SideEffectDescriptor: CustomStringConvertible {
+    public var description: String {
+        switch self {
+        case let .file(fileDescriptor):
+            return fileDescriptor.description
+        case let .directory(directoryDescriptor):
+            return directoryDescriptor.description
+        case let .command(commandDescriptor):
+            return commandDescriptor.description
+        }
+    }
+}

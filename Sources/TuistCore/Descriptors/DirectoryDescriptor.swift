@@ -7,7 +7,7 @@ import TSCBasic
 /// part of generating a project or workspace.
 ///
 /// - seealso: `SideEffectsDescriptor`
-public struct DirectoryDescriptor: Equatable, CustomStringConvertible {
+public struct DirectoryDescriptor: Equatable {
     public enum State {
         case present
         case absent
@@ -28,9 +28,9 @@ public struct DirectoryDescriptor: Equatable, CustomStringConvertible {
         self.path = path
         self.state = state
     }
+}
 
-    // MARK: - CustomStringConvertible
-
+extension DirectoryDescriptor: CustomStringConvertible {
     public var description: String {
         switch state {
         case .absent:
