@@ -5,6 +5,7 @@ import TuistLoader
 import TuistSupport
 import XCTest
 
+@testable import TuistCoreTesting
 @testable import TuistGeneratorTesting
 @testable import TuistKit
 @testable import TuistLoaderTesting
@@ -29,6 +30,8 @@ final class ProjectEditorTests: TuistUnitTestCase {
     var helpersDirectoryLocator: MockHelpersDirectoryLocator!
     var writer: MockXcodeProjWriter!
     var templatesDirectoryLocator: MockTemplatesDirectoryLocator!
+    var projectMapper: MockProjectMapper!
+    var sideEffectDescriptorExecutor: MockSideEffectDescriptorExecutor!
     var subject: ProjectEditor!
 
     override func setUp() {
@@ -40,13 +43,17 @@ final class ProjectEditorTests: TuistUnitTestCase {
         helpersDirectoryLocator = MockHelpersDirectoryLocator()
         writer = MockXcodeProjWriter()
         templatesDirectoryLocator = MockTemplatesDirectoryLocator()
+        projectMapper = MockProjectMapper()
+        sideEffectDescriptorExecutor = MockSideEffectDescriptorExecutor()
         subject = ProjectEditor(generator: generator,
                                 projectEditorMapper: projectEditorMapper,
                                 resourceLocator: resourceLocator,
                                 manifestFilesLocator: manifestFilesLocator,
                                 helpersDirectoryLocator: helpersDirectoryLocator,
                                 writer: writer,
-                                templatesDirectoryLocator: templatesDirectoryLocator)
+                                templatesDirectoryLocator: templatesDirectoryLocator,
+                                projectMapper: projectMapper,
+                                sideEffectDescriptorExecutor: sideEffectDescriptorExecutor)
     }
 
     override func tearDown() {
@@ -57,6 +64,8 @@ final class ProjectEditorTests: TuistUnitTestCase {
         manifestFilesLocator = nil
         helpersDirectoryLocator = nil
         templatesDirectoryLocator = nil
+        projectMapper = nil
+        sideEffectDescriptorExecutor = nil
         subject = nil
     }
 
@@ -77,6 +86,11 @@ final class ProjectEditorTests: TuistUnitTestCase {
         manifestFilesLocator.locateStub = manifests
         helpersDirectoryLocator.locateStub = helpersDirectory
         projectEditorMapper.mapStub = (project, graph)
+        var mappedProject: Project?
+        projectMapper.mapStub = { project in
+            mappedProject = project
+            return (project, [])
+        }
         var generatedProject: Project?
         generator.generateProjectWithConfigStub = { project, _, _ in
             generatedProject = project
@@ -93,6 +107,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         XCTAssertEqual(mapArgs?.helpers, helpers)
         XCTAssertEqual(mapArgs?.sourceRootPath, directory)
         XCTAssertEqual(mapArgs?.projectDescriptionPath, projectDescriptionPath)
+        XCTAssertEqual(project, mappedProject)
 
         XCTAssertEqual(generatedProject, project)
     }
