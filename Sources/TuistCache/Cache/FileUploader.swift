@@ -25,29 +25,27 @@ enum FileUploaderError: LocalizedError {
 }
 
 public class FileUploader {
-    
     // MARK: - Attributes
-    
+
     let session: URLSession
     let fileManager: FileManager
-    
+
     // MARK: - Init
-    
+
     public init(session: URLSession = URLSession.shared,
-                fileManager: FileManager = FileManager.default
-    ) {
+                fileManager: FileManager = FileManager.default) {
         self.session = session
         self.fileManager = fileManager
     }
-    
+
     // MARK: - Public
-    
-    public func upload(file: AbsolutePath, hash: String, to url: URL) -> Single<Bool> {
-        return Single<Bool>.create { observer -> Disposable in
+
+    public func upload(file: AbsolutePath, hash _: String, to url: URL) -> Single<Bool> {
+        Single<Bool>.create { observer -> Disposable in
             do {
                 let fileSize = try self.fileSize(path: file.pathString)
                 let fileData = try Data(contentsOf: file.url)
-                
+
                 let request = self.uploadRequest(url: url, fileSize: fileSize, data: fileData)
                 let uploadTask = self.session.dataTask(with: request) { data, response, error in
                     if let error = error {
@@ -74,7 +72,7 @@ public class FileUploader {
             return Disposables.create {}
         }
     }
-    
+
     // MARK: - Private
 
     private func uploadRequest(url: URL, fileSize: UInt64, data: Data) -> URLRequest {
@@ -86,9 +84,9 @@ public class FileUploader {
         request.httpBody = data
         return request
     }
-    
+
     private func fileSize(path: String) throws -> UInt64 {
-        let attr = try self.fileManager.attributesOfItem(atPath: path)
+        let attr = try fileManager.attributesOfItem(atPath: path)
         guard let size = attr[FileAttributeKey.size] as? UInt64 else { throw FileUploaderError.unreachableFileSize(path) }
         return size
     }

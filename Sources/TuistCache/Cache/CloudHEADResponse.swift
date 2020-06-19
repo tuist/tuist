@@ -3,7 +3,6 @@ import TuistCore
 import TuistSupport
 
 struct CloudHEADResponse: Decodable {
-    
     public init() {}
 
     public static func existsResource(hash: String, config: Config) throws -> HTTPResource<CloudResponse<CloudHEADResponse>, CloudHEADResponseError> {
@@ -12,7 +11,7 @@ struct CloudHEADResponse: Decodable {
         var request = URLRequest(url: url)
         request.httpMethod = "HEAD"
         return HTTPResource(request: { request },
-                            parse: { _,_ in CloudResponse(status: "HEAD", data: CloudHEADResponse()) },
+                            parse: { _, _ in CloudResponse(status: "HEAD", data: CloudHEADResponse()) },
                             parseError: { _, _ in CloudHEADResponseError() })
     }
 }
