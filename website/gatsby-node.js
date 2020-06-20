@@ -1,5 +1,4 @@
 const { createFilePath } = require(`gatsby-source-filesystem`)
-const slugify = require('slug')
 const path = require(`path`)
 
 exports.onCreateNode = ({ node, getNode, actions }) => {
