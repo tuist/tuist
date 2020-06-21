@@ -43,9 +43,17 @@ public enum InfoPlist: Equatable {
         }
     }
 
+    // Path to a user defined info.plist file (already exists on disk).
     case file(path: AbsolutePath)
+
+    // Path to a generated info.plist file (may not exists on disk at the time of project generation).
     case generatedFile(path: AbsolutePath)
+
+    // User defined dictionary of keys/values for an info.plist file.
     case dictionary([String: Value])
+
+    // User defined dictionary of keys/values for an info.plist file extending the default set of keys/values
+    // for the target type.
     case extendingDefault(with: [String: Value])
 
     // MARK: - Public
