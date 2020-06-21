@@ -12,6 +12,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Changed
 
 - Use `LD_RUNPATH_SEARCH_PATHS` instead of embedding dynamic frameworks for unit test targets [#1463](https://github.com/tuist/tuist/pull/1463) by [@fortmarek](https://github.com/fortmarek)
+- Migrate info plist generator to a project mapper [#1469](https://github.com/tuist/tuist/pull/1469) by [@kwridan](https://github.com/kwridan).
+
 
 ## 1.11.0 - Volare
 
