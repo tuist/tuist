@@ -81,8 +81,8 @@ final class SigningMapperTests: TuistUnitTestCase {
             path: try temporaryPath(),
             targets: [target]
         )
-        let derivedDirectory = project.path.appending(component: Constants.derivedFolderName)
-        let keychainPath = derivedDirectory.appending(component: Constants.signingKeychain)
+        let derivedDirectory = project.path.appending(component: Constants.DerivedDirectory.name)
+        let keychainPath = derivedDirectory.appending(component: Constants.DerivedDirectory.signingKeychain)
 
         let expectedConfigurations: [BuildConfiguration: Configuration] = [
             BuildConfiguration(

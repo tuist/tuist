@@ -47,9 +47,6 @@ final class ProjectGenerator: ProjectGenerating {
     /// Generator for the project schemes.
     let schemesGenerator: SchemesGenerating
 
-    /// Generator for the project derived files.
-    let derivedFileGenerator: DerivedFileGenerating
-
     // MARK: - Init
 
     /// Initializes the project generator with its attributes.
@@ -58,15 +55,12 @@ final class ProjectGenerator: ProjectGenerating {
     ///   - targetGenerator: Generator for the project targets.
     ///   - configGenerator: Generator for the project configuration.
     ///   - schemesGenerator: Generator for the project schemes.
-    ///   - derivedFileGenerator: Generator for the project derived files.
     init(targetGenerator: TargetGenerating = TargetGenerator(),
          configGenerator: ConfigGenerating = ConfigGenerator(),
-         schemesGenerator: SchemesGenerating = SchemesGenerator(),
-         derivedFileGenerator: DerivedFileGenerating = DerivedFileGenerator()) {
+         schemesGenerator: SchemesGenerating = SchemesGenerator()) {
         self.targetGenerator = targetGenerator
         self.configGenerator = configGenerator
         self.schemesGenerator = schemesGenerator
-        self.derivedFileGenerator = derivedFileGenerator
     }
 
     // MARK: - ProjectGenerating
@@ -83,10 +77,6 @@ final class ProjectGenerator: ProjectGenerating {
 
         // If the xcodeproj path is not given, we generate it under the source root path.
         let xcodeprojPath = xcodeprojPath ?? sourceRootPath.appending(component: "\(project.fileName).xcodeproj")
-
-        // Derived files
-        // TODO: experiment with moving this outside the project generator to avoid needing to mutate the project
-        let (project, sideEffects) = try derivedFileGenerator.generate(graph: graph, project: project, sourceRootPath: sourceRootPath)
 
         let workspaceData = XCWorkspaceData(children: [])
         let workspace = XCWorkspace(data: workspaceData)
@@ -137,7 +127,7 @@ final class ProjectGenerator: ProjectGenerating {
                                  xcodeprojPath: xcodeprojPath,
                                  xcodeProj: xcodeProj,
                                  schemeDescriptors: schemes,
-                                 sideEffectDescriptors: sideEffects)
+                                 sideEffectDescriptors: [])
     }
 
     // MARK: - Fileprivate

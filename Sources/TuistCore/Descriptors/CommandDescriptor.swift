@@ -19,3 +19,9 @@ public struct CommandDescriptor: Equatable {
         self.init(command: command)
     }
 }
+
+extension CommandDescriptor: CustomStringConvertible {
+    public var description: String {
+        "execute \(command.joined(separator: " "))"
+    }
+}

@@ -35,3 +35,14 @@ public struct FileDescriptor: Equatable {
         self.state = state
     }
 }
+
+extension FileDescriptor: CustomStringConvertible {
+    public var description: String {
+        switch state {
+        case .absent:
+            return "delete file \(path.pathString)"
+        case .present:
+            return "create file \(path.pathString)"
+        }
+    }
+}

@@ -8,12 +8,11 @@ protocol InfoPlistContentProviding {
     /// and product, and extends them with the values provided by the user.
     ///
     /// - Parameters:
-    ///   - graph: The dependencies graph.
     ///   - project: The project that hosts the target for which the Info.plist content will be returned
     ///   - target: Target whose Info.plist content will be returned.
     ///   - extendedWith: Values provided by the user to extend the default ones.
     /// - Returns: Content to generate the Info.plist file.
-    func content(graph: Graph, project: Project, target: Target, extendedWith: [String: InfoPlist.Value]) -> [String: Any]?
+    func content(project: Project, target: Target, extendedWith: [String: InfoPlist.Value]) -> [String: Any]?
 }
 
 final class InfoPlistContentProvider: InfoPlistContentProviding {
@@ -22,12 +21,11 @@ final class InfoPlistContentProvider: InfoPlistContentProviding {
     /// and product, and extends them with the values provided by the user.
     ///
     /// - Parameters:
-    ///   - graph: The dependencies graph.
     ///   - project: The project that hosts the target for which the Info.plist content will be returned
     ///   - target: Target whose Info.plist content will be returned.
     ///   - extendedWith: Values provided by the user to extend the default ones.
     /// - Returns: Content to generate the Info.plist file.
-    func content(graph: Graph, project: Project, target: Target, extendedWith: [String: InfoPlist.Value]) -> [String: Any]? {
+    func content(project: Project, target: Target, extendedWith: [String: InfoPlist.Value]) -> [String: Any]? {
         if target.product == .staticLibrary || target.product == .dynamicLibrary {
             return nil
         }
@@ -57,16 +55,16 @@ final class InfoPlistContentProvider: InfoPlistContentProviding {
 
         // watchOS app
         if target.product == .watch2App, target.platform == .watchOS {
-            let host = graph.hostTargetNodeFor(path: project.path, name: target.name)
+            let host = hostTarget(for: target, in: project)
             extend(&content, with: watchosApp(name: target.name,
-                                              hostAppBundleId: host?.target.bundleId))
+                                              hostAppBundleId: host?.bundleId))
         }
 
         // watchOS app extension
         if target.product == .watch2Extension, target.platform == .watchOS {
-            let host = graph.hostTargetNodeFor(path: project.path, name: target.name)
+            let host = hostTarget(for: target, in: project)
             extend(&content, with: watchosAppExtension(name: target.name,
-                                                       hostAppBundleId: host?.target.bundleId))
+                                                       hostAppBundleId: host?.bundleId))
         }
 
         extend(&content, with: extendedWith.unwrappingValues())
@@ -222,5 +220,11 @@ final class InfoPlistContentProvider: InfoPlistContentProviding {
     ///   - with: The content to extend the dictionary with.
     fileprivate func extend(_ base: inout [String: Any], with: [String: Any]) {
         with.forEach { base[$0.key] = $0.value }
+    }
+
+    private func hostTarget(for target: Target, in project: Project) -> Target? {
+        project.targets.first {
+            $0.dependencies.contains(.target(name: target.name))
+        }
     }
 }

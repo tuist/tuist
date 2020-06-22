@@ -22,7 +22,7 @@ final class SecurityControllerIntegrationTests: TuistTestCase {
 
     func test_import_certificate() throws {
         // Given
-        let keychainPath = try temporaryPath().appending(component: Constants.signingKeychain)
+        let keychainPath = try temporaryPath().appending(component: Constants.DerivedDirectory.signingKeychain)
 
         let currentDirectory = AbsolutePath(#file.replacingOccurrences(of: "file://", with: "")).removingLastComponent()
         let publicKey = currentDirectory.appending(component: "Target.Debug.cer")
@@ -54,7 +54,7 @@ final class SecurityControllerIntegrationTests: TuistTestCase {
 
     func test_import_certificate_when_exists() throws {
         // Given
-        let keychainPath = try temporaryPath().appending(component: Constants.signingKeychain)
+        let keychainPath = try temporaryPath().appending(component: Constants.DerivedDirectory.signingKeychain)
 
         let currentDirectory = AbsolutePath(#file.replacingOccurrences(of: "file://", with: "")).removingLastComponent()
         let publicKey = currentDirectory.appending(component: "Target.Debug.cer")

@@ -9,16 +9,22 @@ public struct Constants {
     public static let bundleName: String = "tuist.zip"
     public static let trueValues: [String] = ["1", "true", "TRUE", "yes", "YES"]
     public static let tuistDirectoryName: String = "Tuist"
-    public static let derivedFolderName = "Derived"
+
     public static let helpersDirectoryName: String = "ProjectDescriptionHelpers"
     public static let signingDirectoryName: String = "Signing"
-    public static let signingKeychain = "signing.keychain"
+
     public static let masterKey = "master.key"
     public static let encryptedExtension = "encrypted"
     public static let templatesDirectoryName: String = "Templates"
     public static let twitterHandle: String = "tuistio"
     public static let joinSlackURL: String = "https://slack.tuist.io/"
     public static let tuistGeneratedFileName = ".tuist-generated"
+
+    public struct DerivedDirectory {
+        public static let name = "Derived"
+        public static let infoPlists = "InfoPlists"
+        public static let signingKeychain = "signing.keychain"
+    }
 
     public struct EnvironmentVariables {
         public static let colouredOutput = "TUIST_COLOURED_OUTPUT"
