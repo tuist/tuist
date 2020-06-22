@@ -1,6 +1,6 @@
 ---
 layout: post
-title: 'With Bazel we were able to reduce build times by 95% on clean builds - Kamil Pyć'
+title: 'With Bazel we were able to reduce build times by 70% on clean builds - Kamil Pyć'
 categories:
   [
     Tuist,
@@ -36,7 +36,7 @@ We used to have platform specific teams but now mobile developers are part of fe
 
 ### What are the main challenges on your architecture when scaling?
 
-There is nothing revolutionary about our code architecture - we mostly use MVVM, but if there is part of app where other paradigms would fit better we can use them. For example reactive programming architecture is applied just in the module of user registration which has a lot of input and validation.
+There is nothing revolutionary about our code architecture - we mostly use MVVM, yet we are open to other paradigms if they are more suitable for the use case at hand. For example reactive programming architecture is applied just in the module of user registration which has a lot of input and validation.
 
 Main challenge of working with application that have many modules and over 500k+ lines of code is how to work at such a scale. If we have like hundreds of modules described with yamls and for some reason we would like to change all of them, sometimes it is just easier to write a script to do it. With many developers it’s hard to track all changes in codebase, that why we have added many automated metrics like clean & warmbuild times, application size & launch time etc.
 We managed to solve a couple of problems we had with a large code base - long compilation time is fixed thanks to [Bazel](https://bazel.build/) caching and we used to have many conflicts in Xcode projects - thanks to XcodeGen we don’t have to worry about that.
