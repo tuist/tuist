@@ -6,14 +6,14 @@ public struct Environment {
         case boolean(Bool)
         case string(String)
 
-        public func getString(default defaultString: String = "") -> String {
+        public func getString(default defaultString: String) -> String {
             if case let .string(value) = self { return value }
             return defaultString
         }
 
-        public func getBoolean() -> Bool {
+        public func getBoolean(default defaultBoolean: Bool) -> Bool {
             if case let .boolean(value) = self { return value }
-            return false
+            return defaultBoolean
         }
     }
 

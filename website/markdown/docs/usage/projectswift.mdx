@@ -152,6 +152,16 @@ Accessing variables returns an instance of type `Environment.Value?` which can t
   ]}
 />
 
+You can also retrieve the string or boolean Environment variable using either of the helper methods defined below, these methods require a default value to be passed to ensure the user gets consistent results each time. This avoids the need to define the function appName() defined above.
+
+```swift
+Environment.appName?.getString(default: "TuistApp")
+```
+
+```swift
+Environment.isCI?.getBoolean(default: false)
+```
+
 ## Package
 
 You can add Swift Packages very similarly to how you add dependencies in a `Package.swift`:
