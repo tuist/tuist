@@ -45,7 +45,7 @@
     "gatsby-remark-check-links": "^2.1.0",
     "gatsby-remark-copy-linked-files": "^2.3.4",
     "gatsby-remark-embedder": "^2.1.1",
-    "gatsby-remark-images": "^3.3.9",
+    "gatsby-remark-images": "^3.3.11",
     "gatsby-remark-smartypants": "^2.3.3",
     "gatsby-source-filesystem": "^2.3.12",
     "gatsby-theme-tailwindcss": "^1.1.0",
