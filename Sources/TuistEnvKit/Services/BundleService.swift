@@ -45,16 +45,15 @@ final class BundleService {
             throw BundleServiceError.missingVersionFile(FileHandler.shared.currentPath)
         }
 
-        let version = try String(contentsOf: versionFilePath.url)
-        let cleanVersion = version.filter { !$0.isWhitespace }
-        logger.notice("Bundling the version \(cleanVersion) in the directory \(binFolderPath.pathString)", metadata: .section)
+        let version = try String(contentsOf: versionFilePath.url).trimmingCharacters(in: .whitespacesAndNewlines)
+        logger.notice("Bundling the version \(version) in the directory \(binFolderPath.pathString)", metadata: .section)
 
-        let versionPath = versionsController.path(version: cleanVersion)
+        let versionPath = versionsController.path(version: version)
 
         // Installing
         if !FileHandler.shared.exists(versionPath) {
-            logger.notice("Version \(cleanVersion) not available locally. Installing...")
-            try installer.install(version: cleanVersion, force: false)
+            logger.notice("Version \(version) not available locally. Installing...")
+            try installer.install(version: version, force: false)
         }
 
         // Copying
