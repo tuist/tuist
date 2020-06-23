@@ -78,6 +78,19 @@ final class BundleServiceTests: TuistUnitTestCase {
         XCTAssertEqual(installer.installCallCount, 0)
     }
 
+    func test_run_doesnt_install_the_app_if_it_already_exists_with_whitespace_in_version_file() throws {
+        let temporaryPath = try self.temporaryPath()
+
+        let tuistVersionPath = temporaryPath.appending(component: Constants.versionFileName)
+        try "3.2.1\n\t".write(to: tuistVersionPath.url, atomically: true, encoding: .utf8)
+        let versionPath = versionsController.path(version: "3.2.1")
+        try FileHandler.shared.createFolder(versionPath)
+
+        try subject.run()
+
+        XCTAssertEqual(installer.installCallCount, 0)
+    }
+
     func test_run_prints_the_right_messages() throws {
         let temporaryPath = try self.temporaryPath()
         let tuistVersionPath = temporaryPath.appending(component: Constants.versionFileName)

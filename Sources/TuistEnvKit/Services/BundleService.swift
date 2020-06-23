@@ -45,7 +45,7 @@ final class BundleService {
             throw BundleServiceError.missingVersionFile(FileHandler.shared.currentPath)
         }
 
-        let version = try String(contentsOf: versionFilePath.url)
+        let version = try String(contentsOf: versionFilePath.url).trimmingCharacters(in: .whitespacesAndNewlines)
         logger.notice("Bundling the version \(version) in the directory \(binFolderPath.pathString)", metadata: .section)
 
         let versionPath = versionsController.path(version: version)
