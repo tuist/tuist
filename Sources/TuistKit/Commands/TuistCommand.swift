@@ -13,6 +13,7 @@ public struct TuistCommand: ParsableCommand {
                                  UpCommand.self,
                                  FocusCommand.self,
                                  EditCommand.self,
+                                 SecretCommand.self,
                                  DumpCommand.self,
                                  GraphCommand.self,
                                  LintCommand.self,
