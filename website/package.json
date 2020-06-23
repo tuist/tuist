@@ -12,7 +12,7 @@
     "@fortawesome/free-regular-svg-icons": "^5.13.1",
     "@fortawesome/free-solid-svg-icons": "^5.13.0",
     "@fortawesome/react-fontawesome": "^0.1.11",
-    "@mdx-js/mdx": "^1.6.5",
+    "@mdx-js/mdx": "^1.6.6",
     "@mdx-js/react": "^1.6.5",
     "@mdx-js/tag": "^0.20.3",
     "@theme-ui/color": "^0.3.1",
