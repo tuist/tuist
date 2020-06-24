@@ -60,7 +60,7 @@ final class CacheRemoteStorage: CacheStoring {
 
     func store(hash: String, config: Config, xcframeworkPath: AbsolutePath) -> Completable {
         do {
-            let destinationZipPath = try fileArchiver.zip(xcframeworkPath: xcframeworkPath, hash: hash)
+            let destinationZipPath = try fileArchiver.zip(xcframeworkPath: xcframeworkPath)
             let resource = try CloudCacheResponse.storeResource(
                 hash: hash,
                 config: config,
