@@ -5,24 +5,25 @@ import TuistSupport
 
 enum FileUploaderError: LocalizedError, FatalError {
     case unreachableFileSize(String)
-    case urlSessionError(Error)
-    case serverSideError(HTTPURLResponse)
-    case invalidResponse
+    case urlSessionError(String, Error)
+    case serverSideError(String, HTTPURLResponse)
+    case invalidResponse(String)
 
     // MARK: - FatalError
 
     public var description: String {
         switch self {
         case let .unreachableFileSize(path): return "Could not get the file size at path \(path)"
-        case let .urlSessionError(error):
+        case let .urlSessionError(path, error):
+            let output = "Received a session error while uploading file at path \(path)"
             if let error = error as? LocalizedError {
-                return error.localizedDescription
+                return "\(output). Error: \(error.localizedDescription)"
             } else {
-                return "Received a session error while uploading file."
+                return output
             }
-        case .invalidResponse: return "Received unexpected response from the network while uploading file."
-        case let .serverSideError(response):
-            return "Error returned by the server, code: \(response.statusCode). Reponse: \(response.description)"
+        case let .invalidResponse(path): return "Received unexpected response from the network while uploading file at path \(path)"
+        case let .serverSideError(path, response):
+            return "Got error code: \(response.statusCode) returned by the server, when uploading file at path \(path). (String, HTTPURLResponse: \(response.description)"
         }
     }
 
@@ -63,13 +64,14 @@ public class FileUploader: FileUploading {
     public func upload(file: AbsolutePath, hash _: String, to url: URL) -> Single<Bool> {
         Single<Bool>.create { observer -> Disposable in
             do {
-                let fileSize = try self.fileSize(path: file.pathString)
+                let filePath = file.pathString
+                let fileSize = try self.fileSize(path: filePath)
                 let fileData = try Data(contentsOf: file.url)
 
                 let request = self.uploadRequest(url: url, fileSize: fileSize, data: fileData)
                 let uploadTask = self.session.dataTask(with: request) { data, response, error in
                     if let error = error {
-                        observer(.error(FileUploaderError.urlSessionError(error)))
+                        observer(.error(FileUploaderError.urlSessionError(filePath, error)))
                     } else if let data = data, let response = response as? HTTPURLResponse {
                         print(response)
                         print("data: " + (String(data: data, encoding: .utf8) ?? ""))
@@ -78,10 +80,10 @@ public class FileUploader: FileUploading {
                         case 200 ..< 300:
                             observer(.success(true))
                         default: // Error
-                            observer(.error(FileUploaderError.serverSideError(response)))
+                            observer(.error(FileUploaderError.serverSideError(filePath, response)))
                         }
                     } else {
-                        observer(.error(FileUploaderError.invalidResponse))
+                        observer(.error(FileUploaderError.invalidResponse(filePath)))
                     }
                 }
                 uploadTask.resume()
