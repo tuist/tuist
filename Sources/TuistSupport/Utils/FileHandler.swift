@@ -126,6 +126,9 @@ public protocol FileHandling: AnyObject {
     func isFolder(_ path: AbsolutePath) -> Bool
     func touch(_ path: AbsolutePath) throws
     func contentsOfDirectory(_ path: AbsolutePath) throws -> [AbsolutePath]
+
+    func md5(path: AbsolutePath) throws -> String
+    func base64MD5(path: AbsolutePath) throws -> String
     func fileSize(path: AbsolutePath) throws -> UInt64
 }
 
@@ -286,6 +289,20 @@ public class FileHandler: FileHandling {
     public func contentsOfDirectory(_ path: AbsolutePath) throws -> [AbsolutePath] {
         try fileManager.contentsOfDirectory(atPath: path.pathString).map { AbsolutePath(path, $0) }
     }
+
+    // MARK: - MD5
+
+    public func md5(path: AbsolutePath) throws -> String {
+        try Data(contentsOf: path.url).md5
+    }
+
+    public func base64MD5(path: AbsolutePath) throws -> String {
+        guard let utf8str = try md5(path: path).data(using: .utf8) else {
+            throw "Can't convert md5 into Data for file at path \(path.pathString)"
+        }
+        return utf8str.base64EncodedString()
+    }
+
     // MARK: - MD5
 
     public func fileSize(path: AbsolutePath) throws -> UInt64 {

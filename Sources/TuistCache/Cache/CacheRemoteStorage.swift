@@ -11,15 +11,18 @@ final class CacheRemoteStorage: CacheStoring {
     private let cloudClient: CloudClienting
     private let fileUploader: FileUploading
     private let fileArchiver: FileArchiving
+    private let fileHandler: FileHandling
 
     // MARK: - Init
 
     init(cloudClient: CloudClienting,
          fileArchiver: FileArchiving = FileArchiver(),
-         fileUploader: FileUploading = FileUploader()) {
+         fileUploader: FileUploading = FileUploader(),
+         fileHandler: FileHandling = FileHandler()) {
         self.cloudClient = cloudClient
         self.fileArchiver = fileArchiver
         self.fileUploader = fileUploader
+        self.fileHandler = fileHandler
     }
 
     // MARK: - CacheStoring
@@ -61,7 +64,7 @@ final class CacheRemoteStorage: CacheStoring {
             let resource = try CloudCacheResponse.storeResource(
                 hash: hash,
                 config: config,
-                contentMD5: try destinationZipPath.base64MD5()
+                contentMD5: try fileHandler.base64MD5(path: destinationZipPath)
             )
 
             return cloudClient

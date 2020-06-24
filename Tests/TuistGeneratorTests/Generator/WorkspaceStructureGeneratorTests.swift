@@ -361,6 +361,15 @@ class WorkspaceStructureGeneratorTests: XCTestCase {
         func ls(_: AbsolutePath) throws -> [AbsolutePath] {
             []
         }
+
+        func md5(path _: AbsolutePath) throws -> String {
+            "md5"
+        }
+
+        func base64MD5(path _: AbsolutePath) throws -> String {
+            "base64MD5"
+        }
+
         func fileSize(path _: AbsolutePath) throws -> UInt64 {
             0
         }
