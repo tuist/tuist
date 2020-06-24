@@ -145,7 +145,7 @@ public protocol FileHandling: AnyObject {
     /// - Returns: The file’s md5 as an utf8 base 64 encoded String.
     /// - Throws: An error if path's file data content can't be accessed.
     func base64MD5(path: AbsolutePath) throws -> String
-    
+
     /// Gives the size of the given file, in bytes
     ///
     /// - Parameters:
@@ -327,7 +327,7 @@ public class FileHandler: FileHandling {
     }
 
     // MARK: - File Attributes
-    
+
     public func fileSize(path: AbsolutePath) throws -> UInt64 {
         let attr = try fileManager.attributesOfItem(atPath: path.pathString)
         guard let size = attr[FileAttributeKey.size] as? UInt64 else { throw FileHandlerError.unreachableFileSize(path) }

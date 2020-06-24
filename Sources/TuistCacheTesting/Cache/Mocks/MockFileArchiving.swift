@@ -5,7 +5,6 @@ import TuistSupport
 @testable import TuistCache
 
 public class MockFileArchiverFactory: FileArchiverManufacturing {
-
     public init() {}
 
     public var invokedMakeFileArchiver = false
@@ -38,9 +37,8 @@ public class MockFileArchiverFactory: FileArchiverManufacturing {
 }
 
 public class MockFileArchiver: FileArchiving {
-
     public init() {}
-    
+
     public var invokedZip = false
     public var invokedZipCount = 0
     public var stubbedZipError: Error?

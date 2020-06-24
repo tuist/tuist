@@ -1,13 +1,19 @@
 import Foundation
 import RxSwift
 
-public enum HTTPRequestDispatcherError: LocalizedError {
+public enum HTTPRequestDispatcherError: LocalizedError, FatalError {
     case urlSessionError(Error)
     case parseError(Error)
     case invalidResponse
     case serverSideError(Error, HTTPURLResponse)
 
-    public var errorDescription: String? {
+    // MARK: - LocalizedError
+
+    public var errorDescription: String? { description }
+
+    // MARK: - FatalError
+
+    public var description: String {
         switch self {
         case let .urlSessionError(error):
             if let error = error as? LocalizedError {
@@ -24,10 +30,19 @@ public enum HTTPRequestDispatcherError: LocalizedError {
         case .invalidResponse: return "Received unexpected response from the network."
         case let .serverSideError(error, response):
             if let error = error as? LocalizedError {
-                return "Error returned by the server, code: \(response.statusCode). Error: \(error.localizedDescription)"
+                return "Error returned by the server, code \(response.statusCode): \(error.localizedDescription)"
             } else {
                 return "Error returned by the server, code: \(response.statusCode)."
             }
+        }
+    }
+
+    public var type: ErrorType {
+        switch self {
+        case .urlSessionError: return .bug
+        case .parseError: return .abort
+        case .invalidResponse: return .bug
+        case .serverSideError: return .bug
         }
     }
 }
