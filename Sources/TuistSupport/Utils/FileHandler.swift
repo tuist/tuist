@@ -6,6 +6,7 @@ public enum FileHandlerError: FatalError, Equatable {
     case writingError(AbsolutePath)
     case fileNotFound(AbsolutePath)
     case unreachableFileSize(AbsolutePath)
+    case unconvertibleToData(AbsolutePath)
 
     public var description: String {
         switch self {
@@ -17,6 +18,8 @@ public enum FileHandlerError: FatalError, Equatable {
             return "File not found at \(path.pathString)"
         case let .unreachableFileSize(path):
             return "Could not get the file size at path \(path.pathString)"
+        case let .unconvertibleToData(path):
+            return "Could not convert to Data the file content (at path \(path.pathString))"
         }
     }
 
@@ -24,7 +27,7 @@ public enum FileHandlerError: FatalError, Equatable {
         switch self {
         case .invalidTextEncoding:
             return .bug
-        case .writingError, .fileNotFound, .unreachableFileSize:
+        case .writingError, .fileNotFound, .unreachableFileSize, .unconvertibleToData:
             return .abort
         }
     }
@@ -127,8 +130,28 @@ public protocol FileHandling: AnyObject {
     func touch(_ path: AbsolutePath) throws
     func contentsOfDirectory(_ path: AbsolutePath) throws -> [AbsolutePath]
 
+    /// Gives a md5 representation of the given file
+    ///
+    /// - Parameters:
+    ///   - path: File to be assessed.
+    /// - Returns: The file’s md5 as an utf8 encoded String.
+    /// - Throws: An error if path's file data content can't be accessed.
     func md5(path: AbsolutePath) throws -> String
+
+    /// Gives a base 64 md5 representation of the given file
+    ///
+    /// - Parameters:
+    ///   - path: File to be assessed.
+    /// - Returns: The file’s md5 as an utf8 base 64 encoded String.
+    /// - Throws: An error if path's file data content can't be accessed.
     func base64MD5(path: AbsolutePath) throws -> String
+    
+    /// Gives the size of the given file, in bytes
+    ///
+    /// - Parameters:
+    ///   - path: File to be assessed.
+    /// - Returns: The file’s size in bytes.
+    /// - Throws: An error if path's file size can't be retrieved.
     func fileSize(path: AbsolutePath) throws -> UInt64
 }
 
@@ -298,13 +321,13 @@ public class FileHandler: FileHandling {
 
     public func base64MD5(path: AbsolutePath) throws -> String {
         guard let utf8str = try md5(path: path).data(using: .utf8) else {
-            throw "Can't convert md5 into Data for file at path \(path.pathString)"
+            throw FileHandlerError.unconvertibleToData(path)
         }
         return utf8str.base64EncodedString()
     }
 
-    // MARK: - MD5
-
+    // MARK: - File Attributes
+    
     public func fileSize(path: AbsolutePath) throws -> UInt64 {
         let attr = try fileManager.attributesOfItem(atPath: path.pathString)
         guard let size = attr[FileAttributeKey.size] as? UInt64 else { throw FileHandlerError.unreachableFileSize(path) }
