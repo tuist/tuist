@@ -361,6 +361,9 @@ class WorkspaceStructureGeneratorTests: XCTestCase {
         func ls(_: AbsolutePath) throws -> [AbsolutePath] {
             []
         }
+        func fileSize(path _: AbsolutePath) throws -> UInt64 {
+            0
+        }
     }
 }
 

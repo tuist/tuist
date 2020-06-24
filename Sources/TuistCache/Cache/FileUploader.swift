@@ -4,32 +4,29 @@ import TSCBasic
 import TuistSupport
 
 enum FileUploaderError: LocalizedError, FatalError {
-    case unreachableFileSize(String)
-    case urlSessionError(String, Error)
-    case serverSideError(String, HTTPURLResponse)
-    case invalidResponse(String)
+    case urlSessionError(AbsolutePath, Error)
+    case serverSideError(AbsolutePath, HTTPURLResponse)
+    case invalidResponse(AbsolutePath)
 
     // MARK: - FatalError
 
     public var description: String {
         switch self {
-        case let .unreachableFileSize(path): return "Could not get the file size at path \(path)"
         case let .urlSessionError(path, error):
-            let output = "Received a session error while uploading file at path \(path)"
+            let output = "Received a session error while uploading file at path \(path.pathString)"
             if let error = error as? LocalizedError {
                 return "\(output). Error: \(error.localizedDescription)"
             } else {
                 return output
             }
-        case let .invalidResponse(path): return "Received unexpected response from the network while uploading file at path \(path)"
+        case let .invalidResponse(path): return "Received unexpected response from the network while uploading file at path \(path.pathString)"
         case let .serverSideError(path, response):
-            return "Got error code: \(response.statusCode) returned by the server, when uploading file at path \(path). (String, HTTPURLResponse: \(response.description)"
+            return "Got error code: \(response.statusCode) returned by the server, when uploading file at path \(path.pathString). (String, HTTPURLResponse: \(response.description)"
         }
     }
 
     var type: ErrorType {
         switch self {
-        case .unreachableFileSize: return .abort
         case .urlSessionError: return .bug
         case .serverSideError: return .bug
         case .invalidResponse: return .bug
@@ -49,14 +46,14 @@ public class FileUploader: FileUploading {
     // MARK: - Attributes
 
     let session: URLSession
-    let fileManager: FileManager
+    let fileHandler: FileHandling
 
     // MARK: - Init
 
     public init(session: URLSession = URLSession.shared,
-                fileManager: FileManager = FileManager.default) {
+                fileHandler: FileHandling = FileHandler()) {
         self.session = session
-        self.fileManager = fileManager
+        self.fileHandler = fileHandler
     }
 
     // MARK: - Public
@@ -64,8 +61,7 @@ public class FileUploader: FileUploading {
     public func upload(file: AbsolutePath, hash _: String, to url: URL) -> Single<Bool> {
         Single<Bool>.create { observer -> Disposable in
             do {
-                let filePath = file.pathString
-                let fileSize = try self.fileSize(path: filePath)
+                let fileSize = try self.fileHandler.fileSize(path: file)
                 let fileData = try Data(contentsOf: file.url)
 
                 let request = self.uploadRequest(url: url, fileSize: fileSize, data: fileData)
@@ -105,11 +101,5 @@ public class FileUploader: FileUploading {
         request.setValue("zip", forHTTPHeaderField: "Content-Encoding")
         request.httpBody = data
         return request
-    }
-
-    private func fileSize(path: String) throws -> UInt64 {
-        let attr = try fileManager.attributesOfItem(atPath: path)
-        guard let size = attr[FileAttributeKey.size] as? UInt64 else { throw FileUploaderError.unreachableFileSize(path) }
-        return size
     }
 }

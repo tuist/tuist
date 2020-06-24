@@ -5,6 +5,7 @@ public enum FileHandlerError: FatalError, Equatable {
     case invalidTextEncoding(AbsolutePath)
     case writingError(AbsolutePath)
     case fileNotFound(AbsolutePath)
+    case unreachableFileSize(AbsolutePath)
 
     public var description: String {
         switch self {
@@ -14,6 +15,8 @@ public enum FileHandlerError: FatalError, Equatable {
             return "Couldn't write to the file \(path.pathString)"
         case let .fileNotFound(path):
             return "File not found at \(path.pathString)"
+        case let .unreachableFileSize(path):
+            return "Could not get the file size at path \(path.pathString)"
         }
     }
 
@@ -21,7 +24,7 @@ public enum FileHandlerError: FatalError, Equatable {
         switch self {
         case .invalidTextEncoding:
             return .bug
-        case .writingError, .fileNotFound:
+        case .writingError, .fileNotFound, .unreachableFileSize:
             return .abort
         }
     }
@@ -123,6 +126,7 @@ public protocol FileHandling: AnyObject {
     func isFolder(_ path: AbsolutePath) -> Bool
     func touch(_ path: AbsolutePath) throws
     func contentsOfDirectory(_ path: AbsolutePath) throws -> [AbsolutePath]
+    func fileSize(path: AbsolutePath) throws -> UInt64
 }
 
 public class FileHandler: FileHandling {
@@ -281,5 +285,12 @@ public class FileHandler: FileHandling {
 
     public func contentsOfDirectory(_ path: AbsolutePath) throws -> [AbsolutePath] {
         try fileManager.contentsOfDirectory(atPath: path.pathString).map { AbsolutePath(path, $0) }
+    }
+    // MARK: - MD5
+
+    public func fileSize(path: AbsolutePath) throws -> UInt64 {
+        let attr = try fileManager.attributesOfItem(atPath: path.pathString)
+        guard let size = attr[FileAttributeKey.size] as? UInt64 else { throw FileHandlerError.unreachableFileSize(path) }
+        return size
     }
 }
