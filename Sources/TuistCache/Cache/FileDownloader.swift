@@ -1,33 +1,50 @@
 import Foundation
 import RxSwift
 import TSCBasic
+import TuistSupport
 
-enum FileDownloaderError: LocalizedError {
-    case noLocalURL
-    case invalidResponse
-    case urlSessionError(Error)
-    case moveFileError(Error)
+enum FileDownloaderError: LocalizedError, FatalError {
+    case noLocalURL(String)
+    case invalidResponse(String)
+    case urlSessionError(String, Error)
+    case moveFileError(String, Error)
 
-    var errorDescription: String? {
+    // MARK: - FatalError
+
+    var description: String {
         switch self {
-        case .noLocalURL:
-            return "Didn't receive a valid local URL"
-        case .invalidResponse:
-            return "Invalid URL response"
-        case let .urlSessionError(error):
+        case let .noLocalURL(frameworkName):
+            return "The download of framework \(frameworkName) from the cache succeeded, but the file doesn't exist locally."
+        case let .invalidResponse(frameworkName):
+            return "Invalid URL response when downloading framework \(frameworkName)"
+        case let .urlSessionError(frameworkName, error):
             if let error = error as? LocalizedError {
                 return error.localizedDescription
             } else {
-                return "Error while parsing the network response."
+                return "URL session error when downloading the framework \(frameworkName)"
             }
-        case let .moveFileError(error):
+        case let .moveFileError(frameworkName, error):
+            let output = "Error while moving downloaded framework \(frameworkName)."
             if let error = error as? LocalizedError {
-                return error.localizedDescription
+                return "\(output). Error: \(error.localizedDescription)"
             } else {
-                return "Error while moving the network response."
+                return output
             }
         }
     }
+
+    var type: ErrorType {
+        switch self {
+        case .noLocalURL: return .abort
+        case .invalidResponse: return .bug
+        case .moveFileError: return .bug
+        case .urlSessionError: return .bug
+        }
+    }
+
+    // MARK: - LocalizedError
+
+    public var errorDescription: String? { description }
 }
 
 class FileDownloader {
@@ -39,21 +56,27 @@ class FileDownloader {
         self.fileManager = fileManager
     }
 
-    func download(url: URL, in directory: AbsolutePath) -> Single<AbsolutePath> {
+    func download(frameworkName: String, url: URL, in directory: AbsolutePath) -> Single<AbsolutePath> {
         Single.create { observer -> Disposable in
             let task = self.urlSession.downloadTask(with: url) { localURL, response, networkError in
                 if let networkError = networkError {
-                    observer(.error(FileDownloaderError.urlSessionError(networkError)))
+                    observer(.error(FileDownloaderError.urlSessionError(frameworkName, networkError)))
                 } else if let response = response as? HTTPURLResponse {
                     // Local URL
                     guard let localURL = localURL else {
-                        observer(.error(FileDownloaderError.noLocalURL))
+                        observer(.error(FileDownloaderError.noLocalURL(frameworkName)))
                         return
                     }
 
-                    self.processResponse(response, observer: observer, localURL: localURL, directory: directory)
+                    self.processResponse(
+                        response,
+                        frameworkName: frameworkName,
+                        observer: observer,
+                        localURL: localURL,
+                        directory: directory
+                    )
                 } else {
-                    observer(.error(FileDownloaderError.invalidResponse))
+                    observer(.error(FileDownloaderError.invalidResponse(frameworkName)))
                 }
             }
 
@@ -65,6 +88,7 @@ class FileDownloader {
     // MARK: - Fileprivate
 
     private func processResponse(_ response: HTTPURLResponse,
+                                 frameworkName: String,
                                  observer: (SingleEvent<AbsolutePath>) -> Void,
                                  localURL: URL,
                                  directory: AbsolutePath) {
@@ -76,10 +100,10 @@ class FileDownloader {
                 try fileManager.moveItem(atPath: localURL.path, toPath: directory.pathString)
                 observer(.success(directory))
             } catch {
-                observer(.error(FileDownloaderError.moveFileError(error)))
+                observer(.error(FileDownloaderError.moveFileError(frameworkName, error)))
             }
         default: // Error
-            observer(.error(FileDownloaderError.invalidResponse))
+            observer(.error(FileDownloaderError.invalidResponse(frameworkName)))
         }
     }
 }

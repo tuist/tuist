@@ -1,14 +1,17 @@
 import Foundation
 import RxSwift
 import TSCBasic
+import TuistSupport
 
-enum FileUploaderError: LocalizedError {
+enum FileUploaderError: LocalizedError, FatalError {
     case unreachableFileSize(String)
     case urlSessionError(Error)
     case serverSideError(HTTPURLResponse)
     case invalidResponse
 
-    public var errorDescription: String? {
+    // MARK: - FatalError
+
+    public var description: String {
         switch self {
         case let .unreachableFileSize(path): return "Could not get the file size at path \(path)"
         case let .urlSessionError(error):
@@ -22,6 +25,19 @@ enum FileUploaderError: LocalizedError {
             return "Error returned by the server, code: \(response.statusCode). Reponse: \(response.description)"
         }
     }
+
+    var type: ErrorType {
+        switch self {
+        case .unreachableFileSize: return .abort
+        case .urlSessionError: return .bug
+        case .serverSideError: return .bug
+        case .invalidResponse: return .bug
+        }
+    }
+
+    // MARK: - LocalizedError
+
+    public var errorDescription: String? { description }
 }
 
 public protocol FileUploading {

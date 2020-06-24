@@ -23,7 +23,11 @@ public enum HTTPRequestDispatcherError: LocalizedError {
             }
         case .invalidResponse: return "Received unexpected response from the network."
         case let .serverSideError(error, response):
-            return "Error returned by the server, code: \(response.statusCode). Error: \(error.localizedDescription)"
+            if let error = error as? LocalizedError {
+                return "Error returned by the server, code: \(response.statusCode). Error: \(error.localizedDescription)"
+            } else {
+                return "Error returned by the server, code: \(response.statusCode)."
+            }
         }
     }
 }
