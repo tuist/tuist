@@ -67,7 +67,7 @@ public class FileUploader: FileUploading {
                 let request = self.uploadRequest(url: url, fileSize: fileSize, data: fileData)
                 let uploadTask = self.session.dataTask(with: request) { data, response, error in
                     if let error = error {
-                        observer(.error(FileUploaderError.urlSessionError(filePath, error)))
+                        observer(.error(FileUploaderError.urlSessionError(file, error)))
                     } else if let data = data, let response = response as? HTTPURLResponse {
                         print(response)
                         print("data: " + (String(data: data, encoding: .utf8) ?? ""))
@@ -76,10 +76,10 @@ public class FileUploader: FileUploading {
                         case 200 ..< 300:
                             observer(.success(true))
                         default: // Error
-                            observer(.error(FileUploaderError.serverSideError(filePath, response)))
+                            observer(.error(FileUploaderError.serverSideError(file, response)))
                         }
                     } else {
-                        observer(.error(FileUploaderError.invalidResponse(filePath)))
+                        observer(.error(FileUploaderError.invalidResponse(file)))
                     }
                 }
                 uploadTask.resume()
