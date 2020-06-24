@@ -10,17 +10,18 @@ final class CacheRemoteStorage: CacheStoring {
 
     private let cloudClient: CloudClienting
     private let fileUploader: FileUploading
-    private let fileArchiver: FileArchiving
+    private let fileArchiverFactory: FileArchiverManufacturing
     private let fileHandler: FileHandling
+    private var fileArchiver: FileArchiving?
 
     // MARK: - Init
 
     init(cloudClient: CloudClienting,
-         fileArchiver: FileArchiving = FileArchiver(),
+         fileArchiverFactory: FileArchiverManufacturing = FileArchiverFactory(),
          fileUploader: FileUploading = FileUploader(),
          fileHandler: FileHandling = FileHandler()) {
         self.cloudClient = cloudClient
-        self.fileArchiver = fileArchiver
+        self.fileArchiverFactory = fileArchiverFactory
         self.fileUploader = fileUploader
         self.fileHandler = fileHandler
     }
@@ -60,7 +61,8 @@ final class CacheRemoteStorage: CacheStoring {
 
     func store(hash: String, config: Config, xcframeworkPath: AbsolutePath) -> Completable {
         do {
-            let destinationZipPath = try fileArchiver.zip(xcframeworkPath: xcframeworkPath)
+            fileArchiver = fileArchiverFactory.makeFileArchiver(for: xcframeworkPath)
+            let destinationZipPath = try fileArchiver!.zip()
             let resource = try CloudCacheResponse.storeResource(
                 hash: hash,
                 config: config,
