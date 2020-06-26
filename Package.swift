@@ -96,7 +96,7 @@ let package = Package(
         ),
         .target(
             name: "TuistSupport",
-            dependencies: ["SwiftToolsSupport-auto", "RxSwift", "RxRelay", "Logging", "KeychainAccess", "Swifter", "Signals"]
+            dependencies: ["SwiftToolsSupport-auto", "RxSwift", "RxRelay", "Logging", "KeychainAccess", "Swifter", "Signals", "Zip"]
         ),
         .target(
             name: "TuistSupportTesting",
@@ -128,7 +128,7 @@ let package = Package(
         ),
         .target(
             name: "TuistCache",
-            dependencies: ["XcodeProj", "SwiftToolsSupport-auto", "TuistCore", "TuistSupport", "Checksum", "RxSwift", "Zip"]
+            dependencies: ["XcodeProj", "SwiftToolsSupport-auto", "TuistCore", "TuistSupport", "Checksum", "RxSwift"]
         ),
         .testTarget(
             name: "TuistCacheTests",
