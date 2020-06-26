@@ -13,10 +13,10 @@ protocol GraphMapperProviding {
 }
 
 final class GraphMapperProvider: GraphMapperProviding {
-    fileprivate let useCache: Bool
-
-    init(useCache: Bool) {
-        self.useCache = useCache
+    fileprivate let cache: Bool
+    
+    init(cache: Bool = false) {
+        self.cache = cache
     }
 
     func mapper(config: Config) -> GraphMapping {

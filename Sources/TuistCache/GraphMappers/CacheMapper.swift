@@ -22,7 +22,7 @@ public class CacheMapper: GraphMapping {
 
     /// Dispatch queue.
     private let queue: DispatchQueue
-
+    
     // MARK: - Init
 
     public convenience init(config: Config, cloudClient: CloudClienting) {

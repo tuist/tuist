@@ -35,8 +35,9 @@ class CacheGraphMapper: CacheGraphMapping {
     public func map(graph: Graph, xcframeworks: [TargetNode: AbsolutePath]) throws -> Graph {
         var visitedXCFrameworkPaths: [TargetNode: VisitedXCFramework?] = [:]
         var loadedXCFrameworks: [AbsolutePath: XCFrameworkNode] = [:]
-
-        func mapDependencies(_ dependencies: [GraphNode]) throws -> [GraphNode] {
+        var sourceTargets: Set<TargetNode> = Set()
+        
+        func mapDependencies(_ dependencies: [GraphNode], sourceTargets: inout Set<TargetNode>) throws -> [GraphNode] {
             var newDependencies: [GraphNode] = []
             try dependencies.forEach { dependency in
                 // If the dependency is not a target node we keep it.
@@ -44,17 +45,18 @@ class CacheGraphMapper: CacheGraphMapping {
                     newDependencies.append(dependency)
                     return
                 }
-                // If the target cannot be replace with its associated .xcframework we return
+                // If the target cannot be replaced with its associated .xcframework we return
                 guard let xcframeworkPath = xcframeworkPath(target: targetDependency,
                                                             xcframeworks: xcframeworks,
                                                             visitedXCFrameworkPaths: &visitedXCFrameworkPaths) else {
+                    sourceTargets.formUnion([targetDependency])
                     newDependencies.append(dependency)
                     return
                 }
 
                 // We load the xcframework
                 let xcframework = try self.loadXCFramework(path: xcframeworkPath, loadedXCFrameworks: &loadedXCFrameworks)
-                try mapDependencies(targetDependency.dependencies).forEach { dependency in
+                try mapDependencies(targetDependency.dependencies, sourceTargets: &sourceTargets).forEach { dependency in
                     if let frameworkDependency = dependency as? FrameworkNode {
                         xcframework.add(dependency: XCFrameworkNode.Dependency.framework(frameworkDependency))
                     } else if let xcframeworkDependency = dependency as? XCFrameworkNode {
@@ -69,14 +71,42 @@ class CacheGraphMapper: CacheGraphMapping {
             return newDependencies
         }
 
-        func visit(node: GraphNode) throws {
-            guard let targetNode = node as? TargetNode else { return }
-            targetNode.dependencies = try mapDependencies(targetNode.dependencies)
+        func visit(targetNode: TargetNode, sourceTargets: inout Set<TargetNode>) throws {
+            sourceTargets.formUnion([targetNode])
+            targetNode.dependencies = try mapDependencies(targetNode.dependencies, sourceTargets: &sourceTargets)
         }
+        let entryNodes = Set(graph.entryNodes)
+        try graph.targets.flatMap({ $0.value })
+            .filter({ targetNode in
+                return entryNodes.contains(targetNode) || (targetNode.dependsOnXCTest && !targetNode.target.product.testsBundle )
+            })
+            .forEach({ try visit(targetNode: $0, sourceTargets: &sourceTargets) })
 
-        try graph.entryNodes.forEach(visit)
-
-        return graph
+        return treeShake(graph: graph, sourceTargets: sourceTargets)
+    }
+    
+    func treeShake(graph: Graph, sourceTargets: Set<TargetNode>) -> Graph {
+        let entryNodes = Set(graph.entryNodes)
+        let entryProjects = Set(graph.entryNodes.compactMap({ $0 as? TargetNode }).map({ $0.project }))
+        
+        let projects = graph.projects.compactMap({ (project) -> Project? in
+            if entryProjects.contains(project) {
+                return project
+            } else {
+                let targets: [Target] = project.targets.compactMap({ (target) -> Target? in
+                    guard let targetNode = graph.target(path: project.path, name: target.name) else { return nil }
+                    guard sourceTargets.contains(targetNode) else { return nil }
+                    return target
+                })
+                if targets.isEmpty {
+                    return nil
+                } else {
+                    return project.with(targets: targets)
+                }
+            }
+        })
+        return graph.with(projects: projects)
+        
     }
 
     fileprivate func loadXCFramework(path: AbsolutePath, loadedXCFrameworks: inout [AbsolutePath: XCFrameworkNode]) throws -> XCFrameworkNode {
