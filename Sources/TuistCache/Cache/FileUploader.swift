@@ -46,14 +46,11 @@ public class FileUploader: FileUploading {
     // MARK: - Attributes
 
     let session: URLSession
-    let fileHandler: FileHandling
 
     // MARK: - Init
 
-    public init(session: URLSession = URLSession.shared,
-                fileHandler: FileHandling = FileHandler()) {
+    public init(session: URLSession = URLSession.shared) {
         self.session = session
-        self.fileHandler = fileHandler
     }
 
     // MARK: - Public
@@ -61,7 +58,7 @@ public class FileUploader: FileUploading {
     public func upload(file: AbsolutePath, hash _: String, to url: URL) -> Single<Bool> {
         Single<Bool>.create { observer -> Disposable in
             do {
-                let fileSize = try self.fileHandler.fileSize(path: file)
+                let fileSize = try FileHandler.shared.fileSize(path: file)
                 let fileData = try Data(contentsOf: file.url)
 
                 let request = self.uploadRequest(url: url, fileSize: fileSize, data: fileData)

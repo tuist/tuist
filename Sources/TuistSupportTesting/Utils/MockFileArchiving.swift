@@ -2,8 +2,6 @@ import Foundation
 import TSCBasic
 import TuistSupport
 
-@testable import TuistCache
-
 public class MockFileArchiverFactory: FileArchiverManufacturing {
     public init() {}
 

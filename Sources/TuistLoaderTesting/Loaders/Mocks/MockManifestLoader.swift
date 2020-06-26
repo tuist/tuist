@@ -1,6 +1,7 @@
 import Foundation
 import ProjectDescription
 import TSCBasic
+import TuistSupport
 @testable import TuistLoader
 @testable import TuistSupportTesting
 

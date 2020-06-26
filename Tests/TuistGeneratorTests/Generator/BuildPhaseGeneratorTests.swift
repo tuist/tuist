@@ -1,6 +1,7 @@
 import Foundation
 import TSCBasic
 import TuistCore
+import TuistSupport
 import TuistSupportTesting
 import XcodeProj
 import XCTest
