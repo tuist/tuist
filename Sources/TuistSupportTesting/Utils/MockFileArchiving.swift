@@ -35,8 +35,6 @@ public class MockFileArchiverFactory: FileArchiverManufacturing {
 }
 
 public class MockFileArchiver: FileArchiving {
-    public init() {}
-
     public var invokedZip = false
     public var invokedZipCount = 0
     public var stubbedZipError: Error?
@@ -49,5 +47,17 @@ public class MockFileArchiver: FileArchiving {
             throw error
         }
         return stubbedZipResult
+    }
+
+    public var invokedDelete = false
+    public var invokedDeleteCount = 0
+    public var stubbedDeleteError: Error?
+
+    public func delete() throws {
+        invokedDelete = true
+        invokedDeleteCount += 1
+        if let error = stubbedDeleteError {
+            throw error
+        }
     }
 }

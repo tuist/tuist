@@ -11,19 +11,16 @@ final class CacheRemoteStorage: CacheStoring {
     private let cloudClient: CloudClienting
     private let fileUploader: FileUploading
     private let fileArchiverFactory: FileArchiverManufacturing
-    private let fileHandler: FileHandling
-    private var fileArchiver: FileArchiving?
+    private var fileArchiverMap: [AbsolutePath: FileArchiving] = [:]
 
     // MARK: - Init
 
     init(cloudClient: CloudClienting,
          fileArchiverFactory: FileArchiverManufacturing = FileArchiverFactory(),
-         fileUploader: FileUploading = FileUploader(),
-         fileHandler: FileHandling = FileHandler()) {
+         fileUploader: FileUploading = FileUploader()) {
         self.cloudClient = cloudClient
         self.fileArchiverFactory = fileArchiverFactory
         self.fileUploader = fileUploader
-        self.fileHandler = fileHandler
     }
 
     // MARK: - CacheStoring
@@ -61,22 +58,53 @@ final class CacheRemoteStorage: CacheStoring {
 
     func store(hash: String, config: Config, xcframeworkPath: AbsolutePath) -> Completable {
         do {
-            fileArchiver = fileArchiverFactory.makeFileArchiver(for: xcframeworkPath)
-            let destinationZipPath = try fileArchiver!.zip()
+            let archiver = fileArchiver(for: xcframeworkPath)
+            let destinationZipPath = try archiver.zip()
             let resource = try CloudCacheResponse.storeResource(
                 hash: hash,
                 config: config,
-                contentMD5: try fileHandler.base64MD5(path: destinationZipPath)
+                contentMD5: try FileHandler.shared.base64MD5(path: destinationZipPath)
             )
 
             return cloudClient
                 .request(resource)
                 .map { (responseTuple) -> URL in responseTuple.object.data.url }
                 .flatMapCompletable { (url: URL) in
-                    self.fileUploader.upload(file: destinationZipPath, hash: hash, to: url).asCompletable()
+                    let deleteCompletable = self.deleteZipArchiveCompletable(archiver: archiver)
+                    return self.fileUploader.upload(file: destinationZipPath, hash: hash, to: url).asCompletable()
+                        .andThen(deleteCompletable)
+                        .catchError { deleteCompletable.concat(.error($0)) }
                 }
         } catch {
             return Completable.error(error)
         }
+    }
+
+    // MARK: - Private
+
+    private func fileArchiver(for path: AbsolutePath) -> FileArchiving {
+        let fileArchiver = fileArchiverMap[path] ?? fileArchiverFactory.makeFileArchiver(for: path)
+        fileArchiverMap[path] = fileArchiver
+        return fileArchiver
+    }
+
+    private func deleteZipArchiveCompletable(archiver: FileArchiving) -> Completable {
+        Completable.create(subscribe: { observer in
+            do {
+                try archiver.delete()
+                observer(.completed)
+            } catch {
+                observer(.error(error))
+            }
+            return Disposables.create {}
+        })
+    }
+
+    // MARK: - Deinit
+
+    deinit {
+        do {
+            try fileArchiverMap.values.forEach { fileArchiver in try fileArchiver.delete() }
+        } catch {}
     }
 }
