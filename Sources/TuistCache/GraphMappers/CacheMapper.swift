@@ -25,9 +25,9 @@ public class CacheMapper: GraphMapping {
 
     // MARK: - Init
 
-    public convenience init(config: Config) {
+    public convenience init(config: Config, cloudClient: CloudClienting) {
         self.init(config: config,
-                  cache: Cache(),
+                  cache: Cache(cloudClient: cloudClient),
                   graphContentHasher: GraphContentHasher())
     }
 

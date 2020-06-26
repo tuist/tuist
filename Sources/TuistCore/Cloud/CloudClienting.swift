@@ -3,5 +3,5 @@ import RxSwift
 import TuistSupport
 
 public protocol CloudClienting {
-    func request<T>(_ resource: HTTPResource<T, CloudResponseError>) -> Single<(object: T, response: HTTPURLResponse)>
+    func request<T, E>(_ resource: HTTPResource<T, E>) -> Single<(object: T, response: HTTPURLResponse)>
 }

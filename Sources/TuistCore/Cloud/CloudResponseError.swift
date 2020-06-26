@@ -1,11 +1,11 @@
 import Foundation
 import TuistSupport
 
-public struct CloudResponseError: Decodable, LocalizedError {
+public struct CloudResponseError: Decodable, LocalizedError, Equatable {
     public var status: String
     public var errors: [Error]?
 
-    public struct Error: Decodable {
+    public struct Error: Decodable, Equatable {
         var code: String
         var message: String
     }
@@ -13,4 +13,8 @@ public struct CloudResponseError: Decodable, LocalizedError {
     public var errorDescription: String? {
         errors?.map { $0.message.capitalizingFirstLetter() }.joined(separator: "\n")
     }
+}
+
+public struct CloudHEADResponseError: Decodable, LocalizedError, Equatable {
+    public init() {}
 }

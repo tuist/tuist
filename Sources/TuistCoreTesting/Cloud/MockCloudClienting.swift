@@ -4,25 +4,29 @@ import TuistSupport
 
 @testable import TuistCore
 
-public final class MockCloudClienting<U>: CloudClienting {
+public enum MockCloudClientingError: Error {
+    case mockedError
+}
+
+public final class MockCloudClienting<U, E: Error>: CloudClienting {
     public init() {}
 
-    public static func makeForSuccess(object: U, response: HTTPURLResponse) -> MockCloudClienting<U> {
-        let mock = MockCloudClienting<U>()
+    public static func makeForSuccess(object: U, response: HTTPURLResponse) -> MockCloudClienting<U, E> {
+        let mock = MockCloudClienting<U, E>()
         mock.configureForSuccess(object: object, response: response)
         return mock
     }
 
-    public static func makeForError(error: Error) -> MockCloudClienting<U> {
-        let mock = MockCloudClienting<U>()
+    public static func makeForError(error: E) -> MockCloudClienting<U, E> {
+        let mock = MockCloudClienting<U, E>()
         mock.configureForError(error: error)
         return mock
     }
 
     public var invokedRequest = false
     public var invokedRequestCount = 0
-    public var invokedRequestParameter: HTTPResource<U, CloudResponseError>?
-    public var invokedRequestParameterList = [HTTPResource<U, CloudResponseError>]()
+    public var invokedRequestParameter: HTTPResource<U, E>?
+    public var invokedRequestParameterList = [HTTPResource<U, E>]()
 
     private var stubbedResponse: HTTPURLResponse?
     private var stubbedObject: U?
@@ -40,10 +44,10 @@ public final class MockCloudClienting<U>: CloudClienting {
         stubbedResponse = response
     }
 
-    public func request<T>(_ resource: HTTPResource<T, CloudResponseError>) -> Single<(object: T, response: HTTPURLResponse)> {
+    public func request<T, Err>(_ resource: HTTPResource<T, Err>) -> Single<(object: T, response: HTTPURLResponse)> {
         invokedRequest = true
         invokedRequestCount += 1
-        invokedRequestParameter = resource as? HTTPResource<U, CloudResponseError>
+        invokedRequestParameter = resource as? HTTPResource<U, E>
         invokedRequestParameterList.append(invokedRequestParameter!)
 
         if let stubbedError = self.stubbedError {
