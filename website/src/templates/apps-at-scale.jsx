@@ -136,7 +136,7 @@ const Page = ({
             publishedTime: moment(mdx.fields.date).format(),
             tags: mdx.frontmatter.categories,
             authors: [
-              `https://www.twitter.com/${mdx.fields.interviewee_twitter_handle}`,
+              `https://www.twitter.com/${mdx.frontmatter.interviewee_twitter_handle}`,
             ],
           },
         }}
@@ -150,13 +150,17 @@ const Page = ({
 
         <div class="flex flex-row justify-center items-center bottom-0 inset-x-0 inset-y-0 absolute">
           <div class="w-24 h-24 md:w-32 md:h-32">
-            <div class="group w-full h-full rounded-full overflow-hidden shadow-inner text-center bg-purple table cursor-pointer border-4">
+            <a
+              class="group w-full h-full rounded-full overflow-hidden shadow-inner text-center bg-purple table cursor-pointer border-4"
+              target="__blank"
+              href={`https://twitter.com/${mdx.frontmatter.interviewee_twitter_handle}`}
+            >
               <img
                 src={mdx.frontmatter.interviewee_avatar}
                 alt={`${mdx.frontmatter.interviewee_name}'s avatar`}
                 class="object-cover object-center w-full h-full visible group-hover:hidden"
               />
-            </div>
+            </a>
           </div>
         </div>
       </div>
