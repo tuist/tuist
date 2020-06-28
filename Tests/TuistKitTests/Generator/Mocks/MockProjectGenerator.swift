@@ -30,6 +30,24 @@ final class MockProjectGenerator: ProjectGenerating {
         return try generateWithGraphStub(path, projectOnly)
     }
 
+    var invokedGenerateProjectWorkspace = false
+    var invokedGenerateProjectWorkspaceCount = 0
+    var invokedGenerateProjectWorkspaceParameters: (path: AbsolutePath, Void)?
+    var invokedGenerateProjectWorkspaceParametersList = [(path: AbsolutePath, Void)]()
+    var stubbedGenerateProjectWorkspaceError: Error?
+    var stubbedGenerateProjectWorkspaceResult: (AbsolutePath, Graph)!
+
+    func generateProjectWorkspace(path: AbsolutePath) throws -> (AbsolutePath, Graph) {
+        invokedGenerateProjectWorkspace = true
+        invokedGenerateProjectWorkspaceCount += 1
+        invokedGenerateProjectWorkspaceParameters = (path, ())
+        invokedGenerateProjectWorkspaceParametersList.append((path, ()))
+        if let error = stubbedGenerateProjectWorkspaceError {
+            throw error
+        }
+        return stubbedGenerateProjectWorkspaceResult
+    }
+
     var loadStub: ((AbsolutePath) throws -> Graph)?
     func load(path: AbsolutePath) throws -> Graph {
         if let loadStub = loadStub {

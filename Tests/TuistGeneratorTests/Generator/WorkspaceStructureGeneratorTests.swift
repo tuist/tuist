@@ -373,6 +373,10 @@ class WorkspaceStructureGeneratorTests: XCTestCase {
         func fileSize(path _: AbsolutePath) throws -> UInt64 {
             0
         }
+
+        func changeExtension(path: AbsolutePath, to newExtension: String) throws -> AbsolutePath {
+            path.removingLastComponent().appending(component: "\(path.basenameWithoutExt).\(newExtension)")
+        }
     }
 }
 

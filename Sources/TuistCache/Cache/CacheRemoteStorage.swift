@@ -9,7 +9,7 @@ final class CacheRemoteStorage: CacheStoring {
     // MARK: - Attributes
 
     private let cloudClient: CloudClienting
-    private let fileUploader: FileUploading
+    private let fileClient: FileClienting
     private let fileArchiverFactory: FileArchiverManufacturing
     private var fileArchiverMap: [AbsolutePath: FileArchiving] = [:]
 
@@ -17,10 +17,10 @@ final class CacheRemoteStorage: CacheStoring {
 
     init(cloudClient: CloudClienting,
          fileArchiverFactory: FileArchiverManufacturing = FileArchiverFactory(),
-         fileUploader: FileUploading = FileUploader()) {
+         fileClient: FileClienting = FileClient()) {
         self.cloudClient = cloudClient
         self.fileArchiverFactory = fileArchiverFactory
-        self.fileUploader = fileUploader
+        self.fileClient = fileClient
     }
 
     // MARK: - CacheStoring
@@ -48,9 +48,18 @@ final class CacheRemoteStorage: CacheStoring {
     func fetch(hash: String, config: Config) -> Single<AbsolutePath> {
         do {
             let resource = try CloudCacheResponse.fetchResource(hash: hash, config: config)
-            return cloudClient.request(resource).map { _ in
-                AbsolutePath.root // TODO:
-            }
+            return cloudClient
+                .request(resource)
+                .map { $0.object.data.url }
+                .flatMap { (url: URL) in self.fileClient.download(url: url) }
+                .flatMap { (filePath: AbsolutePath) in
+                    do {
+                        let archiveContentPath = try self.zipFlow(downloadedArchive: filePath, hash: hash)
+                        return Single.just(archiveContentPath)
+                    } catch {
+                        return Single.error(error)
+                    }
+                }
         } catch {
             return Single.error(error)
         }
@@ -71,7 +80,7 @@ final class CacheRemoteStorage: CacheStoring {
                 .map { (responseTuple) -> URL in responseTuple.object.data.url }
                 .flatMapCompletable { (url: URL) in
                     let deleteCompletable = self.deleteZipArchiveCompletable(archiver: archiver)
-                    return self.fileUploader.upload(file: destinationZipPath, hash: hash, to: url).asCompletable()
+                    return self.fileClient.upload(file: destinationZipPath, hash: hash, to: url).asCompletable()
                         .andThen(deleteCompletable)
                         .catchError { deleteCompletable.concat(.error($0)) }
                 }
@@ -81,6 +90,17 @@ final class CacheRemoteStorage: CacheStoring {
     }
 
     // MARK: - Private
+
+    private func zipFlow(downloadedArchive: AbsolutePath, hash: String) throws -> AbsolutePath {
+        let zipPath = try FileHandler.shared.changeExtension(path: downloadedArchive, to: "zip")
+        let archiver = fileArchiver(for: zipPath)
+        let archiveDestination = Environment.shared.xcframeworksCacheDirectory.appending(component: hash)
+        try archiver.unzip(to: archiveDestination)
+        let folderContent = try FileHandler.shared.contentsOfDirectory(archiveDestination)
+        let archiveContentPath = folderContent.filter { FileHandler.shared.isFolder($0) }.first ?? archiveDestination
+        print("content: \(archiveContentPath)")
+        return archiveContentPath
+    }
 
     private func fileArchiver(for path: AbsolutePath) -> FileArchiving {
         let fileArchiver = fileArchiverMap[path] ?? fileArchiverFactory.makeFileArchiver(for: path)

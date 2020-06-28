@@ -153,6 +153,8 @@ public protocol FileHandling: AnyObject {
     /// - Returns: The file’s size in bytes.
     /// - Throws: An error if path's file size can't be retrieved.
     func fileSize(path: AbsolutePath) throws -> UInt64
+
+    func changeExtension(path: AbsolutePath, to newExtension: String) throws -> AbsolutePath
 }
 
 public class FileHandler: FileHandling {
@@ -332,5 +334,14 @@ public class FileHandler: FileHandling {
         let attr = try fileManager.attributesOfItem(atPath: path.pathString)
         guard let size = attr[FileAttributeKey.size] as? UInt64 else { throw FileHandlerError.unreachableFileSize(path) }
         return size
+    }
+
+    // MARK: - Extension
+
+    public func changeExtension(path: AbsolutePath, to fileExtension: String) throws -> AbsolutePath {
+        let newExtension = fileExtension.starts(with: ".") ? String(fileExtension.dropFirst()) : fileExtension
+        let newPath = path.removingLastComponent().appending(component: "\(path.basenameWithoutExt).\(newExtension)")
+        try move(from: path, to: newPath)
+        return newPath
     }
 }

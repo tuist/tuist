@@ -49,6 +49,22 @@ public class MockFileArchiver: FileArchiving {
         return stubbedZipResult
     }
 
+    public var invokedUnzip = false
+    public var invokedUnzipCount = 0
+    public var invokedUnzipParameters: (to: AbsolutePath, Void)?
+    public var invokedUnzipParametersList = [(to: AbsolutePath, Void)]()
+    public var stubbedUnzipError: Error?
+
+    public func unzip(to: AbsolutePath) throws {
+        invokedUnzip = true
+        invokedUnzipCount += 1
+        invokedUnzipParameters = (to, ())
+        invokedUnzipParametersList.append((to, ()))
+        if let error = stubbedUnzipError {
+            throw error
+        }
+    }
+
     public var invokedDelete = false
     public var invokedDeleteCount = 0
     public var stubbedDeleteError: Error?

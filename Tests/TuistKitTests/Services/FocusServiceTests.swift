@@ -19,8 +19,7 @@ final class FocusServiceTests: TuistUnitTestCase {
         opener = MockOpener()
         generator = MockProjectGenerator()
 
-        subject = FocusService(generator: generator,
-                               opener: opener)
+        subject = FocusService(opener: opener)
     }
 
     override func tearDown() {
@@ -35,7 +34,7 @@ final class FocusServiceTests: TuistUnitTestCase {
         generator.generateStub = { _, _ in
             throw error
         }
-        XCTAssertThrowsError(try subject.run()) {
+        XCTAssertThrowsError(try subject.run(cache: true)) {
             XCTAssertEqual($0 as NSError?, error)
         }
     }
@@ -45,7 +44,7 @@ final class FocusServiceTests: TuistUnitTestCase {
         generator.generateStub = { _, _ in
             workspacePath
         }
-        try subject.run()
+        try subject.run(cache: true)
 
         XCTAssertEqual(opener.openArgs.last?.0, workspacePath.pathString)
     }
