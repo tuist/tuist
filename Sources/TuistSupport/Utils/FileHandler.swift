@@ -7,6 +7,7 @@ public enum FileHandlerError: FatalError, Equatable {
     case fileNotFound(AbsolutePath)
     case unreachableFileSize(AbsolutePath)
     case unconvertibleToData(AbsolutePath)
+    case expectedAFile(AbsolutePath)
 
     public var description: String {
         switch self {
@@ -20,6 +21,8 @@ public enum FileHandlerError: FatalError, Equatable {
             return "Could not get the file size at path \(path.pathString)"
         case let .unconvertibleToData(path):
             return "Could not convert to Data the file content (at path \(path.pathString))"
+        case let .expectedAFile(path):
+            return "Could not find a file at path \(path.pathString))"
         }
     }
 
@@ -27,7 +30,7 @@ public enum FileHandlerError: FatalError, Equatable {
         switch self {
         case .invalidTextEncoding:
             return .bug
-        case .writingError, .fileNotFound, .unreachableFileSize, .unconvertibleToData:
+        case .writingError, .fileNotFound, .unreachableFileSize, .unconvertibleToData, .expectedAFile:
             return .abort
         }
     }
@@ -339,8 +342,11 @@ public class FileHandler: FileHandling {
     // MARK: - Extension
 
     public func changeExtension(path: AbsolutePath, to fileExtension: String) throws -> AbsolutePath {
-        let newExtension = fileExtension.starts(with: ".") ? String(fileExtension.dropFirst()) : fileExtension
-        let newPath = path.removingLastComponent().appending(component: "\(path.basenameWithoutExt).\(newExtension)")
+        guard isFolder(path) == false else { throw FileHandlerError.expectedAFile(path) }
+        let sanitizedExtension = fileExtension.starts(with: ".") ? String(fileExtension.dropFirst()) : fileExtension
+        guard path.extension != sanitizedExtension else { return path }
+
+        let newPath = path.removingLastComponent().appending(component: "\(path.basenameWithoutExt).\(sanitizedExtension)")
         try move(from: path, to: newPath)
         return newPath
     }

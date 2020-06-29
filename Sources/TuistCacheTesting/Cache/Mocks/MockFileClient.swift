@@ -12,7 +12,7 @@ public final class MockFileClient: FileClienting {
     public var invokedUploadCount = 0
     public var invokedUploadParameters: (file: AbsolutePath, hash: String, url: URL)?
     public var invokedUploadParametersList = [(file: AbsolutePath, hash: String, url: URL)]()
-    public var stubbedUploadResult: Single<Bool>!
+    public var stubbedUploadResult: Single<Bool> = Single.just(true)
 
     public func upload(file: AbsolutePath, hash: String, to url: URL) -> Single<Bool> {
         invokedUpload = true

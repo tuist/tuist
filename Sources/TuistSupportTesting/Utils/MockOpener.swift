@@ -2,6 +2,8 @@ import Foundation
 import TSCBasic
 import TuistSupport
 
+// swiftlint:disable large_tuple
+
 public final class MockOpener: Opening {
     var openStub: Error?
     var openArgs: [(String, Bool, AbsolutePath?)] = []
@@ -31,3 +33,5 @@ public final class MockOpener: Opening {
         if let openStub = openStub { throw openStub }
     }
 }
+
+// swiftlint:enable large_tuple

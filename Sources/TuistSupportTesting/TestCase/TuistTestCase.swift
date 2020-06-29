@@ -15,6 +15,7 @@ public final class MockFileHandler: FileHandler {
     }
 
     public var homeDirectoryStub: AbsolutePath?
+    public var cacheDirectoryStub: AbsolutePath?
 
     // swiftlint:disable:next force_try
     override public var homeDirectory: AbsolutePath { homeDirectoryStub ?? (try! temporaryDirectory()) }

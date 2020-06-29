@@ -97,9 +97,7 @@ final class CacheRemoteStorage: CacheStoring {
         let archiveDestination = Environment.shared.xcframeworksCacheDirectory.appending(component: hash)
         try archiver.unzip(to: archiveDestination)
         let folderContent = try FileHandler.shared.contentsOfDirectory(archiveDestination)
-        let archiveContentPath = folderContent.filter { FileHandler.shared.isFolder($0) }.first ?? archiveDestination
-        print("content: \(archiveContentPath)")
-        return archiveContentPath
+        return folderContent.filter { FileHandler.shared.isFolder($0) }.first ?? archiveDestination
     }
 
     private func fileArchiver(for path: AbsolutePath) -> FileArchiving {
