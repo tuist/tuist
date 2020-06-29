@@ -16,7 +16,7 @@ struct SimulatorDevice: Decodable, Hashable, CustomStringConvertible {
     let isAvailable: Bool
 
     /// Device type identifier (e.g. com.apple.CoreSimulator.SimDeviceType.iPad-Air--3rd-generation-)
-    let deviceTypeIdentifier: String
+    let deviceTypeIdentifier: String?
 
     /// Device state (e.g. Shutdown)
     let state: String

@@ -1,7 +1,7 @@
 import Foundation
 import XCTest
 
-@testable import TuistKit
+@testable import TuistAutomation
 @testable import TuistSupportTesting
 
 final class SimulatorRuntimeVersionTests: TuistUnitTestCase {

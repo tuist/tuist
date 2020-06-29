@@ -38,9 +38,6 @@ final class SimulatorController: SimulatorControlling {
             .collectOutput()
             .asSingle()
             .flatMap { output in
-                guard output.standardError.isEmpty else {
-                    return .error(SimulatorControllerError.simctlError(output.standardError))
-                }
                 do {
                     let data = output.standardOutput.data(using: .utf8)!
                     let json = try JSONSerialization.jsonObject(with: data, options: [])
@@ -67,13 +64,11 @@ final class SimulatorController: SimulatorControlling {
 
     func runtimes() -> Single<[SimulatorRuntime]> {
         System.shared.observable(["/usr/bin/xcrun", "simctl", "list", "runtimes", "--json"])
+            .debug()
             .mapToString()
             .collectOutput()
             .asSingle()
             .flatMap { output in
-                guard output.standardError.isEmpty else {
-                    return .error(SimulatorControllerError.simctlError(output.standardError))
-                }
                 do {
                     let data = output.standardOutput.data(using: .utf8)!
                     let json = try JSONSerialization.jsonObject(with: data, options: [])

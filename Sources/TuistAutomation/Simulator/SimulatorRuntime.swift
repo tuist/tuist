@@ -17,7 +17,7 @@ struct SimulatorRuntime: Decodable, Hashable, CustomStringConvertible {
     let identifier: String
 
     /// Runtime version (e.g. 13.5)
-    let version: String
+    let version: SimulatorRuntimeVersion
 
     // True if the runtime is available.
     let isAvailable: Bool
@@ -29,7 +29,7 @@ struct SimulatorRuntime: Decodable, Hashable, CustomStringConvertible {
          buildVersion: String,
          runtimeRoot: AbsolutePath,
          identifier: String,
-         version: String,
+         version: SimulatorRuntimeVersion,
          isAvailable: Bool,
          name: String) {
         self.bundlePath = bundlePath

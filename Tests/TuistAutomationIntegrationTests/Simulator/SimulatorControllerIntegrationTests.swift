@@ -33,7 +33,7 @@ final class SimulatorControllerIntegrationTests: TuistTestCase {
 
     func test_runtimes() throws {
         // Given
-        let got = try subject.devices().toBlocking().last()
+        let got = try subject.runtimes().toBlocking().last()
 
         // Then
         let runtimes = try XCTUnwrap(got)
