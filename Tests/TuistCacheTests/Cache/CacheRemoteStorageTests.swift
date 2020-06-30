@@ -32,11 +32,8 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         fileClient = MockFileClient()
         fileClient.stubbedDownloadResult = Single.just(zipPath)
 
-        if let env = Environment.shared as? MockEnvironment {
-            env.cacheDirectoryStub = FileHandler.shared.currentPath.appending(component: "Cache")
-        } else {
-            XCTFail("Could not set up cache directory in shared environment")
-        }
+        let env = Environment.shared as! MockEnvironment
+        env.cacheDirectoryStub = FileHandler.shared.currentPath.appending(component: "Cache")
     }
 
     override func tearDown() {
