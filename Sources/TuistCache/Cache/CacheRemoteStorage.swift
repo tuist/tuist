@@ -4,6 +4,23 @@ import TSCBasic
 import TuistCore
 import TuistSupport
 
+enum CacheRemoteStorageError: FatalError, Equatable {
+    case archiveDoesNotContainXCFramework(AbsolutePath)
+
+    var type: ErrorType {
+        switch self {
+        case .archiveDoesNotContainXCFramework: return .abort
+        }
+    }
+
+    var description: String {
+        switch self {
+        case let .archiveDoesNotContainXCFramework(path):
+            return "Unzipped archive at path \(path.pathString) does not contain any xcframework."
+        }
+    }
+}
+
 // TODO: Later, add a warmup function to check if it's correctly authenticated ONCE
 final class CacheRemoteStorage: CacheStoring {
     // MARK: - Attributes
@@ -91,13 +108,20 @@ final class CacheRemoteStorage: CacheStoring {
 
     // MARK: - Private
 
+    private func xcframeworkPath(in archive: AbsolutePath) throws -> AbsolutePath? {
+        let folderContent = try FileHandler.shared.contentsOfDirectory(archive)
+        return folderContent.filter { FileHandler.shared.isFolder($0) && $0.extension == "xcframework" }.first
+    }
+
     private func unzip(downloadedArchive: AbsolutePath, hash: String) throws -> AbsolutePath {
         let zipPath = try FileHandler.shared.changeExtension(path: downloadedArchive, to: "zip")
-        let archiver = fileArchiver(for: zipPath)
         let archiveDestination = Environment.shared.xcframeworksCacheDirectory.appending(component: hash)
-        try archiver.unzip(to: archiveDestination)
-        let folderContent = try FileHandler.shared.contentsOfDirectory(archiveDestination)
-        return folderContent.filter { FileHandler.shared.isFolder($0) }.first ?? archiveDestination
+        try fileArchiver(for: zipPath).unzip(to: archiveDestination)
+        guard let xcframework = try xcframeworkPath(in: archiveDestination) else {
+            try FileHandler.shared.delete(archiveDestination)
+            throw CacheRemoteStorageError.archiveDoesNotContainXCFramework(archiveDestination)
+        }
+        return xcframework
     }
 
     private func fileArchiver(for path: AbsolutePath) -> FileArchiving {

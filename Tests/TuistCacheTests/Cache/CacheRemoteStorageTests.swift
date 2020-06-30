@@ -153,6 +153,66 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         }
     }
 
+    func test_fetch_whenArchiveContainsIncorrectRootFolderAfterUnzipping_expectArchiveDeleted() throws {
+        // Given
+        typealias ResponseType = CloudResponse<CloudCacheResponse>
+        typealias ErrorType = CloudResponseError
+
+        let httpResponse: HTTPURLResponse = .test()
+        let cacheResponse = CloudCacheResponse(url: .test(), expiresAt: 123)
+        let cloudResponse = CloudResponse<CloudCacheResponse>(status: "shaki", data: cacheResponse)
+        cloudClient = MockCloudClienting<ResponseType, ErrorType>.makeForSuccess(object: cloudResponse, response: httpResponse)
+        subject = CacheRemoteStorage(cloudClient: cloudClient, fileArchiverFactory: fileArchiverFactory, fileClient: fileClient)
+
+        let hash = "acho tio"
+        let paths = try createFolders(["Cache/xcframeworks/\(hash)/IncorrectRootFolderAfterUnzipping"])
+        let expectedDeletedPath = AbsolutePath(paths.first!.dirname)
+
+        // When
+        let result = subject.fetch(hash: hash, config: config)
+            .toBlocking()
+            .materialize()
+
+        // Then
+        switch result {
+        case .completed:
+            XCTFail("Expected result to complete with error, but result was successful.")
+        case .failed:
+            XCTAssertFalse(FileHandler.shared.exists(expectedDeletedPath))
+        }
+    }
+
+    func test_fetch_whenArchiveContainsIncorrectRootFolderAfterUnzipping_expectErrorThrown() throws {
+        // Given
+        typealias ResponseType = CloudResponse<CloudCacheResponse>
+        typealias ErrorType = CloudResponseError
+
+        let httpResponse: HTTPURLResponse = .test()
+        let cacheResponse = CloudCacheResponse(url: .test(), expiresAt: 123)
+        let cloudResponse = CloudResponse<CloudCacheResponse>(status: "shaki", data: cacheResponse)
+        cloudClient = MockCloudClienting<ResponseType, ErrorType>.makeForSuccess(object: cloudResponse, response: httpResponse)
+        subject = CacheRemoteStorage(cloudClient: cloudClient, fileArchiverFactory: fileArchiverFactory, fileClient: fileClient)
+
+        let hash = "acho tio"
+        let paths = try createFolders(["Cache/xcframeworks/\(hash)/IncorrectRootFolderAfterUnzipping"])
+        let expectedPath = AbsolutePath(paths.first!.dirname)
+
+        // When
+        let result = subject.fetch(hash: hash, config: config)
+            .toBlocking()
+            .materialize()
+
+        // Then
+        switch result {
+        case .completed:
+            XCTFail("Expected result to complete with error, but result was successful.")
+        case let .failed(_, error) where error is CacheRemoteStorageError:
+            XCTAssertEqual(error as! CacheRemoteStorageError, CacheRemoteStorageError.archiveDoesNotContainXCFramework(expectedPath))
+        default:
+            XCTFail("Expected result to complete with error, but result error wasn't the expected type.")
+        }
+    }
+
     func test_fetch_whenClientReturnsASuccess_returnsCorrectRootFolderAfterUnzipping() throws {
         // Given
         typealias ResponseType = CloudResponse<CloudCacheResponse>
@@ -165,7 +225,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         subject = CacheRemoteStorage(cloudClient: cloudClient, fileArchiverFactory: fileArchiverFactory, fileClient: fileClient)
 
         let hash = "acho tio"
-        let paths = try createFolders(["Cache/xcframeworks/\(hash)/rootFolderAfterUnzipping"])
+        let paths = try createFolders(["Cache/xcframeworks/\(hash)/myFramework.xcframework"])
 
         // When
         let result = try subject.fetch(hash: hash, config: config)
@@ -189,7 +249,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         subject = CacheRemoteStorage(cloudClient: cloudClient, fileArchiverFactory: fileArchiverFactory, fileClient: fileClient)
 
         let hash = "acho tio"
-        _ = try createFolders(["Cache/xcframeworks/\(hash)/rootFolderAfterUnzipping"])
+        _ = try createFolders(["Cache/xcframeworks/\(hash)/myFramework.xcframework"])
 
         // When
         _ = try subject.fetch(hash: hash, config: config)
@@ -212,7 +272,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         subject = CacheRemoteStorage(cloudClient: cloudClient, fileArchiverFactory: fileArchiverFactory, fileClient: fileClient)
 
         let hash = "acho tio"
-        let paths = try createFolders(["Cache/xcframeworks/\(hash)/blah"])
+        let paths = try createFolders(["Cache/xcframeworks/\(hash)/myFramework.xcframework"])
 
         // When
         _ = try subject.fetch(hash: hash, config: config)

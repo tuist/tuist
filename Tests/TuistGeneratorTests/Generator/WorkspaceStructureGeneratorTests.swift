@@ -307,7 +307,7 @@ class WorkspaceStructureGeneratorTests: XCTestCase {
         }
 
         func readPlistFile<T>(_: AbsolutePath) throws -> T where T: Decodable {
-            return try JSONDecoder().decode(T.self, from: Data())
+            try JSONDecoder().decode(T.self, from: Data())
         }
 
         func inTemporaryDirectory(_: (AbsolutePath) throws -> Void) throws {}

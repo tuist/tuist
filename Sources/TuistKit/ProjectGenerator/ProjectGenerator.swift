@@ -162,6 +162,7 @@ class ProjectGenerator: ProjectGenerating {
 
     // MARK: -
 
+    // swiftlint:disable:next large_tuple
     private func loadProject(path: AbsolutePath) throws -> (Project, Graph, [SideEffectDescriptor]) {
         // Load all manifests
         let manifests = try recursiveManifestLoader.loadProject(at: path)
