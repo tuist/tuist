@@ -4,9 +4,9 @@ import TSCBasic
 
 enum FileClientError: LocalizedError, FatalError {
     case urlSessionError(Error, AbsolutePath?)
-    case serverSideError(HTTPURLResponse, AbsolutePath?)
+    case serverSideError(URLRequest, HTTPURLResponse, AbsolutePath?)
     case invalidResponse(URLRequest, AbsolutePath?)
-    case noLocalURL(HTTPURLResponse)
+    case noLocalURL(URLRequest)
 
     // MARK: - FatalError
 
@@ -16,25 +16,18 @@ enum FileClientError: LocalizedError, FatalError {
         switch self {
         case let .urlSessionError(error, path):
             output = "Received a session error"
-            if let path = path {
-                output.append(" while uploading file at path \(path.pathString)")
-            }
+            output.append(pathSubstring(path))
             if let error = error as? LocalizedError {
-                output.append("\nError: \(error.localizedDescription)")
+                output.append(": \(error.localizedDescription)")
             }
         case let .invalidResponse(urlRequest, path):
-            output = "Received unexpected response from the network with url request \(urlRequest)"
-            if let path = path {
-                output.append(" while uploading file at path \(path.pathString)")
-            }
-        case let .serverSideError(response, path):
-            output = "Got error code: \(response.statusCode) returned by the server"
-            if let path = path {
-                output.append(" when uploading file at path \(path.pathString)")
-            }
-            output.append("HTTPURLResponse: \(response.description)")
-        case let .noLocalURL(response):
-            output = "Could not locate file on disk the downloaded file. HTTPURLResponse: \(response.description)"
+            output = "Received unexpected response from the network with \(urlRequest.descriptionForError)"
+            output.append(pathSubstring(path))
+        case let .serverSideError(request, response, path):
+            output = "Got error code: \(response.statusCode) returned by the server after performing \(request.descriptionForError)"
+            output.append(pathSubstring(path))
+        case let .noLocalURL(request):
+            output = "Could not locate file on disk the downloaded file after performing \(request.descriptionForError)"
         }
 
         return output
@@ -47,6 +40,11 @@ enum FileClientError: LocalizedError, FatalError {
         case .invalidResponse: return .bug
         case .noLocalURL: return .bug
         }
+    }
+
+    private func pathSubstring(_ path: AbsolutePath?) -> String {
+        guard let path = path else { return "" }
+        return " for file at path \(path.pathString)"
     }
 
     // MARK: - LocalizedError
@@ -91,7 +89,7 @@ public class FileClient: FileClienting {
                         if self.successStatusCodeRange.contains(response.statusCode) {
                             observer(.success(true))
                         } else {
-                            observer(.error(FileClientError.serverSideError(response, file)))
+                            observer(.error(FileClientError.serverSideError(request, response, file)))
                         }
                     } else {
                         observer(.error(FileClientError.invalidResponse(request, file)))
@@ -125,7 +123,7 @@ public class FileClient: FileClienting {
                     observer(.error(FileClientError.urlSessionError(networkError, nil)))
                 } else if let response = response as? HTTPURLResponse {
                     guard let localURL = localURL else {
-                        observer(.error(FileClientError.noLocalURL(response)))
+                        observer(.error(FileClientError.noLocalURL(request)))
                         return
                     }
 
