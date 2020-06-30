@@ -37,7 +37,7 @@ final class ProductTests: XCTestCase {
             .appExtension,
             .stickerPackExtension,
             //            .messagesApplication,
-//            .messagesExtension,
+            .messagesExtension,
             .unitTests,
             .uiTests,
         ]
