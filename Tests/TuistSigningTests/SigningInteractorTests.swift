@@ -217,10 +217,10 @@ final class SigningInteractorTests: TuistUnitTestCase {
                 ],
             ],
              provisioningProfiles: [
-                 targetName: [
-                     configuration: expectedProvisioningProfile,
-                     "some-other-config": ProvisioningProfile.test(),
-                 ],
+                targetName: [
+                    configuration: expectedProvisioningProfile,
+                    "some-other-config": ProvisioningProfile.test(),
+                ],
              ])
         }
 

@@ -17,13 +17,13 @@ public final class MockFileHandler: FileHandler {
     public var homeDirectoryStub: AbsolutePath?
 
     // swiftlint:disable:next force_try
-    override public var homeDirectory: AbsolutePath { homeDirectoryStub ?? (try! temporaryDirectory()) }
+    public override var homeDirectory: AbsolutePath { homeDirectoryStub ?? (try! temporaryDirectory()) }
 
     // swiftlint:disable:next force_try
-    override public var currentPath: AbsolutePath { try! temporaryDirectory() }
+    public override var currentPath: AbsolutePath { try! temporaryDirectory() }
 
     public var stubInTemporaryDirectory: AbsolutePath?
-    override public func inTemporaryDirectory(_ closure: (AbsolutePath) throws -> Void) throws {
+    public override func inTemporaryDirectory(_ closure: (AbsolutePath) throws -> Void) throws {
         guard let stubInTemporaryDirectory = stubInTemporaryDirectory else {
             try super.inTemporaryDirectory(closure)
             return
@@ -35,7 +35,7 @@ public final class MockFileHandler: FileHandler {
 public class TuistTestCase: XCTestCase {
     fileprivate var temporaryDirectory: TemporaryDirectory!
 
-    override public static func setUp() {
+    public override static func setUp() {
         super.setUp()
         DispatchQueue.once(token: "io.tuist.test.logging") {
             LoggingSystem.bootstrap(TestingLogHandler.init)
@@ -45,7 +45,7 @@ public class TuistTestCase: XCTestCase {
     public var fileHandler: MockFileHandler!
     public var environment: MockEnvironment!
 
-    override public func setUp() {
+    public override func setUp() {
         super.setUp()
 
         do {
@@ -61,7 +61,7 @@ public class TuistTestCase: XCTestCase {
         FileHandler.shared = fileHandler
     }
 
-    override public func tearDown() {
+    public override func tearDown() {
         temporaryDirectory = nil
         super.tearDown()
     }

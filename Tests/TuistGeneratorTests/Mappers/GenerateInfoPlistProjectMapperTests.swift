@@ -11,7 +11,7 @@ public final class GenerateInfoPlistProjectMapperTests: TuistUnitTestCase {
     var infoPlistContentProvider: MockInfoPlistContentProvider!
     var subject: GenerateInfoPlistProjectMapper!
 
-    override public func setUp() {
+    public override func setUp() {
         super.setUp()
         infoPlistContentProvider = MockInfoPlistContentProvider()
         subject = GenerateInfoPlistProjectMapper(infoPlistContentProvider: infoPlistContentProvider,
@@ -19,7 +19,7 @@ public final class GenerateInfoPlistProjectMapperTests: TuistUnitTestCase {
                                                  infoPlistsDirectoryName: Constants.DerivedDirectory.infoPlists)
     }
 
-    override public func tearDown() {
+    public override func tearDown() {
         super.tearDown()
         infoPlistContentProvider = nil
         subject = nil
