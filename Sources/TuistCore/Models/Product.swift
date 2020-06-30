@@ -17,7 +17,7 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Encodable {
     case watch2Extension = "watch_2_extension"
     //    case tvExtension = "tv_extension"
     //    case messagesApplication = "messages_application"
-    //    case messagesExtension = "messages_extension"
+    case messagesExtension = "messages_extension"
     case stickerPackExtension = "sticker_pack_extension"
 
     public var caseValue: String {
@@ -52,8 +52,8 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Encodable {
         //            return "tvExtension"
         //        case .messagesApplication:
         //            return "messagesApplication"
-        //        case .messagesExtension:
-        //            return "messagesExtension"
+        case .messagesExtension:
+            return "messagesExtension"
         case .stickerPackExtension:
             return "stickerPackExtension"
         }
@@ -91,8 +91,8 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Encodable {
         //            return "tv extension"
         //        case .messagesApplication:
         //            return "iMessage application"
-        //        case .messagesExtension:
-        //            return "iMessage extension"
+        case .messagesExtension:
+            return "iMessage extension"
         case .stickerPackExtension:
             return "sticker pack extension"
         }
@@ -125,7 +125,7 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Encodable {
             base.append(.appExtension)
             base.append(.stickerPackExtension)
             //            base.append(.messagesApplication)
-            //            base.append(.messagesExtension)
+            base.append(.messagesExtension)
         }
 
         if platform == .tvOS {
@@ -186,8 +186,8 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Encodable {
         //            return .tvExtension
         //        case .messagesApplication:
         //            return .messagesApplication
-        //        case .messagesExtension:
-        //            return .messagesExtension
+        case .messagesExtension:
+            return .messagesExtension
         case .stickerPackExtension:
             return .stickerPack
         }
