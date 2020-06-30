@@ -54,7 +54,7 @@ final class CacheRemoteStorage: CacheStoring {
                 .flatMap { (url: URL) in self.fileClient.download(url: url) }
                 .flatMap { (filePath: AbsolutePath) in
                     do {
-                        let archiveContentPath = try self.zipFlow(downloadedArchive: filePath, hash: hash)
+                        let archiveContentPath = try self.unzip(downloadedArchive: filePath, hash: hash)
                         return Single.just(archiveContentPath)
                     } catch {
                         return Single.error(error)
@@ -91,7 +91,7 @@ final class CacheRemoteStorage: CacheStoring {
 
     // MARK: - Private
 
-    private func zipFlow(downloadedArchive: AbsolutePath, hash: String) throws -> AbsolutePath {
+    private func unzip(downloadedArchive: AbsolutePath, hash: String) throws -> AbsolutePath {
         let zipPath = try FileHandler.shared.changeExtension(path: downloadedArchive, to: "zip")
         let archiver = fileArchiver(for: zipPath)
         let archiveDestination = Environment.shared.xcframeworksCacheDirectory.appending(component: hash)
