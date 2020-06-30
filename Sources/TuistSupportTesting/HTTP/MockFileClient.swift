@@ -1,7 +1,7 @@
 import Foundation
 import RxSwift
 import TSCBasic
-import TuistCache
+import TuistSupport
 
 // swiftlint:disable large_tuple
 

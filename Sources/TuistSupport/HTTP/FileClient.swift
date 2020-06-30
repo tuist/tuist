@@ -1,7 +1,6 @@
 import Foundation
 import RxSwift
 import TSCBasic
-import TuistSupport
 
 enum FileClientError: LocalizedError, FatalError {
     case urlSessionError(Error, AbsolutePath?)
