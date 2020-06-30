@@ -4,6 +4,24 @@ import TSCBasic
 import TuistGenerator
 import TuistSupport
 
+enum EditServiceError: FatalError {
+    case xcodeNotSelected
+
+    var description: String {
+        switch self {
+        case .xcodeNotSelected:
+            return "Couldn't determine the Xcode version to open the project. Make sure your Xcode installation is selected with 'xcode-select -s'."
+        }
+    }
+
+    var type: ErrorType {
+        switch self {
+        case .xcodeNotSelected:
+            return .abort
+        }
+    }
+}
+
 final class EditService {
     private let projectEditor: ProjectEditing
     private let opener: Opening
@@ -28,9 +46,12 @@ final class EditService {
                     exit(0)
                 }
 
+                guard let selectedXcode = try XcodeController.shared.selected() else {
+                    throw EditServiceError.xcodeNotSelected
+                }
                 let xcodeprojPath = try projectEditor.edit(at: path, in: generationDirectory)
                 logger.pretty("Opening Xcode to edit the project. Press \(.keystroke("CTRL + C")) once you are done editing")
-                try opener.open(path: xcodeprojPath, wait: true)
+                try opener.open(path: xcodeprojPath, application: selectedXcode.path)
             }
         } else {
             let xcodeprojPath = try projectEditor.edit(at: path, in: path)

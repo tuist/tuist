@@ -6,6 +6,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Changed
 
+- Use the selected Xcode version when editing projects [#1471](https://github.com/tuist/tuist/pull/1511) by [@pepibumur](https://github.com/pepibumur).
 - Search the `Setup.swift` file upwards if it doesn't exist in the current directory [#1513](https://github.com/tuist/tuist/pull/1513) by [@pepibumur](https://github.com/pepibumur).
 
 ### Added

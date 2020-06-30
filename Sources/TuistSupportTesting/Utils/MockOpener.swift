@@ -4,12 +4,12 @@ import TuistSupport
 
 public final class MockOpener: Opening {
     var openStub: Error?
-    var openArgs: [(String, Bool)] = []
+    var openArgs: [(String, Bool, AbsolutePath?)] = []
     var openCallCount: UInt = 0
 
     public func open(target: String, wait: Bool) throws {
         openCallCount += 1
-        openArgs.append((target, wait))
+        openArgs.append((target, wait, nil))
         if let openStub = openStub { throw openStub }
     }
 
@@ -23,5 +23,11 @@ public final class MockOpener: Opening {
 
     public func open(url: URL) throws {
         try open(target: url.absoluteString, wait: false)
+    }
+
+    public func open(path: AbsolutePath, application: AbsolutePath) throws {
+        openCallCount += 1
+        openArgs.append((path.pathString, false, application))
+        if let openStub = openStub { throw openStub }
     }
 }
