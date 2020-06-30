@@ -9,11 +9,11 @@ final class MockProjectEditorMapper: ProjectEditorMapping {
     var mapStub: (Project, Graph)?
     var mapArgs: [(
         tuistPath: AbsolutePath,
-        sourceRootPath: AbsolutePath,
-        manifests: [AbsolutePath],
-        helpers: [AbsolutePath],
-        templates: [AbsolutePath],
-        projectDescriptionPath: AbsolutePath
+                  sourceRootPath: AbsolutePath,
+                  manifests: [AbsolutePath],
+                  helpers: [AbsolutePath],
+                  templates: [AbsolutePath],
+                  projectDescriptionPath: AbsolutePath
     )] = []
 
     func map(tuistPath: AbsolutePath,
