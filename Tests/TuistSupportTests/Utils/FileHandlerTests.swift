@@ -85,6 +85,20 @@ final class FileHandlerTests: TuistUnitTestCase {
         XCTAssertEqual(result, "NWY0YmVjMTkyZDBmMTg4NGZkY2Y0OTc1YjM3MDY3ZGM=")
     }
 
+    func test_changeExtension() throws {
+        // Given
+        let testZippedFrameworkPath = fixturePath(path: RelativePath("uUI.xcframework.zip"))
+
+        // When
+        let result = try subject.changeExtension(path: testZippedFrameworkPath, to: "txt")
+
+        // Then
+        XCTAssertEqual(result.pathString.dropLast(4), testZippedFrameworkPath.pathString.dropLast(4))
+        XCTAssertEqual(result.basenameWithoutExt, testZippedFrameworkPath.basenameWithoutExt)
+        XCTAssertEqual(result.basename, "\(testZippedFrameworkPath.basenameWithoutExt).txt")
+        _ = try subject.changeExtension(path: result, to: "zip")
+    }
+
     // MARK: - Private
 
     private func countItemsInRootTempDirectory(appropriateFor url: URL) throws -> Int {

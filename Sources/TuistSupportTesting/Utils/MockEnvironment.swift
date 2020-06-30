@@ -15,6 +15,8 @@ public class MockEnvironment: Environmenting {
                                                 attributes: nil)
     }
 
+    public var cacheDirectoryStub: AbsolutePath?
+
     public var shouldOutputBeColoured: Bool = false
     public var isStandardOutputInteractive: Bool = false
     public var tuistVariables: [String: String] = [:]
@@ -28,7 +30,7 @@ public class MockEnvironment: Environmenting {
     }
 
     public var cacheDirectory: AbsolutePath {
-        directory.path.appending(component: "Cache")
+        cacheDirectoryStub ?? directory.path.appending(component: "Cache")
     }
 
     public var projectDescriptionHelpersCacheDirectory: AbsolutePath {

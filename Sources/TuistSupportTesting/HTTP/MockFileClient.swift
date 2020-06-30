@@ -1,11 +1,11 @@
 import Foundation
 import RxSwift
 import TSCBasic
-import TuistCache
+import TuistSupport
 
 // swiftlint:disable large_tuple
 
-public final class MockFileUploader: FileUploading {
+public final class MockFileClient: FileClienting {
     public init() {}
 
     public var invokedUpload = false
@@ -20,6 +20,20 @@ public final class MockFileUploader: FileUploading {
         invokedUploadParameters = (file, hash, url)
         invokedUploadParametersList.append((file, hash, url))
         return stubbedUploadResult
+    }
+
+    public var invokedDownload = false
+    public var invokedDownloadCount = 0
+    public var invokedDownloadParameters: (url: URL, Void)?
+    public var invokedDownloadParametersList = [(url: URL, Void)]()
+    public var stubbedDownloadResult: Single<AbsolutePath>!
+
+    public func download(url: URL) -> Single<AbsolutePath> {
+        invokedDownload = true
+        invokedDownloadCount += 1
+        invokedDownloadParameters = (url, ())
+        invokedDownloadParametersList.append((url, ()))
+        return stubbedDownloadResult
     }
 }
 
