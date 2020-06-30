@@ -10,12 +10,12 @@ import XCTest
 public final class DeleteDerivedDirectoryProjectMapperTests: TuistUnitTestCase {
     var subject: DeleteDerivedDirectoryProjectMapper!
 
-    public override func setUp() {
+    override public func setUp() {
         super.setUp()
         subject = DeleteDerivedDirectoryProjectMapper()
     }
 
-    public override func tearDown() {
+    override public func tearDown() {
         super.tearDown()
         subject = nil
     }

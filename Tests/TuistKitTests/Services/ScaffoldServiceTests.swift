@@ -126,7 +126,7 @@ final class ScaffoldServiceTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(["optional": "optionalValue",
-                       "required": "requiredValue"],
+                        "required": "requiredValue"],
                        generateAttributes)
     }
 }

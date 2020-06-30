@@ -7,7 +7,7 @@ public class TuistUnitTestCase: TuistTestCase {
     public var system: MockSystem!
     public var xcodeController: MockXcodeController!
 
-    public override func setUp() {
+    override public func setUp() {
         super.setUp()
         // System
         system = MockSystem()
@@ -18,7 +18,7 @@ public class TuistUnitTestCase: TuistTestCase {
         XcodeController.shared = xcodeController
     }
 
-    public override func tearDown() {
+    override public func tearDown() {
         // System
         system = nil
         System.shared = System()
