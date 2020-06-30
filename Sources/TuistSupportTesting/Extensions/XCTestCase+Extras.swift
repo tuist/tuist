@@ -17,6 +17,10 @@ public extension XCTestCase {
         XCTAssertEqual(collection.count, 0, "Expected to be empty but it has \(collection.count) elements", file: file, line: line)
     }
 
+    func XCTAssertNotEmpty<T: Collection>(_ collection: T, file: StaticString = #file, line: UInt = #line) {
+        XCTAssertNotEqual(collection.count, 0, "Expected to not be empty but it has 0 elements", file: file, line: line)
+    }
+
     // swiftlint:disable large_tuple
     func XCTAssertEqualPairs<T: Equatable>(_ subjects: [(T, T, Bool)], file: StaticString = #file, line: UInt = #line) {
         subjects.forEach {

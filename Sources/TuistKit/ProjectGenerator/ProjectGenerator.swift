@@ -194,6 +194,7 @@ class ProjectGenerator: ProjectGenerating {
         return (project, updatedGraph, modelMapperSideEffects + graphMapperSideEffects)
     }
 
+    // swiftlint:disable:next large_tuple
     private func loadProjectWorkspace(path: AbsolutePath) throws -> (Project, Graph, [SideEffectDescriptor]) {
         // Load project
         let (project, graph, sideEffects) = try loadProject(path: path)
@@ -211,6 +212,7 @@ class ProjectGenerator: ProjectGenerating {
         return (project, graph, sideEffects + additionalSideEffects)
     }
 
+    // swiftlint:disable:next large_tuple
     private func loadWorkspace(path: AbsolutePath) throws -> (Workspace, Graph, [SideEffectDescriptor]) {
         // Load all manifests
         let manifests = try recursiveManifestLoader.loadWorkspace(at: path)
