@@ -10,7 +10,6 @@ import XCTest
 @testable import TuistSupportTesting
 
 final class MockFocusServiceProjectGeneratorProvider: FocusServiceProjectGeneratorProviding {
-
     var invokedGenerator = false
     var invokedGeneratorCount = 0
     var invokedGeneratorParameters: (cache: Bool, Void)?
@@ -24,7 +23,6 @@ final class MockFocusServiceProjectGeneratorProvider: FocusServiceProjectGenerat
         invokedGeneratorParametersList.append((cache, ()))
         return stubbedGeneratorResult
     }
-    
 }
 
 final class FocusServiceTests: TuistUnitTestCase {
@@ -32,7 +30,7 @@ final class FocusServiceTests: TuistUnitTestCase {
     var opener: MockOpener!
     var generator: MockProjectGenerator!
     var generatorProvider: MockFocusServiceProjectGeneratorProvider!
-    
+
     override func setUp() {
         super.setUp()
         opener = MockOpener()
@@ -61,7 +59,7 @@ final class FocusServiceTests: TuistUnitTestCase {
 
     func test_run() throws {
         let workspacePath = AbsolutePath("/test.xcworkspace")
-        
+
         generator.stubbedGenerateProjectWorkspaceResult = (workspacePath, .test())
         try subject.run(cache: false)
 

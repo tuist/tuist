@@ -123,8 +123,9 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
     public var description: String {
         name
     }
-    
+
     // MARK: - CustomDebugStringConvertible
+
     public var debugDescription: String {
         name
     }

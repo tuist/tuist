@@ -36,7 +36,7 @@ class CacheGraphMapper: CacheGraphMapping {
         var visitedXCFrameworkPaths: [TargetNode: VisitedXCFramework?] = [:]
         var loadedXCFrameworks: [AbsolutePath: XCFrameworkNode] = [:]
         var sourceTargets: Set<TargetNode> = Set()
-        
+
         func mapDependencies(_ dependencies: [GraphNode], sourceTargets: inout Set<TargetNode>) throws -> [GraphNode] {
             var newDependencies: [GraphNode] = []
             try dependencies.forEach { dependency in
@@ -76,37 +76,36 @@ class CacheGraphMapper: CacheGraphMapping {
             targetNode.dependencies = try mapDependencies(targetNode.dependencies, sourceTargets: &sourceTargets)
         }
         let entryNodes = Set(graph.entryNodes)
-        try graph.targets.flatMap({ $0.value })
-            .filter({ targetNode in
-                return entryNodes.contains(targetNode) || (targetNode.dependsOnXCTest && !targetNode.target.product.testsBundle )
-            })
-            .forEach({ try visit(targetNode: $0, sourceTargets: &sourceTargets) })
+        try graph.targets.flatMap { $0.value }
+            .filter { targetNode in
+                entryNodes.contains(targetNode) || (targetNode.dependsOnXCTest && !targetNode.target.product.testsBundle)
+            }
+            .forEach { try visit(targetNode: $0, sourceTargets: &sourceTargets) }
 
         return treeShake(graph: graph, sourceTargets: sourceTargets)
     }
-    
+
     func treeShake(graph: Graph, sourceTargets: Set<TargetNode>) -> Graph {
         let entryNodes = Set(graph.entryNodes)
-        let entryProjects = Set(graph.entryNodes.compactMap({ $0 as? TargetNode }).map({ $0.project }))
-        
-        let projects = graph.projects.compactMap({ (project) -> Project? in
+        let entryProjects = Set(graph.entryNodes.compactMap { $0 as? TargetNode }.map { $0.project })
+
+        let projects = graph.projects.compactMap { (project) -> Project? in
             if entryProjects.contains(project) {
                 return project
             } else {
-                let targets: [Target] = project.targets.compactMap({ (target) -> Target? in
+                let targets: [Target] = project.targets.compactMap { (target) -> Target? in
                     guard let targetNode = graph.target(path: project.path, name: target.name) else { return nil }
                     guard sourceTargets.contains(targetNode) else { return nil }
                     return target
-                })
+                }
                 if targets.isEmpty {
                     return nil
                 } else {
                     return project.with(targets: targets)
                 }
             }
-        })
+        }
         return graph.with(projects: projects)
-        
     }
 
     fileprivate func loadXCFramework(path: AbsolutePath, loadedXCFrameworks: inout [AbsolutePath: XCFrameworkNode]) throws -> XCFrameworkNode {

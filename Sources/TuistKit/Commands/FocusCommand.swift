@@ -15,7 +15,7 @@ struct FocusCommand: ParsableCommand {
         CommandConfiguration(commandName: "focus",
                              abstract: "Opens Xcode ready to focus on the project in the current directory")
     }
-    
+
     @Flag(
         name: [.long, .customShort("C")],
         help: "When enabled, it replaces framework targets with their pre-compiled .xcframework from the cache."

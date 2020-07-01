@@ -14,7 +14,7 @@ protocol GraphMapperProviding {
 
 final class GraphMapperProvider: GraphMapperProviding {
     fileprivate let cache: Bool
-    
+
     init(cache: Bool = false) {
         self.cache = cache
     }
@@ -27,7 +27,7 @@ final class GraphMapperProvider: GraphMapperProviding {
         var mappers: [GraphMapping] = []
 
         // Cache
-        if self.cache {
+        if cache {
             mappers.append(CacheMapper(config: config, cloudClient: CloudClient()))
         }
 

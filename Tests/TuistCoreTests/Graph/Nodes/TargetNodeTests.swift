@@ -79,15 +79,15 @@ final class TargetNodeTests: XCTestCase {
         // Then
         XCTAssertEncodableEqualToJson(node, expected)
     }
-    
+
     func test_dependsOnXCTest() throws {
         // When
         let sdk = try SDKNode(name: "XCTest.framework",
-                          platform: .iOS,
-                          status: .required,
-                          source: .developer)
+                              platform: .iOS,
+                              status: .required,
+                              source: .developer)
         let subject = TargetNode.test(dependencies: [sdk])
-        
+
         // Then
         XCTAssertTrue(subject.dependsOnXCTest)
     }

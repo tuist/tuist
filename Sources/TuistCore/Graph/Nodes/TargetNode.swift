@@ -101,8 +101,7 @@ public class TargetNode: GraphNode {
     public var sdkDependencies: [SDKNode] {
         dependencies.lazy.compactMap { $0 as? SDKNode }
     }
-    
-    
+
     /// Returns true if the target depends on XCTest
     public var dependsOnXCTest: Bool {
         sdkDependencies.contains(where: { $0.name == "XCTest" })

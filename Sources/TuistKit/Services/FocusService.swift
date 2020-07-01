@@ -14,15 +14,14 @@ protocol FocusServiceProjectGeneratorProviding {
 
 final class FocusServiceProjectGeneratorProvider: FocusServiceProjectGeneratorProviding {
     func generator(cache: Bool) -> ProjectGenerating {
-        return ProjectGenerator(graphMapperProvider: GraphMapperProvider(cache: cache))
+        ProjectGenerator(graphMapperProvider: GraphMapperProvider(cache: cache))
     }
 }
 
 final class FocusService {
-
     private let opener: Opening
     private let generatorProvider: FocusServiceProjectGeneratorProviding
-    
+
     init(opener: Opening = Opener(),
          generatorProvider: FocusServiceProjectGeneratorProviding = FocusServiceProjectGeneratorProvider()) {
         self.opener = opener
