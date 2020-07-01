@@ -1,14 +1,14 @@
-//import Foundation
-//import TuistCore
-//import XCTest
+// import Foundation
+// import TuistCore
+// import XCTest
 //
-//@testable import TuistCache
-//@testable import TuistCoreTesting
-//@testable import TuistSupportTesting
+// @testable import TuistCache
+// @testable import TuistCoreTesting
+// @testable import TuistSupportTesting
 //
 //// To generate the ASCII graphs: http://asciiflow.com/
 //// Alternative: https://dot-to-ascii.ggerganov.com/
-//final class CacheGraphMapperTests: TuistUnitTestCase {
+// final class CacheGraphMapperTests: TuistUnitTestCase {
 //    var xcframeworkLoader: MockXCFrameworkNodeLoader!
 //    var subject: CacheGraphMapper!
 //
@@ -203,4 +203,4 @@
 //        XCTAssertTrue(b.dependencies.contains(where: { $0.path == dFrameworkPath }))
 //        XCTAssertTrue(c.dependencies.contains(where: { $0.path == eXCFrameworkPath }))
 //    }
-//}
+// }
