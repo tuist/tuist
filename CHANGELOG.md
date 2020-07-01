@@ -11,6 +11,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Added
 
+- `tuist clean` command to delete the local cache [#1516](https://github.com/tuist/tuist/pull/1516) by [@RomainBoulay](https://github.com/RomainBoulay).
 - `tuist secret` command to generate cryptographically secure secrets [#1471](https://github.com/tuist/tuist/pull/1471) by [@pepibumur](https://github.com/pepibumur).
 
 ### Changed
