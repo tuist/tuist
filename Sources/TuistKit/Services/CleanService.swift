@@ -2,7 +2,6 @@ import Foundation
 import TuistSupport
 
 final class CleanService {
-
     func run() throws {
         let cachePath = Environment.shared.cacheDirectory
         try FileHandler.shared.delete(cachePath)
