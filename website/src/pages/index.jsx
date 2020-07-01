@@ -1028,67 +1028,6 @@ const Sponsor = () => {
   )
 }
 
-const Social = () => {
-  const slidersPerPage = useResponsiveValue([1, 2, 3, 3])
-  const tweetWidth = useResponsiveValue(['100%', '100%', 200, 300])
-  const {
-    allTweetsYaml: { nodes: tweets },
-  } = useStaticQuery(graphql`
-    query {
-      allTweetsYaml {
-        nodes {
-          id
-        }
-      }
-    }
-  `)
-  return (
-    <div className="py-12" sx={{ bg: 'background' }}>
-      <div className="max-w-screen-xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="lg:text-center">
-          <p
-            className="text-base leading-6 font-semibold tracking-wide uppercase"
-            sx={{ color: 'primary' }}
-          >
-            Twitter
-          </p>
-          <h3
-            className="mt-2 text-3xl leading-8 font-extrabold tracking-tight sm:text-4xl sm:leading-10"
-            sx={{ color: 'text' }}
-          >
-            The community speaks
-          </h3>
-          <p
-            className="mt-4 max-w-2xl text-xl leading-7 lg:mx-auto"
-            sx={{ color: 'gray' }}
-          >
-            This is what people are sharing about Tuist on Twitter.
-          </p>
-          <div sx={{ my: 3 }}>
-            <Carousel
-              slidesPerScroll={1}
-              slidesPerPage={slidersPerPage}
-              infinite
-              autoPlay={3000}
-            >
-              {tweets.map((tweet, index) => {
-                return (
-                  <div key={index} sx={{ width: tweetWidth }}>
-                    <TwitterTweetEmbed
-                      tweetId={tweet.id}
-                      options={{ cards: 'hidden', height: 400 }}
-                    />
-                  </div>
-                )
-              })}
-            </Carousel>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 const IndexPage = () => {
   return (
     <Layout>
@@ -1098,7 +1037,6 @@ const IndexPage = () => {
       <Principles />
       <Videos />
       <Sponsor />
-      <Social />
       <Testimonies />
       <Contribute />
     </Layout>
