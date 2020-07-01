@@ -4,10 +4,10 @@ import TSCBasic
 import TuistSupport
 
 /// Command to cache frameworks as .xcframeworks and speed up your and others' build times.
-struct CacheCommand: ParsableCommand {
+struct CloudPopulateCacheCommand: ParsableCommand {
     static var configuration: CommandConfiguration {
-        CommandConfiguration(commandName: "cache",
-                             abstract: "Cache frameworks as .xcframeworks to speed up build times in generated projects")
+        CommandConfiguration(commandName: "populate-cache",
+                             abstract: "Populates the local cache and pushes it to the cloud (should only be used by CI)")
     }
 
     @Option(
@@ -17,6 +17,6 @@ struct CacheCommand: ParsableCommand {
     var path: String?
 
     func run() throws {
-        try CacheService().run(path: path)
+        try CloudPopulateCacheService().run(path: path)
     }
 }
