@@ -27,7 +27,7 @@ final class GraphMapperProvider: GraphMapperProviding {
         var mappers: [GraphMapping] = []
 
         // Cache
-        if useCache {
+        if self.cache {
             mappers.append(CacheMapper(config: config, cloudClient: CloudClient()))
         }
 
