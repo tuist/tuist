@@ -3,8 +3,6 @@ import TSCBasic
 import TuistCore
 import TuistSupport
 
-// TODO: test TargetContentHasher
-
 public protocol TargetContentHashing {
     func contentHash(for target: TargetNode) throws -> String
 }

@@ -36,7 +36,7 @@ final class ContentHashingIntegrationTests: TuistTestCase {
             resourceFolderReference2 = try createTemporaryResourceFolderReference(on: temporaryDirectoryPath, name: "rf2", content: "rf2")
             _ = try createTemporarySourceFile(on: temporaryDirectoryPath, name: "CoreDataModel1", content: "cd1")
             _ = try createTemporarySourceFile(on: temporaryDirectoryPath, name: "CoreDataModel2", content: "cd2")
-
+            _ = try createTemporarySourceFile(on: temporaryDirectoryPath, name: "Info.plist", content: "plist")
             coreDataModel1 = CoreDataModel(path: temporaryDirectoryPath.appending(component: "CoreDataModel1"), versions: [], currentVersion: "1")
             coreDataModel2 = CoreDataModel(path: temporaryDirectoryPath.appending(component: "CoreDataModel2"), versions: [], currentVersion: "2")
         } catch {
@@ -107,8 +107,8 @@ final class ContentHashingIntegrationTests: TuistTestCase {
         let contentHash = try subject.contentHashes(for: graph)
 
         // Then
-        XCTAssertEqual(contentHash[framework1], "d11fac90cd291aa92dd2cb37eb6481b4")
-        XCTAssertEqual(contentHash[framework2], "9ae1f1f50f9f95d40f0463a13df90084")
+        XCTAssertEqual(contentHash[framework1], "fceaf5e214a39983e22493500cf6794d")
+        XCTAssertEqual(contentHash[framework2], "31f46fc5bff3dfad3d9c721337a9a4e8")
     }
 
     // MARK: - Resources

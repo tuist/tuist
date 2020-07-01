@@ -19,7 +19,6 @@ public final class DependenciesContentHasher: DependenciesContentHashing {
     // MARK: - HeadersContentHashing
 
     public func hash(dependencies: [Dependency]) throws -> String {
-        // We don't need to hash the content of dependencies since they live in another target
         let hashes = dependencies.map { try? hash(dependency: $0) }
         return hashes.compactMap { $0 }.joined()
     }
