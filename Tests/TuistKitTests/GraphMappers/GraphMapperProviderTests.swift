@@ -16,7 +16,7 @@ final class GraphMapperProviderTests: TuistUnitTestCase {
 
     override func setUp() {
         super.setUp()
-        subject = GraphMapperProvider(useCache: false)
+        subject = GraphMapperProvider(cache: false)
     }
 
     override func tearDown() {
@@ -26,7 +26,7 @@ final class GraphMapperProviderTests: TuistUnitTestCase {
 
     func test_mappers_returns_theCacheMapper_when_useCache_is_true() {
         // Given
-        subject = GraphMapperProvider(useCache: true)
+        subject = GraphMapperProvider(cache: true)
 
         // when
         let got = subject.mappers(config: Config.test())
@@ -37,7 +37,7 @@ final class GraphMapperProviderTests: TuistUnitTestCase {
 
     func test_mappers_doesnt_return_theCacheMapper_when_useCache_is_false() {
         // Given
-        subject = GraphMapperProvider(useCache: false)
+        subject = GraphMapperProvider(cache: false)
 
         // when
         let got = subject.mappers(config: Config.test())
@@ -48,7 +48,7 @@ final class GraphMapperProviderTests: TuistUnitTestCase {
 
     func test_mappers_returns_cloud_insights_mapper_when_insights_option_is_passed() {
         // Given
-        subject = GraphMapperProvider(useCache: false)
+        subject = GraphMapperProvider(cache: false)
 
         // When
         let got = subject.mappers(config: Config.test(cloud: .test(options: [.insights])))
@@ -59,7 +59,7 @@ final class GraphMapperProviderTests: TuistUnitTestCase {
 
     func test_mappers_doesnt_return_cloud_insights_mapper_when_insights_option_is_passed() {
         // Given
-        subject = GraphMapperProvider(useCache: false)
+        subject = GraphMapperProvider(cache: false)
 
         // When
         let got = subject.mappers(config: Config.test(cloud: .test(options: [])))

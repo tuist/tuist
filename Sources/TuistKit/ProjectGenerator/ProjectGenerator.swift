@@ -11,6 +11,7 @@ protocol ProjectGenerating {
     func load(path: AbsolutePath) throws -> Graph
     func generate(path: AbsolutePath, projectOnly: Bool) throws -> AbsolutePath
     func generateWithGraph(path: AbsolutePath, projectOnly: Bool) throws -> (AbsolutePath, Graph)
+    func generateProjectWorkspace(path: AbsolutePath) throws -> (AbsolutePath, Graph)
 }
 
 class ProjectGenerator: ProjectGenerating {
@@ -31,7 +32,7 @@ class ProjectGenerator: ProjectGenerating {
     private let projectMapperProvider: ProjectMapperProviding
     private let manifestLoader: ManifestLoading
 
-    init(graphMapperProvider: GraphMapperProviding = GraphMapperProvider(useCache: false),
+    init(graphMapperProvider: GraphMapperProviding = GraphMapperProvider(),
          projectMapperProvider: ProjectMapperProviding = ProjectMapperProvider(),
          manifestLoaderFactory: ManifestLoaderFactory = ManifestLoaderFactory()) {
         let manifestLoader = manifestLoaderFactory.createManifestLoader()
@@ -124,7 +125,7 @@ class ProjectGenerator: ProjectGenerating {
         return (workspaceDescriptor.xcworkspacePath, graph)
     }
 
-    private func generateProjectWorkspace(path: AbsolutePath) throws -> (AbsolutePath, Graph) {
+    internal func generateProjectWorkspace(path: AbsolutePath) throws -> (AbsolutePath, Graph) {
         // Load
         let (project, graph, sideEffects) = try loadProjectWorkspace(path: path)
 

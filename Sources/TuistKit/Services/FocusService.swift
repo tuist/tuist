@@ -8,25 +8,30 @@ import TuistGenerator
 import TuistLoader
 import TuistSupport
 
+protocol FocusServiceProjectGeneratorProviding {
+    func generator(cache: Bool) -> ProjectGenerating
+}
+
+final class FocusServiceProjectGeneratorProvider: FocusServiceProjectGeneratorProviding {
+    func generator(cache: Bool) -> ProjectGenerating {
+        ProjectGenerator(graphMapperProvider: GraphMapperProvider(cache: cache))
+    }
+}
+
 final class FocusService {
-    /// Generator instance to generate the project workspace.
-    private let generator: ProjectGenerating
-
-    /// Opener instance to run open in the system.
     private let opener: Opening
+    private let generatorProvider: FocusServiceProjectGeneratorProviding
 
-    init(generator: ProjectGenerating = ProjectGenerator(),
-         opener: Opening = Opener()) {
-        self.generator = generator
+    init(opener: Opening = Opener(),
+         generatorProvider: FocusServiceProjectGeneratorProviding = FocusServiceProjectGeneratorProvider()) {
         self.opener = opener
+        self.generatorProvider = generatorProvider
     }
 
-    func run() throws {
+    func run(cache: Bool) throws {
+        let generator = generatorProvider.generator(cache: cache)
         let path = FileHandler.shared.currentPath
-
-        let workspacePath = try generator.generate(path: path,
-                                                   projectOnly: false)
-
+        let (workspacePath, _) = try generator.generateProjectWorkspace(path: path)
         try opener.open(path: workspacePath)
     }
 }

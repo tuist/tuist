@@ -89,8 +89,7 @@ final class SimulatorController: SimulatorControlling {
     func devicesAndRuntimes() -> Single<[SimulatorDeviceAndRuntime]> {
         runtimes()
             .flatMap { (runtimes) -> Single<([SimulatorDevice], [SimulatorRuntime])> in
-                print(runtimes)
-                return self.devices().map { ($0, runtimes) }
+                self.devices().map { ($0, runtimes) }
             }
             .map { (input) -> [SimulatorDeviceAndRuntime] in
                 input.0.compactMap { (device) -> SimulatorDeviceAndRuntime? in

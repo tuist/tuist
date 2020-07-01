@@ -13,10 +13,10 @@ protocol GraphMapperProviding {
 }
 
 final class GraphMapperProvider: GraphMapperProviding {
-    fileprivate let useCache: Bool
+    fileprivate let cache: Bool
 
-    init(useCache: Bool) {
-        self.useCache = useCache
+    init(cache: Bool = false) {
+        self.cache = cache
     }
 
     func mapper(config: Config) -> GraphMapping {
@@ -27,7 +27,7 @@ final class GraphMapperProvider: GraphMapperProviding {
         var mappers: [GraphMapping] = []
 
         // Cache
-        if useCache {
+        if cache {
             mappers.append(CacheMapper(config: config, cloudClient: CloudClient()))
         }
 
