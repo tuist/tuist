@@ -986,6 +986,27 @@ final class GraphTests: TuistUnitTestCase {
         XCTAssertEqual(got.first?.name, "StickerPackExtension")
     }
 
+    func test_appExtensionDependencies_when_dependencyIsMessageExtension() throws {
+        // Given
+        let app = Target.test(name: "App", product: .app)
+        let messageExtension = Target.test(name: "MessageExtension", product: .messagesExtension)
+        let project = Project.test(targets: [app, messageExtension])
+
+        let graph = Graph.create(project: project,
+                                 dependencies: [
+                                     (target: app, dependencies: [messageExtension]),
+                                     (target: messageExtension, dependencies: []),
+                                 ])
+
+        // When
+        let result = graph.appExtensionDependencies(path: project.path, name: app.name)
+
+        // Then
+        XCTAssertEqual(result.map(\.name), [
+            "MessageExtension",
+        ])
+    }
+
     func test_hostTargetNode_watchApp() {
         // Given
         let app = Target.test(name: "App", platform: .iOS, product: .app)

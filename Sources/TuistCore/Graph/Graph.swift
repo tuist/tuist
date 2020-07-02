@@ -395,7 +395,7 @@ public class Graph: Encodable {
         }
 
         let validProducts: [Product] = [
-            .appExtension, .stickerPackExtension, .watch2Extension,
+            .appExtension, .stickerPackExtension, .watch2Extension, .messagesExtension,
         ]
 
         return targetNode.targetDependencies

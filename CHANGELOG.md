@@ -8,15 +8,13 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Use the selected Xcode version when editing projects [#1471](https://github.com/tuist/tuist/pull/1511) by [@pepibumur](https://github.com/pepibumur).
 - Search the `Setup.swift` file upwards if it doesn't exist in the current directory [#1513](https://github.com/tuist/tuist/pull/1513) by [@pepibumur](https://github.com/pepibumur).
+- Added `RxBlocking` to list of dependencies for `TuistGenerator` [#1514](https://github.com/tuist/tuist/pull/1514) by [@fortmarek](https://github.com/fortmarek).
+- Uncommented iMessage extension product type [#1515](https://github.com/tuist/tuist/pull/1515) by [@olejnjak](https://github.com/olejnjak).
 
 ### Added
 
 - `tuist clean` command to delete the local cache [#1516](https://github.com/tuist/tuist/pull/1516) by [@RomainBoulay](https://github.com/RomainBoulay).
 - `tuist secret` command to generate cryptographically secure secrets [#1471](https://github.com/tuist/tuist/pull/1471) by [@pepibumur](https://github.com/pepibumur).
-
-### Changed
-
-- Added `RxBlocking` to list of dependencies for `TuistGenerator` [#1514](https://github.com/tuist/tuist/pull/1514) by [@fortmarek](https://github.com/fortmarek).
 
 ## 1.11.1 - Volare far
 
