@@ -48,8 +48,10 @@ final class MockProjectGenerator: ProjectGenerating {
         return stubbedGenerateProjectWorkspaceResult
     }
 
+    var invokedLoadParameterPath: AbsolutePath?
     var loadStub: ((AbsolutePath) throws -> Graph)?
     func load(path: AbsolutePath) throws -> Graph {
+        invokedLoadParameterPath = path
         if let loadStub = loadStub {
             return try loadStub(path)
         } else {
