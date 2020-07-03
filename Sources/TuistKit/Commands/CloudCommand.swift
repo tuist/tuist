@@ -11,6 +11,7 @@ struct CloudCommand: ParsableCommand {
                                  CloudLogoutCommand.self,
                                  CloudStartTargetBuildCommand.self,
                                  CloudFinishTargetBuildCommand.self,
+                                 CloudWarmCacheCommand.self,
                              ])
     }
 }

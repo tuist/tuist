@@ -16,13 +16,7 @@ struct FocusCommand: ParsableCommand {
                              abstract: "Opens Xcode ready to focus on the project in the current directory")
     }
 
-    @Flag(
-        name: [.long, .customShort("C")],
-        help: "When enabled, it replaces framework targets with their pre-compiled .xcframework from the cache."
-    )
-    var cache: Bool
-
     func run() throws {
-        try FocusService().run(cache: cache)
+        try FocusService().run(cache: true)
     }
 }

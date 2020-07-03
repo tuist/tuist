@@ -4,7 +4,7 @@ import TuistCore
 import TuistLoader
 import TuistSupport
 
-final class CacheService {
+final class CloudWarmCacheService {
     /// Cache controller.
     private let cacheController: CacheControlling
 
