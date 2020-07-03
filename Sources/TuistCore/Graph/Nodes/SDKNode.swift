@@ -46,6 +46,7 @@ public class SDKNode: GraphNode {
     ///   - status: SDK status.
     /// - Returns: Initialized SDK node.
     public static func xctest(platform: Platform, status: SDKStatus) -> SDKNode {
+        // swiftlint:disable:next force_try
         try! SDKNode(name: "XCTest.framework", platform: platform, status: status, source: .system)
     }
 
