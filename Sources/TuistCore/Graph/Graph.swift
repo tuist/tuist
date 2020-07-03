@@ -526,6 +526,20 @@ public class Graph: Encodable {
               targets: targets)
     }
 
+    /// Returns a copy of the graph with the given targets.
+    /// - Parameter targets: Targets to be set to the copy.
+    /// - Returns: New graph with the given targets.
+    public func with(targets: [AbsolutePath: [TargetNode]]) -> Graph {
+        Graph(name: name,
+              entryPath: entryPath,
+              entryNodes: entryNodes,
+              projects: projects,
+              cocoapods: cocoapods,
+              packages: packages,
+              precompiled: precompiled,
+              targets: targets)
+    }
+
     // MARK: - Fileprivate
 
     fileprivate func productDependencyReference(for targetNode: TargetNode) -> GraphDependencyReference {
