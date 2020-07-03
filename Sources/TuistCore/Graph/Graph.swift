@@ -540,6 +540,42 @@ public class Graph: Encodable, Equatable {
               targets: targets)
     }
 
+    public func forEach(closure: (GraphNode) -> Void) {
+        var stack = Stack<GraphNode>()
+
+        entryNodes.forEach { stack.push($0) }
+
+        var visited: Set<GraphNode> = .init()
+
+        while !stack.isEmpty {
+            guard let node = stack.pop() else {
+                continue
+            }
+
+            if visited.contains(node) {
+                continue
+            }
+
+            closure(node)
+
+            visited.insert(node)
+
+            if let targetNode = node as? TargetNode {
+                for child in targetNode.dependencies where !visited.contains(child) {
+                    stack.push(child)
+                }
+            } else if let xcframeworkNode = node as? XCFrameworkNode {
+                for child in xcframeworkNode.dependencies.map(\.node) where !visited.contains(child) {
+                    stack.push(child)
+                }
+            } else if let frameworkNode = node as? FrameworkNode {
+                for child in frameworkNode.dependencies where !visited.contains(child) {
+                    stack.push(child)
+                }
+            }
+        }
+    }
+
     // MARK: - Fileprivate
 
     fileprivate func productDependencyReference(for targetNode: TargetNode) -> GraphDependencyReference {
