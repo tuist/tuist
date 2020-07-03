@@ -107,7 +107,7 @@ final class CloudSessionControllerTests: TuistUnitTestCase {
 
     func test_authenticate_when_parametersAreMissing() throws {
         // Given
-        httpRedirectListener.listenStub = { (port, path, message) -> (Swift.Result<[String: String]?, HTTPRedirectListenerError>) in
+        httpRedirectListener.listenStub = { (port, path, message, _) -> (Swift.Result<[String: String]?, HTTPRedirectListenerError>) in
             XCTAssertEqual(port, CloudSessionController.port)
             XCTAssertEqual(path, "auth")
             XCTAssertEqual(message, "Switch back to your terminal to continue the authentication.")
@@ -123,7 +123,7 @@ final class CloudSessionControllerTests: TuistUnitTestCase {
 
     func test_authenticate_when_parametersIncludeError() throws {
         // Given
-        httpRedirectListener.listenStub = { (port, path, message) -> (Swift.Result<[String: String]?, HTTPRedirectListenerError>) in
+        httpRedirectListener.listenStub = { (port, path, message, _) -> (Swift.Result<[String: String]?, HTTPRedirectListenerError>) in
             XCTAssertEqual(port, CloudSessionController.port)
             XCTAssertEqual(path, "auth")
             XCTAssertEqual(message, "Switch back to your terminal to continue the authentication.")
@@ -139,7 +139,7 @@ final class CloudSessionControllerTests: TuistUnitTestCase {
 
     func test_authenticate_when_tokenAndAccountParametersAreIncluded() throws {
         // Given
-        httpRedirectListener.listenStub = { (port, path, message) -> (Swift.Result<[String: String]?, HTTPRedirectListenerError>) in
+        httpRedirectListener.listenStub = { (port, path, message, _) -> (Swift.Result<[String: String]?, HTTPRedirectListenerError>) in
             XCTAssertEqual(port, CloudSessionController.port)
             XCTAssertEqual(path, "auth")
             XCTAssertEqual(message, "Switch back to your terminal to continue the authentication.")
@@ -161,7 +161,7 @@ final class CloudSessionControllerTests: TuistUnitTestCase {
 
     func test_authenticate_when_parametersContainInvalidKeys() throws {
         // Given
-        httpRedirectListener.listenStub = { (port, path, message) -> (Swift.Result<[String: String]?, HTTPRedirectListenerError>) in
+        httpRedirectListener.listenStub = { (port, path, message, _) -> (Swift.Result<[String: String]?, HTTPRedirectListenerError>) in
             XCTAssertEqual(port, CloudSessionController.port)
             XCTAssertEqual(path, "auth")
             XCTAssertEqual(message, "Switch back to your terminal to continue the authentication.")
