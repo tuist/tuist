@@ -4,7 +4,7 @@ import TuistCore
 
 public final class MockGraphContentHasher: GraphContentHashing {
     public init() {}
-    
+
     public var invokedContentHashes = false
     public var invokedContentHashesCount = 0
     public var invokedContentHashesParameters: (graph: TuistCore.Graph, Void)?

@@ -22,7 +22,6 @@ enum GraphError: FatalError {
 
 // swiftlint:disable:next type_body_length
 public class Graph: Encodable, Equatable {
-    
     // MARK: - Attributes
 
     /// Name of the graph.
@@ -578,18 +577,18 @@ public class Graph: Encodable, Equatable {
 
         return validProducts.contains(targetNode.target.product)
     }
-    
+
     // MARK: - Equatable
-    
+
     public static func == (lhs: Graph, rhs: Graph) -> Bool {
-        return lhs.name == rhs.name &&
-        lhs.entryPath == rhs.entryPath &&
-        lhs.entryNodes == rhs.entryNodes &&
-        lhs.projects == rhs.projects &&
-        lhs.cocoapods == rhs.cocoapods &&
-        lhs.packages == rhs.packages &&
-        lhs.precompiled == rhs.precompiled &&
-        lhs.frameworks == rhs.frameworks &&
-        lhs.targets == rhs.targets
+        lhs.name == rhs.name &&
+            lhs.entryPath == rhs.entryPath &&
+            lhs.entryNodes == rhs.entryNodes &&
+            lhs.projects == rhs.projects &&
+            lhs.cocoapods == rhs.cocoapods &&
+            lhs.packages == rhs.packages &&
+            lhs.precompiled == rhs.precompiled &&
+            lhs.frameworks == rhs.frameworks &&
+            lhs.targets == rhs.targets
     }
 }
