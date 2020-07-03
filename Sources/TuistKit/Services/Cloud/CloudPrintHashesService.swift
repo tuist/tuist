@@ -9,11 +9,11 @@ final class CloudPrintHashesService {
     /// Project generator
     let projectGenerator: ProjectGenerating
 
-    let graphContentHasher: GraphContentHasher
+    let graphContentHasher: GraphContentHashing
     private let clock: Clock
 
     init(projectGenerator: ProjectGenerating = ProjectGenerator(),
-         graphContentHasher: GraphContentHasher = GraphContentHasher(),
+         graphContentHasher: GraphContentHashing = GraphContentHasher(),
          clock: Clock = WallClock()) {
         self.projectGenerator = projectGenerator
         self.graphContentHasher = graphContentHasher
