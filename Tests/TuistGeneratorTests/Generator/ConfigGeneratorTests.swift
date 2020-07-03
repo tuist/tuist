@@ -350,6 +350,8 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
             .release("CustomRelease"): Configuration(settings: ["CustomRelease": "CustomRelease"], xcconfig: nil),
         ]
         let target = Target.test(name: "Test",
+                                 infoPlist: .file(path: AbsolutePath("/Info.plist")),
+                                 entitlements: AbsolutePath("/Test.entitlements"),
                                  settings: Settings(base: ["Base": "Base"], configurations: configurations))
         let project = Project.test(path: dir,
                                    name: "Test",
