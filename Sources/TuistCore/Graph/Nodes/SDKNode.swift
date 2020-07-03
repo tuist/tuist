@@ -40,6 +40,16 @@ public class SDKNode: GraphNode {
         super.init(path: path, name: String(name.split(separator: ".").first!))
     }
 
+    /// Creates an instance of SDKNode that represents the XCTest framework.
+    /// - Parameters:
+    ///   - platform: Platform.
+    ///   - status: SDK status.
+    /// - Returns: Initialized SDK node.
+    public static func xctest(platform: Platform, status: SDKStatus) -> SDKNode {
+        // swiftlint:disable:next force_try
+        try! SDKNode(name: "XCTest.framework", platform: platform, status: status, source: .system)
+    }
+
     static func path(name: String, platform: Platform, source _: SDKSource, type: Type) throws -> AbsolutePath {
         let sdkRootPath: AbsolutePath
         if name == SDKNode.xctestFrameworkName {

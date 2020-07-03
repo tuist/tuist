@@ -78,6 +78,7 @@ class CacheGraphMapper: CacheGraphMapping {
         let entryNodes = Set(graph.entryNodes)
         try graph.targets.flatMap { $0.value }
             .filter { targetNode in
+                // We traverse the graph from nodes that are either entry nodes, or are targets that depend on XCTest.
                 entryNodes.contains(targetNode) || (targetNode.dependsOnXCTest && !targetNode.target.product.testsBundle)
             }
             .forEach { try visit(targetNode: $0, sourceTargets: &sourceTargets) }
@@ -86,7 +87,6 @@ class CacheGraphMapper: CacheGraphMapping {
     }
 
     func treeShake(graph: Graph, sourceTargets: Set<TargetNode>) -> Graph {
-        let entryNodes = Set(graph.entryNodes)
         let entryProjects = Set(graph.entryNodes.compactMap { $0 as? TargetNode }.map { $0.project })
 
         let projects = graph.projects.compactMap { (project) -> Project? in
@@ -105,7 +105,14 @@ class CacheGraphMapper: CacheGraphMapping {
                 }
             }
         }
-        return graph.with(projects: projects)
+
+        return graph
+            .with(projects: projects)
+            .with(targets: sourceTargets.reduce(into: [AbsolutePath: [TargetNode]]()) { acc, target in
+                var targets = acc[target.path, default: []]
+                targets.append(target)
+                acc[target.path] = targets
+            })
     }
 
     fileprivate func loadXCFramework(path: AbsolutePath, loadedXCFrameworks: inout [AbsolutePath: XCFrameworkNode]) throws -> XCFrameworkNode {
