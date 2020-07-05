@@ -1,6 +1,6 @@
 import prismTheme from '@theme-ui/prism/presets/night-owl.json'
-import { system } from '@theme-ui/presets'
 import prism from '@theme-ui/prism/presets/theme-ui'
+import { tailwind } from '@theme-ui/presets'
 
 // Breakpoints
 const breakpoints = ['40em', '52em', '64em', '80em']
@@ -57,6 +57,7 @@ const colors = {
 
 // Styles
 const styles = {
+  ...tailwind,
   root: {
     fontFamily: 'body',
     lineHeight: 'body',
@@ -212,7 +213,7 @@ const text = {
 }
 
 export default {
-  ...system,
+  ...tailwind,
   radii,
   breakpoints,
   fonts,
