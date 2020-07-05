@@ -18,13 +18,6 @@ space.small = space[1]
 space.medium = space[2]
 space.large = space[3]
 
-// Fonts
-const fonts = {
-  body: 'Inter, sans-serif',
-  heading: 'Inter, sans-serif',
-  monospace: 'Menlo, monospace',
-}
-
 // Font heights
 const fontWeights = {
   body: 400,
@@ -216,7 +209,6 @@ export default {
   ...tailwind,
   radii,
   breakpoints,
-  fonts,
   space,
   fontSizes,
   text,
