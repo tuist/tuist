@@ -137,7 +137,7 @@ public struct Target: Equatable, Hashable {
     /// - Parameter sources: List of source file glob to be unfolded.
     public static func sources(sources: [SourceFileGlob]) throws -> [TuistCore.Target.SourceFile] {
         var sourceFiles: [AbsolutePath: TuistCore.Target.SourceFile] = [:]
-        sources.forEach { source in
+        try sources.forEach { source in
             let sourcePath = AbsolutePath(source.glob)
             let base = AbsolutePath(sourcePath.dirname)
 
@@ -149,7 +149,8 @@ public struct Target: Equatable, Hashable {
                 excluded.append(contentsOf: globs)
             }
 
-            Set(base.glob(sourcePath.basename))
+            let paths = try base.throwingGlob(sourcePath.basename)
+            Set(paths)
                 .subtracting(excluded)
                 .filter { path in
                     if let `extension` = path.extension, Target.validSourceExtensions.contains(`extension`) {

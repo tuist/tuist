@@ -126,6 +126,7 @@ public protocol FileHandling: AnyObject {
     func locateDirectory(_ path: String, traversingFrom from: AbsolutePath) -> AbsolutePath?
 
     func glob(_ path: AbsolutePath, glob: String) -> [AbsolutePath]
+    func throwingGlob(_ path: AbsolutePath, glob: String) throws -> [AbsolutePath]
     func linkFile(atPath: AbsolutePath, toPath: AbsolutePath) throws
     func createFolder(_ path: AbsolutePath) throws
     func delete(_ path: AbsolutePath) throws
@@ -270,6 +271,10 @@ public class FileHandler: FileHandling {
 
     public func glob(_ path: AbsolutePath, glob: String) -> [AbsolutePath] {
         path.glob(glob)
+    }
+
+    public func throwingGlob(_ path: AbsolutePath, glob: String) throws -> [AbsolutePath] {
+        try path.throwingGlob(glob)
     }
 
     public func createFolder(_ path: AbsolutePath) throws {
