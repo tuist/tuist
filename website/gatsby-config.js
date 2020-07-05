@@ -217,12 +217,6 @@ module.exports = {
     'gatsby-plugin-meta-redirect',
     `gatsby-plugin-robots-txt`,
     {
-      resolve: `gatsby-plugin-google-analytics`,
-      options: {
-        trackingId: 'UA-125584790-1',
-      },
-    },
-    {
       resolve: `gatsby-plugin-purgecss`,
       options: {
         printRejected: true, // Print removed selectors and processed file names

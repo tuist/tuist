@@ -127,6 +127,7 @@ const styles = {
   code: {
     fontFamily: 'monospace',
     color: 'secondary',
+    ...prismTheme,
   },
   li: {
     listStyleType: 'circle',
@@ -220,7 +221,7 @@ export default {
   text,
   fontWeights,
   lineHeights,
-  prism,
+  // prism,
   styles,
   colors,
 }
