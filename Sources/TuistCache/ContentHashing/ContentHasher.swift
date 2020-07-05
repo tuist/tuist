@@ -38,8 +38,17 @@ public final class ContentHasher: ContentHashing {
     }
 
     public func hash(_ dictionary: [String: String]) throws -> String {
-        let concatenatedStrings = dictionary.map { "\($0):\($1)" }.joined(separator: "-")
-        return try hash(concatenatedStrings)
+        let sortedKeys = dictionary.keys.sorted { $0 < $1 }
+        var dictString = ""
+        for (counter, key) in sortedKeys.enumerated() {
+            let value: String = dictionary[key]!
+            dictString += "\(key):\(value)"
+            let isLastKey = counter == (sortedKeys.count - 1)
+            if !isLastKey {
+                dictString += "-"
+            }
+        }
+        return try hash(dictString)
     }
 
     public func hash(fileAtPath filePath: AbsolutePath) throws -> String {
