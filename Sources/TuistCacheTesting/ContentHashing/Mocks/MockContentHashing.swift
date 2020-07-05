@@ -27,4 +27,12 @@ public class MockContentHashing: ContentHashing {
         hashFileAtPathCallCount += 1
         return stubHashForPath[filePath] ?? ""
     }
+
+    public var hashDictionarySpy: [String: String]?
+    public var hashDictionaryCallCount = 0
+    public func hash(_ dictionary: [String: String]) throws -> String {
+        hashDictionaryCallCount += 1
+        hashDictionarySpy = dictionary
+        return dictionary.map { "\($0):\($1)" }.joined(separator: "-")
+    }
 }

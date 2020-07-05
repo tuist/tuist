@@ -5,6 +5,8 @@ public protocol SourceFilesContentHashing {
     func hash(sources: [Target.SourceFile]) throws -> String
 }
 
+/// `SourceFilesContentHasher`
+/// is responsible for computing a unique hash that identifies a list of source files, considering their content
 public final class SourceFilesContentHasher: SourceFilesContentHashing {
     private let contentHasher: ContentHashing
 

@@ -34,11 +34,11 @@ final class GraphContentHasherTests: TuistUnitTestCase {
     func test_contentHashes_returnsOnlyFrameworks() throws {
         // Given
         let path: AbsolutePath = "/project"
-        let frameworkTarget = TargetNode.test(project: .test(path: path), target: .test(name: "FrameworkA", product: .framework))
-        let secondFrameworkTarget = TargetNode.test(project: .test(path: path), target: .test(name: "FrameworkB", product: .framework))
-        let appTarget = TargetNode.test(project: .test(path: path), target: .test(name: "App", product: .app))
-        let dynamicLibraryTarget = TargetNode.test(project: .test(path: path), target: .test(name: "DynamicLibrary", product: .dynamicLibrary))
-        let staticFrameworkTarget = TargetNode.test(project: .test(path: path), target: .test(name: "StaticFramework", product: .staticFramework))
+        let frameworkTarget = TargetNode.test(project: .test(path: path), target: .test(name: "FrameworkA", product: .framework, infoPlist: nil, entitlements: nil))
+        let secondFrameworkTarget = TargetNode.test(project: .test(path: path), target: .test(name: "FrameworkB", product: .framework, infoPlist: nil, entitlements: nil))
+        let appTarget = TargetNode.test(project: .test(path: path), target: .test(name: "App", product: .app, infoPlist: nil, entitlements: nil))
+        let dynamicLibraryTarget = TargetNode.test(project: .test(path: path), target: .test(name: "DynamicLibrary", product: .dynamicLibrary, infoPlist: nil, entitlements: nil))
+        let staticFrameworkTarget = TargetNode.test(project: .test(path: path), target: .test(name: "StaticFramework", product: .staticFramework, infoPlist: nil, entitlements: nil))
 
         let graph = Graph.test(entryPath: path,
                                entryNodes: [],

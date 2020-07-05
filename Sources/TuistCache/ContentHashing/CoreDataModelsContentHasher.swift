@@ -5,6 +5,8 @@ public protocol CoreDataModelsContentHashing {
     func hash(coreDataModels: [CoreDataModel]) throws -> String
 }
 
+/// `CoreDataModelsContentHasher`
+/// is responsible for computing a unique hash that identifies a list of CoreData models
 public final class CoreDataModelsContentHasher: CoreDataModelsContentHashing {
     private let contentHasher: ContentHashing
 

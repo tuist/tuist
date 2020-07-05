@@ -10,13 +10,13 @@ public protocol FileContentHashing {
 public protocol ContentHashing: FileContentHashing {
     func hash(_ string: String) throws -> String
     func hash(_ strings: [String]) throws -> String
+    func hash(_ dictionary: [String: String]) throws -> String
 }
 
-/// ContentHasher
-/// The single source of truth for hashing content
-/// Using md5 checksum to uniquely hash strings and data
-/// Consider using CacheContentHasher to avoid recalculating the same hash twice
-
+/// `ContentHasher`
+/// is the single source of truth for hashing content.
+/// It uses md5 checksum to uniquely hash strings and data
+/// Consider using CacheContentHasher to avoid computing the same hash twice
 public final class ContentHasher: ContentHashing {
     private let fileHandler: FileHandling
 
@@ -35,6 +35,20 @@ public final class ContentHasher: ContentHashing {
 
     public func hash(_ strings: [String]) throws -> String {
         try hash(strings.joined())
+    }
+
+    public func hash(_ dictionary: [String: String]) throws -> String {
+        let sortedKeys = dictionary.keys.sorted { $0 < $1 }
+        var dictString = ""
+        for (counter, key) in sortedKeys.enumerated() {
+            let value: String = dictionary[key]!
+            dictString += "\(key):\(value)"
+            let isLastKey = counter == (sortedKeys.count - 1)
+            if !isLastKey {
+                dictString += "-"
+            }
+        }
+        return try hash(dictString)
     }
 
     public func hash(fileAtPath filePath: AbsolutePath) throws -> String {

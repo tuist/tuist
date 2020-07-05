@@ -22,12 +22,6 @@ final class SourceFilesContentHasherTests: TuistUnitTestCase {
         subject = SourceFilesContentHasher(contentHasher: mockContentHasher)
         sourceFile1 = (path: sourceFile1Path, compilerFlags: "-fno-objc-arc")
         sourceFile2 = (path: sourceFile2Path, compilerFlags: "-print-objc-runtime-info")
-
-        do {
-            _ = try TemporaryDirectory(removeTreeOnDeinit: true)
-        } catch {
-            XCTFail("Error while creating temporary directory")
-        }
     }
 
     override func tearDown() {

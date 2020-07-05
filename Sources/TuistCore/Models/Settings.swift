@@ -52,7 +52,7 @@ public struct Configuration: Equatable {
     }
 }
 
-public enum DefaultSettings {
+public enum DefaultSettings: String {
     case recommended
     case essential
     case none

@@ -6,6 +6,8 @@ public protocol TargetActionsContentHashing {
     func hash(targetActions: [TargetAction]) throws -> String
 }
 
+/// `TargetActionsContentHasher`
+/// is responsible for computing a unique hash that identifies a list of target actions
 public final class TargetActionsContentHasher: TargetActionsContentHashing {
     private let contentHasher: ContentHashing
 
@@ -30,7 +32,7 @@ public final class TargetActionsContentHasher: TargetActionsContentHashing {
             let fileHashes = try pathsToHash.map { try contentHasher.hash(fileAtPath: $0) }
             stringsToHash.append(contentsOf: fileHashes +
                 [targetAction.name,
-                 targetAction.tool ?? "",
+                 targetAction.tool ?? "", // TODO: don't default to ""
                  targetAction.order.rawValue] +
                 targetAction.arguments)
         }
