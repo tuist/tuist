@@ -12,7 +12,7 @@ protocol Romeaging {
     ///   - platforms: Platforms the dependencies will be updated for.
     ///   - cachePrefix: Cache Prefix to use when downloading dependencies
     /// - Throws: An error if the dependencies download fails.
-    func download(path: AbsolutePath, platforms: [Platform], cachePrefix: String?) throws
+    func download(platforms: [Platform], cachePrefix: String?) throws
 }
 
 final class Rome: Romeaging {
@@ -23,7 +23,7 @@ final class Rome: Romeaging {
     ///   - platforms: Platforms the dependencies will be updated for.
     ///   - cachePrefix: Cache Prefix to use when downloading dependencies
     /// - Throws: An error if the dependencies update fails.
-    func download(path: AbsolutePath, platforms: [Platform], cachePrefix: String?) throws {
+    func download(platforms: [Platform], cachePrefix: String?) throws {
         let romePath = try System.shared.which("rome")
 
         var command: [String] = [romePath]
@@ -42,4 +42,3 @@ final class Rome: Romeaging {
         try System.shared.run(command)
     }
 }
-

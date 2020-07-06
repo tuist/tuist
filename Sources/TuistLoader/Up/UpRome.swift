@@ -26,8 +26,7 @@ class UpRome: Up, GraphInitiatable {
     ///   - rome:           Rome instace to interact with the projects Rome setup.
     init(platforms: [Platform],
          cachePrefix: String?,
-         upHomebrew: Upping = UpHomebrewTap(
-                                repositories: ["tmspzz/tap"]),
+         upHomebrew: Upping = UpHomebrewTap(repositories: ["tmspzz/tap"]),
          rome: Romeaging = Rome()) {
         self.platforms = platforms
         self.cachePrefix = cachePrefix
@@ -44,7 +43,7 @@ class UpRome: Up, GraphInitiatable {
     /// - Throws: A decoding error if an expected property is missing or has an invalid value.
     required convenience init(dictionary: JSON, projectPath _: AbsolutePath) throws {
         var platforms: [Platform] = []
-        var cachePrefix: String? = nil
+        var cachePrefix: String?
         if let platformStrings: [String] = try? dictionary.get("platforms") {
             platforms = platformStrings.compactMap {
                 Platform(rawValue: $0)
@@ -80,7 +79,7 @@ class UpRome: Up, GraphInitiatable {
         }
 
         /// Downloading Rome dependencies.
-        try rome.download(path: projectPath, platforms: platforms, cachePrefix: cachePrefix)
+        try rome.download(platforms: platforms, cachePrefix: cachePrefix)
     }
 
     func whatever() {}
