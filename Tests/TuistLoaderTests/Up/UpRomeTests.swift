@@ -47,17 +47,16 @@ final class UpRomeTests: TuistUnitTestCase {
         let temporaryPath = try self.temporaryPath()
 
         upHomebrew.isMetStub = { _ in false }
-        rome.downloadStub = { (_,_,_) in }
+        rome.downloadStub = { _, _ in }
 
         XCTAssertFalse(try subject.isMet(projectPath: temporaryPath))
     }
-
 
     func test_isMet() throws {
         let temporaryPath = try self.temporaryPath()
 
         upHomebrew.isMetStub = { _ in true }
-        rome.downloadStub = { (_,_,_) in }
+        rome.downloadStub = { _, _ in }
 
         XCTAssertTrue(try subject.isMet(projectPath: temporaryPath))
     }
@@ -79,8 +78,7 @@ final class UpRomeTests: TuistUnitTestCase {
 
         upHomebrew.isMetStub = { _ in true }
 
-        rome.downloadStub = { projectPath, platforms, cachePrefix in
-            XCTAssertEqual(projectPath, temporaryPath)
+        rome.downloadStub = { platforms, cachePrefix in
             XCTAssertEqual(platforms, self.platforms)
             XCTAssertEqual(cachePrefix, self.cachePrefix)
         }
