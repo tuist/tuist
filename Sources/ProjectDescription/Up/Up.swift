@@ -51,6 +51,17 @@ public class Up: Codable, Equatable {
         UpMint(linkPackagesGlobally: linkPackagesGlobally)
     }
 
+    /// Returns an up that updates Carthage dependencies in the project directory using Rome.
+    ///
+    /// - Parameters
+    ///     - platforms: The platforms Rome dependencies should be updated for. If the argument is not passed, the frameworks will be updated for all the platforms.
+    ///     - cachePrefix: The cachePrefix that Rome should use when retrieving the cached dependencies
+    /// - Returns: Up to pull dependencies from Carthage via Rome.
+    public static func rome(platforms: [Platform]? = nil, cachePrefix: String? = nil) -> Up {
+        let platforms = platforms ?? [.iOS, .macOS, .tvOS, .watchOS]
+        return UpRome(platforms: platforms, cachePrefix: cachePrefix)
+    }
+
     public static func == (lhs: Up, rhs: Up) -> Bool {
         lhs.equals(rhs)
     }
