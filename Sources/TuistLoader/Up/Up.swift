@@ -76,6 +76,8 @@ class Up: Upping {
             return try UpCarthage(dictionary: dictionary, projectPath: projectPath)
         } else if type == "mint" {
             return try UpMint(dictionary: dictionary, projectPath: projectPath)
+        } else if type == "rome" {
+            return try UpRome(dictionary: dictionary, projectPath: projectPath)
         }
         return nil
     }
