@@ -42,7 +42,7 @@
     "gatsby-plugin-theme-ui": "^0.3.0",
     "gatsby-redirect-from": "^0.2.4",
     "gatsby-remark-check-links": "^2.1.0",
-    "gatsby-remark-copy-linked-files": "^2.3.7",
+    "gatsby-remark-copy-linked-files": "^2.3.10",
     "gatsby-remark-embedder": "^2.1.1",
     "gatsby-remark-images": "^3.3.12",
     "gatsby-remark-smartypants": "^2.3.5",
