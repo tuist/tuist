@@ -78,6 +78,17 @@ It runs [Carthage](https://github.com/carthage) dependencies for those dependenc
 
 It installs all the packages in a [Mintfile](https://github.com/yonaskolb/Mint) if they don’t exist in the system.
 
+### Rome
+
+```swift
+.rome(platforms: [.iOS], cachePrefix: "Swift_5_1")
+```
+
+It installs all the dependencies in a [Romefile](https://github.com/tmspzz/Rome) if they don’t exist in the local Carthage folder.
+
+- **Platforms:** Platforms to run against
+- **CachePrefix:** The CachePrefix
+
 ### Custom
 
 ```swift
