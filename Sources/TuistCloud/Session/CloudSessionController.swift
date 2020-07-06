@@ -85,10 +85,12 @@ public final class CloudSessionController: CloudSessionControlling {
         logger.notice("Opening \(authURL.absoluteString) to start the authentication flow")
         try opener.open(url: authURL)
 
+        let logoURL = serverURL.appendingPathComponent("redirect-logo.svg")
         let redirectMessage = "Switch back to your terminal to continue the authentication."
         let result = httpRedirectListener.listen(port: CloudSessionController.port,
                                                  path: "auth",
-                                                 redirectMessage: redirectMessage)
+                                                 redirectMessage: redirectMessage,
+                                                 logoURL: logoURL)
         switch result {
         case let .failure(error): throw error
         case let .success(parameters):
