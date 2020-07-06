@@ -30,7 +30,7 @@
     "gatsby-plugin-manifest": "2.4.14",
     "gatsby-plugin-mdx": "^1.2.14",
     "gatsby-plugin-meta-redirect": "^1.1.1",
-    "gatsby-plugin-netlify": "^2.3.5",
+    "gatsby-plugin-netlify": "^2.3.10",
     "gatsby-plugin-next-seo": "^1.5.1",
     "gatsby-plugin-offline": "^3.2.13",
     "gatsby-plugin-purgecss": "^5.0.0",
