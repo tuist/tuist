@@ -32,3 +32,15 @@ All we need to do is run the following command:
 ```
 tuist focus
 ```
+
+## Debugging
+
+### Print target hashes
+
+Targets are uniquely identified in the cache. The identifier (hash) is obtained by hashing the attributes of the target, its project,
+the environment (e.g. Tuist version) and the hashes of its dependencies.
+To facilitate debugging, Tuist exposes a command that prints the hash of every target of the dependency tree:
+
+```
+tuist cloud print-hashes
+```
