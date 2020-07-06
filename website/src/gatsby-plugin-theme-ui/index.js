@@ -1,5 +1,4 @@
 import prismTheme from '@theme-ui/prism/presets/night-owl.json'
-import prism from '@theme-ui/prism/presets/theme-ui'
 import { tailwind } from '@theme-ui/presets'
 
 // Breakpoints
@@ -50,7 +49,7 @@ const colors = {
 
 // Styles
 const styles = {
-  ...tailwind,
+  ...tailwind.styles,
   root: {
     fontFamily: 'body',
     lineHeight: 'body',
@@ -74,25 +73,28 @@ const styles = {
   },
   h1: {
     variant: 'text.heading',
-    my: 4,
-    fontSize: 5,
+    mt: 5,
+    fontSize: [5, 6],
   },
   h2: {
+    mt: 5,
+    variant: 'text.heading',
+    fontSize: 5,
+  },
+  h3: {
+    color: 'text',
     my: 4,
     variant: 'text.heading',
     fontSize: 4,
   },
-  h3: {
-    my: 4,
+  h4: {
+    color: 'text',
+    my: 3,
     variant: 'text.heading',
     fontSize: 3,
   },
-  h4: {
-    my: 3,
-    variant: 'text.heading',
-    fontSize: 2,
-  },
   h5: {
+    color: 'text',
     my: 3,
     variant: 'text.heading',
     fontSize: 2,
