@@ -8226,10 +8226,10 @@ gatsby-cli@^2.12.44:
     yargs "^15.3.1"
     yurnalist "^1.1.2"
 
-gatsby-core-utils@^1.3.4, gatsby-core-utils@^1.3.6, gatsby-core-utils@^1.3.7, gatsby-core-utils@^1.3.8:
-  version "1.3.8"
-  resolved "https://registry.yarnpkg.com/gatsby-core-utils/-/gatsby-core-utils-1.3.8.tgz#e6d15d8cb24fa7e16a0af01a5e262ac9c4f31913"
-  integrity sha512-wVUqF8/DQMhiCyIKxVKjeDp4aN8x4/f+e/gS78sgaU0fleUpMMbQmeV+ASLh0Kk11yFs0fl4+EWWLFCHY2sWmg==
+gatsby-core-utils@^1.3.11, gatsby-core-utils@^1.3.4, gatsby-core-utils@^1.3.6, gatsby-core-utils@^1.3.8:
+  version "1.3.11"
+  resolved "https://registry.yarnpkg.com/gatsby-core-utils/-/gatsby-core-utils-1.3.11.tgz#1eb8eb6b3efc921758d6f7ad3d07b250bae53212"
+  integrity sha512-eaplfOveXLl1RCWja7QIke560jUKLprvCXZ446YgQ8vAYB0fXVz3u6AOf7XUmEV9F9PIkNjmfevd1oUPy9qISw==
   dependencies:
     ci-info "2.0.0"
     configstore "^5.0.1"
@@ -8642,20 +8642,20 @@ gatsby-remark-embedder@^2.1.1:
     node-fetch "^2.6.0"
     unist-util-visit "^2.0.2"
 
-gatsby-remark-images@^3.3.12:
-  version "3.3.12"
-  resolved "https://registry.yarnpkg.com/gatsby-remark-images/-/gatsby-remark-images-3.3.12.tgz#ddda1ee3911af5ae3462ffc6091582b06763892c"
-  integrity sha512-/7rJio64OaLU5TJX+7EyIlsBHAobpcmXwMnCIricUWcLIU1hegW43A7w5qkEt5kcIvtLrNx9Nq+LrqiD9ROxjg==
+gatsby-remark-images@^3.3.17:
+  version "3.3.17"
+  resolved "https://registry.yarnpkg.com/gatsby-remark-images/-/gatsby-remark-images-3.3.17.tgz#fcd01a6c7cdbd79d5fd34f5f3730c9a7ee0eb10a"
+  integrity sha512-x8E4t2/xtTYTk2bIoeEXXX8pox1/avaAXT9GPinvPmWxpisRQMA3vKAZ8WK/8erfsqLnZYV/ZcB1fL9bSJ1oww==
   dependencies:
-    "@babel/runtime" "^7.10.2"
+    "@babel/runtime" "^7.10.3"
     chalk "^2.4.2"
     cheerio "^1.0.0-rc.3"
-    gatsby-core-utils "^1.3.7"
+    gatsby-core-utils "^1.3.11"
     is-relative-url "^3.0.0"
     lodash "^4.17.15"
     mdast-util-definitions "^1.2.5"
     potrace "^2.1.6"
-    query-string "^6.12.1"
+    query-string "^6.13.1"
     unist-util-select "^1.5.0"
     unist-util-visit-parents "^2.1.2"
 
@@ -14106,10 +14106,10 @@ query-string@^5.0.1:
     object-assign "^4.1.0"
     strict-uri-encode "^1.0.0"
 
-query-string@^6.12.1:
-  version "6.12.1"
-  resolved "https://registry.yarnpkg.com/query-string/-/query-string-6.12.1.tgz#2ae4d272db4fba267141665374e49a1de09e8a7c"
-  integrity sha512-OHj+zzfRMyj3rmo/6G8a5Ifvw3AleL/EbcHMD27YA31Q+cO5lfmQxECkImuNVjcskLcvBRVHNAB3w6udMs1eAA==
+query-string@^6.12.1, query-string@^6.13.1:
+  version "6.13.1"
+  resolved "https://registry.yarnpkg.com/query-string/-/query-string-6.13.1.tgz#d913ccfce3b4b3a713989fe6d39466d92e71ccad"
+  integrity sha512-RfoButmcK+yCta1+FuU8REvisx1oEzhMKwhLUNcepQTPGcNMp1sIqjnfCtfnvGSQZQEhaBHvccujtWoUV3TTbA==
   dependencies:
     decode-uri-component "^0.2.0"
     split-on-first "^1.0.0"
