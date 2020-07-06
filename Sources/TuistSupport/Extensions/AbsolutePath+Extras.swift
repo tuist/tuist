@@ -5,7 +5,7 @@ import TSCBasic
 let systemGlob = Darwin.glob
 
 enum GlobError: Error {
-    case inexistentDirectory
+    case nonExistentDirectory
 }
 
 extension AbsolutePath {
@@ -37,7 +37,7 @@ extension AbsolutePath {
         let pathUpToLastNonGlob = path.pathUpToLastNonGlob
 
         if !FileHandler.shared.isFolder(.init(pathUpToLastNonGlob)) {
-            throw GlobError.inexistentDirectory
+            throw GlobError.nonExistentDirectory
         }
 
         return glob(pattern)
@@ -90,7 +90,7 @@ extension AbsolutePath: ExpressibleByStringLiteral {
 
 extension String {
     private var isGlobComponent: Bool {
-        self == "**" || self == "*" || hasPrefix("*.")
+        hasPrefix("*")
     }
 
     var pathUpToLastNonGlob: String {

@@ -30,10 +30,6 @@ extension TuistCore.Target {
             return (glob: globPath, excluding: excluding, compilerFlags: glob.compilerFlags)
         } ?? [])
 
-        if sources.isEmpty {
-            logger.warning("The target \(name) has no sources.")
-        }
-
         let resourceFilter = { (path: AbsolutePath) -> Bool in
             TuistCore.Target.isResource(path: path)
         }
