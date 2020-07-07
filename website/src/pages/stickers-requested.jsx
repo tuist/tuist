@@ -1,13 +1,10 @@
 /** @jsx jsx */
 import { jsx, Styled } from 'theme-ui'
-import { useStaticQuery, graphql } from 'gatsby'
 import Layout from '../components/layout'
 import Main from '../components/main'
 import { GatsbySeo } from 'gatsby-plugin-next-seo'
 import SEO from '../components/SEO'
 import Stickers from '../../assets/stickers.svg'
-import countryList from 'react-select-country-list'
-import Select from 'react-select'
 
 export default () => {
   return (

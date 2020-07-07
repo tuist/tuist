@@ -18,6 +18,7 @@ const Form = () => {
       method="POST"
       action="/stickers-requested"
     >
+      <input type="hidden" name="form-name" value="Stickers form" />
       <div>
         <div className="mt-8 border-gray-200 pt-8">
           <div className="mt-6 grid grid-cols-1 row-gap-6 col-gap-4 sm:grid-cols-6">
