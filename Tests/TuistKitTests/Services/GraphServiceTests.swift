@@ -46,7 +46,7 @@ final class GraphServiceTests: TuistUnitTestCase {
         dotGraphGenerator.generateProjectStub = graph
 
         // When
-        try subject.run()
+        try subject.run(skipTestTargets: false, skipExternalDependencies: false)
 
         // Then
         XCTAssertEqual(try FileHandler.shared.readTextFile(graphPath), graph)

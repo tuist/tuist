@@ -9,14 +9,14 @@ public protocol DotGraphGenerating {
     /// - Parameter path: Path to the folder that contains the project.
     /// - Returns: Dot graph representation.
     /// - Throws: An error if the project can't be loaded.
-    func generateProject(at path: AbsolutePath) throws -> String
+    func generateProject(at path: AbsolutePath, skipTestTargets: Bool, skipExternalDependencies: Bool) throws -> String
 
     /// Generates the dot graph from the workspace in the current directory and returns it.
     ///
     /// - Parameter path: Path to the folder that contains the workspace.
     /// - Returns: Dot graph representation.
     /// - Throws: An error if the workspace can't be loaded.
-    func generateWorkspace(at path: AbsolutePath) throws -> String
+    func generateWorkspace(at path: AbsolutePath, skipTestTargets: Bool, skipExternalDependencies: Bool) throws -> String
 }
 
 public final class DotGraphGenerator: DotGraphGenerating {
@@ -51,9 +51,9 @@ public final class DotGraphGenerator: DotGraphGenerating {
     /// - Parameter path: Path to the folder that contains the project.
     /// - Returns: Dot graph representation.
     /// - Throws: An error if the project can't be loaded.
-    public func generateProject(at path: AbsolutePath) throws -> String {
+    public func generateProject(at path: AbsolutePath, skipTestTargets: Bool, skipExternalDependencies: Bool) throws -> String {
         let (graph, _) = try graphLoader.loadProject(path: path)
-        return graphToDotGraphMapper.map(graph: graph).description
+        return graphToDotGraphMapper.map(graph: graph, skipTestTargets: skipTestTargets, skipExternalDependencies: skipExternalDependencies).description
     }
 
     /// Generates the dot graph from the workspace in the current directory and returns it.
@@ -61,8 +61,8 @@ public final class DotGraphGenerator: DotGraphGenerating {
     /// - Parameter path: Path to the folder that contains the workspace.
     /// - Returns: Dot graph representation.
     /// - Throws: An error if the workspace can't be loaded.
-    public func generateWorkspace(at path: AbsolutePath) throws -> String {
+    public func generateWorkspace(at path: AbsolutePath, skipTestTargets: Bool, skipExternalDependencies: Bool) throws -> String {
         let (graph, _) = try graphLoader.loadWorkspace(path: path)
-        return graphToDotGraphMapper.map(graph: graph).description
+        return graphToDotGraphMapper.map(graph: graph, skipTestTargets: skipTestTargets, skipExternalDependencies: skipExternalDependencies).description
     }
 }
