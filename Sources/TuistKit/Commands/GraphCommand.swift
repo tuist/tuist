@@ -20,9 +20,9 @@ struct GraphCommand: ParsableCommand {
     @Flag(
         help: "Skip external dependencies."
     )
-    var skipExternalParty: Bool
+    var skipExternalDependencies: Bool
 
     func run() throws {
-        try GraphService().run(skipTestTargets: skipTestTargets, skipExternalDependencies: skipExternalParty)
+        try GraphService().run(skipTestTargets: skipTestTargets, skipExternalDependencies: skipExternalDependencies)
     }
 }
