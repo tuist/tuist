@@ -33,6 +33,7 @@ const Form = () => {
                 <input
                   id="first_name"
                   name="First name"
+                  required
                   className="form-input px-2 block w-full transition duration-150 ease-in-out sm:text-sm sm:leading-10"
                 />
               </div>
@@ -48,6 +49,7 @@ const Form = () => {
                 <input
                   id="last_name"
                   name="Last name"
+                  required
                   className="form-input px-2 block w-full transition duration-150 ease-in-out sm:text-sm sm:leading-10"
                 />
               </div>
@@ -79,6 +81,7 @@ const Form = () => {
                 <input
                   id="street_address"
                   name="Address"
+                  required
                   className="form-input px-2 block w-full transition duration-150 ease-in-out sm:text-sm sm:leading-10"
                 />
               </div>
@@ -94,6 +97,7 @@ const Form = () => {
                 <input
                   id="city"
                   name="City"
+                  required
                   className="form-input px-2 block w-full transition duration-150 ease-in-out sm:text-sm sm:leading-10"
                 />
               </div>
@@ -109,6 +113,7 @@ const Form = () => {
                 <input
                   id="state"
                   name="State"
+                  required
                   className="form-input px-2 block w-full transition duration-150 ease-in-out sm:text-sm sm:leading-10"
                 />
               </div>
@@ -124,6 +129,7 @@ const Form = () => {
                 <input
                   id="zip"
                   name="ZIP"
+                  required
                   className="form-input px-2 block w-full transition duration-150 ease-in-out sm:text-sm sm:leading-10"
                 />
               </div>
