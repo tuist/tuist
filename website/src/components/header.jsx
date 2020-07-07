@@ -169,6 +169,18 @@ export default ({ menuOpen, setMenuOpen, menuRef }) => {
                   <Link
                     sx={{
                       ...linkStyle,
+                      ...(isBlog ? hoverStyle : {}),
+                      ml: [0, 4],
+                      variant: 'text.header',
+                    }}
+                    to="/stickers"
+                    alt="Ask for free nice-looking stickers"
+                  >
+                    STICKERS
+                  </Link>
+                  <Link
+                    sx={{
+                      ...linkStyle,
                       ...(isFaq ? hoverStyle : {}),
                       ml: [0, 4],
                       variant: 'text.header',
