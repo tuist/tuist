@@ -183,40 +183,4 @@ class GraphLoaderCache: GraphLoaderCaching {
     func targetNode(_ path: AbsolutePath, name: String) -> TargetNode? {
         targetNodes[path]?[name]
     }
-
-    func forEach(closure: (GraphNode) -> Void) {
-        var stack = Stack<GraphNode>()
-
-        targetNodes.values.flatMap { $0.values }.forEach { stack.push($0) }
-
-        var visited: Set<GraphNode> = .init()
-
-        while !stack.isEmpty {
-            guard let node = stack.pop() else {
-                continue
-            }
-
-            if visited.contains(node) {
-                continue
-            }
-
-            closure(node)
-
-            visited.insert(node)
-
-            if let targetNode = node as? TargetNode {
-                for child in targetNode.dependencies where !visited.contains(child) {
-                    stack.push(child)
-                }
-            } else if let xcframeworkNode = node as? XCFrameworkNode {
-                for child in xcframeworkNode.dependencies.map(\.node) where !visited.contains(child) {
-                    stack.push(child)
-                }
-            } else if let frameworkNode = node as? FrameworkNode {
-                for child in frameworkNode.dependencies where !visited.contains(child) {
-                    stack.push(child)
-                }
-            }
-        }
-    }
 }
