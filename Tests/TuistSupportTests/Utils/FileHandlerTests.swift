@@ -23,6 +23,12 @@ final class FileHandlerTests: TuistUnitTestCase {
         subject = FileHandler()
     }
 
+    override func tearDown() {
+        super.tearDown()
+
+        subject = nil
+    }
+
     // MARK: - Tests
 
     func test_replace() throws {

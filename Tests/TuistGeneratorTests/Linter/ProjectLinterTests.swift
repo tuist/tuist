@@ -23,6 +23,15 @@ final class ProjectLinterTests: XCTestCase {
                                 schemeLinter: schemeLinter)
     }
 
+    override func tearDown() {
+        super.tearDown()
+
+        subject = nil
+        settingsLinter = nil
+        schemeLinter = nil
+        targetLinter = nil
+    }
+
     func test_validate_when_there_are_duplicated_targets() throws {
         let target = Target.test(name: "A")
         let project = Project.test(targets: [target, target])

@@ -121,6 +121,12 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         subject = DefaultSettingsProvider()
     }
 
+    override func tearDown() {
+        super.tearDown()
+
+        subject = nil
+    }
+
     func testProjectSettings_whenEssentialDebug() throws {
         // Given
         let buildConfiguration: BuildConfiguration = .debug

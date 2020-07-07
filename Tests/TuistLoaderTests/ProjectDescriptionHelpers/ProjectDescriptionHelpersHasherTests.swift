@@ -16,6 +16,12 @@ class ProjectDescriptionHelpersHasherTests: TuistUnitTestCase {
         subject = ProjectDescriptionHelpersHasher(tuistVersion: "3.2.1")
     }
 
+    override func tearDown() {
+        super.tearDown()
+
+        subject = nil
+    }
+
     func test_hash() throws {
         // Given
         let temporaryDir = try temporaryPath()

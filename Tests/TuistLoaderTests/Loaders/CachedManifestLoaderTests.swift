@@ -48,6 +48,13 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
         }
     }
 
+    override func tearDown() {
+        super.tearDown()
+
+        subject = nil
+        cacheDirectory = nil
+    }
+
     // MARK: - Tests
 
     func test_load_manifestNotCached() throws {

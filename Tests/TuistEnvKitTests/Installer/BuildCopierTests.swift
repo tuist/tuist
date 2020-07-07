@@ -15,6 +15,13 @@ final class BuildCopierTests: XCTestCase {
         subject = BuildCopier()
     }
 
+    override func tearDown() {
+        super.tearDown()
+
+        fileManager = nil
+        subject = nil
+    }
+
     func test_files() {
         XCTAssertEqual(BuildCopier.files, [
             "tuist",

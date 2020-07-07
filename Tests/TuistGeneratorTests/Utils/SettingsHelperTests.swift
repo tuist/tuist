@@ -6,13 +6,20 @@ import XCTest
 @testable import TuistGenerator
 
 final class SettingsHelpersTests: XCTestCase {
-    private var subject = SettingsHelper()
-    private var settings: [String: SettingValue] = [:]
+    private var subject: SettingsHelper!
+    private var settings: [String: SettingValue]!
 
     override func setUp() {
         super.setUp()
         subject = SettingsHelper()
         settings = [:]
+    }
+
+    override func tearDown() {
+        super.tearDown()
+
+        settings = nil
+        subject = nil
     }
 
     func testExtend_whenNoSettings() {

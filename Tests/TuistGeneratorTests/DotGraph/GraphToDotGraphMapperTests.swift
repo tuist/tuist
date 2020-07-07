@@ -13,6 +13,12 @@ final class GraphToDotGraphMapperTests: XCTestCase {
         subject = GraphToDotGraphMapper()
     }
 
+    override func tearDown() {
+        super.tearDown()
+
+        subject = nil
+    }
+
     func test_map() throws {
         // Given
         let project = Project.test()

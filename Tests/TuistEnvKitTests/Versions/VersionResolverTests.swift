@@ -27,6 +27,13 @@ final class VersionResolverTests: XCTestCase {
         subject = VersionResolver(settingsController: settingsController)
     }
 
+    override func tearDown() {
+        super.tearDown()
+
+        settingsController = nil
+        subject = nil
+    }
+
     func test_resolve_when_version_and_bin() throws {
         let tmp_dir = try TemporaryDirectory(removeTreeOnDeinit: true)
         let versionPath = tmp_dir.path.appending(component: Constants.versionFileName)

@@ -44,6 +44,7 @@ class GeneratorPathsTests: TuistUnitTestCase {
     }
 
     override func tearDown() {
+        subject = nil
         rootDirectoryLocator = nil
         path = nil
         super.tearDown()

@@ -10,7 +10,14 @@ class StaticProductsGraphLinterTests: XCTestCase {
     var subject: StaticProductsGraphLinter!
 
     override func setUp() {
+        super.setUp()
         subject = StaticProductsGraphLinter()
+    }
+
+    override func tearDown() {
+        super.tearDown()
+
+        subject = nil
     }
 
     func test_lint_whenPackageDependencyLinkedTwice() throws {

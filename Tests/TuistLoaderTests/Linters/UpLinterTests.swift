@@ -13,6 +13,12 @@ final class UpLinterTests: XCTestCase {
         subject = UpLinter()
     }
 
+    override func tearDown() {
+        super.tearDown()
+
+        subject = nil
+    }
+
     func test_lint_when_a_custom_up_has_an_empty_meet() {
         let up = UpCustom(name: "test", meet: [], isMet: ["which", "tool"])
         let got = subject.lint(up: up)
