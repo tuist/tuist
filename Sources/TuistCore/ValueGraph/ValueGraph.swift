@@ -60,15 +60,6 @@ public struct ValueGraph: Equatable {
         return dependencies
     }
 
-    /// Given a graph loader cache, it returns a dictionary representing the dependency tree.
-    /// - Parameter cache: Cache generated after loading the projects.
-    /// - Returns: Dependency tree.
-    private static func dependencies(from cache: GraphLoaderCaching) -> [ValueGraphDependency: Set<ValueGraphDependency>] {
-        var dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [:]
-        cache.forEach { map(node: $0, into: &dependencies) }
-        return dependencies
-    }
-
     /// Traverses the node and its dependencies and adds them to the dependencies dictionary.
     /// - Parameters:
     ///   - node: Node whose dependencies will be mapped.

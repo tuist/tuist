@@ -95,8 +95,6 @@ protocol GraphLoaderCaching: AnyObject {
     /// Adds a package product to the cache.
     /// - Parameter package: Package product.
     func add(package: PackageProductNode)
-
-    func forEach(closure: (GraphNode) -> Void)
 }
 
 /// Graph loader cache.
