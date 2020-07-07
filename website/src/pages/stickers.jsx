@@ -147,9 +147,34 @@ const Form = () => {
   )
 }
 export default () => {
+  const {
+    site: {
+      siteMetadata: { siteUrl },
+    },
+  } = useStaticQuery(graphql`
+    query {
+      site {
+        siteMetadata {
+          siteUrl
+        }
+      }
+    }
+  `)
   return (
     <Layout>
-      <SEO title="Stickers" />
+      <SEO
+        title="Stickers"
+        openGraph={{
+          images: [
+            {
+              url: `${siteUrl}/stickers-card.png`,
+            },
+          ],
+        }}
+        twitter={{
+          cardType: 'summary_large_image',
+        }}
+      />
       <GatsbySeo
         title="Stickers"
         description={`Wanna get some nice-looking free stickers for your laptop? You can request some from this page.`}

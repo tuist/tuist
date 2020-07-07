@@ -205,7 +205,7 @@ let project = Project.featureFramework(
   ]
 )
   `
-  const buttonStyle = { width: 12, height: 12, borderRadius: 6 }
+  const buttonStyle = { width: 4, height: 4, borderRadius: 2 }
   const radius = 1
   return (
     <div
