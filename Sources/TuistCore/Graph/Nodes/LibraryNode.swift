@@ -6,19 +6,19 @@ public class LibraryNode: PrecompiledNode {
     // MARK: - Attributes
 
     /// Directory that contains the public headers of the library.
-    let publicHeaders: AbsolutePath
+    public let publicHeaders: AbsolutePath
 
     /// Path to the Swift module map file.
-    let swiftModuleMap: AbsolutePath?
+    public let swiftModuleMap: AbsolutePath?
 
     /// List of supported architectures.
-    let architectures: [BinaryArchitecture]
+    public let architectures: [BinaryArchitecture]
 
     /// Type of linking supported by the binary.
-    let linking: BinaryLinking
+    public let linking: BinaryLinking
 
     /// Library product.
-    var product: Product {
+    public var product: Product {
         if linking == .static {
             return .staticLibrary
         } else {

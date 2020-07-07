@@ -61,10 +61,12 @@ final class CloudInsightsGraphMapperTests: TuistUnitTestCase {
 
     func test_when_value_graph() throws {
         // Given
+        let path = try temporaryPath()
         let project = Project.test()
         let targetA = Target.test(name: "A")
         let targetB = Target.test(name: "B")
-        let graph = ValueGraph.test(projects: [project.path: project],
+        let graph = ValueGraph.test(path: path,
+                                    projects: [project.path: project],
                                     targets: [project.path: [targetA.name: targetA, targetB.name: targetB]])
 
         // When
