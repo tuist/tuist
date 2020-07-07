@@ -4,8 +4,19 @@ import TSCBasic
 
 let systemGlob = Darwin.glob
 
-enum GlobError: Error {
-    case nonExistentDirectory
+public enum GlobError: Error {
+    case nonExistentDirectory(InvalidGlob)
+}
+
+extension GlobError: FatalError {
+    public var type: ErrorType { .abort }
+
+    public var description: String {
+        switch self {
+        case .nonExistentDirectory(let invalidGlob):
+            return String(describing: invalidGlob)
+        }
+    }
 }
 
 extension AbsolutePath {
@@ -34,10 +45,11 @@ extension AbsolutePath {
     /// - Returns: List of paths that match the given pattern.
     public func throwingGlob(_ pattern: String) throws -> [AbsolutePath] {
         let path = appending(RelativePath(pattern)).pathString
-        let pathUpToLastNonGlob = path.pathUpToLastNonGlob
+        let pathUpToLastNonGlob = AbsolutePath(path)
 
-        if !FileHandler.shared.isFolder(.init(pathUpToLastNonGlob)) {
-            throw GlobError.nonExistentDirectory
+        if !FileHandler.shared.isFolder(pathUpToLastNonGlob) {
+            let invalidGlob = InvalidGlob(pattern: pattern, nonExistentPath: pathUpToLastNonGlob)
+            throw GlobError.nonExistentDirectory(invalidGlob)
         }
 
         return glob(pattern)
@@ -89,16 +101,18 @@ extension AbsolutePath: ExpressibleByStringLiteral {
 }
 
 extension String {
-    private var isGlobComponent: Bool {
-        hasPrefix("*")
+    var isGlobComponent: Bool {
+        let globCharacters = CharacterSet(charactersIn: "*{}")
+        return rangeOfCharacter(from: globCharacters) != nil
     }
+}
 
-    var pathUpToLastNonGlob: String {
-        let pathComponents = components(separatedBy: "/")
-        if let index = pathComponents.firstIndex(where: { $0.isGlobComponent }) {
-            return pathComponents[0..<index].joined(separator: "/")
+extension AbsolutePath {
+    var upToLastNonGlob: AbsolutePath {
+        guard let index = components.firstIndex(where: { $0.isGlobComponent }) else {
+            return self
         }
 
-        return self
+        return AbsolutePath(components[0..<index].joined(separator: "/"))
     }
 }

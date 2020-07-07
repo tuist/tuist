@@ -2,6 +2,19 @@ import Foundation
 import TSCBasic
 import TuistSupport
 
+public enum TargetError: FatalError {
+    case invalidSourcesGlob(targetName: String, invalidGlobs: [InvalidGlob])
+
+    public var type: ErrorType { .abort }
+
+    public var description: String {
+        switch self {
+        case .invalidSourcesGlob(targetName: let targetName, invalidGlobs: let invalidGlobs):
+            return "The target \(targetName) has the following invalid source files globs:\n" + invalidGlobs.invalidGlobsDescription
+        }
+    }
+}
+
 public struct Target: Equatable, Hashable {
     public typealias SourceFile = (path: AbsolutePath, compilerFlags: String?)
     public typealias SourceFileGlob = (glob: String, excluding: [String], compilerFlags: String?)
@@ -135,8 +148,10 @@ public struct Target: Equatable, Hashable {
     /// This method unfolds the source file globs subtracting the paths that are excluded and ignoring
     /// the files that don't have a supported source extension.
     /// - Parameter sources: List of source file glob to be unfolded.
-    public static func sources(sources: [SourceFileGlob]) throws -> [TuistCore.Target.SourceFile] {
+    public static func sources(targetName: String, sources: [SourceFileGlob]) throws -> [TuistCore.Target.SourceFile] {
         var sourceFiles: [AbsolutePath: TuistCore.Target.SourceFile] = [:]
+        var invalidGlobs: [InvalidGlob] = []
+
         try sources.forEach { source in
             let sourcePath = AbsolutePath(source.glob)
             let base = AbsolutePath(sourcePath.dirname)
@@ -149,7 +164,15 @@ public struct Target: Equatable, Hashable {
                 excluded.append(contentsOf: globs)
             }
 
-            let paths = try base.throwingGlob(sourcePath.basename)
+            let paths: [AbsolutePath]
+
+            do {
+                paths = try base.throwingGlob(sourcePath.basename)
+            } catch GlobError.nonExistentDirectory(let invalidGlob) {
+                paths = []
+                invalidGlobs.append(invalidGlob)
+            }
+
             Set(paths)
                 .subtracting(excluded)
                 .filter { path in
@@ -159,6 +182,11 @@ public struct Target: Equatable, Hashable {
                     return false
                 }.forEach { sourceFiles[$0] = (path: $0, compilerFlags: source.compilerFlags) }
         }
+
+        if !invalidGlobs.isEmpty {
+            throw TargetError.invalidSourcesGlob(targetName: targetName, invalidGlobs: invalidGlobs)
+        }
+
         return Array(sourceFiles.values)
     }
 
