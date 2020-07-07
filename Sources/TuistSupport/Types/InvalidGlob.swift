@@ -12,7 +12,7 @@ public struct InvalidGlob {
 
 extension InvalidGlob: CustomStringConvertible {
     public var description: String {
-        "The directory \(nonExistentPath), defined in glob pattern: \"\(pattern)\", does not exist."
+        "The directory \"\(nonExistentPath)\", defined in glob pattern: \"\(pattern)\", does not exist."
     }
 }
 

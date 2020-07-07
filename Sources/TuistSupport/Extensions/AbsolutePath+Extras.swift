@@ -44,11 +44,12 @@ extension AbsolutePath {
     /// - Throws: an error if the directory where the first glob pattern is declared doesn't exist
     /// - Returns: List of paths that match the given pattern.
     public func throwingGlob(_ pattern: String) throws -> [AbsolutePath] {
-        let path = appending(RelativePath(pattern)).pathString
-        let pathUpToLastNonGlob = AbsolutePath(path)
+        let globPath = appending(RelativePath(pattern)).pathString
+        let pathUpToLastNonGlob = AbsolutePath(globPath).upToLastNonGlob
 
         if !FileHandler.shared.isFolder(pathUpToLastNonGlob) {
-            let invalidGlob = InvalidGlob(pattern: pattern, nonExistentPath: pathUpToLastNonGlob)
+            let invalidGlob = InvalidGlob(pattern: globPath,
+                                          nonExistentPath: pathUpToLastNonGlob)
             throw GlobError.nonExistentDirectory(invalidGlob)
         }
 
