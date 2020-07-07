@@ -13,7 +13,7 @@ const Form = () => {
   const countries = countryList().getData()
   return (
     <form
-      data-netlify="true"
+      netlify
       name="Stickers form"
       method="POST"
       action="/stickers-requested"
