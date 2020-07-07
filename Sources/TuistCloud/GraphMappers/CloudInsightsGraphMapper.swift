@@ -43,7 +43,9 @@ public class CloudInsightsGraphMapper: GraphMapping {
                 return target.with(actions: actions)
             }
         }
-        let graph = ValueGraph(projects: graph.projects,
+        let graph = ValueGraph(name: graph.name,
+                               path: graph.path,
+                               projects: graph.projects,
                                packages: graph.packages,
                                targets: targets,
                                dependencies: graph.dependencies)

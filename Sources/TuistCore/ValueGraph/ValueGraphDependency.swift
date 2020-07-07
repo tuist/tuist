@@ -34,6 +34,9 @@ public enum ValueGraphDependency: Hashable {
     /// A dependency that represents a target that is defined in the project at the given path.
     case target(name: String, path: AbsolutePath)
 
+    /// A dependency that represents an SDK
+    case sdk(name: String, path: AbsolutePath, status: SDKStatus, source: SDKSource)
+
     public func hash(into hasher: inout Hasher) {
         switch self {
         case let .xcframework(path, _, _, _):
@@ -48,6 +51,11 @@ public enum ValueGraphDependency: Hashable {
         case let .target(name, path):
             hasher.combine(name)
             hasher.combine(path)
+        case let .sdk(name, path, status, source):
+            hasher.combine(name)
+            hasher.combine(path)
+            hasher.combine(status)
+            hasher.combine(source)
         }
     }
 }

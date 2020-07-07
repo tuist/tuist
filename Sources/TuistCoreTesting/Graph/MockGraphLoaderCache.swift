@@ -76,4 +76,8 @@ public final class MockGraphLoaderCache: GraphLoaderCaching {
     public func targetNode(_ path: AbsolutePath, name: String) -> TargetNode? {
         targetNodeStub?(path, name)
     }
+
+    public func forEach(closure _: (GraphNode) -> Void) {
+        // Do nothing
+    }
 }
