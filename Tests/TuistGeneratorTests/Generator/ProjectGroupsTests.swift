@@ -37,6 +37,16 @@ final class ProjectGroupsTests: XCTestCase {
         pbxproj = PBXProj()
     }
 
+    override func tearDown() {
+        super.tearDown()
+
+        pbxproj = nil
+        project = nil
+        sourceRootPath = nil
+        playgrounds = nil
+        subject = nil
+    }
+
     func test_generate() {
         playgrounds.pathsStub = { projectPath in
             if projectPath == self.sourceRootPath {

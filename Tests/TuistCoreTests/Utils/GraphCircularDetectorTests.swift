@@ -11,6 +11,12 @@ final class GraphCircularDetectorTests: XCTestCase {
         subject = GraphCircularDetector()
     }
 
+    override func tearDown() {
+        super.tearDown()
+
+        subject = nil
+    }
+
     func test_cycleDetected_1() throws {
         // Given
         let a = node("a")

@@ -17,6 +17,7 @@ class WorkspaceStructureGeneratorTests: XCTestCase {
 
     override func tearDown() {
         fileHandler = nil
+        subject = nil
     }
 
     func test_generateStructure_projects() throws {

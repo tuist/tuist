@@ -31,6 +31,14 @@ final class BuildPhaseGeneratorTests: XCTestCase {
         graph = Graph.test()
     }
 
+    override func tearDown() {
+        super.tearDown()
+
+        subject = nil
+        errorHandler = nil
+        graph = nil
+    }
+
     func test_generateSourcesBuildPhase() throws {
         // Given
         let target = PBXNativeTarget(name: "Test")

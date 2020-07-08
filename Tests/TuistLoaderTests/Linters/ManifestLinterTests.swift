@@ -9,7 +9,14 @@ class ManifestLinterTests: XCTestCase {
     var subject: ManifestLinter!
 
     override func setUp() {
+        super.setUp()
         subject = ManifestLinter()
+    }
+
+    override func tearDown() {
+        super.tearDown()
+
+        subject = nil
     }
 
     // MARK: - Tests

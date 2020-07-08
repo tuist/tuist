@@ -29,6 +29,14 @@ final class RecursiveManifestLoaderTests: TuistUnitTestCase {
                                           fileHandler: fileHandler)
     }
 
+    override func tearDown() {
+        super.tearDown()
+
+        path = nil
+        manifestLoader = nil
+        subject = nil
+    }
+
     // MARK: - Tests
 
     func test_loadProject_loadingSingleProject() throws {

@@ -17,6 +17,12 @@ final class SchemesGeneratorTests: XCTestCase {
         subject = SchemesGenerator()
     }
 
+    override func tearDown() {
+        super.tearDown()
+
+        subject = nil
+    }
+
     // MARK: - Build Action Tests
 
     func test_schemeBuildAction_whenSingleProject() throws {

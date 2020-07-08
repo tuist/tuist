@@ -24,6 +24,16 @@ final class TargetGeneratorTests: XCTestCase {
         subject = TargetGenerator()
     }
 
+    override func tearDown() {
+        super.tearDown()
+
+        subject = nil
+        fileElements = nil
+        pbxProject = nil
+        pbxproj = nil
+        path = nil
+    }
+
     func test_generateTarget_productName() throws {
         // Given
         let target = Target.test(name: "MyFramework",

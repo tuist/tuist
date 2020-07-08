@@ -13,6 +13,12 @@ final class PrecompiledNodeTests: XCTestCase {
         system = MockSystem()
     }
 
+    override func tearDown() {
+        super.tearDown()
+
+        system = nil
+    }
+
     func test_name() {
         // Given
         let subject = PrecompiledNode(path: AbsolutePath("/Alamofire.framework"))
