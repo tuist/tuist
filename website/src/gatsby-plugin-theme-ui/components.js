@@ -9,11 +9,9 @@ import Email from '../../markdown/docs/components/email'
 const heading = (Tag) => (props) => {
   if (!props.id) return <Tag {...props} />
   return (
-    <Tag {...props}>
-      <Styled.a sx={{ textDecoration: 'none' }} href={`#${props.id}`}>
-        {props.children}
-      </Styled.a>
-    </Tag>
+    <Styled.a sx={{ textDecoration: 'none' }} href={`#${props.id}`}>
+      <Tag {...props}>{props.children}</Tag>
+    </Styled.a>
   )
 }
 
