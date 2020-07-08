@@ -11,7 +11,7 @@ public enum TargetManifestMapperError: FatalError {
 
     public var description: String {
         switch self {
-        case .invalidResourcesGlob(targetName: let targetName, invalidGlobs: let invalidGlobs):
+        case let .invalidResourcesGlob(targetName: targetName, invalidGlobs: invalidGlobs):
             return "The target \(targetName) has the following invalid resource globs:\n" + invalidGlobs.invalidGlobsDescription
         }
     }
@@ -55,7 +55,7 @@ extension TuistCore.Target {
                 return try TuistCore.FileElement.from(manifest: manifest,
                                                       generatorPaths: generatorPaths,
                                                       includeFiles: resourceFilter)
-            } catch GlobError.nonExistentDirectory(let invalidGlob) {
+            } catch let GlobError.nonExistentDirectory(invalidGlob) {
                 invalidResourceGlobs.append(invalidGlob)
                 return []
             }

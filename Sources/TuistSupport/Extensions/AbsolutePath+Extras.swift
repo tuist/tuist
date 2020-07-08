@@ -13,7 +13,7 @@ extension GlobError: FatalError {
 
     public var description: String {
         switch self {
-        case .nonExistentDirectory(let invalidGlob):
+        case let .nonExistentDirectory(invalidGlob):
             return String(describing: invalidGlob)
         }
     }
@@ -114,6 +114,6 @@ extension AbsolutePath {
             return self
         }
 
-        return AbsolutePath(components[0..<index].joined(separator: "/"))
+        return AbsolutePath(components[0 ..< index].joined(separator: "/"))
     }
 }

@@ -9,7 +9,7 @@ public enum TargetError: FatalError {
 
     public var description: String {
         switch self {
-        case .invalidSourcesGlob(targetName: let targetName, invalidGlobs: let invalidGlobs):
+        case let .invalidSourcesGlob(targetName: targetName, invalidGlobs: invalidGlobs):
             return "The target \(targetName) has the following invalid source files globs:\n" + invalidGlobs.invalidGlobsDescription
         }
     }
@@ -168,7 +168,7 @@ public struct Target: Equatable, Hashable {
 
             do {
                 paths = try base.throwingGlob(sourcePath.basename)
-            } catch GlobError.nonExistentDirectory(let invalidGlob) {
+            } catch let GlobError.nonExistentDirectory(invalidGlob) {
                 paths = []
                 invalidGlobs.append(invalidGlob)
             }
