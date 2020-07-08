@@ -22,7 +22,7 @@ class GraphToDotGraphMapper: GraphToDotGraphMapping {
         // Targets
         graph.targets.forEach { targetsList in
             targetsList.value.forEach { target in
-                if skipTestTargets && target.dependsOnXCTest {
+                if skipTestTargets, target.dependsOnXCTest {
                     return
                 }
                 if skipExternalDependencies, target.isExternal {
@@ -79,5 +79,4 @@ private extension GraphNode {
 
         return false
     }
-
 }

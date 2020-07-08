@@ -89,6 +89,5 @@ final class GraphToDotGraphMapperTests: XCTestCase {
                                     .init(from: "Tuist watchOS", to: "Core"),
                                 ])
         XCTAssertEqual(got, expected)
-
     }
 }
