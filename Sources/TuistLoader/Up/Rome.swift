@@ -55,7 +55,7 @@ final class Rome: Romeaging {
     ///   - platforms: Platforms the dependencies will be updated for.
     ///   - cachePrefix: Cache Prefix to use when downloading dependencies
     /// - Throws: An error if the dependencies download fails.
-    func missing(platforms: [Platform], cachePrefix: String?) throws -> String?  {
+    func missing(platforms: [Platform], cachePrefix: String?) throws -> String? {
         let romePath = try System.shared.which("rome")
 
         var command: [String] = [romePath]
