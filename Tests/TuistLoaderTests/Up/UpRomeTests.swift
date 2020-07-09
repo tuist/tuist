@@ -36,46 +36,93 @@ final class UpRomeTests: TuistUnitTestCase {
     }
 
     func test_init() throws {
+        //  Given
         let temporaryPath = try self.temporaryPath()
         let json = JSON(["platforms": JSON.array([JSON.string("ios")]), "cachePrefix": "Swift_5_1"])
+
+        //  Then
         let got = try UpRome(dictionary: json, projectPath: temporaryPath)
+
+        //  When
         XCTAssertEqual(got.platforms, [.iOS])
         XCTAssertEqual(got.cachePrefix, "Swift_5_1")
     }
 
-    func test_isMet_when_rome_is_not_met() throws {
+    func test_nil_init_params() throws {
+        //  Given
         let temporaryPath = try self.temporaryPath()
+        let json = JSON([:])
 
+        //  Then
+        let got = try UpRome(dictionary: json, projectPath: temporaryPath)
+
+        //  When
+        XCTAssertEqual(got.platforms, [])
+        XCTAssertNil(got.cachePrefix)
+    }
+
+    func test_isMet_when_rome_is_not_met() throws {
+        //  Given
+        let temporaryPath = try self.temporaryPath()
         upHomebrew.isMetStub = { _ in false }
         rome.downloadStub = { _, _ in }
 
-        XCTAssertFalse(try subject.isMet(projectPath: temporaryPath))
+        //  Then
+        let result = try subject.isMet(projectPath: temporaryPath)
+
+        //  When
+        XCTAssertFalse(result)
     }
 
     func test_isMet() throws {
+        //  Given
         let temporaryPath = try self.temporaryPath()
 
         upHomebrew.isMetStub = { _ in true }
         rome.downloadStub = { _, _ in }
+        rome.missingStub = { _, _ in return "" }
 
-        XCTAssertTrue(try subject.isMet(projectPath: temporaryPath))
+        //  Then
+        let result = try subject.isMet(projectPath: temporaryPath)
+
+        //  When
+        XCTAssertTrue(result)
+    }
+
+    func test_when_not_isMet() throws {
+        //  Given
+        let temporaryPath = try self.temporaryPath()
+
+        upHomebrew.isMetStub = { _ in true }
+        rome.downloadStub = { _, _ in }
+        rome.missingStub = { _, _ in return "MissingFramework ABC, Other framework missing" }
+
+        //  Then
+        let result = try subject.isMet(projectPath: temporaryPath)
+
+        //  When
+        XCTAssertFalse(result)
     }
 
     func test_meet_when_homebrew_is_not_met() throws {
+        //  Given
         let temporaryPath = try self.temporaryPath()
         upHomebrew.isMetStub = { _ in false }
 
         upHomebrew.meetStub = { projectPath in
             XCTAssertEqual(temporaryPath, projectPath)
         }
+
+        //  Then
         try subject.meet(projectPath: temporaryPath)
 
+        //  When
         XCTAssertEqual(upHomebrew.meetCallCount, 1)
     }
 
     func test_meet() throws {
+        //  Given
         let temporaryPath = try self.temporaryPath()
-
         upHomebrew.isMetStub = { _ in true }
 
         rome.downloadStub = { platforms, cachePrefix in
@@ -83,8 +130,10 @@ final class UpRomeTests: TuistUnitTestCase {
             XCTAssertEqual(cachePrefix, self.cachePrefix)
         }
 
+        //  Then
         try subject.meet(projectPath: temporaryPath)
 
+        // When
         XCTAssertEqual(upHomebrew.meetCallCount, 0)
         XCTAssertEqual(rome.downloadCallCount, 1)
     }

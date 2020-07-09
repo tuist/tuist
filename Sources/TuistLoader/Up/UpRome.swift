@@ -64,7 +64,8 @@ class UpRome: Up, GraphInitiatable {
     /// - Throws: An error if the check fails.
     override func isMet(projectPath: AbsolutePath) throws -> Bool {
         if try !upHomebrew.isMet(projectPath: projectPath) { return false }
-        return true
+        guard let missing = try rome.missing(platforms: platforms, cachePrefix: cachePrefix) else { return false }
+        return missing.isEmpty
     }
 
     /// When the command is not met, this method runs it.
@@ -81,6 +82,4 @@ class UpRome: Up, GraphInitiatable {
         /// Downloading Rome dependencies.
         try rome.download(platforms: platforms, cachePrefix: cachePrefix)
     }
-
-    func whatever() {}
 }
