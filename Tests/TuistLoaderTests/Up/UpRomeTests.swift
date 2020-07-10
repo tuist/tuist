@@ -96,7 +96,7 @@ final class UpRomeTests: TuistUnitTestCase {
 
         upHomebrew.isMetStub = { _ in true }
         rome.downloadStub = { _, _ in }
-        rome.missingStub = { _, _ in return "MissingFramework ABC, Other framework missing" }
+        rome.missingStub = { _, _ in "MissingFramework ABC, Other framework missing" }
 
         //  Then
         let result = try subject.isMet(projectPath: temporaryPath)
