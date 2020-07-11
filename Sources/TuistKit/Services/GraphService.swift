@@ -18,9 +18,11 @@ final class GraphService {
         self.manifestLoader = manifestLoader
     }
 
-    func run() throws {
+    func run(skipTestTargets: Bool, skipExternalDependencies: Bool) throws {
         let graph = try dotGraphGenerator.generate(at: FileHandler.shared.currentPath,
-                                                   manifestLoader: manifestLoader)
+                                                   manifestLoader: manifestLoader,
+                                                   skipTestTargets: skipTestTargets,
+                                                   skipExternalDependencies: skipExternalDependencies)
 
         let path = FileHandler.shared.currentPath.appending(component: "graph.dot")
         if FileHandler.shared.exists(path) {

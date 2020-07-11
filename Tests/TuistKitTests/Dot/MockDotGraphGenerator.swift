@@ -8,12 +8,12 @@ final class MockDotGraphGenerator: DotGraphGenerating {
     var generateProjectStub: String = ""
     var generateWorkspaceStub: String = ""
 
-    func generateProject(at path: AbsolutePath) throws -> String {
+    func generateProject(at path: AbsolutePath, skipTestTargets _: Bool, skipExternalDependencies _: Bool) throws -> String {
         generateProjectArgs.append(path)
         return generateProjectStub
     }
 
-    func generateWorkspace(at path: AbsolutePath) throws -> String {
+    func generateWorkspace(at path: AbsolutePath, skipTestTargets _: Bool, skipExternalDependencies _: Bool) throws -> String {
         generateWorkspaceArgs.append(path)
         return generateWorkspaceStub
     }
