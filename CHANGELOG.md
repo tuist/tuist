@@ -13,6 +13,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Added `RxBlocking` to list of dependencies for `TuistGenerator` [#1514](https://github.com/tuist/tuist/pull/1514) by [@fortmarek](https://github.com/fortmarek).
 - Uncommented iMessage extension product type [#1515](https://github.com/tuist/tuist/pull/1515) by [@olejnjak](https://github.com/olejnjak).
 - Prettify the redirect page [#1521](https://github.com/tuist/tuist/pull/1521) by [@pepibumur](https://github.com/pepibumur).
+- Implements two arguments on the `graph` command [#1540](https://github.com/tuist/tuist/pull/1540) by [@jeroenleenarts](https://github.com/jeroenleenarts).
 
 ### Added
 
