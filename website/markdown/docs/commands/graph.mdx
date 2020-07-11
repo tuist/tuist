@@ -15,6 +15,12 @@ Being in a directory that contains a workspace or project manifest, run the foll
 tuist graph
 ```
 
+### Besides running the plain graph command, an enduser can opt to exclude either tests and/or third party dependencies
+
+The additional arguments are:
+- `skipTestTargets`
+- `skipExternalDependencies`
+
 The command will output a human-readable file, `graph.dot` that describes the dependencies graph using the [DOT](<https://en.wikipedia.org/wiki/DOT_(graph_description_language)>) description language.
 
 ## A visual representation of the graph
