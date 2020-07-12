@@ -33,11 +33,34 @@ protocol SchemesGenerating {
 
 // swiftlint:disable:next type_body_length
 final class SchemesGenerator: SchemesGenerating {
-    /// Default last upgrade version for generated schemes.
-    private static let defaultLastUpgradeVersion = "1010"
+    private struct Constants {
+        /// Default last upgrade version for generated schemes.
+        static let defaultLastUpgradeVersion = "1010"
 
-    /// Default version for generated schemes.
-    private static let defaultVersion = "1.3"
+        /// Default version for generated schemes.
+        static let defaultVersion = "1.3"
+
+        struct LaunchAction {
+            var debugger: String
+            var launcher: String
+            var askForAppToLaunch: Bool?
+            var launchAutomaticallySubstyle: String?
+
+            static var `default`: LaunchAction {
+                LaunchAction(debugger: XCScheme.defaultDebugger,
+                             launcher: XCScheme.defaultLauncher,
+                             askForAppToLaunch: nil,
+                             launchAutomaticallySubstyle: nil)
+            }
+
+            static var `extension`: LaunchAction {
+                LaunchAction(debugger: "",
+                             launcher: "Xcode.IDEFoundation.Launcher.PosixSpawn",
+                             askForAppToLaunch: true,
+                             launchAutomaticallySubstyle: "2")
+            }
+        }
+    }
 
     func generateWorkspaceSchemes(workspace: Workspace,
                                   generatedProjects: [AbsolutePath: GeneratedProject],
@@ -114,15 +137,18 @@ final class SchemesGenerator: SchemesGenerating {
                                                              rootPath: path,
                                                              generatedProjects: generatedProjects)
 
+        let wasCreatedForAppExtension = isSchemeForAppExtension(scheme: scheme, graph: graph)
+
         let xcscheme = XCScheme(name: scheme.name,
-                                lastUpgradeVersion: SchemesGenerator.defaultLastUpgradeVersion,
-                                version: SchemesGenerator.defaultVersion,
+                                lastUpgradeVersion: Constants.defaultLastUpgradeVersion,
+                                version: Constants.defaultVersion,
                                 buildAction: generatedBuildAction,
                                 testAction: generatedTestAction,
                                 launchAction: generatedLaunchAction,
                                 profileAction: generatedProfileAction,
                                 analyzeAction: generatedAnalyzeAction,
-                                archiveAction: generatedArchiveAction)
+                                archiveAction: generatedArchiveAction,
+                                wasCreatedForAppExtension: wasCreatedForAppExtension)
 
         return SchemeDescriptor(xcScheme: xcscheme, shared: scheme.shared)
     }
@@ -262,11 +288,9 @@ final class SchemesGenerator: SchemesGenerating {
                             graph: Graph,
                             rootPath: AbsolutePath,
                             generatedProjects: [AbsolutePath: GeneratedProject]) throws -> XCScheme.LaunchAction? {
-        guard var target = try defaultTargetReference(scheme: scheme) else { return nil }
-
-        if let executable = scheme.runAction?.executable {
-            target = executable
-        }
+        let specifiedExecutableTarget = scheme.runAction?.executable
+        let defaultTarget = defaultTargetReference(scheme: scheme)
+        guard let target = specifiedExecutableTarget ?? defaultTarget else { return nil }
 
         var buildableProductRunnable: XCScheme.BuildableProductRunnable?
         var macroExpansion: XCScheme.BuildableReference?
@@ -300,14 +324,20 @@ final class SchemesGenerator: SchemesGenerating {
 
         let buildConfiguration = scheme.runAction?.configurationName ?? defaultBuildConfiguration
         let disableMainThreadChecker = scheme.runAction?.diagnosticsOptions.contains(.mainThreadChecker) == false
+        let isSchemeForAppExtension = self.isSchemeForAppExtension(scheme: scheme, graph: graph)
+        let launchActionConstants: Constants.LaunchAction = isSchemeForAppExtension == true ? .extension : .default
 
         return XCScheme.LaunchAction(runnable: buildableProductRunnable,
                                      buildConfiguration: buildConfiguration,
                                      macroExpansion: macroExpansion,
+                                     selectedDebuggerIdentifier: launchActionConstants.debugger,
+                                     selectedLauncherIdentifier: launchActionConstants.launcher,
+                                     askForAppToLaunch: launchActionConstants.askForAppToLaunch,
                                      pathRunnable: pathRunnable,
                                      disableMainThreadChecker: disableMainThreadChecker,
                                      commandlineArguments: commandlineArguments,
-                                     environmentVariables: environments)
+                                     environmentVariables: environments,
+                                     launchAutomaticallySubstyle: launchActionConstants.launchAutomaticallySubstyle)
     }
 
     /// Generates the scheme profile action for a given target.
@@ -322,7 +352,7 @@ final class SchemesGenerator: SchemesGenerating {
                              graph: Graph,
                              rootPath: AbsolutePath,
                              generatedProjects: [AbsolutePath: GeneratedProject]) throws -> XCScheme.ProfileAction? {
-        guard var target = try defaultTargetReference(scheme: scheme) else { return nil }
+        guard var target = defaultTargetReference(scheme: scheme) else { return nil }
         var commandlineArguments: XCScheme.CommandLineArguments?
         var environments: [XCScheme.EnvironmentVariable]?
 
@@ -375,7 +405,7 @@ final class SchemesGenerator: SchemesGenerating {
                              graph: Graph,
                              rootPath _: AbsolutePath,
                              generatedProjects _: [AbsolutePath: GeneratedProject]) throws -> XCScheme.AnalyzeAction? {
-        guard let target = try defaultTargetReference(scheme: scheme),
+        guard let target = defaultTargetReference(scheme: scheme),
             let targetNode = graph.target(path: target.projectPath, name: target.name) else { return nil }
 
         let buildConfiguration = scheme.analyzeAction?.configurationName ?? targetNode.project.defaultDebugBuildConfigurationName
@@ -394,7 +424,7 @@ final class SchemesGenerator: SchemesGenerating {
                              graph: Graph,
                              rootPath: AbsolutePath,
                              generatedProjects: [AbsolutePath: GeneratedProject]) throws -> XCScheme.ArchiveAction? {
-        guard let target = try defaultTargetReference(scheme: scheme),
+        guard let target = defaultTargetReference(scheme: scheme),
             let targetNode = graph.target(path: target.projectPath, name: target.name) else { return nil }
 
         guard let archiveAction = scheme.archiveAction else {
@@ -596,7 +626,21 @@ final class SchemesGenerator: SchemesGenerating {
         return buildConfiguration?.name ?? BuildConfiguration.release.name
     }
 
-    private func defaultTargetReference(scheme: Scheme) throws -> TargetReference? {
+    private func defaultTargetReference(scheme: Scheme) -> TargetReference? {
         scheme.buildAction?.targets.first
+    }
+
+    private func isSchemeForAppExtension(scheme: Scheme, graph: Graph) -> Bool? {
+        guard let defaultTarget = defaultTargetReference(scheme: scheme),
+            let targetNode = graph.target(path: defaultTarget.projectPath, name: defaultTarget.name) else {
+            return nil
+        }
+
+        switch targetNode.target.product {
+        case .appExtension, .messagesExtension:
+            return true
+        default:
+            return nil
+        }
     }
 }
