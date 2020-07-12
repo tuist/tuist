@@ -62,6 +62,6 @@ class UpHomebrew: Up, GraphInitiatable {
     }
 
     private func packageInstalled(_ name: String) -> Bool {
-        return (try? System.shared.run("/usr/local/bin/brew", "list", name)) != nil
+        (try? System.shared.run("/usr/local/bin/brew", "list", name)) != nil
     }
 }
