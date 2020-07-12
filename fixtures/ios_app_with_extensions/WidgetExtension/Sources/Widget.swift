@@ -1,3 +1,5 @@
+#if canImport(WidgetKit)
+
 import WidgetKit
 import SwiftUI
 
@@ -55,3 +57,5 @@ struct MyWidget: Widget {
         .description("This is an example widget.")
     }
 }
+
+#endif
