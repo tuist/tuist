@@ -154,13 +154,34 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         ])
     }
 
-    func test_addElement_xcassets_multiple_files() throws {
+    func test_addElement_scnassets() throws {
+        // Given
+        let element = GroupFileElement(path: "/path/myfolder/resources/assets.scnassets/foo.exr",
+                                       group: .group(name: "Project"))
+
+        // When
+        try subject.generate(fileElement: element,
+                             groups: groups,
+                             pbxproj: pbxproj,
+                             sourceRootPath: "/path")
+
+        // Then
+        let projectGroup = groups.sortedMain.group(named: "Project")
+        XCTAssertEqual(projectGroup?.flattenedChildren, [
+            "myfolder/resources/assets.scnassets",
+        ])
+    }
+
+    func test_addElement_xcassets_and_scnassets_multiple_files() throws {
         // Given
         let resouces = [
             "/path/myfolder/resources/assets.xcassets/foo/a.png",
             "/path/myfolder/resources/assets.xcassets/foo/abc/b.png",
             "/path/myfolder/resources/assets.xcassets/foo/def/c.png",
             "/path/myfolder/resources/assets.xcassets",
+            "/path/myfolder/resources/assets.scnassets/foo.exr",
+            "/path/myfolder/resources/assets.scnassets/bar.exr",
+            "/path/myfolder/resources/assets.scnassets",
         ]
         let elements = resouces.map {
             GroupFileElement(path: AbsolutePath($0),
@@ -179,6 +200,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         let projectGroup = groups.sortedMain.group(named: "Project")
         XCTAssertEqual(projectGroup?.flattenedChildren, [
             "myfolder/resources/assets.xcassets",
+            "myfolder/resources/assets.scnassets",
         ])
     }
 

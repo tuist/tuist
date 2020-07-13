@@ -8,6 +8,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - `UpHomebrew` (`Up.homebrew(packages:)`) in `Setup.swift` correctly checks package installation if the executable doesn't match the package name [#1544](https://github.com/tuist/tuist/pull/1544) by [@MatyasKriz](https://github.com/MatyasKriz).
 - Update Package.swift to correctly encode revision kind as "revision" [#1558](https://github.com/tuist/tuist/pull/1558) by [@ollieatkinson](https://github.com/ollieatkinson).
+- Treat SceneKit catalog the same way as asset catalog [#1546], by [@natanrolnik](https://github.com/natanrolnik)
 
 ## 1.12.0 - Arabesque
 

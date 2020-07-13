@@ -312,7 +312,7 @@ class ProjectFileElements {
                                           name: name,
                                           toGroup: toGroup,
                                           pbxproj: pbxproj)
-        } else if !(isXcassets(path: absolutePath) || isLeaf) {
+        } else if !(isXcassets(path: absolutePath) || isScnassets(path: absolutePath) || isLeaf) {
             return addGroupElement(from: from,
                                    folderAbsolutePath: absolutePath,
                                    folderRelativePath: relativePath,
@@ -482,6 +482,10 @@ class ProjectFileElements {
 
     func isXcassets(path: AbsolutePath) -> Bool {
         path.extension == "xcassets"
+    }
+
+    func isScnassets(path: AbsolutePath) -> Bool {
+        path.extension == "scnassets"
     }
 
     /// Normalizes a path. Some paths have no direct representation in Xcode,

@@ -9,7 +9,7 @@ public struct Target: Equatable, Hashable {
     // MARK: - Static
 
     public static let validSourceExtensions: [String] = ["m", "swift", "mm", "cpp", "c", "d", "intentdefinition", "xcmappingmodel", "metal"]
-    public static let validFolderExtensions: [String] = ["framework", "bundle", "app", "xcassets", "appiconset"]
+    public static let validFolderExtensions: [String] = ["framework", "bundle", "app", "xcassets", "appiconset", "scnassets"]
 
     // MARK: - Attributes
 
