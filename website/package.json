@@ -46,7 +46,7 @@
     "gatsby-remark-embedder": "^2.1.1",
     "gatsby-remark-images": "^3.3.17",
     "gatsby-remark-smartypants": "^2.3.10",
-    "gatsby-source-filesystem": "^2.3.18",
+    "gatsby-source-filesystem": "^2.3.19",
     "gatsby-theme-tailwindcss": "^1.1.0",
     "gatsby-transformer-yaml": "^2.4.9",
     "graphviz-react": "^1.0.6",
