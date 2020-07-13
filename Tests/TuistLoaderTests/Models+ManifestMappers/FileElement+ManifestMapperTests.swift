@@ -77,4 +77,17 @@ final class FileElementManifestMapperTests: TuistUnitTestCase {
         XCTAssertPrinterOutputContains("Documentation does not exist")
         XCTAssertEqual(model, [])
     }
+
+    func test_throws_when_the_glob_is_invalid() throws {
+        // Given
+        let temporaryPath = try self.temporaryPath()
+        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
+        let manifest = ProjectDescription.FileElement.glob(pattern: "invalid/path/**/*")
+        let invalidGlob = InvalidGlob(pattern: temporaryPath.appending(RelativePath("invalid/path/**/*")).pathString,
+                                      nonExistentPath: temporaryPath.appending(RelativePath("invalid/path/")))
+        let error = GlobError.nonExistentDirectory(invalidGlob)
+
+        // Then
+        XCTAssertThrowsSpecific(try TuistCore.FileElement.from(manifest: manifest, generatorPaths: generatorPaths), error)
+    }
 }

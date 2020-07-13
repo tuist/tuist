@@ -4,11 +4,9 @@ import TSCBasic
 
 let systemGlob = Darwin.glob
 
-public enum GlobError: Error {
+public enum GlobError: FatalError, Equatable {
     case nonExistentDirectory(InvalidGlob)
-}
 
-extension GlobError: FatalError {
     public var type: ErrorType { .abort }
 
     public var description: String {
@@ -47,13 +45,20 @@ extension AbsolutePath {
         let globPath = appending(RelativePath(pattern)).pathString
         let pathUpToLastNonGlob = AbsolutePath(globPath).upToLastNonGlob
 
-        if !FileHandler.shared.isFolder(pathUpToLastNonGlob) {
+        if !pathUpToLastNonGlob.isFolder {
             let invalidGlob = InvalidGlob(pattern: globPath,
                                           nonExistentPath: pathUpToLastNonGlob)
             throw GlobError.nonExistentDirectory(invalidGlob)
         }
 
         return glob(pattern)
+    }
+
+    /// Returns true if the path points to a directory
+    public var isFolder: Bool {
+        var isDirectory = ObjCBool(true)
+        let exists = FileManager.default.fileExists(atPath: pathString, isDirectory: &isDirectory)
+        return exists && isDirectory.boolValue
     }
 
     /// Returns the path with the last component removed. For example, given the path

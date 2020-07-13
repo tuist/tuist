@@ -1,8 +1,22 @@
 import Foundation
 import TSCBasic
+import TuistSupport
 import XCTest
 @testable import TuistCore
 @testable import TuistSupportTesting
+
+final class TargetErrorTests: TuistUnitTestCase {
+    func test_description() {
+        // Given
+        let invalidGlobs: [InvalidGlob] = [.init(pattern: "**/*", nonExistentPath: .root)]
+
+        // When
+        let got = TargetError.invalidSourcesGlob(targetName: "Target", invalidGlobs: invalidGlobs).description
+
+        // Then
+        XCTAssertEqual(got, "The target Target has the following invalid source files globs:\n" + invalidGlobs.invalidGlobsDescription)
+    }
+}
 
 final class TargetTests: TuistUnitTestCase {
     func test_validSourceExtensions() {
@@ -60,7 +74,7 @@ final class TargetTests: TuistUnitTestCase {
         ])
 
         // When
-        let sources = try Target.sources(sources: [
+        let sources = try Target.sources(targetName: "Target", sources: [
             (glob: temporaryPath.appending(RelativePath("sources/**")).pathString, excluding: [], compilerFlags: nil),
             (glob: temporaryPath.appending(RelativePath("sources/**")).pathString, excluding: [], compilerFlags: nil),
         ])
@@ -92,7 +106,7 @@ final class TargetTests: TuistUnitTestCase {
         ])
 
         // When
-        let sources = try Target.sources(sources: [
+        let sources = try Target.sources(targetName: "Target", sources: [
             (glob: temporaryPath.appending(RelativePath("sources/**")).pathString,
              excluding: [temporaryPath.appending(RelativePath("sources/**/*Tests.swift")).pathString],
              compilerFlags: nil),
@@ -132,7 +146,7 @@ final class TargetTests: TuistUnitTestCase {
         ]
 
         // When
-        let sources = try Target.sources(sources: [
+        let sources = try Target.sources(targetName: "Target", sources: [
             (glob: temporaryPath.appending(RelativePath("sources/**")).pathString,
              excluding: excluding,
              compilerFlags: nil),
@@ -146,6 +160,23 @@ final class TargetTests: TuistUnitTestCase {
             "sources/b.swift",
             "sources/c/c.swift",
         ]))
+    }
+
+    func test_sources_when_globs_are_invalid() throws {
+        // Given
+        let temporaryPath = try self.temporaryPath()
+        let invalidGlobs: [InvalidGlob] = [
+            .init(pattern: temporaryPath.appending(RelativePath("invalid/path/**")).pathString,
+                  nonExistentPath: temporaryPath.appending(RelativePath("invalid/path"))),
+        ]
+        let error = TargetError.invalidSourcesGlob(targetName: "Target",
+                                                   invalidGlobs: invalidGlobs)
+        // When
+        XCTAssertThrowsSpecific(try Target.sources(targetName: "Target", sources: [
+            (glob: temporaryPath.appending(RelativePath("invalid/path/**")).pathString,
+             excluding: [],
+             compilerFlags: nil),
+        ]), error)
     }
 
     func test_resources() throws {

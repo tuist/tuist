@@ -317,6 +317,10 @@ class WorkspaceStructureGeneratorTests: XCTestCase {
             []
         }
 
+        func throwingGlob(_: AbsolutePath, glob _: String) throws -> [AbsolutePath] {
+            []
+        }
+
         func write(_: String, path _: AbsolutePath, atomically _: Bool) throws {
             // Do nothing
         }

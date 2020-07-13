@@ -2,7 +2,7 @@ import Foundation
 import TSCBasic
 import TuistSupport
 
-public enum TargetError: FatalError {
+public enum TargetError: FatalError, Equatable {
     case invalidSourcesGlob(targetName: String, invalidGlobs: [InvalidGlob])
 
     public var type: ErrorType { .abort }
