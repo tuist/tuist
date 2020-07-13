@@ -33,6 +33,7 @@ final class ProjectGeneratorTests: TuistUnitTestCase {
                                platform: .iOS,
                                product: .unitTests)
         let project = Project.test(path: temporaryPath,
+                                   sourceRootPath: temporaryPath,
                                    name: "Project",
                                    targets: [app, test])
 

@@ -81,6 +81,7 @@ final class WorkspaceGeneratorTests: TuistUnitTestCase {
         let temporaryPath = try self.temporaryPath()
         let target = anyTarget()
         let project = Project.test(path: temporaryPath,
+                                   sourceRootPath: temporaryPath,
                                    name: "Test",
                                    settings: .default,
                                    targets: [target])

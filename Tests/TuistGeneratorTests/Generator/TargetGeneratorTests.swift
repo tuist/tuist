@@ -128,7 +128,7 @@ final class TargetGeneratorTests: XCTestCase {
                                      TargetAction(name: "post", order: .post, path: path.appending(component: "script.sh"), arguments: ["arg"]),
                                      TargetAction(name: "pre", order: .pre, path: path.appending(component: "script.sh"), arguments: ["arg"]),
                                  ])
-        let project = Project.test(path: path, targets: [target])
+        let project = Project.test(path: path, sourceRootPath: path, targets: [target])
         let groups = ProjectGroups.generate(project: project,
                                             pbxproj: pbxproj,
                                             xcodeprojPath: project.path.appending(component: "\(project.fileName).xcodeproj"),
