@@ -158,6 +158,7 @@ final class StableXcodeProjIntegrationTests: TuistTestCase {
 
     private func createProject(path: AbsolutePath, settings: Settings, targets: [Target], packages: [Package] = [], schemes: [Scheme]) -> Project {
         Project(path: path,
+                sourceRootPath: path,
                 name: "App",
                 organizationName: nil,
                 fileName: nil,

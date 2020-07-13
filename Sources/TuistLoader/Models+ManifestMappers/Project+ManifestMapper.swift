@@ -19,6 +19,7 @@ extension TuistCore.Project {
         let additionalFiles = try manifest.additionalFiles.flatMap { try TuistCore.FileElement.from(manifest: $0, generatorPaths: generatorPaths) }
         let packages = try manifest.packages.map { try TuistCore.Package.from(manifest: $0, generatorPaths: generatorPaths) }
         return Project(path: generatorPaths.manifestDirectory,
+                       sourceRootPath: generatorPaths.manifestDirectory,
                        name: name,
                        organizationName: organizationName,
                        fileName: nil,
@@ -32,6 +33,7 @@ extension TuistCore.Project {
 
     func adding(target: TuistCore.Target) -> TuistCore.Project {
         Project(path: path,
+                sourceRootPath: sourceRootPath,
                 name: name,
                 organizationName: organizationName,
                 fileName: fileName,
@@ -45,6 +47,7 @@ extension TuistCore.Project {
 
     func replacing(fileName: String?) -> TuistCore.Project {
         Project(path: path,
+                sourceRootPath: sourceRootPath,
                 name: name,
                 organizationName: organizationName,
                 fileName: fileName,
@@ -58,6 +61,7 @@ extension TuistCore.Project {
 
     func replacing(organizationName: String?) -> TuistCore.Project {
         Project(path: path,
+                sourceRootPath: sourceRootPath,
                 name: name,
                 organizationName: organizationName,
                 fileName: fileName,

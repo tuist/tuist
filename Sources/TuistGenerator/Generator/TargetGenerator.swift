@@ -12,7 +12,6 @@ protocol TargetGenerating: AnyObject {
                         projectSettings: Settings,
                         fileElements: ProjectFileElements,
                         path: AbsolutePath,
-                        sourceRootPath: AbsolutePath,
                         graph: Graph) throws -> PBXNativeTarget
 
     func generateTargetDependencies(path: AbsolutePath,
@@ -51,7 +50,6 @@ final class TargetGenerator: TargetGenerating {
                         projectSettings: Settings,
                         fileElements: ProjectFileElements,
                         path: AbsolutePath,
-                        sourceRootPath: AbsolutePath,
                         graph: Graph) throws -> PBXNativeTarget {
         /// Products reference.
         let productFileReference = fileElements.products[target.name]!
@@ -73,7 +71,7 @@ final class TargetGenerator: TargetGenerating {
         try buildPhaseGenerator.generateActions(actions: target.actions.preActions,
                                                 pbxTarget: pbxTarget,
                                                 pbxproj: pbxproj,
-                                                sourceRootPath: sourceRootPath)
+                                                sourceRootPath: project.sourceRootPath)
 
         /// Build configuration
         try configGenerator.generateTargetConfig(target,
@@ -83,7 +81,7 @@ final class TargetGenerator: TargetGenerating {
                                                  projectSettings: projectSettings,
                                                  fileElements: fileElements,
                                                  graph: graph,
-                                                 sourceRootPath: sourceRootPath)
+                                                 sourceRootPath: project.sourceRootPath)
 
         /// Build phases
         try buildPhaseGenerator.generateBuildPhases(path: path,
@@ -92,7 +90,7 @@ final class TargetGenerator: TargetGenerating {
                                                     pbxTarget: pbxTarget,
                                                     fileElements: fileElements,
                                                     pbxproj: pbxproj,
-                                                    sourceRootPath: sourceRootPath)
+                                                    sourceRootPath: project.sourceRootPath)
 
         /// Links
         try linkGenerator.generateLinks(target: target,
@@ -100,14 +98,14 @@ final class TargetGenerator: TargetGenerating {
                                         pbxproj: pbxproj,
                                         fileElements: fileElements,
                                         path: path,
-                                        sourceRootPath: sourceRootPath,
+                                        sourceRootPath: project.sourceRootPath,
                                         graph: graph)
 
         /// Post actions
         try buildPhaseGenerator.generateActions(actions: target.actions.postActions,
                                                 pbxTarget: pbxTarget,
                                                 pbxproj: pbxproj,
-                                                sourceRootPath: sourceRootPath)
+                                                sourceRootPath: project.sourceRootPath)
         return pbxTarget
     }
 

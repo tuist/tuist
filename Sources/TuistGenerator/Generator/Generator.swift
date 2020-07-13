@@ -125,16 +125,9 @@ public class Generator: Generating {
 
     public func generateProject(_ project: Project,
                                 graph: Graph,
-                                sourceRootPath: AbsolutePath? = nil,
-                                xcodeprojPath: AbsolutePath? = nil) throws -> AbsolutePath {
-        /// When the source root path is not given, we assume paths
-        /// are relative to the directory that contains the manifest.
-        let sourceRootPath = sourceRootPath ?? project.path
-
-        let descriptor = try projectGenerator.generate(project: project,
-                                                       graph: graph,
-                                                       sourceRootPath: sourceRootPath,
-                                                       xcodeprojPath: xcodeprojPath)
+                                sourceRootPath _: AbsolutePath? = nil,
+                                xcodeprojPath _: AbsolutePath? = nil) throws -> AbsolutePath {
+        let descriptor = try projectGenerator.generate(project: project, graph: graph)
 
         try writer.write(project: descriptor)
         return descriptor.xcodeprojPath
@@ -147,10 +140,7 @@ public class Generator: Generating {
         let (graph, project) = try graphLoader.loadProject(path: path)
         try graphLinter.lint(graph: graph).printAndThrowIfNeeded()
 
-        let descriptor = try projectGenerator.generate(project: project,
-                                                       graph: graph,
-                                                       sourceRootPath: path,
-                                                       xcodeprojPath: nil)
+        let descriptor = try projectGenerator.generate(project: project, graph: graph)
 
         try writer.write(project: descriptor)
         return (descriptor.xcodeprojPath, graph)

@@ -21,6 +21,9 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
     /// Path to the folder that contains the project manifest.
     public var path: AbsolutePath
 
+    /// Path to the directory where the Xcode project will be generated.
+    public var sourceRootPath: AbsolutePath
+
     /// Project name.
     public var name: String
 
@@ -54,6 +57,7 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
     ///
     /// - Parameters:
     ///   - path: Path to the folder that contains the project manifest.
+    ///   - sourceRootPath: Path to the directory where the Xcode project will be generated.
     ///   - name: Project name.
     ///   - organizationName: Organization name.
     ///   - settings: The settings to apply at the project level
@@ -62,6 +66,7 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
     ///   - additionalFiles: The additional files to include in the project
     ///                      *(Those won't be included in any build phases)*
     public init(path: AbsolutePath,
+                sourceRootPath: AbsolutePath,
                 name: String,
                 organizationName: String?,
                 fileName: String?,
@@ -72,6 +77,7 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
                 schemes: [Scheme],
                 additionalFiles: [FileElement]) {
         self.path = path
+        self.sourceRootPath = sourceRootPath
         self.name = name
         self.organizationName = organizationName
         self.fileName = fileName ?? name
@@ -142,6 +148,7 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
     /// - Parameter targets: Targets to be set to the copy.
     public func with(targets: [Target]) -> Project {
         Project(path: path,
+                sourceRootPath: sourceRootPath,
                 name: name,
                 organizationName: organizationName,
                 fileName: fileName,
@@ -157,6 +164,7 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
     /// - Parameter schemes: Schemes to be set to the copy.
     public func with(schemes: [Scheme]) -> Project {
         Project(path: path,
+                sourceRootPath: sourceRootPath,
                 name: name,
                 organizationName: organizationName,
                 fileName: fileName,

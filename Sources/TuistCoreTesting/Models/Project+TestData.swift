@@ -4,6 +4,7 @@ import TSCBasic
 
 public extension Project {
     static func test(path: AbsolutePath = AbsolutePath("/Project"),
+                     sourceRootPath: AbsolutePath = AbsolutePath("/Project"),
                      name: String = "Project",
                      organizationName: String? = nil,
                      fileName: String? = nil,
@@ -14,6 +15,7 @@ public extension Project {
                      schemes: [Scheme] = [],
                      additionalFiles: [FileElement] = []) -> Project {
         Project(path: path,
+                sourceRootPath: sourceRootPath,
                 name: name,
                 organizationName: organizationName,
                 fileName: fileName,
@@ -26,6 +28,7 @@ public extension Project {
     }
 
     static func empty(path: AbsolutePath = AbsolutePath("/test/"),
+                      sourceRootPath: AbsolutePath = AbsolutePath("/test/"),
                       name: String = "Project",
                       organizationName: String? = nil,
                       fileName: String? = nil,
@@ -36,6 +39,7 @@ public extension Project {
                       schemes: [Scheme] = [],
                       additionalFiles: [FileElement] = []) -> Project {
         Project(path: path,
+                sourceRootPath: sourceRootPath,
                 name: name,
                 organizationName: organizationName,
                 fileName: fileName,

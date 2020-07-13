@@ -342,8 +342,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         try subject.generateProjectFiles(project: project,
                                          graph: graph,
                                          groups: groups,
-                                         pbxproj: pbxproj,
-                                         sourceRootPath: project.path)
+                                         pbxproj: pbxproj)
 
         // Then
         XCTAssertEqual(groups.products.flattenedChildren, [
@@ -377,8 +376,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
             try subject.generateProjectFiles(project: project,
                                              graph: graph,
                                              groups: groups,
-                                             pbxproj: pbxproj,
-                                             sourceRootPath: project.path)
+                                             pbxproj: pbxproj)
 
             // Then
             XCTAssertEqual(groups.products.flattenedChildren, [
@@ -408,8 +406,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         try subject.generateProjectFiles(project: project,
                                          graph: graph,
                                          groups: groups,
-                                         pbxproj: pbxproj,
-                                         sourceRootPath: project.path)
+                                         pbxproj: pbxproj)
 
         // Then
         let fileReference = subject.product(target: "App")
@@ -673,8 +670,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         try subject.generateProjectFiles(project: project,
                                          graph: graph,
                                          groups: groups,
-                                         pbxproj: pbxproj,
-                                         sourceRootPath: project.path)
+                                         pbxproj: pbxproj)
 
         // Then
         let projectGroup = groups.sortedMain.group(named: "Project")

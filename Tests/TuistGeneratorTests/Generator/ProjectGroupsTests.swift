@@ -22,6 +22,7 @@ final class ProjectGroupsTests: XCTestCase {
         playgrounds = MockPlaygrounds()
         sourceRootPath = AbsolutePath("/test/")
         project = Project(path: path,
+                          sourceRootPath: path,
                           name: "Project",
                           organizationName: nil,
                           fileName: nil,

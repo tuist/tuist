@@ -61,8 +61,7 @@ final class TargetGeneratorTests: XCTestCase {
         try fileElements.generateProjectFiles(project: project,
                                               graph: graph,
                                               groups: groups,
-                                              pbxproj: pbxproj,
-                                              sourceRootPath: path)
+                                              pbxproj: pbxproj)
 
         // When
         let generatedTarget = try subject.generateTarget(target: target,
@@ -72,7 +71,6 @@ final class TargetGeneratorTests: XCTestCase {
                                                          projectSettings: Settings.test(),
                                                          fileElements: fileElements,
                                                          path: path,
-                                                         sourceRootPath: path,
                                                          graph: graph)
 
         // Then
@@ -139,8 +137,7 @@ final class TargetGeneratorTests: XCTestCase {
         try fileElements.generateProjectFiles(project: project,
                                               graph: graph,
                                               groups: groups,
-                                              pbxproj: pbxproj,
-                                              sourceRootPath: path)
+                                              pbxproj: pbxproj)
 
         // When
         let pbxTarget = try subject.generateTarget(target: target,
@@ -150,7 +147,6 @@ final class TargetGeneratorTests: XCTestCase {
                                                    projectSettings: Settings.test(),
                                                    fileElements: fileElements,
                                                    path: path,
-                                                   sourceRootPath: path,
                                                    graph: graph)
 
         // Then

@@ -8,15 +8,11 @@ import TuistSupport
 /// Allow specifying additional generation options
 /// for an individual project.
 public struct ProjectGenerationConfig {
-    /// The source root path of the generated Xcode project
-    public var sourceRootPath: AbsolutePath?
-
     /// The xcodeproj file path
     public var xcodeprojPath: AbsolutePath?
 
-    public init(sourceRootPath: AbsolutePath? = nil,
+    public init(sourceRootPath _: AbsolutePath? = nil,
                 xcodeprojPath: AbsolutePath? = nil) {
-        self.sourceRootPath = sourceRootPath
         self.xcodeprojPath = xcodeprojPath
     }
 }
@@ -89,17 +85,11 @@ public final class DescriptorGenerator: DescriptorGenerating {
     }
 
     public func generateProject(project: Project, graph: Graph) throws -> ProjectDescriptor {
-        try projectGenerator.generate(project: project,
-                                      graph: graph,
-                                      sourceRootPath: nil,
-                                      xcodeprojPath: nil)
+        try projectGenerator.generate(project: project, graph: graph)
     }
 
-    public func generateProject(project: Project, graph: Graph, config: ProjectGenerationConfig) throws -> ProjectDescriptor {
-        try projectGenerator.generate(project: project,
-                                      graph: graph,
-                                      sourceRootPath: config.sourceRootPath,
-                                      xcodeprojPath: config.xcodeprojPath)
+    public func generateProject(project: Project, graph: Graph, config _: ProjectGenerationConfig) throws -> ProjectDescriptor {
+        try projectGenerator.generate(project: project, graph: graph)
     }
 
     public func generateWorkspace(workspace: Workspace, graph: Graph) throws -> WorkspaceDescriptor {

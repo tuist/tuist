@@ -366,8 +366,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         try fileElements.generateProjectFiles(project: project,
                                               graph: graph,
                                               groups: groups,
-                                              pbxproj: pbxproj,
-                                              sourceRootPath: project.path)
+                                              pbxproj: pbxproj)
         _ = try subject.generateTargetConfig(target,
                                              project: project,
                                              pbxTarget: pbxTarget,

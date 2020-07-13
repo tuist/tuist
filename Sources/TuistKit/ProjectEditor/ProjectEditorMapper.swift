@@ -77,6 +77,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
 
         // Project
         let project = Project(path: sourceRootPath,
+                              sourceRootPath: sourceRootPath,
                               name: "Manifests",
                               organizationName: nil,
                               fileName: nil,
