@@ -52,6 +52,30 @@ public final class XcodeBuildController: XcodeBuildControlling {
         return run(command: command)
     }
 
+    public func test(_ target: XcodeBuildTarget,
+                     scheme: String,
+                     clean: Bool = false,
+                     arguments: [XcodeBuildArgument]) -> Observable<SystemEvent<XcodeBuildOutput>> {
+        var command = ["/usr/bin/xcrun", "xcodebuild"]
+
+        // Action
+        if clean {
+            command.append("clean")
+        }
+        command.append("test")
+
+        // Scheme
+        command.append(contentsOf: ["-scheme", scheme])
+
+        // Target
+        command.append(contentsOf: target.xcodebuildArguments)
+
+        // Arguments
+        command.append(contentsOf: arguments.flatMap { $0.arguments })
+
+        return run(command: command)
+    }
+
     public func archive(_ target: XcodeBuildTarget,
                         scheme: String,
                         clean: Bool,

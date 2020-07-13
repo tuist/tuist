@@ -19,9 +19,19 @@ public protocol BuildGraphInspecting {
     ///   - graph: Dependency graph.
     func buildableTarget(scheme: Scheme, graph: Graph) -> Target?
 
+    ///  From the list of testable targets of the given scheme, it returns the first one.
+    /// - Parameters:
+    ///   - scheme: Scheme in which to look up the target.
+    ///   - graph: Dependency graph.
+    func testableTarget(scheme: Scheme, graph: Graph) -> Target?
+
     /// Given a graph, it returns a list of buildable schemes.
     /// - Parameter graph: Dependency graph.
     func buildableSchemes(graph: Graph) -> [Scheme]
+
+    /// Given a graph, it returns a list of testable schemes.
+    /// - Parameter graph: Dependency graph.
+    func testableSchemes(graph: Graph) -> [Scheme]
 }
 
 public class BuildGraphInspector: BuildGraphInspecting {
@@ -55,11 +65,27 @@ public class BuildGraphInspector: BuildGraphInspecting {
         return graph.target(path: buildTarget.projectPath, name: buildTarget.name)!.target
     }
 
+    public func testableTarget(scheme: Scheme, graph: Graph) -> Target? {
+        if scheme.testAction?.targets.count == 0 {
+            return nil
+        }
+        let testTarget = scheme.testAction!.targets.first!
+        return graph.target(path: testTarget.target.projectPath, name: testTarget.target.name)!.target
+    }
+
     public func buildableSchemes(graph: Graph) -> [Scheme] {
         let projects = Set(graph.entryNodes.compactMap { ($0 as? TargetNode)?.project })
         return projects
             .flatMap { $0.schemes }
             .filter { $0.buildAction?.targets.count != 0 }
+            .sorted(by: { $0.name < $1.name })
+    }
+
+    public func testableSchemes(graph: Graph) -> [Scheme] {
+        let projects = Set(graph.entryNodes.compactMap { ($0 as? TargetNode)?.project })
+        return projects
+            .flatMap { $0.schemes }
+            .filter { $0.testAction?.targets.count != 0 }
             .sorted(by: { $0.name < $1.name })
     }
 

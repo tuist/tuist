@@ -38,4 +38,22 @@ public final class MockBuildGraphInspector: BuildGraphInspecting {
             return []
         }
     }
+
+    public var testableTargetStub: ((Scheme, Graph) -> Target?)?
+    public func testableTarget(scheme: Scheme, graph: Graph) -> Target? {
+        if let testableTargetStub = testableTargetStub {
+            return testableTargetStub(scheme, graph)
+        } else {
+            return Target.test()
+        }
+    }
+
+    public var testableSchemesStub: ((Graph) -> [Scheme])?
+    public func testableSchemes(graph: Graph) -> [Scheme] {
+        if let testableSchemesStub = testableSchemesStub {
+            return testableSchemesStub(graph)
+        } else {
+            return []
+        }
+    }
 }
