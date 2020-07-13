@@ -11,6 +11,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Treat SceneKit catalog the same way as asset catalog [#1546], by [@natanrolnik](https://github.com/natanrolnik)
 - Add core data models to the sources build phase [#1542](https://github.com/tuist/tuist/pull/1542) by [@kwridan](https://github.com/kwridan)
 
+### Changed
+
+- Add a `sourceRootPath` attribute to `TuistCore.Project` to control where Xcode projects are generated [#1559](https://github.com/tuist/tuist/pull/1559) by [@pepibumur](https://github.com/pepibumur).
+
 ## 1.12.0 - Arabesque
 
 ### Changed
