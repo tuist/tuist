@@ -153,6 +153,7 @@ final class TargetTests: TuistUnitTestCase {
         let temporaryPath = try self.temporaryPath()
         let folders = try createFolders([
             "resources/d.xcassets",
+            "resources/d.scnassets",
             "resources/g.bundle",
         ])
 
@@ -174,6 +175,7 @@ final class TargetTests: TuistUnitTestCase {
         let relativeResources = resources.map { $0.relative(to: temporaryPath).pathString }
         XCTAssertEqual(relativeResources, [
             "resources/d.xcassets",
+            "resources/d.scnassets",
             "resources/g.bundle",
             "resources/a.png",
             "resources/b.jpg",
