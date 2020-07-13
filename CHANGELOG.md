@@ -7,6 +7,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Fixed
 
 - `UpHomebrew` (`Up.homebrew(packages:)`) in `Setup.swift` correctly checks package installation if the executable doesn't match the package name [#1544](https://github.com/tuist/tuist/pull/1544) by [@MatyasKriz](https://github.com/MatyasKriz).
+- Update Package.swift to correctly encode revision kind as "revision" [#1558](https://github.com/tuist/tuist/pull/1558) by [@ollieatkinson](https://github.com/ollieatkinson).
 
 ## 1.12.0 - Arabesque
 
