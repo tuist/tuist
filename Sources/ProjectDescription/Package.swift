@@ -124,7 +124,7 @@ extension Package {
                 try container.encode("branch", forKey: .kind)
                 try container.encode(branch, forKey: .branch)
             case let .revision(revision):
-                try container.encode("revision", forKey: .revision)
+                try container.encode("revision", forKey: .kind)
                 try container.encode(revision, forKey: .revision)
             }
         }
