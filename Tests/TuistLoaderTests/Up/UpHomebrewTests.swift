@@ -25,12 +25,13 @@ final class UpHomebrewTests: TuistUnitTestCase {
         let temporaryPath = try self.temporaryPath()
         let subject = UpHomebrew(packages: ["swiftlint"])
         system.whichStub = { tool in
-            if tool == "swiftlint" {
-                throw NSError.test()
-            } else {
+            if tool == "brew" {
                 return ""
+            } else {
+                throw NSError.test()
             }
         }
+        system.errorCommand("/usr/local/bin/brew", "list", "swiftlint")
         let got = try subject.isMet(projectPath: temporaryPath)
         XCTAssertFalse(got)
     }
@@ -38,7 +39,14 @@ final class UpHomebrewTests: TuistUnitTestCase {
     func test_isMet() throws {
         let temporaryPath = try self.temporaryPath()
         let subject = UpHomebrew(packages: ["swiftlint"])
-        system.whichStub = { _ in "" }
+        system.whichStub = { tool in
+            if tool == "brew" {
+                return ""
+            } else {
+                throw NSError.test()
+            }
+        }
+        system.succeedCommand("/usr/local/bin/brew", "list", "swiftlint")
         let got = try subject.isMet(projectPath: temporaryPath)
         XCTAssertTrue(got)
     }
@@ -48,6 +56,7 @@ final class UpHomebrewTests: TuistUnitTestCase {
         let subject = UpHomebrew(packages: ["swiftlint"])
 
         system.whichStub = { _ in nil }
+        system.errorCommand("/usr/local/bin/brew", "list", "swiftlint")
         system.succeedCommand("/usr/bin/ruby",
                               "-e",
                               "\"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)\"")
