@@ -1237,7 +1237,7 @@
     core-js-pure "^3.0.0"
     regenerator-runtime "^0.13.4"
 
-"@babel/runtime@^7.1.2", "@babel/runtime@^7.10.0", "@babel/runtime@^7.10.2", "@babel/runtime@^7.10.3", "@babel/runtime@^7.3.1", "@babel/runtime@^7.3.4", "@babel/runtime@^7.4.4", "@babel/runtime@^7.5.5", "@babel/runtime@^7.6.3", "@babel/runtime@^7.7.2", "@babel/runtime@^7.8.4", "@babel/runtime@^7.8.7", "@babel/runtime@^7.9.2", "@babel/runtime@^7.9.6":
+"@babel/runtime@^7.1.2", "@babel/runtime@^7.10.0", "@babel/runtime@^7.10.2", "@babel/runtime@^7.10.3", "@babel/runtime@^7.10.4", "@babel/runtime@^7.3.1", "@babel/runtime@^7.3.4", "@babel/runtime@^7.4.4", "@babel/runtime@^7.5.5", "@babel/runtime@^7.6.3", "@babel/runtime@^7.7.2", "@babel/runtime@^7.8.4", "@babel/runtime@^7.8.7", "@babel/runtime@^7.9.2", "@babel/runtime@^7.9.6":
   version "7.10.4"
   resolved "https://registry.yarnpkg.com/@babel/runtime/-/runtime-7.10.4.tgz#a6724f1a6b8d2f6ea5236dbfe58c7d7ea9c5eb99"
   integrity sha512-UpTN5yUJr9b4EX2CnGNWIvER7Ab83ibv0pcvvHc4UOdrBI5jb8bj+32cCwPX6xu0mt2daFNjYhoi+X7beH0RSw==
@@ -6484,11 +6484,6 @@ es6-promise@^3.0.2:
   resolved "https://registry.yarnpkg.com/es6-promise/-/es6-promise-3.3.1.tgz#a08cdde84ccdbf34d027a1451bc91d4bcd28a613"
   integrity sha1-oIzd6EzNvzTQJ6FFG8kdS80ophM=
 
-es6-promise@^4.2.8:
-  version "4.2.8"
-  resolved "https://registry.yarnpkg.com/es6-promise/-/es6-promise-4.2.8.tgz#4eb21594c972bc40553d276e510539143db53e0a"
-  integrity sha512-HJDGx5daxeIvxdBxvG2cb9g4tEvwIk3i8+nhX0yGrYmZUzbkdg8QbDevheDB8gd0//uPj4c1EQua8Q+MViT0/w==
-
 escalade@^3.0.1:
   version "3.0.1"
   resolved "https://registry.yarnpkg.com/escalade/-/escalade-3.0.1.tgz#52568a77443f6927cd0ab9c73129137533c965ed"
@@ -7171,12 +7166,10 @@ fd@~0.0.2:
   resolved "https://registry.yarnpkg.com/fd/-/fd-0.0.3.tgz#b3240de86dbf5a345baae7382a07d4713566ff0c"
   integrity sha512-iAHrIslQb3U68OcMSP0kkNWabp7sSN6d2TBSb2JO3gcLJVDd4owr/hKM4SFJovFOUeeXeItjYgouEDTMWiVAnA==
 
-fetch-retry@^3.1.0:
-  version "3.1.0"
-  resolved "https://registry.yarnpkg.com/fetch-retry/-/fetch-retry-3.1.0.tgz#53a25652adf56def526f9b6f6d749a5bebffd319"
-  integrity sha512-pHCYCq7g854KkebphR3tKb4M7TJK91ZI0K2BU82cWv+vNkFQn0PZZFrQd/mL+Ra/mj2HLZNvzkTRjPEq2Dh/Bg==
-  dependencies:
-    es6-promise "^4.2.8"
+fetch-retry@^4.0.1:
+  version "4.0.1"
+  resolved "https://registry.yarnpkg.com/fetch-retry/-/fetch-retry-4.0.1.tgz#ca746666399aaf0547aa3851ccb543cfb112b8da"
+  integrity sha512-EhIeVBkq9T2z1ANDr2kmLujoHOTdLvR9t/nzLSdX4PMIFinLyyZFYX9T6Fb3LrbiHQEhujq1O7ElsqjuqYIsEA==
 
 figgy-pudding@^3.5.1:
   version "3.5.1"
@@ -8008,13 +8001,13 @@ gatsby-remark-copy-linked-files@^2.3.11:
     probe-image-size "^4.1.1"
     unist-util-visit "^1.4.1"
 
-gatsby-remark-embedder@^2.1.1:
-  version "2.1.1"
-  resolved "https://registry.yarnpkg.com/gatsby-remark-embedder/-/gatsby-remark-embedder-2.1.1.tgz#a5d11534e4ab1212c760f48f8204c28a7fbadf2a"
-  integrity sha512-UemRq+Bcksugj+lqvDshd/iGLpO3lsyoI6wiBUIZWl2/wKyS13Q0rJCJJrdJd/PcsvlGK0q6xmMSkQz2sGQpDA==
+gatsby-remark-embedder@^2.1.2:
+  version "2.1.2"
+  resolved "https://registry.yarnpkg.com/gatsby-remark-embedder/-/gatsby-remark-embedder-2.1.2.tgz#fb8bdbda7ccc67158bd20cc633c63d991ca215dc"
+  integrity sha512-rEIvDWM1qWy/ObPCYkK86ObxLSDX/wZUrjwOxK81QT1inh41kgfnnnGI6m7WeD2y4cNcXyj9AyzJ2o5Ij2Jryg==
   dependencies:
-    "@babel/runtime" "^7.9.6"
-    fetch-retry "^3.1.0"
+    "@babel/runtime" "^7.10.4"
+    fetch-retry "^4.0.1"
     node-fetch "^2.6.0"
     unist-util-visit "^2.0.2"
 
