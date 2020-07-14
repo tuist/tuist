@@ -294,7 +294,7 @@ The `.xcframework` can be obtained by running the `build.sh` script within the e
 
 e.g. `ios_app_with_xcframeworks/Frameworks/MyFramework/build.sh`
 
-## ios_app_with_coredate
+## ios_app_with_coredata
 
 A simple iOS app with a Core Data model and Mapping Model (.xcmappingmodel)
 
