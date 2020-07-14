@@ -16,7 +16,7 @@ class Generator {
     }
 
     func generate(at path: AbsolutePath) throws {
-        let rootPath = path.appending(component: "Fixture")
+        let rootPath = path
         let projects = (1 ... config.projects).map { "Project\($0)" }
 
         try fileSystem.createDirectory(rootPath)
