@@ -54,6 +54,7 @@ final class BuildPhaseGeneratorTests: XCTestCase {
 
         // When
         try subject.generateSourcesBuildPhase(files: sources,
+                                              coreDataModels: [],
                                               pbxTarget: target,
                                               fileElements: fileElements,
                                               pbxproj: pbxproj)
@@ -88,6 +89,7 @@ final class BuildPhaseGeneratorTests: XCTestCase {
         let fileElements = ProjectFileElements()
 
         XCTAssertThrowsError(try subject.generateSourcesBuildPhase(files: [(path: path, compilerFlags: nil)],
+                                                                   coreDataModels: [],
                                                                    pbxTarget: target,
                                                                    fileElements: fileElements,
                                                                    pbxproj: pbxproj)) {
@@ -112,6 +114,7 @@ final class BuildPhaseGeneratorTests: XCTestCase {
 
         // When
         try subject.generateSourcesBuildPhase(files: sources,
+                                              coreDataModels: [],
                                               pbxTarget: target,
                                               fileElements: fileElements,
                                               pbxproj: pbxproj)
@@ -133,6 +136,7 @@ final class BuildPhaseGeneratorTests: XCTestCase {
         let fileElements = ProjectFileElements()
 
         XCTAssertThrowsError(try subject.generateSourcesBuildPhase(files: [(path: path, compilerFlags: nil)],
+                                                                   coreDataModels: [],
                                                                    pbxTarget: target,
                                                                    fileElements: fileElements,
                                                                    pbxproj: pbxproj)) {
@@ -250,7 +254,8 @@ final class BuildPhaseGeneratorTests: XCTestCase {
         ])
     }
 
-    func test_generateResourcesBuildPhase_whenCoreDataModel() throws {
+    func test_generateSourcesBuildPhase_whenCoreDataModel() throws {
+        // Given
         let coreDataModel = CoreDataModel(path: AbsolutePath("/Model.xcdatamodeld"),
                                           versions: [AbsolutePath("/Model.xcdatamodeld/1.xcdatamodel")],
                                           currentVersion: "1")
@@ -268,18 +273,18 @@ final class BuildPhaseGeneratorTests: XCTestCase {
         fileElements.elements[AbsolutePath("/Model.xcdatamodeld/1.xcdatamodel")] = model
 
         let nativeTarget = PBXNativeTarget(name: "Test")
-        try subject.generateResourcesBuildPhase(path: "/path",
-                                                target: target,
-                                                graph: Graph.test(),
-                                                pbxTarget: nativeTarget,
-                                                fileElements: fileElements,
-                                                pbxproj: pbxproj)
 
-        let pbxBuildPhase: PBXBuildPhase? = nativeTarget.buildPhases.first
-        XCTAssertNotNil(pbxBuildPhase)
-        XCTAssertTrue(pbxBuildPhase is PBXResourcesBuildPhase)
-        let pbxBuildFile: PBXBuildFile? = pbxBuildPhase?.files?.first
-        XCTAssertEqual(pbxBuildFile?.file, versionGroup)
+        // When
+        try subject.generateSourcesBuildPhase(files: target.sources,
+                                              coreDataModels: target.coreDataModels,
+                                              pbxTarget: nativeTarget,
+                                              fileElements: fileElements,
+                                              pbxproj: pbxproj)
+
+        // Then
+        let pbxBuildPhase: PBXBuildPhase = try XCTUnwrap(nativeTarget.buildPhases.first as? PBXSourcesBuildPhase)
+        let pbxBuildFile: PBXBuildFile = try XCTUnwrap(pbxBuildPhase.files?.first)
+        XCTAssertEqual(pbxBuildFile.file, versionGroup)
         XCTAssertEqual(versionGroup.currentVersion, model)
     }
 

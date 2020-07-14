@@ -199,8 +199,8 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         // Then
         let projectGroup = groups.sortedMain.group(named: "Project")
         XCTAssertEqual(projectGroup?.flattenedChildren, [
-            "myfolder/resources/assets.xcassets",
             "myfolder/resources/assets.scnassets",
+            "myfolder/resources/assets.xcassets",
         ])
     }
 
