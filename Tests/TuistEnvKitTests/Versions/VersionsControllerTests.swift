@@ -53,4 +53,38 @@ final class VersionsControllerTests: TuistUnitTestCase {
         XCTAssertTrue(versions.contains(.reference("ref")))
         XCTAssertTrue(versions.contains(.semver(Version(string: "3.2.1")!)))
     }
+
+    func test_semverVersions_ordered() throws {
+        // Given
+        let versions = [
+            "0.12.0",
+            "0.12.12",
+            "0.12.9",
+            "0.9.0",
+            "1.0.0",
+            "1.12.0",
+            "1.9.0",
+            "12.2.0",
+            "2.18.0",
+        ]
+        try versions.forEach {
+            try fileHandler.createFolder(environment.versionsDirectory.appending(component: $0))
+        }
+
+        // When
+        let results = subject.semverVersions()
+
+        // Then
+        XCTAssertEqual(results, [
+            Version(0, 9, 0),
+            Version(0, 12, 0),
+            Version(0, 12, 9),
+            Version(0, 12, 12),
+            Version(1, 0, 0),
+            Version(1, 9, 0),
+            Version(1, 12, 0),
+            Version(2, 18, 0),
+            Version(12, 2, 0),
+        ])
+    }
 }
