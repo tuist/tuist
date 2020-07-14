@@ -88,3 +88,5 @@ TODO
 TODO.md
 mkmf.log
 .rubocop-http---shopify-github-io-ruby-style-guide-rubocop-yml
+generated_fixtures
+.fixtures.generated.json
