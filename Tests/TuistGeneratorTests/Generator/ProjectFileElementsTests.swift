@@ -172,6 +172,12 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         ])
     }
 
+    override func invokeTest() {
+        for _ in 0 ... 10 {
+            super.invokeTest()
+        }
+    }
+
     func test_addElement_xcassets_and_scnassets_multiple_files() throws {
         // Given
         let resouces = [
@@ -199,8 +205,8 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         // Then
         let projectGroup = groups.sortedMain.group(named: "Project")
         XCTAssertEqual(projectGroup?.flattenedChildren, [
-            "myfolder/resources/assets.xcassets",
             "myfolder/resources/assets.scnassets",
+            "myfolder/resources/assets.xcassets",
         ])
     }
 
