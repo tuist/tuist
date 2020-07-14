@@ -11,6 +11,7 @@ let project = Project(name: "App",
                                dependencies: [
                                     .target(name: "StickersPackExtension"),
                                     .target(name: "NotificationServiceExtension"),
+                                    .target(name: "WidgetExtension"),
                                 ]),
                         // We need a seperate app to test out Message Extensions
                         // as having both stickers pack and message extensions in one app
@@ -56,7 +57,7 @@ let project = Project(name: "App",
                                dependencies: [
                                     
                                ]),
-                         Target(name: "MessageExtension",
+                        Target(name: "MessageExtension",
                                platform: .iOS,
                                product: .messagesExtension,
                                bundleId: "io.tuist.App.MessageExtension",
@@ -69,6 +70,21 @@ let project = Project(name: "App",
                                 ]),
                                sources: "MessageExtension/Sources/**",
                                resources: "MessageExtension/Resources/**",
+                               dependencies: [
+                                    
+                               ]),
+                        Target(name: "WidgetExtension",
+                               platform: .iOS,
+                               product: .appExtension,
+                               bundleId: "io.tuist.App.WidgetExtension",
+                               infoPlist: .extendingDefault(with: [
+                                       "CFBundleDisplayName": "$(PRODUCT_NAME)",
+                                       "NSExtension": [
+                                               "NSExtensionPointIdentifier": "com.apple.widgetkit-extension"
+                                        ]
+                                ]),
+                               sources: "WidgetExtension/Sources/**",
+                               resources: "WidgetExtension/Resources/**",
                                dependencies: [
                                     
                                ])
