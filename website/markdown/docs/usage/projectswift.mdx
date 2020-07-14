@@ -759,10 +759,17 @@ default: 'nil',
   title="Auto-generation of schemes"
   description="Tuist will auto-generate a scheme for each target by default in addition to any defined schemes. This however can be disabled if needed via the [Configuration `generationOptions`](/docs/usage/config/#generationoption)."
 />
+
 <Message
   info
   title="Schemes & Configurations"
   description="When generating the default target schemes, the 'Debug' configuration is used for the Run, Test and Analyze actions and the 'Release' configuration is used for the Profile & Archive actions. If those configurations aren't specified, the first (alphabetically ordered) custom configuration with the corresponding variant is selected in their place."
+/>
+
+<Message
+  info
+  title="Extension Schemes"
+  description="Schemes for extensions have additional properties and settings, Tuist automatically applies those to any scheme in which the first Target in the Build Action's list of targets is an extension."
 />
 
 ### Build Action
