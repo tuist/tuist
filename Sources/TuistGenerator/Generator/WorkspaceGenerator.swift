@@ -85,10 +85,7 @@ final class WorkspaceGenerator: WorkspaceGenerating {
 
         /// Projects
         let projects = try Array(graph.projects).compactMap(context: config.projectGenerationContext) { project -> ProjectDescriptor? in
-            try projectGenerator.generate(project: project,
-                                          graph: graph,
-                                          sourceRootPath: project.path,
-                                          xcodeprojPath: nil)
+            try projectGenerator.generate(project: project, graph: graph)
         }
 
         let generatedProjects: [AbsolutePath: GeneratedProject] = Dictionary(uniqueKeysWithValues: projects.map { project in

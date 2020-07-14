@@ -23,9 +23,7 @@ public protocol Generating {
     /// - Parameters:
     ///     - project: The project to be generated.
     ///     - graph: The dependencies graph.
-    ///     - sourceRootPath: The path all the files in the Xcode project will be realtived to. When it's nil, it's assumed that all the paths are relative to the directory that contains the manifest.
-    ///     - xcodeprojPath: Path where the .xcodeproj directory will be generated. When the attribute is nil, the project is generated in the manifest's directory.
-    func generateProject(_ project: Project, graph: Graph, sourceRootPath: AbsolutePath?, xcodeprojPath: AbsolutePath?) throws -> AbsolutePath
+    func generateProject(_ project: Project, graph: Graph) throws -> AbsolutePath
 
     /// Generate an Xcode workspace for the project at a given path. All the project's dependencies will also be generated and included.
     ///
@@ -123,18 +121,8 @@ public class Generator: Generating {
         self.swiftPackageManagerInteractor = swiftPackageManagerInteractor
     }
 
-    public func generateProject(_ project: Project,
-                                graph: Graph,
-                                sourceRootPath: AbsolutePath? = nil,
-                                xcodeprojPath: AbsolutePath? = nil) throws -> AbsolutePath {
-        /// When the source root path is not given, we assume paths
-        /// are relative to the directory that contains the manifest.
-        let sourceRootPath = sourceRootPath ?? project.path
-
-        let descriptor = try projectGenerator.generate(project: project,
-                                                       graph: graph,
-                                                       sourceRootPath: sourceRootPath,
-                                                       xcodeprojPath: xcodeprojPath)
+    public func generateProject(_ project: Project, graph: Graph) throws -> AbsolutePath {
+        let descriptor = try projectGenerator.generate(project: project, graph: graph)
 
         try writer.write(project: descriptor)
         return descriptor.xcodeprojPath
@@ -147,10 +135,7 @@ public class Generator: Generating {
         let (graph, project) = try graphLoader.loadProject(path: path)
         try graphLinter.lint(graph: graph).printAndThrowIfNeeded()
 
-        let descriptor = try projectGenerator.generate(project: project,
-                                                       graph: graph,
-                                                       sourceRootPath: path,
-                                                       xcodeprojPath: nil)
+        let descriptor = try projectGenerator.generate(project: project, graph: graph)
 
         try writer.write(project: descriptor)
         return (descriptor.xcodeprojPath, graph)

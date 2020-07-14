@@ -19,9 +19,10 @@ extension TuistCore.Project {
         let additionalFiles = try manifest.additionalFiles.flatMap { try TuistCore.FileElement.from(manifest: $0, generatorPaths: generatorPaths) }
         let packages = try manifest.packages.map { try TuistCore.Package.from(manifest: $0, generatorPaths: generatorPaths) }
         return Project(path: generatorPaths.manifestDirectory,
+                       sourceRootPath: generatorPaths.manifestDirectory,
+                       xcodeProjPath: generatorPaths.manifestDirectory.appending(component: "\(name).xcodeproj"),
                        name: name,
                        organizationName: organizationName,
-                       fileName: nil,
                        settings: settings ?? .default,
                        filesGroup: .group(name: "Project"),
                        targets: targets,
@@ -32,9 +33,10 @@ extension TuistCore.Project {
 
     func adding(target: TuistCore.Target) -> TuistCore.Project {
         Project(path: path,
+                sourceRootPath: sourceRootPath,
+                xcodeProjPath: xcodeProjPath,
                 name: name,
                 organizationName: organizationName,
-                fileName: fileName,
                 settings: settings,
                 filesGroup: filesGroup,
                 targets: targets + [target],
@@ -43,11 +45,12 @@ extension TuistCore.Project {
                 additionalFiles: additionalFiles)
     }
 
-    func replacing(fileName: String?) -> TuistCore.Project {
+    func replacing(xcodeProjPath: AbsolutePath) -> TuistCore.Project {
         Project(path: path,
+                sourceRootPath: sourceRootPath,
+                xcodeProjPath: xcodeProjPath,
                 name: name,
                 organizationName: organizationName,
-                fileName: fileName,
                 settings: settings,
                 filesGroup: filesGroup,
                 targets: targets,
@@ -58,9 +61,10 @@ extension TuistCore.Project {
 
     func replacing(organizationName: String?) -> TuistCore.Project {
         Project(path: path,
+                sourceRootPath: sourceRootPath,
+                xcodeProjPath: xcodeProjPath,
                 name: name,
                 organizationName: organizationName,
-                fileName: fileName,
                 settings: settings,
                 filesGroup: filesGroup,
                 targets: targets,

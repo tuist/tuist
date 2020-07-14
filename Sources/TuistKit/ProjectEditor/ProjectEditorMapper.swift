@@ -6,6 +6,7 @@ import TuistSupport
 protocol ProjectEditorMapping: AnyObject {
     func map(tuistPath: AbsolutePath,
              sourceRootPath: AbsolutePath,
+             xcodeProjPath: AbsolutePath,
              manifests: [AbsolutePath],
              helpers: [AbsolutePath],
              templates: [AbsolutePath],
@@ -16,6 +17,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
     // swiftlint:disable:next function_body_length
     func map(tuistPath: AbsolutePath,
              sourceRootPath: AbsolutePath,
+             xcodeProjPath: AbsolutePath,
              manifests: [AbsolutePath],
              helpers: [AbsolutePath],
              templates: [AbsolutePath],
@@ -77,9 +79,10 @@ final class ProjectEditorMapper: ProjectEditorMapping {
 
         // Project
         let project = Project(path: sourceRootPath,
+                              sourceRootPath: sourceRootPath,
+                              xcodeProjPath: xcodeProjPath,
                               name: "Manifests",
                               organizationName: nil,
-                              fileName: nil,
                               settings: projectSettings,
                               filesGroup: .group(name: "Manifests"),
                               targets: targets,

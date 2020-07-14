@@ -181,7 +181,7 @@ class GeneratorModelLoaderTests: TuistUnitTestCase {
         let model = try subject.loadProject(at: temporaryPath)
 
         // Then
-        XCTAssertEqual(model.fileName, "one SomeProject two")
+        XCTAssertEqual(model.xcodeProjPath.basenameWithoutExt, "one SomeProject two")
     }
 
     func test_loadProject_withCustomNameDuplicates() throws {
@@ -209,7 +209,7 @@ class GeneratorModelLoaderTests: TuistUnitTestCase {
         let model = try subject.loadProject(at: temporaryPath)
 
         // Then
-        XCTAssertEqual(model.fileName, "one SomeProject two")
+        XCTAssertEqual(model.xcodeProjPath.basenameWithoutExt, "one SomeProject two")
     }
 
     func test_loadProject_withCustomOrganizationName() throws {

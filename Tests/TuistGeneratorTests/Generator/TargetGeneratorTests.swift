@@ -51,18 +51,18 @@ final class TargetGeneratorTests: XCTestCase {
                                                   inputFileListPaths: ["/tmp/b"],
                                                   outputFileListPaths: ["/tmp/d"]),
                                  ])
-        let project = Project.test(path: path, targets: [target])
+        let project = Project.test(path: path,
+                                   sourceRootPath: path,
+                                   xcodeProjPath: path.appending(component: "Test.xcodeproj"),
+                                   targets: [target])
         let graph = Graph.test()
         let groups = ProjectGroups.generate(project: project,
                                             pbxproj: pbxproj,
-                                            xcodeprojPath: project.path.appending(component: "\(project.fileName).xcodeproj"),
-                                            sourceRootPath: path,
                                             playgrounds: MockPlaygrounds())
         try fileElements.generateProjectFiles(project: project,
                                               graph: graph,
                                               groups: groups,
-                                              pbxproj: pbxproj,
-                                              sourceRootPath: path)
+                                              pbxproj: pbxproj)
 
         // When
         let generatedTarget = try subject.generateTarget(target: target,
@@ -72,7 +72,6 @@ final class TargetGeneratorTests: XCTestCase {
                                                          projectSettings: Settings.test(),
                                                          fileElements: fileElements,
                                                          path: path,
-                                                         sourceRootPath: path,
                                                          graph: graph)
 
         // Then
@@ -130,17 +129,14 @@ final class TargetGeneratorTests: XCTestCase {
                                      TargetAction(name: "post", order: .post, path: path.appending(component: "script.sh"), arguments: ["arg"]),
                                      TargetAction(name: "pre", order: .pre, path: path.appending(component: "script.sh"), arguments: ["arg"]),
                                  ])
-        let project = Project.test(path: path, targets: [target])
+        let project = Project.test(path: path, sourceRootPath: path, xcodeProjPath: path.appending(component: "Project.xcodeproj"), targets: [target])
         let groups = ProjectGroups.generate(project: project,
                                             pbxproj: pbxproj,
-                                            xcodeprojPath: project.path.appending(component: "\(project.fileName).xcodeproj"),
-                                            sourceRootPath: path,
                                             playgrounds: MockPlaygrounds())
         try fileElements.generateProjectFiles(project: project,
                                               graph: graph,
                                               groups: groups,
-                                              pbxproj: pbxproj,
-                                              sourceRootPath: path)
+                                              pbxproj: pbxproj)
 
         // When
         let pbxTarget = try subject.generateTarget(target: target,
@@ -150,7 +146,6 @@ final class TargetGeneratorTests: XCTestCase {
                                                    projectSettings: Settings.test(),
                                                    fileElements: fileElements,
                                                    path: path,
-                                                   sourceRootPath: path,
                                                    graph: graph)
 
         // Then

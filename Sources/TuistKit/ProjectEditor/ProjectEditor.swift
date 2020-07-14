@@ -112,6 +112,7 @@ final class ProjectEditor: ProjectEditing {
 
         let (project, graph) = try projectEditorMapper.map(tuistPath: tuistPath,
                                                            sourceRootPath: at,
+                                                           xcodeProjPath: xcodeprojPath,
                                                            manifests: manifests.map { $0.1 },
                                                            helpers: helpers,
                                                            templates: templates,
@@ -119,12 +120,7 @@ final class ProjectEditor: ProjectEditing {
 
         let (mappedProject, sideEffects) = try projectMapper.map(project: project)
         try sideEffectDescriptorExecutor.execute(sideEffects: sideEffects)
-
-        let config = ProjectGenerationConfig(sourceRootPath: project.path,
-                                             xcodeprojPath: xcodeprojPath)
-        let descriptor = try generator.generateProject(project: mappedProject,
-                                                       graph: graph,
-                                                       config: config)
+        let descriptor = try generator.generateProject(project: mappedProject, graph: graph)
         try writer.write(project: descriptor)
         return descriptor.xcodeprojPath
     }

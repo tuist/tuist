@@ -46,8 +46,7 @@ class ProjectFileElements {
     func generateProjectFiles(project: Project,
                               graph: Graph,
                               groups: ProjectGroups,
-                              pbxproj: PBXProj,
-                              sourceRootPath: AbsolutePath) throws {
+                              pbxproj: PBXProj) throws {
         var files = Set<GroupFileElement>()
 
         try project.targets.forEach { target in
@@ -64,13 +63,13 @@ class ProjectFileElements {
         try generate(files: sortedFiles,
                      groups: groups,
                      pbxproj: pbxproj,
-                     sourceRootPath: sourceRootPath)
+                     sourceRootPath: project.sourceRootPath)
 
         /// Playgrounds
         generatePlaygrounds(path: project.path,
                             groups: groups,
                             pbxproj: pbxproj,
-                            sourceRootPath: sourceRootPath)
+                            sourceRootPath: project.sourceRootPath)
 
         // Products
         let directProducts = project.targets.map {
@@ -83,7 +82,7 @@ class ProjectFileElements {
         try generate(dependencyReferences: Set(directProducts + dependencies),
                      groups: groups,
                      pbxproj: pbxproj,
-                     sourceRootPath: sourceRootPath,
+                     sourceRootPath: project.sourceRootPath,
                      filesGroup: project.filesGroup)
     }
 

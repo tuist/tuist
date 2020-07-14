@@ -24,6 +24,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
     func test_edit_when_there_are_helpers() throws {
         // Given
         let sourceRootPath = try temporaryPath()
+        let xcodeProjPath = sourceRootPath.appending(component: "Project.xcodeproj")
         let manifestPaths = [sourceRootPath].map { $0.appending(component: "Project.swift") }
         let helperPaths = [sourceRootPath].map { $0.appending(component: "Project+Template.swift") }
         let templates = [sourceRootPath].map { $0.appending(component: "template") }
@@ -33,6 +34,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         // When
         let (project, graph) = try subject.map(tuistPath: tuistPath,
                                                sourceRootPath: sourceRootPath,
+                                               xcodeProjPath: xcodeProjPath,
                                                manifests: manifestPaths,
                                                helpers: helperPaths,
                                                templates: templates,
@@ -104,6 +106,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
     func test_edit_when_there_are_no_helpers() throws {
         // Given
         let sourceRootPath = try temporaryPath()
+        let xcodeProjPath = sourceRootPath.appending(component: "Project.xcodeproj")
         let manifestPaths = [sourceRootPath].map { $0.appending(component: "Project.swift") }
         let helperPaths: [AbsolutePath] = []
         let templates: [AbsolutePath] = []
@@ -113,6 +116,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         // When
         let (project, graph) = try subject.map(tuistPath: tuistPath,
                                                sourceRootPath: sourceRootPath,
+                                               xcodeProjPath: xcodeProjPath,
                                                manifests: manifestPaths,
                                                helpers: helperPaths,
                                                templates: templates,
@@ -160,6 +164,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
     func test_tuist_edit_with_more_than_one_manifest() throws {
         // Given
         let sourceRootPath = try temporaryPath()
+        let xcodeProjPath = sourceRootPath.appending(component: "Project.xcodeproj")
         let otherProjectPath = "Module"
         let manifestPaths = [
             sourceRootPath.appending(component: "Project.swift"),
@@ -173,6 +178,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         // When
         let (project, graph) = try subject.map(tuistPath: tuistPath,
                                                sourceRootPath: sourceRootPath,
+                                               xcodeProjPath: xcodeProjPath,
                                                manifests: manifestPaths,
                                                helpers: helperPaths,
                                                templates: templates,

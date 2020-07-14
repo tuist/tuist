@@ -354,20 +354,19 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
                                  entitlements: AbsolutePath("/Test.entitlements"),
                                  settings: Settings(base: ["Base": "Base"], configurations: configurations))
         let project = Project.test(path: dir,
+                                   sourceRootPath: dir,
+                                   xcodeProjPath: dir.appending(component: "Project.xcodeproj"),
                                    name: "Test",
                                    settings: .default,
                                    targets: [target])
+
         let fileElements = ProjectFileElements()
-        let groups = ProjectGroups.generate(project: project,
-                                            pbxproj: pbxproj,
-                                            xcodeprojPath: project.path.appending(component: "\(project.fileName).xcodeproj"),
-                                            sourceRootPath: dir)
+        let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj)
         let graph = Graph.test()
         try fileElements.generateProjectFiles(project: project,
                                               graph: graph,
                                               groups: groups,
-                                              pbxproj: pbxproj,
-                                              sourceRootPath: project.path)
+                                              pbxproj: pbxproj)
         _ = try subject.generateTargetConfig(target,
                                              project: project,
                                              pbxTarget: pbxTarget,
