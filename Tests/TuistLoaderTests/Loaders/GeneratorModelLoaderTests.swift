@@ -55,8 +55,8 @@ class GeneratorModelLoaderTests: TuistUnitTestCase {
         // Given
         let temporaryPath = try self.temporaryPath()
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
-        let targetA = TargetManifest.test(name: "A")
-        let targetB = TargetManifest.test(name: "B")
+        let targetA = TargetManifest.test(name: "A", sources: [], resources: [])
+        let targetB = TargetManifest.test(name: "B", sources: [], resources: [])
         let manifests = [
             temporaryPath: ProjectManifest.test(name: "Project",
                                                 targets: [
@@ -86,8 +86,8 @@ class GeneratorModelLoaderTests: TuistUnitTestCase {
         let projects = [
             temporaryPath: ProjectManifest.test(name: "Project",
                                                 targets: [
-                                                    .test(name: "A"),
-                                                    .test(name: "B"),
+                                                    .test(name: "A", sources: [], resources: []),
+                                                    .test(name: "B", sources: [], resources: []),
                                                 ]),
         ]
 

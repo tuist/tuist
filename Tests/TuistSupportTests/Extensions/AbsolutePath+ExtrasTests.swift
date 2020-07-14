@@ -3,8 +3,9 @@ import TSCBasic
 import XCTest
 
 @testable import TuistSupport
+@testable import TuistSupportTesting
 
-final class AbsolutePathExtrasTests: XCTestCase {
+final class AbsolutePathExtrasTests: TuistUnitTestCase {
     func test_commonAncestor_siblings() {
         // Given
         let pathA = AbsolutePath("/path/to/A")
@@ -52,5 +53,13 @@ final class AbsolutePathExtrasTests: XCTestCase {
 
         // Then
         XCTAssertEqual(resultA, resultB)
+    }
+
+    func test_throwingGlob_throws_when_directoryDoesntExist() throws {
+        // Given
+        let dir = try temporaryPath()
+
+        // Then
+        XCTAssertThrowsSpecific(try dir.throwingGlob("invalid/path/**/*"), GlobError.nonExistentDirectory(InvalidGlob(pattern: dir.appending(RelativePath("invalid/path/**/*")).pathString, nonExistentPath: dir.appending(RelativePath("invalid/path/")))))
     }
 }
