@@ -11,6 +11,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Treat SceneKit catalog the same way as asset catalog [#1546], by [@natanrolnik](https://github.com/natanrolnik)
 - Add core data models to the sources build phase [#1542](https://github.com/tuist/tuist/pull/1542) by [@kwridan](https://github.com/kwridan)
 
+### Changed
+
+- **Breaking** Fail generation if a Source has a non-existent directory in a glob [#1523](https://github.com/tuist/tuist/pull/1523) by [@natanrolnik](https://github.com/natanrolnik).
+
 ## 1.12.0 - Arabesque
 
 ### Changed
