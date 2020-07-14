@@ -14,6 +14,8 @@ extension TuistCore.FileElement {
                      generatorPaths: GeneratorPaths,
                      includeFiles: @escaping (AbsolutePath) -> Bool = { _ in true }) throws -> [TuistCore.FileElement] {
         func globFiles(_ path: AbsolutePath) throws -> [AbsolutePath] {
+            if FileHandler.shared.exists(path) { return [path] }
+
             let files = try FileHandler.shared.throwingGlob(AbsolutePath.root, glob: String(path.pathString.dropFirst()))
                 .filter(includeFiles)
 
