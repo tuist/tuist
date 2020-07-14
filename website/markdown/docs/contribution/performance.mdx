@@ -12,6 +12,16 @@ To test out generation speeds and to provide some utilities to aid profiling Tui
 
 Those tools are located within the [`tools/`](https://github.com/tuist/tuist/blob/master/tools) directory.
 
+## Benchmarking 
+
+As a convenience to automate the benchmarking process which entails leveraging several tools, a rake task is included with Tuist.
+
+```sh
+bundle exec rake benchmark
+```
+
+This benchmarks the current branch's version of Tuist against the latest published release using the tools described below.
+
 ## Fixture Generator (`fixturegen`)
 
 `fixturegen` allows generating large fixtures. For example it can generate a workspace with 10 projects, each project with 10 targets, and each target with 500 source files!
