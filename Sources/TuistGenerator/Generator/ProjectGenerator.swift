@@ -65,16 +65,13 @@ final class ProjectGenerator: ProjectGenerating {
                   graph: Graph) throws -> ProjectDescriptor {
         logger.notice("Generating project \(project.name)")
 
-        // If the xcodeproj path is not given, we generate it under the source root path.
-        let xcodeprojPath = project.sourceRootPath.appending(component: "\(project.fileName).xcodeproj")
-
         let workspaceData = XCWorkspaceData(children: [])
         let workspace = XCWorkspace(data: workspaceData)
         let projectConstants = try determineProjectConstants(graph: graph)
         let pbxproj = PBXProj(objectVersion: projectConstants.objectVersion,
                               archiveVersion: projectConstants.archiveVersion,
                               classes: [:])
-        let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj, xcodeprojPath: xcodeprojPath, sourceRootPath: project.sourceRootPath)
+        let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj)
         let fileElements = ProjectFileElements()
         try fileElements.generateProjectFiles(project: project,
                                               graph: graph,
@@ -102,9 +99,9 @@ final class ProjectGenerator: ProjectGenerating {
                                            pbxProject: pbxProject)
 
         let generatedProject = GeneratedProject(pbxproj: pbxproj,
-                                                path: xcodeprojPath,
+                                                path: project.xcodeProjPath,
                                                 targets: nativeTargets,
-                                                name: xcodeprojPath.basename)
+                                                name: project.xcodeProjPath.basename)
 
         let schemes = try schemesGenerator.generateProjectSchemes(project: project,
                                                                   generatedProject: generatedProject,
@@ -112,7 +109,7 @@ final class ProjectGenerator: ProjectGenerating {
 
         let xcodeProj = XcodeProj(workspace: workspace, pbxproj: pbxproj)
         return ProjectDescriptor(path: project.path,
-                                 xcodeprojPath: xcodeprojPath,
+                                 xcodeprojPath: project.xcodeProjPath,
                                  xcodeProj: xcodeProj,
                                  schemeDescriptors: schemes,
                                  sideEffectDescriptors: [])

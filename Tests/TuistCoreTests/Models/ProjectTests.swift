@@ -32,23 +32,6 @@ final class ProjectTests: XCTestCase {
         XCTAssertEqual(got[3], frameworkTests)
     }
 
-    func test_projectDefaultFileName() {
-        // Given
-        let framework = Target.test(name: "Framework", product: .framework)
-        let app = Target.test(name: "App", product: .app)
-        let appTests = Target.test(name: "AppTests", product: .unitTests)
-        let frameworkTests = Target.test(name: "FrameworkTests", product: .unitTests)
-
-        // When
-        let project = Project.test(name: "SomeProjectName", targets: [
-            framework, app, appTests, frameworkTests,
-        ])
-
-        // Then
-        XCTAssertEqual(project.fileName, "SomeProjectName")
-        XCTAssertEqual(project.name, "SomeProjectName")
-    }
-
     func test_defaultDebugBuildConfigurationName_when_defaultDebugConfigExists() {
         // Given
         let project = Project.test(settings: Settings.test())

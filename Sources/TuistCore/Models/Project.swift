@@ -5,9 +5,10 @@ import TuistSupport
 public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebugStringConvertible {
     public static func == (lhs: Project, rhs: Project) -> Bool {
         lhs.path == rhs.path &&
+            lhs.sourceRootPath == rhs.sourceRootPath &&
+            lhs.xcodeProjPath == rhs.xcodeProjPath &&
             lhs.name == rhs.name &&
             lhs.organizationName == rhs.organizationName &&
-            lhs.fileName == rhs.fileName &&
             lhs.targets == rhs.targets &&
             lhs.packages == rhs.packages &&
             lhs.schemes == rhs.schemes &&
@@ -21,17 +22,17 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
     /// Path to the folder that contains the project manifest.
     public var path: AbsolutePath
 
-    /// Path to the directory where the Xcode project will be generated.
+    /// Path to the root of the project sources.
     public var sourceRootPath: AbsolutePath
+
+    /// Path to the Xcode project that will be generated.
+    public var xcodeProjPath: AbsolutePath
 
     /// Project name.
     public var name: String
 
     /// Organization name.
     public var organizationName: String?
-
-    /// Project file name.
-    public var fileName: String
 
     /// Project targets.
     public var targets: [Target]
@@ -58,6 +59,7 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
     /// - Parameters:
     ///   - path: Path to the folder that contains the project manifest.
     ///   - sourceRootPath: Path to the directory where the Xcode project will be generated.
+    ///   - xcodeProjPath: Path to the Xcode project that will be generated.
     ///   - name: Project name.
     ///   - organizationName: Organization name.
     ///   - settings: The settings to apply at the project level
@@ -67,9 +69,9 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
     ///                      *(Those won't be included in any build phases)*
     public init(path: AbsolutePath,
                 sourceRootPath: AbsolutePath,
+                xcodeProjPath: AbsolutePath,
                 name: String,
                 organizationName: String?,
-                fileName: String?,
                 settings: Settings,
                 filesGroup: ProjectGroup,
                 targets: [Target],
@@ -78,9 +80,9 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
                 additionalFiles: [FileElement]) {
         self.path = path
         self.sourceRootPath = sourceRootPath
+        self.xcodeProjPath = xcodeProjPath
         self.name = name
         self.organizationName = organizationName
-        self.fileName = fileName ?? name
         self.targets = targets
         self.packages = packages
         self.schemes = schemes
@@ -149,9 +151,9 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
     public func with(targets: [Target]) -> Project {
         Project(path: path,
                 sourceRootPath: sourceRootPath,
+                xcodeProjPath: xcodeProjPath,
                 name: name,
                 organizationName: organizationName,
-                fileName: fileName,
                 settings: settings,
                 filesGroup: filesGroup,
                 targets: targets,
@@ -165,9 +167,9 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
     public func with(schemes: [Scheme]) -> Project {
         Project(path: path,
                 sourceRootPath: sourceRootPath,
+                xcodeProjPath: xcodeProjPath,
                 name: name,
                 organizationName: organizationName,
-                fileName: fileName,
                 settings: settings,
                 filesGroup: filesGroup,
                 targets: targets,

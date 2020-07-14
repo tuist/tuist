@@ -66,21 +66,6 @@ final class ProjectGeneratorTests: TuistUnitTestCase {
         }, "Test target is missing from target attributes.")
     }
 
-    func test_generate_testUsingFileName() throws {
-        // Given
-        let project = Project.test(name: "Project",
-                                   fileName: "SomeAwesomeName",
-                                   targets: [])
-        let graph = Graph.create(project: project,
-                                 dependencies: [])
-
-        // When
-        let got = try subject.generate(project: project, graph: graph)
-
-        // Then
-        XCTAssertEqual(got.xcodeprojPath.basename, "SomeAwesomeName.xcodeproj")
-    }
-
     func test_objectVersion_when_xcode11_and_spm() throws {
         xcodeController.selectedVersionStub = .success(Version(11, 0, 0))
 
@@ -88,7 +73,6 @@ final class ProjectGeneratorTests: TuistUnitTestCase {
         let temporaryPath = try self.temporaryPath()
         let project = Project.test(path: temporaryPath,
                                    name: "Project",
-                                   fileName: "SomeAwesomeName",
                                    targets: [.test(dependencies: [.package(product: "A")])],
                                    packages: [.remote(url: "A", requirement: .exact("0.1"))])
 
@@ -118,7 +102,6 @@ final class ProjectGeneratorTests: TuistUnitTestCase {
         let temporaryPath = try self.temporaryPath()
         let project = Project.test(path: temporaryPath,
                                    name: "Project",
-                                   fileName: "SomeAwesomeName",
                                    targets: [])
         let graph = Graph.test(entryPath: temporaryPath)
 
@@ -138,7 +121,6 @@ final class ProjectGeneratorTests: TuistUnitTestCase {
         let temporaryPath = try self.temporaryPath()
         let project = Project.test(path: temporaryPath,
                                    name: "Project",
-                                   fileName: "SomeAwesomeName",
                                    targets: [])
         let graph = Graph.test(entryPath: temporaryPath)
 

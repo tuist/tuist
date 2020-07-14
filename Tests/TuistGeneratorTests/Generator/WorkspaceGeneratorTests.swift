@@ -82,6 +82,7 @@ final class WorkspaceGeneratorTests: TuistUnitTestCase {
         let target = anyTarget()
         let project = Project.test(path: temporaryPath,
                                    sourceRootPath: temporaryPath,
+                                   xcodeProjPath: temporaryPath.appending(component: "Test.xcodeproj"),
                                    name: "Test",
                                    settings: .default,
                                    targets: [target])
