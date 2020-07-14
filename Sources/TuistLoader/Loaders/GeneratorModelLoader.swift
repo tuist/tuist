@@ -96,7 +96,7 @@ extension GeneratorModelLoader {
         // Xcode project file name
         var xcodeProjPath: AbsolutePath = enrichedModel.xcodeProjPath
         if let xcodeFileName = xcodeFileNameOverride(from: config, for: model) {
-            xcodeProjPath = enrichedModel.xcodeProjPath.parentDirectory.appending(component: xcodeFileName)
+            xcodeProjPath = enrichedModel.xcodeProjPath.parentDirectory.appending(component: "\(xcodeFileName).xcodeproj")
         }
         enrichedModel = enrichedModel.replacing(xcodeProjPath: xcodeProjPath)
 
