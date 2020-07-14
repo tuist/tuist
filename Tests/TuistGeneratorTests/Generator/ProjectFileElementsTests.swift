@@ -172,12 +172,6 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         ])
     }
 
-    override func invokeTest() {
-        for _ in 0 ... 10 {
-            super.invokeTest()
-        }
-    }
-
     func test_addElement_xcassets_and_scnassets_multiple_files() throws {
         // Given
         let resouces = [
