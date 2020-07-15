@@ -34,7 +34,7 @@ final class InfoPlistContentHasherTests: TuistUnitTestCase {
         let hash = try subject.hash(plist: infoPlist)
 
         // Then
-        XCTAssertEqual(mockContentHasher.hashFileAtPathCallCount, 1)
+        XCTAssertEqual(mockContentHasher.hashPathCallCount, 1)
         XCTAssertEqual(hash, "stubHash")
     }
 
@@ -47,7 +47,7 @@ final class InfoPlistContentHasherTests: TuistUnitTestCase {
         let hash = try subject.hash(plist: infoPlist)
 
         // Then
-        XCTAssertEqual(mockContentHasher.hashFileAtPathCallCount, 1)
+        XCTAssertEqual(mockContentHasher.hashPathCallCount, 1)
         XCTAssertEqual(hash, "stubHash")
     }
 

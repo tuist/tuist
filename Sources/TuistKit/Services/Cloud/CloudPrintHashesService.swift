@@ -20,18 +20,21 @@ final class CloudPrintHashesService {
         self.clock = clock
     }
 
-    func run(path: AbsolutePath) throws -> TimeInterval {
+    func run(path: AbsolutePath) throws {
         let timer = clock.startTimer()
 
         let graph = try projectGenerator.load(path: path)
         let hashes = try graphContentHasher.contentHashes(for: graph)
         let duration = timer.stop()
         let time = String(format: "%.3f", duration)
-
-        for (target, hash) in hashes {
+        guard hashes.count > 0 else {
+            logger.notice("No cacheable targets were found")
+            return
+        }
+        let sortedHashes = hashes.sorted { $0.key.name < $1.key.name }
+        for (target, hash) in sortedHashes {
             logger.info("\(target.name) - \(hash)")
         }
         logger.notice("Total time taken: \(time)s")
-        return duration
     }
 }

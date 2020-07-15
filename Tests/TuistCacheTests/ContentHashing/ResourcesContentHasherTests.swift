@@ -39,7 +39,7 @@ final class ResourcesContentHasherTests: TuistUnitTestCase {
         let hash = try subject.hash(resources: [file1, file2])
 
         // Then
-        XCTAssertEqual(mockContentHasher.hashFileAtPathCallCount, 2)
+        XCTAssertEqual(mockContentHasher.hashPathCallCount, 2)
         XCTAssertEqual(hash, "1;2")
     }
 
@@ -54,7 +54,7 @@ final class ResourcesContentHasherTests: TuistUnitTestCase {
         let hash = try subject.hash(resources: [file1, file2])
 
         // Then
-        XCTAssertEqual(mockContentHasher.hashFileAtPathCallCount, 2)
+        XCTAssertEqual(mockContentHasher.hashPathCallCount, 2)
         XCTAssertEqual(hash, "1;2")
     }
 }

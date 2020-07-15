@@ -17,9 +17,9 @@ enum ContentHashingError: FatalError, Equatable {
     var description: String {
         switch self {
         case let .failedToReadFile(path):
-            return "Couldn't find file at path \(path.pathString) while hashing the target for caching."
+            return "Couldn't find file to calculate hash at path \(path.pathString)"
         case let .fileHashingFailed(path):
-            return "Couldn't calculate hash of file at path \(path.pathString) for caching."
+            return "Couldn't calculate hash of file at path \(path.pathString)"
         case let .stringHashingFailed(string):
             return "Couldn't calculate hash of string \(string) for caching."
         }
