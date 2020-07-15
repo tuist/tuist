@@ -54,7 +54,8 @@ public final class ContentHasher: ContentHashing {
     public func hash(path filePath: AbsolutePath) throws -> String {
         if fileHandler.isFolder(filePath) {
             let paths = try fileHandler.contentsOfDirectory(filePath)
-            return try paths.map { try hash(path: $0) }.joined(separator: "-")
+            let sortedPaths = paths.sorted(by: { $0 < $1 })
+            return try sortedPaths.map { try hash(path: $0) }.joined(separator: "-")
         }
         guard fileHandler.exists(filePath) else {
             throw FileHandlerError.fileNotFound(filePath)
