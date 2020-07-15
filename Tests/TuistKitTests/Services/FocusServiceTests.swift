@@ -50,7 +50,9 @@ final class FocusServiceTests: TuistUnitTestCase {
 
     func test_run_fatalErrors_when_theworkspaceGenerationFails() throws {
         let error = NSError.test()
-        generator.stubbedGenerateProjectWorkspaceError = error
+        generator.generateStub = { _, _ in
+            throw error
+        }
 
         XCTAssertThrowsError(try subject.run(cache: false)) {
             XCTAssertEqual($0 as NSError?, error)
@@ -60,7 +62,10 @@ final class FocusServiceTests: TuistUnitTestCase {
     func test_run() throws {
         let workspacePath = AbsolutePath("/test.xcworkspace")
 
-        generator.stubbedGenerateProjectWorkspaceResult = (workspacePath, .test())
+        generator.generateStub = { _, _ in
+            workspacePath
+        }
+
         try subject.run(cache: false)
 
         XCTAssertEqual(opener.openArgs.last?.0, workspacePath.pathString)
