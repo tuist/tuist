@@ -28,7 +28,9 @@ public final class GraphContentHasher: GraphContentHashing {
         var visitedNodes: [TargetNode: Bool] = [:]
         let hashableTargets = graph.targets.values.flatMap { (targets: [TargetNode]) -> [TargetNode] in
             targets.compactMap { target in
-                if self.isCacheable(target, visited: &visitedNodes) { return target }
+                if self.isCacheable(target, visited: &visitedNodes) {
+                    return target
+                }
                 return nil
             }
         }
@@ -42,7 +44,7 @@ public final class GraphContentHasher: GraphContentHashing {
 
     fileprivate func isCacheable(_ target: TargetNode, visited: inout [TargetNode: Bool]) -> Bool {
         if let visitedValue = visited[target] { return visitedValue }
-        let isFramework = target.target.product == .framework
+        let isFramework = target.target.product == .framework || target.target.product == .staticFramework
         let noXCTestDependency = !target.dependsOnXCTest
         let allTargetDependenciesAreHasheable = target.targetDependencies.allSatisfy { isCacheable($0, visited: &visited) }
         let cacheable = isFramework && noXCTestDependency && allTargetDependenciesAreHasheable
