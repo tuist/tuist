@@ -6,7 +6,7 @@ import TuistSupport
 struct CloudPrintHashesCommand: ParsableCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(commandName: "print-hashes",
-                             abstract: "Print the hashes of the frameworks used by the given project.")
+                             abstract: "Print the hashes of the cacheable frameworks in the given project.")
     }
 
     @Option(
