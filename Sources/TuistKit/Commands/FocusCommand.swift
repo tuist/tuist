@@ -16,7 +16,10 @@ struct FocusCommand: ParsableCommand {
                              abstract: "Opens Xcode ready to focus on the project in the current directory")
     }
 
+    @Flag(help: "Generate a project replacing dependencies with pre-compiled assets.")
+    var cache: Bool
+
     func run() throws {
-        try FocusService().run(cache: true)
+        try FocusService().run(cache: cache)
     }
 }
