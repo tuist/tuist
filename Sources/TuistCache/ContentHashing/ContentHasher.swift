@@ -52,6 +52,10 @@ public final class ContentHasher: ContentHashing {
     }
 
     public func hash(fileAtPath filePath: AbsolutePath) throws -> String {
+        if fileHandler.isFolder(filePath) {
+            let paths = try fileHandler.contentsOfDirectory(filePath)
+            return try paths.map { try hash(fileAtPath: $0) }.joined(separator: "-")
+        }
         guard fileHandler.exists(filePath) else {
             throw FileHandlerError.fileNotFound(filePath)
         }
