@@ -43,12 +43,15 @@ extension AbsolutePath {
     /// - Returns: List of paths that match the given pattern.
     public func throwingGlob(_ pattern: String) throws -> [AbsolutePath] {
         let globPath = appending(RelativePath(pattern)).pathString
-        let pathUpToLastNonGlob = AbsolutePath(globPath).upToLastNonGlob
 
-        if !pathUpToLastNonGlob.isFolder {
-            let invalidGlob = InvalidGlob(pattern: globPath,
-                                          nonExistentPath: pathUpToLastNonGlob)
-            throw GlobError.nonExistentDirectory(invalidGlob)
+        if globPath.isGlobComponent {
+            let pathUpToLastNonGlob = AbsolutePath(globPath).upToLastNonGlob
+
+            if !pathUpToLastNonGlob.isFolder {
+                let invalidGlob = InvalidGlob(pattern: globPath,
+                                              nonExistentPath: pathUpToLastNonGlob)
+                throw GlobError.nonExistentDirectory(invalidGlob)
+            }
         }
 
         return glob(pattern)
