@@ -23,8 +23,8 @@ public final class SourceFilesContentHasher: SourceFilesContentHashing {
     /// Then it hashes again all partial hashes to get a unique identifier that represents a group of source files together with their compiler flags
     public func hash(sources: [Target.SourceFile]) throws -> String {
         var stringsToHash: [String] = []
-        for source in sources {
-            var sourceHash = try contentHasher.hash(fileAtPath: source.path)
+        for source in sources.sorted(by: { $0.path.pathString < $1.path.pathString }) {
+            var sourceHash = try contentHasher.hash(path: source.path)
             if let compilerFlags = source.compilerFlags {
                 sourceHash += try contentHasher.hash(compilerFlags)
             }
