@@ -4,6 +4,12 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+## 1.12.2 - Waka Waka
+
+### Fixed
+
+- Fix a bug introduced in [#1523](https://github.com/tuist/tuist/pull/1523), when a valid source file would result in throwing an invalid glob error [#1566](https://github.com/tuist/tuist/pull/1566) by [@natanrolnik](https://github.com/natanrolnik)
+
 ## 1.12.1 - Waka
 
 ### Added
