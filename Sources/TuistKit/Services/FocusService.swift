@@ -31,7 +31,7 @@ final class FocusService {
     func run(cache: Bool) throws {
         let generator = generatorProvider.generator(cache: cache)
         let path = FileHandler.shared.currentPath
-        let (workspacePath, _) = try generator.generateProjectWorkspace(path: path)
+        let workspacePath = try generator.generate(path: path, projectOnly: false)
         try opener.open(path: workspacePath)
     }
 }
