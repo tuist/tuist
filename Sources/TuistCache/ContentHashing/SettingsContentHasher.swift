@@ -46,7 +46,7 @@ public final class SettingsContentHasher: SettingsContentHashing {
     private func hash(_ configuration: Configuration) throws -> String {
         var configurationHash = hash(configuration.settings)
         if let xcconfigPath = configuration.xcconfig {
-            let xcconfigHash = try contentHasher.hash(fileAtPath: xcconfigPath)
+            let xcconfigHash = try contentHasher.hash(path: xcconfigPath)
             configurationHash += xcconfigHash
         }
         return configurationHash

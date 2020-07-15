@@ -47,6 +47,6 @@ final class HeadersContentHasherTests: TuistUnitTestCase {
         // Then
         let hash = try subject.hash(headers: headers)
         XCTAssertEqual(hash, "1;2;3;4;5;6")
-        XCTAssertEqual(mockContentHasher.hashFileAtPathCallCount, 6)
+        XCTAssertEqual(mockContentHasher.hashPathCallCount, 6)
     }
 }
