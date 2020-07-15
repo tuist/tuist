@@ -23,8 +23,8 @@ class ProjectMapperProvider: ProjectMapperProviding {
         mappers.append(DeleteDerivedDirectoryProjectMapper())
         mappers.append(GenerateInfoPlistProjectMapper())
 
-        // Support for resources in static libraries
-        mappers.append(StaticResourcesProjectMapper())
+        // Support for resources in libraries
+        mappers.append(LibraryResourcesProjectMapper())
 
         // Signing
         mappers.append(SigningMapper())

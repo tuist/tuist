@@ -3,8 +3,8 @@ import TSCBasic
 import TuistCore
 import TuistSupport
 
-/// A project mapper that adds support for defining resources in static libraries and frameworks
-public class StaticResourcesProjectMapper: ProjectMapping {
+/// A project mapper that adds support for defining resources in  libraries
+public class LibraryResourcesProjectMapper: ProjectMapping {
     public init() {}
 
     public func map(project: Project) throws -> (Project, [SideEffectDescriptor]) {
