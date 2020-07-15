@@ -4,6 +4,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+## 1.12.1 - Waka
+
 ### Added
 
 - Add benchmark rake task [#1561](https://github.com/tuist/tuist/pull/1561) by [@kwridan](https://github.com/kwridan).
