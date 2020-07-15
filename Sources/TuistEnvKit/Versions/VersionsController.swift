@@ -82,6 +82,6 @@ class VersionsController: VersionsControlling {
                 return semver
             }
             return nil
-        }
+        }.sorted()
     }
 }
