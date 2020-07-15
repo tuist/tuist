@@ -22,9 +22,9 @@ public class MockContentHashing: ContentHashing {
     }
 
     public var stubHashForPath: [AbsolutePath: String] = [:]
-    public var hashFileAtPathCallCount = 0
-    public func hash(fileAtPath filePath: AbsolutePath) throws -> String {
-        hashFileAtPathCallCount += 1
+    public var hashPathCallCount = 0
+    public func hash(path filePath: AbsolutePath) throws -> String {
+        hashPathCallCount += 1
         return stubHashForPath[filePath] ?? ""
     }
 

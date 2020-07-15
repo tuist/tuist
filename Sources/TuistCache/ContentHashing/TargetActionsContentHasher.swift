@@ -29,7 +29,7 @@ public final class TargetActionsContentHasher: TargetActionsContentHashing {
             pathsToHash.append(contentsOf: targetAction.inputFileListPaths)
             pathsToHash.append(contentsOf: targetAction.outputPaths)
             pathsToHash.append(contentsOf: targetAction.outputFileListPaths)
-            let fileHashes = try pathsToHash.map { try contentHasher.hash(fileAtPath: $0) }
+            let fileHashes = try pathsToHash.map { try contentHasher.hash(path: $0) }
             stringsToHash.append(contentsOf: fileHashes +
                 [targetAction.name,
                  targetAction.tool ?? "", // TODO: don't default to ""

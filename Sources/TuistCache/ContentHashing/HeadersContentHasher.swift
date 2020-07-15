@@ -20,7 +20,7 @@ public final class HeadersContentHasher: HeadersContentHashing {
 
     public func hash(headers: Headers) throws -> String {
         let allHeaders = headers.public + headers.private + headers.project
-        let headersContent = try allHeaders.map { try contentHasher.hash(fileAtPath: $0) }
+        let headersContent = try allHeaders.map { try contentHasher.hash(path: $0) }
         return try contentHasher.hash(headersContent)
     }
 }
