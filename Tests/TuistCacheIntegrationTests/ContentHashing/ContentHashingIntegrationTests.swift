@@ -66,7 +66,7 @@ final class ContentHashingIntegrationTests: TuistTestCase {
         // Given
         let temporaryDirectoryPath = try temporaryPath()
         let framework1 = makeFramework(named: "f1", sources: [source1, source2])
-        let framework2 = makeFramework(named: "f2", sources: [source1, source2])
+        let framework2 = makeFramework(named: "f2", sources: [source2, source1])
         let graph = Graph.test(targets: [
             temporaryDirectoryPath: [framework1, framework2],
         ])
