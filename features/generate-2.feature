@@ -66,5 +66,11 @@ Scenario: The project is an iOS application that has resources (ios_app_with_fra
     Then the product 'App.app' with destination 'Debug-iphoneos' contains resource 'resource_without_extension'
     Then the product 'App.app' with destination 'Debug-iphoneos' does not contain resource 'do_not_include.dat'
     Then the product 'App.app' with destination 'Debug-iphoneos' contains resource 'StaticFrameworkResources.bundle'
+    Then the product 'App.app' with destination 'Debug-iphoneos' contains resource 'StaticFramework2Resources.bundle'
+    Then the product 'App.app' with destination 'Debug-iphoneos' contains resource 'StaticFramework3Resources.bundle'
+    Then the product 'App.app' with destination 'Debug-iphoneos' contains resource 'StaticFramework4Resources.bundle'
     Then the product 'App.app' with destination 'Debug-iphoneos' does not contain headers
     Then the product 'StaticFrameworkResources.bundle' with destination 'Debug-iphoneos' contains resource 'tuist-bundle.png'
+    Then the product 'StaticFramework2Resources.bundle' with destination 'Debug-iphoneos' contains resource 'StaticFramework2Resources-tuist.png'
+    Then the product 'StaticFramework3Resources.bundle' with destination 'Debug-iphoneos' contains resource 'StaticFramework3Resources-tuist.png'
+    Then the product 'StaticFramework4Resources.bundle' with destination 'Debug-iphoneos' contains resource 'StaticFramework4Resources-tuist.png'

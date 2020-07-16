@@ -76,6 +76,32 @@ extension String {
     public mutating func capitalizeFirstLetter() {
         self = capitalizingFirstLetter()
     }
+
+    public var uppercasingFirst: String {
+        prefix(1).uppercased() + dropFirst()
+    }
+
+    public var lowercasingFirst: String {
+        prefix(1).lowercased() + dropFirst()
+    }
+
+    /// A collection of all the words in the string by separating out any punctuation and spaces.
+    public var words: [String] {
+        components(separatedBy: CharacterSet.alphanumerics.inverted).filter { !$0.isEmpty }
+    }
+
+    public var camelized: String {
+        guard !isEmpty else {
+            return ""
+        }
+
+        let parts = components(separatedBy: CharacterSet.alphanumerics.inverted)
+
+        let first = String(describing: parts.first!).lowercasingFirst
+        let rest = parts.dropFirst().map { String($0).uppercasingFirst }
+
+        return ([first] + rest).joined(separator: "")
+    }
 }
 
 private func inShellWhitelist(_ codeUnit: UInt8) -> Bool {

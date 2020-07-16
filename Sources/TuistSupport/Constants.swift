@@ -23,6 +23,7 @@ public struct Constants {
     public struct DerivedDirectory {
         public static let name = "Derived"
         public static let infoPlists = "InfoPlists"
+        public static let sources = "Sources"
         public static let signingKeychain = "signing.keychain"
     }
 
