@@ -39,9 +39,12 @@ public class LibraryResourcesProjectMapper: ProjectMapping {
             modifiedTarget.resources = []
             modifiedTarget.dependencies.append(.target(name: bundleName))
             targets.append(resourcesTarget)
-        } else {}
+        }
 
-        modifiedTarget.sources.append((path: filePath, compilerFlags: nil))
+        if target.supportsSources {
+            modifiedTarget.sources.append((path: filePath, compilerFlags: nil))
+        }
+
         targets.append(modifiedTarget)
 
         return (targets, fileDescriptors)
