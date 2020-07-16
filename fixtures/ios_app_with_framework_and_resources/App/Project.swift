@@ -24,6 +24,7 @@ let project = Project(
                 .project(target: "StaticFrameworkResources", path: "../StaticFramework"),
                 .project(target: "StaticFramework2", path: "../StaticFramework2"),
                 .project(target: "StaticFramework3", path: "../StaticFramework3"),
+                .project(target: "StaticFramework4", path: "../StaticFramework4"),
             ]
         ),
         Target(

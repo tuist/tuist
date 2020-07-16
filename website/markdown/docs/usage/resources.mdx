@@ -25,13 +25,22 @@ Tuist solves this by generating a `Bundle` extension for accessing the right bun
 For example, given a target framework `MyFeature`, you'll be able to get the right bundle with:
 
 ```swift
-let bundle = Bundle.myFeature
+let bundle = Bundle.module
 ```
 
-Furthermore, we support defining resources in libraries. For libraries that have resources, we generate an associated bundle target (e.g. `MyFeatureResources.bundle`) that contains all the resources. The bundle ends up being copied into the final product bundle that contains the library.
+Furthermore, we support defining resources in products that don't support it (e.g. libraries). For those, we generate an associated bundle target (e.g. `MyFeatureResources.bundle`) that contains all the resources. The bundle ends up being copied into the final product bundle that contains compiled target.
 
 <Message
   info
   title="Strongly recommended"
   description={`Accessing the resources this way is not mandatory, yet we recommend it strongly. It'll ease making changes in your project like turning a library into a framework.`}
 />
+
+### Objective-C
+
+Tuist also synthesizes accessors for Objective-C.
+In this case, the Bundle needs to be accessed using the target name to avoid name conflicts:
+
+```objectivec
+NSBundle *bundle = [MyFeatureResources bundle];
+```

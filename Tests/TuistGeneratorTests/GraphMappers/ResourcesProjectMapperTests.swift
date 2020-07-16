@@ -102,4 +102,18 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         XCTAssertEqual(gotTarget.sources.first?.path, expectedPath)
         XCTAssertEqual(gotTarget.dependencies.count, 0)
     }
+
+    func test_map_when_a_target_has_no_resources() throws {
+        // Given
+        let resources: [FileElement] = []
+        let target = Target.test(product: .framework, resources: resources)
+        project = Project.test(targets: [target])
+
+        // Got
+        let (gotProject, gotSideEffects) = try subject.map(project: project)
+
+        // Then
+        XCTAssertEqual(gotProject.targets, [target])
+        XCTAssertEmpty(gotSideEffects)
+    }
 }

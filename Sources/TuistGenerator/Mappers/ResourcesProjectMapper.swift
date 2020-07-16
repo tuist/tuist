@@ -21,7 +21,7 @@ public class ResourcesProjectMapper: ProjectMapping {
     }
 
     public func mapTarget(_ target: Target, project: Project) -> ([Target], [SideEffectDescriptor]) {
-        guard target.resources.count != 0 else { return ([target], []) }
+        if target.resources.isEmpty { return ([target], []) }
         var additionalTargets: [Target] = []
         var sideEffects: [SideEffectDescriptor] = []
 
@@ -63,13 +63,15 @@ public class ResourcesProjectMapper: ProjectMapping {
 
     static func fileContent(targetName: String, bundleName: String) -> String {
         """
-        import class Foundation.Bundle
+        import Foundation
+
+        // MARK: - Swift Bundle Accessor
 
         private class BundleFinder {}
 
         extension Foundation.Bundle {
             /// Returns the resource bundle associated with the current Swift module.
-            static var \(targetName.camelized.lowercasingFirst): Bundle = {
+            static var module: Bundle = {
                 let bundleName = "\(bundleName)"
 
                 let candidates = [
@@ -91,6 +93,13 @@ public class ResourcesProjectMapper: ProjectMapping {
                 }
                 fatalError("unable to find bundle named \(bundleName)")
             }()
+        }
+
+        @objc
+        public class \(targetName)Resources: NSObject {
+           @objc public class var bundle: Bundle {
+                 return .module
+           }
         }
         """
     }
