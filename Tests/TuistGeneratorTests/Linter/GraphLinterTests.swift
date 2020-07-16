@@ -228,29 +228,6 @@ final class GraphLinterTests: TuistUnitTestCase {
         XCTAssertTrue(result.isEmpty)
     }
 
-    func test_lint_staticTargetDependsOnBundle() throws {
-        // Given
-        let bundle = Target.empty(name: "bundle", product: .bundle)
-        let staticFramework = Target.empty(name: "staticFramework", product: .staticFramework)
-        let staticLibrary = Target.empty(name: "staticLibrary", product: .staticLibrary)
-        let graph = Graph.create(project: .empty(),
-                                 dependencies: [
-                                     (target: bundle, dependencies: []),
-                                     (target: staticFramework, dependencies: [bundle]),
-                                     (target: staticLibrary, dependencies: [bundle]),
-                                 ])
-
-        // When
-        let result = subject.lint(graph: graph)
-
-        // Then
-        let sortedResults = result.sorted { $0.reason < $1.reason }
-        XCTAssertEqual(sortedResults, [
-            LintingIssue(reason: "Target staticFramework has a dependency with target bundle of type bundle for platform 'iOS' which is invalid or not supported yet.", severity: .error),
-            LintingIssue(reason: "Target staticLibrary has a dependency with target bundle of type bundle for platform 'iOS' which is invalid or not supported yet.", severity: .error),
-        ])
-    }
-
     func test_lint_staticProductsCanDependOnDynamicFrameworks() throws {
         // Given
         let staticFramework = Target.empty(name: "StaticFramework", product: .staticFramework)

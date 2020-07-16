@@ -153,7 +153,7 @@ public class Graph: Encodable, Equatable {
             .map(productDependencyReference)
     }
 
-    /// Returns the resource bundle dependencies for the given target.
+    /// Returns the transitive resource bundle dependencies for the given target.
     /// - Parameters:
     ///   - path: Path to the directory where the project that defines the target is located.
     ///   - name: Name of the target.
@@ -162,8 +162,23 @@ public class Graph: Encodable, Equatable {
             return []
         }
 
-        return targetNode.targetDependencies
-            .filter { $0.target.product == .bundle }
+        guard targetNode.target.supportsResources else {
+            return []
+        }
+
+        let canHostResources: (TargetNode) -> Bool = {
+            $0.target.supportsResources
+        }
+
+        let isBundle: (TargetNode) -> Bool = {
+            $0.target.product == .bundle
+        }
+
+        let bundles = findAll(targetNode: targetNode, test: isBundle, skip: canHostResources)
+
+        return bundles.sorted {
+            $0.target.name < $1.target.name
+        }
     }
 
     /// It returns the libraries a given target should be linked against.

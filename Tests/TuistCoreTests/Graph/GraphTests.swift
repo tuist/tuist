@@ -948,6 +948,96 @@ final class GraphTests: TuistUnitTestCase {
         ])
     }
 
+    func test_resourceBundleDependencies_transitivelyViaSingleStaticFramework() {
+        // Given
+        let bundle = Target.test(name: "ResourceBundle", product: .bundle)
+        let staticFramework = Target.test(name: "StaticFramework", product: .staticFramework)
+        let projectA = Project.test(path: "/path/a", targets: [staticFramework, bundle])
+
+        let app = Target.test(name: "App", product: .app)
+        let projectB = Project.test(path: "/path/b", targets: [app])
+
+        let graph = Graph.create(projects: [projectA, projectB],
+                                 dependencies: [
+                                     (project: projectB, target: app, dependencies: [staticFramework]),
+                                     (project: projectA, target: staticFramework, dependencies: [bundle]),
+                                     (project: projectA, target: bundle, dependencies: []),
+                                 ])
+
+        // When
+        let result = graph.resourceBundleDependencies(path: projectB.path, name: app.name)
+
+        // Then
+        XCTAssertEqual(result.map(\.target.name), [
+            "ResourceBundle",
+        ])
+    }
+
+    func test_resourceBundleDependencies_transitivelyViaMultipleStaticFrameworks() {
+        // Given
+        let bundle1 = Target.test(name: "ResourceBundle1", product: .bundle)
+        let bundle2 = Target.test(name: "ResourceBundle2", product: .bundle)
+        let staticFramework1 = Target.test(name: "StaticFramework1", product: .staticFramework)
+        let staticFramework2 = Target.test(name: "StaticFramework2", product: .staticFramework)
+        let projectA = Project.test(path: "/path/a", targets: [staticFramework1, staticFramework2, bundle1, bundle2])
+
+        let app = Target.test(name: "App", product: .app)
+        let projectB = Project.test(path: "/path/b", targets: [app])
+
+        let graph = Graph.create(projects: [projectA, projectB],
+                                 dependencies: [
+                                     (project: projectB, target: app, dependencies: [staticFramework1]),
+                                     (project: projectA, target: staticFramework1, dependencies: [staticFramework2, bundle1]),
+                                     (project: projectA, target: staticFramework2, dependencies: [bundle2]),
+                                     (project: projectA, target: bundle1, dependencies: []),
+                                     (project: projectA, target: bundle2, dependencies: []),
+                                 ])
+
+        // When
+        let result = graph.resourceBundleDependencies(path: projectB.path, name: app.name)
+
+        // Then
+        XCTAssertEqual(result.map(\.target.name), [
+            "ResourceBundle1",
+            "ResourceBundle2",
+        ])
+    }
+
+    func test_resourceBundleDependencies_transitivelyToDynamicFramework() {
+        // Given
+        let bundle = Target.test(name: "ResourceBundle", product: .bundle)
+        let staticFramework1 = Target.test(name: "StaticFramework1", product: .staticFramework)
+        let staticFramework2 = Target.test(name: "StaticFramework2", product: .staticFramework)
+        let dynamicFramework = Target.test(name: "DynamicFramework", product: .framework)
+        let projectA = Project.test(path: "/path/a", targets: [dynamicFramework, staticFramework1, staticFramework2, bundle])
+
+        let app = Target.test(name: "App", product: .app)
+        let projectB = Project.test(path: "/path/b", targets: [app])
+
+        let graph = Graph.create(projects: [projectA, projectB],
+                                 dependencies: [
+                                     (project: projectB, target: app, dependencies: [dynamicFramework]),
+                                     (project: projectA, target: dynamicFramework, dependencies: [staticFramework2]),
+                                     (project: projectA, target: staticFramework1, dependencies: [staticFramework2]),
+                                     (project: projectA, target: staticFramework2, dependencies: [bundle]),
+                                     (project: projectA, target: bundle, dependencies: []),
+                                 ])
+
+        // When
+        let appResults = graph.resourceBundleDependencies(path: projectB.path, name: app.name)
+        let dynamicFrameworkResults = graph.resourceBundleDependencies(path: projectA.path, name: dynamicFramework.name)
+        let staticFramework1Results = graph.resourceBundleDependencies(path: projectA.path, name: staticFramework1.name)
+        let staticFramework2Results = graph.resourceBundleDependencies(path: projectA.path, name: staticFramework2.name)
+
+        // Then
+        XCTAssertEqual(appResults.map(\.target.name), [])
+        XCTAssertEqual(dynamicFrameworkResults.map(\.target.name), [
+            "ResourceBundle",
+        ])
+        XCTAssertEqual(staticFramework1Results.map(\.target.name), [])
+        XCTAssertEqual(staticFramework2Results.map(\.target.name), [])
+    }
+
     func test_appExtensionDependencies_when_dependencyIsAppExtension() throws {
         let target = Target.test(name: "Main")
         let dependency = Target.test(name: "AppExtension", product: .appExtension)

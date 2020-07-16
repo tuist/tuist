@@ -132,6 +132,16 @@ public struct Target: Equatable, Hashable {
         }
     }
 
+    /// Returns true if the target supports hosting resources
+    public var supportsResources: Bool {
+        switch product {
+        case .dynamicLibrary, .staticLibrary, .staticFramework:
+            return false
+        default:
+            return true
+        }
+    }
+
     /// Returns true if the file at the given path is a resource.
     /// - Parameter path: Path to the file to be checked.
     public static func isResource(path: AbsolutePath) -> Bool {
