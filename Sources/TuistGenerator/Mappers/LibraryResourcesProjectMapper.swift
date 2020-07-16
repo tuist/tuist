@@ -22,10 +22,10 @@ public class LibraryResourcesProjectMapper: ProjectMapping {
 
     public func mapTarget(_ target: Target, project: Project) -> ([Target], [SideEffectDescriptor]) {
         guard target.resources.count != 0 else { return ([target], []) }
-        var targets: [Target] = []
+        var additionalTargets: [Target] = []
+        var sideEffects: [SideEffectDescriptor] = []
 
         let bundleName = "\(target.name)Resources"
-        let (filePath, fileDescriptors) = synthesizedFile(bundleName: bundleName, target: target, project: project)
         var modifiedTarget = target
 
         if target.product.isStatic {
@@ -38,16 +38,16 @@ public class LibraryResourcesProjectMapper: ProjectMapping {
                                          filesGroup: target.filesGroup)
             modifiedTarget.resources = []
             modifiedTarget.dependencies.append(.target(name: bundleName))
-            targets.append(resourcesTarget)
+            additionalTargets.append(resourcesTarget)
         }
 
         if target.supportsSources {
+            let (filePath, fileDescriptors) = synthesizedFile(bundleName: bundleName, target: target, project: project)
             modifiedTarget.sources.append((path: filePath, compilerFlags: nil))
+            sideEffects.append(contentsOf: fileDescriptors)
         }
 
-        targets.append(modifiedTarget)
-
-        return (targets, fileDescriptors)
+        return ([modifiedTarget] + additionalTargets, sideEffects)
     }
 
     public func synthesizedFile(bundleName: String, target: Target, project: Project) -> (AbsolutePath, [SideEffectDescriptor]) {
