@@ -1,8 +1,8 @@
 import Foundation
 import UIKit
 
-public class StaticFramework2Resources {
-    public let name = "StaticFramework2Resources"
+public class StaticFramework3Resources {
+    public let name = "StaticFramework3Resources"
     public init() {
 
     }
