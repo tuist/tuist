@@ -56,33 +56,38 @@ public class LibraryResourcesProjectMapper: ProjectMapping {
             .appending(component: Constants.DerivedDirectory.sources)
             .appending(component: "Bundle+\(target.name).swift")
 
-        let content: String
+        let content: String = """
+        import class Foundation.Bundle
 
-        // The bundle is copied into the final product's bundle
-        if target.product.isStatic {
-            content = """
-            import Foundation
+        private class BundleFinder {}
 
-            public extension Bundle {
-                static var \(target.name.camelized.lowercasingFirst): Bundle {
-                    return Bundle(url: Bundle.main.bundleURL.appendingPathComponent("\(bundleName).bundle"))!
+        extension Foundation.Bundle {
+            /// Returns the resource bundle associated with the current Swift module.
+            static var \(target.name.camelized.lowercasingFirst): Bundle = {
+                let bundleName = "\(bundleName)"
+
+                let candidates = [
+                    // Bundle should be present here when the package is linked into an App.
+                    Bundle.main.resourceURL,
+
+                    // Bundle should be present here when the package is linked into a framework.
+                    Bundle(for: BundleFinder.self).resourceURL,
+
+                    // For command-line tools.
+                    Bundle.main.bundleURL,
+                ]
+
+                for candidate in candidates {
+                    let bundlePath = candidate?.appendingPathComponent(bundleName + ".bundle")
+                    if let bundle = bundlePath.flatMap(Bundle.init(url:)) {
+                        return bundle
+                    }
                 }
-            }
-            """
-        } else {
-            content = """
-            import Foundation
-
-            private class \(target.name.camelized.uppercasingFirst)Bundle {}
-
-            public extension Bundle {
-                static var \(target.name.camelized.lowercasingFirst): Bundle {
-                    return Bundle(for: \(target.name.camelized.uppercasingFirst)Bundle.self)
-                }
-            }
-            """
+                fatalError("unable to find bundle named \(bundleName)")
+            }()
         }
-
+        """
+        
         return (filePath, [.file(.init(path: filePath, contents: content.data(using: .utf8), state: .present))])
     }
 }
