@@ -95,6 +95,8 @@ public class ResourcesProjectMapper: ProjectMapping {
             }()
         }
 
+        // MARK: - Objective-C Bundle Accessor
+
         @objc
         public class \(targetName)Resources: NSObject {
            @objc public class var bundle: Bundle {

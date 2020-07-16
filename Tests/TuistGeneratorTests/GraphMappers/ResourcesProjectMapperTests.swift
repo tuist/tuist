@@ -116,4 +116,21 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         XCTAssertEqual(gotProject.targets, [target])
         XCTAssertEmpty(gotSideEffects)
     }
+
+    func test_map_when_a_target_does_not_support_sources() throws {
+        // Given
+        let resources: [FileElement] = [
+            .file(path: "/Some/ResourceA"),
+            .file(path: "/Some/ResourceB"),
+        ]
+        let target = Target.test(product: .bundle, resources: resources)
+        project = Project.test(targets: [target])
+
+        // Got
+        let (gotProject, gotSideEffects) = try subject.map(project: project)
+
+        // Then
+        XCTAssertEqual(gotProject.targets, [target])
+        XCTAssertEmpty(gotSideEffects)
+    }
 }
