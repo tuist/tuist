@@ -24,7 +24,7 @@ class ProjectMapperProvider: ProjectMapperProviding {
         mappers.append(GenerateInfoPlistProjectMapper())
 
         // Support for resources in libraries
-        mappers.append(LibraryResourcesProjectMapper())
+        mappers.append(ResourcesProjectMapper())
 
         // Signing
         mappers.append(SigningMapper())

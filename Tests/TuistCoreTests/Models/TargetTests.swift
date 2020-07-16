@@ -179,6 +179,22 @@ final class TargetTests: TuistUnitTestCase {
         ]), error)
     }
 
+    func test_supportsResources() {
+        XCTAssertFalse(Target.test(product: .dynamicLibrary).supportsResources)
+        XCTAssertFalse(Target.test(product: .staticLibrary).supportsResources)
+        XCTAssertFalse(Target.test(product: .staticFramework).supportsResources)
+        XCTAssertTrue(Target.test(product: .app).supportsResources)
+        XCTAssertTrue(Target.test(product: .framework).supportsResources)
+        XCTAssertTrue(Target.test(product: .unitTests).supportsResources)
+        XCTAssertTrue(Target.test(product: .uiTests).supportsResources)
+        XCTAssertTrue(Target.test(product: .bundle).supportsResources)
+        XCTAssertTrue(Target.test(product: .appExtension).supportsResources)
+        XCTAssertTrue(Target.test(product: .watch2App).supportsResources)
+        XCTAssertTrue(Target.test(product: .watch2Extension).supportsResources)
+        XCTAssertTrue(Target.test(product: .messagesExtension).supportsResources)
+        XCTAssertTrue(Target.test(product: .stickerPackExtension).supportsResources)
+    }
+
     func test_resources() throws {
         // Given
         let temporaryPath = try self.temporaryPath()

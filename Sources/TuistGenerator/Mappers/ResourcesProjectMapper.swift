@@ -3,8 +3,8 @@ import TSCBasic
 import TuistCore
 import TuistSupport
 
-/// A project mapper that adds support for defining resources in  libraries
-public class LibraryResourcesProjectMapper: ProjectMapping {
+/// A project mapper that adds support for defining resources in targets that don't support it
+public class ResourcesProjectMapper: ProjectMapping {
     public init() {}
 
     public func map(project: Project) throws -> (Project, [SideEffectDescriptor]) {
@@ -28,7 +28,7 @@ public class LibraryResourcesProjectMapper: ProjectMapping {
         let bundleName = "\(target.name)Resources"
         var modifiedTarget = target
 
-        if target.product.isStatic {
+        if !target.supportsResources {
             let resourcesTarget = Target(name: bundleName,
                                          platform: target.platform,
                                          product: .bundle,
@@ -50,20 +50,26 @@ public class LibraryResourcesProjectMapper: ProjectMapping {
         return ([modifiedTarget] + additionalTargets, sideEffects)
     }
 
-    public func synthesizedFile(bundleName: String, target: Target, project: Project) -> (AbsolutePath, [SideEffectDescriptor]) {
+    func synthesizedFile(bundleName: String, target: Target, project: Project) -> (AbsolutePath, [SideEffectDescriptor]) {
         let filePath = project.path
             .appending(component: Constants.DerivedDirectory.name)
             .appending(component: Constants.DerivedDirectory.sources)
             .appending(component: "Bundle+\(target.name).swift")
 
-        let content: String = """
+        let content: String = ResourcesProjectMapper.fileContent(targetName: target.name,
+                                                                 bundleName: bundleName)
+        return (filePath, [.file(.init(path: filePath, contents: content.data(using: .utf8), state: .present))])
+    }
+
+    static func fileContent(targetName: String, bundleName: String) -> String {
+        """
         import class Foundation.Bundle
 
         private class BundleFinder {}
 
         extension Foundation.Bundle {
             /// Returns the resource bundle associated with the current Swift module.
-            static var \(target.name.camelized.lowercasingFirst): Bundle = {
+            static var \(targetName.camelized.lowercasingFirst): Bundle = {
                 let bundleName = "\(bundleName)"
 
                 let candidates = [
@@ -87,7 +93,5 @@ public class LibraryResourcesProjectMapper: ProjectMapping {
             }()
         }
         """
-        
-        return (filePath, [.file(.init(path: filePath, contents: content.data(using: .utf8), state: .present))])
     }
 }
