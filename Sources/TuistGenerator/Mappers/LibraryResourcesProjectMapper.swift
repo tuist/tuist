@@ -34,7 +34,7 @@ public class LibraryResourcesProjectMapper: ProjectMapping {
                                          product: .bundle,
                                          productName: nil,
                                          bundleId: "\(target.bundleId).resources",
-                                         resources: [],
+                                         resources: target.resources,
                                          filesGroup: target.filesGroup)
             modifiedTarget.resources = []
             modifiedTarget.dependencies.append(.target(name: bundleName))
