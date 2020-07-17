@@ -64,6 +64,7 @@ export default ({ menuOpen, setMenuOpen, menuRef }) => {
         >
           {setMenuOpen && (
             <MenuButton
+              size={10}
               sx={{ display: ['inherit', 'none'], zIndex: 1 }}
               onClick={(e) => {
                 setMenuOpen(!menuOpen)

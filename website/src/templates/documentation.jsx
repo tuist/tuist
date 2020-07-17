@@ -12,6 +12,7 @@ import Links from '../../markdown/docs/links.mdx'
 import { AccordionNav, Sidenav } from '@theme-ui/sidenav'
 import { Location } from '@reach/router'
 import isAbsoluteURL from 'is-absolute-url'
+import tw from 'twin.macro'
 
 const NavigationLink = ({ href, ...props }) => {
   const style = {
@@ -106,6 +107,7 @@ const DocumentationPage = (
                   open={menuOpen}
                   components={{ wrapper: Sidenav, a: NavigationLink }}
                   pathname={location.pathname}
+                  css={[menuOpen && tw`shadow-links`]}
                   sx={{
                     li: {
                       listStyleType: 'none',
