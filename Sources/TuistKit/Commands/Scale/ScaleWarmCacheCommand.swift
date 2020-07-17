@@ -17,6 +17,6 @@ struct ScaleWarmCacheCommand: ParsableCommand {
     var path: String?
 
     func run() throws {
-        try CloudWarmCacheService().run(path: path)
+        try ScaleWarmCacheService().run(path: path)
     }
 }

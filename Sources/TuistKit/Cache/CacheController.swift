@@ -4,10 +4,10 @@ import RxSwift
 import TSCBasic
 import TuistAutomation
 import TuistCache
-import TuistScale
 import TuistCore
 import TuistGenerator
 import TuistLoader
+import TuistScale
 import TuistSupport
 
 protocol CacheControlling {
@@ -31,7 +31,7 @@ final class CacheController: CacheControlling {
 
     init(generator: ProjectGenerating = ProjectGenerator(),
          xcframeworkBuilder: XCFrameworkBuilding = XCFrameworkBuilder(xcodeBuildController: XcodeBuildController()),
-         cache: CacheStoring = Cache(cloudClient: CloudClient()),
+         cache: CacheStoring = Cache(scaleClient: ScaleClient()),
          graphContentHasher: GraphContentHashing = GraphContentHasher()) {
         self.generator = generator
         self.xcframeworkBuilder = xcframeworkBuilder

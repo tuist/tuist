@@ -3,7 +3,7 @@ import { jsx, MenuButton } from 'theme-ui'
 
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import {
-  faCloud,
+  faUserAstronaut,
   faKey,
   faUsers,
   faFileCode,
@@ -16,9 +16,13 @@ const Signing = () => {
     <FontAwesomeIcon sx={{ width: 20, height: 20 }} icon={faKey} size="sm" />
   )
 }
-const Cloud = () => {
+const Astronaut = () => {
   return (
-    <FontAwesomeIcon sx={{ width: 20, height: 20 }} icon={faCloud} size="sm" />
+    <FontAwesomeIcon
+      sx={{ width: 20, height: 20 }}
+      icon={faUserAstronaut}
+      size="sm"
+    />
   )
 }
 const Terminal = () => {
@@ -54,4 +58,4 @@ const Architectures = () => {
     />
   )
 }
-export { Signing, Cloud, Users, Contributors, Architectures, Terminal }
+export { Signing, Astronaut, Users, Contributors, Architectures, Terminal }

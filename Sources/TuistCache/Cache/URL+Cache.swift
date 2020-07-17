@@ -2,10 +2,10 @@ import Foundation
 
 extension URL {
     static func apiCacheURL(hash: String,
-                            cloudURL: URL,
+                            cacheURL: URL,
                             projectId: String) throws -> URL {
-        guard var urlComponents = URLComponents(url: cloudURL, resolvingAgainstBaseURL: false) else {
-            throw CacheAPIError.incorrectCloudURL
+        guard var urlComponents = URLComponents(url: cacheURL, resolvingAgainstBaseURL: false) else {
+            throw CacheAPIError.incorrectScaleURL
         }
 
         urlComponents.path = "/api/cache"

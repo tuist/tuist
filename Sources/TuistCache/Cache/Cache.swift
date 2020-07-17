@@ -11,8 +11,8 @@ public final class Cache: CacheStoring {
 
     // MARK: - Init
 
-    public convenience init(cloudClient: CloudClienting) {
-        self.init(storages: [CacheLocalStorage(), CacheRemoteStorage(cloudClient: cloudClient)])
+    public convenience init(scaleClient: ScaleClienting) {
+        self.init(storages: [CacheLocalStorage(), CacheRemoteStorage(scaleClient: scaleClient)])
     }
 
     /// Initializes the cache with its attributes.

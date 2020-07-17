@@ -4,10 +4,10 @@ import TSCBasic
 
 public extension Config {
     static func test(compatibleXcodeVersions: CompatibleXcodeVersions = .all,
-                     cloud: Cloud? = Cloud.test(),
+                     scale: Scale? = Scale.test(),
                      generationOptions: [GenerationOption] = []) -> Config {
         Config(compatibleXcodeVersions: compatibleXcodeVersions,
-               cloud: cloud,
+               scale: scale,
                generationOptions: generationOptions)
     }
 }

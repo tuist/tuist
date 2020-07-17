@@ -9,6 +9,6 @@ struct ScaleSessionCommand: ParsableCommand {
     }
 
     func run() throws {
-        try CloudSessionService().printSession()
+        try ScaleSessionService().printSession()
     }
 }

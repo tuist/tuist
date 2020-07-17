@@ -9,6 +9,6 @@ struct ScaleLogoutCommand: ParsableCommand {
     }
 
     func run() throws {
-        try CloudLogoutService().logout()
+        try ScaleLogoutService().logout()
     }
 }

@@ -16,6 +16,6 @@ struct ScalePrintHashesCommand: ParsableCommand {
     var path: String?
 
     func run() throws {
-        try CloudPrintHashesService().run(path: path.map { AbsolutePath($0) } ?? FileHandler.shared.currentPath)
+        try ScalePrintHashesService().run(path: path.map { AbsolutePath($0) } ?? FileHandler.shared.currentPath)
     }
 }

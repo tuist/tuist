@@ -25,17 +25,17 @@ enum CacheRemoteStorageError: FatalError, Equatable {
 final class CacheRemoteStorage: CacheStoring {
     // MARK: - Attributes
 
-    private let cloudClient: CloudClienting
+    private let scaleClient: ScaleClienting
     private let fileClient: FileClienting
     private let fileArchiverFactory: FileArchiverManufacturing
     private var fileArchiverMap: [AbsolutePath: FileArchiving] = [:]
 
     // MARK: - Init
 
-    init(cloudClient: CloudClienting,
+    init(scaleClient: ScaleClienting,
          fileArchiverFactory: FileArchiverManufacturing = FileArchiverFactory(),
          fileClient: FileClienting = FileClient()) {
-        self.cloudClient = cloudClient
+        self.scaleClient = scaleClient
         self.fileArchiverFactory = fileArchiverFactory
         self.fileClient = fileClient
     }
@@ -45,8 +45,8 @@ final class CacheRemoteStorage: CacheStoring {
     func exists(hash: String, config: Config) -> Single<Bool> {
         do {
             let successRange = 200 ..< 300
-            let resource = try CloudHEADResponse.existsResource(hash: hash, config: config)
-            return cloudClient.request(resource)
+            let resource = try ScaleHEADResponse.existsResource(hash: hash, config: config)
+            return scaleClient.request(resource)
                 .flatMap { _, response in
                     .just(successRange.contains(response.statusCode))
                 }
@@ -64,8 +64,8 @@ final class CacheRemoteStorage: CacheStoring {
 
     func fetch(hash: String, config: Config) -> Single<AbsolutePath> {
         do {
-            let resource = try CloudCacheResponse.fetchResource(hash: hash, config: config)
-            return cloudClient
+            let resource = try ScaleCacheResponse.fetchResource(hash: hash, config: config)
+            return scaleClient
                 .request(resource)
                 .map { $0.object.data.url }
                 .flatMap { (url: URL) in self.fileClient.download(url: url) }
@@ -86,13 +86,13 @@ final class CacheRemoteStorage: CacheStoring {
         do {
             let archiver = fileArchiver(for: xcframeworkPath)
             let destinationZipPath = try archiver.zip()
-            let resource = try CloudCacheResponse.storeResource(
+            let resource = try ScaleCacheResponse.storeResource(
                 hash: hash,
                 config: config,
                 contentMD5: try FileHandler.shared.base64MD5(path: destinationZipPath)
             )
 
-            return cloudClient
+            return scaleClient
                 .request(resource)
                 .map { (responseTuple) -> URL in responseTuple.object.data.url }
                 .flatMapCompletable { (url: URL) in

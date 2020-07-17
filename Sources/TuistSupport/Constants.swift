@@ -31,7 +31,7 @@ public struct Constants {
         public static let colouredOutput = "TUIST_COLOURED_OUTPUT"
         public static let versionsDirectory = "TUIST_VERSIONS_DIRECTORY"
         public static let cacheDirectory = "TUIST_CACHE_DIRECTORY"
-        public static let cloudToken = "TUIST_CLOUD_TOKEN"
+        public static let scaleToken = "TUIST_SCALE_TOKEN"
         public static let cacheManifests = "TUIST_CACHE_MANIFESTS"
     }
 

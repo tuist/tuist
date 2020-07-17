@@ -1,8 +1,8 @@
 import Foundation
 import TuistCache
-import TuistScale
 import TuistCoreTesting
 import TuistGenerator
+import TuistScale
 import TuistSupport
 import XCTest
 
@@ -29,7 +29,7 @@ final class ProjectMapperProviderTests: TuistUnitTestCase {
         subject = ProjectMapperProvider()
 
         // When
-        let got = subject.mapper(config: Config.test(cloud: .test(options: [])))
+        let got = subject.mapper(config: Config.test(scale: .test(options: [])))
 
         // Then
         let sequentialProjectMapper = try XCTUnwrap(got as? SequentialProjectMapper)

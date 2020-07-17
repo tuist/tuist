@@ -9,6 +9,6 @@ struct ScaleAuthCommand: ParsableCommand {
     }
 
     func run() throws {
-        try CloudAuthService().authenticate()
+        try ScaleAuthService().authenticate()
     }
 }
