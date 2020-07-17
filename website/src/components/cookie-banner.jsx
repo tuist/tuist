@@ -13,7 +13,7 @@ const CookieBanner = () => {
     return <div />
   } else {
     return (
-      <div className="fixed bottom-0 inset-x-0 pb-2 sm:pb-5">
+      <div className="fixed bottom-0 inset-x-0 pb-2 sm:pb-5 z-10">
         <div className="max-w-screen-xl mx-auto px-2 sm:px-6 lg:px-8">
           <div className="p-2 rounded-lg bg-blue-600 shadow-lg sm:p-3">
             <div className="flex items-center justify-between flex-wrap">
