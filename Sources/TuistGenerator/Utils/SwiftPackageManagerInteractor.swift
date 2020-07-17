@@ -4,24 +4,6 @@ import TSCBasic
 import TuistCore
 import TuistSupport
 
-enum SwiftPackageManagerInteractorError: FatalError, Equatable {
-    case rootDirectoryNotFound(AbsolutePath)
-
-    var type: ErrorType {
-        switch self {
-        case .rootDirectoryNotFound:
-            return .abort
-        }
-    }
-
-    var description: String {
-        switch self {
-        case let .rootDirectoryNotFound(path):
-            return "Couldn't locate the root directory from path \(path.pathString). The root directory is the closest directory that contains a Tuist or a .git directory."
-        }
-    }
-}
-
 /// Swift Package Manager Interactor
 ///
 /// This component is responsible for resolving
@@ -71,7 +53,7 @@ public class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting {
             return
         }
 
-        guard let rootDirectory = rootDirectoryLocator.locate(from: path) else { throw SwiftPackageManagerInteractorError.rootDirectoryNotFound(path) }
+        let rootDirectory = rootDirectoryLocator.locate(from: path) ?? path
         let rootPackageResolvedPath = rootDirectory.appending(component: ".package.resolved")
         let workspacePackageResolvedFolderPath = path.appending(RelativePath("\(workspaceName)/xcshareddata/swiftpm"))
         let workspacePackageResolvedPath = workspacePackageResolvedFolderPath.appending(component: "Package.resolved")
