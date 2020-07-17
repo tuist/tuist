@@ -4,7 +4,7 @@ import TuistCore
 import TuistSupport
 import XCTest
 
-@testable import TuistCloud
+@testable import TuistScale
 @testable import TuistCoreTesting
 @testable import TuistSupportTesting
 

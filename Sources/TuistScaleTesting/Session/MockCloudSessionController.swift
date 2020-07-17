@@ -1,6 +1,6 @@
 import Foundation
 
-@testable import TuistCloud
+@testable import TuistScale
 
 public final class MockCloudSessionController: CloudSessionControlling {
     public init() {}

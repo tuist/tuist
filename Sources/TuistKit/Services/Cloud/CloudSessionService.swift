@@ -1,5 +1,5 @@
 import Foundation
-import TuistCloud
+import TuistScale
 import TuistCore
 import TuistLoader
 import TuistSupport

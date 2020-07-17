@@ -2,7 +2,7 @@ import Foundation
 import TuistSupport
 import XCTest
 
-@testable import TuistCloud
+@testable import TuistScale
 
 final class MockCloudHTTPRequestAuthenticator: CloudHTTPRequestAuthenticating {
     public init() {}

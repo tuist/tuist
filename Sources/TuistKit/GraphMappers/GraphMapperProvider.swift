@@ -1,6 +1,6 @@
 import Foundation
 import TuistCache
-import TuistCloud
+import TuistScale
 import TuistCore
 import TuistGenerator
 import TuistSigning

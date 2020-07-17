@@ -3,7 +3,7 @@ import TSCBasic
 import TuistSupport
 import XCTest
 
-@testable import TuistCloud
+@testable import TuistScale
 @testable import TuistSupportTesting
 
 final class CloudSessionControllerErrorTests: TuistUnitTestCase {

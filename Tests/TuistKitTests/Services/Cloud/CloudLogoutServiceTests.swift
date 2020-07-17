@@ -1,6 +1,6 @@
 import Foundation
 import TSCBasic
-import TuistCloudTesting
+import TuistScaleTesting
 import TuistCore
 import TuistCoreTesting
 import TuistLoader

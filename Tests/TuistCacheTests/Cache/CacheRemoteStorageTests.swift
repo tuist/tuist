@@ -1,7 +1,7 @@
 import RxSwift
 import TSCBasic
 import TuistCacheTesting
-import TuistCloud
+import TuistScale
 import TuistCore
 import TuistCoreTesting
 import TuistSupport
