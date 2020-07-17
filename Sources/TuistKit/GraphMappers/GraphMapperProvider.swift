@@ -31,11 +31,6 @@ final class GraphMapperProvider: GraphMapperProviding {
             mappers.append(CacheMapper(config: config, cloudClient: CloudClient()))
         }
 
-        // Cloud
-        if let cloud = config.cloud, cloud.options.contains(.insights) {
-            mappers.append(CloudInsightsGraphMapper())
-        }
-
         return mappers
     }
 }

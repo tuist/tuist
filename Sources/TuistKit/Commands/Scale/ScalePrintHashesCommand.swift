@@ -3,7 +3,7 @@ import Foundation
 import TSCBasic
 import TuistSupport
 
-struct CloudPrintHashesCommand: ParsableCommand {
+struct ScalePrintHashesCommand: ParsableCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(commandName: "print-hashes",
                              abstract: "Print the hashes of the cacheable frameworks in the given project.")

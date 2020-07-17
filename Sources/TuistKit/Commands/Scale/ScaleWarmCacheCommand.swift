@@ -4,7 +4,7 @@ import TSCBasic
 import TuistSupport
 
 /// Command to cache frameworks as .xcframeworks and speed up your and others' build times.
-struct CloudWarmCacheCommand: ParsableCommand {
+struct ScaleWarmCacheCommand: ParsableCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(commandName: "warm-cache",
                              abstract: "Warms the local and remote cache.")
