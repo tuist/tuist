@@ -1,20 +1,16 @@
 import Foundation
 import TSCBasic
+import TuistCache
 import TuistCore
 import TuistLoader
 import TuistSupport
 
 final class ScaleWarmCacheService {
-    /// Cache controller.
-    private let cacheController: CacheControlling
-
     /// Generator Model Loader, used for getting the user config
     private let generatorModelLoader: GeneratorModelLoader
 
-    init(cacheController: CacheControlling = CacheController(),
-         manifestLoader: ManifestLoader = ManifestLoader(),
+    init(manifestLoader: ManifestLoader = ManifestLoader(),
          manifestLinter: ManifestLinter = ManifestLinter()) {
-        self.cacheController = cacheController
         generatorModelLoader = GeneratorModelLoader(manifestLoader: manifestLoader,
                                                     manifestLinter: manifestLinter)
     }
@@ -22,7 +18,9 @@ final class ScaleWarmCacheService {
     func run(path: String?) throws {
         let path = self.path(path)
         let config = try generatorModelLoader.loadConfig(at: currentPath)
-        try cacheController.cache(path: path, config: config)
+        let cache = Cache(storageProvider: CacheStorageProvider(config: config))
+        let cacheController = CacheController(cache: cache)
+        try cacheController.cache(path: path)
     }
 
     // MARK: - Helpers

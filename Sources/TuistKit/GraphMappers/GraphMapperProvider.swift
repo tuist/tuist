@@ -28,7 +28,8 @@ final class GraphMapperProvider: GraphMapperProviding {
 
         // Cache
         if cache {
-            mappers.append(CacheMapper(config: config, scaleClient: ScaleClient()))
+            let cacheMapper = CacheMapper(config: config, cacheStorageProvider: CacheStorageProvider(config: config))
+            mappers.append(cacheMapper)
         }
 
         return mappers

@@ -25,9 +25,9 @@ public class CacheMapper: GraphMapping {
 
     // MARK: - Init
 
-    public convenience init(config: Config, scaleClient: ScaleClienting) {
+    public convenience init(config: Config, cacheStorageProvider: CacheStorageProviding) {
         self.init(config: config,
-                  cache: Cache(scaleClient: scaleClient),
+                  cache: Cache(storageProvider: cacheStorageProvider),
                   graphContentHasher: GraphContentHasher())
     }
 
@@ -78,10 +78,10 @@ public class CacheMapper: GraphMapping {
 
     fileprivate func fetch(hashes: [TargetNode: String]) -> Single<[TargetNode: AbsolutePath]> {
         Single.zip(hashes.map { target, hash in
-            self.cache.exists(hash: hash, config: config)
+            self.cache.exists(hash: hash)
                 .flatMap { (exists) -> Single<(target: TargetNode, path: AbsolutePath?)> in
                     guard exists else { return Single.just((target: target, path: nil)) }
-                    return self.cache.fetch(hash: hash, config: self.config).map { (target: target, path: $0) }
+                    return self.cache.fetch(hash: hash).map { (target: target, path: $0) }
                 }
         })
             .map { result in

@@ -22,9 +22,10 @@ enum CacheRemoteStorageError: FatalError, Equatable {
 }
 
 // TODO: Later, add a warmup function to check if it's correctly authenticated ONCE
-final class CacheRemoteStorage: CacheStoring {
+public final class CacheRemoteStorage: CacheStoring {
     // MARK: - Attributes
 
+    private let scaleConfig: Scale
     private let scaleClient: ScaleClienting
     private let fileClient: FileClienting
     private let fileArchiverFactory: FileArchiverManufacturing
@@ -32,9 +33,18 @@ final class CacheRemoteStorage: CacheStoring {
 
     // MARK: - Init
 
-    init(scaleClient: ScaleClienting,
-         fileArchiverFactory: FileArchiverManufacturing = FileArchiverFactory(),
-         fileClient: FileClienting = FileClient()) {
+    public convenience init(scaleConfig: Scale, scaleClient: ScaleClienting) {
+        self.init(scaleConfig: scaleConfig,
+                  scaleClient: scaleClient,
+                  fileArchiverFactory: FileArchiverFactory(),
+                  fileClient: FileClient())
+    }
+
+    init(scaleConfig: Scale,
+         scaleClient: ScaleClienting,
+         fileArchiverFactory: FileArchiverManufacturing,
+         fileClient: FileClienting) {
+        self.scaleConfig = scaleConfig
         self.scaleClient = scaleClient
         self.fileArchiverFactory = fileArchiverFactory
         self.fileClient = fileClient
@@ -42,10 +52,10 @@ final class CacheRemoteStorage: CacheStoring {
 
     // MARK: - CacheStoring
 
-    func exists(hash: String, config: Config) -> Single<Bool> {
+    public func exists(hash: String) -> Single<Bool> {
         do {
             let successRange = 200 ..< 300
-            let resource = try ScaleHEADResponse.existsResource(hash: hash, config: config)
+            let resource = try ScaleHEADResponse.existsResource(hash: hash, scale: scaleConfig)
             return scaleClient.request(resource)
                 .flatMap { _, response in
                     .just(successRange.contains(response.statusCode))
@@ -62,9 +72,9 @@ final class CacheRemoteStorage: CacheStoring {
         }
     }
 
-    func fetch(hash: String, config: Config) -> Single<AbsolutePath> {
+    public func fetch(hash: String) -> Single<AbsolutePath> {
         do {
-            let resource = try ScaleCacheResponse.fetchResource(hash: hash, config: config)
+            let resource = try ScaleCacheResponse.fetchResource(hash: hash, scale: scaleConfig)
             return scaleClient
                 .request(resource)
                 .map { $0.object.data.url }
@@ -82,13 +92,13 @@ final class CacheRemoteStorage: CacheStoring {
         }
     }
 
-    func store(hash: String, config: Config, xcframeworkPath: AbsolutePath) -> Completable {
+    public func store(hash: String, xcframeworkPath: AbsolutePath) -> Completable {
         do {
             let archiver = fileArchiver(for: xcframeworkPath)
             let destinationZipPath = try archiver.zip()
             let resource = try ScaleCacheResponse.storeResource(
                 hash: hash,
-                config: config,
+                scale: scaleConfig,
                 contentMD5: try FileHandler.shared.base64MD5(path: destinationZipPath)
             )
 
