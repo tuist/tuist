@@ -6,7 +6,7 @@ public struct CoreDataModel: Codable, Equatable {
     public let path: Path
 
     /// Current version (with or without extension)
-    public let currentVersion: String
+    public let currentVersion: String?
 
     public enum CodingKeys: String, CodingKey {
         case path
@@ -19,7 +19,7 @@ public struct CoreDataModel: Codable, Equatable {
     ///   - path: relative path to the Core Data model.
     ///   - currentVersion: current version name (with or without the extension).
     public init(_ path: Path,
-                currentVersion: String) {
+                currentVersion: String? = nil) {
         self.path = path
         self.currentVersion = currentVersion
     }
