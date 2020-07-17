@@ -228,9 +228,13 @@ module.exports = {
       },
     },
     {
-      resolve: `gatsby-plugin-intercom`,
+      resolve: `gatsby-plugin-segment-js`,
       options: {
-        appId: 'hdiitpb9',
+        prodKey: `NXifCPQ8v0VBguBiDjLrwWde7wvDt46s`,
+        trackPage: false,
+        host: `https://override-segment-endpoint`,
+        delayLoad: false,
+        delayLoadTime: 1000,
       },
     },
   ],

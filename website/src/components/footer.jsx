@@ -80,6 +80,39 @@ export default () => {
                 Releases
               </a>
             </div>
+            <div className="px-5 py-2">
+              <Link
+                to="/terms"
+                alt="Opens the releases page."
+                target="__blank"
+                className="text-base leading-6"
+                sx={{ color: 'gray', ':hover': { color: 'primary' } }}
+              >
+                Terms of service
+              </Link>
+            </div>
+            <div className="px-5 py-2">
+              <Link
+                to="/cookies"
+                alt="Opens the releases page."
+                target="__blank"
+                className="text-base leading-6"
+                sx={{ color: 'gray', ':hover': { color: 'primary' } }}
+              >
+                Cookies
+              </Link>
+            </div>
+            <div className="px-5 py-2">
+              <Link
+                to="/privacy"
+                alt="Opens the releases page."
+                target="__blank"
+                className="text-base leading-6"
+                sx={{ color: 'gray', ':hover': { color: 'primary' } }}
+              >
+                Privacy policy
+              </Link>
+            </div>
           </nav>
           <div className="mt-8 flex justify-center">
             <a
