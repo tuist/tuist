@@ -7,6 +7,15 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Fixed
 
 - `tuist focus` creating new `.package.resolved` [#1569](https://github.com/tuist/tuist/pull/1569) by [@fortmarek](https://github.com/fortmarek)
+- Delete schemes whose targets have been replaced by .xcframeworks [#1571](https://github.com/tuist/tuist/pull/1571) by [@pepibumur](https://github.com/pepibumur).
+
+### Changed
+
+- Rename cloud to scale [#1571](https://github.com/tuist/tuist/pull/1571) by [@pepibumur](https://github.com/pepibumur).
+
+### Added
+
+- Analytics to the website to better understand the usage of the website in order to optimize it and improve the discoverability of the content [#1571](https://github.com/tuist/tuist/pull/1571) by [@pepibumur](https://github.com/pepibumur).
 
 ## 1.12.2 - Waka Waka
 
