@@ -53,11 +53,12 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         // Given
         typealias ResponseType = ScaleResponse<ScaleHEADResponse>
         typealias ErrorType = ScaleHEADResponseError
+        let config = Scale.test()
         scaleClient = MockScaleClienting<ResponseType, ErrorType>.makeForError(error: ScaleHEADResponseError())
-        subject = CacheRemoteStorage(scaleClient: scaleClient, fileArchiverFactory: fileArchiverFactory, fileClient: fileClient)
+        subject = CacheRemoteStorage(scaleConfig: config, scaleClient: scaleClient, fileArchiverFactory: fileArchiverFactory, fileClient: fileClient)
 
         // When
-        let result = subject.exists(hash: "acho tio", config: config)
+        let result = subject.exists(hash: "acho tio")
             .toBlocking()
             .materialize()
 
@@ -78,11 +79,12 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         typealias ErrorType = ScaleHEADResponseError
         let ScaleResponse = ResponseType(status: "shaki", data: ScaleHEADResponse())
         let httpResponse: HTTPURLResponse = .test(statusCode: 500)
+        let config = Scale.test()
         scaleClient = MockScaleClienting<ResponseType, ErrorType>.makeForSuccess(object: ScaleResponse, response: httpResponse)
-        subject = CacheRemoteStorage(scaleClient: scaleClient, fileArchiverFactory: fileArchiverFactory, fileClient: fileClient)
+        subject = CacheRemoteStorage(scaleConfig: config, scaleClient: scaleClient, fileArchiverFactory: fileArchiverFactory, fileClient: fileClient)
 
         // When
-        let result = try subject.exists(hash: "acho tio", config: config)
+        let result = try subject.exists(hash: "acho tio")
             .toBlocking()
             .single()
 
@@ -96,11 +98,12 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         typealias ErrorType = ScaleHEADResponseError
         let scaleResponse = ResponseType(status: "shaki", data: ScaleHEADResponse())
         let httpResponse: HTTPURLResponse = .test()
+        let config = Scale.test()
         scaleClient = MockScaleClienting<ResponseType, ErrorType>.makeForSuccess(object: scaleResponse, response: httpResponse)
-        subject = CacheRemoteStorage(scaleClient: scaleClient, fileArchiverFactory: fileArchiverFactory, fileClient: fileClient)
+        subject = CacheRemoteStorage(scaleConfig: config, scaleClient: scaleClient, fileArchiverFactory: fileArchiverFactory, fileClient: fileClient)
 
         // When
-        let result = try subject.exists(hash: "acho tio", config: config)
+        let result = try subject.exists(hash: "acho tio")
             .toBlocking()
             .single()
 
@@ -115,11 +118,12 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
 
         let ScaleResponse = ResponseType(status: "shaki", data: ScaleHEADResponse())
         let httpResponse: HTTPURLResponse = .test(statusCode: 202)
+        let config = Scale.test()
         scaleClient = MockScaleClienting<ResponseType, ErrorType>.makeForSuccess(object: ScaleResponse, response: httpResponse)
-        subject = CacheRemoteStorage(scaleClient: scaleClient, fileArchiverFactory: fileArchiverFactory, fileClient: fileClient)
+        subject = CacheRemoteStorage(scaleConfig: config, scaleClient: scaleClient, fileArchiverFactory: fileArchiverFactory, fileClient: fileClient)
 
         // When
-        let result = try subject.exists(hash: "acho tio", config: config)
+        let result = try subject.exists(hash: "acho tio")
             .toBlocking()
             .single()
 
@@ -134,11 +138,12 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         typealias ResponseType = ScaleResponse<ScaleCacheResponse>
         typealias ErrorType = ScaleResponseError
         let expectedError: ErrorType = .test()
+        let config = Scale.test()
         scaleClient = MockScaleClienting<ResponseType, ErrorType>.makeForError(error: expectedError)
-        subject = CacheRemoteStorage(scaleClient: scaleClient, fileArchiverFactory: fileArchiverFactory, fileClient: fileClient)
+        subject = CacheRemoteStorage(scaleConfig: config, scaleClient: scaleClient, fileArchiverFactory: fileArchiverFactory, fileClient: fileClient)
 
         // When
-        let result = subject.fetch(hash: "acho tio", config: config)
+        let result = subject.fetch(hash: "acho tio")
             .toBlocking()
             .materialize()
 
@@ -160,16 +165,17 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
 
         let httpResponse: HTTPURLResponse = .test()
         let cacheResponse = ScaleCacheResponse(url: .test(), expiresAt: 123)
+        let config = Scale.test()
         let scaleResponse = ScaleResponse<ScaleCacheResponse>(status: "shaki", data: cacheResponse)
         scaleClient = MockScaleClienting<ResponseType, ErrorType>.makeForSuccess(object: scaleResponse, response: httpResponse)
-        subject = CacheRemoteStorage(scaleClient: scaleClient, fileArchiverFactory: fileArchiverFactory, fileClient: fileClient)
+        subject = CacheRemoteStorage(scaleConfig: config, scaleClient: scaleClient, fileArchiverFactory: fileArchiverFactory, fileClient: fileClient)
 
         let hash = "acho tio"
         let paths = try createFolders(["Cache/xcframeworks/\(hash)/IncorrectRootFolderAfterUnzipping"])
         let expectedDeletedPath = AbsolutePath(paths.first!.dirname)
 
         // When
-        let result = subject.fetch(hash: hash, config: config)
+        let result = subject.fetch(hash: hash)
             .toBlocking()
             .materialize()
 
@@ -186,19 +192,19 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         // Given
         typealias ResponseType = ScaleResponse<ScaleCacheResponse>
         typealias ErrorType = ScaleResponseError
-
         let httpResponse: HTTPURLResponse = .test()
+        let config = Scale.test()
         let cacheResponse = ScaleCacheResponse(url: .test(), expiresAt: 123)
         let scaleResponse = ScaleResponse<ScaleCacheResponse>(status: "shaki", data: cacheResponse)
         scaleClient = MockScaleClienting<ResponseType, ErrorType>.makeForSuccess(object: scaleResponse, response: httpResponse)
-        subject = CacheRemoteStorage(scaleClient: scaleClient, fileArchiverFactory: fileArchiverFactory, fileClient: fileClient)
+        subject = CacheRemoteStorage(scaleConfig: config, scaleClient: scaleClient, fileArchiverFactory: fileArchiverFactory, fileClient: fileClient)
 
         let hash = "acho tio"
         let paths = try createFolders(["Cache/xcframeworks/\(hash)/IncorrectRootFolderAfterUnzipping"])
         let expectedPath = AbsolutePath(paths.first!.dirname)
 
         // When
-        let result = subject.fetch(hash: hash, config: config)
+        let result = subject.fetch(hash: hash)
             .toBlocking()
             .materialize()
 
@@ -220,15 +226,16 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
 
         let httpResponse: HTTPURLResponse = .test()
         let cacheResponse = ScaleCacheResponse(url: .test(), expiresAt: 123)
+        let config = Scale.test()
         let scaleResponse = ScaleResponse<ScaleCacheResponse>(status: "shaki", data: cacheResponse)
         scaleClient = MockScaleClienting<ResponseType, ErrorType>.makeForSuccess(object: scaleResponse, response: httpResponse)
-        subject = CacheRemoteStorage(scaleClient: scaleClient, fileArchiverFactory: fileArchiverFactory, fileClient: fileClient)
+        subject = CacheRemoteStorage(scaleConfig: config, scaleClient: scaleClient, fileArchiverFactory: fileArchiverFactory, fileClient: fileClient)
 
         let hash = "acho tio"
         let paths = try createFolders(["Cache/xcframeworks/\(hash)/myFramework.xcframework"])
 
         // When
-        let result = try subject.fetch(hash: hash, config: config)
+        let result = try subject.fetch(hash: hash)
             .toBlocking()
             .single()
 
@@ -243,16 +250,17 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
 
         let httpResponse: HTTPURLResponse = .test()
         let url: URL = URL(string: "https://shaki.ra/acho/tio")!
+        let config = Scale.test()
         let cacheResponse = ScaleCacheResponse(url: url, expiresAt: 123)
         let scaleResponse = ScaleResponse<ScaleCacheResponse>(status: "shaki", data: cacheResponse)
         scaleClient = MockScaleClienting<ResponseType, ErrorType>.makeForSuccess(object: scaleResponse, response: httpResponse)
-        subject = CacheRemoteStorage(scaleClient: scaleClient, fileArchiverFactory: fileArchiverFactory, fileClient: fileClient)
+        subject = CacheRemoteStorage(scaleConfig: config, scaleClient: scaleClient, fileArchiverFactory: fileArchiverFactory, fileClient: fileClient)
 
         let hash = "acho tio"
         _ = try createFolders(["Cache/xcframeworks/\(hash)/myFramework.xcframework"])
 
         // When
-        _ = try subject.fetch(hash: hash, config: config)
+        _ = try subject.fetch(hash: hash)
             .toBlocking()
             .single()
 
@@ -268,14 +276,15 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         let httpResponse: HTTPURLResponse = .test()
         let cacheResponse = ScaleCacheResponse(url: .test(), expiresAt: 123)
         let scaleResponse = ScaleResponse<ScaleCacheResponse>(status: "shaki", data: cacheResponse)
+        let config = Scale.test()
         scaleClient = MockScaleClienting<ResponseType, ErrorType>.makeForSuccess(object: scaleResponse, response: httpResponse)
-        subject = CacheRemoteStorage(scaleClient: scaleClient, fileArchiverFactory: fileArchiverFactory, fileClient: fileClient)
+        subject = CacheRemoteStorage(scaleConfig: config, scaleClient: scaleClient, fileArchiverFactory: fileArchiverFactory, fileClient: fileClient)
 
         let hash = "acho tio"
         let paths = try createFolders(["Cache/xcframeworks/\(hash)/myFramework.xcframework"])
 
         // When
-        _ = try subject.fetch(hash: hash, config: config)
+        _ = try subject.fetch(hash: hash)
             .toBlocking()
             .single()
 
@@ -290,12 +299,12 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         typealias ResponseType = ScaleResponse<ScaleCacheResponse>
         typealias ErrorType = ScaleResponseError
         let expectedError = ScaleResponseError.test()
+        let config = Scale.test()
         scaleClient = MockScaleClienting<ResponseType, ErrorType>.makeForError(error: expectedError)
-
-        subject = CacheRemoteStorage(scaleClient: scaleClient, fileArchiverFactory: fileArchiverFactory, fileClient: fileClient)
+        subject = CacheRemoteStorage(scaleConfig: config, scaleClient: scaleClient, fileArchiverFactory: fileArchiverFactory, fileClient: fileClient)
 
         // When
-        let result = subject.store(hash: "acho tio", config: config, xcframeworkPath: .root)
+        let result = subject.store(hash: "acho tio", xcframeworkPath: .root)
             .toBlocking()
             .materialize()
 
@@ -316,16 +325,17 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         typealias ErrorType = ScaleResponseError
 
         let url: URL = URL(string: "https://shaki.ra/acho/tio")!
+        let config = Scale.test()
         let cacheResponse = ScaleCacheResponse(url: url, expiresAt: 123)
         let scaleResponse = ScaleResponse<ScaleCacheResponse>(status: "shaki", data: cacheResponse)
         scaleClient = MockScaleClienting<ResponseType, ErrorType>.makeForSuccess(
             object: scaleResponse,
             response: .test()
         )
-        subject = CacheRemoteStorage(scaleClient: scaleClient, fileArchiverFactory: fileArchiverFactory, fileClient: fileClient)
+        subject = CacheRemoteStorage(scaleConfig: config, scaleClient: scaleClient, fileArchiverFactory: fileArchiverFactory, fileClient: fileClient)
 
         // When
-        _ = subject.store(hash: "acho tio", config: config, xcframeworkPath: .root)
+        _ = subject.store(hash: "acho tio", xcframeworkPath: .root)
             .toBlocking()
             .materialize()
 
@@ -343,16 +353,17 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         typealias ErrorType = ScaleResponseError
 
         let hash = "acho tio hash"
+        let config = Scale.test()
         let cacheResponse = ScaleCacheResponse(url: .test(), expiresAt: 123)
         let scaleResponse = ScaleResponse<ScaleCacheResponse>(status: "shaki", data: cacheResponse)
         scaleClient = MockScaleClienting<ResponseType, ErrorType>.makeForSuccess(
             object: scaleResponse,
             response: .test()
         )
-        subject = CacheRemoteStorage(scaleClient: scaleClient, fileArchiverFactory: fileArchiverFactory, fileClient: fileClient)
+        subject = CacheRemoteStorage(scaleConfig: config, scaleClient: scaleClient, fileArchiverFactory: fileArchiverFactory, fileClient: fileClient)
 
         // When
-        _ = subject.store(hash: hash, config: config, xcframeworkPath: .root)
+        _ = subject.store(hash: hash, xcframeworkPath: .root)
             .toBlocking()
             .materialize()
 
@@ -370,6 +381,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         typealias ErrorType = ScaleResponseError
 
         let hash = "acho tio hash"
+        let config = Scale.test()
         let cacheResponse = ScaleCacheResponse(url: .test(), expiresAt: 123)
         let scaleResponse = ScaleResponse<ScaleCacheResponse>(status: "shaki", data: cacheResponse)
         scaleClient = MockScaleClienting<ResponseType, ErrorType>.makeForSuccess(
@@ -378,10 +390,10 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         )
 
         fileArchiver.stubbedZipResult = zipPath
-        subject = CacheRemoteStorage(scaleClient: scaleClient, fileArchiverFactory: fileArchiverFactory, fileClient: fileClient)
+        subject = CacheRemoteStorage(scaleConfig: config, scaleClient: scaleClient, fileArchiverFactory: fileArchiverFactory, fileClient: fileClient)
 
         // When
-        _ = subject.store(hash: hash, config: config, xcframeworkPath: .root)
+        _ = subject.store(hash: hash, xcframeworkPath: .root)
             .toBlocking()
             .materialize()
 
