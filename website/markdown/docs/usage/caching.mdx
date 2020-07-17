@@ -1,9 +1,9 @@
 ---
-name: Remote caching
+name: Caching dependencies
 excerpt: 'Learn how to use caching of targets to speed up build times in your projects.'
 ---
 
-# Remote caching
+# Caching dependencies
 
 Tuist has support for caching a pre-compiled version of your project targets locally and remotely.
 When targets are cached, developers can generate projects where the targets they don't plan to work on are replaced with their pre-compiled version.
@@ -12,7 +12,7 @@ In modular apps, this feature yields significant improvements in build times.
 Unlike [Bazel](https://bazel.build/) or [Buck](https://buck.build/) that replace Xcode's build system to cache individual build steps,
 we do caching at the module level. That means developers can use Xcode and its build system and don't have to develop tooling around alternative build systems to integrate them with developers tooling.
 
-![An image that shows how the caching feature works](cache.png)
+![An image that shows how the caching feature works](./cache.png)
 
 ## Warming the cache
 
@@ -30,7 +30,7 @@ we can tell Tuist that we want to focus on a particular project and get the depe
 All we need to do is run the following command:
 
 ```
-tuist focus
+tuist focus --cache
 ```
 
 ## Debugging
