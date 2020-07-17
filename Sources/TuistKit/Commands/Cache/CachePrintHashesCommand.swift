@@ -3,7 +3,7 @@ import Foundation
 import TSCBasic
 import TuistSupport
 
-struct ScalePrintHashesCommand: ParsableCommand {
+struct CachePrintHashesCommand: ParsableCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(commandName: "print-hashes",
                              abstract: "Print the hashes of the cacheable frameworks in the given project.")
@@ -16,6 +16,6 @@ struct ScalePrintHashesCommand: ParsableCommand {
     var path: String?
 
     func run() throws {
-        try ScalePrintHashesService().run(path: path.map { AbsolutePath($0) } ?? FileHandler.shared.currentPath)
+        try CachePrintHashesService().run(path: path.map { AbsolutePath($0) } ?? FileHandler.shared.currentPath)
     }
 }

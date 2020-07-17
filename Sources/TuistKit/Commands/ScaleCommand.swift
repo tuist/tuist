@@ -9,8 +9,6 @@ struct ScaleCommand: ParsableCommand {
                                  ScaleAuthCommand.self,
                                  ScaleSessionCommand.self,
                                  ScaleLogoutCommand.self,
-                                 ScaleWarmCacheCommand.self,
-                                 ScalePrintHashesCommand.self,
                              ])
     }
 }

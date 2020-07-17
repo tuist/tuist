@@ -23,6 +23,7 @@ public struct TuistCommand: ParsableCommand {
                                  ScaffoldCommand.self,
                                  InitCommand.self,
                                  ScaleCommand.self,
+                                 CacheCommand.self,
                                  SigningCommand.self,
                                  CleanCommand.self,
                              ])

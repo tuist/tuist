@@ -5,7 +5,7 @@ import TuistCore
 import TuistLoader
 import TuistSupport
 
-final class ScaleWarmCacheService {
+final class CacheWarmService {
     /// Generator Model Loader, used for getting the user config
     private let generatorModelLoader: GeneratorModelLoader
 

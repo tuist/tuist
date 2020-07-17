@@ -8,8 +8,8 @@ import XCTest
 @testable import TuistKit
 @testable import TuistSupportTesting
 
-final class ScalePrintHashesServiceTests: TuistUnitTestCase {
-    var subject: ScalePrintHashesService!
+final class CachePrintHashesServiceTests: TuistUnitTestCase {
+    var subject: CachePrintHashesService!
     var projectGenerator: MockProjectGenerator!
     var graphContentHasher: MockGraphContentHasher!
     var clock: Clock!
@@ -23,7 +23,7 @@ final class ScalePrintHashesServiceTests: TuistUnitTestCase {
         graphContentHasher = MockGraphContentHasher()
         clock = StubClock()
 
-        subject = ScalePrintHashesService(projectGenerator: projectGenerator,
+        subject = CachePrintHashesService(projectGenerator: projectGenerator,
                                           graphContentHasher: graphContentHasher,
                                           clock: clock)
     }
@@ -38,7 +38,7 @@ final class ScalePrintHashesServiceTests: TuistUnitTestCase {
 
     func test_run_loads_the_graph() throws {
         // Given
-        subject = ScalePrintHashesService(projectGenerator: projectGenerator,
+        subject = CachePrintHashesService(projectGenerator: projectGenerator,
                                           graphContentHasher: graphContentHasher,
                                           clock: clock)
 
@@ -51,7 +51,7 @@ final class ScalePrintHashesServiceTests: TuistUnitTestCase {
 
     func test_run_content_hasher_gets_correct_graph() throws {
         // Given
-        subject = ScalePrintHashesService(projectGenerator: projectGenerator,
+        subject = CachePrintHashesService(projectGenerator: projectGenerator,
                                           graphContentHasher: graphContentHasher,
                                           clock: clock)
         let graph: Graph = Graph.test()
@@ -70,7 +70,7 @@ final class ScalePrintHashesServiceTests: TuistUnitTestCase {
         let target2 = TargetNode.test(target: .test(name: "ShakiTwo"))
         graphContentHasher.contentHashesStub = [target1: "hash1", target2: "hash2"]
 
-        subject = ScalePrintHashesService(projectGenerator: projectGenerator,
+        subject = CachePrintHashesService(projectGenerator: projectGenerator,
                                           graphContentHasher: graphContentHasher,
                                           clock: clock)
 

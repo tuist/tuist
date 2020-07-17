@@ -5,7 +5,7 @@ import TuistCache
 import TuistCore
 import TuistSupport
 
-final class ScalePrintHashesService {
+final class CachePrintHashesService {
     /// Project generator
     let projectGenerator: ProjectGenerating
 

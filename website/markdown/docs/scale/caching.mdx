@@ -20,7 +20,7 @@ Warming the cache is the process of building, hashing, and storing cacheable tar
 We recommend setting up a continuous integration pipeline that runs on every master commit and executes the following command:
 
 ```
-tuist cloud warm-cache
+tuist cache warm
 ```
 
 ## Focusing on a project
@@ -42,5 +42,5 @@ the environment (e.g. Tuist version) and the hashes of its dependencies.
 To facilitate debugging, Tuist exposes a command that prints the hash of every target of the dependency tree:
 
 ```
-tuist cloud print-hashes
+tuist cache print-hashes
 ```
