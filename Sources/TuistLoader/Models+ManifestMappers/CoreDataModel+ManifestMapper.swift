@@ -23,8 +23,13 @@ extension TuistCore.CoreDataModel {
     }
 }
 
+/// Extract version from .xccurrentversion file.
 private final class CoreDataVersionExtractor {
 
+    /// Extract version from .xccurrentversion file
+    /// - Parameter filePath: absolute path to Model.xcdatamodel
+    /// - Throws: In case can not find the .xcurrentversion file.
+    /// - Returns: Current version of data model.
     static func version(fromVersionFileAtPath filePath: AbsolutePath) throws -> String {
         let url = URL(fileURLWithPath: filePath.pathString + "/.xccurrentversion")
         do {
