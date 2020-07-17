@@ -4,16 +4,16 @@ import TSCBasic
 public struct TestAction: Equatable {
     // MARK: - Attributes
 
-    public let targets: [TestableTarget]
-    public let arguments: Arguments?
-    public let configurationName: String
-    public let coverage: Bool
-    public let codeCoverageTargets: [TargetReference]
-    public let preActions: [ExecutionAction]
-    public let postActions: [ExecutionAction]
-    public let diagnosticsOptions: Set<SchemeDiagnosticsOption>
-    public let language: String?
-    public let region: String?
+    public var targets: [TestableTarget]
+    public var arguments: Arguments?
+    public var configurationName: String
+    public var coverage: Bool
+    public var codeCoverageTargets: [TargetReference]
+    public var preActions: [ExecutionAction]
+    public var postActions: [ExecutionAction]
+    public var diagnosticsOptions: Set<SchemeDiagnosticsOption>
+    public var language: String?
+    public var region: String?
 
     // MARK: - Init
 

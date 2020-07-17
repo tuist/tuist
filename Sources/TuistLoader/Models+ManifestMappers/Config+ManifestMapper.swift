@@ -12,12 +12,12 @@ extension TuistCore.Config {
     static func from(manifest: ProjectDescription.Config) throws -> TuistCore.Config {
         let generationOptions = try manifest.generationOptions.map { try TuistCore.Config.GenerationOption.from(manifest: $0) }
         let compatibleXcodeVersions = TuistCore.CompatibleXcodeVersions.from(manifest: manifest.compatibleXcodeVersions)
-        var cloud: TuistCore.Cloud?
-        if let manifestCloud = manifest.cloud {
-            cloud = try TuistCore.Cloud.from(manifest: manifestCloud)
+        var scale: TuistCore.Scale?
+        if let manifestScale = manifest.scale {
+            scale = try TuistCore.Scale.from(manifest: manifestScale)
         }
         return TuistCore.Config(compatibleXcodeVersions: compatibleXcodeVersions,
-                                cloud: cloud,
+                                scale: scale,
                                 generationOptions: generationOptions)
     }
 }

@@ -88,6 +88,7 @@ class CacheGraphMapper: CacheGraphMapping {
 
     func treeShake(graph: Graph, sourceTargets: Set<TargetNode>) -> Graph {
         let entryProjects = Set(graph.entryNodes.compactMap { $0 as? TargetNode }.map { $0.project })
+        let targetReferences = Set(sourceTargets.map { TargetReference(projectPath: $0.path, name: $0.name) })
 
         let projects = graph.projects.compactMap { (project) -> Project? in
             if entryProjects.contains(project) {
@@ -101,7 +102,24 @@ class CacheGraphMapper: CacheGraphMapping {
                 if targets.isEmpty {
                     return nil
                 } else {
-                    return project.with(targets: targets)
+                    let schemes: [Scheme] = project.schemes.compactMap { scheme -> Scheme? in
+                        let buildActionTargets = scheme.buildAction?.targets.filter { targetReferences.contains($0) } ?? []
+
+                        // The scheme contains no buildable targets so we don't include it.
+                        if buildActionTargets.isEmpty { return nil }
+
+                        let testActionTargets = scheme.testAction?.targets.filter { targetReferences.contains($0.target) } ?? []
+                        var scheme = scheme
+                        var buildAction = scheme.buildAction
+                        var testAction = scheme.testAction
+                        buildAction?.targets = buildActionTargets
+                        testAction?.targets = testActionTargets
+                        scheme.buildAction = buildAction
+                        scheme.testAction = testAction
+
+                        return scheme
+                    }
+                    return project.with(targets: targets).with(schemes: schemes)
                 }
             }
         }

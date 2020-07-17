@@ -4,9 +4,9 @@ import TSCBasic
 public struct BuildAction: Equatable {
     // MARK: - Attributes
 
-    public let targets: [TargetReference]
-    public let preActions: [ExecutionAction]
-    public let postActions: [ExecutionAction]
+    public var targets: [TargetReference]
+    public var preActions: [ExecutionAction]
+    public var postActions: [ExecutionAction]
 
     // MARK: - Init
 

@@ -1,9 +1,9 @@
 import Foundation
 import TuistCache
-import TuistCloud
 import TuistCore
 import TuistCoreTesting
 import TuistGenerator
+import TuistScale
 import TuistSigning
 import TuistSupport
 import XCTest
@@ -44,27 +44,5 @@ final class GraphMapperProviderTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(got.filter { $0 is CacheMapper }.count, 0)
-    }
-
-    func test_mappers_returns_cloud_insights_mapper_when_insights_option_is_passed() {
-        // Given
-        subject = GraphMapperProvider(cache: false)
-
-        // When
-        let got = subject.mappers(config: Config.test(cloud: .test(options: [.insights])))
-
-        // Then
-        XCTAssertEqual(got.filter { $0 is CloudInsightsGraphMapper }.count, 1)
-    }
-
-    func test_mappers_doesnt_return_cloud_insights_mapper_when_insights_option_is_passed() {
-        // Given
-        subject = GraphMapperProvider(cache: false)
-
-        // When
-        let got = subject.mappers(config: Config.test(cloud: .test(options: [])))
-
-        // Then
-        XCTAssertEqual(got.filter { $0 is CloudInsightsGraphMapper }.count, 0)
     }
 }

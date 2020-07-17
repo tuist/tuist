@@ -5,7 +5,7 @@ excerpt: 'In this page documents how Tuist synthesizes accessors for resources t
 
 # Accessing resources
 
-Depending on the target product (e.g. app, framework), resources are accesed differently.
+Depending on the target product (e.g. app, framework), resources are accessed differently.
 For example, if we are trying to get an image that is part of an app target, we get the image from the `Bundle.main`.
 Conversely, if the image is part of a framework, we access it from the `Bundle` that represents the framework, `Bundle(for: FrameworkClass.self).resourceURL`.
 Having an **inconsistent interface** for accessing resources complicates moving code a resources around.

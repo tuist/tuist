@@ -1,8 +1,8 @@
 import Foundation
 import TuistCache
-import TuistCloud
 import TuistCore
 import TuistGenerator
+import TuistScale
 import TuistSigning
 
 /// It defines an interface for providing the mappers to be used for a specific configuration.
@@ -28,12 +28,8 @@ final class GraphMapperProvider: GraphMapperProviding {
 
         // Cache
         if cache {
-            mappers.append(CacheMapper(config: config, cloudClient: CloudClient()))
-        }
-
-        // Cloud
-        if let cloud = config.cloud, cloud.options.contains(.insights) {
-            mappers.append(CloudInsightsGraphMapper())
+            let cacheMapper = CacheMapper(config: config, cacheStorageProvider: CacheStorageProvider(config: config))
+            mappers.append(cacheMapper)
         }
 
         return mappers

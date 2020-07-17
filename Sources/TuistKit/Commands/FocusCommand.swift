@@ -19,7 +19,13 @@ struct FocusCommand: ParsableCommand {
     @Flag(help: "Generate a project replacing dependencies with pre-compiled assets.")
     var cache: Bool
 
+    @Option(
+        name: .shortAndLong,
+        help: "The path to the directory containing the project you plan to focus on."
+    )
+    var path: String?
+
     func run() throws {
-        try FocusService().run(cache: cache)
+        try FocusService().run(cache: cache, path: path)
     }
 }
