@@ -48,8 +48,8 @@ final class FocusService {
         self.generatorProvider = generatorProvider
     }
 
-    func run(cache: Bool) throws {
-        let path = FileHandler.shared.currentPath
+    func run(cache: Bool, path: String?) throws {
+        let path = self.path(path)
         if isWorkspace(path: path), cache {
             throw FocusServiceError.cacheWorkspaceNonSupported
         }
@@ -58,7 +58,17 @@ final class FocusService {
         try opener.open(path: workspacePath)
     }
 
-    func isWorkspace(path: AbsolutePath) -> Bool {
+    // MARK: - Helpers
+
+    private func path(_ path: String?) -> AbsolutePath {
+        if let path = path {
+            return AbsolutePath(path, relativeTo: FileHandler.shared.currentPath)
+        } else {
+            return FileHandler.shared.currentPath
+        }
+    }
+
+    private func isWorkspace(path: AbsolutePath) -> Bool {
         manifestLoader.manifests(at: path).contains(.workspace)
     }
 }
