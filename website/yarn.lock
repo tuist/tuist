@@ -7723,6 +7723,13 @@ gatsby-plugin-feed@^2.5.4:
     lodash.merge "^4.6.2"
     rss "^1.2.2"
 
+gatsby-plugin-intercom@^0.1.4:
+  version "0.1.4"
+  resolved "https://registry.yarnpkg.com/gatsby-plugin-intercom/-/gatsby-plugin-intercom-0.1.4.tgz#5942ba9f8588fcb736a2e31bf91618500973b40a"
+  integrity sha1-WUK6n4WI/Lc2ouMb+RYYUAlztAo=
+  dependencies:
+    babel-runtime "^6.26.0"
+
 gatsby-plugin-manifest@2.4.18:
   version "2.4.18"
   resolved "https://registry.yarnpkg.com/gatsby-plugin-manifest/-/gatsby-plugin-manifest-2.4.18.tgz#7853efc25dd86e7af760026d675ffb3fd6bac59e"

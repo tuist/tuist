@@ -227,5 +227,11 @@ module.exports = {
         // purgeOnly : ['components/', '/main.css', 'bootstrap/'], // Purge only these files/folders
       },
     },
+    {
+      resolve: `gatsby-plugin-intercom`,
+      options: {
+        appId: 'hdiitpb9',
+      },
+    },
   ],
 }
