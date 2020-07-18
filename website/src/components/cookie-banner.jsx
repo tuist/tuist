@@ -18,8 +18,8 @@ const CookieBanner = () => {
           <div className="p-2 rounded-lg bg-blue-600 shadow-lg sm:p-3">
             <div className="flex items-center justify-between flex-wrap">
               <div className="w-0 flex-1 flex items-center">
-                <p className="ml-3 font-medium text-white truncate">
-                  <span className="hidden md:inline">
+                <p className="ml-3 font-medium text-white text-wrap">
+                  <span className="inline">
                     By using this website, you agree to our{' '}
                     <Link css={[tw`underline`]} to="/cookies">
                       cookie policy
