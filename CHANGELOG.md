@@ -4,6 +4,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+## 1.13.0 - Coyote
+
 ### Fixed
 
 - `tuist focus` creating new `.package.resolved` [#1569](https://github.com/tuist/tuist/pull/1569) by [@fortmarek](https://github.com/fortmarek)
