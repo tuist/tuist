@@ -203,7 +203,7 @@ class TargetLinter: TargetLinting {
         target.dependencies.forEach { seen[$0, default: 0] += 1 }
         let duplicates = seen.enumerated().filter { $0.element.value > 1 }
         return duplicates.map {
-            .init(reason: "Target has duplicate '\($0.element.key)' dependency specified", severity: .warning)
+            .init(reason: "Target \(target.name) has duplicate '\($0.element.key)' dependency specified", severity: .warning)
         }
     }
 }
