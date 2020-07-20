@@ -4,7 +4,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
-## 1.13.0 - More Bella Vita
+## 1.13.1 - More Bella Vita
 
 ### Fixed
 
