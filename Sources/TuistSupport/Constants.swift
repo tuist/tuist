@@ -5,7 +5,7 @@ public struct Constants {
     public static let binFolderName = ".tuist-bin"
     public static let binName = "tuist"
     public static let gitRepositoryURL = "https://github.com/tuist/tuist.git"
-    public static let version = "1.13.0"
+    public static let version = "1.13.1"
     public static let bundleName: String = "tuist.zip"
     public static let trueValues: [String] = ["1", "true", "TRUE", "yes", "YES"]
     public static let tuistDirectoryName: String = "Tuist"
