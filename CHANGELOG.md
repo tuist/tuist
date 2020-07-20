@@ -4,7 +4,13 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
-## 1.13.0 - Coyote
+## 1.13.0 - More Bella Vita
+
+### Fixed
+
+- Camelize the name of the Objective-C synthesized object by [@pepibumur](https://github.com/pepibumur).
+
+## 1.13.0 - Bella Vita
 
 ### Fixed
 

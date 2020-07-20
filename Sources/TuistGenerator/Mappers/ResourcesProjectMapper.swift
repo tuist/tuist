@@ -98,7 +98,7 @@ public class ResourcesProjectMapper: ProjectMapping {
         // MARK: - Objective-C Bundle Accessor
 
         @objc
-        public class \(targetName)Resources: NSObject {
+        public class \(targetName.camelized.uppercasingFirst)Resources: NSObject {
            @objc public class var bundle: Bundle {
                  return .module
            }
