@@ -63,6 +63,7 @@ public class ResourcesProjectMapper: ProjectMapping {
 
     static func fileContent(targetName: String, bundleName: String) -> String {
         """
+        // swiftlint:disable all
         import Foundation
 
         // MARK: - Swift Bundle Accessor
@@ -103,6 +104,7 @@ public class ResourcesProjectMapper: ProjectMapping {
                  return .module
            }
         }
+        // swiftlint:enable all
         """
     }
 }
