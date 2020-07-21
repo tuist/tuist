@@ -8,11 +8,11 @@ import TuistGenerator
 import TuistLoader
 import TuistSupport
 
-protocol FocusServiceProjectGeneratorProviding {
+protocol FocusServiceProjectGeneratorFactorying {
     func generator(cache: Bool) -> ProjectGenerating
 }
 
-final class FocusServiceProjectGeneratorProvider: FocusServiceProjectGeneratorProviding {
+final class FocusServiceProjectGeneratorFactory: FocusServiceProjectGeneratorFactorying {
     func generator(cache: Bool) -> ProjectGenerating {
         ProjectGenerator(graphMapperProvider: GraphMapperProvider(cache: cache))
     }
@@ -37,15 +37,15 @@ enum FocusServiceError: FatalError {
 
 final class FocusService {
     private let opener: Opening
-    private let generatorProvider: FocusServiceProjectGeneratorProviding
+    private let projectGeneratorFactory: FocusServiceProjectGeneratorFactorying
     private let manifestLoader: ManifestLoading
 
     init(manifestLoader: ManifestLoading = ManifestLoader(),
          opener: Opening = Opener(),
-         generatorProvider: FocusServiceProjectGeneratorProviding = FocusServiceProjectGeneratorProvider()) {
+         projectGeneratorFactory: FocusServiceProjectGeneratorFactorying = FocusServiceProjectGeneratorFactory()) {
         self.manifestLoader = manifestLoader
         self.opener = opener
-        self.generatorProvider = generatorProvider
+        self.projectGeneratorFactory = projectGeneratorFactory
     }
 
     func run(cache: Bool, path: String?) throws {
@@ -53,7 +53,7 @@ final class FocusService {
         if isWorkspace(path: path), cache {
             throw FocusServiceError.cacheWorkspaceNonSupported
         }
-        let generator = generatorProvider.generator(cache: cache)
+        let generator = projectGeneratorFactory.generator(cache: cache)
         let workspacePath = try generator.generate(path: path, projectOnly: false)
         try opener.open(path: workspacePath)
     }

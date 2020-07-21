@@ -19,8 +19,12 @@ struct GenerateCommand: ParsableCommand {
     )
     var projectOnly: Bool
 
+    @Flag(help: "Generate a project replacing dependencies with pre-compiled assets.")
+    var cache: Bool
+
     func run() throws {
         try GenerateService().run(path: path,
-                                  projectOnly: projectOnly)
+                                  projectOnly: projectOnly,
+                                  cache: cache)
     }
 }
