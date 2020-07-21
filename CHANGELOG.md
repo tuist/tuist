@@ -8,6 +8,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Disable SwiftLint in the generated synthesized interface for resources [#1574](https://github.com/tuist/tuist/pull/1574) by [@pepibumur](https://github.com/pepibumur).
 
+### Added
+
+- Support for `--cache` to the `tuist generate` command [#1576](https://github.com/tuist/tuist/pull/1576) by [@pepibumur](https://github.com/pepibumur).
+
 ## 1.13.1 - More Bella Vita
 
 ### Fixed
