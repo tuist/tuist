@@ -9,7 +9,7 @@ import XCTest
 @testable import TuistLoaderTesting
 @testable import TuistSupportTesting
 
-final class MockFocusServiceProjectGeneratorProvider: FocusServiceProjectGeneratorProviding {
+final class MockFocusServiceProjectGeneratorFactory: FocusServiceProjectGeneratorFactorying {
     var invokedGenerator = false
     var invokedGeneratorCount = 0
     var invokedGeneratorParameters: (cache: Bool, Void)?
@@ -39,22 +39,22 @@ final class FocusServiceTests: TuistUnitTestCase {
     var subject: FocusService!
     var opener: MockOpener!
     var generator: MockProjectGenerator!
-    var generatorProvider: MockFocusServiceProjectGeneratorProvider!
+    var projectGeneratorFactory: MockFocusServiceProjectGeneratorFactory!
 
     override func setUp() {
         super.setUp()
         opener = MockOpener()
         generator = MockProjectGenerator()
-        generatorProvider = MockFocusServiceProjectGeneratorProvider()
-        generatorProvider.stubbedGeneratorResult = generator
-        subject = FocusService(opener: opener, generatorProvider: generatorProvider)
+        projectGeneratorFactory = MockFocusServiceProjectGeneratorFactory()
+        projectGeneratorFactory.stubbedGeneratorResult = generator
+        subject = FocusService(opener: opener, projectGeneratorFactory: projectGeneratorFactory)
     }
 
     override func tearDown() {
         opener = nil
         generator = nil
         subject = nil
-        generatorProvider = nil
+        projectGeneratorFactory = nil
         super.tearDown()
     }
 

@@ -24,6 +24,12 @@ Then(/^tuist generates the project at (.+)$/) do |path|
   @xcodeproj_path = Dir.glob(File.join(@dir, path, "*.xcodeproj")).first
 end
 
+Then(/^tuist generates a project with cached targets at (.+)$/) do |path|
+  system("swift", "run", "tuist", "generate", "--path", File.join(@dir, path), "--cache")
+  @workspace_path = Dir.glob(File.join(@dir, path, "*.xcworkspace")).first
+  @xcodeproj_path = Dir.glob(File.join(@dir, path, "*.xcodeproj")).first
+end
+
 Then(/tuist lints the project and fails/) do
   _, _, status = Open3.capture3("swift", "run", "tuist", "lint", "--path", @dir)
   refute(status.success?, "Expected 'tuist lint' to fail but it didn't")

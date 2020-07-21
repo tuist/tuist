@@ -5,8 +5,11 @@ require 'fileutils'
 
 And(/I have a working directory/) do
   @dir = Dir.mktmpdir
+  @cache_dir = Dir.mktmpdir
+  ENV["TUIST_CACHE_DIRECTORY"] = @cache_dir
 end
 
 After do |_scenario|
   FileUtils.rm_r(@dir) unless @dir.nil?
+  FileUtils.rm_r(@cache_dir) unless @cache_dir.nil?
 end

@@ -10,24 +10,44 @@ import XCTest
 @testable import TuistLoaderTesting
 @testable import TuistSupportTesting
 
+final class MockGenerateServiceProjectGeneratorFactory: GenerateServiceProjectGeneratorFactorying {
+    var invokedGenerator = false
+    var invokedGeneratorCount = 0
+    var invokedGeneratorParameters: (cache: Bool, Void)?
+    var invokedGeneratorParametersList = [(cache: Bool, Void)]()
+    var stubbedGeneratorResult: ProjectGenerating!
+
+    func generator(cache: Bool) -> ProjectGenerating {
+        invokedGenerator = true
+        invokedGeneratorCount += 1
+        invokedGeneratorParameters = (cache, ())
+        invokedGeneratorParametersList.append((cache, ()))
+        return stubbedGeneratorResult
+    }
+}
+
 final class GenerateServiceTests: TuistUnitTestCase {
     var subject: GenerateService!
     var generator: MockProjectGenerator!
     var clock: StubClock!
+    var projectGeneratorFactory: MockGenerateServiceProjectGeneratorFactory!
 
     override func setUp() {
         super.setUp()
+        projectGeneratorFactory = MockGenerateServiceProjectGeneratorFactory()
         generator = MockProjectGenerator()
+        projectGeneratorFactory.stubbedGeneratorResult = generator
         clock = StubClock()
         generator.generateStub = { _, _ in
             AbsolutePath("/Test")
         }
 
-        subject = GenerateService(generator: generator,
-                                  clock: clock)
+        subject = GenerateService(clock: clock,
+                                  projectGeneratorFactory: projectGeneratorFactory)
     }
 
     override func tearDown() {
+        projectGeneratorFactory = nil
         generator = nil
         clock = nil
         subject = nil
@@ -135,8 +155,10 @@ final class GenerateServiceTests: TuistUnitTestCase {
 
 extension GenerateService {
     func testRun(path: String? = nil,
-                 projectOnly: Bool = false) throws {
+                 projectOnly: Bool = false,
+                 cache: Bool = false) throws {
         try run(path: path,
-                projectOnly: projectOnly)
+                projectOnly: projectOnly,
+                cache: cache)
     }
 }
