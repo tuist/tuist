@@ -7,6 +7,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Fixed
 
 - Disable SwiftLint in the generated synthesized interface for resources [#1574](https://github.com/tuist/tuist/pull/1574) by [@pepibumur](https://github.com/pepibumur).
+- Synthesized accessors for framework targets not resolving the path [#1575](https://github.com/tuist/tuist/pull/1575) by [@pepibumur](https://github.com/pepibumur).
 
 ### Added
 
