@@ -87,7 +87,6 @@ final class WorkspaceGenerator: WorkspaceGenerating {
         let projects = try Array(graph.projects).compactMap(context: config.projectGenerationContext) { project -> ProjectDescriptor? in
             try projectGenerator.generate(project: project, graph: graph)
         }
-
         let generatedProjects: [AbsolutePath: GeneratedProject] = Dictionary(uniqueKeysWithValues: projects.map { project in
             let pbxproj = project.xcodeProj.pbxproj
             let targets = pbxproj.nativeTargets.map {
@@ -101,6 +100,7 @@ final class WorkspaceGenerator: WorkspaceGenerating {
         })
 
         // Workspace structure
+
         let structure = workspaceStructureGenerator.generateStructure(path: path,
                                                                       workspace: workspace,
                                                                       fileHandler: FileHandler.shared)
@@ -115,7 +115,6 @@ final class WorkspaceGenerator: WorkspaceGenerating {
         }
 
         // Schemes
-
         let schemes = try schemesGenerator.generateWorkspaceSchemes(workspace: workspace,
                                                                     generatedProjects: generatedProjects,
                                                                     graph: graph)

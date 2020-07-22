@@ -29,6 +29,9 @@ class ProjectMapperProvider: ProjectMapperProviding {
         // Signing
         mappers.append(SigningMapper())
 
+        // Pod installs
+        mappers.append(PodInstallProjectMapper())
+
         return SequentialProjectMapper(mappers: mappers)
     }
 }

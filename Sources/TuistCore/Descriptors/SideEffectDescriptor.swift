@@ -22,6 +22,9 @@ public enum SideEffectDescriptor: Equatable {
 
     /// Perform a command
     case command(CommandDescriptor)
+
+    /// Run Pod install on the given directory.
+    case installPods(AbsolutePath)
 }
 
 extension SideEffectDescriptor: CustomStringConvertible {
@@ -33,6 +36,8 @@ extension SideEffectDescriptor: CustomStringConvertible {
             return directoryDescriptor.description
         case let .command(commandDescriptor):
             return commandDescriptor.description
+        case let .installPods(path):
+            return "Install the Pods in the directory \(path.pathString)"
         }
     }
 }

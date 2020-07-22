@@ -3,20 +3,6 @@ import TSCBasic
 import TuistSupport
 
 public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebugStringConvertible {
-    public static func == (lhs: Project, rhs: Project) -> Bool {
-        lhs.path == rhs.path &&
-            lhs.sourceRootPath == rhs.sourceRootPath &&
-            lhs.xcodeProjPath == rhs.xcodeProjPath &&
-            lhs.name == rhs.name &&
-            lhs.organizationName == rhs.organizationName &&
-            lhs.targets == rhs.targets &&
-            lhs.packages == rhs.packages &&
-            lhs.schemes == rhs.schemes &&
-            lhs.settings == rhs.settings &&
-            lhs.filesGroup == rhs.filesGroup &&
-            lhs.additionalFiles == rhs.additionalFiles
-    }
-
     // MARK: - Attributes
 
     /// Path to the folder that contains the project manifest.
@@ -27,6 +13,10 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
 
     /// Path to the Xcode project that will be generated.
     public var xcodeProjPath: AbsolutePath
+
+    /// If any of the targets of the project has a dependency with CocoaPods,
+    /// these paths points to the Xcode projects so that they get added to the generated workspace.
+    public var podProjectPaths: Set<AbsolutePath>
 
     /// Project name.
     public var name: String
@@ -67,6 +57,7 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
     ///   - targets: The project targets
     ///   - additionalFiles: The additional files to include in the project
     ///                      *(Those won't be included in any build phases)*
+    ///   - podProjectPaths: If any of the targets of the project has a dependency with CocoaPods, these paths points to the Xcode projects so that they get added to the generated workspace.
     public init(path: AbsolutePath,
                 sourceRootPath: AbsolutePath,
                 xcodeProjPath: AbsolutePath,
@@ -77,7 +68,8 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
                 targets: [Target],
                 packages: [Package],
                 schemes: [Scheme],
-                additionalFiles: [FileElement]) {
+                additionalFiles: [FileElement],
+                podProjectPaths: Set<AbsolutePath> = Set()) {
         self.path = path
         self.sourceRootPath = sourceRootPath
         self.xcodeProjPath = xcodeProjPath
@@ -89,6 +81,7 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
         self.settings = settings
         self.filesGroup = filesGroup
         self.additionalFiles = additionalFiles
+        self.podProjectPaths = podProjectPaths
     }
 
     /// It returns the project targets sorted based on the target type and the dependencies between them.
@@ -159,7 +152,8 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
                 targets: targets,
                 packages: packages,
                 schemes: schemes,
-                additionalFiles: additionalFiles)
+                additionalFiles: additionalFiles,
+                podProjectPaths: podProjectPaths)
     }
 
     /// Returns a copy of the project with the given schemes set.
@@ -175,7 +169,8 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
                 targets: targets,
                 packages: packages,
                 schemes: schemes,
-                additionalFiles: additionalFiles)
+                additionalFiles: additionalFiles,
+                podProjectPaths: podProjectPaths)
     }
 
     /// Returns the name of the default configuration.

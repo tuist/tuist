@@ -9,7 +9,8 @@ public extension ProjectDescriptor {
     static func test(path: AbsolutePath = AbsolutePath("/Test"),
                      xcodeprojPath: AbsolutePath? = nil,
                      schemes: [SchemeDescriptor] = [],
-                     sideEffects: [SideEffectDescriptor] = []) -> ProjectDescriptor {
+                     sideEffects: [SideEffectDescriptor] = [],
+                     podProjectPaths _: Set<AbsolutePath> = Set()) -> ProjectDescriptor {
         let mainGroup = PBXGroup()
         let configurationList = XCConfigurationList()
         let pbxProject = PBXProject(name: "Test",

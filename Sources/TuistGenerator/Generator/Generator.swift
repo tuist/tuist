@@ -69,7 +69,6 @@ public class Generator: Generating {
     private let workspaceGenerator: WorkspaceGenerating
     private let projectGenerator: ProjectGenerating
     private let writer: XcodeProjWriting
-    private let cocoapodsInteractor: CocoaPodsInteracting
     private let swiftPackageManagerInteractor: SwiftPackageManagerInteracting
 
     /// Instance to lint the Tuist configuration against the system.
@@ -90,7 +89,6 @@ public class Generator: Generating {
                                                     workspaceStructureGenerator: workspaceStructureGenerator,
                                                     schemesGenerator: schemesGenerator)
         let writer = XcodeProjWriter()
-        let cocoapodsInteractor: CocoaPodsInteracting = CocoaPodsInteractor()
         let swiftPackageManagerInteractor: SwiftPackageManagerInteracting = SwiftPackageManagerInteractor()
 
         self.init(graphLoader: graphLoader,
@@ -99,7 +97,6 @@ public class Generator: Generating {
                   projectGenerator: projectGenerator,
                   environmentLinter: environmentLinter,
                   writer: writer,
-                  cocoapodsInteractor: cocoapodsInteractor,
                   swiftPackageManagerInteractor: swiftPackageManagerInteractor)
     }
 
@@ -109,7 +106,6 @@ public class Generator: Generating {
          projectGenerator: ProjectGenerating,
          environmentLinter: EnvironmentLinting,
          writer: XcodeProjWriting,
-         cocoapodsInteractor: CocoaPodsInteracting,
          swiftPackageManagerInteractor: SwiftPackageManagerInteracting) {
         self.graphLoader = graphLoader
         self.graphLinter = graphLinter
@@ -117,7 +113,6 @@ public class Generator: Generating {
         self.projectGenerator = projectGenerator
         self.environmentLinter = environmentLinter
         self.writer = writer
-        self.cocoapodsInteractor = cocoapodsInteractor
         self.swiftPackageManagerInteractor = swiftPackageManagerInteractor
     }
 
@@ -187,6 +182,5 @@ public class Generator: Generating {
 
     private func postGenerationActions(for graph: Graph, workspaceName: String) throws {
         try swiftPackageManagerInteractor.install(graph: graph, workspaceName: workspaceName)
-        try cocoapodsInteractor.install(graph: graph)
     }
 }

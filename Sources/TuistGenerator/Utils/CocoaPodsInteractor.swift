@@ -1,4 +1,5 @@
 import Foundation
+import TSCBasic
 import TuistCore
 import TuistSupport
 
@@ -29,81 +30,69 @@ enum CocoaPodsInteractorError: FatalError, Equatable {
 }
 
 public protocol CocoaPodsInteracting {
-    /// Runs 'pod install' for all the CocoaPods dependencies that have been indicated in the graph.
-    ///
-    /// - Parameter graph: Project graph.
-    /// - Throws: An error if the installation of the pods fails.
-    func install(graph: Graph) throws
+    /// Runs 'pod install' in the given directory.
+    /// - Parameter path: Path to the directory containing the Podfile file.
+    func install(path: AbsolutePath) throws
 }
 
 public final class CocoaPodsInteractor: CocoaPodsInteracting {
     public init() {}
 
-    /// Runs 'pod install' for all the CocoaPods dependencies that have been indicated in the graph.
-    ///
-    /// - Parameter graph: Project graph.
-    /// - Throws: An error if the installation of the pods fails.
-    public func install(graph: Graph) throws {
+    public func install(path: AbsolutePath) throws {
         do {
-            try install(graph: graph, updatingRepo: false)
+            try install(path: path, updatingRepo: false)
         } catch let error as CocoaPodsInteractorError {
             if case CocoaPodsInteractorError.outdatedRepository = error {
                 logger.warning("The local CocoaPods specs repository is outdated. Re-running 'pod install' updating the repository.")
-                try self.install(graph: graph, updatingRepo: true)
+                try self.install(path: path, updatingRepo: true)
             } else {
                 throw error
             }
         }
     }
 
-    fileprivate func install(graph: Graph, updatingRepo: Bool) throws {
-        guard !graph.cocoapods.isEmpty else {
-            return
-        }
-
+    fileprivate func install(path: AbsolutePath, updatingRepo: Bool) throws {
         let canUseBundler = canUseCocoaPodsThroughBundler()
         let canUseSystem = canUseSystemPod()
 
-        try graph.cocoapods.forEach { node in
-            var command: [String]
+        var command: [String]
 
-            if canUseBundler {
-                command = ["bundle", "exec", "pod"]
-            } else if canUseSystem {
-                command = ["pod"]
+        if canUseBundler {
+            command = ["bundle", "exec", "pod"]
+        } else if canUseSystem {
+            command = ["pod"]
+        } else {
+            throw CocoaPodsInteractorError.cocoapodsNotFound
+        }
+
+        command.append(contentsOf: ["install", "--project-directory=\(path.pathString)"])
+
+        if updatingRepo {
+            command.append("--repo-update")
+        }
+
+        // The installation of Pods might fail if the local repository that contains the specs
+        // is outdated.
+        logger.notice("Installing CocoaPods dependencies defined in \(path.appending(component: "Podfile"))", metadata: .section)
+
+        var mightNeedRepoUpdate: Bool = false
+        let outputClosure: ([UInt8]) -> Void = { bytes in
+            let content = String(data: Data(bytes), encoding: .utf8)
+            if content?.contains("CocoaPods could not find compatible versions for pod") == true {
+                mightNeedRepoUpdate = true
+            }
+        }
+        do {
+            try System.shared.runAndPrint(command,
+                                          verbose: false,
+                                          environment: System.shared.env,
+                                          redirection: .stream(stdout: outputClosure,
+                                                               stderr: outputClosure))
+        } catch {
+            if mightNeedRepoUpdate {
+                throw CocoaPodsInteractorError.outdatedRepository
             } else {
-                throw CocoaPodsInteractorError.cocoapodsNotFound
-            }
-
-            command.append(contentsOf: ["install", "--project-directory=\(node.path.pathString)"])
-
-            if updatingRepo {
-                command.append("--repo-update")
-            }
-
-            // The installation of Pods might fail if the local repository that contains the specs
-            // is outdated.
-            logger.notice("Installing CocoaPods dependencies defined in \(node.podfilePath)", metadata: .section)
-
-            var mightNeedRepoUpdate: Bool = false
-            let outputClosure: ([UInt8]) -> Void = { bytes in
-                let content = String(data: Data(bytes), encoding: .utf8)
-                if content?.contains("CocoaPods could not find compatible versions for pod") == true {
-                    mightNeedRepoUpdate = true
-                }
-            }
-            do {
-                try System.shared.runAndPrint(command,
-                                              verbose: false,
-                                              environment: System.shared.env,
-                                              redirection: .stream(stdout: outputClosure,
-                                                                   stderr: outputClosure))
-            } catch {
-                if mightNeedRepoUpdate {
-                    throw CocoaPodsInteractorError.outdatedRepository
-                } else {
-                    throw error
-                }
+                throw error
             }
         }
     }

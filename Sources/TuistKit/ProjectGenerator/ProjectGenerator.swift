@@ -109,7 +109,9 @@ class ProjectGenerator: ProjectGenerating {
         try lint(graph: graph)
 
         // Generate
-        let updatedWorkspace = workspace.merging(projects: Array(graph.projects.map { $0.path }))
+        var projectPaths = Array(graph.projects.map { $0.path })
+        projectPaths.append(contentsOf: Array(Set(graph.projects.flatMap { $0.podProjectPaths })))
+        let updatedWorkspace = workspace.merging(projects: projectPaths)
         let workspaceDescriptor = try generator.generateWorkspace(workspace: updatedWorkspace,
                                                                   graph: graph)
 
@@ -133,7 +135,9 @@ class ProjectGenerator: ProjectGenerating {
         try lint(graph: graph)
 
         // Generate
-        let workspace = Workspace(path: path, name: project.name, projects: Array(graph.projects.map { $0.path }))
+        var projectPaths = Array(graph.projects.map { $0.path })
+        projectPaths.append(contentsOf: Array(Set(graph.projects.flatMap { $0.podProjectPaths })))
+        let workspace = Workspace(path: path, name: project.name, projects: projectPaths)
         let workspaceDescriptor = try generator.generateWorkspace(workspace: workspace, graph: graph)
 
         // Write
@@ -158,7 +162,6 @@ class ProjectGenerator: ProjectGenerating {
     private func postGenerationActions(for graph: Graph, workspaceName: String) throws {
         try signingInteractor.install(graph: graph)
         try swiftPackageManagerInteractor.install(graph: graph, workspaceName: workspaceName)
-        try cocoapodsInteractor.install(graph: graph)
     }
 
     // MARK: -

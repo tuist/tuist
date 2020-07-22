@@ -10,7 +10,11 @@ public protocol SideEffectDescriptorExecuting: AnyObject {
 }
 
 public final class SideEffectDescriptorExecutor: SideEffectDescriptorExecuting {
-    public init() {}
+    let cocoapodsInteractor: CocoaPodsInteracting
+
+    public init(cocoapodsInteractor: CocoaPodsInteracting = CocoaPodsInteractor()) {
+        self.cocoapodsInteractor = cocoapodsInteractor
+    }
 
     // MARK: - SideEffectDescriptorExecuting
 
@@ -24,6 +28,8 @@ public final class SideEffectDescriptorExecutor: SideEffectDescriptorExecuting {
                 try process(file: fileDescriptor)
             case let .directory(directoryDescriptor):
                 try process(directory: directoryDescriptor)
+            case let .installPods(path):
+                try cocoapodsInteractor.install(path: path)
             }
         }
     }
