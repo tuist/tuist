@@ -37,7 +37,7 @@ final class WorkspaceGeneratorIntegrationTests: TuistTestCase {
                                      project.targets.map { target in
                                          (project: project, target: target, dependencies: [])
                                      }
-        })
+                                 })
         let workspace = Workspace.test(path: temporaryPath, projects: projects.map(\.path))
 
         // When / Then

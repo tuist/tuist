@@ -57,54 +57,78 @@ public class ResourcesProjectMapper: ProjectMapping {
             .appending(component: "Bundle+\(target.name).swift")
 
         let content: String = ResourcesProjectMapper.fileContent(targetName: target.name,
-                                                                 bundleName: bundleName)
+                                                                 bundleName: bundleName,
+                                                                 target: target)
         return (filePath, [.file(.init(path: filePath, contents: content.data(using: .utf8), state: .present))])
     }
 
-    static func fileContent(targetName: String, bundleName: String) -> String {
-        """
-        // swiftlint:disable all
-        import Foundation
+    static func fileContent(targetName: String, bundleName: String, target: Target) -> String {
+        if !target.supportsResources {
+            return """
+            // swiftlint:disable all
+            import Foundation
 
-        // MARK: - Swift Bundle Accessor
+            // MARK: - Swift Bundle Accessor
 
-        private class BundleFinder {}
+            private class BundleFinder {}
 
-        extension Foundation.Bundle {
-            /// Returns the resource bundle associated with the current Swift module.
-            static var module: Bundle = {
-                let bundleName = "\(bundleName)"
+            extension Foundation.Bundle {
+                /// Since \(targetName) is a \(target.product), the bundle for classes within this module can be used directly.
+                static var module: Bundle = {
+                    let bundleName = "\(bundleName)"
 
-                let candidates = [
-                    // Bundle should be present here when the package is linked into an App.
-                    Bundle.main.resourceURL,
+                    let candidates = [
+                        Bundle.main.resourceURL,
+                        Bundle(for: BundleFinder.self).resourceURL,
+                        Bundle.main.bundleURL,
+                    ]
 
-                    // Bundle should be present here when the package is linked into a framework.
-                    Bundle(for: BundleFinder.self).resourceURL,
-
-                    // For command-line tools.
-                    Bundle.main.bundleURL,
-                ]
-
-                for candidate in candidates {
-                    let bundlePath = candidate?.appendingPathComponent(bundleName + ".bundle")
-                    if let bundle = bundlePath.flatMap(Bundle.init(url:)) {
-                        return bundle
+                    for candidate in candidates {
+                        let bundlePath = candidate?.appendingPathComponent(bundleName + ".bundle")
+                        if let bundle = bundlePath.flatMap(Bundle.init(url:)) {
+                            return bundle
+                        }
                     }
-                }
-                fatalError("unable to find bundle named \(bundleName)")
-            }()
-        }
+                    fatalError("unable to find bundle named \(bundleName)")
+                }()
+            }
 
-        // MARK: - Objective-C Bundle Accessor
+            // MARK: - Objective-C Bundle Accessor
 
-        @objc
-        public class \(targetName.camelized.uppercasingFirst)Resources: NSObject {
-           @objc public class var bundle: Bundle {
-                 return .module
-           }
+            @objc
+            public class \(targetName.camelized.uppercasingFirst)Resources: NSObject {
+               @objc public class var bundle: Bundle {
+                     return .module
+               }
+            }
+            // swiftlint:enable all
+            """
+        } else {
+            return """
+            // swiftlint:disable all
+            import Foundation
+
+            // MARK: - Swift Bundle Accessor
+
+            private class BundleFinder {}
+
+            extension Foundation.Bundle {
+                /// Since \(targetName) is a \(target.product), the bundle containing the resources is copied into the final product.
+                static var module: Bundle = {
+                    return Bundle(for: BundleFinder.self)
+                }()
+            }
+
+            // MARK: - Objective-C Bundle Accessor
+
+            @objc
+            public class \(targetName.camelized.uppercasingFirst)Resources: NSObject {
+               @objc public class var bundle: Bundle {
+                     return .module
+               }
+            }
+            // swiftlint:enable all
+            """
         }
-        // swiftlint:enable all
-        """
     }
 }
