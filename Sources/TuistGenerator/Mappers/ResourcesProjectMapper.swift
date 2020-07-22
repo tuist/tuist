@@ -58,12 +58,12 @@ public class ResourcesProjectMapper: ProjectMapping {
 
         let content: String = ResourcesProjectMapper.fileContent(targetName: target.name,
                                                                  bundleName: bundleName,
-                                                                 product: target.product)
+                                                                 target: target)
         return (filePath, [.file(.init(path: filePath, contents: content.data(using: .utf8), state: .present))])
     }
 
-    static func fileContent(targetName: String, bundleName: String, product: Product) -> String {
-        if product == .staticLibrary || product == .dynamicLibrary {
+    static func fileContent(targetName: String, bundleName: String, target: Target) -> String {
+        if !target.supportsResources {
             return """
             // swiftlint:disable all
             import Foundation
