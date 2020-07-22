@@ -19,11 +19,9 @@ public class ProjectNameAndOrganizationMapper: ProjectMapping {
         var project = project
 
         // Xcode project file name
-        var xcodeProjPath: AbsolutePath = project.xcodeProjPath
         if let xcodeFileName = xcodeFileNameOverride(for: project) {
-            xcodeProjPath = project.xcodeProjPath.parentDirectory.appending(component: "\(xcodeFileName).xcodeproj")
+            project.xcodeProjPath = project.xcodeProjPath.parentDirectory.appending(component: "\(xcodeFileName).xcodeproj")
         }
-        project.xcodeProjPath = xcodeProjPath
 
         // Xcode project organization name
         if let organizationName = organizationNameOverride() {
