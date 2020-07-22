@@ -73,10 +73,8 @@ extension GeneratorModelLoader: GeneratorModelLoading {
 
 extension GeneratorModelLoader: ManifestModelConverting {
     public func convert(manifest: ProjectDescription.Project, path: AbsolutePath) throws -> TuistCore.Project {
-        let config = try loadConfig(at: path)
         let generatorPaths = GeneratorPaths(manifestDirectory: path)
-        let project = try TuistCore.Project.from(manifest: manifest, generatorPaths: generatorPaths)
-        return try enriched(model: project, with: config)
+        return try TuistCore.Project.from(manifest: manifest, generatorPaths: generatorPaths)
     }
 
     public func convert(manifest: ProjectDescription.Workspace, path: AbsolutePath) throws -> TuistCore.Workspace {
@@ -86,53 +84,5 @@ extension GeneratorModelLoader: ManifestModelConverting {
                                                      generatorPaths: generatorPaths,
                                                      manifestLoader: manifestLoader)
         return workspace
-    }
-}
-
-extension GeneratorModelLoader {
-    private func enriched(model: TuistCore.Project, with config: TuistCore.Config) throws -> TuistCore.Project {
-        var enrichedModel = model
-
-        // Xcode project file name
-        var xcodeProjPath: AbsolutePath = enrichedModel.xcodeProjPath
-        if let xcodeFileName = xcodeFileNameOverride(from: config, for: model) {
-            xcodeProjPath = enrichedModel.xcodeProjPath.parentDirectory.appending(component: "\(xcodeFileName).xcodeproj")
-        }
-        enrichedModel = enrichedModel.replacing(xcodeProjPath: xcodeProjPath)
-
-        // Xcode project organization name
-        if let organizationName = organizationNameOverride(from: config) {
-            enrichedModel = enrichedModel.replacing(organizationName: organizationName)
-        }
-
-        return enrichedModel
-    }
-
-    private func xcodeFileNameOverride(from config: TuistCore.Config, for model: TuistCore.Project) -> String? {
-        var xcodeFileName = config.generationOptions.compactMap { item -> String? in
-            switch item {
-            case let .xcodeProjectName(projectName):
-                return projectName.description
-            default:
-                return nil
-            }
-        }.first
-
-        let projectNameTemplate = TemplateString.Token.projectName.rawValue
-        xcodeFileName = xcodeFileName?.replacingOccurrences(of: projectNameTemplate,
-                                                            with: model.name)
-
-        return xcodeFileName
-    }
-
-    private func organizationNameOverride(from config: TuistCore.Config) -> String? {
-        config.generationOptions.compactMap { item -> String? in
-            switch item {
-            case let .organizationName(name):
-                return name
-            default:
-                return nil
-            }
-        }.first
     }
 }

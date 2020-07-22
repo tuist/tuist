@@ -1,6 +1,7 @@
 import Foundation
 import TuistCore
 import TuistGenerator
+import TuistLoader
 import TuistSigning
 
 /// It defines an interface for providing the project mappers to be used for a specific configuration.
@@ -25,6 +26,9 @@ class ProjectMapperProvider: ProjectMapperProviding {
 
         // Support for resources in libraries
         mappers.append(ResourcesProjectMapper())
+
+        // Project name mapper
+        mappers.append(ProjectNameAndOrganizationMapper(config: config))
 
         // Signing
         mappers.append(SigningMapper())

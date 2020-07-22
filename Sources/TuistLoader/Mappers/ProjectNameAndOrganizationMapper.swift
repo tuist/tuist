@@ -1,0 +1,70 @@
+import Foundation
+import ProjectDescription
+import TSCBasic
+import TuistCore
+import TuistSupport
+
+/// It's a mapper that changes the project name and organization based on the configuration
+/// in the Config.swift
+public class ProjectNameAndOrganizationMapper: ProjectMapping {
+    private let config: TuistCore.Config
+
+    public init(config: TuistCore.Config) {
+        self.config = config
+    }
+
+    // MARK: - ProjectMapping
+
+    public func map(project: TuistCore.Project) throws -> (TuistCore.Project, [SideEffectDescriptor]) {
+        var project = project
+
+        // Xcode project file name
+        var xcodeProjPath: AbsolutePath = project.xcodeProjPath
+        if let xcodeFileName = xcodeFileNameOverride(for: project) {
+            xcodeProjPath = project.xcodeProjPath.parentDirectory.appending(component: "\(xcodeFileName).xcodeproj")
+        }
+        project.xcodeProjPath = xcodeProjPath
+
+        // Xcode project organization name
+        if let organizationName = organizationNameOverride() {
+            project.organizationName = organizationName
+        }
+
+        return (project, [])
+    }
+
+    // MARK: - Private
+
+    /// It returns the name that should be used for the given project.
+    /// - Parameter project: Project representation.
+    /// - Returns: The name to be used.
+    private func xcodeFileNameOverride(for project: TuistCore.Project) -> String? {
+        var xcodeFileName = config.generationOptions.compactMap { item -> String? in
+            switch item {
+            case let .xcodeProjectName(projectName):
+                return projectName.description
+            default:
+                return nil
+            }
+        }.first
+
+        let projectNameTemplate = TemplateString.Token.projectName.rawValue
+        xcodeFileName = xcodeFileName?.replacingOccurrences(of: projectNameTemplate,
+                                                            with: project.name)
+
+        return xcodeFileName
+    }
+
+    /// It returns the organization name that should be used for the project.
+    /// - Returns: The organization name.
+    private func organizationNameOverride() -> String? {
+        config.generationOptions.compactMap { item -> String? in
+            switch item {
+            case let .organizationName(name):
+                return name
+            default:
+                return nil
+            }
+        }.first
+    }
+}
