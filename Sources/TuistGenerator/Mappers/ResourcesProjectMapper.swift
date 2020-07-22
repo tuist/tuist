@@ -73,7 +73,7 @@ public class ResourcesProjectMapper: ProjectMapping {
             private class BundleFinder {}
 
             extension Foundation.Bundle {
-                /// Since \(targetName) is a library, the bundle containing the resources is copied into the final product (app).
+                /// Since \(targetName) is a \(target.product), the bundle for classes within this module can be used directly.
                 static var module: Bundle = {
                     let bundleName = "\(bundleName)"
 
@@ -113,7 +113,7 @@ public class ResourcesProjectMapper: ProjectMapping {
             private class BundleFinder {}
 
             extension Foundation.Bundle {
-                /// Since \(targetName) is a framework, the bundle represents a framework.
+                /// Since \(targetName) is a \(target.product), the bundle containing the resources is copied into the final product.
                 static var module: Bundle = {
                     return Bundle(for: BundleFinder.self)
                 }()
