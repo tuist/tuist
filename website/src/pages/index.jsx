@@ -16,6 +16,7 @@ import Code from '../gatsby-plugin-theme-ui/code'
 import SEO from '../components/SEO'
 import Soundcloud from '../../assets/soundcloud.svg'
 import Devengo from '../../assets/devengo.svg'
+import FreeNow from '../../assets/freenow.svg'
 import Ackee from '../../assets/ackee.svg'
 import { lighten } from '@theme-ui/color'
 import Carousel from '@brainhubeu/react-carousel'
@@ -120,7 +121,9 @@ const Steroids = () => {
                 mt: 3,
                 display: 'flex',
                 flexDirection: 'row',
+                alignItems: 'center',
                 justifyContent: 'center',
+                flexWrap: 'wrap',
               }}
             >
               <a href="https://soundcloud.com" target="__blank">
@@ -136,11 +139,24 @@ const Steroids = () => {
                   path: { fill: theme.colors.gray },
                 }}
               />
-              <a href="https://www.ackee.cz/en" target="__blank" sx={{ ml: 2 }}>
+              <a href="https://free-now.com/" target="__blank" sx={{ ml: 2 }}>
+                <FreeNow
+                  sx={{
+                    height: 25,
+                    width: 110,
+                    path: { fill: theme.colors.gray },
+                  }}
+                />
+              </a>
+              <a
+                href="https://www.ackee.cz/en"
+                target="__blank"
+                sx={{ ml: 1, mt: 2 }}
+              >
                 <Ackee
                   sx={{
-                    height: 10,
-                    width: 80,
+                    height: 33,
+                    width: 95,
                     path: { fill: theme.colors.gray },
                   }}
                 />
