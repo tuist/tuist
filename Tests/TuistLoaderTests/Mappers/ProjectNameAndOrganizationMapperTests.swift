@@ -29,7 +29,7 @@ class ProjectNameAndOrganizationMapperTests: TuistUnitTestCase {
 
     func test_map_changes_the_project_name() throws {
         // Given
-        let project = Project.test(name: "Test")
+        let project = TuistCore.Project.test(name: "Test")
 
         // When
         let (got, _) = try subject.map(project: project)
@@ -40,7 +40,7 @@ class ProjectNameAndOrganizationMapperTests: TuistUnitTestCase {
 
     func test_map_changes_the_organization() throws {
         // Given
-        let project = Project.test(name: "Test", organizationName: nil)
+        let project = TuistCore.Project.test(name: "Test", organizationName: nil)
 
         // When
         let (got, _) = try subject.map(project: project)
