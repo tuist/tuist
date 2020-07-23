@@ -15,6 +15,11 @@ exports.onCreateNode = ({ node, getNode, actions }) => {
     toPath: '/docs/usage/project-description/',
     isPermanent: true,
   })
+  createRedirect({
+    fromPath: '/docs/architectures/microfeatures/',
+    toPath: '/docs/usage/microfeatures/',
+    isPermanent: true,
+  })
 
   // Auto-generated pages
   if (node.internal.type === `Mdx`) {

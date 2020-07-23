@@ -1,7 +1,7 @@
 /** @jsx jsx */
 import { jsx, Styled } from 'theme-ui'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faFolder } from '@fortawesome/free-regular-svg-icons'
+import { faFolder, faFileCode } from '@fortawesome/free-regular-svg-icons'
 import { faSwift } from '@fortawesome/free-brands-svg-icons'
 
 const List = ({ children }) => {
@@ -20,14 +20,21 @@ const ListItem = ({ children }) => {
 
 const ListIcon = ({ name }) => {
   let icon
-  if (name == 'swift') {
+  if (name == 'code') {
+    icon = faFileCode
+  } else if (name == 'swift') {
     icon = faSwift
   } else if (name == 'folder') {
     icon = faFolder
   }
   return (
     <div>
-      <FontAwesomeIcon sx={{ pr: 3 }} icon={icon} size="sm" sx={{ height: 30, width: 30 }} />
+      <FontAwesomeIcon
+        sx={{ pr: 3 }}
+        icon={icon}
+        size="sm"
+        sx={{ height: 30, width: 30 }}
+      />
     </div>
   )
 }
@@ -41,11 +48,7 @@ const ListContent = ({ children }) => {
 }
 
 const ListHeader = ({ children }) => {
-  return (
-    <div sx={{ mb: 0, color: 'text' }}>
-      {children}
-    </div>
-  )
+  return <div sx={{ mb: 0, color: 'text' }}>{children}</div>
 }
 
 const ListDescription = ({ children }) => {

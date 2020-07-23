@@ -34,7 +34,9 @@ const CookieBanner = () => {
                   className="-mr-1 flex p-2 rounded-md hover:bg-blue-500 focus:outline-none focus:bg-blue-500 transition ease-in-out duration-150"
                   aria-label="Dismiss"
                   onClick={() => {
-                    setCookie(cookieName, true)
+                    setCookie(cookieName, true, {
+                      maxAge: 60 * 60 * 24 * 31 /* 1 month */,
+                    })
                   }}
                 >
                   <svg
