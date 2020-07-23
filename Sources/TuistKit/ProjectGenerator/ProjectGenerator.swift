@@ -109,9 +109,8 @@ class ProjectGenerator: ProjectGenerating {
         try lint(graph: graph)
 
         // Generate
-        var projectPaths = Array(graph.projects.map { $0.path })
-        projectPaths.append(contentsOf: Array(Set(graph.projects.flatMap { $0.podProjectPaths })))
-        let updatedWorkspace = workspace.merging(projects: projectPaths)
+        let podsPaths = graph.projects.flatMap { $0.podProjectPaths }
+        let updatedWorkspace = workspace.adding(files: podsPaths)
         let workspaceDescriptor = try generator.generateWorkspace(workspace: updatedWorkspace,
                                                                   graph: graph)
 
@@ -135,9 +134,11 @@ class ProjectGenerator: ProjectGenerating {
         try lint(graph: graph)
 
         // Generate
-        var projectPaths = Array(graph.projects.map { $0.path })
-        projectPaths.append(contentsOf: Array(Set(graph.projects.flatMap { $0.podProjectPaths })))
-        let workspace = Workspace(path: path, name: project.name, projects: projectPaths)
+        let podsPaths = graph.projects.flatMap { $0.podProjectPaths }
+        let workspace = Workspace(path: path,
+                                  name: project.name,
+                                  projects: graph.projects.map { $0.path },
+                                  additionalFiles: podsPaths.map { .file(path: $0) })
         let workspaceDescriptor = try generator.generateWorkspace(workspace: workspace, graph: graph)
 
         // Write
