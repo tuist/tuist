@@ -1,0 +1,152 @@
+---
+name: Third-party dependencies
+excerpt: 'In this page documents how Tuist synthesizes accessors for resources to provide an interface that is consistent across all target products (e.g. framework. library).'
+---
+
+import {
+  List,
+  ListItem,
+  ListIcon,
+  ListContent,
+  ListHeader,
+  ListDescription,
+  ListList,
+} from '../components/list'
+
+# Third-party dependencies
+
+Third-party dependencies are great to save some development time by reusing code that has been developed by other developers. Originally, [CocoaPods](https://cocoapods.org/) was the leading dependency manager developed and maintained by the community. It's still extensively used because most dependencies support it by default. Eventually, [Carthage](https://github.com/carthage/carthage) came out with a different approach for distributing and consuming dependencies from projects: dependencies _are decentralized and integrated into projects as pre-compiled dynamic frameworks_.
+
+With the introduction of Swift, Apple presented a new dependency manager, [Swift Package Manager](https://swift.org/package-manager/). Dependencies are decentralized _(like Carthage)_ and integrated as source code _(like CocoaPods)_. One of the benefits of the Swift Package Manager over the other dependency managers is that it has better integration with Xcode and existing projects. For that reason, some teams have started migrating their dependencies to packages, and in some cases, using them to describe their projects as packages.
+
+<Message
+  warning
+  title="Tuist and the Swift Package Manager"
+  description="Like Tuist, the Swift Package Manager can be used for describing local projects. However, the Swift Package Manager's interface is designed for packages and not for projects. For example, there's no interface for describing schemes or choose the directory structure. Moreover, unlike Tuist, the Swift Package Manager is not designed to support teams in their scalability efforts. That means developers don't get features like caching or insights that are crucial for the healthy growth of a project."
+/>
+
+## Recommended approach for third-party dependencies
+
+### 1. Swift Packages
+
+Swift Packages are nodes in your project's dependency tree that represent static libraries. You can add them to your projects by using the interface designed for that:
+
+```swift
+// Project.swift
+import ProjectDescription
+
+let project = Project(name: "App",
+                      packages: [
+                        .package(url: "https://github.com/ReactiveX/RxSwift", .upToNextMajor(from: "5.0.0")),
+                      ],
+                      targets: [
+                        Target(name: "App",
+                               platform: .iOS,
+                               product: .app,
+                               bundleId: "io.tuist.App",
+                               sources: ["Sources/**"],
+                               dependencies: [
+                                    .package(product: "RxSwift"),
+                                    .package(product: "RxBlocking")
+                                ]),
+                      ])
+```
+
+### 2. Carthage
+
+Carthage frameworks are nodes in your project's dependency tree. Thus, Tuist can validate the dependency and make sure they are properly integrated into the generated project. We recommend following the project structure below:
+
+<List>
+  <ListItem>
+    <ListIcon name="swift" />
+    <ListContent>
+      <ListHeader>Setup.swift</ListHeader>
+      <ListDescription>
+        Setup file with the steps to configure the environment before working on
+        the project.
+      </ListDescription>
+    </ListContent>
+  </ListItem>
+  <ListItem>
+    <ListIcon name="code" />
+    <ListContent>
+      <ListHeader>Cartfile</ListHeader>
+      <ListDescription>Lists all the Carthage dependencies.</ListDescription>
+    </ListContent>
+  </ListItem>
+  <ListItem>
+    <ListIcon name="folder" />
+    <ListContent>
+      <ListHeader folder>Carthage</ListHeader>
+      <ListDescription>
+        The directory where Carthage pulls the dependencies.
+      </ListDescription>
+    </ListContent>
+  </ListItem>
+  <ListItem>
+    <ListIcon name="folder" />
+    <ListContent>
+      <ListHeader folder>Tuist</ListHeader>
+      <ListDescription>A global Tuist's directory.</ListDescription>
+    </ListContent>
+  </ListItem>
+  <ListItem>
+    <ListIcon name="folder" />
+    <ListContent>
+      <ListHeader folder>Projects</ListHeader>
+      <ListDescription>
+        A directory that contains all the projects.
+      </ListDescription>
+      <ListList>
+        <ListItem>
+          <ListIcon name="folder" />
+          <ListContent>
+            <ListHeader folder>App</ListHeader>
+            <ListDescription>A contains the app project.</ListDescription>
+            <ListList>
+              <ListItem>
+                <ListIcon name="swift" />
+                <ListContent>
+                  <ListHeader>Project.swift</ListHeader>
+                  <ListDescription>
+                    The app's Project.swift. It can import helpers.
+                  </ListDescription>
+                </ListContent>
+              </ListItem>
+            </ListList>
+          </ListContent>
+        </ListItem>
+      </ListList>
+    </ListContent>
+  </ListItem>
+</List>
+
+Then we can add a `.carthage` step to the `Setup.swift` file to pull the Carthage dependencies when running `tuist up`:
+
+```swift
+// Setup.swift
+import ProjectDescription
+
+let setup = Setup([
+    .carthage(platforms: [.iOS])
+])
+```
+
+From any target you can specify a dependency with a Carthage framework as shown in the example below:
+
+```swift
+// Project.swift
+import ProjectDescription
+
+let project = Project(name: "App",
+                      targets: [
+                          Target(name: "App",
+                                 platform: .iOS,
+                                 product: .app,
+                                 bundleId: "io.tuist.App",
+                                 sources: ["Sources/**"],
+                                 dependencies: [
+                                     .framework(path: .relativeToRoot("Carthage/Build/iOS/Framework.framework"))
+                                 ])
+                        ])
+```

@@ -38,7 +38,7 @@ Xcode has an incremental build system that tries to reuse results from past comp
 The problem though is that developers are used to using **CMD+K** when the compilation on Xcode yields errors.
 That invalidates Xcode's cache and results in a clean build.
 
-Some projects minimize the build time of clean builds by having a more horizontal project architecture _(e.g., [µFeatures architecture](/docs/architectures/microfeatures/))_. Large companies prefer to replace Xcode's build system with other build systems like [Bazel](https://bazel.build) or [Buck](https://buck.build/) that the output of individual build steps remotely. Unfortunately, the latter is a huge undertaking that is not feasible for small and medium companies.
+Some projects minimize the build time of clean builds by having a more horizontal project architecture _(e.g., [µFeatures architecture](/docs/usage/microfeatures/))_. Large companies prefer to replace Xcode's build system with other build systems like [Bazel](https://bazel.build) or [Buck](https://buck.build/) that the output of individual build steps remotely. Unfortunately, the latter is a huge undertaking that is not feasible for small and medium companies.
 
 In Tuist, we aim to help teams with the challenges they face when scaling up projects, which was an obvious one to tackle.
 
