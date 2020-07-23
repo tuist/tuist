@@ -9,10 +9,12 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Disable SwiftLint in the generated synthesized interface for resources [#1574](https://github.com/tuist/tuist/pull/1574) by [@pepibumur](https://github.com/pepibumur).
 - Synthesized accessors for framework targets not resolving the path [#1575](https://github.com/tuist/tuist/pull/1575) by [@pepibumur](https://github.com/pepibumur).
 
+
 ### Added
 
 - Support for `--cache` to the `tuist generate` command [#1576](https://github.com/tuist/tuist/pull/1576) by [@pepibumur](https://github.com/pepibumur).
 - Included that importing target name in the duplicate dependency warning message [#1573](https://github.com/tuist/tuist/pull/1573) by[ @thedavidharris](https://github.com/thedavidharris)
+- Support to build and run the project on Xcode 12 by fixing namespace collisions on Logger [#1579](https://github.com/tuist/tuist/pull/1579) by[ @thedavidharris](https://github.com/thedavidharris)
 
 ## 1.13.1 - More Bella Vita
 
