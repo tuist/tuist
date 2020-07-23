@@ -102,7 +102,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
         command.append(contentsOf: target.xcodebuildArguments)
 
         command.append("-allow-internal-distribution")
-        
+
         return System.shared.observable(command)
             .mapToString()
             .collectAndMergeOutput()
