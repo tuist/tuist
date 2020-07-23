@@ -1,8 +1,21 @@
 # frozen_string_literal: true
 require 'minitest/assertions'
+require 'xcodeproj'
 
 module Xcode
   include Minitest::Assertions
+
+  def self.workspace(workspace_path)
+    Xcodeproj::Workspace.new_from_xcworkspace(workspace_path)
+  end
+
+  def self.projects(workspace_path)
+    workspace(workspace_path)
+      .file_references
+      .filter { |f| f.path.include?(".xcodeproj") }
+      .map { |f| File.join(File.dirname(workspace_path), f.path)}
+      .map { |p| Xcodeproj::Project.open(p) }
+  end
 
   def self.product_with_name(name, destination:, derived_data_path:)
     glob = File.join(derived_data_path, "**/Build/**/Products/#{destination}/#{name}/")

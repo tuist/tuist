@@ -17,6 +17,7 @@ This document contains a list of recommendations for conventions that we'd follo
 ## Dependencies
 
 - **Explicit definition:** Dependencies can be defined implicitly through build settings. Xcode is smart enough to detect them and determine the order in which targets should be built. Although implicitness might work fine in small projects, as they get larger, it might turn into a source of issues and slowness. Default to explicit definition of dependencies using the [dependencies API](/docs/usage/dependencies/) that Tuist provides. Tuist has handy built-in features such as [tuist graph](/docs/commands/graph/) or detection of circular dependencies that rely on dependencies being explicitly defined.
+- **XCTest dependency:** If a target that is not a test target depends on `XCTest`, declare the dependency explicitly with `.xctest`.
 
 ## File structure
 
