@@ -84,6 +84,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
         var command = ["/usr/bin/xcrun", "xcodebuild", "-create-xcframework"]
         command.append(contentsOf: frameworks.flatMap { ["-framework", $0.pathString] })
         command.append(contentsOf: ["-output", output.pathString])
+        command.append("-allow-internal-distribution")
         return run(command: command)
     }
 
