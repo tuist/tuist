@@ -17,6 +17,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Changed
 
 - Change the project name and organization from a mapper [#1577](https://github.com/tuist/tuist/pull/1577) by [@pepibumur](https://github.com/pepibumur).
+- Update `ConfigGenerator` to use `ValueGraph` instead [#1583](https://github.com/tuist/tuist/pull/1583) by [@pepibumur](https://github.com/pepibumur).
 
 ## 1.13.1 - More Bella Vita
 
