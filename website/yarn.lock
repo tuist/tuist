@@ -7890,11 +7890,6 @@ gatsby-plugin-robots-txt@^1.5.1:
     "@babel/runtime" "^7.10.0"
     generate-robotstxt "^8.0.3"
 
-gatsby-plugin-segment-js@^3.3.0:
-  version "3.3.0"
-  resolved "https://registry.yarnpkg.com/gatsby-plugin-segment-js/-/gatsby-plugin-segment-js-3.3.0.tgz#6cc4c7e705e24a404f9e52f4e195ffb63ae29dd5"
-  integrity sha512-uN3gux4dR+umTI9C73s1V9kgcnDi4jenyTaS0/KqbxPCEQcntXFf/UJoMJCi//FILoYoU373vLmnTShlRyV/mw==
-
 gatsby-plugin-sharp@2.6.19:
   version "2.6.19"
   resolved "https://registry.yarnpkg.com/gatsby-plugin-sharp/-/gatsby-plugin-sharp-2.6.19.tgz#027e9a55e44fafff80e1c4c4811242a2fae8d12c"

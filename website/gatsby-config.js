@@ -227,15 +227,5 @@ module.exports = {
         // purgeOnly : ['components/', '/main.css', 'bootstrap/'], // Purge only these files/folders
       },
     },
-    {
-      resolve: `gatsby-plugin-segment-js`,
-      options: {
-        prodKey: `NXifCPQ8v0VBguBiDjLrwWde7wvDt46s`,
-        trackPage: false,
-        host: `https://override-segment-endpoint`,
-        delayLoad: false,
-        delayLoadTime: 1000,
-      },
-    },
   ],
 }
