@@ -31,9 +31,8 @@ private final class CoreDataVersionExtractor {
     /// - Throws: In case can not find the .xcurrentversion file.
     /// - Returns: Current version of data model.
     static func version(fromVersionFileAtPath filePath: AbsolutePath) throws -> String {
-        let url = URL(fileURLWithPath: filePath.pathString + "/.xccurrentversion")
         do {
-            let data = try Data(contentsOf: url)
+            let data = try Data(contentsOf: filePath.appending(component: ".xccurrentversion").url)
             let decoder = PropertyListDecoder()
             let dict = try decoder.decode([String: String].self, from: data)
             guard
