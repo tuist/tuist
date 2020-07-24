@@ -109,6 +109,11 @@ public struct ValueGraph: Equatable {
                         path: node.path,
                         status: node.status,
                         source: node.source)
+        case let node as PackageProductNode:
+            return .packageProduct(path: node.path,
+                                   product: node.product)
+        case let node as CocoaPodsNode:
+            return .cocoapods(path: node.path)
         default:
             fatalError("Unsupported dependency node type")
         }

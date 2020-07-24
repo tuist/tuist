@@ -79,10 +79,11 @@ final class ProjectGeneratorTests: TuistUnitTestCase {
         let target = Target.test()
         let packageNode = PackageNode(package: .remote(url: "A", requirement: .exact("0.1")),
                                       path: temporaryPath)
+        let packageProductNode = PackageProductNode(product: "A", path: project.path)
         let graph = Graph.test(entryPath: temporaryPath,
                                entryNodes: [TargetNode(project: project,
                                                        target: target,
-                                                       dependencies: [packageNode])],
+                                                       dependencies: [packageProductNode])],
                                projects: [project],
                                packages: [packageNode])
 

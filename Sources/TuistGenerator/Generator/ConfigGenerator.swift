@@ -15,7 +15,7 @@ protocol ConfigGenerating: AnyObject {
                               pbxproj: PBXProj,
                               projectSettings: Settings,
                               fileElements: ProjectFileElements,
-                              graph: Graph,
+                              graphTraverser: ValueGraphTraverser,
                               sourceRootPath: AbsolutePath) throws
 }
 
@@ -63,7 +63,7 @@ final class ConfigGenerator: ConfigGenerating {
                               pbxproj: PBXProj,
                               projectSettings: Settings,
                               fileElements: ProjectFileElements,
-                              graph: Graph,
+                              graphTraverser: ValueGraphTraverser,
                               sourceRootPath: AbsolutePath) throws {
         let defaultConfiguration = projectSettings.defaultReleaseBuildConfiguration()
             ?? projectSettings.defaultDebugBuildConfiguration()
@@ -93,7 +93,7 @@ final class ConfigGenerator: ConfigGenerating {
                                           buildConfiguration: $0.key,
                                           configuration: $0.value,
                                           fileElements: fileElements,
-                                          graph: graph,
+                                          graphTraverser: graphTraverser,
                                           pbxproj: pbxproj,
                                           configurationList: configurationList,
                                           swiftVersion: swiftVersion,
@@ -134,7 +134,7 @@ final class ConfigGenerator: ConfigGenerating {
                                            buildConfiguration: BuildConfiguration,
                                            configuration: Configuration?,
                                            fileElements: ProjectFileElements,
-                                           graph: Graph,
+                                           graphTraverser: ValueGraphTraverser,
                                            pbxproj: PBXProj,
                                            configurationList: XCConfigurationList,
                                            swiftVersion: String,
@@ -145,8 +145,9 @@ final class ConfigGenerator: ConfigGenerating {
                                                                   buildConfiguration: buildConfiguration)
         updateTargetDerived(buildSettings: &settings,
                             target: target,
-                            graph: graph,
+                            graphTraverser: graphTraverser,
                             swiftVersion: swiftVersion,
+                            projectPath: project.path,
                             sourceRootPath: sourceRootPath)
 
         settingsHelper.extend(buildSettings: &settings, with: target.settings?.base ?? [:])
@@ -167,13 +168,14 @@ final class ConfigGenerator: ConfigGenerating {
 
     private func updateTargetDerived(buildSettings settings: inout SettingsDictionary,
                                      target: Target,
-                                     graph: Graph,
+                                     graphTraverser: ValueGraphTraverser,
                                      swiftVersion: String,
+                                     projectPath: AbsolutePath,
                                      sourceRootPath: AbsolutePath) {
         settings.merge(generalTargetDerivedSettings(target: target, swiftVersion: swiftVersion, sourceRootPath: sourceRootPath)) { $1 }
-        settings.merge(testBundleTargetDerivedSettings(target: target, graph: graph, sourceRootPath: sourceRootPath)) { $1 }
+        settings.merge(testBundleTargetDerivedSettings(target: target, graphTraverser: graphTraverser, projectPath: projectPath)) { $1 }
         settings.merge(deploymentTargetDerivedSettings(target: target)) { $1 }
-        settings.merge(watchTargetDerivedSettings(target: target, graph: graph, sourceRootPath: sourceRootPath)) { $1 }
+        settings.merge(watchTargetDerivedSettings(target: target, graphTraverser: graphTraverser, projectPath: projectPath)) { $1 }
     }
 
     private func generalTargetDerivedSettings(target: Target,
@@ -208,25 +210,23 @@ final class ConfigGenerator: ConfigGenerating {
     }
 
     private func testBundleTargetDerivedSettings(target: Target,
-                                                 graph: Graph,
-                                                 sourceRootPath: AbsolutePath) -> SettingsDictionary {
+                                                 graphTraverser: ValueGraphTraverser,
+                                                 projectPath: AbsolutePath) -> SettingsDictionary {
         guard target.product.testsBundle else {
             return [:]
         }
 
-        let targetDependencies = graph.targetDependencies(path: sourceRootPath, name: target.name)
-        let appDependency = targetDependencies.first { targetNode in
-            targetNode.target.product == .app
-        }
+        let targetDependencies = graphTraverser.directTargetDependencies(path: projectPath, name: target.name)
+        let appDependency = targetDependencies.first { $0.product == .app }
 
         guard let app = appDependency else {
             return [:]
         }
 
         var settings: SettingsDictionary = [:]
-        settings["TEST_TARGET_NAME"] = .string("\(app.target.productName)")
+        settings["TEST_TARGET_NAME"] = .string("\(app.productName)")
         if target.product == .unitTests {
-            settings["TEST_HOST"] = .string("$(BUILT_PRODUCTS_DIR)/\(app.target.productNameWithExtension)/\(app.target.productName)")
+            settings["TEST_HOST"] = .string("$(BUILT_PRODUCTS_DIR)/\(app.productNameWithExtension)/\(app.productName)")
             settings["BUNDLE_LOADER"] = "$(TEST_HOST)"
         }
 
@@ -261,19 +261,19 @@ final class ConfigGenerator: ConfigGenerating {
     }
 
     private func watchTargetDerivedSettings(target: Target,
-                                            graph: Graph,
-                                            sourceRootPath: AbsolutePath) -> SettingsDictionary {
+                                            graphTraverser: ValueGraphTraverser,
+                                            projectPath: AbsolutePath) -> SettingsDictionary {
         guard target.product == .watch2App else {
             return [:]
         }
 
-        let targetDependencies = graph.targetDependencies(path: sourceRootPath, name: target.name)
-        guard let watchExtension = targetDependencies.first(where: { $0.target.product == .watch2Extension }) else {
+        let targetDependencies = graphTraverser.directTargetDependencies(path: projectPath, name: target.name)
+        guard let watchExtension = targetDependencies.first(where: { $0.product == .watch2Extension }) else {
             return [:]
         }
 
         return [
-            "IBSC_MODULE": .string(watchExtension.target.productName),
+            "IBSC_MODULE": .string(watchExtension.productName),
         ]
     }
 }
