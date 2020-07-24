@@ -30,7 +30,12 @@ final class ListServiceTests: TuistUnitTestCase {
     func test_lists_available_templates() throws {
         // Given
         let expectedTemplates = ["template", "customTemplate"]
-        let expectedOutput = expectedTemplates.map { $0 + ": description" }
+        let expectedOutput = """
+        Name            Description
+        ──────────────  ───────────
+        template        description
+        customTemplate  description
+        """
 
         templatesDirectoryLocator.templateDirectoriesStub = { _ in
             try expectedTemplates.map(self.temporaryPath().appending)
@@ -44,8 +49,6 @@ final class ListServiceTests: TuistUnitTestCase {
         try subject.run(path: nil)
 
         // Then
-        expectedOutput.forEach {
-            XCTAssertPrinterContains($0, at: .info, ==)
-        }
+        XCTAssertPrinterContains(expectedOutput, at: .info, ==)
     }
 }

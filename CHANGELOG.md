@@ -30,6 +30,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Add a `sourceRootPath` attribute to `TuistCore.Project` to control where Xcode projects are generated [#1559](https://github.com/tuist/tuist/pull/1559) by [@pepibumur](https://github.com/pepibumur).
 - **Breaking** Fail generation if a Source has a non-existent directory in a glob [#1523](https://github.com/tuist/tuist/pull/1523) by [@natanrolnik](https://github.com/natanrolnik).
+- Change `tuist scaffold list` output to be readable by grep [#1147](https://github.com/tuist/tuist/issues/1147) by [@mollyIV](https://github.com/mollyIV).
 
 ## 1.12.0 - Arabesque
 
