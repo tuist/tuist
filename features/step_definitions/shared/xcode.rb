@@ -31,6 +31,7 @@ Then(/I should be able to (.+) for (iOS|macOS|tvOS|watchOS) the scheme (.+)/) do
   args << "CODE_SIGNING_REQUIRED=NO"
   args << "CODE_SIGN_ENTITLEMENTS=\"\""
 
+  require 'byebug'; byebug;
   xcodebuild(*args)
 end
 

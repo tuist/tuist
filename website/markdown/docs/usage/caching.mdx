@@ -44,3 +44,14 @@ To facilitate debugging, Tuist exposes a command that prints the hash of every t
 ```
 tuist cache print-hashes
 ```
+
+## Best practices
+
+This section contains some best practices that we recommend everyone to read thoroughly:
+
+- **Don't leak interfaces or transitive dependencies:** Accessing the interface of a transitive dependency is creating an implicit dependency with it. For example, if App depends on `Framework`, and `Framework` depends on `Package`, `App` shouldn't consume interfaces from `Package`, unless it's defined as a dependency of the app explicitly. Otherwise `App` will fail to compile because it won't find the interface of `Package`.
+- **Don't introduce side effects through script build phases:** A build phase might introduce side effects that Tuist is not aware of, and as a result, the cache might not get invalidated when it should. If you have the need for a custom script build phase, open an issue on the repository with your use case so that we can evaluate your need and provide a declarative interface for it.
+
+## Limitations
+
+- **Caching not supported for libraries with resources:** Even though defining resources in libraries is [supported](/docs/usage/resources/), we don't support caching them yet.
