@@ -176,7 +176,7 @@ let package = Package(
         ),
         .testTarget(
             name: "TuistAutomationTests",
-            dependencies: ["TuistAutomation", "TuistSupportTesting", "TuistCoreTesting"]
+            dependencies: ["TuistAutomation", "TuistSupportTesting", "TuistCoreTesting", "RxBlocking"]
         ),
         .target(
             name: "TuistAutomationTesting",
@@ -184,7 +184,7 @@ let package = Package(
         ),
         .testTarget(
             name: "TuistAutomationIntegrationTests",
-            dependencies: ["TuistAutomation", "TuistSupportTesting"]
+            dependencies: ["TuistAutomation", "TuistSupportTesting", "RxBlocking"]
         ),
         .target(
             name: "TuistInsights",
@@ -224,11 +224,11 @@ let package = Package(
         ),
         .testTarget(
             name: "TuistLoaderTests",
-            dependencies: ["TuistLoader", "TuistSupportTesting", "TuistLoaderTesting", "TuistCoreTesting"]
+            dependencies: ["TuistLoader", "TuistSupportTesting", "TuistLoaderTesting", "TuistCoreTesting", "RxBlocking"]
         ),
         .testTarget(
             name: "TuistLoaderIntegrationTests",
-            dependencies: ["TuistLoader", "TuistSupportTesting", "ProjectDescription"]
+            dependencies: ["TuistLoader", "TuistSupportTesting", "ProjectDescription", "RxBlocking"]
         ),
         .testTarget(
             name: "TuistIntegrationTests",
