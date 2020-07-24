@@ -2,13 +2,12 @@ import Foundation
 import TSCBasic
 
 /// Extract version from .xccurrentversion file.
-final public class CoreDataVersionExtractor {
-
+public final class CoreDataVersionExtractor {
     /// Extract version from .xccurrentversion file
     /// - Parameter filePath: absolute path to Model.xcdatamodel
     /// - Throws: In case can not find the .xcurrentversion file.
     /// - Returns: Current version of data model.
-    static public func version(fromVersionFileAtPath filePath: AbsolutePath) throws -> String {
+    public static func version(fromVersionFileAtPath filePath: AbsolutePath) throws -> String {
         do {
             let data = try Data(contentsOf: filePath.appending(component: ".xccurrentversion").url)
             let decoder = PropertyListDecoder()
@@ -16,8 +15,8 @@ final public class CoreDataVersionExtractor {
             guard
                 let currentVersionName = dict["_XCCurrentVersionName"],
                 let versionNumberString = currentVersionName.split(separator: ".").first
-                else {
-                    throw CoreDataVersionExtractorError.couldNotExtractVersionFrom(filePath)
+            else {
+                throw CoreDataVersionExtractorError.couldNotExtractVersionFrom(filePath)
             }
             return String(versionNumberString)
         } catch {

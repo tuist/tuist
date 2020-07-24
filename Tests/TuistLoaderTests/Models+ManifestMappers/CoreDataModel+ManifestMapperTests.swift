@@ -9,7 +9,6 @@ import XCTest
 @testable import TuistSupportTesting
 
 final class CoreDataModeltManifestMapperTests: TuistUnitTestCase {
-
     func test_from() throws {
         // Given
         let temporaryPath = try self.temporaryPath()
@@ -77,7 +76,7 @@ final class CoreDataModeltManifestMapperTests: TuistUnitTestCase {
     private func createVersionFile(xcVersion: String, temporaryPath: AbsolutePath) throws {
         let urlToCurrentVersion = temporaryPath.appending(RelativePath("model.xcdatamodeld")).appending(component: ".xccurrentversion")
         let data = try XCTUnwrap(xcVersion.data(using: .utf8))
-        try  data.write(to: urlToCurrentVersion.asURL)
+        try data.write(to: urlToCurrentVersion.asURL)
     }
 
     private func xcVersionDataString() -> String {
