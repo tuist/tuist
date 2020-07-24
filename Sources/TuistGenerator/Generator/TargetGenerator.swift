@@ -51,6 +51,9 @@ final class TargetGenerator: TargetGenerating {
                         fileElements: ProjectFileElements,
                         path: AbsolutePath,
                         graph: Graph) throws -> PBXNativeTarget {
+        let valueGraph = ValueGraph(graph: graph)
+        let graphTraverser = ValueGraphTraverser(graph: valueGraph)
+
         /// Products reference.
         let productFileReference = fileElements.products[target.name]!
 
@@ -80,7 +83,7 @@ final class TargetGenerator: TargetGenerating {
                                                  pbxproj: pbxproj,
                                                  projectSettings: projectSettings,
                                                  fileElements: fileElements,
-                                                 graph: graph,
+                                                 graphTraverser: graphTraverser,
                                                  sourceRootPath: project.sourceRootPath)
 
         /// Build phases
