@@ -6,22 +6,13 @@ import { Graphviz } from 'graphviz-react'
 const useTextColor = () => {
   const { theme } = useThemeUI()
   const [colorMode, _] = useColorMode()
-
-  if (colorMode === 'light' || colorMode === 'default') {
-    return theme.colors.text
-  } else {
-    return theme.colors.modes[colorMode].text
-  }
+  return theme.colors.text
 }
 
 const useBackgroundColor = () => {
   const { theme } = useThemeUI()
   const [colorMode, _] = useColorMode()
-  if (colorMode === 'light' || colorMode === 'default') {
-    return theme.colors.background
-  } else {
-    return theme.colors.modes[colorMode].background
-  }
+  return theme.colors.background
 }
 
 const CrossPlatform = () => {
