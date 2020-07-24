@@ -13,6 +13,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Support for `--cache` to the `tuist generate` command [#1576](https://github.com/tuist/tuist/pull/1576) by [@pepibumur](https://github.com/pepibumur).
 - Included that importing target name in the duplicate dependency warning message [#1573](https://github.com/tuist/tuist/pull/1573) by[ @thedavidharris](https://github.com/thedavidharris)
+- Acceptance test for caching when an app has a transitive static package through a dynamic framework [#1586](https://github.com/tuist/tuist/pull/1586) by [@pepibumur](https://github.com/pepibumur).
 
 ### Changed
 
