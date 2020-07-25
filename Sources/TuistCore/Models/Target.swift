@@ -15,7 +15,7 @@ public enum TargetError: FatalError, Equatable {
     }
 }
 
-public struct Target: Equatable, Hashable {
+public struct Target: Equatable, Hashable, Comparable {
     public typealias SourceFile = (path: AbsolutePath, compilerFlags: String?)
     public typealias SourceFileGlob = (glob: String, excluding: [String], compilerFlags: String?)
 
@@ -243,6 +243,12 @@ public struct Target: Equatable, Hashable {
         var copy = self
         copy.actions = actions
         return copy
+    }
+    
+    // MARK: - Comparable
+    
+    public static func < (lhs: Target, rhs: Target) -> Bool {
+        return lhs.name < rhs.name
     }
 }
 

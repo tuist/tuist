@@ -32,11 +32,10 @@ enum BuildPhaseGenerationError: FatalError, Equatable {
 protocol BuildPhaseGenerating: AnyObject {
     func generateBuildPhases(path: AbsolutePath,
                              target: Target,
-                             graph: Graph,
+                             graphTraverser: ValueGraphTraversing,
                              pbxTarget: PBXTarget,
                              fileElements: ProjectFileElements,
-                             pbxproj: PBXProj,
-                             sourceRootPath: AbsolutePath) throws
+                             pbxproj: PBXProj) throws
 
     /// Generates target actions
     ///
@@ -58,11 +57,10 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
 
     func generateBuildPhases(path: AbsolutePath,
                              target: Target,
-                             graph: Graph,
+                             graphTraverser: ValueGraphTraversing,
                              pbxTarget: PBXTarget,
                              fileElements: ProjectFileElements,
-                             pbxproj: PBXProj,
-                             sourceRootPath _: AbsolutePath) throws {
+                             pbxproj: PBXProj) throws {
         if let headers = target.headers {
             try generateHeadersBuildPhase(headers: headers,
                                           pbxTarget: pbxTarget,
@@ -78,21 +76,21 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
 
         try generateResourcesBuildPhase(path: path,
                                         target: target,
-                                        graph: graph,
+                                        graphTraverser: graphTraverser,
                                         pbxTarget: pbxTarget,
                                         fileElements: fileElements,
                                         pbxproj: pbxproj)
 
         try generateAppExtensionsBuildPhase(path: path,
                                             target: target,
-                                            graph: graph,
+                                            graphTraverser: graphTraverser,
                                             pbxTarget: pbxTarget,
                                             fileElements: fileElements,
                                             pbxproj: pbxproj)
 
         try generateEmbedWatchBuildPhase(path: path,
                                          target: target,
-                                         graph: graph,
+                                         graphTraverser: graphTraverser,
                                          pbxTarget: pbxTarget,
                                          fileElements: fileElements,
                                          pbxproj: pbxproj)
@@ -199,7 +197,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
 
     func generateResourcesBuildPhase(path: AbsolutePath,
                                      target: Target,
-                                     graph: Graph,
+                                     graphTraverser: ValueGraphTraversing,
                                      pbxTarget: PBXTarget,
                                      fileElements: ProjectFileElements,
                                      pbxproj: PBXProj) throws {
@@ -214,7 +212,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
 
         generateResourceBundle(path: path,
                                target: target,
-                               graph: graph,
+                               graphTraverser: graphTraverser,
                                fileElements: fileElements,
                                pbxproj: pbxproj,
                                resourcesBuildPhase: resourcesBuildPhase)
@@ -281,13 +279,12 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
 
     private func generateResourceBundle(path: AbsolutePath,
                                         target: Target,
-                                        graph: Graph,
+                                        graphTraverser: ValueGraphTraversing,
                                         fileElements: ProjectFileElements,
                                         pbxproj: PBXProj,
                                         resourcesBuildPhase: PBXResourcesBuildPhase) {
-        let bundles = graph.resourceBundleDependencies(path: path, name: target.name)
-        let sortedBundles = bundles.sorted { $0.target.name < $1.target.name }
-        let refs = sortedBundles.compactMap { fileElements.product(target: $0.target.name) }
+        let bundles = graphTraverser.resourceBundleDependencies(path: path, name: target.name)
+        let refs = bundles.compactMap { fileElements.product(target: $0.name) }
 
         refs.forEach {
             let pbxBuildFile = PBXBuildFile(file: $0)
@@ -298,19 +295,18 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
 
     func generateAppExtensionsBuildPhase(path: AbsolutePath,
                                          target: Target,
-                                         graph: Graph,
+                                         graphTraverser: ValueGraphTraversing,
                                          pbxTarget: PBXTarget,
                                          fileElements: ProjectFileElements,
                                          pbxproj: PBXProj) throws {
-        let appExtensions = graph.appExtensionDependencies(path: path, name: target.name)
+        let appExtensions = graphTraverser.appExtensionDependencies(path: path, name: target.name)
         guard !appExtensions.isEmpty else { return }
 
         let appExtensionsBuildPhase = PBXCopyFilesBuildPhase(dstSubfolderSpec: .plugins, name: "Embed App Extensions")
         pbxproj.add(object: appExtensionsBuildPhase)
         pbxTarget.buildPhases.append(appExtensionsBuildPhase)
 
-        let sortedAppExtensions = appExtensions.sorted { $0.target.name < $1.target.name }
-        let refs = sortedAppExtensions.compactMap { fileElements.product(target: $0.target.name) }
+        let refs = appExtensions.compactMap { fileElements.product(target: $0.name) }
 
         refs.forEach {
             let pbxBuildFile = PBXBuildFile(file: $0, settings: ["ATTRIBUTES": ["RemoveHeadersOnCopy"]])
@@ -321,12 +317,12 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
 
     func generateEmbedWatchBuildPhase(path: AbsolutePath,
                                       target: Target,
-                                      graph: Graph,
+                                      graphTraverser: ValueGraphTraversing,
                                       pbxTarget: PBXTarget,
                                       fileElements: ProjectFileElements,
                                       pbxproj: PBXProj) throws {
-        let targetDependencies = graph.targetDependencies(path: path, name: target.name)
-        let watchApps = targetDependencies.filter { $0.target.product == .watch2App }
+        let targetDependencies = graphTraverser.directTargetDependencies(path: path, name: target.name)
+        let watchApps = targetDependencies.filter { $0.product == .watch2App }
         guard !watchApps.isEmpty else { return }
 
         let embedWatchAppBuildPhase = PBXCopyFilesBuildPhase(dstPath: "$(CONTENTS_FOLDER_PATH)/Watch",
@@ -335,8 +331,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         pbxproj.add(object: embedWatchAppBuildPhase)
         pbxTarget.buildPhases.append(embedWatchAppBuildPhase)
 
-        let sortedWatchApps = watchApps.sorted { $0.target.name < $1.target.name }
-        let refs = sortedWatchApps.compactMap { fileElements.product(target: $0.target.name) }
+        let refs = watchApps.compactMap { fileElements.product(target: $0.name) }
 
         refs.forEach {
             let pbxBuildFile = PBXBuildFile(file: $0, settings: ["ATTRIBUTES": ["RemoveHeadersOnCopy"]])
