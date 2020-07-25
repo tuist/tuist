@@ -1,8 +1,7 @@
 import Foundation
 import TSCBasic
 
-public enum ValueGraphDependency: Hashable, Comparable {
-    
+public enum ValueGraphDependency: Hashable {
     /// A dependency that represents a pre-compiled .xcframework.
     case xcframework(
         path: AbsolutePath,
@@ -70,11 +69,5 @@ public enum ValueGraphDependency: Hashable, Comparable {
             hasher.combine("pods")
             hasher.combine(path)
         }
-    }
-    
-    // MARK: - Comparable
-    
-    public static func < (lhs: ValueGraphDependency, rhs: ValueGraphDependency) -> Bool {
-        return true
     }
 }

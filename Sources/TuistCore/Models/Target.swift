@@ -244,11 +244,11 @@ public struct Target: Equatable, Hashable, Comparable {
         copy.actions = actions
         return copy
     }
-    
+
     // MARK: - Comparable
-    
+
     public static func < (lhs: Target, rhs: Target) -> Bool {
-        return lhs.name < rhs.name
+        lhs.name < rhs.name
     }
 }
 
