@@ -125,6 +125,180 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         XCTAssertEqual(got, [])
     }
 
+    func test_resourceBundleDependencies_fromTargetDependency() {
+        // Given
+        let bundle = Target.test(name: "Bundle1", product: .bundle)
+        let app = Target.test(name: "App", product: .bundle)
+        let project = Project.test(path: "/path/a")
+
+        let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
+            .target(name: app.name, path: project.path): Set([.target(name: bundle.name, path: project.path)]),
+            .target(name: bundle.name, path: project.path): Set([]),
+        ]
+        let graph = ValueGraph.test(path: project.path,
+                                    projects: [project.path: project],
+                                    targets: [project.path: [app.name: app,
+                                                             bundle.name: bundle]],
+                                    dependencies: dependencies)
+        let subject = ValueGraphTraverser(graph: graph)
+
+        // When
+        let result = subject.resourceBundleDependencies(path: project.path, name: app.name)
+
+        // Then
+        XCTAssertEqual(result.map(\.name), [
+            "Bundle1",
+        ])
+    }
+
+    func test_resourceBundleDependencies_fromProjectDependency() {
+        // Given
+        let bundle = Target.test(name: "Bundle1", product: .bundle)
+        let projectA = Project.test(path: "/path/a")
+
+        let app = Target.test(name: "App", product: .app)
+        let projectB = Project.test(path: "/path/b")
+
+        let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
+            .target(name: app.name, path: projectB.path): Set([.target(name: bundle.name, path: projectA.path)]),
+            .target(name: bundle.name, path: projectA.path): Set([]),
+        ]
+        let graph = ValueGraph.test(path: .root,
+                                    projects: [projectA.path: projectA,
+                                               projectB.path: projectB],
+                                    targets: [projectA.path: [bundle.name: bundle],
+                                              projectB.path: [app.name: app]],
+                                    dependencies: dependencies)
+        let subject = ValueGraphTraverser(graph: graph)
+
+        // When
+        let result = subject.resourceBundleDependencies(path: projectB.path, name: app.name)
+
+        // Then
+        XCTAssertEqual(result.map(\.name), [
+            "Bundle1",
+        ])
+    }
+
+    func test_resourceBundleDependencies_transitivelyViaSingleStaticFramework() {
+        // Given
+        let bundle = Target.test(name: "ResourceBundle", product: .bundle)
+        let staticFramework = Target.test(name: "StaticFramework", product: .staticFramework)
+        let projectA = Project.test(path: "/path/a", targets: [staticFramework, bundle])
+
+        let app = Target.test(name: "App", product: .app)
+        let projectB = Project.test(path: "/path/b", targets: [app])
+
+        let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
+            .target(name: staticFramework.name, path: projectA.path): Set([.target(name: bundle.name, path: projectA.path)]),
+            .target(name: bundle.name, path: projectA.path): Set([]),
+            .target(name: app.name, path: projectB.path): Set([.target(name: staticFramework.name, path: projectA.path)]),
+        ]
+        let graph = ValueGraph.test(path: .root,
+                                    projects: [projectA.path: projectA,
+                                               projectB.path: projectB],
+                                    targets: [projectA.path: [bundle.name: bundle,
+                                                              staticFramework.name: staticFramework],
+                                              projectB.path: [app.name: app]],
+                                    dependencies: dependencies)
+        let subject = ValueGraphTraverser(graph: graph)
+
+        // When
+        let result = subject.resourceBundleDependencies(path: projectB.path, name: app.name)
+
+        // Then
+        XCTAssertEqual(result.map(\.name), [
+            "ResourceBundle",
+        ])
+    }
+
+    func test_resourceBundleDependencies_transitivelyViaMultipleStaticFrameworks() {
+        // Given
+        let bundle1 = Target.test(name: "ResourceBundle1", product: .bundle)
+        let bundle2 = Target.test(name: "ResourceBundle2", product: .bundle)
+        let staticFramework1 = Target.test(name: "StaticFramework1", product: .staticFramework)
+        let staticFramework2 = Target.test(name: "StaticFramework2", product: .staticFramework)
+        let projectA = Project.test(path: "/path/a", targets: [staticFramework1, staticFramework2, bundle1, bundle2])
+
+        let app = Target.test(name: "App", product: .app)
+        let projectB = Project.test(path: "/path/b", targets: [app])
+
+        let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
+            .target(name: bundle1.name, path: projectA.path): Set([]),
+            .target(name: bundle2.name, path: projectA.path): Set([]),
+            .target(name: staticFramework1.name, path: projectA.path): Set([.target(name: bundle1.name, path: projectA.path),
+                                                                            .target(name: staticFramework2.name, path: projectA.path)]),
+            .target(name: staticFramework2.name, path: projectA.path): Set([.target(name: bundle2.name, path: projectA.path)]),
+            .target(name: app.name, path: projectB.path): Set([.target(name: staticFramework1.name, path: projectA.path)]),
+        ]
+        let graph = ValueGraph.test(path: .root,
+                                    projects: [projectA.path: projectA,
+                                               projectB.path: projectB],
+                                    targets: [projectA.path: [bundle1.name: bundle1,
+                                                              bundle2.name: bundle2,
+                                                              staticFramework1.name: staticFramework1,
+                                                              staticFramework2.name: staticFramework2],
+                                              projectB.path: [app.name: app]],
+                                    dependencies: dependencies)
+        let subject = ValueGraphTraverser(graph: graph)
+
+        // When
+        let result = subject.resourceBundleDependencies(path: projectB.path, name: app.name)
+
+        // Then
+        XCTAssertEqual(result.map(\.name), [
+            "ResourceBundle1",
+            "ResourceBundle2",
+        ])
+    }
+
+    func test_resourceBundleDependencies_transitivelyToDynamicFramework() {
+        // Given
+        // App -> Dynamic Framework ----
+        //                              |--> Static Framework 2 -> Bundle
+        // Static Framework 1 ----------
+        //
+        let bundle = Target.test(name: "ResourceBundle", product: .bundle)
+        let staticFramework1 = Target.test(name: "StaticFramework1", product: .staticFramework)
+        let staticFramework2 = Target.test(name: "StaticFramework2", product: .staticFramework)
+        let dynamicFramework = Target.test(name: "DynamicFramework", product: .framework)
+        let projectA = Project.test(path: "/path/a", targets: [dynamicFramework, staticFramework1, staticFramework2, bundle])
+        let app = Target.test(name: "App", product: .app)
+        let projectB = Project.test(path: "/path/b", targets: [app])
+
+        let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
+            .target(name: bundle.name, path: projectA.path): Set([]),
+            .target(name: staticFramework1.name, path: projectA.path): Set([.target(name: staticFramework2.name, path: projectA.path)]),
+            .target(name: staticFramework2.name, path: projectA.path): Set([.target(name: bundle.name, path: projectA.path)]),
+            .target(name: dynamicFramework.name, path: projectA.path): Set([.target(name: staticFramework2.name, path: projectA.path)]),
+            .target(name: app.name, path: projectB.path): Set([.target(name: dynamicFramework.name, path: projectA.path)]),
+        ]
+        let graph = ValueGraph.test(path: .root,
+                                    projects: [projectA.path: projectA,
+                                               projectB.path: projectB],
+                                    targets: [projectA.path: [bundle.name: bundle,
+                                                              staticFramework1.name: staticFramework1,
+                                                              staticFramework2.name: staticFramework2,
+                                                              dynamicFramework.name: dynamicFramework],
+                                              projectB.path: [app.name: app]],
+                                    dependencies: dependencies)
+        let subject = ValueGraphTraverser(graph: graph)
+
+        // When
+        let appResults = subject.resourceBundleDependencies(path: projectB.path, name: app.name)
+        let dynamicFrameworkResults = subject.resourceBundleDependencies(path: projectA.path, name: dynamicFramework.name)
+        let staticFramework1Results = subject.resourceBundleDependencies(path: projectA.path, name: staticFramework1.name)
+        let staticFramework2Results = subject.resourceBundleDependencies(path: projectA.path, name: staticFramework2.name)
+
+        // Then
+        XCTAssertEqual(appResults.map(\.name), [])
+        XCTAssertEqual(dynamicFrameworkResults.map(\.name), [
+            "ResourceBundle",
+        ])
+        XCTAssertEqual(staticFramework1Results.map(\.name), [])
+        XCTAssertEqual(staticFramework2Results.map(\.name), [])
+    }
+
     func test_target() {
         // Given
         let project = Project.test()
@@ -222,5 +396,76 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
             .target(name: staticLibrary.name, path: project.path),
             .target(name: frameworkA.name, path: project.path),
         ]))
+    }
+
+    func test_appExtensionDependencies_when_dependencyIsAppExtension() throws {
+        // Given
+        let target = Target.test(name: "Main")
+        let dependency = Target.test(name: "AppExtension", product: .appExtension)
+        let project = Project.test(targets: [target])
+        let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
+            .target(name: target.name, path: project.path): Set([.target(name: dependency.name, path: project.path)]),
+            .target(name: dependency.name, path: project.path): Set([]),
+        ]
+        let graph = ValueGraph.test(path: project.path,
+                                    projects: [project.path: project],
+                                    targets: [project.path: [target.name: target,
+                                                             dependency.name: dependency]],
+                                    dependencies: dependencies)
+        let subject = ValueGraphTraverser(graph: graph)
+
+        // When
+        let got = subject.appExtensionDependencies(path: project.path, name: target.name)
+
+        // Then
+        XCTAssertEqual(got.first?.name, "AppExtension")
+    }
+
+    func test_appExtensionDependencies_when_dependencyIsStickerPackExtension() throws {
+        // When
+        let target = Target.test(name: "Main")
+        let dependency = Target.test(name: "StickerPackExtension", product: .stickerPackExtension)
+        let project = Project.test(targets: [target])
+        let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
+            .target(name: target.name, path: project.path): Set([.target(name: dependency.name, path: project.path)]),
+            .target(name: dependency.name, path: project.path): Set([]),
+        ]
+        let graph = ValueGraph.test(path: project.path,
+                                    projects: [project.path: project],
+                                    targets: [project.path: [target.name: target,
+                                                             dependency.name: dependency]],
+                                    dependencies: dependencies)
+        let subject = ValueGraphTraverser(graph: graph)
+
+        // Given
+        let got = subject.appExtensionDependencies(path: project.path, name: target.name)
+
+        // Then
+        XCTAssertEqual(got.first?.name, "StickerPackExtension")
+    }
+
+    func test_appExtensionDependencies_when_dependencyIsMessageExtension() throws {
+        // Given
+        let app = Target.test(name: "App", product: .app)
+        let messageExtension = Target.test(name: "MessageExtension", product: .messagesExtension)
+        let project = Project.test(targets: [app, messageExtension])
+        let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
+            .target(name: app.name, path: project.path): Set([.target(name: messageExtension.name, path: project.path)]),
+            .target(name: messageExtension.name, path: project.path): Set([]),
+        ]
+        let graph = ValueGraph.test(path: project.path,
+                                    projects: [project.path: project],
+                                    targets: [project.path: [app.name: app,
+                                                             messageExtension.name: messageExtension]],
+                                    dependencies: dependencies)
+        let subject = ValueGraphTraverser(graph: graph)
+
+        // When
+        let result = subject.appExtensionDependencies(path: project.path, name: app.name)
+
+        // Then
+        XCTAssertEqual(result.map(\.name), [
+            "MessageExtension",
+        ])
     }
 }
