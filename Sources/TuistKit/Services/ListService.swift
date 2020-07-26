@@ -7,10 +7,10 @@ import TuistSupport
 class ListService {
     private let templatesDirectoryLocator: TemplatesDirectoryLocating
     private let templateLoader: TemplateLoading
-    private let textTable = TextTable<PrintableTemplate>{[
+    private let textTable = TextTable<PrintableTemplate> { [
         TextTable.Column(title: "Name", value: $0.name),
         TextTable.Column(title: "Description", value: $0.description),
-    ]}
+    ] }
 
     init(templatesDirectoryLocator: TemplatesDirectoryLocating = TemplatesDirectoryLocator(),
          templateLoader: TemplateLoading = TemplateLoader()) {
@@ -26,7 +26,7 @@ class ListService {
             let template = try templateLoader.loadTemplate(at: path)
             return PrintableTemplate(name: path.basename, description: template.description)
         }
-        
+
         let renderedTable = textTable.render(templates)
         logger.info("\(renderedTable)")
     }
