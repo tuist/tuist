@@ -1,13 +1,13 @@
 import Foundation
 
-struct TextTable<T> {
+public struct TextTable<T> {
     private let mapper: (T) -> [Column]
     
-    init(_ mapper: @escaping (T) -> [Column]) {
+    public init(_ mapper: @escaping (T) -> [Column]) {
         self.mapper = mapper
     }
     
-    func render<C: Collection>(_ data: C) -> String where C.Iterator.Element == T {
+    public func render<C: Collection>(_ data: C) -> String where C.Iterator.Element == T {
         guard let headerRow = data.first else { return "" }
         
         var table = ""
@@ -84,10 +84,15 @@ struct TextTable<T> {
     }
 }
 
-extension TextTable {
+public extension TextTable {
     struct Column {
         let title: String
         let value: CustomStringConvertible
+        
+        public init(title: String, value: CustomStringConvertible) {
+            self.title = title
+            self.value = value
+        }
     }
 }
 
