@@ -71,7 +71,7 @@ public final class XCFrameworkBuilder: XCFrameworkBuilding {
 
     // swiftlint:disable:next function_body_length
     fileprivate func build(_ projectTarget: XcodeBuildTarget, target: Target) throws -> Observable<AbsolutePath> {
-        if target.product != .framework {
+        guard [.framework, .staticFramework].contains(target.product) else {
             throw XCFrameworkBuilderError.nonFrameworkTarget(target.name)
         }
         let scheme = target.name.spm_shellEscaped()
