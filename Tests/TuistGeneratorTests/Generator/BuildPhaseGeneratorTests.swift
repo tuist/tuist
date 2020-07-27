@@ -2,12 +2,12 @@ import Foundation
 import TSCBasic
 import TuistCore
 import TuistSupport
-import TuistSupportTesting
 import XcodeProj
 import XCTest
 @testable import TuistGenerator
+@testable import TuistSupportTesting
 
-final class BuildPhaseGenerationErrorTests: XCTestCase {
+final class BuildPhaseGenerationErrorTests: TuistUnitTestCase {
     func test_description_when_missingFileReference() {
         let path = AbsolutePath("/test")
         let expected = "Trying to add a file at path \(path.pathString) to a build phase that hasn't been added to the project."
@@ -20,7 +20,7 @@ final class BuildPhaseGenerationErrorTests: XCTestCase {
     }
 }
 
-final class BuildPhaseGeneratorTests: XCTestCase {
+final class BuildPhaseGeneratorTests: TuistUnitTestCase {
     var subject: BuildPhaseGenerator!
     var errorHandler: MockErrorHandler!
     var graph: Graph!
@@ -29,6 +29,7 @@ final class BuildPhaseGeneratorTests: XCTestCase {
         subject = BuildPhaseGenerator()
         errorHandler = MockErrorHandler()
         graph = Graph.test()
+        super.setUp()
     }
 
     override func tearDown() {
@@ -184,7 +185,7 @@ final class BuildPhaseGeneratorTests: XCTestCase {
     }
 
     func test_generateHeadersBuildPhase_before_generateSourceBuildPhase() throws {
-        let tmpDir = try TemporaryDirectory(removeTreeOnDeinit: true)
+        let tmpDir = try temporaryPath()
         let pbxTarget = PBXNativeTarget(name: "Test")
         let pbxproj = PBXProj()
         pbxproj.add(object: pbxTarget)
@@ -203,14 +204,15 @@ final class BuildPhaseGeneratorTests: XCTestCase {
 
         let target = Target.test(sources: [(path: "/test/file.swift", compilerFlags: nil)],
                                  headers: headers)
+        let graph = ValueGraph.test(path: tmpDir)
+        let graphTraverser = ValueGraphTraverser(graph: graph)
 
-        try subject.generateBuildPhases(path: tmpDir.path,
+        try subject.generateBuildPhases(path: tmpDir,
                                         target: target,
-                                        graph: Graph.test(),
+                                        graphTraverser: graphTraverser,
                                         pbxTarget: pbxTarget,
                                         fileElements: fileElements,
-                                        pbxproj: pbxproj,
-                                        sourceRootPath: tmpDir.path)
+                                        pbxproj: pbxproj)
 
         let firstBuildPhase: PBXBuildPhase? = pbxTarget.buildPhases.first
         XCTAssertNotNil(firstBuildPhase)
@@ -222,6 +224,7 @@ final class BuildPhaseGeneratorTests: XCTestCase {
 
     func test_generateResourcesBuildPhase_whenLocalizedFile() throws {
         // Given
+        let path = try temporaryPath()
         let files: [AbsolutePath] = [
             "/path/resources/en.lproj/Main.storyboard",
             "/path/resources/en.lproj/App.strings",
@@ -237,11 +240,13 @@ final class BuildPhaseGeneratorTests: XCTestCase {
 
         let nativeTarget = PBXNativeTarget(name: "Test")
         let pbxproj = PBXProj()
+        let graph = ValueGraph.test(path: path)
+        let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
         try subject.generateResourcesBuildPhase(path: "/path",
                                                 target: .test(resources: resources),
-                                                graph: Graph.test(),
+                                                graphTraverser: graphTraverser,
                                                 pbxTarget: nativeTarget,
                                                 fileElements: fileElements,
                                                 pbxproj: pbxproj)
@@ -289,6 +294,8 @@ final class BuildPhaseGeneratorTests: XCTestCase {
     }
 
     func test_generateResourcesBuildPhase_whenNormalResource() throws {
+        // Given
+        let temporaryPath = try self.temporaryPath()
         let path = AbsolutePath("/image.png")
         let target = Target.test(resources: [.file(path: path)])
         let fileElements = ProjectFileElements()
@@ -296,15 +303,21 @@ final class BuildPhaseGeneratorTests: XCTestCase {
         let fileElement = PBXFileReference()
         pbxproj.add(object: fileElement)
         fileElements.elements[path] = fileElement
+
         let nativeTarget = PBXNativeTarget(name: "Test")
 
+        let graph = ValueGraph.test(path: temporaryPath)
+        let graphTraverser = ValueGraphTraverser(graph: graph)
+
+        // When
         try subject.generateResourcesBuildPhase(path: "/path",
                                                 target: target,
-                                                graph: Graph.test(),
+                                                graphTraverser: graphTraverser,
                                                 pbxTarget: nativeTarget,
                                                 fileElements: fileElements,
                                                 pbxproj: pbxproj)
 
+        // Then
         let pbxBuildPhase: PBXBuildPhase? = nativeTarget.buildPhases.first
         XCTAssertNotNil(pbxBuildPhase)
         XCTAssertTrue(pbxBuildPhase is PBXResourcesBuildPhase)
@@ -318,21 +331,33 @@ final class BuildPhaseGeneratorTests: XCTestCase {
         let bundle1 = Target.test(name: "Bundle1", product: .bundle)
         let bundle2 = Target.test(name: "Bundle2", product: .bundle)
         let app = Target.test(name: "App", product: .app)
-        let graph = Graph.create(project: .test(path: path),
-                                 dependencies: [
-                                     (target: bundle1, dependencies: []),
-                                     (target: bundle2, dependencies: []),
-                                     (target: app, dependencies: [bundle1, bundle2]),
-                                 ])
 
         let pbxproj = PBXProj()
         let nativeTarget = PBXNativeTarget(name: "Test")
         let fileElements = createProductFileElements(for: [bundle1, bundle2])
 
+        let project = Project.test(path: path)
+        let targets: [AbsolutePath: [String: Target]] = [project.path: [
+            bundle1.name: bundle1,
+            bundle2.name: bundle2,
+            app.name: app,
+        ]]
+        let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
+            .target(name: bundle1.name, path: project.path): Set(),
+            .target(name: bundle2.name, path: project.path): Set(),
+            .target(name: app.name, path: project.path): Set([.target(name: bundle1.name, path: project.path),
+                                                              .target(name: bundle2.name, path: project.path)]),
+        ]
+        let graph = ValueGraph.test(path: path,
+                                    projects: [project.path: project],
+                                    targets: targets,
+                                    dependencies: dependencies)
+        let graphTraverser = ValueGraphTraverser(graph: graph)
+
         // When
         try subject.generateResourcesBuildPhase(path: path,
                                                 target: app,
-                                                graph: graph,
+                                                graphTraverser: graphTraverser,
                                                 pbxTarget: nativeTarget,
                                                 fileElements: fileElements,
                                                 pbxproj: pbxproj)
@@ -347,26 +372,35 @@ final class BuildPhaseGeneratorTests: XCTestCase {
 
     func test_generateResourceBundle_fromProjectDependency() throws {
         // Given
+        let path = try temporaryPath()
         let bundle = Target.test(name: "Bundle1", product: .bundle)
         let projectA = Project.test(path: "/path/a")
 
         let app = Target.test(name: "App", product: .app)
         let projectB = Project.test(path: "/path/b")
 
-        let graph = Graph.create(projects: [projectA, projectB],
-                                 dependencies: [
-                                     (project: projectA, target: bundle, dependencies: []),
-                                     (project: projectB, target: app, dependencies: [bundle]),
-                                 ])
-
         let pbxproj = PBXProj()
         let nativeTarget = PBXNativeTarget(name: "Test")
         let fileElements = createProductFileElements(for: [bundle])
 
+        let targets: [AbsolutePath: [String: Target]] = [
+            projectA.path: [bundle.name: bundle],
+            projectB.path: [app.name: app],
+        ]
+        let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
+            .target(name: bundle.name, path: projectA.path): Set(),
+            .target(name: app.name, path: projectB.path): Set([.target(name: bundle.name, path: projectA.path)]),
+        ]
+        let graph = ValueGraph.test(path: path,
+                                    projects: [projectA.path: projectA, projectB.path: projectB],
+                                    targets: targets,
+                                    dependencies: dependencies)
+        let graphTraverser = ValueGraphTraverser(graph: graph)
+
         // When
         try subject.generateResourcesBuildPhase(path: projectB.path,
                                                 target: app,
-                                                graph: graph,
+                                                graphTraverser: graphTraverser,
                                                 pbxTarget: nativeTarget,
                                                 fileElements: fileElements,
                                                 pbxproj: pbxproj)
@@ -379,29 +413,46 @@ final class BuildPhaseGeneratorTests: XCTestCase {
     }
 
     func test_generateAppExtensionsBuildPhase() throws {
+        // Given
+        let path = try temporaryPath()
         let appExtension = Target.test(name: "AppExtension", product: .appExtension)
         let projectA = Project.test(path: "/path/a")
         let stickerPackExtension = Target.test(name: "StickerPackExtension", product: .stickerPackExtension)
         let projectB = Project.test(path: "/path/b")
         let app = Target.test(name: "App", product: .app)
         let projectC = Project.test(path: "/path/c")
-        let graph = Graph.create(projects: [projectA, projectB, projectC],
-                                 dependencies: [
-                                     (project: projectA, target: appExtension, dependencies: []),
-                                     (project: projectB, target: stickerPackExtension, dependencies: []),
-                                     (project: projectC, target: app, dependencies: [appExtension, stickerPackExtension]),
-                                 ])
         let pbxproj = PBXProj()
         let nativeTarget = PBXNativeTarget(name: "Test")
         let fileElements = createProductFileElements(for: [appExtension, stickerPackExtension])
 
+        let targets: [AbsolutePath: [String: Target]] = [
+            projectA.path: [appExtension.name: appExtension],
+            projectB.path: [stickerPackExtension.name: stickerPackExtension],
+            projectC.path: [app.name: app],
+        ]
+        let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
+            .target(name: appExtension.name, path: projectA.path): Set(),
+            .target(name: stickerPackExtension.name, path: projectB.path): Set(),
+            .target(name: app.name, path: projectC.path): Set([.target(name: appExtension.name, path: projectA.path),
+                                                               .target(name: stickerPackExtension.name, path: projectB.path)]),
+        ]
+        let graph = ValueGraph.test(path: path,
+                                    projects: [projectA.path: projectA,
+                                               projectB.path: projectB,
+                                               projectC.path: projectC],
+                                    targets: targets,
+                                    dependencies: dependencies)
+        let graphTraverser = ValueGraphTraverser(graph: graph)
+
+        // When
         try subject.generateAppExtensionsBuildPhase(path: projectC.path,
                                                     target: app,
-                                                    graph: graph,
+                                                    graphTraverser: graphTraverser,
                                                     pbxTarget: nativeTarget,
                                                     fileElements: fileElements,
                                                     pbxproj: pbxproj)
 
+        // Then
         let pbxBuildPhase: PBXBuildPhase? = nativeTarget.buildPhases.first
         XCTAssertNotNil(pbxBuildPhase)
         XCTAssertTrue(pbxBuildPhase is PBXCopyFilesBuildPhase)
@@ -415,21 +466,34 @@ final class BuildPhaseGeneratorTests: XCTestCase {
     }
 
     func test_generateAppExtensionsBuildPhase_noBuildPhase_when_appDoesntHaveAppExtensions() throws {
+        // Given
         let app = Target.test(name: "App", product: .app)
         let project = Project.test()
-        let graph = Graph.create(projects: [project],
-                                 dependencies: [])
         let pbxproj = PBXProj()
         let nativeTarget = PBXNativeTarget(name: "Test")
         let fileElements = ProjectFileElements()
 
+        let targets: [AbsolutePath: [String: Target]] = [
+            project.path: [app.name: app],
+        ]
+        let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
+            .target(name: app.name, path: project.path): Set(),
+        ]
+        let graph = ValueGraph.test(path: project.path,
+                                    projects: [project.path: project],
+                                    targets: targets,
+                                    dependencies: dependencies)
+        let graphTraverser = ValueGraphTraverser(graph: graph)
+
+        // When
         try subject.generateAppExtensionsBuildPhase(path: project.path,
                                                     target: app,
-                                                    graph: graph,
+                                                    graphTraverser: graphTraverser,
                                                     pbxTarget: nativeTarget,
                                                     fileElements: fileElements,
                                                     pbxproj: pbxproj)
 
+        // Then
         XCTAssertTrue(nativeTarget.buildPhases.isEmpty)
     }
 
@@ -438,19 +502,27 @@ final class BuildPhaseGeneratorTests: XCTestCase {
         let app = Target.test(name: "App", product: .app)
         let watchApp = Target.test(name: "WatchApp", product: .watch2App)
         let project = Project.test()
-        let graph = Graph.create(project: project,
-                                 dependencies: [
-                                     (target: app, dependencies: [watchApp]),
-                                     (target: watchApp, dependencies: []),
-                                 ])
         let pbxproj = PBXProj()
         let nativeTarget = PBXNativeTarget(name: "Test")
         let fileElements = createProductFileElements(for: [app, watchApp])
 
+        let targets: [AbsolutePath: [String: Target]] = [
+            project.path: [app.name: app, watchApp.name: watchApp],
+        ]
+        let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
+            .target(name: watchApp.name, path: project.path): Set(),
+            .target(name: app.name, path: project.path): Set([.target(name: watchApp.name, path: project.path)]),
+        ]
+        let graph = ValueGraph.test(path: project.path,
+                                    projects: [project.path: project],
+                                    targets: targets,
+                                    dependencies: dependencies)
+        let graphTraverser = ValueGraphTraverser(graph: graph)
+
         // When
         try subject.generateEmbedWatchBuildPhase(path: project.path,
                                                  target: app,
-                                                 graph: graph,
+                                                 graphTraverser: graphTraverser,
                                                  pbxTarget: nativeTarget,
                                                  fileElements: fileElements,
                                                  pbxproj: pbxproj)

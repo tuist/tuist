@@ -89,11 +89,10 @@ final class TargetGenerator: TargetGenerating {
         /// Build phases
         try buildPhaseGenerator.generateBuildPhases(path: path,
                                                     target: target,
-                                                    graph: graph,
+                                                    graphTraverser: graphTraverser,
                                                     pbxTarget: pbxTarget,
                                                     fileElements: fileElements,
-                                                    pbxproj: pbxproj,
-                                                    sourceRootPath: project.sourceRootPath)
+                                                    pbxproj: pbxproj)
 
         /// Links
         try linkGenerator.generateLinks(target: target,

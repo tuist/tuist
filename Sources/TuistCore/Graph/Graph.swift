@@ -400,23 +400,6 @@ public class Graph: Encodable, Equatable {
         return Set(allDepdendencies).sorted()
     }
 
-    /// Finds all the app extension dependencies for the target at the given path with the given name.
-    /// - Parameters:
-    ///   - path: Path to the directory where the project that defines the target is located.
-    ///   - name: Name of the target.
-    public func appExtensionDependencies(path: AbsolutePath, name: String) -> [TargetNode] {
-        guard let targetNode = findTargetNode(path: path, name: name) else {
-            return []
-        }
-
-        let validProducts: [Product] = [
-            .appExtension, .stickerPackExtension, .watch2Extension, .messagesExtension,
-        ]
-
-        return targetNode.targetDependencies
-            .filter { validProducts.contains($0.target.product) }
-    }
-
     /// Depth-first search (DFS) is an algorithm for traversing graph data structures. It starts at a source node
     /// and explores as far as possible along each branch before backtracking.
     ///
