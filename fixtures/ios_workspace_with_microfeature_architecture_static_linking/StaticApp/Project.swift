@@ -1,8 +1,8 @@
 import ProjectDescription
 
-let project = Project(name: "App",
+let project = Project(name: "StaticApp",
                       targets: [
-                        Target(name: "App",
+                        Target(name: "StaticApp",
                                platform: .iOS,
                                product: .app,
                                bundleId: "io.tuist.App",
@@ -17,13 +17,13 @@ let project = Project(name: "App",
                                     // .framework(path: "Frameworks/MyFramework.framework")
                                     .project(target: "FrameworkA", path: "../Frameworks/FeatureAFramework")
                                 ]),
-                        Target(name: "AppTests",
+                        Target(name: "StaticAppTests",
                                platform: .iOS,
                                product: .unitTests,
                                bundleId: "io.tuist.AppTests",
                                infoPlist: "Tests.plist",
                                sources: "Tests/**",
                                dependencies: [
-                                    .target(name: "App")
+                                    .target(name: "StaticApp")
                                ])
                       ])
