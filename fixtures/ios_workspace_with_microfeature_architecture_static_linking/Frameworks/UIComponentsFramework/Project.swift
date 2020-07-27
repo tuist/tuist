@@ -4,7 +4,7 @@ let project = Project(name: "UIComponents",
                       targets: [
                         Target(name: "UIComponents",
                                platform: .iOS,
-                               product: .framework,
+                               product: .staticFramework,
                                bundleId: "io.tuist.UIComponents",
                                infoPlist: "Info.plist",
                                sources: ["Sources/**"],
