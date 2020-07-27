@@ -37,10 +37,6 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         XCTAssertEqual(got, [b])
     }
 
-    func test_appExtensionDependencies() {
-        XCTFail()
-    }
-
     func test_resourceBundleDependencies_returns_an_empty_list_when_a_dependency_can_host_resources() {
         // Given
         // App -> WatchApp -> Bundle
