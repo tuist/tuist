@@ -153,7 +153,11 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Encodable {
     public var isStatic: Bool {
         [.staticLibrary, .staticFramework].contains(self)
     }
-
+    
+    public var isFramework: Bool {
+        [.framework, .staticFramework].contains(self)
+    }
+    
     public var xcodeValue: PBXProductType {
         switch self {
         case .app:
