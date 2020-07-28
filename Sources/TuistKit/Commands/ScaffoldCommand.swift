@@ -63,7 +63,7 @@ struct ScaffoldCommand: ParsableCommand {
     func run() throws {
         // Currently, @Argument and subcommand clashes, so we need to handle that ourselves
         if template == ListCommand.configuration.commandName {
-            try ListService().run(path: path)
+            try ListService().run(path: path, outputFormat: .table)
         } else {
             try ScaffoldService().run(path: path,
                                       templateName: template,

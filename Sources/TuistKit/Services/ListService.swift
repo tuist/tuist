@@ -7,10 +7,6 @@ import TuistSupport
 class ListService {
     private let templatesDirectoryLocator: TemplatesDirectoryLocating
     private let templateLoader: TemplateLoading
-    private let textTable = TextTable<PrintableTemplate> { [
-        TextTable.Column(title: "Name", value: $0.name),
-        TextTable.Column(title: "Description", value: $0.description),
-    ] }
 
     init(templatesDirectoryLocator: TemplatesDirectoryLocating = TemplatesDirectoryLocator(),
          templateLoader: TemplateLoading = TemplateLoader()) {
@@ -18,7 +14,7 @@ class ListService {
         self.templateLoader = templateLoader
     }
 
-    func run(path: String?) throws {
+    func run(path: String?, outputFormat format: OutputFormat) throws {
         let path = self.path(path)
 
         let templateDirectories = try templatesDirectoryLocator.templateDirectories(at: path)
@@ -27,8 +23,8 @@ class ListService {
             return PrintableTemplate(name: path.basename, description: template.description)
         }
 
-        let renderedTable = textTable.render(templates)
-        logger.info("\(renderedTable)")
+        let output = try string(for: templates, in: format)
+        logger.info("\(output)")
     }
 
     // MARK: - Helpers
@@ -40,9 +36,32 @@ class ListService {
             return FileHandler.shared.currentPath
         }
     }
+
+    private func string(for templates: [PrintableTemplate],
+                        in format: ListService.OutputFormat) throws -> String {
+        switch format {
+        case .table:
+            let textTable = TextTable<PrintableTemplate> { [
+                TextTable.Column(title: "Name", value: $0.name),
+                TextTable.Column(title: "Description", value: $0.description),
+            ] }
+            return textTable.render(templates)
+
+        case .json:
+            let json = try templates.toJSON()
+            return json.toString(prettyPrint: true)
+        }
+    }
 }
 
-private struct PrintableTemplate {
+extension ListService {
+    enum OutputFormat {
+        case table
+        case json
+    }
+}
+
+private struct PrintableTemplate: Codable {
     let name: String
     let description: String
 }
