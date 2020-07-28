@@ -1,8 +1,8 @@
 import Foundation
 import XCTest
 
-@testable import App
+@testable import StaticApp
 
-final class AppTests: XCTestCase {
+final class StaticAppTests: XCTestCase {
 
 }
