@@ -59,6 +59,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Added
 
 - Add benchmark rake task [#1561](https://github.com/tuist/tuist/pull/1561) by [@kwridan](https://github.com/kwridan).
+- Add `--json` flag to `tuist scaffold list` command [#1589](https://github.com/tuist/tuist/issues/1589) by [@mollyIV](https://github.com/mollyIV).
 
 ### Fixed
 

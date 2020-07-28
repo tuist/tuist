@@ -8,6 +8,11 @@ struct ListCommand: ParsableCommand {
                              subcommands: [])
     }
 
+    @Flag(
+        help: "The output in JSON format"
+    )
+    var json: Bool
+
     @Option(
         name: .shortAndLong,
         help: "The path where you want to list templates from"
@@ -15,6 +20,8 @@ struct ListCommand: ParsableCommand {
     var path: String?
 
     func run() throws {
-        try ListService().run(path: path)
+        let format: ListService.OutputFormat = json ? .json : .table
+        try ListService().run(path: path,
+                              outputFormat: format)
     }
 }

@@ -27,7 +27,7 @@ final class ListServiceTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_lists_available_templates() throws {
+    func test_lists_available_templates_table_format() throws {
         // Given
         let expectedTemplates = ["template", "customTemplate"]
         let expectedOutput = """
@@ -46,7 +46,38 @@ final class ListServiceTests: TuistUnitTestCase {
         }
 
         // When
-        try subject.run(path: nil)
+        try subject.run(path: nil, outputFormat: .table)
+
+        // Then
+        XCTAssertPrinterContains(expectedOutput, at: .info, ==)
+    }
+
+    func test_lists_available_templates_json_format() throws {
+        // Given
+        let expectedTemplates = ["template", "customTemplate"]
+        let expectedOutput = """
+        [
+          {
+            "description": "description",
+            "name": "template"
+          },
+          {
+            "description": "description",
+            "name": "customTemplate"
+          }
+        ]
+        """
+
+        templatesDirectoryLocator.templateDirectoriesStub = { _ in
+            try expectedTemplates.map(self.temporaryPath().appending)
+        }
+
+        templateLoader.loadTemplateStub = { _ in
+            Template(description: "description")
+        }
+
+        // When
+        try subject.run(path: nil, outputFormat: .json)
 
         // Then
         XCTAssertPrinterContains(expectedOutput, at: .info, ==)
