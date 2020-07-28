@@ -32,11 +32,6 @@ Scenario: The project is an application with templates (ios_workspace_with_micro
     And tuist warms the cache
     When tuist generates a project with cached targets at StaticApp
     Then StaticApp links the xcframework FrameworkA
-    Then StaticApp links the xcframework FeatureContracts
-    Then StaticApp links the xcframework Data
-    Then StaticApp links the xcframework UIComponents
-    Then StaticApp links the xcframework Core
-    Then Data links the xcframework Core
-    Then UIComponents links the xcframework Data
+    Then StaticApp does not embed any xcframeworks
     Then I should be able to build for iOS the scheme StaticApp
     Then I should be able to test for iOS the scheme StaticAppTests
