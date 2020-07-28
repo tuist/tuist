@@ -5,6 +5,13 @@ import TuistScaffold
 import TuistSupport
 
 class ListService {
+    // MARK: - OutputFormat
+
+    enum OutputFormat {
+        case table
+        case json
+    }
+
     private let templatesDirectoryLocator: TemplatesDirectoryLocating
     private let templateLoader: TemplateLoading
 
@@ -51,13 +58,6 @@ class ListService {
             let json = try templates.toJSON()
             return json.toString(prettyPrint: true)
         }
-    }
-}
-
-extension ListService {
-    enum OutputFormat {
-        case table
-        case json
     }
 }
 
