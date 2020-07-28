@@ -8,6 +8,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Allow to cache and warm static frameworks too (only dynamic frameworks were cached before) [#1590](https://github.com/tuist/tuist/pull/1590) by [@RomainBoulay](https://github.com/RomainBoulay)
 
+### Added
+
+- Add an acceptance test suite to cover a `test cache warm` command on a micro-feature architecture kind of application that is fully statically linked [#1594](https://github.com/tuist/tuist/pull/1594) by [@RomainBoulay](https://github.com/RomainBoulay)
+
 ## 11.14.0 - Spezi
 
 ### Fixed
