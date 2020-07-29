@@ -22,9 +22,9 @@ public enum ManifestLoaderError: FatalError, Equatable {
         case let .unexpectedOutput(path):
             return "Unexpected output trying to parse the manifest at path \(path.pathString)"
         case let .manifestNotFound(manifest, path):
-            return "\(manifest?.fileName ?? "Manifest") not found at path \(path.pathString)"
+            return "\(manifest?.fileName(path) ?? "Manifest") not found at path \(path.pathString)"
         case let .manifestCachingFailed(manifest, path):
-            return "Could not cache \(manifest?.fileName ?? "Manifest") at path \(path.pathString)"
+            return "Could not cache \(manifest?.fileName(path) ?? "Manifest") at path \(path.pathString)"
         }
     }
 
@@ -136,7 +136,7 @@ public class ManifestLoader: ManifestLoading {
     }
 
     public func loadSetup(at path: AbsolutePath) throws -> [Upping] {
-        let setupPath = path.appending(component: Manifest.setup.fileName)
+        let setupPath = path.appending(component: Manifest.setup.fileName(path))
         guard FileHandler.shared.exists(setupPath) else {
             throw ManifestLoaderError.manifestNotFound(.setup, path)
         }
@@ -153,7 +153,7 @@ public class ManifestLoader: ManifestLoading {
     // MARK: - Private
 
     private func loadManifest<T: Decodable>(_ manifest: Manifest, at path: AbsolutePath) throws -> T {
-        var fileNames = [manifest.fileName]
+        var fileNames = [manifest.fileName(path)]
         if let deprecatedFileName = manifest.deprecatedFileName {
             fileNames.insert(deprecatedFileName, at: 0)
         }

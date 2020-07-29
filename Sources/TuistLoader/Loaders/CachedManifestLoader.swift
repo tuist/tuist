@@ -113,7 +113,7 @@ public class CachedManifestLoader: ManifestLoading {
     }
 
     private func findManifestPath(for manifest: Manifest, at path: AbsolutePath) -> AbsolutePath? {
-        let manifestFileNames = [manifest.fileName, manifest.deprecatedFileName]
+        let manifestFileNames = [manifest.fileName(path), manifest.deprecatedFileName]
         return manifestFileNames
             .compactMap { $0 }
             .map { path.appending(component: $0) }
