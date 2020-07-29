@@ -15,8 +15,8 @@ class UpHomebrewCask: Up, GraphInitiatable {
 
     /// Initializes the Homebrew cask up.
     ///
-    /// - Parameter
-    ///     - projects: List of projects to be caskped.
+    /// - Parameters:
+    ///   - projects: List of projects to be installed with cask.
     ///   - upHomebrew: Up homebrew for installing Homebrew.
     init(projects: [String],
          upHomebrew: Upping = UpHomebrew(packages: [])) {

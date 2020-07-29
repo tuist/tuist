@@ -2,7 +2,7 @@ import Foundation
 
 /// Up that configures a Homebrew tap in the system.
 class UpHomebrewCask: Up {
-    /// Project to be installed with Homebrew Cask.
+    /// Projects to be installed with cask.
     let projects: [String]
 
     /// Initializes the up Homebrew Cask with its attributes.
