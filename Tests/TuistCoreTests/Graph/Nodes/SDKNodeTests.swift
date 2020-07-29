@@ -70,8 +70,6 @@ final class SDKNodeTests: XCTestCase {
     }
 
     func test_xctest_sdk_framework_unsupported_platforms_path() throws {
-        XCTAssertThrowsSpecific(try SDKNode(name: "XCTest.framework", platform: .tvOS, status: .required, source: .developer),
-                                SDKNode.Error.unsupported(sdk: "XCTest.framework"))
         XCTAssertThrowsSpecific(try SDKNode(name: "XCTest.framework", platform: .watchOS, status: .required, source: .developer),
                                 SDKNode.Error.unsupported(sdk: "XCTest.framework"))
     }
