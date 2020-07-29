@@ -35,9 +35,9 @@ final class UpHomebrewCaskTests: TuistUnitTestCase {
     func test_isMet_when_casksAreMissing() throws {
         // Given
         let temporaryPath = try self.temporaryPath()
-        let subject = UpHomebrewCask(projects: ["project"], upHomebrew: upHomebrew)
+        let subject = UpHomebrewCask(projects: ["app"], upHomebrew: upHomebrew)
         upHomebrew.isMetStub = { _ in true }
-        system.succeedCommand(["brew", "cask"], output: "")
+        system.succeedCommand(["brew", "cask", "list"], output: "")
 
         // When
         let got = try subject.isMet(projectPath: temporaryPath)
@@ -49,9 +49,9 @@ final class UpHomebrewCaskTests: TuistUnitTestCase {
     func test_isMet_when_allCasksAreConfigured() throws {
         // Given
         let temporaryPath = try self.temporaryPath()
-        let subject = UpHomebrewCask(projects: ["project"], upHomebrew: upHomebrew)
+        let subject = UpHomebrewCask(projects: ["app"], upHomebrew: upHomebrew)
         upHomebrew.isMetStub = { _ in true }
-        system.succeedCommand(["brew", "cask"], output: "project\nother\n")
+        system.succeedCommand(["brew", "cask", "list"], output: "app\nother\n")
 
         // When
         let got = try subject.isMet(projectPath: temporaryPath)
@@ -63,9 +63,9 @@ final class UpHomebrewCaskTests: TuistUnitTestCase {
     func test_meet() throws {
         // When
         let temporaryPath = try self.temporaryPath()
-        let subject = UpHomebrewCask(projects: ["project"], upHomebrew: upHomebrew)
-        system.succeedCommand(["brew", "cask"], output: "")
-        system.succeedCommand(["brew", "cask", "project"])
+        let subject = UpHomebrewCask(projects: ["app"], upHomebrew: upHomebrew)
+        system.succeedCommand(["brew", "cask", "list"], output: "")
+        system.succeedCommand(["brew", "cask", "install", "app"])
         var homebrewUpped = false
         upHomebrew.meetStub = { _ in
             homebrewUpped = true
@@ -76,6 +76,6 @@ final class UpHomebrewCaskTests: TuistUnitTestCase {
 
         // Then
         XCTAssertTrue(homebrewUpped)
-        XCTAssertPrinterOutputContains("Adding repository cask: project")
+        XCTAssertPrinterOutputContains("Adding project cask: app")
     }
 }

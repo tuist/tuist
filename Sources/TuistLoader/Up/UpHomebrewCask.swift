@@ -45,7 +45,7 @@ class UpHomebrewCask: Up, GraphInitiatable {
     override func isMet(projectPath: AbsolutePath) throws -> Bool {
         guard try upHomebrew.isMet(projectPath: projectPath) else { return false }
         let casks = try self.casks()
-        guard projects.first(where: { !iscaskConfigured($0, casks: casks) }) == nil else { return false }
+        guard projects.first(where: { !isCaskConfigured($0, casks: casks) }) == nil else { return false }
         return true
     }
 
@@ -58,12 +58,12 @@ class UpHomebrewCask: Up, GraphInitiatable {
         // Homebrew
         try upHomebrew.meet(projectPath: projectPath)
 
-        // casks
+        // Casks
         let casks = try self.casks()
-        let notConfigured = projects.filter { !iscaskConfigured($0, casks: casks) }
-        for repository in notConfigured {
-            logger.notice("Adding repository cask: \(repository)")
-            try System.shared.run(["brew", "cask", repository])
+        let notConfigured = projects.filter { !isCaskConfigured($0, casks: casks) }
+        for project in notConfigured {
+            logger.notice("Adding project cask: \(project)")
+            try System.shared.run(["brew", "cask", "install", project])
         }
     }
 
@@ -72,18 +72,18 @@ class UpHomebrewCask: Up, GraphInitiatable {
     /// Returns true if a cask repository is configured in the system.
     ///
     /// - Parameters:
-    ///   - repository: cask repository.
+    ///   - project: cask project.
     ///   - casks: The list of system casks.
     /// - Returns: True if the cask repository is configured in the system.
-    private func iscaskConfigured(_ repository: String, casks: [String]) -> Bool {
-        casks.first(where: { $0.contains(repository) }) != nil
+    private func isCaskConfigured(_ project: String, casks: [String]) -> Bool {
+        casks.first(where: { $0.contains(project) }) != nil
     }
 
     /// Returns the list of casks that are available in the system.
     ///
     /// - Returns: The list of casks available in the system.
-    /// - Throws: An error if the 'brew cask' command errors.
+    /// - Throws: An error if the 'brew cask list' command errors.
     private func casks() throws -> [String] {
-        try System.shared.capture(["brew", "cask"]).spm_chomp().split(separator: "\n").map(String.init)
+        try System.shared.capture(["brew", "cask", "list"]).spm_chomp().split(separator: "\n").map(String.init)
     }
 }
