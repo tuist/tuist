@@ -103,9 +103,12 @@ extension Platform {
         switch self {
         case .iOS:
             return "Platforms/iPhoneOS.platform/Developer/Library"
+        case .tvOS:
+            return "Platforms/AppleTVOS.platform/Developer/Library"
+        case .watchOS:
+            return "Platforms/WatchOS.platform/Developer/Library"
         case .macOS:
             return "Platforms/MacOSX.platform/Developer/Library"
-        default: return nil
         }
     }
 }

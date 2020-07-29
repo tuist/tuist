@@ -54,4 +54,25 @@ final class PlatformTests: XCTestCase {
             "Platforms/AppleTVOS.platform/Developer/SDKs/AppleTVOS.sdk",
         ])
     }
+
+    func test_xcodeDeveloperSdkRootPath() {
+        // Given
+        let platforms: [Platform] = [
+            .iOS,
+            .tvOS,
+            .watchOS,
+            .macOS,
+        ]
+
+        // When
+        let paths = platforms.map(\.xcodeDeveloperSdkRootPath)
+
+        // Then
+        XCTAssertEqual(paths, [
+            "Platforms/iPhoneOS.platform/Developer/Library",
+            "Platforms/AppleTVOS.platform/Developer/Library",
+            "Platforms/WatchOS.platform/Developer/Library",
+            "Platforms/MacOSX.platform/Developer/Library",
+        ])
+    }
 }
