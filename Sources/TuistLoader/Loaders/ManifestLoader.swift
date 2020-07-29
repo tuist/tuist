@@ -77,9 +77,9 @@ public protocol ManifestLoading {
     /// - Parameter path: Path to the directory that contains the Setup.swift.
     func loadSetup(at path: AbsolutePath) throws -> [Upping]
 
-    /// Loads the Template.swift in the given directory.
+    /// Loads the name_of_template.swift in the given directory.
     /// - Parameters:
-    ///     - path: Path to the directory that contains the Template.swift
+    ///     - path: Path to the directory that contains the name_of_template.swift
     func loadTemplate(at path: AbsolutePath) throws -> ProjectDescription.Template
 
     /// List all the manifests in the given directory.

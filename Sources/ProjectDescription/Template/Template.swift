@@ -20,10 +20,10 @@ public struct Template: Codable, Equatable {
 
     /// Enum containing information about how to generate file
     public enum Contents: Codable, Equatable {
-        /// String Contents is defined in `Template.swift` and contains a simple `String`
+        /// String Contents is defined in `name_of_template.swift` and contains a simple `String`
         /// Can not contain any additional logic apart from plain `String` from `arguments`
         case string(String)
-        /// File content is defined in a different file from `Template.swift`
+        /// File content is defined in a different file from `name_of_template.swift`
         /// Can contain additional logic and anything that is defined in `ProjectDescriptionHelpers`
         case file(Path)
 

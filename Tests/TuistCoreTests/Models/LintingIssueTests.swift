@@ -17,12 +17,12 @@ final class LintingIssueTests: TuistUnitTestCase {
         XCTAssertThrowsError(try [first, second].printAndThrowIfNeeded())
 
         XCTAssertPrinterOutputContains("""
-            warning
-            """
+        warning
+        """
         )
         XCTAssertPrinterErrorContains("""
-            error
-            """
+        error
+        """
         )
     }
 
@@ -32,8 +32,8 @@ final class LintingIssueTests: TuistUnitTestCase {
         XCTAssertThrowsError(try [first].printAndThrowIfNeeded())
 
         XCTAssertPrinterErrorContains("""
-            error
-            """
+        error
+        """
         )
     }
 }
