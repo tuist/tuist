@@ -7,6 +7,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Fixed
 
 - Allow to cache and warm static frameworks too (only dynamic frameworks were cached before) [#1590](https://github.com/tuist/tuist/pull/1590) by [@RomainBoulay](https://github.com/RomainBoulay)
+- Support tvOS targets depending on XCTest [#1598](https://github.com/tuist/tuist/pull/1598) by [@pepibumur](https://github.com/pepibumur).
 
 ### Added
 
