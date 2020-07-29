@@ -244,7 +244,7 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
 
     private func stub(manifest: Project,
                       at path: AbsolutePath) throws {
-        let manifestPath = path.appending(component: Manifest.project.fileName)
+        let manifestPath = path.appending(component: Manifest.project.fileName(path))
         try fileHandler.touch(manifestPath)
         let manifestData = try JSONEncoder().encode(manifest)
         try fileHandler.write(String(data: manifestData, encoding: .utf8)!, path: manifestPath, atomically: true)
@@ -253,7 +253,7 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
 
     private func stub(deprecatedManifest manifest: Config,
                       at path: AbsolutePath) throws {
-        let manifestPath = path.appending(component: Manifest.config.deprecatedFileName ?? Manifest.config.fileName)
+        let manifestPath = path.appending(component: Manifest.config.deprecatedFileName ?? Manifest.config.fileName(path))
         try fileHandler.touch(manifestPath)
         let manifestData = try JSONEncoder().encode(manifest)
         try fileHandler.write(String(data: manifestData, encoding: .utf8)!, path: manifestPath, atomically: true)

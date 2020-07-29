@@ -251,7 +251,7 @@ final class RecursiveManifestLoaderTests: TuistUnitTestCase {
                       at relativePath: RelativePath) throws {
         let manifestPath = path
             .appending(relativePath)
-            .appending(component: Manifest.project.fileName)
+            .appending(component: Manifest.project.fileName(path.appending(relativePath)))
         try fileHandler.touch(manifestPath)
         projectManifests[manifestPath.parentDirectory] = manifest
     }
@@ -260,7 +260,7 @@ final class RecursiveManifestLoaderTests: TuistUnitTestCase {
                       at relativePath: RelativePath) throws {
         let manifestPath = path
             .appending(relativePath)
-            .appending(component: Manifest.workspace.fileName)
+            .appending(component: Manifest.workspace.fileName(path.appending(relativePath)))
         try fileHandler.touch(manifestPath)
         workspaceManifests[manifestPath.parentDirectory] = manifest
     }
