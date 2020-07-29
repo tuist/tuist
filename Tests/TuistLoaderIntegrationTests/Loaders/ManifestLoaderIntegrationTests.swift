@@ -124,7 +124,7 @@ final class ManifestLoaderTests: TuistTestCase {
         // Then
         XCTAssertEqual(got.description, "Template description")
     }
-    
+
     func test_loadTemplate() throws {
         // Given
         let temporaryPath = try self.temporaryPath().appending(component: "folder")

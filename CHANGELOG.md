@@ -6,6 +6,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Fixed
 
+- Fix name collision when having multiple templates [#1600](https://github.com/tuist/tuist/pull/1600) by [@fortmarek](https://github.com/fortmarek)
 - Allow to cache and warm static frameworks too (only dynamic frameworks were cached before) [#1590](https://github.com/tuist/tuist/pull/1590) by [@RomainBoulay](https://github.com/RomainBoulay)
 
 ## 11.14.0 - Spezi
