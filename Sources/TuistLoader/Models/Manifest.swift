@@ -21,6 +21,9 @@ public enum Manifest: CaseIterable {
         }
     }
 
+    /// - Parameters:
+    ///     - path: Path to the folder that contains the manifest
+    /// - Returns: File name of the `Manifest`
     public func fileName(_ path: AbsolutePath) -> String {
         switch self {
         case .project:
