@@ -55,6 +55,7 @@ final class SDKNodeTests: XCTestCase {
         let libraries: [(name: String, platform: Platform)] = [
             ("XCTest.framework", .iOS),
             ("XCTest.framework", .macOS),
+            ("XCTest.framework", .tvOS),
         ]
 
         // When
@@ -64,6 +65,7 @@ final class SDKNodeTests: XCTestCase {
         XCTAssertEqual(nodes.map(\.path), [
             "/Platforms/iPhoneOS.platform/Developer/Library/Frameworks/XCTest.framework",
             "/Platforms/MacOSX.platform/Developer/Library/Frameworks/XCTest.framework",
+            "/Platforms/AppleTVOS.platform/Developer/Library/Frameworks/XCTest.framework",
         ])
     }
 
