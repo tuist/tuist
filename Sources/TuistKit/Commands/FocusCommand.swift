@@ -21,7 +21,8 @@ struct FocusCommand: ParsableCommand {
 
     @Option(
         name: .shortAndLong,
-        help: "The path to the directory containing the project you plan to focus on."
+        help: "The path to the directory containing the project you plan to focus on.",
+        completion: .directory
     )
     var path: String?
 

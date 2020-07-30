@@ -15,7 +15,8 @@ struct ListCommand: ParsableCommand {
 
     @Option(
         name: .shortAndLong,
-        help: "The path where you want to list templates from"
+        help: "The path where you want to list templates from",
+        completion: .directory
     )
     var path: String?
 

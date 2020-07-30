@@ -13,7 +13,8 @@ struct EditCommand: ParsableCommand {
 
     @Option(
         name: .shortAndLong,
-        help: "The path to the directory whose project will be edited"
+        help: "The path to the directory whose project will be edited",
+        completion: .directory
     )
     var path: String?
 

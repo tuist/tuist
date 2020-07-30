@@ -10,7 +10,8 @@ struct GenerateCommand: ParsableCommand {
 
     @Option(
         name: .shortAndLong,
-        help: "The path where the project will be generated."
+        help: "The path where the project will be generated.",
+        completion: .directory
     )
     var path: String?
 

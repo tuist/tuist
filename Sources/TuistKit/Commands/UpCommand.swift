@@ -13,7 +13,8 @@ struct UpCommand: ParsableCommand {
 
     @Option(
         name: .shortAndLong,
-        help: "The path to the directory that contains the project."
+        help: "The path to the directory that contains the project.",
+        completion: .directory
     )
     var path: String?
 

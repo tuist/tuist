@@ -36,7 +36,8 @@ struct ScaffoldCommand: ParsableCommand {
 
     @Option(
         name: .shortAndLong,
-        help: "The path to the folder where the template will be generated (Default: Current directory)"
+        help: "The path to the folder where the template will be generated (Default: Current directory)",
+        completion: .directory
     )
     var path: String?
 

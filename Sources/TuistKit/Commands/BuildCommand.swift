@@ -27,12 +27,15 @@ struct BuildCommand: ParsableCommand {
 
     @Option(
         name: .shortAndLong,
-        help: "The path to the directory that contains the project to be built."
+        help: "The path to the directory that contains the project to be built.",
+        completion: .directory
     )
     var path: String?
 
-    @Option(name: [.long, .customShort("C")],
-            help: "The configuration to be used when building the scheme.")
+    @Option(
+        name: [.long, .customShort("C")],
+        help: "The configuration to be used when building the scheme."
+    )
     var configuration: String?
 
     func run() throws {
