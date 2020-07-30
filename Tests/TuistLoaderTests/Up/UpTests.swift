@@ -20,7 +20,7 @@ final class UpTests: TuistUnitTestCase {
         XCTAssertEqual(got?.meet, ["meet"])
         XCTAssertEqual(got?.isMet, ["is_met"])
     }
-    
+
     func test_with_when_homebrew() throws {
         let temporaryPath = try self.temporaryPath()
         let dictionary = JSON([
