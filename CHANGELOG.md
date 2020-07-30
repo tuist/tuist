@@ -21,6 +21,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Added
 
+- Autocompletions support [#1604](https://github.com/tuist/tuist/issues/1592) by [@fortmarek](https://github.com/fortmarek)
 - Add an acceptance test suite to cover a `test cache warm` command on a micro-feature architecture kind of application that is fully statically linked [#1594](https://github.com/tuist/tuist/pull/1594) by [@RomainBoulay](https://github.com/RomainBoulay)
 - Add support for setting launch arguments at the target level. [#1596](https://github.com/tuist/tuist/pull/1596) by [@jeroenleenarts](https://github.com/jeroenleenarts)
 - Add Homebrew cask up [#1601](https://github.com/tuist/tuist/pull/1601) by [@leszko11](https://github.com/leszko11)
