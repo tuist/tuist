@@ -105,6 +105,8 @@ extension Platform {
             return "Platforms/iPhoneOS.platform/Developer/Library"
         case .macOS:
             return "Platforms/MacOSX.platform/Developer/Library"
+        case .tvOS:
+            return "Platforms/AppleTVOS.platform/Developer/Library"
         default: return nil
         }
     }
