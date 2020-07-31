@@ -21,6 +21,14 @@ public class Up: Codable, Equatable {
         UpHomebrewTap(repositories: repositories)
     }
 
+    /// Returns an up that configures Homebrew cask projects.
+    ///
+    /// - Parameter projects: Projects to be installed with cask.
+    /// - Returns: Up to cask projects in Homebrew.
+    public static func homebrewCask(projects: [String]) -> Up {
+        UpHomebrewCask(projects: projects)
+    }
+
     /// Returns a user-defined up.
     ///
     /// - Parameters:
