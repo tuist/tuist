@@ -2,6 +2,7 @@ import Foundation
 import TSCBasic
 import TuistCore
 import XCTest
+import GraphViz
 @testable import TuistGenerator
 @testable import TuistSupportTesting
 
@@ -39,25 +40,19 @@ final class GraphToDotGraphMapperTests: XCTestCase {
 
         // When
         let got = subject.map(graph: graph, skipTestTargets: false, skipExternalDependencies: false)
-
+    
         // Then
-        let expected = DotGraph(name: "Project Dependencies Graph",
-                                type: .directed,
-                                nodes: Set([
-                                    .init(name: "Tuist iOS"),
-                                    .init(name: "CoreData"),
-                                    .init(name: "RxSwift"),
-                                    .init(name: "XcodeProj"),
-                                    .init(name: "Core"),
-                                    .init(name: "Tuist watchOS"),
-                                ]), dependencies: [
-                                    .init(from: "Tuist iOS", to: "Core"),
-                                    .init(from: "Tuist watchOS", to: "Core"),
-                                    .init(from: "Core", to: "XcodeProj"),
-                                    .init(from: "Core", to: "RxSwift"),
-                                    .init(from: "Core", to: "CoreData"),
-                                ])
-        XCTAssertEqual(got, expected)
+        var expected = DotGraph(directed: true)
+    
+        let nodes = makeNodes()
+        expected.append(contentsOf: nodes.allNodes)
+        expected.append(Edge(from: nodes.ios, to: nodes.core))
+        expected.append(Edge(from: nodes.watch, to: nodes.core))
+        expected.append(Edge(from: nodes.core, to: nodes.xcodeProj))
+        expected.append(Edge(from: nodes.core, to: nodes.rxSwift))
+        expected.append(Edge(from: nodes.core, to: nodes.coreData))
+ 
+        XCTAssertEqual(got.dotRepresentation, expected.dotRepresentation)
     }
 
     func test_map_skipping_external_dependencies() throws {
@@ -82,18 +77,36 @@ final class GraphToDotGraphMapperTests: XCTestCase {
         let got = subject.map(graph: graph, skipTestTargets: false, skipExternalDependencies: true)
 
         // Then
-        let expected = DotGraph(name: "Project Dependencies Graph",
-                                type: .directed,
-                                nodes: Set([
-                                    .init(name: "Tuist iOS"),
-                                    .init(name: "RxSwift"),
-                                    .init(name: "XcodeProj"),
-                                    .init(name: "Core"),
-                                    .init(name: "Tuist watchOS"),
-                                ]), dependencies: [
-                                    .init(from: "Tuist iOS", to: "Core"),
-                                    .init(from: "Tuist watchOS", to: "Core"),
-                                ])
-        XCTAssertEqual(got, expected)
+        
+        var expected = DotGraph(directed: true)
+        let nodes = makeNodes()
+        expected.append(contentsOf: nodes.allNodes)
+        
+        expected.append(Edge(from: nodes.ios, to: nodes.core))
+        expected.append(Edge(from: nodes.watch, to: nodes.core))
+        
+        XCTAssertEqual(got.dotRepresentation, expected.dotRepresentation)
+    }
+    
+    // swiftlint:disable:next large_tuple
+    private func makeNodes() -> (ios: Node, coreData: Node, rxSwift: Node, xcodeProj: Node, core: Node, watch: Node, allNodes: [Node]) {
+        let iosAppNode = Node("Tuist iOS")
+        let coreDataNode = Node("CoreData")
+        let rxSwiftNode = Node("RxSwift")
+        let xcodeProjNode = Node("XcodeProj")
+        let coreNode = Node("Core")
+        let watchOSNode = Node("Tuist watchOS")
+        
+        return(iosAppNode,
+               coreDataNode,
+               rxSwiftNode,
+               xcodeProjNode,
+               coreNode,
+               watchOSNode,
+               [iosAppNode,
+               coreDataNode,
+               rxSwiftNode,
+               xcodeProjNode,
+               coreNode, watchOSNode])
     }
 }

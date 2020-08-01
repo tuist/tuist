@@ -28,10 +28,43 @@ final class GraphServiceTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_run() throws {
+    func test_run_when_graphvizIsInstalled() throws {
         // Given
+        let graph = try givenGraph()
+        system.succeedCommand(["brew", "list"], output: "graphviz")
+        
+        // When
+        try subject.run(skipTestTargets: false, skipExternalDependencies: false)
+
+        // Then
+        XCTAssertEqual(try FileHandler.shared.readTextFile(graph.path), graph.dotGraph)
+        XCTAssertPrinterOutputContains("""
+        Deleting existing graph at \(graph.path.pathString)
+        Graph exported to \(graph.path.pathString)
+        """)
+    }
+    
+    func test_run_when_graphvizIsMissing_will_install_graphviz() throws {
+         // Given
+         let graph = try givenGraph()
+         system.succeedCommand(["brew", "list"], output: "")
+         system.succeedCommand(["brew", "install", "graphviz"], output: "home")
+        
+         // When
+         try subject.run(skipTestTargets: false, skipExternalDependencies: false)
+
+         // Then
+         XCTAssertEqual(try FileHandler.shared.readTextFile(graph.path), graph.dotGraph)
+         XCTAssertPrinterOutputContains("Installing graphviz...")
+         XCTAssertPrinterOutputContains("""
+         Deleting existing graph at \(graph.path.pathString)
+         Graph exported to \(graph.path.pathString)
+         """)
+     }
+    
+    private func givenGraph() throws -> (dotGraph: String, path: AbsolutePath) {
         let temporaryPath = try self.temporaryPath()
-        let graphPath = temporaryPath.appending(component: "graph.dot")
+        let graphPath = temporaryPath.appending(component: "graph.png")
         let projectManifestPath = temporaryPath.appending(component: "Project.swift")
 
         try FileHandler.shared.touch(graphPath)
@@ -44,15 +77,7 @@ final class GraphServiceTests: TuistUnitTestCase {
 
         let graph = "graph {}"
         dotGraphGenerator.generateProjectStub = graph
-
-        // When
-        try subject.run(skipTestTargets: false, skipExternalDependencies: false)
-
-        // Then
-        XCTAssertEqual(try FileHandler.shared.readTextFile(graphPath), graph)
-        XCTAssertPrinterOutputContains("""
-        Deleting existing graph at \(graphPath.pathString)
-        Graph exported to \(graphPath.pathString)
-        """)
+        return (graph, graphPath)
     }
+
 }
