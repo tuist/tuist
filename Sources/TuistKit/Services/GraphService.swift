@@ -24,13 +24,13 @@ final class GraphService {
                                                    skipTestTargets: skipTestTargets,
                                                    skipExternalDependencies: skipExternalDependencies)
 
-        let path = FileHandler.shared.currentPath.appending(component: "graph.dot")
+        let path = FileHandler.shared.currentPath.appending(component: "graph.png")
         if FileHandler.shared.exists(path) {
             logger.notice("Deleting existing graph at \(path.pathString)")
             try FileHandler.shared.delete(path)
         }
 
-        try FileHandler.shared.write(graph, path: path, atomically: true)
+        try FileHandler.shared.write(graph, path: path)
         logger.notice("Graph exported to \(path.pathString)", metadata: .success)
     }
 }

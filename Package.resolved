@@ -47,6 +47,15 @@
         }
       },
       {
+        "package": "GraphViz",
+        "repositoryURL": "https://github.com/SwiftDocOrg/GraphViz",
+        "state": {
+          "branch": null,
+          "revision": "c4746cb3ff6f5e7c5d5540c40b98555521c3ee43",
+          "version": "0.1.3"
+        }
+      },
+      {
         "package": "Guaka",
         "repositoryURL": "https://github.com/nsomar/Guaka.git",
         "state": {

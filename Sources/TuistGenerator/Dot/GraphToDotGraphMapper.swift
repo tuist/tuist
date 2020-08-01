@@ -1,5 +1,10 @@
 import Foundation
 import TuistCore
+import GraphViz
+import DOT
+
+typealias DotGraph = GraphViz.Graph
+public typealias Graph = TuistCore.Graph
 
 /// Interface that describes a mapper that convers a project graph into a dot graph.
 protocol GraphToDotGraphMapping {
@@ -16,9 +21,8 @@ class GraphToDotGraphMapper: GraphToDotGraphMapping {
     /// - Parameter graph: Graph to be converted into a dot graph.
     /// - Returns: The dot graph representation.
     func map(graph: Graph, skipTestTargets: Bool, skipExternalDependencies: Bool) -> DotGraph {
-        var nodes: [DotGraphNode] = []
-        var dependencies: [DotGraphDependency] = []
-
+        var dotGraph = DotGraph(directed: true)
+        
         // Targets
         graph.targets.forEach { targetsList in
             targetsList.value.forEach { target in
@@ -29,30 +33,27 @@ class GraphToDotGraphMapper: GraphToDotGraphMapping {
                     return
                 }
 
-                nodes.append(DotGraphNode(name: target.target.name))
-
+                dotGraph.append(Node(target.target.name))
                 // Dependencies
                 target.dependencies.forEach { dependency in
                     if skipExternalDependencies, dependency.isExternal {
                         return
                     }
-
-                    dependencies.append(DotGraphDependency(from: target.name, to: dependency.name))
-
+                    
+                    let from = Node(target.name)
+                    let to = Node(dependency.name)
+                    dotGraph.append(Edge(from: from, to: to))
+                        
                     if let sdk = dependency as? SDKNode {
-                        nodes.append(DotGraphNode(name: sdk.name))
+                        dotGraph.append(Node(sdk.name))
                     }
                 }
             }
         }
 
         // Precompiled
-        graph.precompiled.forEach { nodes.append(DotGraphNode(name: $0.name)) }
-
-        return DotGraph(name: "Project Dependencies Graph",
-                        type: .directed,
-                        nodes: Set(nodes),
-                        dependencies: Set(dependencies))
+        graph.precompiled.forEach { dotGraph.append(Node($0.name)) }
+        return dotGraph
     }
 }
 
@@ -79,4 +80,13 @@ private extension GraphNode {
 
         return false
     }
+}
+
+extension GraphViz.Graph {
+    
+    var dotRepresentation: String {
+        let dot = DOTEncoder().encode(self).sorted()
+        return String(dot)
+    }
+    
 }
