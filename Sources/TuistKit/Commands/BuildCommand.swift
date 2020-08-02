@@ -18,12 +18,12 @@ struct BuildCommand: ParsableCommand {
     @Flag(
         help: "Force the generation of the project before building."
     )
-    var generate: Bool
+    var generate: Bool = false
 
     @Flag(
         help: "When passed, it cleans the project before building it"
     )
-    var clean: Bool
+    var clean: Bool = false
 
     @Option(
         name: .shortAndLong,

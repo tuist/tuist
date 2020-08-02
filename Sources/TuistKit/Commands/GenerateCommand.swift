@@ -18,10 +18,10 @@ struct GenerateCommand: ParsableCommand {
     @Flag(
         help: "Only generate the local project (without generating its dependencies)."
     )
-    var projectOnly: Bool
+    var projectOnly: Bool = false
 
     @Flag(help: "Generate a project replacing dependencies with pre-compiled assets.")
-    var cache: Bool
+    var cache: Bool = false
 
     func run() throws {
         try GenerateService().run(path: path,

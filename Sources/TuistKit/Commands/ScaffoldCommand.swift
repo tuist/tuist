@@ -32,7 +32,7 @@ struct ScaffoldCommand: ParsableCommand {
     @Flag(
         help: "The output in JSON format"
     )
-    var json: Bool
+    var json: Bool = false
 
     @Option(
         name: .shortAndLong,

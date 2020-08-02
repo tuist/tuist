@@ -17,7 +17,7 @@ struct FocusCommand: ParsableCommand {
     }
 
     @Flag(help: "Generate a project replacing dependencies with pre-compiled assets.")
-    var cache: Bool
+    var cache: Bool = false
 
     @Option(
         name: .shortAndLong,
