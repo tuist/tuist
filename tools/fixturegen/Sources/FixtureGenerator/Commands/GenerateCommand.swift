@@ -15,7 +15,8 @@ final class GenerateCommand {
     private let fileSystem: FileSystem
 
     init(fileSystem: FileSystem,
-         parser: ArgumentParser) {
+         parser: ArgumentParser)
+    {
         self.fileSystem = fileSystem
 
         pathArgument = parser.add(option: "--path",

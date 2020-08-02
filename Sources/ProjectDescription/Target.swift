@@ -104,7 +104,8 @@ public struct Target: Codable, Equatable {
                 dependencies: [TargetDependency] = [],
                 settings: Settings? = nil,
                 coreDataModels: [CoreDataModel] = [],
-                environment: [String: String] = [:]) {
+                environment: [String: String] = [:])
+    {
         self.name = name
         self.platform = platform
         self.bundleId = bundleId

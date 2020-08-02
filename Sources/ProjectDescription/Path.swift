@@ -17,7 +17,8 @@ public struct Path: Codable, ExpressibleByStringLiteral, ExpressibleByStringInte
 
     init(_ pathString: String,
          type: PathType,
-         callerPath: String? = nil) {
+         callerPath: String? = nil)
+    {
         self.type = type
         self.pathString = pathString
         self.callerPath = callerPath

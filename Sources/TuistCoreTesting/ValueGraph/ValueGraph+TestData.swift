@@ -8,7 +8,8 @@ public extension ValueGraph {
                      projects: [AbsolutePath: Project] = [:],
                      packages: [AbsolutePath: [String: Package]] = [:],
                      targets: [AbsolutePath: [String: Target]] = [:],
-                     dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [:]) -> ValueGraph {
+                     dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [:]) -> ValueGraph
+    {
         ValueGraph(name: name,
                    path: path,
                    projects: projects,

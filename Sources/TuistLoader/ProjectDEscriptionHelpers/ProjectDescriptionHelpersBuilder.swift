@@ -34,7 +34,8 @@ final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding 
     ///   - helpersDirectoryLocating: Instance to locate the helpers directory.
     init(projectDescriptionHelpersHasher: ProjectDescriptionHelpersHashing = ProjectDescriptionHelpersHasher(),
          cacheDirectory: AbsolutePath = Environment.shared.projectDescriptionHelpersCacheDirectory,
-         helpersDirectoryLocator: HelpersDirectoryLocating = HelpersDirectoryLocator()) {
+         helpersDirectoryLocator: HelpersDirectoryLocating = HelpersDirectoryLocator())
+    {
         self.projectDescriptionHelpersHasher = projectDescriptionHelpersHasher
         self.cacheDirectory = cacheDirectory
         self.helpersDirectoryLocator = helpersDirectoryLocator
@@ -78,7 +79,8 @@ final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding 
 
     fileprivate func command(outputDirectory: AbsolutePath,
                              helpersDirectory: AbsolutePath,
-                             projectDescriptionPath: AbsolutePath) -> [String] {
+                             projectDescriptionPath: AbsolutePath) -> [String]
+    {
         let files = FileHandler.shared.glob(helpersDirectory, glob: "**/*.swift")
         var command: [String] = [
             "/usr/bin/xcrun", "swiftc",

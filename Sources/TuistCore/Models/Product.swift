@@ -134,7 +134,8 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Encodable {
 
         if platform == .macOS ||
             platform == .tvOS ||
-            platform == .iOS {
+            platform == .iOS
+        {
             base.append(.unitTests)
             base.append(.uiTests)
         }

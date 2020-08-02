@@ -11,7 +11,8 @@ extension SimulatorDevice {
                      state: String = "Shutdown",
                      name: String = "iPad Air (3rd generation)",
                      availabilityError: String? = nil,
-                     runtimeIdentifier: String = "com.apple.CoreSimulator.SimRuntime.iOS-13-5") -> SimulatorDevice {
+                     runtimeIdentifier: String = "com.apple.CoreSimulator.SimRuntime.iOS-13-5") -> SimulatorDevice
+    {
         SimulatorDevice(dataPath: dataPath,
                         logPath: logPath,
                         udid: udid,

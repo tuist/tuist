@@ -10,7 +10,8 @@ extension TuistCore.Project {
     ///   - manifest: Manifest representation of  the file element.
     ///   - generatorPaths: Generator paths.
     static func from(manifest: ProjectDescription.Project,
-                     generatorPaths: GeneratorPaths) throws -> TuistCore.Project {
+                     generatorPaths: GeneratorPaths) throws -> TuistCore.Project
+    {
         let name = manifest.name
         let organizationName = manifest.organizationName
         let settings = try manifest.settings.map { try TuistCore.Settings.from(manifest: $0, generatorPaths: generatorPaths) }

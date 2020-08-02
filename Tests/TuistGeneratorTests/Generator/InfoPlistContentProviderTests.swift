@@ -265,7 +265,8 @@ final class InfoPlistContentProviderTests: XCTestCase {
     fileprivate func assertPackageType(_ lhs: [String: Any]?,
                                        _ packageType: String?,
                                        file: StaticString = #file,
-                                       line: UInt = #line) {
+                                       line: UInt = #line)
+    {
         let value = lhs?["CFBundlePackageType"] as? String
 
         if let packageType = packageType {
@@ -278,7 +279,8 @@ final class InfoPlistContentProviderTests: XCTestCase {
     fileprivate func assertEqual(_ lhs: [String: Any]?,
                                  _ rhs: [String: Any],
                                  file: StaticString = #file,
-                                 line: UInt = #line) {
+                                 line: UInt = #line)
+    {
         let lhsNSDictionary = NSDictionary(dictionary: lhs ?? [:])
         let rhsNSDictionary = NSDictionary(dictionary: rhs)
         let message = """

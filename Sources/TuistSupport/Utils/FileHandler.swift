@@ -110,7 +110,7 @@ public protocol FileHandling: AnyObject {
     ///   - atomically: Whether the content should be written atomically.
     /// - Throws: An error if the writing fails.
     func write(_ content: String, path: AbsolutePath, atomically: Bool) throws
-    
+
     /// Writes data into the given path.
     ///
     /// - Parameters:
@@ -118,7 +118,7 @@ public protocol FileHandling: AnyObject {
     ///   - path: Path where the content will be written into.
     /// - Throws: An error if the writing fails.
     func write(_ content: Data, path: AbsolutePath) throws
-    
+
     /// Traverses the parent directories until the given path is found.
     ///
     /// - Parameters:
@@ -264,14 +264,13 @@ public class FileHandler: FileHandling {
             try content.write(to: path.url, atomically: atomically, encoding: .utf8)
         } catch {}
     }
-    
+
     public func write(_ content: Data, path: AbsolutePath) throws {
         logger.debug("Writing contents to file \(path)")
         do {
             try content.write(to: path.url)
-            
+
         } catch {}
-        
     }
 
     public func locateDirectory(_ path: String, traversingFrom from: AbsolutePath) -> AbsolutePath? {

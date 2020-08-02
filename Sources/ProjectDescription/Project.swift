@@ -17,7 +17,8 @@ public struct Project: Codable, Equatable {
                 settings: Settings? = nil,
                 targets: [Target] = [],
                 schemes: [Scheme] = [],
-                additionalFiles: [FileElement] = []) {
+                additionalFiles: [FileElement] = [])
+    {
         self.name = name
         self.organizationName = organizationName
         self.packages = packages

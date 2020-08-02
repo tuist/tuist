@@ -59,7 +59,8 @@ private class DirectoryStructure {
     init(path: AbsolutePath,
          projects: [AbsolutePath],
          files: [FileElement],
-         fileHandler: FileHandling = FileHandler.shared) {
+         fileHandler: FileHandling = FileHandler.shared)
+    {
         self.path = path
         self.projects = projects
         self.files = files
@@ -160,7 +161,8 @@ extension DirectoryStructure {
         }
 
         static func == (lhs: DirectoryStructure.Graph,
-                        rhs: DirectoryStructure.Graph) -> Bool {
+                        rhs: DirectoryStructure.Graph) -> Bool
+        {
             lhs.nodes == rhs.nodes
         }
     }

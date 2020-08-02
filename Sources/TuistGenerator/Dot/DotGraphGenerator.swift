@@ -1,8 +1,8 @@
+import DOT
 import Foundation
 import TSCBasic
 import TuistCore
 import TuistSupport
-import DOT
 
 public protocol DotGraphGenerating {
     /// Generates the dot graph from the project in the current directory and returns it.
@@ -42,7 +42,8 @@ public final class DotGraphGenerator: DotGraphGenerating {
     ///   - graphLoader: Graph loader instance.
     ///   - graphToDotGraphMapper: Mapper to map the graph into a dot graph.
     init(graphLoader: GraphLoading,
-         graphToDotGraphMapper: GraphToDotGraphMapping) {
+         graphToDotGraphMapper: GraphToDotGraphMapping)
+    {
         self.graphLoader = graphLoader
         self.graphToDotGraphMapper = graphToDotGraphMapper
     }
@@ -56,7 +57,6 @@ public final class DotGraphGenerator: DotGraphGenerating {
         let (graph, _) = try graphLoader.loadProject(path: path)
         return try graphToDotGraphMapper.map(graph: graph, skipTestTargets: skipTestTargets,
                                              skipExternalDependencies: skipExternalDependencies).render(using: .dot, to: .png)
-
     }
 
     /// Generates the dot graph from the workspace in the current directory and returns it.
@@ -68,6 +68,5 @@ public final class DotGraphGenerator: DotGraphGenerating {
         let (graph, _) = try graphLoader.loadWorkspace(path: path)
         return try graphToDotGraphMapper.map(graph: graph, skipTestTargets: skipTestTargets,
                                              skipExternalDependencies: skipExternalDependencies).render(using: .dot, to: .png)
-
     }
 }

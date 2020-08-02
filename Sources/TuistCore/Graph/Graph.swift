@@ -74,7 +74,8 @@ public class Graph: Encodable, Equatable {
                 cocoapods: [CocoaPodsNode],
                 packages: [PackageNode],
                 precompiled: [PrecompiledNode],
-                targets: [AbsolutePath: [TargetNode]]) {
+                targets: [AbsolutePath: [TargetNode]])
+    {
         self.name = name
         self.entryPath = entryPath
         self.entryNodes = entryNodes
@@ -327,7 +328,8 @@ public class Graph: Encodable, Equatable {
     ///   - name: Name of the target.
     public func embeddableFrameworks(path: AbsolutePath, name: String) throws -> [GraphDependencyReference] {
         guard let targetNode = findTargetNode(path: path, name: name),
-            canEmbedProducts(targetNode: targetNode) else {
+            canEmbedProducts(targetNode: targetNode)
+        else {
             return []
         }
 
@@ -421,7 +423,8 @@ public class Graph: Encodable, Equatable {
 
     public func findAll<T: GraphNode, S: GraphNode>(targetNode: TargetNode,
                                                     test: (T) -> Bool = { _ in true },
-                                                    skip: (S) -> Bool = { _ in false }) -> Set<T> {
+                                                    skip: (S) -> Bool = { _ in false }) -> Set<T>
+    {
         var stack = Stack<GraphNode>()
 
         stack.push(targetNode)

@@ -40,7 +40,7 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-tools-support-core", .upToNextMinor(from: "0.1.1")),
         .package(url: "https://github.com/apple/swift-argument-parser", .upToNextMajor(from: "0.0.6")),
         .package(url: "https://github.com/marmelroy/Zip.git", .upToNextMinor(from: "2.0.0")),
-        .package(url: "https://github.com/SwiftDocOrg/GraphViz",.upToNextMinor(from: "0.1.3")),
+        .package(url: "https://github.com/SwiftDocOrg/GraphViz", .upToNextMinor(from: "0.1.3")),
     ],
     targets: [
         .target(

@@ -312,7 +312,8 @@ class GeneratorModelLoaderTests: TuistUnitTestCase {
     }
 
     func createManifestLoader(with projects: [AbsolutePath: ProjectDescription.Project],
-                              configs: [AbsolutePath: ProjectDescription.Config] = [:]) -> ManifestLoading {
+                              configs: [AbsolutePath: ProjectDescription.Config] = [:]) -> ManifestLoading
+    {
         let manifestLoader = MockManifestLoader()
         manifestLoader.loadProjectStub = { path in
             guard let manifest = projects[path] else {
@@ -341,7 +342,8 @@ class GeneratorModelLoaderTests: TuistUnitTestCase {
     }
 
     func createManifestLoader(with workspaces: [AbsolutePath: ProjectDescription.Workspace],
-                              projects: [AbsolutePath] = []) -> ManifestLoading {
+                              projects: [AbsolutePath] = []) -> ManifestLoading
+    {
         let manifestLoader = MockManifestLoader()
         manifestLoader.loadWorkspaceStub = { path in
             guard let manifest = workspaces[path] else {

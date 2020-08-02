@@ -1,7 +1,7 @@
-import Foundation
-import TuistCore
-import GraphViz
 import DOT
+import Foundation
+import GraphViz
+import TuistCore
 
 typealias DotGraph = GraphViz.Graph
 public typealias Graph = TuistCore.Graph
@@ -22,7 +22,7 @@ class GraphToDotGraphMapper: GraphToDotGraphMapping {
     /// - Returns: The dot graph representation.
     func map(graph: Graph, skipTestTargets: Bool, skipExternalDependencies: Bool) -> DotGraph {
         var dotGraph = DotGraph(directed: true)
-        
+
         // Targets
         graph.targets.forEach { targetsList in
             targetsList.value.forEach { target in
@@ -39,11 +39,11 @@ class GraphToDotGraphMapper: GraphToDotGraphMapping {
                     if skipExternalDependencies, dependency.isExternal {
                         return
                     }
-                    
+
                     let from = Node(target.name)
                     let to = Node(dependency.name)
                     dotGraph.append(Edge(from: from, to: to))
-                        
+
                     if let sdk = dependency as? SDKNode {
                         dotGraph.append(Node(sdk.name))
                     }
@@ -83,10 +83,8 @@ private extension GraphNode {
 }
 
 extension GraphViz.Graph {
-    
     var dotRepresentation: String {
         let dot = DOTEncoder().encode(self).sorted()
         return String(dot)
     }
-    
 }

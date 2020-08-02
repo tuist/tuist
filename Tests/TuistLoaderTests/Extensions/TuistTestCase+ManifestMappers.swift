@@ -13,7 +13,8 @@ extension TuistTestCase {
                                           at path: AbsolutePath,
                                           generatorPaths: GeneratorPaths,
                                           file: StaticString = #file,
-                                          line: UInt = #line) {
+                                          line: UInt = #line)
+    {
         XCTAssertEqual(settings.base.count, manifest.base.count, file: file, line: line)
 
         let sortedConfigurations = settings.configurations.sorted { (l, r) -> Bool in l.key.name < r.key.name }
@@ -28,7 +29,8 @@ extension TuistTestCase {
                                         at path: AbsolutePath,
                                         generatorPaths: GeneratorPaths,
                                         file: StaticString = #file,
-                                        line: UInt = #line) throws {
+                                        line: UInt = #line) throws
+    {
         XCTAssertEqual(target.name, manifest.name, file: file, line: line)
         XCTAssertEqual(target.bundleId, manifest.bundleId, file: file, line: line)
         XCTAssertTrue(target.platform == manifest.platform, file: file, line: line)
@@ -47,7 +49,8 @@ extension TuistTestCase {
                                                     at _: AbsolutePath,
                                                     generatorPaths: GeneratorPaths,
                                                     file: StaticString = #file,
-                                                    line: UInt = #line) {
+                                                    line: UInt = #line)
+    {
         XCTAssertTrue(configuration.0 == manifest, file: file, line: line)
         XCTAssertEqual(configuration.1?.settings.count,
                        manifest.configuration?.settings.count,
@@ -62,7 +65,8 @@ extension TuistTestCase {
                 at path: AbsolutePath,
                 generatorPaths: GeneratorPaths,
                 file: StaticString = #file,
-                line: UInt = #line) throws {
+                line: UInt = #line) throws
+    {
         XCTAssertEqual(coreDataModels.count, manifests.count, file: file, line: line)
         XCTAssertTrue(try coreDataModels.elementsEqual(manifests, by: { try coreDataModel($0, matches: $1, at: path, generatorPaths: generatorPaths) }),
                       file: file,
@@ -72,7 +76,8 @@ extension TuistTestCase {
     func coreDataModel(_ coreDataModel: TuistCore.CoreDataModel,
                        matches manifest: ProjectDescription.CoreDataModel,
                        at _: AbsolutePath,
-                       generatorPaths: GeneratorPaths) throws -> Bool {
+                       generatorPaths: GeneratorPaths) throws -> Bool
+    {
         coreDataModel.path == (try generatorPaths.resolve(path: manifest.path))
             && coreDataModel.currentVersion == manifest.currentVersion
     }
@@ -82,7 +87,8 @@ extension TuistTestCase {
                 path: AbsolutePath,
                 generatorPaths: GeneratorPaths,
                 file: StaticString = #file,
-                line: UInt = #line) throws {
+                line: UInt = #line) throws
+    {
         XCTAssertEqual(scheme.name, manifest.name, file: file, line: line)
         XCTAssertEqual(scheme.shared, manifest.shared, file: file, line: line)
         try optionalAssert(scheme.buildAction, manifest.buildAction) {
@@ -103,7 +109,8 @@ extension TuistTestCase {
                 path _: AbsolutePath,
                 generatorPaths: GeneratorPaths,
                 file: StaticString = #file,
-                line: UInt = #line) throws {
+                line: UInt = #line) throws
+    {
         let convertedTargets: [TuistCore.TargetReference] = try manifest.targets.map {
             let resolvedPath = try generatorPaths.resolveSchemeActionProjectPath($0.projectPath)
             return .init(projectPath: resolvedPath, name: $0.targetName)
@@ -116,7 +123,8 @@ extension TuistTestCase {
                 path _: AbsolutePath,
                 generatorPaths: GeneratorPaths,
                 file: StaticString = #file,
-                line: UInt = #line) throws {
+                line: UInt = #line) throws
+    {
         let targets = try manifest.targets.map { try TestableTarget.from(manifest: $0, generatorPaths: generatorPaths) }
         XCTAssertEqual(testAction.targets, targets, file: file, line: line)
         XCTAssertTrue(testAction.configurationName == manifest.configurationName, file: file, line: line)
@@ -131,7 +139,8 @@ extension TuistTestCase {
                 path _: AbsolutePath,
                 generatorPaths: GeneratorPaths,
                 file: StaticString = #file,
-                line: UInt = #line) throws {
+                line: UInt = #line) throws
+    {
         XCTAssertEqual(runAction.executable?.name, manifest.executable?.targetName)
         XCTAssertEqual(runAction.executable?.projectPath, try generatorPaths.resolveSchemeActionProjectPath(manifest.executable?.projectPath),
                        file: file,
@@ -145,7 +154,8 @@ extension TuistTestCase {
     func assert(arguments: TuistCore.Arguments,
                 matches manifest: ProjectDescription.Arguments,
                 file: StaticString = #file,
-                line: UInt = #line) {
+                line: UInt = #line)
+    {
         XCTAssertEqual(arguments.environment, manifest.environment, file: file, line: line)
         XCTAssertEqual(arguments.launch, manifest.launch, file: file, line: line)
     }
@@ -154,7 +164,8 @@ extension TuistTestCase {
                                           _ optionalB: B?,
                                           file: StaticString = #file,
                                           line: UInt = #line,
-                                          compare: (A, B) throws -> Void) throws {
+                                          compare: (A, B) throws -> Void) throws
+    {
         switch (optionalA, optionalB) {
         case let (a?, b?):
             try compare(a, b)
@@ -167,7 +178,8 @@ extension TuistTestCase {
 }
 
 private func == (_ lhs: TuistCore.Platform,
-                 _ rhs: ProjectDescription.Platform) -> Bool {
+                 _ rhs: ProjectDescription.Platform) -> Bool
+{
     let map: [TuistCore.Platform: ProjectDescription.Platform] = [
         .iOS: .iOS,
         .macOS: .macOS,
@@ -177,7 +189,8 @@ private func == (_ lhs: TuistCore.Platform,
 }
 
 private func == (_ lhs: TuistCore.Product,
-                 _ rhs: ProjectDescription.Product) -> Bool {
+                 _ rhs: ProjectDescription.Product) -> Bool
+{
     let map: [TuistCore.Product: ProjectDescription.Product] = [
         .app: .app,
         .framework: .framework,
@@ -192,7 +205,8 @@ private func == (_ lhs: TuistCore.Product,
 }
 
 private func == (_ lhs: BuildConfiguration,
-                 _ rhs: CustomConfiguration) -> Bool {
+                 _ rhs: CustomConfiguration) -> Bool
+{
     let map: [BuildConfiguration.Variant: CustomConfiguration.Variant] = [
         .debug: .debug,
         .release: .release,

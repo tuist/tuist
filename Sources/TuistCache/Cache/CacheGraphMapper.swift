@@ -48,7 +48,8 @@ class CacheGraphMapper: CacheGraphMapping {
                 // If the target cannot be replaced with its associated .xcframework we return
                 guard let xcframeworkPath = xcframeworkPath(target: targetDependency,
                                                             xcframeworks: xcframeworks,
-                                                            visitedXCFrameworkPaths: &visitedXCFrameworkPaths) else {
+                                                            visitedXCFrameworkPaths: &visitedXCFrameworkPaths)
+                else {
                     sourceTargets.formUnion([targetDependency])
                     newDependencies.append(dependency)
                     return
@@ -142,7 +143,8 @@ class CacheGraphMapper: CacheGraphMapping {
 
     fileprivate func xcframeworkPath(target: TargetNode,
                                      xcframeworks: [TargetNode: AbsolutePath],
-                                     visitedXCFrameworkPaths: inout [TargetNode: VisitedXCFramework?]) -> AbsolutePath? {
+                                     visitedXCFrameworkPaths: inout [TargetNode: VisitedXCFramework?]) -> AbsolutePath?
+    {
         // Already visited
         if let visited = visitedXCFrameworkPaths[target] { return visited?.path }
 
@@ -154,7 +156,8 @@ class CacheGraphMapper: CacheGraphMapping {
         // The target can be replaced
         else if let path = xcframeworks[target],
             target.targetDependencies.allSatisfy({ xcframeworkPath(target: $0, xcframeworks: xcframeworks,
-                                                                   visitedXCFrameworkPaths: &visitedXCFrameworkPaths) != nil }) {
+                                                                   visitedXCFrameworkPaths: &visitedXCFrameworkPaths) != nil })
+        {
             visitedXCFrameworkPaths[target] = VisitedXCFramework(path: path)
             return path
         } else {

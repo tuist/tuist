@@ -5,7 +5,8 @@ import TuistCore
 
 extension TuistCore.ProfileAction {
     static func from(manifest: ProjectDescription.ProfileAction,
-                     generatorPaths: GeneratorPaths) throws -> TuistCore.ProfileAction {
+                     generatorPaths: GeneratorPaths) throws -> TuistCore.ProfileAction
+    {
         let configurationName = manifest.configurationName
         let arguments = manifest.arguments.map { TuistCore.Arguments.from(manifest: $0) }
 

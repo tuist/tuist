@@ -7,7 +7,8 @@ public extension RunAction {
                      executable: TargetReference? = TargetReference(projectPath: "/Project", name: "App"),
                      filePath: AbsolutePath? = nil,
                      arguments: Arguments? = Arguments.test(),
-                     diagnosticsOptions: Set<SchemeDiagnosticsOption> = Set()) -> RunAction {
+                     diagnosticsOptions: Set<SchemeDiagnosticsOption> = Set()) -> RunAction
+    {
         RunAction(configurationName: configurationName,
                   executable: executable,
                   filePath: filePath,

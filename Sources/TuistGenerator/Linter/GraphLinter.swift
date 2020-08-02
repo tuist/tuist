@@ -24,7 +24,8 @@ public class GraphLinter: GraphLinting {
     }
 
     init(projectLinter: ProjectLinting,
-         staticProductsLinter: StaticProductsGraphLinting) {
+         staticProductsLinter: StaticProductsGraphLinting)
+    {
         self.projectLinter = projectLinter
         self.staticProductsLinter = staticProductsLinter
     }
@@ -61,7 +62,8 @@ public class GraphLinter: GraphLinting {
     }
 
     private func lintGraphNode(node: GraphNode,
-                               evaluatedNodes: inout [GraphNode]) -> [LintingIssue] {
+                               evaluatedNodes: inout [GraphNode]) -> [LintingIssue]
+    {
         var issues: [LintingIssue] = []
         defer { evaluatedNodes.append(node) }
 
@@ -81,7 +83,8 @@ public class GraphLinter: GraphLinting {
     }
 
     private func lintDependency(from: TargetNode,
-                                to: TargetNode) -> [LintingIssue] {
+                                to: TargetNode) -> [LintingIssue]
+    {
         var issues: [LintingIssue] = []
 
         let fromTarget = LintableTarget(platform: from.target.platform,

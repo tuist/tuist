@@ -17,13 +17,14 @@ extension DotGraphGenerating {
     func generate(at path: AbsolutePath,
                   manifestLoader: ManifestLoading,
                   skipTestTargets: Bool,
-                  skipExternalDependencies: Bool) throws -> Data {
+                  skipExternalDependencies: Bool) throws -> Data
+    {
         let manifests = manifestLoader.manifests(at: path)
-        
+
         if try !isGraphvizInstalled() {
             try installGraphviz()
         }
-        
+
         if manifests.contains(.workspace) {
             return try generateWorkspace(at: path, skipTestTargets: skipTestTargets, skipExternalDependencies: skipExternalDependencies)
         } else if manifests.contains(.project) {
@@ -31,11 +32,10 @@ extension DotGraphGenerating {
         } else {
             throw ManifestLoaderError.manifestNotFound(path)
         }
-      
     }
-    
+
     // MARK: - Privates
-    
+
     /// Checks whether graphviz is installed or not.
     ///
     /// - Returns: Bool representing graphviz package presence.
@@ -43,7 +43,7 @@ extension DotGraphGenerating {
     private func isGraphvizInstalled() throws -> Bool {
         try System.shared.capture(["brew", "list"]).contains("graphviz")
     }
-    
+
     /// Install graphviz package through HomeBrew.
     ///
     /// - Throws: An error if the 'brew  install graphviz' command errors out.

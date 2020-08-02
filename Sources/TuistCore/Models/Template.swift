@@ -7,7 +7,8 @@ public struct Template: Equatable {
 
     public init(description: String,
                 attributes: [Attribute] = [],
-                files: [File] = []) {
+                files: [File] = [])
+    {
         self.description = description
         self.attributes = attributes
         self.files = files
@@ -46,7 +47,8 @@ public struct Template: Equatable {
         public let contents: Contents
 
         public init(path: RelativePath,
-                    contents: Contents) {
+                    contents: Contents)
+        {
             self.path = path
             self.contents = contents
         }
