@@ -32,7 +32,7 @@
     "gatsby-plugin-meta-redirect": "^1.1.1",
     "gatsby-plugin-netlify": "^2.3.11",
     "gatsby-plugin-next-seo": "^1.5.1",
-    "gatsby-plugin-offline": "^3.2.13",
+    "gatsby-plugin-offline": "^3.2.21",
     "gatsby-plugin-purgecss": "^5.0.0",
     "gatsby-plugin-react-helmet": "^3.3.10",
     "gatsby-plugin-react-svg": "^3.0.0",
