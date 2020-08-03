@@ -43,7 +43,7 @@
     "gatsby-redirect-from": "^0.2.4",
     "gatsby-remark-check-links": "^2.1.0",
     "gatsby-remark-copy-linked-files": "^2.3.11",
-    "gatsby-remark-embedder": "^2.1.2",
+    "gatsby-remark-embedder": "^3.0.0",
     "gatsby-remark-images": "^3.3.17",
     "gatsby-remark-smartypants": "^2.3.10",
     "gatsby-source-filesystem": "^2.3.19",
