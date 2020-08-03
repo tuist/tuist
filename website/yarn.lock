@@ -8130,10 +8130,10 @@ gatsby-theme-tailwindcss@^1.1.0:
     tailwind.macro "^1.0.0-alpha.10"
     tailwindcss "^1.2.0"
 
-gatsby-transformer-yaml@^2.4.9:
-  version "2.4.9"
-  resolved "https://registry.yarnpkg.com/gatsby-transformer-yaml/-/gatsby-transformer-yaml-2.4.9.tgz#9488e61aa94106a732a95cbc71541f93a5aee088"
-  integrity sha512-ZXHkF66lplaN5wGWVLshxpbgxzoEGgVH92qeczCu4bmUIt4+R5KayxDQMYHCPN/qNkXUXVs2/pnR7wqlH5k0Zw==
+gatsby-transformer-yaml@^2.4.10:
+  version "2.4.10"
+  resolved "https://registry.yarnpkg.com/gatsby-transformer-yaml/-/gatsby-transformer-yaml-2.4.10.tgz#730604e4c33bc4a4ce76063e87750196154ceffc"
+  integrity sha512-jQwtyIn0pvT1GfmdxKUKgdJwgK/z8aVVN7wFeHuskhDwWzxCghB88ybyhS7gOF0ttyKNYjQIpwgwt9PnL+AJBQ==
   dependencies:
     "@babel/runtime" "^7.10.3"
     js-yaml "^3.14.0"
