@@ -92,7 +92,8 @@ extension InitService {
                  path: String? = nil,
                  templateName: String? = nil,
                  requiredTemplateOptions: [String: String] = [:],
-                 optionalTemplateOptions: [String: String?] = [:]) throws {
+                 optionalTemplateOptions: [String: String?] = [:]) throws
+    {
         try run(name: name,
                 platform: platform,
                 path: path,

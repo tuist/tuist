@@ -24,3 +24,14 @@ Scenario: The project is an application with templates (ios_workspace_with_micro
     Then App embeds the xcframework UIComponents
     Then I should be able to build for iOS the scheme App
     Then I should be able to test for iOS the scheme AppTests
+
+Scenario: The project is an application with templates (ios_workspace_with_microfeature_architecture_static_linking)
+    Given that tuist is available 
+    And I have a working directory
+    Then I copy the fixture ios_workspace_with_microfeature_architecture_static_linking into the working directory
+    And tuist warms the cache
+    When tuist generates a project with cached targets at StaticApp
+    Then StaticApp links the xcframework FrameworkA
+    Then StaticApp does not embed any xcframeworks
+    Then I should be able to build for iOS the scheme StaticApp
+    Then I should be able to test for iOS the scheme StaticAppTests

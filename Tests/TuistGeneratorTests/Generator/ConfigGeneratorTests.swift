@@ -417,7 +417,8 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
     func assert(config: XCBuildConfiguration?,
                 contains settings: [String: String],
                 file: StaticString = #file,
-                line: UInt = #line) {
+                line: UInt = #line)
+    {
         let matches = settings.filter {
             config?.buildSettings[$0.key] as? String == $0.value
         }
@@ -432,7 +433,8 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
     func assert(config: XCBuildConfiguration?,
                 hasXcconfig xconfigPath: String,
                 file: StaticString = #file,
-                line: UInt = #line) {
+                line: UInt = #line)
+    {
         let xcconfig: PBXFileReference? = config?.baseConfiguration
         XCTAssertEqual(xcconfig?.path,
                        xconfigPath,

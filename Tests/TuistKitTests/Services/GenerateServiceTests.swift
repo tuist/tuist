@@ -156,7 +156,8 @@ final class GenerateServiceTests: TuistUnitTestCase {
 extension GenerateService {
     func testRun(path: String? = nil,
                  projectOnly: Bool = false,
-                 cache: Bool = false) throws {
+                 cache: Bool = false) throws
+    {
         try run(path: path,
                 projectOnly: projectOnly,
                 cache: cache)

@@ -57,7 +57,8 @@ extension TuistCore.Template.Attribute {
 
 extension TuistCore.Template.Contents {
     static func from(manifest: ProjectDescription.Template.Contents,
-                     generatorPaths: GeneratorPaths) throws -> TuistCore.Template.Contents {
+                     generatorPaths: GeneratorPaths) throws -> TuistCore.Template.Contents
+    {
         switch manifest {
         case let .string(contents):
             return .string(contents)

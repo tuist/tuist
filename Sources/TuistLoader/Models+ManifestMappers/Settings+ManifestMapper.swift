@@ -27,7 +27,8 @@ extension TuistCore.Settings {
 
     private static func buildConfigurationTuple(from customConfiguration: CustomConfiguration,
                                                 path _: AbsolutePath,
-                                                generatorPaths: GeneratorPaths) throws -> BuildConfigurationTuple {
+                                                generatorPaths: GeneratorPaths) throws -> BuildConfigurationTuple
+    {
         let buildConfiguration = TuistCore.BuildConfiguration.from(manifest: customConfiguration)
         let configuration = try customConfiguration.configuration.flatMap {
             try TuistCore.Configuration.from(manifest: $0, generatorPaths: generatorPaths)

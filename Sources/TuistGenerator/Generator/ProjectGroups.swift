@@ -40,7 +40,8 @@ class ProjectGroups {
                  products: PBXGroup,
                  frameworks: PBXGroup,
                  playgrounds: PBXGroup?,
-                 pbxproj: PBXProj) {
+                 pbxproj: PBXProj)
+    {
         sortedMain = main
         self.projectGroups = Dictionary(uniqueKeysWithValues: projectGroups)
         self.products = products
@@ -66,7 +67,8 @@ class ProjectGroups {
 
     static func generate(project: Project,
                          pbxproj: PBXProj,
-                         playgrounds: Playgrounding = Playgrounds()) -> ProjectGroups {
+                         playgrounds: Playgrounding = Playgrounds()) -> ProjectGroups
+    {
         /// Main
         let projectRelativePath = project.sourceRootPath.relative(to: project.xcodeProjPath.parentDirectory).pathString
         let mainGroup = PBXGroup(children: [],
