@@ -25,9 +25,11 @@ final class GenerateService {
         self.projectGeneratorFactory = projectGeneratorFactory
     }
 
-    func run(path: String?,
-             projectOnly: Bool,
-             cache: Bool) throws {
+    func run(
+        path: String?,
+        projectOnly: Bool,
+        cache: Bool
+    ) throws {
         let timer = clock.startTimer()
         let path = self.path(path)
         let generator = projectGeneratorFactory.generator(cache: cache)

@@ -3,9 +3,13 @@ import Foundation
 
 struct GenerateCommand: ParsableCommand {
     static var configuration: CommandConfiguration {
-        CommandConfiguration(commandName: "generate",
-                             abstract: "Generates an Xcode workspace to start working on the project.",
-                             subcommands: [])
+        CommandConfiguration(
+            commandName: "generate",
+            abstract: "Generates an Xcode workspace to start working on the project.",
+            subcommands: [
+                NamespaceCommand.self
+            ]
+        )
     }
 
     @Option(
@@ -23,8 +27,10 @@ struct GenerateCommand: ParsableCommand {
     var cache: Bool
 
     func run() throws {
-        try GenerateService().run(path: path,
-                                  projectOnly: projectOnly,
-                                  cache: cache)
+        try GenerateService().run(
+            path: path,
+            projectOnly: projectOnly,
+            cache: cache
+        )
     }
 }
