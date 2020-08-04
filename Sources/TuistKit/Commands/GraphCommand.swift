@@ -22,8 +22,9 @@ struct GraphCommand: ParsableCommand {
     )
     var skipExternalDependencies: Bool
 
-    @Option(default: .dot,
-            help: "Available formats: dot, png"
+    @Option(
+        default: .dot,
+        help: "Available formats: dot, png"
     )
     var format: GraphFormat
 

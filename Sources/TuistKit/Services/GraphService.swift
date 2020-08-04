@@ -15,7 +15,7 @@ final class GraphService {
 
     init(graphVizGenerator: GraphVizGenerating = GraphVizGenerator(modelLoader: GeneratorModelLoader(manifestLoader: ManifestLoader(),
                                                                                                      manifestLinter: ManifestLinter())),
-    manifestLoader: ManifestLoading = ManifestLoader()) {
+         manifestLoader: ManifestLoading = ManifestLoader()) {
         self.graphVizGenerator = graphVizGenerator
         self.manifestLoader = manifestLoader
     }
