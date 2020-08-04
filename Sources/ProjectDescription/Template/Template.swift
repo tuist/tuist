@@ -11,7 +11,8 @@ public struct Template: Codable, Equatable {
 
     public init(description: String,
                 attributes: [Attribute] = [],
-                files: [File] = []) {
+                files: [File] = [])
+    {
         self.description = description
         self.attributes = attributes
         self.files = files

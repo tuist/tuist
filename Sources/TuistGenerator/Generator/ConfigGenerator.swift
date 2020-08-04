@@ -28,7 +28,8 @@ final class ConfigGenerator: ConfigGenerating {
     // MARK: - Init
 
     init(fileGenerator: FileGenerating = FileGenerator(),
-         defaultSettingsProvider: DefaultSettingsProviding = DefaultSettingsProvider()) {
+         defaultSettingsProvider: DefaultSettingsProviding = DefaultSettingsProvider())
+    {
         self.fileGenerator = fileGenerator
         self.defaultSettingsProvider = defaultSettingsProvider
     }
@@ -37,7 +38,8 @@ final class ConfigGenerator: ConfigGenerating {
 
     func generateProjectConfig(project: Project,
                                pbxproj: PBXProj,
-                               fileElements: ProjectFileElements) throws -> XCConfigurationList {
+                               fileElements: ProjectFileElements) throws -> XCConfigurationList
+    {
         /// Configuration list
         let defaultConfiguration = project.settings.defaultReleaseBuildConfiguration()
             ?? project.settings.defaultDebugBuildConfiguration()
@@ -64,7 +66,8 @@ final class ConfigGenerator: ConfigGenerating {
                               projectSettings: Settings,
                               fileElements: ProjectFileElements,
                               graphTraverser: ValueGraphTraverser,
-                              sourceRootPath: AbsolutePath) throws {
+                              sourceRootPath: AbsolutePath) throws
+    {
         let defaultConfiguration = projectSettings.defaultReleaseBuildConfiguration()
             ?? projectSettings.defaultDebugBuildConfiguration()
         let configurationList = XCConfigurationList(buildConfigurations: [],
@@ -108,7 +111,8 @@ final class ConfigGenerator: ConfigGenerating {
                                             project: Project,
                                             fileElements: ProjectFileElements,
                                             pbxproj: PBXProj,
-                                            configurationList: XCConfigurationList) throws {
+                                            configurationList: XCConfigurationList) throws
+    {
         let settingsHelper = SettingsHelper()
         var settings = try defaultSettingsProvider.projectSettings(project: project,
                                                                    buildConfiguration: buildConfiguration)
@@ -138,7 +142,8 @@ final class ConfigGenerator: ConfigGenerating {
                                            pbxproj: PBXProj,
                                            configurationList: XCConfigurationList,
                                            swiftVersion: String,
-                                           sourceRootPath: AbsolutePath) throws {
+                                           sourceRootPath: AbsolutePath) throws
+    {
         let settingsHelper = SettingsHelper()
         var settings = try defaultSettingsProvider.targetSettings(target: target,
                                                                   project: project,
@@ -171,7 +176,8 @@ final class ConfigGenerator: ConfigGenerating {
                                      graphTraverser: ValueGraphTraverser,
                                      swiftVersion: String,
                                      projectPath: AbsolutePath,
-                                     sourceRootPath: AbsolutePath) {
+                                     sourceRootPath: AbsolutePath)
+    {
         settings.merge(generalTargetDerivedSettings(target: target, swiftVersion: swiftVersion, sourceRootPath: sourceRootPath)) { $1 }
         settings.merge(testBundleTargetDerivedSettings(target: target, graphTraverser: graphTraverser, projectPath: projectPath)) { $1 }
         settings.merge(deploymentTargetDerivedSettings(target: target)) { $1 }
@@ -180,7 +186,8 @@ final class ConfigGenerator: ConfigGenerating {
 
     private func generalTargetDerivedSettings(target: Target,
                                               swiftVersion: String,
-                                              sourceRootPath: AbsolutePath) -> SettingsDictionary {
+                                              sourceRootPath: AbsolutePath) -> SettingsDictionary
+    {
         var settings: SettingsDictionary = [:]
         settings["PRODUCT_BUNDLE_IDENTIFIER"] = .string(target.bundleId)
 
@@ -211,7 +218,8 @@ final class ConfigGenerator: ConfigGenerating {
 
     private func testBundleTargetDerivedSettings(target: Target,
                                                  graphTraverser: ValueGraphTraverser,
-                                                 projectPath: AbsolutePath) -> SettingsDictionary {
+                                                 projectPath: AbsolutePath) -> SettingsDictionary
+    {
         guard target.product.testsBundle else {
             return [:]
         }
@@ -262,7 +270,8 @@ final class ConfigGenerator: ConfigGenerating {
 
     private func watchTargetDerivedSettings(target: Target,
                                             graphTraverser: ValueGraphTraverser,
-                                            projectPath: AbsolutePath) -> SettingsDictionary {
+                                            projectPath: AbsolutePath) -> SettingsDictionary
+    {
         guard target.product == .watch2App else {
             return [:]
         }

@@ -388,7 +388,8 @@ class WorkspaceStructureGeneratorTests: XCTestCase {
 extension WorkspaceStructure.Element {
     static func group(_ name: String,
                       _ path: AbsolutePath,
-                      _ contents: [WorkspaceStructure.Element]) -> WorkspaceStructure.Element {
+                      _ contents: [WorkspaceStructure.Element]) -> WorkspaceStructure.Element
+    {
         .group(name: name, path: path, contents: contents)
     }
 

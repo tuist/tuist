@@ -111,7 +111,8 @@ public class ValueGraphTraverser: ValueGraphTraversing {
 
     public func filterDependencies(from rootDependency: ValueGraphDependency,
                                    test: (ValueGraphDependency) -> Bool = { _ in true },
-                                   skip: (ValueGraphDependency) -> Bool = { _ in false }) -> Set<ValueGraphDependency> {
+                                   skip: (ValueGraphDependency) -> Bool = { _ in false }) -> Set<ValueGraphDependency>
+    {
         var stack = Stack<ValueGraphDependency>()
 
         stack.push(rootDependency)

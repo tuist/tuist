@@ -27,7 +27,8 @@ public class SDKNode: GraphNode {
     public init(name: String,
                 platform: Platform,
                 status: SDKStatus,
-                source: SDKSource) throws {
+                source: SDKSource) throws
+    {
         let sdk = AbsolutePath("/\(name)")
         // TODO: Validate using a linter
         guard let sdkExtension = sdk.extension, let type = Type(rawValue: sdkExtension) else {

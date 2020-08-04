@@ -65,7 +65,8 @@ public struct Xcode {
     /// - Parameters:
     ///     - path: Path to the Xcode app bundle.
     public init(path: AbsolutePath,
-                infoPlist: InfoPlist) {
+                infoPlist: InfoPlist)
+    {
         self.path = path
         self.infoPlist = infoPlist
     }

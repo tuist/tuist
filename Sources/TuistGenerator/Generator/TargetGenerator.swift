@@ -33,7 +33,8 @@ final class TargetGenerator: TargetGenerating {
     init(configGenerator: ConfigGenerating = ConfigGenerator(),
          fileGenerator: FileGenerating = FileGenerator(),
          buildPhaseGenerator: BuildPhaseGenerating = BuildPhaseGenerator(),
-         linkGenerator: LinkGenerating = LinkGenerator()) {
+         linkGenerator: LinkGenerating = LinkGenerator())
+    {
         self.configGenerator = configGenerator
         self.fileGenerator = fileGenerator
         self.buildPhaseGenerator = buildPhaseGenerator
@@ -50,7 +51,8 @@ final class TargetGenerator: TargetGenerating {
                         projectSettings: Settings,
                         fileElements: ProjectFileElements,
                         path: AbsolutePath,
-                        graph: Graph) throws -> PBXNativeTarget {
+                        graph: Graph) throws -> PBXNativeTarget
+    {
         let valueGraph = ValueGraph(graph: graph)
         let graphTraverser = ValueGraphTraverser(graph: valueGraph)
 
@@ -114,7 +116,8 @@ final class TargetGenerator: TargetGenerating {
     func generateTargetDependencies(path: AbsolutePath,
                                     targets: [Target],
                                     nativeTargets: [String: PBXNativeTarget],
-                                    graph: Graph) throws {
+                                    graph: Graph) throws
+    {
         try targets.forEach { targetSpec in
             let dependencies = graph.targetDependencies(path: path, name: targetSpec.name)
             try dependencies.forEach { dependency in

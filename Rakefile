@@ -18,13 +18,18 @@ end
 
 desc("Formats the code style")
 task :style_correct do
-  system("swiftformat", ".")
-  system("swiftlint", "autocorrect")
+  system(swiftformat_path, ".")
+  system(swiftlint_path, "autocorrect")
 end
 
 desc("Swift format check")
 task :swift_format do
-  Kernel.system("swiftformat", "--lint", ".") || abort
+  Kernel.system(swiftformat_path, "--lint", ".") || abort
+end
+
+desc("Swift lint check")
+task :swift_lint do
+  Kernel.system(swiftlint_path) || abort
 end
 
 desc("Lints the Ruby code style")
@@ -145,6 +150,14 @@ task :benchmark do
     "--format", "markdown"
   )
 
+end
+
+def swiftformat_path
+  File.expand_path("bin/swiftformat", __dir__)
+end
+
+def swiftlint_path
+  File.expand_path("bin/swiftlint", __dir__)
 end
 
 def decrypt_secrets

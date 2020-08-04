@@ -37,7 +37,8 @@ final class BenchmarkCommand {
     private let fileHandler: FileHandler
 
     init(fileHandler: FileHandler,
-         parser: ArgumentParser) {
+         parser: ArgumentParser)
+    {
         self.fileHandler = fileHandler
         configPathOption = parser.add(option: "--config",
                                       shortName: "-c",
@@ -103,7 +104,8 @@ final class BenchmarkCommand {
 
     private func measure(config: BenchmarkConfig,
                          fixtures: [AbsolutePath],
-                         binaryPath: AbsolutePath) throws -> [MeasureResult] {
+                         binaryPath: AbsolutePath) throws -> [MeasureResult]
+    {
         let measure = Measure(fileHandler: fileHandler,
                               binaryPath: binaryPath)
         let results = try fixtures.map {
@@ -117,7 +119,8 @@ final class BenchmarkCommand {
     private func benchmark(config: BenchmarkConfig,
                            fixtures: [AbsolutePath],
                            binaryPath: AbsolutePath,
-                           referenceBinaryPath: AbsolutePath) throws -> [BenchmarkResult] {
+                           referenceBinaryPath: AbsolutePath) throws -> [BenchmarkResult]
+    {
         let benchmark = Benchmark(fileHandler: fileHandler,
                                   binaryPath: binaryPath,
                                   referenceBinaryPath: referenceBinaryPath)
@@ -130,7 +133,8 @@ final class BenchmarkCommand {
     }
 
     private func getFixturePaths(fixturesListPath: AbsolutePath?,
-                                 fixturePath: AbsolutePath?) throws -> [AbsolutePath] {
+                                 fixturePath: AbsolutePath?) throws -> [AbsolutePath]
+    {
         if let fixturePath = fixturePath {
             return [fixturePath]
         }

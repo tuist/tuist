@@ -67,7 +67,8 @@ public final class ScaleSessionController: ScaleSessionControlling {
     init(credentialsStore: CredentialsStoring,
          httpRedirectListener: HTTPRedirectListening,
          ciChecker: CIChecking,
-         opener: Opening) {
+         opener: Opening)
+    {
         self.credentialsStore = credentialsStore
         self.httpRedirectListener = httpRedirectListener
         self.ciChecker = ciChecker
