@@ -26,7 +26,7 @@ final class SchemeManifestMapperTests: TuistUnitTestCase {
     func test_from_when_the_scheme_has_actions() throws {
         // Given
         let arguments = ProjectDescription.Arguments.test(environment: ["FOO": "BAR", "FIZ": "BUZZ"],
-                                                          launch: ["--help": true,
+                                                          launchArguments: ["--help": true,
                                                                    "subcommand": false])
 
         let projectPath = AbsolutePath("/somepath")

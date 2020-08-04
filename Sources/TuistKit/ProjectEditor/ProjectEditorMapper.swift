@@ -73,7 +73,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
 
         // Run Scheme
         let buildAction = BuildAction(targets: targets.map { TargetReference(projectPath: sourceRootPath, name: $0.name) })
-        let arguments = Arguments(launch: ["generate --path \(sourceRootPath)": true])
+        let arguments = Arguments(launchArguments: ["generate --path \(sourceRootPath)": true])
         let runAction = RunAction(configurationName: "Debug", executable: nil, filePath: tuistPath, arguments: arguments, diagnosticsOptions: Set())
         let scheme = Scheme(name: "Manifests", shared: true, buildAction: buildAction, runAction: runAction)
 

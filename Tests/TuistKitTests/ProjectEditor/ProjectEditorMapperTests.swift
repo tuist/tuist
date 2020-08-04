@@ -100,7 +100,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         let runAction = try XCTUnwrap(scheme.runAction)
         XCTAssertEqual(runAction.filePath, tuistPath)
         let generateArgument = "generate --path \(sourceRootPath)"
-        XCTAssertEqual(runAction.arguments, Arguments(launch: [generateArgument: true]))
+        XCTAssertEqual(runAction.arguments, Arguments(launchArguments: [generateArgument: true]))
     }
 
     func test_edit_when_there_are_no_helpers() throws {
@@ -158,7 +158,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         let runAction = try XCTUnwrap(scheme.runAction)
         XCTAssertEqual(runAction.filePath, tuistPath)
         let generateArgument = "generate --path \(sourceRootPath)"
-        XCTAssertEqual(runAction.arguments, Arguments(launch: [generateArgument: true]))
+        XCTAssertEqual(runAction.arguments, Arguments(launchArguments: [generateArgument: true]))
     }
 
     func test_tuist_edit_with_more_than_one_manifest() throws {
@@ -233,7 +233,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         let runAction = try XCTUnwrap(scheme.runAction)
         XCTAssertEqual(runAction.filePath, tuistPath)
         let generateArgument = "generate --path \(sourceRootPath)"
-        XCTAssertEqual(runAction.arguments, Arguments(launch: [generateArgument: true]))
+        XCTAssertEqual(runAction.arguments, Arguments(launchArguments: [generateArgument: true]))
     }
 
     fileprivate func expectedSettings(sourceRootPath: AbsolutePath) -> Settings {

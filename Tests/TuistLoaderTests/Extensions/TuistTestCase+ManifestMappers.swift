@@ -147,7 +147,7 @@ extension TuistTestCase {
                 file: StaticString = #file,
                 line: UInt = #line) {
         XCTAssertEqual(arguments.environment, manifest.environment, file: file, line: line)
-        XCTAssertEqual(arguments.launch, manifest.launch, file: file, line: line)
+        XCTAssertEqual(arguments.launchArguments, manifest.launchArguments, file: file, line: line)
     }
 
     fileprivate func optionalAssert<A, B>(_ optionalA: A?,

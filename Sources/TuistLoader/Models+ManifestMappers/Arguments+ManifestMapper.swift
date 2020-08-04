@@ -8,6 +8,6 @@ extension TuistCore.Arguments {
     ///   - manifest: Manifest representation of arguments model.
     ///   - generatorPaths: Generator paths.
     static func from(manifest: ProjectDescription.Arguments) -> TuistCore.Arguments {
-        Arguments(environment: manifest.environment, launch: manifest.launch)
+        Arguments(environment: manifest.environment, launchArguments: manifest.launchArguments)
     }
 }

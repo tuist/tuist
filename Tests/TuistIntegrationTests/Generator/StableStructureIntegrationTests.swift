@@ -328,12 +328,12 @@ final class StableXcodeProjIntegrationTests: TuistTestCase {
             acc["Environment\(value)"] = "EnvironmentValue\(value)"
             return acc
         }
-        let launch = (0 ..< 10).reduce([String: Bool]()) { acc, value in
+        let launchArguments = (0 ..< 10).reduce([String: Bool]()) { acc, value in
             var acc = acc
             acc["Launch\(value)"] = value % 2 == 0
             return acc
         }
-        return Arguments(environment: environment, launch: launch)
+        return Arguments(environment: environment, launchArguments: launchArguments)
     }
 
     private func createExecutionActions() -> [ExecutionAction] {
