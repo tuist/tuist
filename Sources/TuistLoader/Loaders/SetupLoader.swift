@@ -49,7 +49,8 @@ public class SetupLoader: SetupLoading {
     ///   - upLinter: Linter for up commands.
     ///   - manifestLoader: Manifset loader instance to load the setup.
     init(upLinter: UpLinting,
-         manifestLoader: ManifestLoading) {
+         manifestLoader: ManifestLoading)
+    {
         self.upLinter = upLinter
         self.manifestLoader = manifestLoader
     }

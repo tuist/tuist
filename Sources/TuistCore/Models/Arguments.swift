@@ -9,7 +9,8 @@ public struct Arguments: Equatable {
     // MARK: - Init
 
     public init(environment: [String: String] = [:],
-                launch: [String: Bool] = [:]) {
+                launch: [String: Bool] = [:])
+    {
         self.environment = environment
         self.launch = launch
     }

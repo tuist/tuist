@@ -47,7 +47,8 @@ struct SimulatorDevice: Decodable, Hashable, CustomStringConvertible {
                 state: String,
                 name: String,
                 availabilityError: String?,
-                runtimeIdentifier: String) {
+                runtimeIdentifier: String)
+    {
         self.dataPath = dataPath
         self.logPath = logPath
         self.udid = udid

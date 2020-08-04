@@ -9,7 +9,8 @@ extension TuistCore.BuildAction {
     ///   - manifest: Manifest representation of build action model.
     ///   - generatorPaths: Generator paths.
     static func from(manifest: ProjectDescription.BuildAction,
-                     generatorPaths: GeneratorPaths) throws -> TuistCore.BuildAction {
+                     generatorPaths: GeneratorPaths) throws -> TuistCore.BuildAction
+    {
         let preActions = try manifest.preActions.map { try TuistCore.ExecutionAction.from(manifest: $0,
                                                                                           generatorPaths: generatorPaths) }
         let postActions = try manifest.postActions.map { try TuistCore.ExecutionAction.from(manifest: $0,

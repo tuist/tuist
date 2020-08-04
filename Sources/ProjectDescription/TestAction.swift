@@ -53,7 +53,8 @@ public struct TestAction: Equatable, Codable {
                 postActions: [ExecutionAction] = [],
                 diagnosticsOptions: [SchemeDiagnosticsOption] = [],
                 language: String? = nil,
-                region: String? = nil) {
+                region: String? = nil)
+    {
         self.targets = targets
         self.arguments = arguments
         self.configurationName = configurationName
@@ -87,7 +88,8 @@ public struct TestAction: Equatable, Codable {
                 postActions: [ExecutionAction] = [],
                 diagnosticsOptions: [SchemeDiagnosticsOption] = [],
                 language: String? = nil,
-                region: String? = nil) {
+                region: String? = nil)
+    {
         self.init(targets: targets,
                   arguments: arguments,
                   configurationName: config.name,

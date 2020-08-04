@@ -52,7 +52,8 @@ final class ProjectGenerator: ProjectGenerating {
     ///   - schemesGenerator: Generator for the project schemes.
     init(targetGenerator: TargetGenerating = TargetGenerator(),
          configGenerator: ConfigGenerating = ConfigGenerator(),
-         schemesGenerator: SchemesGenerating = SchemesGenerator()) {
+         schemesGenerator: SchemesGenerating = SchemesGenerator())
+    {
         self.targetGenerator = targetGenerator
         self.configGenerator = configGenerator
         self.schemesGenerator = schemesGenerator
@@ -62,7 +63,8 @@ final class ProjectGenerator: ProjectGenerating {
 
     // swiftlint:disable:next function_body_length
     func generate(project: Project,
-                  graph: Graph) throws -> ProjectDescriptor {
+                  graph: Graph) throws -> ProjectDescriptor
+    {
         logger.notice("Generating project \(project.name)")
 
         let workspaceData = XCWorkspaceData(children: [])
@@ -121,7 +123,8 @@ final class ProjectGenerator: ProjectGenerating {
                                     projectFileElements: ProjectFileElements,
                                     configurationList: XCConfigurationList,
                                     groups: ProjectGroups,
-                                    pbxproj: PBXProj) throws -> PBXProject {
+                                    pbxproj: PBXProj) throws -> PBXProject
+    {
         let defaultRegions = ["en", "Base"]
         let knownRegions = Set(defaultRegions + projectFileElements.knownRegions).sorted()
         let attributes = project.organizationName.map { ["ORGANIZATIONNAME": $0] } ?? [:]
@@ -147,7 +150,8 @@ final class ProjectGenerator: ProjectGenerating {
                                  pbxproj: PBXProj,
                                  pbxProject: PBXProject,
                                  fileElements: ProjectFileElements,
-                                 graph: Graph) throws -> [String: PBXNativeTarget] {
+                                 graph: Graph) throws -> [String: PBXNativeTarget]
+    {
         var nativeTargets: [String: PBXNativeTarget] = [:]
         try project.targets.forEach { target in
             let nativeTarget = try targetGenerator.generateTarget(target: target,
@@ -171,7 +175,8 @@ final class ProjectGenerator: ProjectGenerating {
 
     private func generateTestTargetIdentity(project _: Project,
                                             pbxproj: PBXProj,
-                                            pbxProject: PBXProject) {
+                                            pbxProject: PBXProject)
+    {
         func testTargetName(_ target: PBXTarget) -> String? {
             guard let buildConfigurations = target.buildConfigurationList?.buildConfigurations else {
                 return nil

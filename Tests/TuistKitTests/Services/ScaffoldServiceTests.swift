@@ -135,7 +135,8 @@ extension ScaffoldService {
     func testRun(path: String? = nil,
                  templateName: String = "template",
                  requiredTemplateOptions: [String: String] = [:],
-                 optionalTemplateOptions: [String: String] = [:]) throws {
+                 optionalTemplateOptions: [String: String] = [:]) throws
+    {
         try run(path: path,
                 templateName: templateName,
                 requiredTemplateOptions: requiredTemplateOptions,

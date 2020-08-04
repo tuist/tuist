@@ -261,7 +261,8 @@ final class ContentHashingIntegrationTests: TuistTestCase {
                                sources: [Target.SourceFile] = [],
                                resources: [FileElement] = [],
                                coreDataModels: [CoreDataModel] = [],
-                               targetActions: [TargetAction] = []) -> TargetNode {
+                               targetActions: [TargetAction] = []) -> TargetNode
+    {
         TargetNode.test(
             project: .test(path: AbsolutePath("/test/\(named)")),
             target: .test(platform: platform,

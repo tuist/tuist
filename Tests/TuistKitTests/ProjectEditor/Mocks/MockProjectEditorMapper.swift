@@ -23,7 +23,8 @@ final class MockProjectEditorMapper: ProjectEditorMapping {
              manifests: [AbsolutePath],
              helpers: [AbsolutePath],
              templates: [AbsolutePath],
-             projectDescriptionPath: AbsolutePath) -> (Project, Graph) {
+             projectDescriptionPath: AbsolutePath) -> (Project, Graph)
+    {
         mapArgs.append((tuistPath: tuistPath,
                         sourceRootPath: sourceRootPath,
                         xcodeProjPath: xcodeProjPath,

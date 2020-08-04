@@ -16,7 +16,8 @@ public struct RunAction: Equatable {
                 executable: TargetReference?,
                 filePath: AbsolutePath?,
                 arguments: Arguments?,
-                diagnosticsOptions: Set<SchemeDiagnosticsOption>) {
+                diagnosticsOptions: Set<SchemeDiagnosticsOption>)
+    {
         self.configurationName = configurationName
         self.executable = executable
         self.filePath = filePath

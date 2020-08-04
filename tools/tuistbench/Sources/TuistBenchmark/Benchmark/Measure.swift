@@ -22,14 +22,16 @@ final class Measure {
     private let binaryPath: AbsolutePath
 
     init(fileHandler: FileHandler,
-         binaryPath: AbsolutePath) {
+         binaryPath: AbsolutePath)
+    {
         self.fileHandler = fileHandler
         self.binaryPath = binaryPath
     }
 
     func measure(runs: Int,
                  arguments: [String],
-                 fixturePath: AbsolutePath) throws -> MeasureResult {
+                 fixturePath: AbsolutePath) throws -> MeasureResult
+    {
         let cold = try measureColdRuns(runs: runs, arguments: arguments, fixturePath: fixturePath)
         let warm = try measureWarmRuns(runs: runs, arguments: arguments, fixturePath: fixturePath)
         return MeasureResult(fixture: fixturePath.basename,
@@ -39,7 +41,8 @@ final class Measure {
 
     private func measureColdRuns(runs: Int,
                                  arguments: [String],
-                                 fixturePath: AbsolutePath) throws -> [TimeInterval] {
+                                 fixturePath: AbsolutePath) throws -> [TimeInterval]
+    {
         try (0 ..< runs).map { _ in
             try withTemporaryDirectory(removeTreeOnDeinit: true) { temporaryDirectoryPath in
                 let temporaryPath = temporaryDirectoryPath.appending(component: "fixture")
@@ -54,7 +57,8 @@ final class Measure {
 
     private func measureWarmRuns(runs: Int,
                                  arguments: [String],
-                                 fixturePath: AbsolutePath) throws -> [TimeInterval] {
+                                 fixturePath: AbsolutePath) throws -> [TimeInterval]
+    {
         try withTemporaryDirectory(removeTreeOnDeinit: true) { temporaryDirectoryPath in
             let temporaryPath = temporaryDirectoryPath.appending(component: "fixture")
             try fileHandler.copy(path: fixturePath, to: temporaryPath)

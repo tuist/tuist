@@ -26,7 +26,8 @@ public struct TestAction: Equatable {
                 postActions: [ExecutionAction],
                 diagnosticsOptions: Set<SchemeDiagnosticsOption>,
                 language: String? = nil,
-                region: String? = nil) {
+                region: String? = nil)
+    {
         self.targets = targets
         self.arguments = arguments
         self.configurationName = configurationName
