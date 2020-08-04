@@ -1,21 +1,21 @@
 import Foundation
+import GraphViz
 import TSCBasic
 import TuistCore
 import XCTest
 @testable import TuistGenerator
 @testable import TuistSupportTesting
 
-final class GraphToDotGraphMapperTests: XCTestCase {
-    var subject: GraphToDotGraphMapper!
+final class GraphToGraphVizMapperTests: XCTestCase {
+    var subject: GraphToGraphVizMapper!
 
     override func setUp() {
         super.setUp()
-        subject = GraphToDotGraphMapper()
+        subject = GraphToGraphVizMapper()
     }
 
     override func tearDown() {
         super.tearDown()
-
         subject = nil
     }
 
@@ -39,25 +39,13 @@ final class GraphToDotGraphMapperTests: XCTestCase {
 
         // When
         let got = subject.map(graph: graph, skipTestTargets: false, skipExternalDependencies: false)
-
-        // Then
-        let expected = DotGraph(name: "Project Dependencies Graph",
-                                type: .directed,
-                                nodes: Set([
-                                    .init(name: "Tuist iOS"),
-                                    .init(name: "CoreData"),
-                                    .init(name: "RxSwift"),
-                                    .init(name: "XcodeProj"),
-                                    .init(name: "Core"),
-                                    .init(name: "Tuist watchOS"),
-                                ]), dependencies: [
-                                    .init(from: "Tuist iOS", to: "Core"),
-                                    .init(from: "Tuist watchOS", to: "Core"),
-                                    .init(from: "Core", to: "XcodeProj"),
-                                    .init(from: "Core", to: "RxSwift"),
-                                    .init(from: "Core", to: "CoreData"),
-                                ])
-        XCTAssertEqual(got, expected)
+        let expected = makeExpectedGraphViz()
+        let gotNodeIds = got.nodes.map { $0.id }.sorted()
+        let expectedNodeIds = expected.nodes.map { $0.id }.sorted()
+        let gotEdgeIds = got.edges.map { $0.from + " -> " + $0.to }.sorted()
+        let expectedEdgeIds = expected.edges.map { $0.from + " -> " + $0.to }.sorted()
+        XCTAssertEqual(gotNodeIds, expectedNodeIds)
+        XCTAssertEqual(gotEdgeIds, expectedEdgeIds)
     }
 
     func test_map_skipping_external_dependencies() throws {
@@ -80,20 +68,39 @@ final class GraphToDotGraphMapperTests: XCTestCase {
 
         // When
         let got = subject.map(graph: graph, skipTestTargets: false, skipExternalDependencies: true)
+        let expected = makeExpectedGraphViz(includeExternalDependencies: false)
+        let gotNodeIds = got.nodes.map { $0.id }.sorted()
+        let expectedNodeIds = expected.nodes.map { $0.id }.sorted()
+        let gotEdgeIds = got.edges.map { $0.from + " -> " + $0.to }.sorted()
+        let expectedEdgeIds = expected.edges.map { $0.from + " -> " + $0.to }.sorted()
 
-        // Then
-        let expected = DotGraph(name: "Project Dependencies Graph",
-                                type: .directed,
-                                nodes: Set([
-                                    .init(name: "Tuist iOS"),
-                                    .init(name: "RxSwift"),
-                                    .init(name: "XcodeProj"),
-                                    .init(name: "Core"),
-                                    .init(name: "Tuist watchOS"),
-                                ]), dependencies: [
-                                    .init(from: "Tuist iOS", to: "Core"),
-                                    .init(from: "Tuist watchOS", to: "Core"),
-                                ])
-        XCTAssertEqual(got, expected)
+        XCTAssertEqual(gotNodeIds, expectedNodeIds)
+        XCTAssertEqual(gotEdgeIds, expectedEdgeIds)
+    }
+
+    private func makeExpectedGraphViz(includeExternalDependencies: Bool = true) -> GraphViz.Graph {
+        var graph = GraphViz.Graph(directed: true, strict: false)
+
+        let tuist = GraphViz.Node("Tuist iOS")
+        let coreData = GraphViz.Node("CoreData")
+        let rxSwift = GraphViz.Node("RxSwift")
+        let xcodeProj = GraphViz.Node("XcodeProj")
+        let core = GraphViz.Node("Core")
+        let watchOS = GraphViz.Node("Tuist watchOS")
+
+        graph.append(contentsOf: [tuist, coreData, rxSwift, xcodeProj, core, watchOS])
+        graph.append(contentsOf: [
+            GraphViz.Edge(from: tuist, to: core),
+            GraphViz.Edge(from: watchOS, to: core),
+        ])
+
+        if includeExternalDependencies {
+            graph.append(contentsOf: [
+                GraphViz.Edge(from: core, to: xcodeProj),
+                GraphViz.Edge(from: core, to: rxSwift),
+                GraphViz.Edge(from: core, to: coreData),
+            ])
+        }
+        return graph
     }
 }

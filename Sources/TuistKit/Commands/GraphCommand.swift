@@ -9,7 +9,7 @@ import TuistSupport
 struct GraphCommand: ParsableCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(commandName: "graph",
-                             abstract: "Generates a dot graph from the workspace or project in the current directory")
+                             abstract: "Generates a graph from the workspace or project in the current directory")
     }
 
     @Flag(
@@ -22,7 +22,23 @@ struct GraphCommand: ParsableCommand {
     )
     var skipExternalDependencies: Bool
 
+    @Option(default: .dot)
+    var format: GraphFormat
+
+    @Option(
+        name: .shortAndLong,
+        help: "The path where the graph will be generated."
+    )
+    var path: String?
+
     func run() throws {
-        try GraphService().run(skipTestTargets: skipTestTargets, skipExternalDependencies: skipExternalDependencies)
+        try GraphService().run(format: format,
+                               skipTestTargets: skipTestTargets,
+                               skipExternalDependencies: skipExternalDependencies,
+                               path: path)
     }
+}
+
+enum GraphFormat: String, ExpressibleByArgument {
+    case dot, png
 }

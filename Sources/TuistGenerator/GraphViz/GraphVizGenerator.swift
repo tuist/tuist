@@ -1,30 +1,31 @@
 import Foundation
+import GraphViz
 import TSCBasic
 import TuistCore
 import TuistSupport
 
-public protocol DotGraphGenerating {
+public protocol GraphVizGenerating {
     /// Generates the dot graph from the project in the current directory and returns it.
     ///
     /// - Parameter path: Path to the folder that contains the project.
     /// - Returns: Dot graph representation.
     /// - Throws: An error if the project can't be loaded.
-    func generateProject(at path: AbsolutePath, skipTestTargets: Bool, skipExternalDependencies: Bool) throws -> String
+    func generateProject(at path: AbsolutePath, skipTestTargets: Bool, skipExternalDependencies: Bool) throws -> GraphViz.Graph
 
     /// Generates the dot graph from the workspace in the current directory and returns it.
     ///
     /// - Parameter path: Path to the folder that contains the workspace.
     /// - Returns: Dot graph representation.
     /// - Throws: An error if the workspace can't be loaded.
-    func generateWorkspace(at path: AbsolutePath, skipTestTargets: Bool, skipExternalDependencies: Bool) throws -> String
+    func generateWorkspace(at path: AbsolutePath, skipTestTargets: Bool, skipExternalDependencies: Bool) throws -> GraphViz.Graph
 }
 
-public final class DotGraphGenerator: DotGraphGenerating {
+public final class GraphVizGenerator: GraphVizGenerating {
     /// Graph loader.
     private let graphLoader: GraphLoading
 
-    /// Mapper to map graphs into a dot graphs.
-    private let graphToDotGraphMapper: GraphToDotGraphMapping
+    /// Mapper to map graphs into a GraphViz.Graph.
+    private let graphToGraphVizMapper: GraphToGraphVizMapping
 
     /// Initializes the dot graph generator by taking its dependencies.
     ///
@@ -32,7 +33,7 @@ public final class DotGraphGenerator: DotGraphGenerating {
     ///   - modelLoader: Instance to load the models.
     public convenience init(modelLoader: GeneratorModelLoading) {
         let graphLoader = GraphLoader(modelLoader: modelLoader)
-        self.init(graphLoader: graphLoader, graphToDotGraphMapper: GraphToDotGraphMapper())
+        self.init(graphLoader: graphLoader, graphToGraphVizMapper: GraphToGraphVizMapper())
     }
 
     /// Initializes the generator with an instance to load the graph.
@@ -41,20 +42,19 @@ public final class DotGraphGenerator: DotGraphGenerating {
     ///   - graphLoader: Graph loader instance.
     ///   - graphToDotGraphMapper: Mapper to map the graph into a dot graph.
     init(graphLoader: GraphLoading,
-         graphToDotGraphMapper: GraphToDotGraphMapping)
-    {
+         graphToGraphVizMapper: GraphToGraphVizMapping) {
         self.graphLoader = graphLoader
-        self.graphToDotGraphMapper = graphToDotGraphMapper
+        self.graphToGraphVizMapper = graphToGraphVizMapper
     }
 
-    /// Generates the dot graph from the project in the current directory and returns it.
+    /// Generates the GraphViz.Graph from the project in the current directory and returns it.
     ///
     /// - Parameter path: Path to the folder that contains the project.
-    /// - Returns: Dot graph representation.
+    /// - Returns: GraphViz graph representation.
     /// - Throws: An error if the project can't be loaded.
-    public func generateProject(at path: AbsolutePath, skipTestTargets: Bool, skipExternalDependencies: Bool) throws -> String {
+    public func generateProject(at path: AbsolutePath, skipTestTargets: Bool, skipExternalDependencies: Bool) throws -> GraphViz.Graph {
         let (graph, _) = try graphLoader.loadProject(path: path)
-        return graphToDotGraphMapper.map(graph: graph, skipTestTargets: skipTestTargets, skipExternalDependencies: skipExternalDependencies).description
+        return graphToGraphVizMapper.map(graph: graph, skipTestTargets: skipTestTargets, skipExternalDependencies: skipExternalDependencies)
     }
 
     /// Generates the dot graph from the workspace in the current directory and returns it.
@@ -62,8 +62,8 @@ public final class DotGraphGenerator: DotGraphGenerating {
     /// - Parameter path: Path to the folder that contains the workspace.
     /// - Returns: Dot graph representation.
     /// - Throws: An error if the workspace can't be loaded.
-    public func generateWorkspace(at path: AbsolutePath, skipTestTargets: Bool, skipExternalDependencies: Bool) throws -> String {
+    public func generateWorkspace(at path: AbsolutePath, skipTestTargets: Bool, skipExternalDependencies: Bool) throws -> GraphViz.Graph {
         let (graph, _) = try graphLoader.loadWorkspace(path: path)
-        return graphToDotGraphMapper.map(graph: graph, skipTestTargets: skipTestTargets, skipExternalDependencies: skipExternalDependencies).description
+        return graphToGraphVizMapper.map(graph: graph, skipTestTargets: skipTestTargets, skipExternalDependencies: skipExternalDependencies)
     }
 }

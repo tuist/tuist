@@ -1,14 +1,14 @@
 import Foundation
+import GraphViz
 import TSCBasic
 import TuistGenerator
 import TuistLoader
 
-extension DotGraphGenerating {
+extension GraphVizGenerating {
     func generate(at path: AbsolutePath,
                   manifestLoader: ManifestLoading,
                   skipTestTargets: Bool,
-                  skipExternalDependencies: Bool) throws -> String
-    {
+                  skipExternalDependencies: Bool) throws -> GraphViz.Graph {
         let manifests = manifestLoader.manifests(at: path)
 
         if manifests.contains(.workspace) {
