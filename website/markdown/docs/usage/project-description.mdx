@@ -326,6 +326,14 @@ Each target in the list of project targets can be initialized with the following
       optional: true,
       default: '[:]',
     },
+    {
+      name: 'LaunchArguments',
+      description:
+        'List of launch arguments that will be set to the scheme that Tuist automatically generates for the target.',
+      type: '[String: Bool]',
+      optional: true,
+      default: '[:]',
+    },
   ]}
 />
 
@@ -1048,7 +1056,7 @@ Arguments contain commandline arguments passed on launch and Environment variabl
       default: '[:]',
     },
     {
-      name: 'Launch',
+      name: 'LaunchArguments',
       description:
         "Commandline launch arguments where the key is a launch argument and the value is a boolean indicating if it's enabled.",
       type: '[String: Bool]',
