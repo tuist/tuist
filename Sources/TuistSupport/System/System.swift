@@ -291,7 +291,8 @@ public final class System: Systeming {
     /// - Throws: An error if the command fails.
     public func capture(_ arguments: String...,
                         verbose: Bool,
-                        environment: [String: String]) throws -> String {
+                        environment: [String: String]) throws -> String
+    {
         try capture(arguments, verbose: verbose, environment: environment)
     }
 
@@ -305,7 +306,8 @@ public final class System: Systeming {
     /// - Throws: An error if the command fails.
     public func capture(_ arguments: [String],
                         verbose: Bool,
-                        environment: [String: String]) throws -> String {
+                        environment: [String: String]) throws -> String
+    {
         let process = Process(arguments: arguments,
                               environment: environment,
                               outputRedirection: .collect,
@@ -352,7 +354,8 @@ public final class System: Systeming {
     /// - Throws: An error if the command fails.
     public func runAndPrint(_ arguments: String...,
                             verbose: Bool,
-                            environment: [String: String]) throws {
+                            environment: [String: String]) throws
+    {
         try runAndPrint(arguments,
                         verbose: verbose,
                         environment: environment)
@@ -367,7 +370,8 @@ public final class System: Systeming {
     /// - Throws: An error if the command fails.
     public func runAndPrint(_ arguments: [String],
                             verbose: Bool,
-                            environment: [String: String]) throws {
+                            environment: [String: String]) throws
+    {
         try runAndPrint(arguments,
                         verbose: verbose,
                         environment: environment,
@@ -385,7 +389,8 @@ public final class System: Systeming {
     public func runAndPrint(_ arguments: [String],
                             verbose: Bool,
                             environment: [String: String],
-                            redirection: TSCBasic.Process.OutputRedirection) throws {
+                            redirection: TSCBasic.Process.OutputRedirection) throws
+    {
         let process = Process(arguments: arguments,
                               environment: environment,
                               outputRedirection: .stream(stdout: { bytes in

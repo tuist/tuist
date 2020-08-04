@@ -72,6 +72,8 @@ class Up: Upping {
             return try UpHomebrew(dictionary: dictionary, projectPath: projectPath)
         } else if type == "homebrew-tap" {
             return try UpHomebrewTap(dictionary: dictionary, projectPath: projectPath)
+        } else if type == "homebrew-cask" {
+            return try UpHomebrewCask(dictionary: dictionary, projectPath: projectPath)
         } else if type == "carthage" {
             return try UpCarthage(dictionary: dictionary, projectPath: projectPath)
         } else if type == "mint" {

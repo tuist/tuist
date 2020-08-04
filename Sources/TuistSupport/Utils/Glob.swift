@@ -56,7 +56,8 @@ public class Glob: Collection {
         public init(supportsGlobstar: Bool,
                     includesFilesFromRootOfGlobstar: Bool,
                     includesDirectoriesInResults: Bool,
-                    includesFilesInResultsIfTrailingSlash: Bool) {
+                    includesFilesInResultsIfTrailingSlash: Bool)
+        {
             self.supportsGlobstar = supportsGlobstar
             self.includesFilesFromRootOfGlobstar = includesFilesFromRootOfGlobstar
             self.includesDirectoriesInResults = includesDirectoriesInResults

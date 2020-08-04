@@ -59,7 +59,8 @@ public final class GenerateInfoPlistProjectMapperTests: TuistUnitTestCase {
                                                             projectPath: AbsolutePath,
                                                             sideEffects: [SideEffectDescriptor],
                                                             file: StaticString = #file,
-                                                            line: UInt = #line) throws {
+                                                            line: UInt = #line) throws
+    {
         let data = try PropertyListSerialization.data(fromPropertyList: content,
                                                       format: .xml,
                                                       options: 0)
@@ -76,7 +77,8 @@ public final class GenerateInfoPlistProjectMapperTests: TuistUnitTestCase {
     private func XCTAssertTargetExistsWithDerivedInfoPlist(named: String,
                                                            project: Project,
                                                            file: StaticString = #file,
-                                                           line: UInt = #line) {
+                                                           line: UInt = #line)
+    {
         XCTAssertNotNil(project.targets.first(where: { (target: Target) in
             target.infoPlist?.path == project.path
                 .appending(component: Constants.DerivedDirectory.name)

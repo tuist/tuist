@@ -32,7 +32,8 @@ public struct Config: Codable, Equatable {
     ///   - generationOptions: List of options to use when generating the project.
     public init(compatibleXcodeVersions: CompatibleXcodeVersions = .all,
                 scale: Scale? = nil,
-                generationOptions: [GenerationOptions]) {
+                generationOptions: [GenerationOptions])
+    {
         self.compatibleXcodeVersions = compatibleXcodeVersions
         self.generationOptions = generationOptions
         self.scale = scale

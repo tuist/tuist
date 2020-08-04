@@ -35,7 +35,8 @@ public extension XCTestCase {
     func XCTAssertEqualDictionaries<T: Hashable>(_ first: [T: Any],
                                                  _ second: [T: Any],
                                                  file: StaticString = #file,
-                                                 line: UInt = #line) {
+                                                 line: UInt = #line)
+    {
         let firstDictionary = NSDictionary(dictionary: first)
         let secondDictioanry = NSDictionary(dictionary: second)
         XCTAssertEqual(firstDictionary, secondDictioanry, file: file, line: line)

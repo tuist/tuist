@@ -7,7 +7,8 @@ public extension ArchiveAction {
                      revealArchiveInOrganizer: Bool = true,
                      customArchiveName: String? = nil,
                      preActions: [ExecutionAction] = [],
-                     postActions: [ExecutionAction] = []) -> ArchiveAction {
+                     postActions: [ExecutionAction] = []) -> ArchiveAction
+    {
         ArchiveAction(configurationName: configurationName,
                       revealArchiveInOrganizer: revealArchiveInOrganizer,
                       customArchiveName: customArchiveName,

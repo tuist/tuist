@@ -32,7 +32,8 @@ public class LibraryNode: PrecompiledNode {
          publicHeaders: AbsolutePath,
          architectures: [BinaryArchitecture],
          linking: BinaryLinking,
-         swiftModuleMap: AbsolutePath? = nil) {
+         swiftModuleMap: AbsolutePath? = nil)
+    {
         self.publicHeaders = publicHeaders
         self.swiftModuleMap = swiftModuleMap
         self.architectures = architectures

@@ -13,7 +13,7 @@ final class GraphService {
 
     init(dotGraphGenerator: DotGraphGenerating = DotGraphGenerator(modelLoader: GeneratorModelLoader(manifestLoader: ManifestLoader(),
                                                                                                      manifestLinter: ManifestLinter())),
-         manifestLoader: ManifestLoading = ManifestLoader()) {
+    manifestLoader: ManifestLoading = ManifestLoader()) {
         self.dotGraphGenerator = dotGraphGenerator
         self.manifestLoader = manifestLoader
     }

@@ -34,7 +34,8 @@ public final class SigningInteractor: SigningInteracting {
          signingInstaller: SigningInstalling,
          signingLinter: SigningLinting,
          securityController: SecurityControlling,
-         signingCipher: SigningCiphering) {
+         signingCipher: SigningCiphering)
+    {
         self.signingFilesLocator = signingFilesLocator
         self.rootDirectoryLocator = rootDirectoryLocator
         self.signingMatcher = signingMatcher
@@ -83,7 +84,8 @@ public final class SigningInteractor: SigningInteracting {
                          project: Project,
                          keychainPath: AbsolutePath,
                          certificates: [TargetName: [ConfigurationName: Certificate]],
-                         provisioningProfiles: [TargetName: [ConfigurationName: ProvisioningProfile]]) throws {
+                         provisioningProfiles: [TargetName: [ConfigurationName: ProvisioningProfile]]) throws
+    {
         let targetConfigurations = target.settings?.configurations ?? [:]
         /// Filtering certificate-provisioning profile pairs, so they are installed only when necessary (they correspond to some configuration and target in the project)
         let signingPairs = Set(

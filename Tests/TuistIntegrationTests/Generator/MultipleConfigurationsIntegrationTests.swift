@@ -390,7 +390,8 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
     private func assertTarget(_ target: String = "AppTarget",
                               expectedConfigurations: Set<String>,
                               file: StaticString = #file,
-                              line: UInt = #line) {
+                              line: UInt = #line)
+    {
         let proj: XcodeProj
         do {
             proj = try loadXcodeProj("App/App.xcodeproj")
@@ -410,7 +411,8 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
 
     private func assertProject(expectedConfigurations: Set<String>,
                                file: StaticString = #file,
-                               line: UInt = #line) {
+                               line: UInt = #line)
+    {
         let proj: XcodeProj
         let rootProject: PBXProject?
         do {

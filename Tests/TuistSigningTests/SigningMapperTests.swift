@@ -55,11 +55,11 @@ final class SigningMapperTests: TuistUnitTestCase {
                     configuration: certificate,
                 ],
             ],
-             provisioningProfiles: [
-                 targetName: [
-                     configuration: provisioningProfile,
-                 ],
-             ])
+            provisioningProfiles: [
+                targetName: [
+                    configuration: provisioningProfile,
+                ],
+            ])
         }
 
         let target = Target.test(

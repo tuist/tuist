@@ -11,7 +11,8 @@ final class MockEmbedScriptGenerator: EmbedScriptGenerating {
 
     func script(sourceRootPath: AbsolutePath,
                 frameworkReferences: [GraphDependencyReference],
-                includeSymbolsInFileLists: Bool) throws -> EmbedScript {
+                includeSymbolsInFileLists: Bool) throws -> EmbedScript
+    {
         scriptArgs.append((sourceRootPath, frameworkReferences, includeSymbolsInFileLists))
         if let scriptStub = scriptStub {
             switch scriptStub {

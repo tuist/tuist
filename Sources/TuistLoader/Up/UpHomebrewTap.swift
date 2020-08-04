@@ -15,11 +15,12 @@ class UpHomebrewTap: Up, GraphInitiatable {
 
     /// Initializes the Homebrew tap up.
     ///
-    /// - Parameter
-    ///     - repositories: List of repositories to be tapped.
+    /// - Parameters:
+    ///   - repositories: List of repositories to be tapped.
     ///   - upHomebrew: Up homebrew for installing Homebrew.
     init(repositories: [String],
-         upHomebrew: Upping = UpHomebrew(packages: [])) {
+         upHomebrew: Upping = UpHomebrew(packages: []))
+    {
         self.repositories = repositories
         self.upHomebrew = upHomebrew
         super.init(name: UpHomebrewTap.name)

@@ -41,7 +41,8 @@ public final class DotGraphGenerator: DotGraphGenerating {
     ///   - graphLoader: Graph loader instance.
     ///   - graphToDotGraphMapper: Mapper to map the graph into a dot graph.
     init(graphLoader: GraphLoading,
-         graphToDotGraphMapper: GraphToDotGraphMapping) {
+         graphToDotGraphMapper: GraphToDotGraphMapping)
+    {
         self.graphLoader = graphLoader
         self.graphToDotGraphMapper = graphToDotGraphMapper
     }

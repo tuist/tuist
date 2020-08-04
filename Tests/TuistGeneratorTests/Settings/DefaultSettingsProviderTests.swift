@@ -584,7 +584,8 @@ private extension XCTestCase {
     func XCTAssertSettings(_ first: [String: SettingValue],
                            containsAll second: [String: SettingValue],
                            file: StaticString = #file,
-                           line: UInt = #line) {
+                           line: UInt = #line)
+    {
         for (key, expectedValue) in second {
             let result = first[key]
             let resultDescription = result.map { "\($0)" } ?? "nil"
