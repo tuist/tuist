@@ -26,6 +26,10 @@ class ProjectMapperProvider: ProjectMapperProviding {
 
         // Support for resources in libraries
         mappers.append(ResourcesProjectMapper())
+        
+        // TODO: Add into if clause with Config.swift
+        // Namespace generator
+        mappers.append(ResourcesNamespaceProjectMapper())
 
         // Project name mapper
         mappers.append(ProjectNameAndOrganizationMapper(config: config))
