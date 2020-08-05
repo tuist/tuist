@@ -27,7 +27,7 @@ final class SchemeManifestMapperTests: TuistUnitTestCase {
         // Given
         let arguments = ProjectDescription.Arguments.test(environment: ["FOO": "BAR", "FIZ": "BUZZ"],
                                                           launchArguments: ["--help": true,
-                                                                   "subcommand": false])
+                                                                            "subcommand": false])
 
         let projectPath = AbsolutePath("/somepath")
         let generatorPaths = GeneratorPaths(manifestDirectory: projectPath)
