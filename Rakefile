@@ -18,8 +18,8 @@ end
 
 desc("Formats the code style")
 task :style_correct do
-  system(swiftformat_path, ".")
   system(swiftlint_path, "autocorrect")
+  system(swiftformat_path, ".")
 end
 
 desc("Swift format check")

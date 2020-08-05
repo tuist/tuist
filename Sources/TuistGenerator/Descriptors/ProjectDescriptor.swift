@@ -31,7 +31,8 @@ public struct ProjectDescriptor {
                 xcodeprojPath: AbsolutePath,
                 xcodeProj: XcodeProj,
                 schemeDescriptors: [SchemeDescriptor],
-                sideEffectDescriptors: [SideEffectDescriptor]) {
+                sideEffectDescriptors: [SideEffectDescriptor])
+    {
         self.path = path
         self.xcodeprojPath = xcodeprojPath
         self.xcodeProj = xcodeProj

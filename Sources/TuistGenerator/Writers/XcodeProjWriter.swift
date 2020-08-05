@@ -29,7 +29,8 @@ public final class XcodeProjWriter: XcodeProjWriting {
     private let sideEffectDescriptorExecutor: SideEffectDescriptorExecuting
 
     public init(sideEffectDescriptorExecutor: SideEffectDescriptorExecuting = SideEffectDescriptorExecutor(),
-                config: Config = .default) {
+                config: Config = .default)
+    {
         self.sideEffectDescriptorExecutor = sideEffectDescriptorExecutor
         self.config = config
     }
@@ -68,7 +69,8 @@ public final class XcodeProjWriter: XcodeProjWriting {
     }
 
     private func write(scheme: SchemeDescriptor,
-                       xccontainerPath: AbsolutePath) throws {
+                       xccontainerPath: AbsolutePath) throws
+    {
         let schemeDirectory = self.schemeDirectory(path: xccontainerPath, shared: scheme.shared)
         let schemePath = schemeDirectory.appending(component: "\(scheme.xcScheme.name).xcscheme")
         try FileHandler.shared.createFolder(schemeDirectory)

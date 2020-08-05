@@ -5,7 +5,8 @@ public struct Arguments: Equatable, Codable {
     public let launch: [String: Bool]
 
     public init(environment: [String: String] = [:],
-                launch: [String: Bool] = [:]) {
+                launch: [String: Bool] = [:])
+    {
         self.environment = environment
         self.launch = launch
     }

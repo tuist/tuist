@@ -45,7 +45,8 @@ public class GraphLoader: GraphLoading {
     public init(modelLoader: GeneratorModelLoading,
                 frameworkNodeLoader: FrameworkNodeLoading,
                 xcframeworkNodeLoader: XCFrameworkNodeLoading,
-                libraryNodeLoader: LibraryNodeLoading) {
+                libraryNodeLoader: LibraryNodeLoading)
+    {
         self.modelLoader = modelLoader
         self.frameworkNodeLoader = frameworkNodeLoader
         self.xcframeworkNodeLoader = xcframeworkNodeLoader
@@ -119,7 +120,8 @@ public class GraphLoader: GraphLoading {
     ///   - graphCircularDetector: Graph circular detector
     fileprivate func loadProject(at path: AbsolutePath,
                                  graphLoaderCache: GraphLoaderCaching,
-                                 graphCircularDetector: GraphCircularDetecting) throws -> Project {
+                                 graphCircularDetector: GraphCircularDetecting) throws -> Project
+    {
         if let project = graphLoaderCache.project(path) {
             return project
         } else {
@@ -147,7 +149,8 @@ public class GraphLoader: GraphLoading {
     fileprivate func loadTarget(name: String,
                                 path: AbsolutePath,
                                 graphLoaderCache: GraphLoaderCaching,
-                                graphCircularDetector: GraphCircularDetecting) throws -> TargetNode {
+                                graphCircularDetector: GraphCircularDetecting) throws -> TargetNode
+    {
         if let targetNode = graphLoaderCache.targetNode(path, name: name) { return targetNode }
 
         let project = try loadProject(at: path, graphLoaderCache: graphLoaderCache, graphCircularDetector: graphCircularDetector)
@@ -188,7 +191,8 @@ public class GraphLoader: GraphLoading {
                                     name: String,
                                     platform: Platform,
                                     graphLoaderCache: GraphLoaderCaching,
-                                    graphCircularDetector: GraphCircularDetecting) throws -> GraphNode {
+                                    graphCircularDetector: GraphCircularDetecting) throws -> GraphNode
+    {
         switch dependency {
         // A target within the same project.
         case let .target(target):
@@ -256,7 +260,8 @@ public class GraphLoader: GraphLoading {
     fileprivate func loadLibraryNode(publicHeaders: AbsolutePath,
                                      swiftModuleMap: AbsolutePath?,
                                      libraryPath: AbsolutePath,
-                                     graphLoaderCache: GraphLoaderCaching) throws -> LibraryNode {
+                                     graphLoaderCache: GraphLoaderCaching) throws -> LibraryNode
+    {
         if let libraryNode = graphLoaderCache.precompiledNode(libraryPath) as? LibraryNode { return libraryNode }
         let libraryNode = try libraryNodeLoader.load(path: libraryPath,
                                                      publicHeaders: publicHeaders,
@@ -274,7 +279,8 @@ public class GraphLoader: GraphLoading {
     ///   - graphLoaderCache: Graph loader cache.
     /// - Returns: The initialized instance of the CocoaPods node.
     fileprivate func loadCocoaPodsNode(path: AbsolutePath,
-                                       graphLoaderCache: GraphLoaderCaching) -> CocoaPodsNode {
+                                       graphLoaderCache: GraphLoaderCaching) -> CocoaPodsNode
+    {
         if let cached = graphLoaderCache.cocoapods(path) { return cached }
         let node = CocoaPodsNode(path: path)
         graphLoaderCache.add(cocoapods: node)

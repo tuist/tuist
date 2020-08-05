@@ -76,7 +76,8 @@ public class Generator: Generating {
     private let environmentLinter: EnvironmentLinting
 
     public convenience init(defaultSettingsProvider: DefaultSettingsProviding = DefaultSettingsProvider(),
-                            modelLoader: GeneratorModelLoading) {
+                            modelLoader: GeneratorModelLoading)
+    {
         let graphLinter = GraphLinter()
         let graphLoader = GraphLoader(modelLoader: modelLoader)
         let configGenerator = ConfigGenerator(defaultSettingsProvider: defaultSettingsProvider)
@@ -110,7 +111,8 @@ public class Generator: Generating {
          environmentLinter: EnvironmentLinting,
          writer: XcodeProjWriting,
          cocoapodsInteractor: CocoaPodsInteracting,
-         swiftPackageManagerInteractor: SwiftPackageManagerInteracting) {
+         swiftPackageManagerInteractor: SwiftPackageManagerInteracting)
+    {
         self.graphLoader = graphLoader
         self.graphLinter = graphLinter
         self.workspaceGenerator = workspaceGenerator
@@ -142,7 +144,8 @@ public class Generator: Generating {
     }
 
     public func generateProjectWorkspace(at path: AbsolutePath,
-                                         workspaceFiles: [AbsolutePath]) throws -> (AbsolutePath, Graph) {
+                                         workspaceFiles: [AbsolutePath]) throws -> (AbsolutePath, Graph)
+    {
         let config = try graphLoader.loadConfig(path: path)
         try environmentLinter.lint(config: config).printAndThrowIfNeeded()
 
@@ -165,7 +168,8 @@ public class Generator: Generating {
     }
 
     public func generateWorkspace(at path: AbsolutePath,
-                                  workspaceFiles: [AbsolutePath]) throws -> (AbsolutePath, Graph) {
+                                  workspaceFiles: [AbsolutePath]) throws -> (AbsolutePath, Graph)
+    {
         let config = try graphLoader.loadConfig(path: path)
         try environmentLinter.lint(config: config).printAndThrowIfNeeded()
         let (graph, workspace) = try graphLoader.loadWorkspace(path: path)

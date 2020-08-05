@@ -13,7 +13,8 @@ public struct Headers: Codable, Equatable {
 
     public init(public: FileList? = nil,
                 private: FileList? = nil,
-                project: FileList? = nil) {
+                project: FileList? = nil)
+    {
         self.public = `public`
         self.private = `private`
         self.project = project

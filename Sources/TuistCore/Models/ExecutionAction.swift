@@ -12,7 +12,8 @@ public struct ExecutionAction: Equatable {
 
     public init(title: String,
                 scriptText: String,
-                target: TargetReference?) {
+                target: TargetReference?)
+    {
         self.title = title
         self.scriptText = scriptText
         self.target = target

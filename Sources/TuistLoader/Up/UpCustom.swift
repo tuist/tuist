@@ -18,7 +18,8 @@ class UpCustom: Up, GraphInitiatable {
     ///   - isMet: Shell command that should return a 0 exit status if the setup has already been done (e.g. which carthage).
     init(name: String,
          meet: [String],
-         isMet: [String]) {
+         isMet: [String])
+    {
         self.meet = meet
         self.isMet = isMet
         super.init(name: name)
