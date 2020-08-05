@@ -76,6 +76,7 @@ extension TuistCore.Target {
         }
 
         let environment = manifest.environment
+        let launchArguments = manifest.launchArguments
 
         return TuistCore.Target(name: name,
                                 platform: platform,
@@ -92,6 +93,7 @@ extension TuistCore.Target {
                                 coreDataModels: coreDataModels,
                                 actions: actions,
                                 environment: environment,
+                                launchArguments: launchArguments,
                                 filesGroup: .group(name: "Project"),
                                 dependencies: dependencies)
     }

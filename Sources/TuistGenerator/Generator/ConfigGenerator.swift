@@ -15,7 +15,7 @@ protocol ConfigGenerating: AnyObject {
                               pbxproj: PBXProj,
                               projectSettings: Settings,
                               fileElements: ProjectFileElements,
-                              graphTraverser: ValueGraphTraverser,
+                              graphTraverser: GraphTraversing,
                               sourceRootPath: AbsolutePath) throws
 }
 
@@ -65,7 +65,7 @@ final class ConfigGenerator: ConfigGenerating {
                               pbxproj: PBXProj,
                               projectSettings: Settings,
                               fileElements: ProjectFileElements,
-                              graphTraverser: ValueGraphTraverser,
+                              graphTraverser: GraphTraversing,
                               sourceRootPath: AbsolutePath) throws
     {
         let defaultConfiguration = projectSettings.defaultReleaseBuildConfiguration()
@@ -138,7 +138,7 @@ final class ConfigGenerator: ConfigGenerating {
                                            buildConfiguration: BuildConfiguration,
                                            configuration: Configuration?,
                                            fileElements: ProjectFileElements,
-                                           graphTraverser: ValueGraphTraverser,
+                                           graphTraverser: GraphTraversing,
                                            pbxproj: PBXProj,
                                            configurationList: XCConfigurationList,
                                            swiftVersion: String,
@@ -173,7 +173,7 @@ final class ConfigGenerator: ConfigGenerating {
 
     private func updateTargetDerived(buildSettings settings: inout SettingsDictionary,
                                      target: Target,
-                                     graphTraverser: ValueGraphTraverser,
+                                     graphTraverser: GraphTraversing,
                                      swiftVersion: String,
                                      projectPath: AbsolutePath,
                                      sourceRootPath: AbsolutePath)
@@ -217,7 +217,7 @@ final class ConfigGenerator: ConfigGenerating {
     }
 
     private func testBundleTargetDerivedSettings(target: Target,
-                                                 graphTraverser: ValueGraphTraverser,
+                                                 graphTraverser: GraphTraversing,
                                                  projectPath: AbsolutePath) -> SettingsDictionary
     {
         guard target.product.testsBundle else {
@@ -269,7 +269,7 @@ final class ConfigGenerator: ConfigGenerating {
     }
 
     private func watchTargetDerivedSettings(target: Target,
-                                            graphTraverser: ValueGraphTraverser,
+                                            graphTraverser: GraphTraversing,
                                             projectPath: AbsolutePath) -> SettingsDictionary
     {
         guard target.product == .watch2App else {

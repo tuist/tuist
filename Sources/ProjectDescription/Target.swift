@@ -53,6 +53,9 @@ public struct Target: Codable, Equatable {
     /// Environment variables to be exposed to the target.
     public let environment: [String: String]
 
+    /// Launch argument to be exposed to the target.
+    public let launchArguments: [String: Bool]
+
     public enum CodingKeys: String, CodingKey {
         case name
         case platform
@@ -69,6 +72,7 @@ public struct Target: Codable, Equatable {
         case coreDataModels = "core_data_models"
         case actions
         case environment
+        case launchArguments
         case deploymentTarget
     }
 
@@ -104,7 +108,8 @@ public struct Target: Codable, Equatable {
                 dependencies: [TargetDependency] = [],
                 settings: Settings? = nil,
                 coreDataModels: [CoreDataModel] = [],
-                environment: [String: String] = [:])
+                environment: [String: String] = [:],
+                launchArguments: [String: Bool] = [:])
     {
         self.name = name
         self.platform = platform
@@ -121,6 +126,7 @@ public struct Target: Codable, Equatable {
         self.actions = actions
         self.coreDataModels = coreDataModels
         self.environment = environment
+        self.launchArguments = launchArguments
         self.deploymentTarget = deploymentTarget
     }
 }

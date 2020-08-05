@@ -45,6 +45,7 @@ public struct Target: Equatable, Hashable, Comparable {
     public var coreDataModels: [CoreDataModel]
     public var actions: [TargetAction]
     public var environment: [String: String]
+    public var launchArguments: [String: Bool]
     public var filesGroup: ProjectGroup
 
     // MARK: - Init
@@ -64,6 +65,7 @@ public struct Target: Equatable, Hashable, Comparable {
                 coreDataModels: [CoreDataModel] = [],
                 actions: [TargetAction] = [],
                 environment: [String: String] = [:],
+                launchArguments: [String: Bool] = [:],
                 filesGroup: ProjectGroup,
                 dependencies: [Dependency] = [])
     {
@@ -82,6 +84,7 @@ public struct Target: Equatable, Hashable, Comparable {
         self.coreDataModels = coreDataModels
         self.actions = actions
         self.environment = environment
+        self.launchArguments = launchArguments
         self.filesGroup = filesGroup
         self.dependencies = dependencies
     }

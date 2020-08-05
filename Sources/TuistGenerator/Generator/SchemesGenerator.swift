@@ -247,7 +247,7 @@ final class SchemesGenerator: SchemesGenerating {
         var environments: [XCScheme.EnvironmentVariable]?
 
         if let arguments = testAction.arguments {
-            args = XCScheme.CommandLineArguments(arguments: commandlineArgruments(arguments.launch))
+            args = XCScheme.CommandLineArguments(arguments: commandlineArgruments(arguments.launchArguments))
             environments = environmentVariables(arguments.environment)
         }
 
@@ -324,7 +324,7 @@ final class SchemesGenerator: SchemesGenerating {
         var environments: [XCScheme.EnvironmentVariable]?
 
         if let arguments = scheme.runAction?.arguments {
-            commandlineArguments = XCScheme.CommandLineArguments(arguments: commandlineArgruments(arguments.launch))
+            commandlineArguments = XCScheme.CommandLineArguments(arguments: commandlineArgruments(arguments.launchArguments))
             environments = environmentVariables(arguments.environment)
         }
 
@@ -366,13 +366,13 @@ final class SchemesGenerator: SchemesGenerating {
         if let action = scheme.profileAction, let executable = action.executable {
             target = executable
             if let arguments = action.arguments {
-                commandlineArguments = XCScheme.CommandLineArguments(arguments: commandlineArgruments(arguments.launch))
+                commandlineArguments = XCScheme.CommandLineArguments(arguments: commandlineArgruments(arguments.launchArguments))
                 environments = environmentVariables(arguments.environment)
             }
         } else if let action = scheme.runAction, let executable = action.executable {
             target = executable
             if let arguments = action.arguments {
-                commandlineArguments = XCScheme.CommandLineArguments(arguments: commandlineArgruments(arguments.launch))
+                commandlineArguments = XCScheme.CommandLineArguments(arguments: commandlineArgruments(arguments.launchArguments))
                 environments = environmentVariables(arguments.environment)
             }
         }
