@@ -42,8 +42,7 @@ final class BuildService {
 
     init(projectGenerator: ProjectGenerating = ProjectGenerator(),
          xcodebuildController: XcodeBuildControlling = XcodeBuildController(),
-         buildGraphInspector: BuildGraphInspecting = BuildGraphInspector())
-    {
+         buildGraphInspector: BuildGraphInspecting = BuildGraphInspector()) {
         self.projectGenerator = projectGenerator
         self.xcodebuildController = xcodebuildController
         self.buildGraphInspector = buildGraphInspector

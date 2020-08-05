@@ -23,8 +23,7 @@ public class TargetNode: GraphNode {
 
     public init(project: Project,
                 target: Target,
-                dependencies: [GraphNode])
-    {
+                dependencies: [GraphNode]) {
         self.project = project
         self.target = target
         self.dependencies = dependencies

@@ -21,8 +21,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
              manifests: [AbsolutePath],
              helpers: [AbsolutePath],
              templates: [AbsolutePath],
-             projectDescriptionPath: AbsolutePath) throws -> (Project, Graph)
-    {
+             projectDescriptionPath: AbsolutePath) throws -> (Project, Graph) {
         // Settings
         let projectSettings = Settings(base: [:],
                                        configurations: Settings.default.configurations,
@@ -149,8 +148,7 @@ private extension Target {
     /// Target for edit project
     static func editorHelperTarget(name: String,
                                    targetSettings: Settings,
-                                   sourcePaths: [AbsolutePath]) -> Target
-    {
+                                   sourcePaths: [AbsolutePath]) -> Target {
         Target(name: name,
                platform: .macOS,
                product: .staticFramework,

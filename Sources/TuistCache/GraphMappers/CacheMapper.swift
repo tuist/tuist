@@ -35,8 +35,7 @@ public class CacheMapper: GraphMapping {
          cache: CacheStoring,
          graphContentHasher: GraphContentHashing,
          cacheGraphMapper: CacheGraphMapping = CacheGraphMapper(),
-         queue: DispatchQueue = CacheMapper.dispatchQueue())
-    {
+         queue: DispatchQueue = CacheMapper.dispatchQueue()) {
         self.config = config
         self.cache = cache
         self.graphContentHasher = graphContentHasher

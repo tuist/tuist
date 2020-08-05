@@ -65,8 +65,7 @@ public struct Target: Equatable, Hashable, Comparable {
                 actions: [TargetAction] = [],
                 environment: [String: String] = [:],
                 filesGroup: ProjectGroup,
-                dependencies: [Dependency] = [])
-    {
+                dependencies: [Dependency] = []) {
         self.name = name
         self.product = product
         self.platform = platform

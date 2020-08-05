@@ -19,8 +19,7 @@ public struct Scheme: Equatable, Codable {
                 runAction: RunAction? = nil,
                 archiveAction: ArchiveAction? = nil,
                 profileAction: ProfileAction? = nil,
-                analyzeAction: AnalyzeAction? = nil)
-    {
+                analyzeAction: AnalyzeAction? = nil) {
         self.name = name
         self.shared = shared
         self.buildAction = buildAction

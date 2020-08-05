@@ -31,8 +31,7 @@ struct SimulatorRuntime: Decodable, Hashable, CustomStringConvertible {
          identifier: String,
          version: SimulatorRuntimeVersion,
          isAvailable: Bool,
-         name: String)
-    {
+         name: String) {
         self.bundlePath = bundlePath
         self.buildVersion = buildVersion
         self.runtimeRoot = runtimeRoot

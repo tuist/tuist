@@ -13,8 +13,7 @@ public extension Project {
                      targets: [Target] = [Target.test()],
                      packages: [Package] = [],
                      schemes: [Scheme] = [],
-                     additionalFiles: [FileElement] = []) -> Project
-    {
+                     additionalFiles: [FileElement] = []) -> Project {
         Project(path: path,
                 sourceRootPath: sourceRootPath,
                 xcodeProjPath: xcodeProjPath,
@@ -38,8 +37,7 @@ public extension Project {
                       targets: [Target] = [],
                       packages: [Package] = [],
                       schemes: [Scheme] = [],
-                      additionalFiles: [FileElement] = []) -> Project
-    {
+                      additionalFiles: [FileElement] = []) -> Project {
         Project(path: path,
                 sourceRootPath: sourceRootPath,
                 xcodeProjPath: xcodeProjPath,

@@ -69,8 +69,7 @@ public struct TargetAction: Codable, Equatable {
          inputPaths: [Path] = [],
          inputFileListPaths: [Path] = [],
          outputPaths: [Path] = [],
-         outputFileListPaths: [Path] = [])
-    {
+         outputFileListPaths: [Path] = []) {
         self.name = name
         self.path = path
         self.tool = tool
@@ -99,8 +98,7 @@ public struct TargetAction: Codable, Equatable {
                            inputPaths: [Path] = [],
                            inputFileListPaths: [Path] = [],
                            outputPaths: [Path] = [],
-                           outputFileListPaths: [Path] = []) -> TargetAction
-    {
+                           outputFileListPaths: [Path] = []) -> TargetAction {
         TargetAction(name: name,
                      tool: tool,
                      path: nil,
@@ -129,8 +127,7 @@ public struct TargetAction: Codable, Equatable {
                            inputPaths: [Path] = [],
                            inputFileListPaths: [Path] = [],
                            outputPaths: [Path] = [],
-                           outputFileListPaths: [Path] = []) -> TargetAction
-    {
+                           outputFileListPaths: [Path] = []) -> TargetAction {
         TargetAction(name: name,
                      tool: tool,
                      path: nil,
@@ -159,8 +156,7 @@ public struct TargetAction: Codable, Equatable {
                            inputPaths: [Path] = [],
                            inputFileListPaths: [Path] = [],
                            outputPaths: [Path] = [],
-                           outputFileListPaths: [Path] = []) -> TargetAction
-    {
+                           outputFileListPaths: [Path] = []) -> TargetAction {
         TargetAction(name: name,
                      tool: nil,
                      path: path,
@@ -189,8 +185,7 @@ public struct TargetAction: Codable, Equatable {
                            inputPaths: [Path] = [],
                            inputFileListPaths: [Path] = [],
                            outputPaths: [Path] = [],
-                           outputFileListPaths: [Path] = []) -> TargetAction
-    {
+                           outputFileListPaths: [Path] = []) -> TargetAction {
         TargetAction(name: name,
                      tool: nil,
                      path: path,
@@ -219,8 +214,7 @@ public struct TargetAction: Codable, Equatable {
                             inputPaths: [Path] = [],
                             inputFileListPaths: [Path] = [],
                             outputPaths: [Path] = [],
-                            outputFileListPaths: [Path] = []) -> TargetAction
-    {
+                            outputFileListPaths: [Path] = []) -> TargetAction {
         TargetAction(name: name,
                      tool: tool,
                      path: nil,
@@ -249,8 +243,7 @@ public struct TargetAction: Codable, Equatable {
                             inputPaths: [Path] = [],
                             inputFileListPaths: [Path] = [],
                             outputPaths: [Path] = [],
-                            outputFileListPaths: [Path] = []) -> TargetAction
-    {
+                            outputFileListPaths: [Path] = []) -> TargetAction {
         TargetAction(name: name,
                      tool: tool,
                      path: nil,
@@ -279,8 +272,7 @@ public struct TargetAction: Codable, Equatable {
                             inputPaths: [Path] = [],
                             inputFileListPaths: [Path] = [],
                             outputPaths: [Path] = [],
-                            outputFileListPaths: [Path] = []) -> TargetAction
-    {
+                            outputFileListPaths: [Path] = []) -> TargetAction {
         TargetAction(name: name,
                      tool: nil,
                      path: path,
@@ -309,8 +301,7 @@ public struct TargetAction: Codable, Equatable {
                             inputPaths: [Path] = [],
                             inputFileListPaths: [Path] = [],
                             outputPaths: [Path] = [],
-                            outputFileListPaths: [Path] = []) -> TargetAction
-    {
+                            outputFileListPaths: [Path] = []) -> TargetAction {
         TargetAction(name: name,
                      tool: nil,
                      path: path,

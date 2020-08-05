@@ -7,8 +7,7 @@ extension DotGraphGenerating {
     func generate(at path: AbsolutePath,
                   manifestLoader: ManifestLoading,
                   skipTestTargets: Bool,
-                  skipExternalDependencies: Bool) throws -> String
-    {
+                  skipExternalDependencies: Bool) throws -> String {
         let manifests = manifestLoader.manifests(at: path)
 
         if manifests.contains(.workspace) {

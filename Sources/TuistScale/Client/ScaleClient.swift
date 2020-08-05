@@ -12,8 +12,7 @@ public class ScaleClient: ScaleClienting {
     // MARK: - Init
 
     public init(scaleHTTPRequestAuthenticator: ScaleHTTPRequestAuthenticating = ScaleHTTPRequestAuthenticator(),
-                requestDispatcher: HTTPRequestDispatching = HTTPRequestDispatcher())
-    {
+                requestDispatcher: HTTPRequestDispatching = HTTPRequestDispatcher()) {
         self.scaleHTTPRequestAuthenticator = scaleHTTPRequestAuthenticator
         self.requestDispatcher = requestDispatcher
     }

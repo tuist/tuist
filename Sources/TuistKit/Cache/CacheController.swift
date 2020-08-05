@@ -39,8 +39,7 @@ final class CacheController: CacheControlling {
     init(cache: CacheStoring,
          generator: ProjectGenerating,
          xcframeworkBuilder: XCFrameworkBuilding,
-         graphContentHasher: GraphContentHashing)
-    {
+         graphContentHasher: GraphContentHashing) {
         self.cache = cache
         self.generator = generator
         self.xcframeworkBuilder = xcframeworkBuilder

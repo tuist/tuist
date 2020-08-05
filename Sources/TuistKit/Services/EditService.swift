@@ -27,15 +27,13 @@ final class EditService {
     private let opener: Opening
 
     init(projectEditor: ProjectEditing = ProjectEditor(),
-         opener: Opening = Opener())
-    {
+         opener: Opening = Opener()) {
         self.projectEditor = projectEditor
         self.opener = opener
     }
 
     func run(path: String?,
-             permanent: Bool) throws
-    {
+             permanent: Bool) throws {
         let path = self.path(path)
 
         if !permanent {

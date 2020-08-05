@@ -14,8 +14,7 @@ final class CachePrintHashesService {
 
     init(projectGenerator: ProjectGenerating = ProjectGenerator(),
          graphContentHasher: GraphContentHashing = GraphContentHasher(),
-         clock: Clock = WallClock())
-    {
+         clock: Clock = WallClock()) {
         self.projectGenerator = projectGenerator
         self.graphContentHasher = graphContentHasher
         self.clock = clock

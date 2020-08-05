@@ -37,8 +37,7 @@ public struct WorkspaceDescriptor {
                 xcworkspace: XCWorkspace,
                 projectDescriptors: [ProjectDescriptor],
                 schemeDescriptors: [SchemeDescriptor],
-                sideEffectDescriptors: [SideEffectDescriptor])
-    {
+                sideEffectDescriptors: [SideEffectDescriptor]) {
         self.path = path
         self.xcworkspacePath = xcworkspacePath
         self.xcworkspace = xcworkspace

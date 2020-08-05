@@ -72,8 +72,7 @@ public class Settings: Equatable {
 
     public init(base: SettingsDictionary = [:],
                 configurations: [BuildConfiguration: Configuration?],
-                defaultSettings: DefaultSettings = .recommended)
-    {
+                defaultSettings: DefaultSettings = .recommended) {
         self.base = base
         self.configurations = configurations
         self.defaultSettings = defaultSettings

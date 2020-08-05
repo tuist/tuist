@@ -60,8 +60,7 @@ public class XCFrameworkNode: PrecompiledNode {
                 infoPlist: XCFrameworkInfoPlist,
                 primaryBinaryPath: AbsolutePath,
                 linking: BinaryLinking,
-                dependencies: [Dependency] = [])
-    {
+                dependencies: [Dependency] = []) {
         self.infoPlist = infoPlist
         self.linking = linking
         self.primaryBinaryPath = primaryBinaryPath

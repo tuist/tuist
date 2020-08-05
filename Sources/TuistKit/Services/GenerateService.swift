@@ -20,16 +20,14 @@ final class GenerateService {
     private let projectGeneratorFactory: GenerateServiceProjectGeneratorFactorying
 
     init(clock: Clock = WallClock(),
-         projectGeneratorFactory: GenerateServiceProjectGeneratorFactorying = GenerateServiceProjectGeneratorFactory())
-    {
+         projectGeneratorFactory: GenerateServiceProjectGeneratorFactorying = GenerateServiceProjectGeneratorFactory()) {
         self.clock = clock
         self.projectGeneratorFactory = projectGeneratorFactory
     }
 
     func run(path: String?,
              projectOnly: Bool,
-             cache: Bool) throws
-    {
+             cache: Bool) throws {
         let timer = clock.startTimer()
         let path = self.path(path)
         let generator = projectGeneratorFactory.generator(cache: cache)

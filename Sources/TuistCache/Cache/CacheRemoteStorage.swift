@@ -43,8 +43,7 @@ public final class CacheRemoteStorage: CacheStoring {
     init(scaleConfig: Scale,
          scaleClient: ScaleClienting,
          fileArchiverFactory: FileArchiverManufacturing,
-         fileClient: FileClienting)
-    {
+         fileClient: FileClienting) {
         self.scaleConfig = scaleConfig
         self.scaleClient = scaleClient
         self.fileArchiverFactory = fileArchiverFactory

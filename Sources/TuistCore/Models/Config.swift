@@ -35,8 +35,7 @@ public struct Config: Equatable, Hashable {
     ///   - generationOptions: Generation options.
     public init(compatibleXcodeVersions: CompatibleXcodeVersions,
                 scale: Scale?,
-                generationOptions: [GenerationOption])
-    {
+                generationOptions: [GenerationOption]) {
         self.compatibleXcodeVersions = compatibleXcodeVersions
         self.scale = scale
         self.generationOptions = generationOptions

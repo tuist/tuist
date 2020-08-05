@@ -27,8 +27,7 @@ class UpRome: Up, GraphInitiatable {
     init(platforms: [Platform],
          cachePrefix: String?,
          upHomebrew: Upping = UpHomebrewTap(repositories: ["tmspzz/tap"]),
-         rome: Romeaging = Rome())
-    {
+         rome: Romeaging = Rome()) {
         self.platforms = platforms
         self.cachePrefix = cachePrefix
         self.upHomebrew = upHomebrew

@@ -55,8 +55,7 @@ final class WorkspaceGenerator: WorkspaceGenerating {
     // MARK: - Init
 
     convenience init(defaultSettingsProvider: DefaultSettingsProviding = DefaultSettingsProvider(),
-                     config: Config = .default)
-    {
+                     config: Config = .default) {
         let configGenerator = ConfigGenerator(defaultSettingsProvider: defaultSettingsProvider)
         let targetGenerator = TargetGenerator(configGenerator: configGenerator)
         let projectGenerator = ProjectGenerator(targetGenerator: targetGenerator,
@@ -70,8 +69,7 @@ final class WorkspaceGenerator: WorkspaceGenerating {
     init(projectGenerator: ProjectGenerating,
          workspaceStructureGenerator: WorkspaceStructureGenerating,
          schemesGenerator: SchemesGenerating,
-         config: Config = .default)
-    {
+         config: Config = .default) {
         self.projectGenerator = projectGenerator
         self.workspaceStructureGenerator = workspaceStructureGenerator
         self.schemesGenerator = schemesGenerator
@@ -191,8 +189,7 @@ final class WorkspaceGenerator: WorkspaceGenerating {
 
     private func recursiveChildElement(generatedProjects: [AbsolutePath: GeneratedProject],
                                        element: WorkspaceStructure.Element,
-                                       path: AbsolutePath) throws -> XCWorkspaceDataElement
-    {
+                                       path: AbsolutePath) throws -> XCWorkspaceDataElement {
         switch element {
         case let .file(path: filePath):
             return workspaceFileElement(path: filePath.relative(to: path))

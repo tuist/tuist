@@ -50,8 +50,7 @@ final class ScaleSessionService: ScaleSessionServicing {
     }
 
     init(scaleSessionController: ScaleSessionControlling,
-         generatorModelLoader: GeneratorModelLoading)
-    {
+         generatorModelLoader: GeneratorModelLoading) {
         self.scaleSessionController = scaleSessionController
         self.generatorModelLoader = generatorModelLoader
     }

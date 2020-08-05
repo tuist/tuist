@@ -22,8 +22,7 @@ final class SigningMatcher: SigningMatching {
 
     init(signingFilesLocator: SigningFilesLocating = SigningFilesLocator(),
          provisioningProfileParser: ProvisioningProfileParsing = ProvisioningProfileParser(),
-         certificateParser: CertificateParsing = CertificateParser())
-    {
+         certificateParser: CertificateParsing = CertificateParser()) {
         self.signingFilesLocator = signingFilesLocator
         self.provisioningProfileParser = provisioningProfileParser
         self.certificateParser = certificateParser

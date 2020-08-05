@@ -21,8 +21,7 @@ public extension Target {
                      actions: [TargetAction] = [],
                      environment: [String: String] = [:],
                      filesGroup: ProjectGroup = .group(name: "Project"),
-                     dependencies: [Dependency] = []) -> Target
-    {
+                     dependencies: [Dependency] = []) -> Target {
         Target(name: name,
                platform: platform,
                product: product,
@@ -59,8 +58,7 @@ public extension Target {
                       actions: [TargetAction] = [],
                       environment: [String: String] = [:],
                       filesGroup: ProjectGroup = .group(name: "Project"),
-                      dependencies: [Dependency] = []) -> Target
-    {
+                      dependencies: [Dependency] = []) -> Target {
         Target(name: name,
                platform: platform,
                product: product,

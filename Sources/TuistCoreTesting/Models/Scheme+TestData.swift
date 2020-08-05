@@ -10,8 +10,7 @@ public extension Scheme {
                      runAction: RunAction? = RunAction.test(),
                      archiveAction: ArchiveAction? = ArchiveAction.test(),
                      profileAction: ProfileAction? = ProfileAction.test(),
-                     analyzeAction: AnalyzeAction? = AnalyzeAction.test()) -> Scheme
-    {
+                     analyzeAction: AnalyzeAction? = AnalyzeAction.test()) -> Scheme {
         Scheme(name: name,
                shared: shared,
                buildAction: buildAction,
