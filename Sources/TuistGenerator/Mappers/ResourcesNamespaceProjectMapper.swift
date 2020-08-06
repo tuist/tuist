@@ -84,11 +84,24 @@ public final class ResourcesNamespaceProjectMapper: ProjectMapping {
     }
     
     private static let generateNamespaceScript: String = {
-        """
+        #if DEBUG
+        // Used only for debug purposes to find currently-built tuist
+        // `bundlePath` points to .build/debug/tuist
+        let tuistCommand = AbsolutePath(#file.replacingOccurrences(of: "file://", with: ""))
+            .removingLastComponent()
+            .removingLastComponent()
+            .removingLastComponent()
+            .removingLastComponent()
+            .appending(components: ".build", "debug", "tuist")
+            .pathString
+        #else
+        let tuistCommand = "tuist"
+        #endif
+        return """
         #!/bin/sh
         
         pushd "${SRCROOT}"
-        tuist generate namespace
+        \(tuistCommand) generate namespace
         popd
         """
     }()

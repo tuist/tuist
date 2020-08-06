@@ -19,12 +19,12 @@ let project = Project(
                 .folderReference(path: "Examples")
             ],
             dependencies: [
-                // .project(target: "Framework1", path: "../Framework1"),
-                // .project(target: "StaticFramework", path: "../StaticFramework"),
-                // .project(target: "StaticFrameworkResources", path: "../StaticFramework"),
-                // .project(target: "StaticFramework2", path: "../StaticFramework2"),
-                // .project(target: "StaticFramework3", path: "../StaticFramework3"),
-                // .project(target: "StaticFramework4", path: "../StaticFramework4"),
+                .project(target: "Framework1", path: "../Framework1"),
+                .project(target: "StaticFramework", path: "../StaticFramework"),
+                .project(target: "StaticFrameworkResources", path: "../StaticFramework"),
+                .project(target: "StaticFramework2", path: "../StaticFramework2"),
+                .project(target: "StaticFramework3", path: "../StaticFramework3"),
+                .project(target: "StaticFramework4", path: "../StaticFramework4"),
             ]
         ),
         Target(

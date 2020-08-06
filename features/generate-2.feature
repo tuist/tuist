@@ -32,7 +32,7 @@ Feature: Generate a new project using Tuist (suite 2)
     Then I should be able to test for iOS the scheme StaticFrameworkTests
     Then I should be able to build for tvOS the scheme TVFramework
 
-Scenario: The project is an iOS application with a target dependency and transitive framework dependency (ios_app_with_transitive_framework)
+  Scenario: The project is an iOS application with a target dependency and transitive framework dependency (ios_app_with_transitive_framework)
     Given that tuist is available
     And I have a working directory
     Then I copy the fixture ios_app_with_transitive_framework into the working directory
@@ -48,7 +48,7 @@ Scenario: The project is an iOS application with a target dependency and transit
     Then I should be able to build for iOS the scheme Framework1Tests-iOS
     Then I should be able to build for macOS the scheme Framework1Tests-macOS
 
-Scenario: The project is an iOS application that has resources (ios_app_with_framework_and_resources)
+  Scenario: The project is an iOS application that has resources (ios_app_with_framework_and_resources)
     Given that tuist is available
     And I have a working directory
     Then I copy the fixture ios_app_with_framework_and_resources into the working directory
@@ -74,3 +74,5 @@ Scenario: The project is an iOS application that has resources (ios_app_with_fra
     Then the product 'StaticFramework2Resources.bundle' with destination 'Debug-iphoneos' contains resource 'StaticFramework2Resources-tuist.png'
     Then the product 'StaticFramework3Resources.bundle' with destination 'Debug-iphoneos' contains resource 'StaticFramework3Resources-tuist.png'
     Then the product 'StaticFramework4Resources.bundle' with destination 'Debug-iphoneos' contains resource 'StaticFramework4Resources-tuist.png'
+    Then a file App/Derived/Sources/Bundle+App.swift exists
+    Then a file App/Derived/Sources/Assets.swift exists
