@@ -30,8 +30,6 @@ public final class ResourcesNamespaceProjectMapper: ProjectMapping {
     public func mapTarget(_ target: Target, project: Project) throws -> (Target, [SideEffectDescriptor]) {
         guard !target.resources.isEmpty else { return (target, []) }
         
-        let namespaceGenerator = NamespaceGenerator()
-        
         let imageFolders: [AbsolutePath] = target.resources
             .map(\.path)
             .filter(\.isFolder)
@@ -52,6 +50,46 @@ public final class ResourcesNamespaceProjectMapper: ProjectMapping {
         }
         .map(SideEffectDescriptor.file)
         
+        let generateNamespaceScriptPath = project.path
+            .appending(component: Constants.DerivedDirectory.name)
+            .appending(component: "generate_namespace.sh")
+        
+        // TODO: Input + output paths
+        let target = target.with(
+            actions: target.actions + [
+                TargetAction(
+                    name: "Generate namespace",
+                    order: .pre,
+                    path: generateNamespaceScriptPath,
+                    skipLint: true
+                )
+            ]
+        )
+        
+        sideEffects += [
+            .file(
+                FileDescriptor(
+                    path: generateNamespaceScriptPath,
+                    contents: ResourcesNamespaceProjectMapper.generateNamespaceScript.data(using: .utf8)
+                )
+            ),
+            .command(
+                CommandDescriptor(
+                    command: "chmod", "+x", generateNamespaceScriptPath.pathString
+                )
+            ),
+        ]
+        
         return (target, sideEffects)
     }
+    
+    private static let generateNamespaceScript: String = {
+        """
+        #!/bin/sh
+        
+        pushd "${SRCROOT}"
+        tuist generate namespace
+        popd
+        """
+    }()
 }

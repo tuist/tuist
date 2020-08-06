@@ -500,6 +500,6 @@ public final class System: Systeming {
     /// - Returns: The output of running 'which' with the given tool name.
     /// - Throws: An error if which exits unsuccessfully.
     public func which(_ name: String) throws -> String {
-        try capture("/usr/bin/env", "which", name).spm_chomp()
+        try (try? capture("/usr/bin/env", "which", name).spm_chomp()) ?? (try capture("which", name).spm_chomp())
     }
 }
