@@ -104,7 +104,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
 
     func test_generateTestTargetConfiguration() throws {
         // Given / When
-        try generateTestTargetConfig()
+        try generateTestTargetConfig(appName: "App")
 
         let configurationList = pbxTarget.buildConfigurationList
         let debugConfig = configurationList?.configuration(name: "Debug")
@@ -119,9 +119,27 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         assert(config: releaseConfig, contains: testHostSettings)
     }
 
+    func test_generateTestTargetConfiguration_usesProductName() throws {
+        // Given / When
+        try generateTestTargetConfig(appName: "App-dash",
+                                     productName: "App_dash")
+
+        let configurationList = pbxTarget.buildConfigurationList
+        let debugConfig = configurationList?.configuration(name: "Debug")
+        let releaseConfig = configurationList?.configuration(name: "Release")
+
+        let testHostSettings = [
+            "TEST_HOST": "$(BUILT_PRODUCTS_DIR)/App_dash.app/App_dash",
+            "BUNDLE_LOADER": "$(TEST_HOST)",
+        ]
+
+        assert(config: debugConfig, contains: testHostSettings)
+        assert(config: releaseConfig, contains: testHostSettings)
+    }
+
     func test_generateUITestTargetConfiguration() throws {
         // Given / When
-        try generateTestTargetConfig(uiTest: true)
+        try generateTestTargetConfig(appName: "App", uiTest: true)
 
         let configurationList = pbxTarget.buildConfigurationList
         let debugConfig = configurationList?.configuration(name: "Debug")
@@ -129,6 +147,24 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
 
         let testHostSettings = [
             "TEST_TARGET_NAME": "App",
+        ]
+
+        assert(config: debugConfig, contains: testHostSettings)
+        assert(config: releaseConfig, contains: testHostSettings)
+    }
+
+    func test_generateUITestTargetConfiguration_usesTargetName() throws {
+        // Given / When
+        try generateTestTargetConfig(appName: "App-dash",
+                                     productName: "App_dash",
+                                     uiTest: true)
+
+        let configurationList = pbxTarget.buildConfigurationList
+        let debugConfig = configurationList?.configuration(name: "Debug")
+        let releaseConfig = configurationList?.configuration(name: "Release")
+
+        let testHostSettings = [
+            "TEST_TARGET_NAME": "App-dash", // `TEST_TARGET_NAME` should reference the target name as opposed to `productName`
         ]
 
         assert(config: debugConfig, contains: testHostSettings)
@@ -389,10 +425,16 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
                                              sourceRootPath: AbsolutePath("/"))
     }
 
-    private func generateTestTargetConfig(uiTest: Bool = false) throws {
+    private func generateTestTargetConfig(appName: String = "App",
+                                          productName: String? = nil,
+                                          uiTest: Bool = false) throws
+    {
         let dir = try temporaryPath()
 
-        let appTarget = Target.test(name: "App", platform: .iOS, product: .app)
+        let appTarget = Target.test(name: appName,
+                                    platform: .iOS,
+                                    product: .app,
+                                    productName: productName)
 
         let target = Target.test(name: "Test", product: uiTest ? .uiTests : .unitTests)
         let project = Project.test(path: dir, name: "Project", targets: [target])
