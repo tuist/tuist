@@ -10,11 +10,11 @@ import XCTest
 // Alternative: https://dot-to-ascii.ggerganov.com/
 final class CacheGraphMapperTests: TuistUnitTestCase {
     var xcframeworkLoader: MockXCFrameworkNodeLoader!
-    var subject: CacheGraphMapper!
+    var subject: CacheGraphMutator!
 
     override func setUp() {
         xcframeworkLoader = MockXCFrameworkNodeLoader()
-        subject = CacheGraphMapper(xcframeworkLoader: xcframeworkLoader)
+        subject = CacheGraphMutator(xcframeworkLoader: xcframeworkLoader)
         super.setUp()
     }
 
@@ -77,7 +77,7 @@ final class CacheGraphMapperTests: TuistUnitTestCase {
         }
 
         // When
-        let got = try subject.map(graph: graph, xcframeworks: xcframeworks)
+        let got = try subject.map(graph: graph, xcframeworks: xcframeworks, sources: Set())
 
         // Then
         let appNode = try XCTUnwrap(got.entryNodes.first as? TargetNode)
@@ -145,7 +145,7 @@ final class CacheGraphMapperTests: TuistUnitTestCase {
         }
 
         // When
-        let got = try subject.map(graph: graph, xcframeworks: xcframeworks)
+        let got = try subject.map(graph: graph, xcframeworks: xcframeworks, sources: Set())
 
         // Then
         let app = try XCTUnwrap(got.entryNodes.first as? TargetNode)
@@ -217,7 +217,7 @@ final class CacheGraphMapperTests: TuistUnitTestCase {
         }
 
         // When
-        let got = try subject.map(graph: graph, xcframeworks: xcframeworks)
+        let got = try subject.map(graph: graph, xcframeworks: xcframeworks, sources: Set())
 
         // Then
         let app = try XCTUnwrap(got.entryNodes.first as? TargetNode)
@@ -285,7 +285,7 @@ final class CacheGraphMapperTests: TuistUnitTestCase {
         }
 
         // When
-        let got = try subject.map(graph: graph, xcframeworks: xcframeworks)
+        let got = try subject.map(graph: graph, xcframeworks: xcframeworks, sources: Set())
 
         // Then
         let app = try XCTUnwrap(got.entryNodes.first as? TargetNode)
@@ -328,7 +328,7 @@ final class CacheGraphMapperTests: TuistUnitTestCase {
         let graph = Graph.test(entryNodes: [appTargetNode], projects: graphProjects(targetNodes), targets: graphTargets(targetNodes))
 
         // When
-        let got = try subject.map(graph: graph, xcframeworks: [:])
+        let got = try subject.map(graph: graph, xcframeworks: [:], sources: Set())
 
         // Then
         let app = try XCTUnwrap(got.entryNodes.first as? TargetNode)
