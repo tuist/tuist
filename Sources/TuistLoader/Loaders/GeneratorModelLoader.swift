@@ -48,7 +48,7 @@ extension GeneratorModelLoader: GeneratorModelLoading {
     public func loadConfig(at path: AbsolutePath) throws -> TuistCore.Config {
         // If the Config.swift file exists in the root Tuist/ directory, we load it from there
         if let rootDirectoryPath = rootDirectoryLocator.locate(from: path) {
-            let configPath = rootDirectoryPath.appending(RelativePath("\(Constants.tuistDirectoryName)/\(Manifest.config.fileName)"))
+            let configPath = rootDirectoryPath.appending(RelativePath("\(Constants.tuistDirectoryName)/\(Manifest.config.fileName(path))"))
 
             if FileHandler.shared.exists(configPath) {
                 let manifest = try manifestLoader.loadConfig(at: configPath.parentDirectory)
@@ -58,7 +58,7 @@ extension GeneratorModelLoader: GeneratorModelLoading {
 
         // We first try to load the deprecated file. If it doesn't exist, we load the new file name.
         let fileNames = [Manifest.config]
-            .flatMap { [$0.deprecatedFileName, $0.fileName] }
+            .flatMap { [$0.deprecatedFileName, $0.fileName(path)] }
             .compactMap { $0 }
 
         for fileName in fileNames {

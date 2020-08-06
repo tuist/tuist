@@ -5,12 +5,14 @@ import XCTest
 @testable import TuistSupportTesting
 
 final class ManifestTests: TuistUnitTestCase {
-    func test_fileName() {
-        XCTAssertEqual(Manifest.project.fileName, "Project.swift")
-        XCTAssertEqual(Manifest.workspace.fileName, "Workspace.swift")
-        XCTAssertEqual(Manifest.config.fileName, "Config.swift")
-        XCTAssertEqual(Manifest.setup.fileName, "Setup.swift")
-        XCTAssertEqual(Manifest.galaxy.fileName, "Galaxy.swift")
+    func test_fileName() throws {
+        let temporaryPath = try self.temporaryPath().appending(component: "folder")
+        XCTAssertEqual(Manifest.project.fileName(temporaryPath), "Project.swift")
+        XCTAssertEqual(Manifest.workspace.fileName(temporaryPath), "Workspace.swift")
+        XCTAssertEqual(Manifest.config.fileName(temporaryPath), "Config.swift")
+        XCTAssertEqual(Manifest.setup.fileName(temporaryPath), "Setup.swift")
+        XCTAssertEqual(Manifest.galaxy.fileName(temporaryPath), "Galaxy.swift")
+        XCTAssertEqual(Manifest.template.fileName(temporaryPath), "folder.swift")
     }
 
     func test_deprecatedFileName() {
