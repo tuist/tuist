@@ -53,7 +53,7 @@ final class GraphService {
     }
 
     private func exportPNGRepresentation(from graphVizGraph: GraphViz.Graph, at filePath: AbsolutePath) throws {
-        let data = try graphVizGraph.render(using: .circo, to: .png)
+        let data = try graphVizGraph.render(using: .dot, to: .png)
         FileManager.default.createFile(atPath: filePath.pathString, contents: data, attributes: nil)
         try System.shared.async(["open", filePath.pathString])
     }
