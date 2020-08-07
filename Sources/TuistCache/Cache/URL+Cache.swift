@@ -6,7 +6,7 @@ extension URL {
                             projectId: String) throws -> URL
     {
         guard var urlComponents = URLComponents(url: cacheURL, resolvingAgainstBaseURL: false) else {
-            throw CacheAPIError.incorrectScaleURL
+            throw CacheAPIError.incorrectCloudURL
         }
 
         urlComponents.path = "/api/cache"

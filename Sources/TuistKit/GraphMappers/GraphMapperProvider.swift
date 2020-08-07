@@ -1,8 +1,8 @@
 import Foundation
 import TuistCache
+import TuistCloud
 import TuistCore
 import TuistGenerator
-import TuistScale
 import TuistSigning
 
 /// It defines an interface for providing the mappers to be used for a specific configuration.
