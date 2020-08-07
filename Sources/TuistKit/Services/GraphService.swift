@@ -48,7 +48,7 @@ final class GraphService {
     }
 
     private func exportDOTRepresentation(from graphVizGraph: GraphViz.Graph, at filePath: AbsolutePath) throws {
-        let dotFile = DOTEncoder().encode(graphVizGraph)
+        let dotFile = String(DOTEncoder().encode(graphVizGraph).sorted())
         try FileHandler.shared.write(dotFile, path: filePath, atomically: true)
     }
 
