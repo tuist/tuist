@@ -4,6 +4,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+## 1.15.0 - Riga
+
 ### Changed
 
 - Renamed Scale to Cloud [#1633](https://github.com/tuist/tuist/pull/1633) by [@pepibumur](https://github.com/pepibumur)
