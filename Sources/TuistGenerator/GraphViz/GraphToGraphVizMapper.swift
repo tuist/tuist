@@ -39,16 +39,10 @@ final class GraphToGraphVizMapper: GraphToGraphVizMapping {
                     if skipExternalDependencies, dependency.isExternal { return }
                     let edge = GraphViz.Edge(from: leftNode, to: rightNode)
                     dependencies.append(edge)
-
-                    if let sdk = dependency as? SDKNode {
-                        nodes.append(GraphViz.Node(sdk.name))
-                    }
                 }
             }
         }
 
-        // Precompiled
-        graph.precompiled.forEach { nodes.append(GraphViz.Node($0.name)) }
         graphVizGraph.append(contentsOf: Set(nodes))
         graphVizGraph.append(contentsOf: Set(dependencies))
         return graphVizGraph
