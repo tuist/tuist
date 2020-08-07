@@ -11,21 +11,21 @@ import XCTest
 @testable import TuistKit
 @testable import TuistSupportTesting
 
-final class ScaleLogoutServiceErrorTests: TuistUnitTestCase {
+final class CloudLogoutServiceErrorTests: TuistUnitTestCase {
     func test_description_when_missingScaleURL() {
         // Given
-        let subject = ScaleLogoutServiceError.missingScaleURL
+        let subject = CloudLogoutServiceError.missingCloudURL
 
         // When
         let got = subject.description
 
         // Then
-        XCTAssertEqual(got, "The scale URL attribute is missing in your project's configuration.")
+        XCTAssertEqual(got, "The cloud URL attribute is missing in your project's configuration.")
     }
 
     func test_type_when_missingScaleURL() {
         // Given
-        let subject = ScaleLogoutServiceError.missingScaleURL
+        let subject = CloudLogoutServiceError.missingCloudURL
 
         // When
         let got = subject.type
@@ -36,21 +36,21 @@ final class ScaleLogoutServiceErrorTests: TuistUnitTestCase {
 }
 
 final class CloudLogoutServiceTests: TuistUnitTestCase {
-    var scaleSessionController: MockScaleSessionController!
+    var cloudSessionController: MockCloudSessionController!
     var generatorModelLoader: MockGeneratorModelLoader!
-    var subject: ScaleLogoutService!
+    var subject: CloudLogoutService!
 
     override func setUp() {
         super.setUp()
-        scaleSessionController = MockScaleSessionController()
+        cloudSessionController = MockCloudSessionController()
         generatorModelLoader = MockGeneratorModelLoader(basePath: FileHandler.shared.currentPath)
-        subject = ScaleLogoutService(scaleSessionController: scaleSessionController,
+        subject = CloudLogoutService(cloudSessionController: cloudSessionController,
                                      generatorModelLoader: generatorModelLoader)
     }
 
     override func tearDown() {
         super.tearDown()
-        scaleSessionController = nil
+        cloudSessionController = nil
         generatorModelLoader = nil
         subject = nil
     }
@@ -58,24 +58,24 @@ final class CloudLogoutServiceTests: TuistUnitTestCase {
     func test_printSession_when_cloudURL_is_missing() {
         // Given
         generatorModelLoader.mockConfig("") { (_) -> Config in
-            Config.test(scale: nil)
+            Config.test(cloud: nil)
         }
 
         // Then
-        XCTAssertThrowsSpecific(try subject.logout(), ScaleLogoutServiceError.missingScaleURL)
+        XCTAssertThrowsSpecific(try subject.logout(), CloudLogoutServiceError.missingCloudURL)
     }
 
     func test_printSession() throws {
         // Given
-        let scaleURL = URL.test()
+        let cloudURL = URL.test()
         generatorModelLoader.mockConfig("") { (_) -> Config in
-            Config.test(scale: Scale(url: scaleURL, projectId: "123", options: []))
+            Config.test(cloud: Cloud(url: cloudURL, projectId: "123", options: []))
         }
 
         // When
         try subject.logout()
 
         // Then
-        XCTAssertTrue(scaleSessionController.logoutArgs.contains(scaleURL))
+        XCTAssertTrue(cloudSessionController.logoutArgs.contains(cloudURL))
     }
 }

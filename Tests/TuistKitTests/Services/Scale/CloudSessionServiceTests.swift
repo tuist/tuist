@@ -12,20 +12,20 @@ import XCTest
 @testable import TuistSupportTesting
 
 final class CloudSessionServiceErrorTests: TuistUnitTestCase {
-    func test_description_when_missingScaleURL() {
+    func test_description_when_missingCloudURL() {
         // Given
-        let subject = ScaleSessionServiceError.missingScaleURL
+        let subject = CloudSessionServiceError.missingCloudURL
 
         // When
         let got = subject.description
 
         // Then
-        XCTAssertEqual(got, "The scale URL attribute is missing in your project's configuration.")
+        XCTAssertEqual(got, "The cloud URL attribute is missing in your project's configuration.")
     }
 
     func test_type_when_missingCloudURL() {
         // Given
-        let subject = ScaleSessionServiceError.missingScaleURL
+        let subject = CloudSessionServiceError.missingCloudURL
 
         // When
         let got = subject.type
@@ -36,21 +36,21 @@ final class CloudSessionServiceErrorTests: TuistUnitTestCase {
 }
 
 final class CloudSessionServiceTests: TuistUnitTestCase {
-    var scaleSessionController: MockScaleSessionController!
+    var cloudSessionController: MockCloudSessionController!
     var generatorModelLoader: MockGeneratorModelLoader!
-    var subject: ScaleSessionService!
+    var subject: CloudSessionService!
 
     override func setUp() {
         super.setUp()
-        scaleSessionController = MockScaleSessionController()
+        cloudSessionController = MockCloudSessionController()
         generatorModelLoader = MockGeneratorModelLoader(basePath: FileHandler.shared.currentPath)
-        subject = ScaleSessionService(scaleSessionController: scaleSessionController,
+        subject = CloudSessionService(cloudSessionController: cloudSessionController,
                                       generatorModelLoader: generatorModelLoader)
     }
 
     override func tearDown() {
         super.tearDown()
-        scaleSessionController = nil
+        cloudSessionController = nil
         generatorModelLoader = nil
         subject = nil
     }
@@ -58,24 +58,24 @@ final class CloudSessionServiceTests: TuistUnitTestCase {
     func test_printSession_when_cloudURL_is_missing() {
         // Given
         generatorModelLoader.mockConfig("") { (_) -> Config in
-            Config.test(scale: nil)
+            Config.test(cloud: nil)
         }
 
         // Then
-        XCTAssertThrowsSpecific(try subject.printSession(), ScaleSessionServiceError.missingScaleURL)
+        XCTAssertThrowsSpecific(try subject.printSession(), CloudSessionServiceError.missingCloudURL)
     }
 
     func test_printSession() throws {
         // Given
-        let scaleURL = URL.test()
+        let cloudURL = URL.test()
         generatorModelLoader.mockConfig("") { (_) -> Config in
-            Config.test(scale: Scale(url: scaleURL, projectId: "123", options: []))
+            Config.test(cloud: Cloud(url: cloudURL, projectId: "123", options: []))
         }
 
         // When
         try subject.printSession()
 
         // Then
-        XCTAssertTrue(scaleSessionController.printSessionArgs.contains(scaleURL))
+        XCTAssertTrue(cloudSessionController.printSessionArgs.contains(cloudURL))
     }
 }

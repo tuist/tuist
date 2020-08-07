@@ -11,21 +11,21 @@ import XCTest
 @testable import TuistKit
 @testable import TuistSupportTesting
 
-final class ScaleAuthServiceErrorTests: TuistUnitTestCase {
+final class CloudAuthServiceErrorTests: TuistUnitTestCase {
     func test_description_when_missingScaleURL() {
         // Given
-        let subject = CloudAuthServiceError.missingScaleURL
+        let subject = CloudAuthServiceError.missingCloudURL
 
         // When
         let got = subject.description
 
         // Then
-        XCTAssertEqual(got, "The scale URL attribute is missing in your project's configuration.")
+        XCTAssertEqual(got, "The cloud URL attribute is missing in your project's configuration.")
     }
 
     func test_type_when_missingCloudURL() {
         // Given
-        let subject = CloudAuthServiceError.missingScaleURL
+        let subject = CloudAuthServiceError.missingCloudURL
 
         // When
         let got = subject.type
@@ -36,21 +36,21 @@ final class ScaleAuthServiceErrorTests: TuistUnitTestCase {
 }
 
 final class CloudAuthServiceTests: TuistUnitTestCase {
-    var scaleSessionController: MockScaleSessionController!
+    var cloudSessionController: MockCloudSessionController!
     var generatorModelLoader: MockGeneratorModelLoader!
     var subject: CloudAuthService!
 
     override func setUp() {
         super.setUp()
-        scaleSessionController = MockScaleSessionController()
+        cloudSessionController = MockCloudSessionController()
         generatorModelLoader = MockGeneratorModelLoader(basePath: FileHandler.shared.currentPath)
-        subject = CloudAuthService(scaleSessionController: scaleSessionController,
+        subject = CloudAuthService(cloudSessionController: cloudSessionController,
                                    generatorModelLoader: generatorModelLoader)
     }
 
     override func tearDown() {
         super.tearDown()
-        scaleSessionController = nil
+        cloudSessionController = nil
         generatorModelLoader = nil
         subject = nil
     }
@@ -58,24 +58,24 @@ final class CloudAuthServiceTests: TuistUnitTestCase {
     func test_authenticate_when_cloudURL_is_missing() {
         // Given
         generatorModelLoader.mockConfig("") { (_) -> Config in
-            Config.test(scale: nil)
+            Config.test(cloud: nil)
         }
 
         // Then
-        XCTAssertThrowsSpecific(try subject.authenticate(), CloudAuthServiceError.missingScaleURL)
+        XCTAssertThrowsSpecific(try subject.authenticate(), CloudAuthServiceError.missingCloudURL)
     }
 
     func test_authenticate() throws {
         // Given
-        let scaleURL = URL.test()
+        let cloudURL = URL.test()
         generatorModelLoader.mockConfig("") { (_) -> Config in
-            Config.test(scale: Scale(url: scaleURL, projectId: "123", options: []))
+            Config.test(cloud: Cloud(url: cloudURL, projectId: "123", options: []))
         }
 
         // When
         try subject.authenticate()
 
         // Then
-        XCTAssertTrue(scaleSessionController.authenticateArgs.contains(scaleURL))
+        XCTAssertTrue(cloudSessionController.authenticateArgs.contains(cloudURL))
     }
 }
