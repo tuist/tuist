@@ -2,11 +2,11 @@ import Foundation
 import TSCBasic
 @testable import TuistCore
 
-public extension Scale {
+public extension Cloud {
     static func test(url: URL = URL.test(),
                      projectId: String = "123",
-                     options: [Scale.Option] = []) -> Scale
+                     options: [Cloud.Option] = []) -> Cloud
     {
-        Scale(url: url, projectId: projectId, options: options)
+        Cloud(url: url, projectId: projectId, options: options)
     }
 }

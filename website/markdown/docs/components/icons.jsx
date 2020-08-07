@@ -9,6 +9,7 @@ import {
   faFileCode,
   faLayerGroup,
   faTerminal,
+  faCloud,
 } from '@fortawesome/free-solid-svg-icons'
 
 const Signing = () => {
@@ -39,6 +40,11 @@ const Users = () => {
     <FontAwesomeIcon sx={{ width: 20, height: 20 }} icon={faUsers} size="sm" />
   )
 }
+const Cloud = () => {
+  return (
+    <FontAwesomeIcon sx={{ width: 20, height: 20 }} icon={faCloud} size="sm" />
+  )
+}
 const Contributors = () => {
   return (
     <FontAwesomeIcon
@@ -58,4 +64,12 @@ const Architectures = () => {
     />
   )
 }
-export { Signing, Astronaut, Users, Contributors, Architectures, Terminal }
+export {
+  Signing,
+  Astronaut,
+  Users,
+  Contributors,
+  Architectures,
+  Terminal,
+  Cloud,
+}

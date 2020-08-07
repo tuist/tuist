@@ -1,10 +1,10 @@
 import Foundation
 import TSCBasic
+import TuistCloudTesting
 import TuistCore
 import TuistCoreTesting
 import TuistLoader
 import TuistLoaderTesting
-import TuistScaleTesting
 import TuistSupport
 import XCTest
 
@@ -14,7 +14,7 @@ import XCTest
 final class ScaleAuthServiceErrorTests: TuistUnitTestCase {
     func test_description_when_missingScaleURL() {
         // Given
-        let subject = ScaleAuthServiceError.missingScaleURL
+        let subject = CloudAuthServiceError.missingScaleURL
 
         // When
         let got = subject.description
@@ -25,7 +25,7 @@ final class ScaleAuthServiceErrorTests: TuistUnitTestCase {
 
     func test_type_when_missingCloudURL() {
         // Given
-        let subject = ScaleAuthServiceError.missingScaleURL
+        let subject = CloudAuthServiceError.missingScaleURL
 
         // When
         let got = subject.type
@@ -38,13 +38,13 @@ final class ScaleAuthServiceErrorTests: TuistUnitTestCase {
 final class CloudAuthServiceTests: TuistUnitTestCase {
     var scaleSessionController: MockScaleSessionController!
     var generatorModelLoader: MockGeneratorModelLoader!
-    var subject: ScaleAuthService!
+    var subject: CloudAuthService!
 
     override func setUp() {
         super.setUp()
         scaleSessionController = MockScaleSessionController()
         generatorModelLoader = MockGeneratorModelLoader(basePath: FileHandler.shared.currentPath)
-        subject = ScaleAuthService(scaleSessionController: scaleSessionController,
+        subject = CloudAuthService(scaleSessionController: scaleSessionController,
                                    generatorModelLoader: generatorModelLoader)
     }
 
@@ -62,7 +62,7 @@ final class CloudAuthServiceTests: TuistUnitTestCase {
         }
 
         // Then
-        XCTAssertThrowsSpecific(try subject.authenticate(), ScaleAuthServiceError.missingScaleURL)
+        XCTAssertThrowsSpecific(try subject.authenticate(), CloudAuthServiceError.missingScaleURL)
     }
 
     func test_authenticate() throws {

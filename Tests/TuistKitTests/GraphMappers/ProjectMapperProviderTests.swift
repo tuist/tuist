@@ -1,8 +1,8 @@
 import Foundation
 import TuistCache
+import TuistCloud
 import TuistCoreTesting
 import TuistGenerator
-import TuistScale
 import TuistSupport
 import XCTest
 

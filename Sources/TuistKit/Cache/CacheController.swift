@@ -4,10 +4,10 @@ import RxSwift
 import TSCBasic
 import TuistAutomation
 import TuistCache
+import TuistCloud
 import TuistCore
 import TuistGenerator
 import TuistLoader
-import TuistScale
 import TuistSupport
 
 protocol CacheControlling {

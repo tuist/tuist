@@ -1,10 +1,10 @@
 import Foundation
 import TSCBasic
+import TuistCloudTesting
 import TuistCore
 import TuistCoreTesting
 import TuistLoader
 import TuistLoaderTesting
-import TuistScaleTesting
 import TuistSupport
 import XCTest
 
