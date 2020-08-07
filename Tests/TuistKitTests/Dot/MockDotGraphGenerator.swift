@@ -1,7 +1,7 @@
 import Foundation
+import GraphViz
 import TSCBasic
 import TuistGenerator
-import GraphViz
 
 final class MockGraphVizGenerator: GraphVizGenerating {
     var generateProjectArgs: [AbsolutePath] = []

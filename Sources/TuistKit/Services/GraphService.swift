@@ -15,7 +15,7 @@ final class GraphService {
 
     init(graphVizGenerator: GraphVizGenerating = GraphVizGenerator(modelLoader: GeneratorModelLoader(manifestLoader: ManifestLoader(),
                                                                                                      manifestLinter: ManifestLinter())),
-         manifestLoader: ManifestLoading = ManifestLoader()) {
+    manifestLoader: ManifestLoading = ManifestLoader()) {
         self.graphVizGenerator = graphVizGenerator
         self.manifestLoader = manifestLoader
     }
@@ -23,7 +23,8 @@ final class GraphService {
     func run(format: GraphFormat,
              skipTestTargets: Bool,
              skipExternalDependencies: Bool,
-             path: String?) throws {
+             path: String?) throws
+    {
         let graphVizGraph = try graphVizGenerator.generate(at: FileHandler.shared.currentPath,
                                                            manifestLoader: manifestLoader,
                                                            skipTestTargets: skipTestTargets,

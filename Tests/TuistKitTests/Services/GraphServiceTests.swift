@@ -1,10 +1,10 @@
+import DOT
 import Foundation
+import GraphViz
 import TSCBasic
 import TuistSupport
 import XcodeProj
 import XCTest
-import GraphViz
-import DOT
 
 @testable import TuistKit
 @testable import TuistLoaderTesting
