@@ -43,8 +43,10 @@ final class GraphToGraphVizMapper: GraphToGraphVizMapping {
             }
         }
 
-        graphVizGraph.append(contentsOf: Set(nodes))
-        graphVizGraph.append(contentsOf: Set(dependencies))
+        let sortedNodes = Set(nodes).sorted { $0.id < $1.id }
+        let sortedDeps = Set(dependencies).sorted { $0.from < $1.from }
+        graphVizGraph.append(contentsOf: sortedNodes)
+        graphVizGraph.append(contentsOf: sortedDeps)
         return graphVizGraph
     }
 }
