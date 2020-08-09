@@ -21,7 +21,7 @@ public struct TargetAction: Equatable {
 
     /// Path to the script to execute
     public let path: AbsolutePath?
-    
+
     /// We want to skip linting for actions we create
     /// Eg when a mapper returns a file descriptor to create a new file
     /// It will not exist before the initial linting

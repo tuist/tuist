@@ -6,44 +6,44 @@ import TuistSupport
 /// A project mapper that generates namespace for resources
 public final class ResourcesNamespaceProjectMapper: ProjectMapping {
     private let namespaceGenerator: NamespaceGenerating
-    
+
     public convenience init() {
         self.init(namespaceGenerator: NamespaceGenerator())
     }
-    
+
     init(
         namespaceGenerator: NamespaceGenerating
     ) {
         self.namespaceGenerator = namespaceGenerator
     }
-    
+
     public func map(project: Project) throws -> (Project, [SideEffectDescriptor]) {
         let mappings = try project.targets
             .map { try mapTarget($0, project: project) }
-        
+
         let targets: [Target] = mappings.map(\.0)
         let sideEffects: [SideEffectDescriptor] = mappings.map(\.1).flatMap { $0 }
-        
+
         return (project.with(targets: targets), sideEffects)
     }
-    
+
     // MARK: - Helpers
-    
+
     private struct RenderedFile: Hashable {
         let path: AbsolutePath
         let contents: Data?
     }
-    
+
     /// Map and generate namespace for a given `Target` and `Project`
     private func mapTarget(_ target: Target, project: Project) throws -> (Target, [SideEffectDescriptor]) {
         guard !target.resources.isEmpty else { return (target, []) }
-        
+
         var target = target
-        
+
         var sideEffects: [SideEffectDescriptor] = []
         var inputPaths: [AbsolutePath] = []
         var outputPaths: Set<AbsolutePath> = []
-        
+
         let assetsSideEffects: [SideEffectDescriptor]
         let assetsInputPaths: [AbsolutePath]
         let assetsOutputPaths: Set<AbsolutePath>
@@ -55,7 +55,7 @@ public final class ResourcesNamespaceProjectMapper: ProjectMapping {
         sideEffects += assetsSideEffects
         inputPaths += assetsInputPaths
         outputPaths.formUnion(assetsOutputPaths)
-        
+
         let stringsSideEffects: [SideEffectDescriptor]
         let stringsInputPaths: [AbsolutePath]
         let stringsOutputPaths: Set<AbsolutePath>
@@ -67,7 +67,7 @@ public final class ResourcesNamespaceProjectMapper: ProjectMapping {
         sideEffects += stringsSideEffects
         inputPaths += stringsInputPaths
         outputPaths.formUnion(stringsOutputPaths)
-        
+
         let namespaceScriptSideEffects: [SideEffectDescriptor]
         (target, namespaceScriptSideEffects) = mapAndGenerateNamespaceScript(
             target,
@@ -75,12 +75,12 @@ public final class ResourcesNamespaceProjectMapper: ProjectMapping {
             inputPaths: inputPaths,
             outputPaths: Array(outputPaths)
         )
-        
+
         sideEffects += namespaceScriptSideEffects
-        
+
         return (target, sideEffects)
     }
-    
+
     /// - Returns: Modified `Target`, side effects, input paths and output paths which can then be later used in generate script
     private func renderAndMapTarget(
         _ namespaceType: NamespaceType,
@@ -91,41 +91,41 @@ public final class ResourcesNamespaceProjectMapper: ProjectMapping {
         sideEffects: [SideEffectDescriptor],
         inputPaths: [AbsolutePath],
         outputPaths: Set<AbsolutePath>
-        ) {
-            let derivedPath = project.path
-                .appending(component: Constants.DerivedDirectory.name)
-                .appending(component: Constants.DerivedDirectory.sources)
-            
-            let paths = self.paths(for: namespaceType, target: target)
-            
-            let renderedResources = Set(
-                try namespaceGenerator.render(namespaceType, paths: paths)
-                    .map { name, contents in
-                        RenderedFile(
-                            path: derivedPath.appending(component: name + ".swift"),
-                            contents: contents.data(using: .utf8)
-                        )
+    ) {
+        let derivedPath = project.path
+            .appending(component: Constants.DerivedDirectory.name)
+            .appending(component: Constants.DerivedDirectory.sources)
+
+        let paths = self.paths(for: namespaceType, target: target)
+
+        let renderedResources = Set(
+            try namespaceGenerator.render(namespaceType, paths: paths)
+                .map { name, contents in
+                    RenderedFile(
+                        path: derivedPath.appending(component: name + ".swift"),
+                        contents: contents.data(using: .utf8)
+                    )
                 }
-            )
-            
-            var target = target
-            
-            target.sources += renderedResources
-                .map(\.path)
-                .map { (path: $0, compilerFlags: nil) }
-            
-            let sideEffects = renderedResources
-                .map { FileDescriptor(path: $0.path, contents: $0.contents) }
-                .map(SideEffectDescriptor.file)
-            
-            return (
-                target: target,
-                sideEffects: sideEffects,
-                inputPaths: paths,
-                outputPaths: Set(renderedResources.map(\.path))
-            )
+        )
+
+        var target = target
+
+        target.sources += renderedResources
+            .map(\.path)
+            .map { (path: $0, compilerFlags: nil) }
+
+        let sideEffects = renderedResources
+            .map { FileDescriptor(path: $0.path, contents: $0.contents) }
+            .map(SideEffectDescriptor.file)
+
+        return (
+            target: target,
+            sideEffects: sideEffects,
+            inputPaths: paths,
+            outputPaths: Set(renderedResources.map(\.path))
+        )
     }
-    
+
     private func paths(for namespaceType: NamespaceType, target: Target) -> [AbsolutePath] {
         let resourcesPaths = target.resources
             .map(\.path)
@@ -139,7 +139,7 @@ public final class ResourcesNamespaceProjectMapper: ProjectMapping {
                 .filter { $0.extension == "strings" }
         }
     }
-    
+
     private func mapAndGenerateNamespaceScript(
         _ target: Target,
         project: Project,
@@ -149,7 +149,7 @@ public final class ResourcesNamespaceProjectMapper: ProjectMapping {
         let generateNamespaceScriptPath = project.path
             .appending(component: Constants.DerivedDirectory.name)
             .appending(component: "generate_namespace.sh")
-        
+
         var target = target
         target.actions.append(
             TargetAction(
@@ -161,7 +161,7 @@ public final class ResourcesNamespaceProjectMapper: ProjectMapping {
                 outputPaths: outputPaths
             )
         )
-        
+
         let sideEffects: [SideEffectDescriptor] = [
             .file(
                 FileDescriptor(
@@ -175,7 +175,7 @@ public final class ResourcesNamespaceProjectMapper: ProjectMapping {
                 )
             ),
         ]
-        
+
         return (target, sideEffects)
     }
 }

@@ -1,13 +1,13 @@
 import TSCBasic
-import TuistSupport
-import TuistGenerator
 import TuistCore
+import TuistGenerator
+import TuistSupport
 
 struct NamespaceService {
     private let projectGenerator: ProjectGenerating
     private let sideEffectDescriptorExecutor: SideEffectDescriptorExecuting
     private let resourcesNamespaceProjectMapper: ProjectMapping
-    
+
     init(
         projectGenerator: ProjectGenerating = ProjectGenerator(),
         sideEffectDescriptorExecutor: SideEffectDescriptorExecuting = SideEffectDescriptorExecutor(),
@@ -17,7 +17,7 @@ struct NamespaceService {
         self.sideEffectDescriptorExecutor = sideEffectDescriptorExecutor
         self.resourcesNamespaceProjectMapper = resourcesNamespaceProjectMapper
     }
-    
+
     func run(
         path: String?
     ) throws {
@@ -27,12 +27,12 @@ struct NamespaceService {
             .map(resourcesNamespaceProjectMapper.map)
             .map(\.1)
             .flatMap { $0 }
-        
+
         try sideEffectDescriptorExecutor.execute(sideEffects: sideEffects)
-        
+
         logger.notice("Namespace generated.", metadata: .success)
     }
-    
+
     // MARK: - Helpers
 
     private func path(_ path: String?) -> AbsolutePath {

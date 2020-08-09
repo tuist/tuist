@@ -10,23 +10,23 @@ import XCTest
 final class ResourcesNamespaceProjectMapperTests: TuistUnitTestCase {
     private var subject: ResourcesNamespaceProjectMapper!
     private var namespaceGenerator: MockNamespaceGenerator!
-    
+
     override func setUp() {
         super.setUp()
-        
+
         namespaceGenerator = MockNamespaceGenerator()
         subject = ResourcesNamespaceProjectMapper(
             namespaceGenerator: namespaceGenerator
         )
     }
-    
+
     override func tearDown() {
         super.tearDown()
-        
+
         namespaceGenerator = nil
         subject = nil
     }
-    
+
     func test_map() throws {
         // Given
         namespaceGenerator.renderStub = { _, paths in
@@ -34,23 +34,23 @@ final class ResourcesNamespaceProjectMapperTests: TuistUnitTestCase {
                 .map(\.basenameWithoutExt)
                 .map { (name: $0, contents: $0) }
         }
-        
+
         namespaceGenerator.generateNamespaceScriptStub = {
             "generate namespace"
         }
-        
+
         let projectPath = try temporaryPath()
         let targetAPath = projectPath.appending(component: "TargetA")
         let aAssets = targetAPath.appending(component: "a.xcassets")
         let bAssets = targetAPath.appending(component: "b.xcassets")
         let frenchStrings = targetAPath.appending(components: "french", "aStrings.strings")
         let englishStrings = targetAPath.appending(components: "english", "aStrings.strings")
-        
+
         try fileHandler.createFolder(aAssets)
         try fileHandler.touch(bAssets)
         try fileHandler.touch(frenchStrings)
         try fileHandler.touch(englishStrings)
-        
+
         let targetA = Target.test(
             name: "TargetA",
             resources: [
@@ -64,26 +64,26 @@ final class ResourcesNamespaceProjectMapperTests: TuistUnitTestCase {
                 TargetAction(name: "Postaction", order: .post),
             ]
         )
-        
+
         let project = Project.test(
             path: projectPath,
             targets: [
                 targetA,
             ]
         )
-        
+
         // When
         let (mappedProject, sideEffects) = try subject.map(project: project)
-        
+
         // Then
         let derivedPath = projectPath
             .appending(component: Constants.DerivedDirectory.name)
         let derivedSourcesPath = derivedPath
             .appending(component: Constants.DerivedDirectory.sources)
-        
+
         let generateNamespaceScriptPath = derivedPath
             .appending(component: "generate_namespace.sh")
-        
+
         XCTAssertEqual(
             sideEffects,
             [
@@ -109,10 +109,10 @@ final class ResourcesNamespaceProjectMapperTests: TuistUnitTestCase {
                     CommandDescriptor(
                         command: "chmod", "+x", generateNamespaceScriptPath.pathString
                     )
-                )
+                ),
             ]
         )
-        
+
         XCTAssertEqual(
             mappedProject,
             Project.test(
@@ -123,10 +123,10 @@ final class ResourcesNamespaceProjectMapperTests: TuistUnitTestCase {
                         sources: [
                             (path: derivedSourcesPath
                                 .appending(component: "a.swift"),
-                             compilerFlags: nil),
+                                compilerFlags: nil),
                             (path: derivedSourcesPath
                                 .appending(component: "aStrings.swift"),
-                             compilerFlags: nil),
+                                compilerFlags: nil),
                         ],
                         resources: targetA.resources,
                         actions: [
@@ -140,7 +140,7 @@ final class ResourcesNamespaceProjectMapperTests: TuistUnitTestCase {
                                 inputPaths: [
                                     aAssets,
                                     frenchStrings,
-                                    englishStrings
+                                    englishStrings,
                                 ],
                                 outputPaths: [
                                     derivedSourcesPath
@@ -148,9 +148,9 @@ final class ResourcesNamespaceProjectMapperTests: TuistUnitTestCase {
                                     derivedSourcesPath
                                         .appending(component: "aStrings.swift"),
                                 ]
-                            )
+                            ),
                         ]
-                    )
+                    ),
                 ]
             )
         )

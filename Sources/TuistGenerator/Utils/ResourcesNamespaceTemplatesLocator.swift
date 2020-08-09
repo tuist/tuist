@@ -4,14 +4,14 @@ import TuistSupport
 enum ResourcesNamespaceTemplatesError: FatalError {
     /// File at given path was not found
     case fileNotFound(AbsolutePath)
-    
+
     var type: ErrorType {
         switch self {
         case .fileNotFound:
             return .bug
         }
     }
-    
+
     var description: String {
         switch self {
         case let .fileNotFound(path):
@@ -34,9 +34,9 @@ final class ResourcesNamespaceTemplatesLocator: ResourcesNamespaceTemplatesLocat
         }
         return template
     }
-    
+
     // MARK: - Helpers
-    
+
     private func locateResourcesNamespaceTemplatesDirectory() throws -> AbsolutePath {
         #if DEBUG
             // Used only for debug purposes to find templates in your tuist working directory

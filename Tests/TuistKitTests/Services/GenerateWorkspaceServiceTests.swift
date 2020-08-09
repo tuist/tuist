@@ -16,7 +16,7 @@ final class MockGenerateServiceProjectGeneratorFactory: GenerateServiceProjectGe
     var invokedGeneratorParameters: (cache: Bool, Void)?
     var invokedGeneratorParametersList = [(cache: Bool, Void)]()
     var stubbedGeneratorResult: ProjectGenerating!
-    
+
     func generator(cache: Bool) -> ProjectGenerating {
         invokedGenerator = true
         invokedGeneratorCount += 1
@@ -31,7 +31,7 @@ final class GenerateWrokspaceServiceTests: TuistUnitTestCase {
     var generator: MockProjectGenerator!
     var clock: StubClock!
     var projectGeneratorFactory: MockGenerateServiceProjectGeneratorFactory!
-    
+
     override func setUp() {
         super.setUp()
         projectGeneratorFactory = MockGenerateServiceProjectGeneratorFactory()
@@ -41,13 +41,13 @@ final class GenerateWrokspaceServiceTests: TuistUnitTestCase {
         generator.generateStub = { _, _ in
             AbsolutePath("/Test")
         }
-        
+
         subject = GenerateWorkspaceService(
             clock: clock,
             projectGeneratorFactory: projectGeneratorFactory
         )
     }
-    
+
     override func tearDown() {
         projectGeneratorFactory = nil
         generator = nil
@@ -55,29 +55,29 @@ final class GenerateWrokspaceServiceTests: TuistUnitTestCase {
         subject = nil
         super.tearDown()
     }
-    
+
     func test_run() throws {
         // When
         try subject.testRun()
-        
+
         // Then
         XCTAssertPrinterOutputContains("Project generated.")
     }
-    
+
     func test_run_timeIsPrinted() throws {
         // Given
         clock.assertOnUnexpectedCalls = true
         clock.primedTimers = [
             0.234,
         ]
-        
+
         // When
         try subject.testRun()
-        
+
         // Then
         XCTAssertPrinterOutputContains("Total time taken: 0.234s")
     }
-    
+
     func test_run_withRelativePathParameter() throws {
         // Given
         let temporaryPath = try self.temporaryPath()
@@ -86,14 +86,14 @@ final class GenerateWrokspaceServiceTests: TuistUnitTestCase {
             generationPath = path
             return path.appending(component: "Project.xcworkpsace")
         }
-        
+
         // When
         try subject.testRun(path: "subpath")
-        
+
         // Then
         XCTAssertEqual(generationPath, AbsolutePath("subpath", relativeTo: temporaryPath))
     }
-    
+
     func test_run_withAbsoultePathParameter() throws {
         // Given
         var generationPath: AbsolutePath?
@@ -101,14 +101,14 @@ final class GenerateWrokspaceServiceTests: TuistUnitTestCase {
             generationPath = path
             return path.appending(component: "Project.xcworkpsace")
         }
-        
+
         // When
         try subject.testRun(path: "/some/path")
-        
+
         // Then
         XCTAssertEqual(generationPath, AbsolutePath("/some/path"))
     }
-    
+
     func test_run_withoutPathParameter() throws {
         // Given
         let temporaryPath = try self.temporaryPath()
@@ -117,37 +117,37 @@ final class GenerateWrokspaceServiceTests: TuistUnitTestCase {
             generationPath = path
             return path.appending(component: "Project.xcworkpsace")
         }
-        
+
         // When
         try subject.testRun()
-        
+
         // Then
         XCTAssertEqual(generationPath, temporaryPath)
     }
-    
+
     func test_run_withProjectOnlyParameter() throws {
         // Given
         let projectOnlyValues = [true, false]
-        
+
         // When
         try projectOnlyValues.forEach {
             try subject.testRun(projectOnly: $0)
         }
-        
+
         // Then
         XCTAssertEqual(generator.generateCalls.map(\.projectOnly), [
             true,
             false,
         ])
     }
-    
+
     func test_run_fatalErrors_when_theworkspaceGenerationFails() throws {
         // Given
         let error = NSError.test()
         generator.generateStub = { _, _ in
             throw error
         }
-        
+
         // When / Then
         XCTAssertThrowsError(try subject.testRun()) {
             XCTAssertEqual($0 as NSError, error)
