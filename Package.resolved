@@ -176,8 +176,8 @@
         "package": "SwiftGen",
         "repositoryURL": "https://github.com/fortmarek/SwiftGen",
         "state": {
-          "branch": "pathkit",
-          "revision": "c08802344f69bacc5ec044561c50550d7ddd0429",
+          "branch": "stable",
+          "revision": "db5c510ab89be880b5d7f9d6d43a19faa5f172de",
           "version": null
         }
       },
