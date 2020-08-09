@@ -44,6 +44,14 @@ public final class ResourcesNamespaceProjectMapper: ProjectMapping {
         )
         sideEffects += assetsSideEffects
         
+        let stringsSideEffects: [SideEffectDescriptor]
+        (target, stringsSideEffects) = try renderAndMapTarget(
+            .strings,
+            target: target,
+            project: project
+        )
+        sideEffects += stringsSideEffects
+        
         // TODO: Input + output paths
         let namespaceScriptSideEffects: [SideEffectDescriptor]
         (target, namespaceScriptSideEffects) = mapAndGenerateNamespaceScript(target, project: project)
@@ -72,7 +80,7 @@ public final class ResourcesNamespaceProjectMapper: ProjectMapping {
         
         var target = target
         
-        target.sources += target.sources + renderedResources
+        target.sources += renderedResources
             .map(\.path)
             .map { (path: $0, compilerFlags: nil) }
         
@@ -91,6 +99,9 @@ public final class ResourcesNamespaceProjectMapper: ProjectMapping {
             return resourcesPaths
                 .filter(\.isFolder)
                 .filter { $0.extension == "xcassets" }
+        case .strings:
+            return resourcesPaths
+                .filter { $0.extension == "strings" }
         }
     }
     

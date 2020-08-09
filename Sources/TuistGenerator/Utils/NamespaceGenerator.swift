@@ -6,11 +6,14 @@ import TuistSupport
 
 enum NamespaceType {
     case assets
+    case strings
     
     var templateFileName: String {
         switch self {
         case .assets:
             return "xcassets.stencil"
+        case .strings:
+            return "strings.stencil"
         }
     }
 }
@@ -20,6 +23,8 @@ private extension NamespaceType {
         switch self {
         case .assets:
             return try AssetsCatalog.Parser()
+        case .strings:
+            return try Strings.Parser()
         }
     }
 }
@@ -48,7 +53,8 @@ final class NamespaceGenerator: NamespaceGenerating {
         return try paths.map { path in
             let parser = try namespaceType.parser()
             try parser.parse(path: Path(path.pathString), relativeTo: Path(""))
-            let context = parser.stencilContext()
+            var context = parser.stencilContext()
+            context = try StencilContext.enrich(context: context, parameters: ["publicAccess": true])
             return (path.basenameWithoutExt, try template.render(context))
         }
     }

@@ -43,15 +43,18 @@ final class ResourcesNamespaceProjectMapperTests: TuistUnitTestCase {
         let targetAPath = projectPath.appending(component: "TargetA")
         let aAssets = targetAPath.appending(component: "a.xcassets")
         let bAssets = targetAPath.appending(component: "b.xcassets")
+        let strings = targetAPath.appending(component: "aStrings.strings")
         
         try fileHandler.createFolder(aAssets)
         try fileHandler.touch(bAssets)
+        try fileHandler.touch(strings)
         
         let targetA = Target.test(
             name: "TargetA",
             resources: [
                 .folderReference(path: aAssets),
                 .file(path: bAssets),
+                .folderReference(path: strings)
             ],
             actions: [
                 TargetAction(name: "Preaction", order: .pre),
@@ -89,6 +92,12 @@ final class ResourcesNamespaceProjectMapperTests: TuistUnitTestCase {
                 ),
                 .file(
                     FileDescriptor(
+                        path: derivedSourcesPath.appending(component: "aStrings.swift"),
+                        contents: "aStrings".data(using: .utf8)
+                    )
+                ),
+                .file(
+                    FileDescriptor(
                         path: generateNamespaceScriptPath,
                         contents: "generate namespace".data(using: .utf8)
                     )
@@ -111,6 +120,9 @@ final class ResourcesNamespaceProjectMapperTests: TuistUnitTestCase {
                         sources: [
                             (path: derivedSourcesPath
                                 .appending(component: "a.swift"),
+                             compilerFlags: nil),
+                            (path: derivedSourcesPath
+                                .appending(component: "aStrings.swift"),
                              compilerFlags: nil)
                         ],
                         resources: targetA.resources,

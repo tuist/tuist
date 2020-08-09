@@ -20,6 +20,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         print("AppDelegate -> \(framework1.hello())")
         print("Main bundle image: \(String(describing: UIImage(named: "tuist")))")
         print("Asset catalogue image: \(String(describing: Asset.assetCatalogLogo.image))")
+        print("Greetings: \(L10n.morning)")
         print("StaticFrameworkResource image: \(String(describing: staticFrameworkResources.tuist))")
         print("StaticFramework2Resource image: \(String(describing: staticFramework2Resources.loadImage()))")
         print("StaticFramework3Resource image: \(String(describing: resourcesStaticFramework3.loadImage()))")
