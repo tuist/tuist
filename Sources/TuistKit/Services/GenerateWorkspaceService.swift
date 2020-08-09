@@ -20,7 +20,8 @@ final class GenerateWorkspaceService {
     private let projectGeneratorFactory: GenerateServiceProjectGeneratorFactorying
 
     init(clock: Clock = WallClock(),
-         projectGeneratorFactory: GenerateServiceProjectGeneratorFactorying = GenerateServiceProjectGeneratorFactory()) {
+         projectGeneratorFactory: GenerateServiceProjectGeneratorFactorying = GenerateServiceProjectGeneratorFactory())
+    {
         self.clock = clock
         self.projectGeneratorFactory = projectGeneratorFactory
     }

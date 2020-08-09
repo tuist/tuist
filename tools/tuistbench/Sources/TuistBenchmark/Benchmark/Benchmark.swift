@@ -22,7 +22,8 @@ final class Benchmark {
 
     init(fileHandler: FileHandler,
          binaryPath: AbsolutePath,
-         referenceBinaryPath: AbsolutePath) {
+         referenceBinaryPath: AbsolutePath)
+    {
         self.fileHandler = fileHandler
         self.binaryPath = binaryPath
         self.referenceBinaryPath = referenceBinaryPath
@@ -30,7 +31,8 @@ final class Benchmark {
 
     func benchmark(runs: Int,
                    arguments: [String],
-                   fixturePath: AbsolutePath) throws -> BenchmarkResult {
+                   fixturePath: AbsolutePath) throws -> BenchmarkResult
+    {
         let a = Measure(fileHandler: fileHandler, binaryPath: binaryPath)
         let b = Measure(fileHandler: fileHandler, binaryPath: referenceBinaryPath)
 

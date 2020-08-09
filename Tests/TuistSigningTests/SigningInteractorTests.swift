@@ -216,12 +216,12 @@ final class SigningInteractorTests: TuistUnitTestCase {
                     "other-config": Certificate.test(name: "certB"),
                 ],
             ],
-             provisioningProfiles: [
-                 targetName: [
-                     configuration: expectedProvisioningProfile,
-                     "some-other-config": ProvisioningProfile.test(),
-                 ],
-             ])
+            provisioningProfiles: [
+                targetName: [
+                    configuration: expectedProvisioningProfile,
+                    "some-other-config": ProvisioningProfile.test(),
+                ],
+            ])
         }
 
         let target = Target.test(

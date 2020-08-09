@@ -67,7 +67,8 @@ public struct TargetAction: Equatable {
                 inputPaths: [AbsolutePath] = [],
                 inputFileListPaths: [AbsolutePath] = [],
                 outputPaths: [AbsolutePath] = [],
-                outputFileListPaths: [AbsolutePath] = []) {
+                outputFileListPaths: [AbsolutePath] = [])
+    {
         self.name = name
         self.order = order
         self.tool = tool

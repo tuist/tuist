@@ -7,7 +7,8 @@ public struct ProfileAction: Equatable, Codable {
 
     public init(configurationName: String,
                 executable: TargetReference? = nil,
-                arguments: Arguments? = nil) {
+                arguments: Arguments? = nil)
+    {
         self.configurationName = configurationName
         self.executable = executable
         self.arguments = arguments
@@ -15,7 +16,8 @@ public struct ProfileAction: Equatable, Codable {
 
     public init(config: PresetBuildConfiguration = .release,
                 executable: TargetReference? = nil,
-                arguments: Arguments? = nil) {
+                arguments: Arguments? = nil)
+    {
         self.init(configurationName: config.name,
                   executable: executable,
                   arguments: arguments)

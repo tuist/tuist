@@ -21,7 +21,8 @@ final class ProjectEditorMapper: ProjectEditorMapping {
              manifests: [AbsolutePath],
              helpers: [AbsolutePath],
              templates: [AbsolutePath],
-             projectDescriptionPath: AbsolutePath) throws -> (Project, Graph) {
+             projectDescriptionPath: AbsolutePath) throws -> (Project, Graph)
+    {
         // Settings
         let projectSettings = Settings(base: [:],
                                        configurations: Settings.default.configurations,
@@ -73,7 +74,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
 
         // Run Scheme
         let buildAction = BuildAction(targets: targets.map { TargetReference(projectPath: sourceRootPath, name: $0.name) })
-        let arguments = Arguments(launch: ["generate --path \(sourceRootPath)": true])
+        let arguments = Arguments(launchArguments: ["generate --path \(sourceRootPath)": true])
         let runAction = RunAction(configurationName: "Debug", executable: nil, filePath: tuistPath, arguments: arguments, diagnosticsOptions: Set())
         let scheme = Scheme(name: "Manifests", shared: true, buildAction: buildAction, runAction: runAction)
 
@@ -148,7 +149,8 @@ private extension Target {
     /// Target for edit project
     static func editorHelperTarget(name: String,
                                    targetSettings: Settings,
-                                   sourcePaths: [AbsolutePath]) -> Target {
+                                   sourcePaths: [AbsolutePath]) -> Target
+    {
         Target(name: name,
                platform: .macOS,
                product: .staticFramework,

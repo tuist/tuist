@@ -74,7 +74,8 @@ public class Graph: Encodable, Equatable {
                 cocoapods: [CocoaPodsNode],
                 packages: [PackageNode],
                 precompiled: [PrecompiledNode],
-                targets: [AbsolutePath: [TargetNode]]) {
+                targets: [AbsolutePath: [TargetNode]])
+    {
         self.name = name
         self.entryPath = entryPath
         self.entryNodes = entryNodes
@@ -327,7 +328,8 @@ public class Graph: Encodable, Equatable {
     ///   - name: Name of the target.
     public func embeddableFrameworks(path: AbsolutePath, name: String) throws -> [GraphDependencyReference] {
         guard let targetNode = findTargetNode(path: path, name: name),
-            canEmbedProducts(targetNode: targetNode) else {
+            canEmbedProducts(targetNode: targetNode)
+        else {
             return []
         }
 
@@ -400,6 +402,23 @@ public class Graph: Encodable, Equatable {
         return Set(allDepdendencies).sorted()
     }
 
+    /// Finds all the app extension dependencies for the target at the given path with the given name.
+    /// - Parameters:
+    ///   - path: Path to the directory where the project that defines the target is located.
+    ///   - name: Name of the target.
+    public func appExtensionDependencies(path: AbsolutePath, name: String) -> [TargetNode] {
+        guard let targetNode = findTargetNode(path: path, name: name) else {
+            return []
+        }
+
+        let validProducts: [Product] = [
+            .appExtension, .stickerPackExtension, .watch2Extension, .messagesExtension,
+        ]
+
+        return targetNode.targetDependencies
+            .filter { validProducts.contains($0.target.product) }
+    }
+
     /// Depth-first search (DFS) is an algorithm for traversing graph data structures. It starts at a source node
     /// and explores as far as possible along each branch before backtracking.
     ///
@@ -421,7 +440,8 @@ public class Graph: Encodable, Equatable {
 
     public func findAll<T: GraphNode, S: GraphNode>(targetNode: TargetNode,
                                                     test: (T) -> Bool = { _ in true },
-                                                    skip: (S) -> Bool = { _ in false }) -> Set<T> {
+                                                    skip: (S) -> Bool = { _ in false }) -> Set<T>
+    {
         var stack = Stack<GraphNode>()
 
         stack.push(targetNode)

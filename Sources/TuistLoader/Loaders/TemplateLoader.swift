@@ -7,7 +7,7 @@ import TuistSupport
 public protocol TemplateLoading {
     /// Load `TuistScaffold.Template` at given `path`
     /// - Parameters:
-    ///     - path: Path of template manifest file `Template.swift`
+    ///     - path: Path of template manifest file `name_of_template.swift`
     /// - Returns: Loaded `TuistScaffold.Template`
     func loadTemplate(at path: AbsolutePath) throws -> TuistCore.Template
 }
@@ -57,7 +57,8 @@ extension TuistCore.Template.Attribute {
 
 extension TuistCore.Template.Contents {
     static func from(manifest: ProjectDescription.Template.Contents,
-                     generatorPaths: GeneratorPaths) throws -> TuistCore.Template.Contents {
+                     generatorPaths: GeneratorPaths) throws -> TuistCore.Template.Contents
+    {
         switch manifest {
         case let .string(contents):
             return .string(contents)

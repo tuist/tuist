@@ -19,7 +19,8 @@ final class Updater: Updating {
     init(versionsController: VersionsControlling = VersionsController(),
          installer: Installing = Installer(),
          envUpdater: EnvUpdating = EnvUpdater(),
-         googleCloudStorageClient: GoogleCloudStorageClienting = GoogleCloudStorageClient()) {
+         googleCloudStorageClient: GoogleCloudStorageClienting = GoogleCloudStorageClient())
+    {
         self.versionsController = versionsController
         self.installer = installer
         self.envUpdater = envUpdater

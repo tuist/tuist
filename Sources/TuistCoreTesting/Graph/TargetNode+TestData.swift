@@ -6,7 +6,8 @@ import TSCBasic
 public extension TargetNode {
     static func test(project: Project = .test(),
                      target: Target = .test(),
-                     dependencies: [GraphNode] = []) -> TargetNode {
+                     dependencies: [GraphNode] = []) -> TargetNode
+    {
         TargetNode(project: project,
                    target: target,
                    dependencies: dependencies)

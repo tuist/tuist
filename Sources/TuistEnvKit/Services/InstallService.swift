@@ -9,7 +9,8 @@ final class InstallService {
     private let installer: Installing
 
     init(versionsController: VersionsControlling = VersionsController(),
-         installer: Installing = Installer()) {
+         installer: Installing = Installer())
+    {
         self.versionsController = versionsController
         self.installer = installer
     }

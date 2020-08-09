@@ -1,7 +1,7 @@
 import Foundation
 import TuistCache
+import TuistCloud
 import TuistCore
-import TuistScale
 
 final class CacheStorageProvider: CacheStorageProviding {
     let config: Config
@@ -12,8 +12,8 @@ final class CacheStorageProvider: CacheStorageProviding {
 
     func storages() -> [CacheStoring] {
         var storages: [CacheStoring] = [CacheLocalStorage()]
-        if let scaleConfig = config.scale {
-            let storage = CacheRemoteStorage(scaleConfig: scaleConfig, scaleClient: ScaleClient())
+        if let cloudConfig = config.cloud {
+            let storage = CacheRemoteStorage(cloudConfig: cloudConfig, cloudClient: CloudClient())
             storages.append(storage)
         }
         return storages
