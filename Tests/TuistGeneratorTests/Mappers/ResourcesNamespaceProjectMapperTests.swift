@@ -108,6 +108,11 @@ final class ResourcesNamespaceProjectMapperTests: TuistUnitTestCase {
                 targets: [
                     Target.test(
                         name: targetA.name,
+                        sources: [
+                            (path: derivedSourcesPath
+                                .appending(component: "a.swift"),
+                             compilerFlags: nil)
+                        ],
                         resources: targetA.resources,
                         actions: [
                             TargetAction(name: "Preaction", order: .pre),
