@@ -30,18 +30,36 @@ public final class ResourcesNamespaceProjectMapper: ProjectMapping {
     public func mapTarget(_ target: Target, project: Project) throws -> (Target, [SideEffectDescriptor]) {
         guard !target.resources.isEmpty else { return (target, []) }
         
-        let imageFolders: [AbsolutePath] = target.resources
-            .map(\.path)
-            .filter(\.isFolder)
-            .filter { $0.extension == "xcassets" }
+        var sideEffects: [SideEffectDescriptor] = []
         
+        sideEffects += try render(
+            .assets,
+            target: target,
+            project: project
+        )
+        
+        // TODO: Input + output paths
+        let (target, namespaceScriptSideEffects) = mapAndGenerateNamespaceScript(target, project: project)
+        
+        sideEffects += namespaceScriptSideEffects
+        
+        return (target, sideEffects)
+    }
+    
+    // MARK: - Helpers
+    
+    private func render(
+        _ namespaceType: NamespaceType,
+        target: Target,
+        project: Project
+    ) throws -> [SideEffectDescriptor] {
         let derivedPath = project.path
             .appending(component: Constants.DerivedDirectory.name)
             .appending(component: Constants.DerivedDirectory.sources)
         
-        var sideEffects: [SideEffectDescriptor] = []
+        let paths = self.paths(for: namespaceType, target: target)
         
-        sideEffects += try namespaceGenerator.renderAssets(imageFolders)
+        return try namespaceGenerator.render(namespaceType, paths: paths)
             .map { name, contents in
                 FileDescriptor(
                     path: derivedPath.appending(component: name + ".swift"),
@@ -49,12 +67,24 @@ public final class ResourcesNamespaceProjectMapper: ProjectMapping {
                 )
         }
         .map(SideEffectDescriptor.file)
-        
+    }
+    
+    private func paths(for namespaceType: NamespaceType, target: Target) -> [AbsolutePath] {
+        let resourcesPaths = target.resources
+            .map(\.path)
+        switch namespaceType {
+        case .assets:
+            return resourcesPaths
+                .filter(\.isFolder)
+                .filter { $0.extension == "xcassets" }
+        }
+    }
+    
+    private func mapAndGenerateNamespaceScript(_ target: Target, project: Project) -> (Target, [SideEffectDescriptor]) {
         let generateNamespaceScriptPath = project.path
             .appending(component: Constants.DerivedDirectory.name)
             .appending(component: "generate_namespace.sh")
         
-        // TODO: Input + output paths
         let target = target.with(
             actions: target.actions + [
                 TargetAction(
@@ -66,7 +96,7 @@ public final class ResourcesNamespaceProjectMapper: ProjectMapping {
             ]
         )
         
-        sideEffects += [
+        let sideEffects: [SideEffectDescriptor] = [
             .file(
                 FileDescriptor(
                     path: generateNamespaceScriptPath,

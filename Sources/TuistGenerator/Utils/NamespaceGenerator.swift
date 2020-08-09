@@ -4,8 +4,28 @@ import StencilSwiftKit
 import TSCBasic
 import TuistSupport
 
+enum NamespaceType {
+    case assets
+    
+    var templateFileName: String {
+        switch self {
+        case .assets:
+            return "xcassets.stencil"
+        }
+    }
+}
+
+private extension NamespaceType {
+    func parser() throws -> Parser {
+        switch self {
+        case .assets:
+            return try AssetsCatalog.Parser()
+        }
+    }
+}
+
 protocol NamespaceGenerating {
-    func renderAssets(_ assetPaths: [AbsolutePath]) throws -> [(name: String, contents: String)]
+    func render(_ namespaceType: NamespaceType, paths: [AbsolutePath]) throws -> [(name: String, contents: String)]
 }
 
 final class NamespaceGenerator: NamespaceGenerating {
@@ -17,15 +37,15 @@ final class NamespaceGenerator: NamespaceGenerating {
         self.resourcesNamespaceTemplatesLocator = resourcesNamespaceTemplatesLocator
     }
     
-    func renderAssets(_ assetPaths: [AbsolutePath]) throws -> [(name: String, contents: String)] {
-        let templatePath = try resourcesNamespaceTemplatesLocator.locateAssetsTemplate()
+    func render(_ namespaceType: NamespaceType, paths: [AbsolutePath]) throws -> [(name: String, contents: String)] {
+        let templatePath = try resourcesNamespaceTemplatesLocator.locateTemplate(for: namespaceType)
         let template = StencilSwiftTemplate(
             templateString: try FileHandler.shared.readTextFile(templatePath),
             environment: stencilSwiftEnvironment()
         )
         
-        return try assetPaths.map { path in
-            let parser = try AssetsCatalog.Parser()
+        return try paths.map { path in
+            let parser = try namespaceType.parser()
             try parser.parse(path: Path(path.pathString), relativeTo: Path(""))
             let context = parser.stencilContext()
             return (path.basenameWithoutExt, try template.render(context))
