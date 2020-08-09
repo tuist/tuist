@@ -59,9 +59,7 @@ Feature: Generate a new project using Tuist (suite 2)
     Then the product 'App.app' with destination 'Debug-iphoneos' contains resource 'Examples/list.json'
     Then the product 'App.app' with destination 'Debug-iphoneos' contains resource 'Assets.car'
     Then the product 'App.app' with destination 'Debug-iphoneos' contains resource 'resource.txt'
-    Then the product 'App.app' with destination 'Debug-iphoneos' contains resource 'en.lproj/App.strings'
     Then the product 'App.app' with destination 'Debug-iphoneos' contains resource 'en.lproj/Greetings.strings'
-    Then the product 'App.app' with destination 'Debug-iphoneos' contains resource 'fr.lproj/App.strings'
     Then the product 'App.app' with destination 'Debug-iphoneos' contains resource 'fr.lproj/Greetings.strings'
     Then the product 'App.app' with destination 'Debug-iphoneos' contains resource 'resource_without_extension'
     Then the product 'App.app' with destination 'Debug-iphoneos' does not contain resource 'do_not_include.dat'
@@ -75,4 +73,14 @@ Feature: Generate a new project using Tuist (suite 2)
     Then the product 'StaticFramework3Resources.bundle' with destination 'Debug-iphoneos' contains resource 'StaticFramework3Resources-tuist.png'
     Then the product 'StaticFramework4Resources.bundle' with destination 'Debug-iphoneos' contains resource 'StaticFramework4Resources-tuist.png'
     Then a file App/Derived/Sources/Bundle+App.swift exists
+    Then a file App/Derived/Sources/Greetings.swift exists
+    Then a file App/Derived/Sources/Assets.swift exists
+
+  Scenario: The project is an iOS application that has resources (ios_app_with_framework_and_resources)
+    Given that tuist is available
+    And I have a working directory
+    Then I copy the fixture ios_app_with_framework_and_resources into the working directory
+    Then tuist generates namespace for the project
+    Then a file App/Derived/Sources/Bundle+App.swift exists
+    Then a file App/Derived/Sources/Greetings.swift exists
     Then a file App/Derived/Sources/Assets.swift exists

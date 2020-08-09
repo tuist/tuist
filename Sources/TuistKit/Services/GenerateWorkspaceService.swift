@@ -13,7 +13,7 @@ final class GenerateServiceProjectGeneratorFactory: GenerateServiceProjectGenera
     }
 }
 
-final class GenerateService {
+final class GenerateWorkspaceService {
     // MARK: - Attributes
 
     private let clock: Clock

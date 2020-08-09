@@ -1,5 +1,9 @@
 # frozen_string_literal: true
 
+Then(/^tuist generates namespace for the project$/) do
+  system("swift", "run", "tuist", "generate", "namespace", "--path", @dir)
+end
+
 Then("the product {string} with destination {string} contains the framework {string} with architecture {string}") do |product, destination, framework, architecture|
   framework_path = Xcode.find_framework(
     product: product,
