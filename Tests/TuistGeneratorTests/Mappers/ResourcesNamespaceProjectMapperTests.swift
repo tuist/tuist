@@ -43,18 +43,21 @@ final class ResourcesNamespaceProjectMapperTests: TuistUnitTestCase {
         let targetAPath = projectPath.appending(component: "TargetA")
         let aAssets = targetAPath.appending(component: "a.xcassets")
         let bAssets = targetAPath.appending(component: "b.xcassets")
-        let strings = targetAPath.appending(component: "aStrings.strings")
+        let frenchStrings = targetAPath.appending(components: "french", "aStrings.strings")
+        let englishStrings = targetAPath.appending(components: "english", "aStrings.strings")
         
         try fileHandler.createFolder(aAssets)
         try fileHandler.touch(bAssets)
-        try fileHandler.touch(strings)
+        try fileHandler.touch(frenchStrings)
+        try fileHandler.touch(englishStrings)
         
         let targetA = Target.test(
             name: "TargetA",
             resources: [
                 .folderReference(path: aAssets),
                 .file(path: bAssets),
-                .folderReference(path: strings)
+                .file(path: frenchStrings),
+                .file(path: englishStrings),
             ],
             actions: [
                 TargetAction(name: "Preaction", order: .pre),
@@ -123,7 +126,7 @@ final class ResourcesNamespaceProjectMapperTests: TuistUnitTestCase {
                              compilerFlags: nil),
                             (path: derivedSourcesPath
                                 .appending(component: "aStrings.swift"),
-                             compilerFlags: nil)
+                             compilerFlags: nil),
                         ],
                         resources: targetA.resources,
                         actions: [
@@ -136,13 +139,14 @@ final class ResourcesNamespaceProjectMapperTests: TuistUnitTestCase {
                                 skipLint: true,
                                 inputPaths: [
                                     aAssets,
-                                    strings
+                                    frenchStrings,
+                                    englishStrings
                                 ],
                                 outputPaths: [
                                     derivedSourcesPath
                                         .appending(component: "a.swift"),
                                     derivedSourcesPath
-                                        .appending(component: "aStrings.swift")
+                                        .appending(component: "aStrings.swift"),
                                 ]
                             )
                         ]
