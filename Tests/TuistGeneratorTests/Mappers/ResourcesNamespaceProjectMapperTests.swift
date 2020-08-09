@@ -133,7 +133,17 @@ final class ResourcesNamespaceProjectMapperTests: TuistUnitTestCase {
                                 name: "Generate namespace",
                                 order: .pre,
                                 path: generateNamespaceScriptPath,
-                                skipLint: true
+                                skipLint: true,
+                                inputPaths: [
+                                    aAssets,
+                                    strings
+                                ],
+                                outputPaths: [
+                                    derivedSourcesPath
+                                        .appending(component: "a.swift"),
+                                    derivedSourcesPath
+                                        .appending(component: "aStrings.swift")
+                                ]
                             )
                         ]
                     )

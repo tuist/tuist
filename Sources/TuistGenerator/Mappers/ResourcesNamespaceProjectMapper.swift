@@ -29,43 +29,64 @@ public final class ResourcesNamespaceProjectMapper: ProjectMapping {
     
     // MARK: - Helpers
     
+    /// Map and generate namespace for a given `Target` and `Project`
     private func mapTarget(_ target: Target, project: Project) throws -> (Target, [SideEffectDescriptor]) {
         guard !target.resources.isEmpty else { return (target, []) }
         
         var target = target
         
         var sideEffects: [SideEffectDescriptor] = []
+        var inputPaths: [AbsolutePath] = []
+        var outputPaths: [AbsolutePath] = []
         
         let assetsSideEffects: [SideEffectDescriptor]
-        (target, assetsSideEffects) = try renderAndMapTarget(
+        let assetsInputPaths: [AbsolutePath]
+        let assetsOutputPaths: [AbsolutePath]
+        (target, assetsSideEffects, assetsInputPaths, assetsOutputPaths) = try renderAndMapTarget(
             .assets,
             target: target,
             project: project
         )
         sideEffects += assetsSideEffects
+        inputPaths += assetsInputPaths
+        outputPaths += assetsOutputPaths
         
         let stringsSideEffects: [SideEffectDescriptor]
-        (target, stringsSideEffects) = try renderAndMapTarget(
+        let stringsInputPaths: [AbsolutePath]
+        let stringsOutputPaths: [AbsolutePath]
+        (target, stringsSideEffects, stringsInputPaths, stringsOutputPaths) = try renderAndMapTarget(
             .strings,
             target: target,
             project: project
         )
         sideEffects += stringsSideEffects
+        inputPaths += stringsInputPaths
+        outputPaths += stringsOutputPaths
         
-        // TODO: Input + output paths
         let namespaceScriptSideEffects: [SideEffectDescriptor]
-        (target, namespaceScriptSideEffects) = mapAndGenerateNamespaceScript(target, project: project)
+        (target, namespaceScriptSideEffects) = mapAndGenerateNamespaceScript(
+            target,
+            project: project,
+            inputPaths: inputPaths,
+            outputPaths: outputPaths
+        )
         
         sideEffects += namespaceScriptSideEffects
         
         return (target, sideEffects)
     }
-    
+
+    /// - Returns: Modified `Target`, side effects, input paths and output paths which can then be later used in generate script
     private func renderAndMapTarget(
         _ namespaceType: NamespaceType,
         target: Target,
         project: Project
-    ) throws -> (Target, [SideEffectDescriptor]) {
+    ) throws -> (
+        target: Target,
+        sideEffects: [SideEffectDescriptor],
+        inputPaths: [AbsolutePath],
+        outputPaths: [AbsolutePath]
+    ) {
         let derivedPath = project.path
             .appending(component: Constants.DerivedDirectory.name)
             .appending(component: Constants.DerivedDirectory.sources)
@@ -88,7 +109,12 @@ public final class ResourcesNamespaceProjectMapper: ProjectMapping {
         .map { FileDescriptor(path: $0.path, contents: $0.contents) }
         .map(SideEffectDescriptor.file)
         
-        return (target, sideEffects)
+        return (
+            target: target,
+            sideEffects: sideEffects,
+            inputPaths: paths,
+            outputPaths: renderedResources.map(\.path)
+        )
     }
     
     private func paths(for namespaceType: NamespaceType, target: Target) -> [AbsolutePath] {
@@ -105,7 +131,12 @@ public final class ResourcesNamespaceProjectMapper: ProjectMapping {
         }
     }
     
-    private func mapAndGenerateNamespaceScript(_ target: Target, project: Project) -> (Target, [SideEffectDescriptor]) {
+    private func mapAndGenerateNamespaceScript(
+        _ target: Target,
+        project: Project,
+        inputPaths: [AbsolutePath],
+        outputPaths: [AbsolutePath]
+    ) -> (Target, [SideEffectDescriptor]) {
         let generateNamespaceScriptPath = project.path
             .appending(component: Constants.DerivedDirectory.name)
             .appending(component: "generate_namespace.sh")
@@ -116,7 +147,9 @@ public final class ResourcesNamespaceProjectMapper: ProjectMapping {
                 name: "Generate namespace",
                 order: .pre,
                 path: generateNamespaceScriptPath,
-                skipLint: true
+                skipLint: true,
+                inputPaths: inputPaths,
+                outputPaths: outputPaths
             )
         )
         
