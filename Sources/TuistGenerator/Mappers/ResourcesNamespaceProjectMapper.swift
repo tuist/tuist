@@ -27,7 +27,9 @@ public final class ResourcesNamespaceProjectMapper: ProjectMapping {
         return (project.with(targets: targets), sideEffects)
     }
     
-    public func mapTarget(_ target: Target, project: Project) throws -> (Target, [SideEffectDescriptor]) {
+    // MARK: - Helpers
+    
+    private func mapTarget(_ target: Target, project: Project) throws -> (Target, [SideEffectDescriptor]) {
         guard !target.resources.isEmpty else { return (target, []) }
         
         var sideEffects: [SideEffectDescriptor] = []
@@ -45,8 +47,6 @@ public final class ResourcesNamespaceProjectMapper: ProjectMapping {
         
         return (target, sideEffects)
     }
-    
-    // MARK: - Helpers
     
     private func render(
         _ namespaceType: NamespaceType,
@@ -100,7 +100,7 @@ public final class ResourcesNamespaceProjectMapper: ProjectMapping {
             .file(
                 FileDescriptor(
                     path: generateNamespaceScriptPath,
-                    contents: ResourcesNamespaceProjectMapper.generateNamespaceScript.data(using: .utf8)
+                    contents: namespaceGenerator.generateNamespaceScript().data(using: .utf8)
                 )
             ),
             .command(
@@ -112,27 +112,4 @@ public final class ResourcesNamespaceProjectMapper: ProjectMapping {
         
         return (target, sideEffects)
     }
-    
-    private static let generateNamespaceScript: String = {
-        #if DEBUG
-        // Used only for debug purposes to find currently-built tuist
-        // `bundlePath` points to .build/debug/tuist
-        let tuistCommand = AbsolutePath(#file.replacingOccurrences(of: "file://", with: ""))
-            .removingLastComponent()
-            .removingLastComponent()
-            .removingLastComponent()
-            .removingLastComponent()
-            .appending(components: ".build", "debug", "tuist")
-            .pathString
-        #else
-        let tuistCommand = "tuist"
-        #endif
-        return """
-        #!/bin/sh
-        
-        pushd "${SRCROOT}"
-        \(tuistCommand) generate namespace
-        popd
-        """
-    }()
 }

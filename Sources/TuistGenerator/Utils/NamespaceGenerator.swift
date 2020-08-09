@@ -26,6 +26,7 @@ private extension NamespaceType {
 
 protocol NamespaceGenerating {
     func render(_ namespaceType: NamespaceType, paths: [AbsolutePath]) throws -> [(name: String, contents: String)]
+    func generateNamespaceScript() -> String
 }
 
 final class NamespaceGenerator: NamespaceGenerating {
@@ -50,5 +51,28 @@ final class NamespaceGenerator: NamespaceGenerating {
             let context = parser.stencilContext()
             return (path.basenameWithoutExt, try template.render(context))
         }
+    }
+    
+    func generateNamespaceScript() -> String {
+        #if DEBUG
+        // Used only for debug purposes to find currently-built tuist
+        // `bundlePath` points to .build/debug/tuist
+        let tuistCommand = AbsolutePath(#file.replacingOccurrences(of: "file://", with: ""))
+            .removingLastComponent()
+            .removingLastComponent()
+            .removingLastComponent()
+            .removingLastComponent()
+            .appending(components: ".build", "debug", "tuist")
+            .pathString
+        #else
+        let tuistCommand = "tuist"
+        #endif
+        return """
+        #!/bin/sh
+        
+        pushd "${SRCROOT}"
+        \(tuistCommand) generate namespace
+        popd
+        """
     }
 }

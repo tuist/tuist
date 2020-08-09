@@ -6,4 +6,9 @@ final class MockNamespaceGenerator: NamespaceGenerating {
     func render(_ namespaceType: NamespaceType, paths: [AbsolutePath]) throws -> [(name: String, contents: String)] {
         try renderStub?(namespaceType, paths) ?? []
     }
+    
+    var generateNamespaceScriptStub: (() -> String)?
+    func generateNamespaceScript() -> String {
+        generateNamespaceScriptStub?() ?? ""
+    }
 }
