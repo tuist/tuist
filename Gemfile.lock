@@ -170,7 +170,7 @@ GEM
       uber (< 0.2.0)
     retriable (3.1.2)
     rexml (3.2.4)
-    rubocop (0.88.0)
+    rubocop (0.89.0)
       parallel (~> 1.10)
       parser (>= 2.7.1.1)
       rainbow (>= 2.2.2, < 4.0)
@@ -221,7 +221,7 @@ DEPENDENCIES
   highline (~> 2.0)
   minitest (~> 5.14)
   rake (~> 13.0)
-  rubocop (~> 0.88.0)
+  rubocop (~> 0.89.0)
   simctl (~> 1.6)
   xcodeproj (~> 1.17)
 
