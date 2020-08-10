@@ -39,7 +39,7 @@ final class SetupLoaderTests: TuistUnitTestCase {
     func test_meet_when_no_actions() throws {
         // given
         let projectPath = try temporaryPath()
-        try FileHandler.shared.touch(projectPath.appending(component: Manifest.setup.fileName))
+        try FileHandler.shared.touch(projectPath.appending(component: Manifest.setup.fileName(projectPath)))
         var receivedPaths = [String]()
         manifestLoader.loadSetupStub = { gotPath in
             receivedPaths.append(gotPath.pathString)
@@ -56,7 +56,7 @@ final class SetupLoaderTests: TuistUnitTestCase {
     func test_meet_when_actions_provided() throws {
         // given
         let projectPath = try temporaryPath()
-        try FileHandler.shared.touch(projectPath.appending(component: Manifest.setup.fileName))
+        try FileHandler.shared.touch(projectPath.appending(component: Manifest.setup.fileName(projectPath)))
 
         let mockUp1 = MockUp(name: "1")
         mockUp1.isMetStub = { _ in true }
@@ -82,7 +82,7 @@ final class SetupLoaderTests: TuistUnitTestCase {
         // given
         let temporaryPath = try self.temporaryPath()
         let projectPath = temporaryPath.appending(component: "Project")
-        try FileHandler.shared.touch(temporaryPath.appending(component: Manifest.setup.fileName))
+        try FileHandler.shared.touch(temporaryPath.appending(component: Manifest.setup.fileName(projectPath)))
 
         let mockUp1 = MockUp(name: "1")
         mockUp1.isMetStub = { _ in true }
@@ -107,7 +107,7 @@ final class SetupLoaderTests: TuistUnitTestCase {
     func test_meet_when_loadSetup_throws() throws {
         // given
         let projectPath = try temporaryPath()
-        try FileHandler.shared.touch(projectPath.appending(component: Manifest.setup.fileName))
+        try FileHandler.shared.touch(projectPath.appending(component: Manifest.setup.fileName(projectPath)))
         manifestLoader.loadSetupStub = { _ in throw ManifestLoaderError.manifestNotFound(.setup, projectPath) }
 
         // when / then

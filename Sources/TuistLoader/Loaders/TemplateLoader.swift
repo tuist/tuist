@@ -7,7 +7,7 @@ import TuistSupport
 public protocol TemplateLoading {
     /// Load `TuistScaffold.Template` at given `path`
     /// - Parameters:
-    ///     - path: Path of template manifest file `Template.swift`
+    ///     - path: Path of template manifest file `name_of_template.swift`
     /// - Returns: Loaded `TuistScaffold.Template`
     func loadTemplate(at path: AbsolutePath) throws -> TuistCore.Template
 }

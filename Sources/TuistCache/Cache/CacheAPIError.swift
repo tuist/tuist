@@ -1,6 +1,6 @@
 import Foundation
 
 enum CacheAPIError: LocalizedError {
-    case incorrectScaleURL
-    case missingScaleConfig
+    case incorrectCloudURL
+    case missingCloudConfig
 }

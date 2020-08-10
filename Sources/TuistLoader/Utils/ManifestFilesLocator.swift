@@ -25,7 +25,7 @@ public final class ManifestFilesLocator: ManifestFilesLocating {
 
     public func locate(at: AbsolutePath) -> [(Manifest, AbsolutePath)] {
         Manifest.allCases.compactMap { manifest in
-            let path = at.appending(component: manifest.fileName)
+            let path = at.appending(component: manifest.fileName(at))
             if FileHandler.shared.exists(path) { return (manifest, path) }
             return nil
         }
@@ -33,8 +33,8 @@ public final class ManifestFilesLocator: ManifestFilesLocating {
 
     public func locateAll(at: AbsolutePath) -> [(Manifest, AbsolutePath)] {
         guard let rootPath = rootDirectoryLocator.locate(from: at) else { return locate(at: at) }
-        let projectsPaths = FileHandler.shared.glob(rootPath, glob: "**/\(Manifest.project.fileName)").map { (Manifest.project, $0) }
-        let workspacesPaths = FileHandler.shared.glob(rootPath, glob: "**/\(Manifest.workspace.fileName)").map { (Manifest.workspace, $0) }
+        let projectsPaths = FileHandler.shared.glob(rootPath, glob: "**/\(Manifest.project.fileName(at))").map { (Manifest.project, $0) }
+        let workspacesPaths = FileHandler.shared.glob(rootPath, glob: "**/\(Manifest.workspace.fileName(at))").map { (Manifest.workspace, $0) }
         return projectsPaths + workspacesPaths
     }
 }

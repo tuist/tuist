@@ -62,7 +62,7 @@ public class SetupLoader: SetupLoading {
     ///           or if there isn't a `Setup.swift` file within the project path.
     public func meet(at path: AbsolutePath) throws {
         let path = try lookupManifest(from: path)
-        logger.info("Setting up the environment defined in \(path.appending(component: Manifest.setup.fileName).pathString)")
+        logger.info("Setting up the environment defined in \(path.appending(component: Manifest.setup.fileName(path)).pathString)")
         let setup = try manifestLoader.loadSetup(at: path)
         try setup.map { command in upLinter.lint(up: command) }
             .flatMap { $0 }
@@ -78,7 +78,7 @@ public class SetupLoader: SetupLoading {
     /// It traverses up the directory hierarchy until it finds a Setup.swift file.
     /// - Parameter path: Path from where to do the lookup.
     private func lookupManifest(from path: AbsolutePath) throws -> AbsolutePath {
-        let manfiestPath = path.appending(component: Manifest.setup.fileName)
+        let manfiestPath = path.appending(component: Manifest.setup.fileName(path))
         if FileHandler.shared.exists(manfiestPath) {
             return path
         } else if path != .root {

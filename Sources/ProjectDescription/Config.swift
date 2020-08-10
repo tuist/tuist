@@ -21,22 +21,22 @@ public struct Config: Codable, Equatable {
     /// List of Xcode versions that the project supports.
     public let compatibleXcodeVersions: CompatibleXcodeVersions
 
-    /// Scale configuration.
-    public let scale: Scale?
+    /// Cloud configuration.
+    public let cloud: Cloud?
 
     /// Initializes the tuist cofiguration.
     ///
     /// - Parameters:
     ///   - compatibleXcodeVersions: List of Xcode versions the project is compatible with.
-    ///   - scale: Scale configuration.
+    ///   - cloud: Cloud configuration.
     ///   - generationOptions: List of options to use when generating the project.
     public init(compatibleXcodeVersions: CompatibleXcodeVersions = .all,
-                scale: Scale? = nil,
+                cloud: Cloud? = nil,
                 generationOptions: [GenerationOptions])
     {
         self.compatibleXcodeVersions = compatibleXcodeVersions
         self.generationOptions = generationOptions
-        self.scale = scale
+        self.cloud = cloud
         dumpIfNeeded(self)
     }
 }
