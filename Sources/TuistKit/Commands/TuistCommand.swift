@@ -28,7 +28,7 @@ public struct TuistCommand: ParsableCommand {
                                  CleanCommand.self,
                              ])
     }
-    
+
     @Flag(
         name: [.customLong("help-env")],
         help: "Display subcommands to manage the environment tuist versions."
