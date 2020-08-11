@@ -1,0 +1,22 @@
+{
+  "name": "tuist-stats",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
+  },
+  "dependencies": {
+    "next": "^9.5.1",
+    "react": "^16.13.1",
+    "react-dom": "^16.13.1"
+  },
+  "devDependencies": {
+    "@types/node": "^14.0.27",
+    "@types/react": "^16.9.46",
+    "postcss-preset-env": "^6.7.0",
+    "tailwindcss": "^1.6.2",
+    "typescript": "^3.9.7"
+  }
+}
