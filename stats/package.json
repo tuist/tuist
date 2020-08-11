@@ -8,6 +8,9 @@
     "start": "next start"
   },
   "dependencies": {
+    "@mdx-js/loader": "^1.6.16",
+    "@next/mdx": "^9.5.2",
+    "@primer/octicons-react": "^10.0.0",
     "@tailwindcss/typography": "^0.2.0",
     "next": "^9.5.1",
     "next-images": "^1.4.1",
