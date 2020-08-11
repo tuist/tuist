@@ -26,7 +26,7 @@ jobs:
     runs-on: macOS-latest
     strategy:
       matrix:
-        xcode: ["11.3.1", "11.5", "12_beta"]
+        xcode: [11.5", '12_beta']
     steps:
       - uses: actions/checkout@v1
       - name: Select Xcode
@@ -41,7 +41,7 @@ jobs:
     runs-on: macOS-latest
     strategy:
       matrix:
-        xcode: ["11.3.1", "11.4"]
+        xcode: ['11.5']
     steps:
       - uses: actions/checkout@v1
       - name: Select Xcode
@@ -55,21 +55,21 @@ jobs:
     runs-on: macOS-latest
     strategy:
       matrix:
-        xcode: ["11.5"]
+        xcode: ['11.5']
         feature:
           [
-            "generate-1",
-            "generate-2",
-            "generate-3",
-            "generate-4",
-            "generate-5",
-            "generate-6",
-            "init",
-            "lint",
-            "scaffold",
-            "up",
-            "build",
-            "cache",
+            'generate-1',
+            'generate-2',
+            'generate-3',
+            'generate-4',
+            'generate-5',
+            'generate-6',
+            'init',
+            'lint',
+            'scaffold',
+            'up',
+            'build',
+            'cache',
           ]
     steps:
       - uses: actions/checkout@v1
@@ -77,7 +77,7 @@ jobs:
         run: sudo xcode-select -switch /Applications/Xcode_${{ matrix.xcode }}.app
       - uses: actions/setup-ruby@v1
         with:
-          ruby-version: "2.x"
+          ruby-version: '2.x'
       - name: Install Bundler 2.0.2
         run: gem install bundler --version 2.0.2
       - name: Install Bundler dependencies
@@ -94,7 +94,7 @@ jobs:
         run: sudo xcode-select -switch /Applications/Xcode_11.5.app
       - uses: actions/setup-ruby@v1
         with:
-          ruby-version: "2.x"
+          ruby-version: '2.x'
       - name: Install Bundler 2.0.2
         run: gem install bundler --version 2.0.2
       - name: Install Bundler dependencies
