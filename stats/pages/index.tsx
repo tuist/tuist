@@ -26,7 +26,8 @@ function HomePage() {
               and for the users of the tool.
             </p>
             <p className="text-center text-yellow-700 leading-8 prose-lg">
-              Please note that this website is currently work-in-progress.
+              Please note that this website is currently work-in-progress so the
+              data presented is fake at the moment.
             </p>
 
             <div className="mt-10">
