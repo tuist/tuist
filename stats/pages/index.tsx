@@ -1,4 +1,3 @@
-import logo from '../../website/static/logo.svg'
 import Head from '../components/head'
 
 function HomePage() {
@@ -11,7 +10,7 @@ function HomePage() {
           <div className="text-lg max-w-prose mx-auto mb-6">
             <div className="flex justify-center mb-16">
               <a href="https://tuist.io">
-                <img src={logo} />
+                <img src="/logo.svg" />
               </a>
             </div>
             <p className="text-base text-center leading-6 text-blue-600 font-semibold tracking-wide uppercase">
