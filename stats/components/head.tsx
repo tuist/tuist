@@ -12,7 +12,7 @@ const Head = () => {
       <meta property="og:title" content={title} key="title" />
       <meta property="og:description" content={description} />
       <meta name="twitter:creator" content="@tuistio" />
-      <meta name="twitter:card" content="summary" />
+      <meta name="twitter:card" content="summary_large_image" />
       <meta name="twitter:site" content="@tuistio" />
       <meta
         name="twitter:image"
