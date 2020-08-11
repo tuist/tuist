@@ -1,3 +1,7 @@
 {
-  "recommendations": ["blodwynn.featurehighlight", "silvenon.mdx"]
+  "recommendations": [
+    "blodwynn.featurehighlight",
+    "silvenon.mdx",
+    "bradlc.vscode-tailwindcss"
+  ]
 }
