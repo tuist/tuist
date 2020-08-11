@@ -12,12 +12,9 @@ const Head = () => {
       <meta property="og:title" content={title} key="title" />
       <meta property="og:description" content={description} />
       <meta name="twitter:creator" content="@tuistio" />
-      <meta name="twitter:card" content="summary_large_image" />
+      <meta name="twitter:card" content="summary" />
       <meta name="twitter:site" content="@tuistio" />
-      <meta
-        name="twitter:image"
-        content="https://stats.tuist.io/twitter-card.png"
-      />
+      <meta name="twitter:image" content="https://stats.tuist.io/logo.png" />
       <link rel="apple-touch-icon" sizes="57x57" href="/apple-icon-57x57.png" />
       <link rel="apple-touch-icon" sizes="60x60" href="/apple-icon-60x60.png" />
       <link rel="apple-touch-icon" sizes="72x72" href="/apple-icon-72x72.png" />
