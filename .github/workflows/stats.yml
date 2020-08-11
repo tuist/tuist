@@ -1,17 +1,21 @@
-name: Website
+name: Stats
 
-on: ['push']
+on: [push]
 
 jobs:
   build:
-    name: Build
     runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [12.x]
+
     steps:
-      - uses: actions/checkout@v1
-      - name: Set Node.js
-        uses: actions/setup-node@master
+      - uses: actions/checkout@v2
+      - name: Use Node.js
+        uses: actions/setup-node@v1
         with:
-          node-version: 12.x
+          node-version: '12.x'
       - name: Get yarn cache directory path
         id: yarn-cache-dir-path
         run: echo "::set-output name=dir::$(yarn cache dir)"
@@ -23,8 +27,8 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-yarn-
       - name: Install dependencies
-        working-directory: ./website
-        run: yarn install --prod --pure-lockfile
+        working-directory: ./stats
+        run: yarn --frozen-lockfile
       - name: Build
-        working-directory: ./website
+        working-directory: ./stats
         run: yarn build

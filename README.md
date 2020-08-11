@@ -30,6 +30,14 @@ tuist build # Builds your project
 
 [Check out](https://tuist.io/docs) the project "Getting Started" guide to learn more about Tuist and all its features.
 
+## Repository structure
+
+The repository is a monorepo with multiple projects:
+
+- [Swift Package (CLI) 📦](/)
+- [Main Website 🌍](/website)
+- [Stats website 📈](/stats)
+
 ## Documentation 📝
 
 Do you want to know more about what Tuist can offer you? Or perhaps want to contribute to the project and you need a starting point? You can check out the [project documentation](https://tuist.io/docs/usage/getting-started/).
