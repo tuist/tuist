@@ -8,12 +8,16 @@ const Head = () => {
     <NextHead>
       <title>{title}</title>
       <meta name="viewport" content="initial-scale=1.0, width=device-width" />
-      <meta name="description" content={description} data-rh="true" />
+      <meta name="description" content={description} />
       <meta property="og:title" content={title} key="title" />
-      <meta property="og:description" content={description} data-rh="true" />
-      <meta data-rh="true" name="twitter:creator" content="@tuistio" />
-      <meta data-rh="true" name="twitter:card" content="summary" />
-      <meta data-rh="true" name="twitter:site" content="@tuistio" />
+      <meta property="og:description" content={description} />
+      <meta name="twitter:creator" content="@tuistio" />
+      <meta name="twitter:card" content="summary" />
+      <meta name="twitter:site" content="@tuistio" />
+      <meta
+        name="twitter:image"
+        content="https://stats.tuist.io/twitter-card.png"
+      />
       <link rel="apple-touch-icon" sizes="57x57" href="/apple-icon-57x57.png" />
       <link rel="apple-touch-icon" sizes="60x60" href="/apple-icon-60x60.png" />
       <link rel="apple-touch-icon" sizes="72x72" href="/apple-icon-72x72.png" />
