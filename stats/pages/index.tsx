@@ -1,190 +1,122 @@
+import Head from 'next/head'
+import logo from '../../website/static/logo.svg'
+
 function HomePage() {
+  const description =
+    'Insights about how people use Tuist to help make informed decision and prioritize future work on Tuist.'
+  const title = `Tuist Statistics`
+
   return (
-    <div className="relative py-16 bg-white overflow-hidden">
-      <div className="hidden lg:block lg:absolute lg:inset-y-0 lg:h-full lg:w-full">
-        <div className="relative h-full text-lg max-w-prose mx-auto">
-          <svg
-            className="absolute top-12 left-full transform translate-x-32"
-            width={404}
-            height={384}
-            fill="none"
-            viewBox="0 0 404 384"
-          >
-            <defs>
-              <pattern
-                id="74b3fd99-0a6f-4271-bef2-e80eeafdf357"
-                x={0}
-                y={0}
-                width={20}
-                height={20}
-                patternUnits="userSpaceOnUse"
-              >
-                <rect
-                  x={0}
-                  y={0}
-                  width={4}
-                  height={4}
-                  className="text-gray-200"
-                  fill="currentColor"
-                />
-              </pattern>
-            </defs>
-            <rect
-              width={404}
-              height={384}
-              fill="url(#74b3fd99-0a6f-4271-bef2-e80eeafdf357)"
-            />
-          </svg>
-          <svg
-            className="absolute top-1/2 right-full transform -translate-y-1/2 -translate-x-32"
-            width={404}
-            height={384}
-            fill="none"
-            viewBox="0 0 404 384"
-          >
-            <defs>
-              <pattern
-                id="f210dbf6-a58d-4871-961e-36d5016a0f49"
-                x={0}
-                y={0}
-                width={20}
-                height={20}
-                patternUnits="userSpaceOnUse"
-              >
-                <rect
-                  x={0}
-                  y={0}
-                  width={4}
-                  height={4}
-                  className="text-gray-200"
-                  fill="currentColor"
-                />
-              </pattern>
-            </defs>
-            <rect
-              width={404}
-              height={384}
-              fill="url(#f210dbf6-a58d-4871-961e-36d5016a0f49)"
-            />
-          </svg>
-          <svg
-            className="absolute bottom-12 left-full transform translate-x-32"
-            width={404}
-            height={384}
-            fill="none"
-            viewBox="0 0 404 384"
-          >
-            <defs>
-              <pattern
-                id="d3eb07ae-5182-43e6-857d-35c643af9034"
-                x={0}
-                y={0}
-                width={20}
-                height={20}
-                patternUnits="userSpaceOnUse"
-              >
-                <rect
-                  x={0}
-                  y={0}
-                  width={4}
-                  height={4}
-                  className="text-gray-200"
-                  fill="currentColor"
-                />
-              </pattern>
-            </defs>
-            <rect
-              width={404}
-              height={384}
-              fill="url(#d3eb07ae-5182-43e6-857d-35c643af9034)"
-            />
-          </svg>
-        </div>
-      </div>
-      <div className="relative px-4 sm:px-6 lg:px-8">
-        <div className="text-lg max-w-prose mx-auto mb-6">
-          <p className="text-base text-center leading-6 text-indigo-600 font-semibold tracking-wide uppercase">
-            Stats
-          </p>
-          <h1 className="mt-2 mb-8 text-3xl text-center leading-8 font-extrabold tracking-tight text-gray-900 sm:text-4xl sm:leading-10">
-            Learn about how people use Tuist
-          </h1>
-          <p className="text-xl text-gray-500 leading-8">
-            Aliquet nec orci mattis amet quisque ullamcorper neque, nibh sem. At
-            arcu, sit dui mi, nibh dui, diam eget aliquam. Quisque id at vitae
-            feugiat egestas ac. Diam nulla orci at in viverra scelerisque eget.
-            Eleifend egestas fringilla sapien.
-          </p>
-        </div>
-        <div className="prose prose-lg text-gray-500 mx-auto">
-          <p>
-            Faucibus commodo massa rhoncus, volutpat. <strong>Dignissim</strong>{" "}
-            sed <strong>eget risus enim</strong>. Mattis mauris semper sed amet
-            vitae sed turpis id. Id dolor praesent donec est. Odio penatibus
-            risus viverra tellus varius sit neque erat velit. Faucibus commodo
-            massa rhoncus, volutpat. Dignissim sed eget risus enim.{" "}
-            <a href="#">Mattis mauris semper</a> sed amet vitae sed turpis id.
-          </p>
-          <ul>
-            <li>Quis elit egestas venenatis mattis dignissim.</li>
-            <li>
-              Cras cras lobortis vitae vivamus ultricies facilisis tempus.
-            </li>
-            <li>Orci in sit morbi dignissim metus diam arcu pretium.</li>
-          </ul>
-          <p>
-            Quis semper vulputate aliquam venenatis egestas sagittis quisque
-            orci. Donec commodo sit viverra aliquam porttitor ultrices gravida
-            eu. Tincidunt leo, elementum mattis elementum ut nisl, justo, amet,
-            mattis. Nunc purus, diam commodo tincidunt turpis. Amet, duis sed
-            elit interdum dignissim.
-          </p>
-          <h2>From beginner to expert in 30 days</h2>
-          <p>
-            Id orci tellus laoreet id ac. Dolor, aenean leo, ac etiam consequat
-            in. Convallis arcu ipsum urna nibh. Pharetra, euismod vitae interdum
-            mauris enim, consequat vulputate nibh. Maecenas pellentesque id sed
-            tellus mauris, ultrices mauris. Tincidunt enim cursus ridiculus mi.
-            Pellentesque nam sed nullam sed diam turpis ipsum eu a sed convallis
-            diam.
-          </p>
-          <blockquote>
-            <p>
-              Sagittis scelerisque nulla cursus in enim consectetur quam. Dictum
-              urna sed consectetur neque tristique pellentesque. Blandit amet,
-              sed aenean erat arcu morbi.
+    <div>
+      <Head>
+        <title>{title}</title>
+        <meta name="viewport" content="initial-scale=1.0, width=device-width" />
+        <meta name="description" content={description} data-rh="true" />
+        <meta property="og:title" content={title} key="title" />
+        <meta property="og:description" content={description} data-rh="true" />
+        <meta data-rh="true" name="twitter:creator" content="@tuistio" />
+        <meta data-rh="true" name="twitter:card" content="summary" />
+        <meta data-rh="true" name="twitter:site" content="@tuistio" />
+        <link
+          rel="apple-touch-icon"
+          sizes="57x57"
+          href="/apple-icon-57x57.png"
+        />
+        <link
+          rel="apple-touch-icon"
+          sizes="60x60"
+          href="/apple-icon-60x60.png"
+        />
+        <link
+          rel="apple-touch-icon"
+          sizes="72x72"
+          href="/apple-icon-72x72.png"
+        />
+        <link
+          rel="apple-touch-icon"
+          sizes="76x76"
+          href="/apple-icon-76x76.png"
+        />
+        <link
+          rel="apple-touch-icon"
+          sizes="114x114"
+          href="/apple-icon-114x114.png"
+        />
+        <link
+          rel="apple-touch-icon"
+          sizes="120x120"
+          href="/apple-icon-120x120.png"
+        />
+        <link
+          rel="apple-touch-icon"
+          sizes="144x144"
+          href="/apple-icon-144x144.png"
+        />
+        <link
+          rel="apple-touch-icon"
+          sizes="152x152"
+          href="/apple-icon-152x152.png"
+        />
+        <link
+          rel="apple-touch-icon"
+          sizes="180x180"
+          href="/apple-icon-180x180.png"
+        />
+        <link
+          rel="icon"
+          type="image/png"
+          sizes="192x192"
+          href="/android-icon-192x192.png"
+        />
+        <link
+          rel="icon"
+          type="image/png"
+          sizes="32x32"
+          href="/favicon-32x32.png"
+        />
+        <link
+          rel="icon"
+          type="image/png"
+          sizes="96x96"
+          href="/favicon-96x96.png"
+        />
+        <link
+          rel="icon"
+          type="image/png"
+          sizes="16x16"
+          href="/favicon-16x16.png"
+        />
+        <link rel="manifest" href="/manifest.json" />
+        <meta name="msapplication-TileColor" content="#ffffff" />
+        <meta name="msapplication-TileImage" content="/ms-icon-144x144.png" />
+        <meta name="theme-color" content="#ffffff" />
+      </Head>
+
+      <div className="relative py-16 bg-white overflow-hidden max-w-screen-lg mx-auto">
+        <div className="relative px-4 sm:px-6 lg:px-8">
+          <div className="text-lg max-w-prose mx-auto mb-6">
+            <div className="flex justify-center mb-16">
+              <a href="https://tuist.io">
+                <img src={logo} />
+              </a>
+            </div>
+            <p className="text-base text-center leading-6 text-indigo-600 font-semibold tracking-wide uppercase">
+              Tuist Stats
             </p>
-          </blockquote>
-          <p>
-            Faucibus commodo massa rhoncus, volutpat. Dignissim sed eget risus
-            enim. Mattis mauris semper sed amet vitae sed turpis id. Id dolor
-            praesent donec est. Odio penatibus risus viverra tellus varius sit
-            neque erat velit.
-          </p>
-          <figure>
-            <figcaption>
-              Sagittis scelerisque nulla cursus in enim consectetur quam.
-            </figcaption>
-          </figure>
-          <h3>Everything you need to get up and running</h3>
-          <p>
-            Purus morbi dignissim senectus mattis <a href="#">adipiscing</a>.
-            Amet, massa quam varius orci dapibus volutpat cras. In amet eu
-            ridiculus leo sodales cursus tristique. Tincidunt sed tempus ut
-            viverra ridiculus non molestie. Gravida quis fringilla amet eget dui
-            tempor dignissim. Facilisis auctor venenatis varius nunc, congue
-            erat ac. Cras fermentum convallis quam.
-          </p>
-          <p>
-            Faucibus commodo massa rhoncus, volutpat. Dignissim sed eget risus
-            enim. Mattis mauris semper sed amet vitae sed turpis id. Id dolor
-            praesent donec est. Odio penatibus risus viverra tellus varius sit
-            neque erat velit.
-          </p>
+            <h1 className="mt-2 mb-8 text-3xl text-center leading-8 font-extrabold tracking-tight text-gray-900 sm:text-4xl sm:leading-10">
+              Insights about how people use Tuist
+            </h1>
+            <p className="text-center text-gray-700 leading-8 prose-lg">
+              To prioritize the work and make the right decisions, it's
+              important to <b>back our decisions with data</b>. For that reason,
+              we collect anonymous data and present it on this website for us
+              and for the users of the tool.
+            </p>
+          </div>
         </div>
       </div>
     </div>
-  );
+  )
 }
 
-export default HomePage;
+export default HomePage
