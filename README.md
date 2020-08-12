@@ -1,8 +1,18 @@
 <div align="center">
 <img src="assets/header.gif"/>
-  <a href="https://github.com/prettier/prettier"><img src="https://img.shields.io/badge/code_style-prettier-ff69b4.svg?style=flat-square" alt="code style: prettier"></a>
-  <a href="http://slack.tuist.io"><img src="http://slack.tuist.io/badge.svg" alt="Slack"></a>
   <img src="https://github.com/tuist/tuist/workflows/Tuist/badge.svg" alt="Tuist">
+  <img src="https://img.shields.io/github/v/release/tuist/tuist?include_prereleases&style=flat-square" alt="Latest Version">
+  <a href="http://slack.tuist.io"><img src="http://slack.tuist.io/badge.svg" alt="Slack"></a>
+  <a href="http://community.tuist.io"><img src="https://img.shields.io/badge/community-tuist-blue?style=flat-square" alt="Community"></a>
+  <img src="https://img.shields.io/github/forks/tuist/tuist?style=flat-square" alt="GitHub forks">
+  <img src="https://img.shields.io/github/stars/tuist/tuist?style=flat-square" alt="GitHub stars">
+  <img src="https://img.shields.io/github/commit-activity/w/tuist/tuist?style=flat-square" alt="Commit Activity">
+    <img src="https://img.shields.io/github/contributors/tuist/tuist?style=flat-square" alt="Contributors">
+  <img src="https://img.shields.io/github/commits-since/tuist/tuist/latest?style=flat-square" alt="Latest Commits">
+  <img src="https://img.shields.io/twitter/follow/tuistio?style=flat-square" alt="Twitter Followers">
+  <img src="https://img.shields.io/opencollective/sponsors/tuistapp?style=flat-square" alt="Sponsors">
+  <img src="https://img.shields.io/opencollective/all/tuistapp?style=flat-square" alt="Backers and sponsors">
+<img src="https://img.shields.io/github/license/tuist/tuist?style=flat-square" alt="License">
 </div>
 
 ## What's Tuist 🕺
