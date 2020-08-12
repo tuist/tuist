@@ -1,10 +1,9 @@
-<p align="center">
-    <img src="website/static/tuist.png" width="200" />
-</p>
-
-[![code style: prettier](https://img.shields.io/badge/code_style-prettier-ff69b4.svg?style=flat-square)](https://github.com/prettier/prettier)
-[![Slack](http://slack.tuist.io/badge.svg)](http://slack.tuist.io)
-![Tuist](https://github.com/tuist/tuist/workflows/Tuist/badge.svg)
+<div align="center">
+<img src="assets/header.gif"/>
+  <a href="https://github.com/prettier/prettier"><img src="https://img.shields.io/badge/code_style-prettier-ff69b4.svg?style=flat-square" alt="code style: prettier"></a>
+  <a href="http://slack.tuist.io"><img src="http://slack.tuist.io/badge.svg" alt="Slack"></a>
+  <img src="https://github.com/tuist/tuist/workflows/Tuist/badge.svg" alt="Tuist">
+</div>
 
 ## What's Tuist 🕺
 
