@@ -1,5 +1,6 @@
 import ArgumentParser
 import Foundation
+import GraphViz
 import TSCBasic
 import TuistGenerator
 import TuistLoader
@@ -29,6 +30,12 @@ struct GraphCommand: ParsableCommand {
     var format: GraphFormat
 
     @Option(
+        default: .dot,
+        help: "Available formats: dot, neato, twopi, circo, fdp, sfddp, patchwork"
+    )
+    var layoutAlgorithm: GraphViz.LayoutAlgorithm
+
+    @Option(
         name: .shortAndLong,
         help: "The path where the graph will be generated."
     )
@@ -36,6 +43,7 @@ struct GraphCommand: ParsableCommand {
 
     func run() throws {
         try GraphService().run(format: format,
+                               layoutAlgorithm: layoutAlgorithm,
                                skipTestTargets: skipTestTargets,
                                skipExternalDependencies: skipExternalDependencies,
                                path: path)
@@ -45,3 +53,5 @@ struct GraphCommand: ParsableCommand {
 enum GraphFormat: String, ExpressibleByArgument {
     case dot, png
 }
+
+extension GraphViz.LayoutAlgorithm: ExpressibleByArgument {}
