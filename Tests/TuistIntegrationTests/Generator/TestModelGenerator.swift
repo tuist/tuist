@@ -273,7 +273,7 @@ final class TestModelGenerator {
             acc["Launch\(value)"] = value % 2 == 0
             return acc
         }
-        return Arguments(environment: environment, launch: launch)
+        return Arguments(environment: environment, launchArguments: launch)
     }
 
     private func createExecutionActions() -> [ExecutionAction] {
