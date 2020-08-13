@@ -9,10 +9,10 @@
   <img src="https://img.shields.io/github/commit-activity/w/tuist/tuist?style=flat-square" alt="Commit Activity">
     <img src="https://img.shields.io/github/contributors/tuist/tuist?style=flat-square" alt="Contributors">
   <img src="https://img.shields.io/github/commits-since/tuist/tuist/latest?style=flat-square" alt="Latest Commits">
-  <img src="https://img.shields.io/twitter/follow/tuistio?style=flat-square" alt="Twitter Followers">
+  <a href="http://twitter.com/tuistio"><img src="https://img.shields.io/twitter/follow/tuistio?style=flat-square" alt="Twitter Followers"></a>
   <img src="https://img.shields.io/opencollective/sponsors/tuistapp?style=flat-square" alt="Sponsors">
   <img src="https://img.shields.io/opencollective/all/tuistapp?style=flat-square" alt="Backers and sponsors">
-<img src="https://img.shields.io/github/license/tuist/tuist?style=flat-square" alt="License">
+  <img src="https://img.shields.io/github/license/tuist/tuist?style=flat-square" alt="License">
 </div>
 
 ## What's Tuist 🕺
