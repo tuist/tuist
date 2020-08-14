@@ -35,4 +35,10 @@ public protocol GraphTraversing {
     ///   - path: Path to the directory that contains the project definition.
     ///   - name: Name of the target whose dependant test targets will be returned.
     func testTargetsDependingOn(path: AbsolutePath, name: String) -> [Target]
+
+    /// Returns all non-transitive target static dependencies for the given target.
+    /// - Parameters:
+    ///   - path: Path to the directory where the project that defines the target is located.
+    ///   - name: Name of the target.
+    func directStaticDependencies(path: AbsolutePath, name: String) -> [GraphDependencyReference]
 }

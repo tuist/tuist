@@ -86,4 +86,18 @@ final class MockGraphTraverser: GraphTraversing {
         invokedTestTargetsDependingOnParametersList.append((path, name))
         return stubbedTestTargetsDependingOnResult
     }
+
+    var invokedDirectStaticDependencies = false
+    var invokedDirectStaticDependenciesCount = 0
+    var invokedDirectStaticDependenciesParameters: (path: AbsolutePath, name: String)?
+    var invokedDirectStaticDependenciesParametersList = [(path: AbsolutePath, name: String)]()
+    var stubbedDirectStaticDependenciesResult: [GraphDependencyReference]! = []
+
+    func directStaticDependencies(path: AbsolutePath, name: String) -> [GraphDependencyReference] {
+        invokedDirectStaticDependencies = true
+        invokedDirectStaticDependenciesCount += 1
+        invokedDirectStaticDependenciesParameters = (path, name)
+        invokedDirectStaticDependenciesParametersList.append((path, name))
+        return stubbedDirectStaticDependenciesResult
+    }
 }

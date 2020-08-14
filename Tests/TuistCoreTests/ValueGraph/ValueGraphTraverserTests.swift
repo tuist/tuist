@@ -70,6 +70,30 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         XCTAssertEqual(got, [uiTests, unitTests])
     }
 
+    func test_directStaticDependencies() {
+        // Given
+        let path = AbsolutePath.root
+        let framework = Target.test(name: "Framework", product: .framework)
+        let staticLibrary = Target.test(name: "StaticLibrary", product: .staticLibrary)
+        let targets: [AbsolutePath: [String: Target]] = [
+            path: [framework.name: framework,
+                   staticLibrary.name: staticLibrary],
+        ]
+        let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
+            .target(name: framework.name, path: path): Set([.target(name: staticLibrary.name, path: path)]),
+        ]
+        let graph = ValueGraph.test(path: path,
+                                    targets: targets,
+                                    dependencies: dependencies)
+        let subject = ValueGraphTraverser(graph: graph)
+
+        // When
+        let got = subject.directStaticDependencies(path: path, name: framework.name)
+
+        // Then
+        XCTAssertEqual(got, [.product(target: staticLibrary.name, productName: staticLibrary.productNameWithExtension)])
+    }
+
     func test_directTargetDependencies() {
         // Given
         // A -> B -> C

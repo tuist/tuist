@@ -71,6 +71,19 @@ public class ValueGraphTraverser: GraphTraversing {
             .sorted()
     }
 
+    public func directStaticDependencies(path: AbsolutePath, name: String) -> [GraphDependencyReference] {
+        graph.dependencies[.target(name: name, path: path)]?
+            .compactMap { (dependency: ValueGraphDependency) -> (path: AbsolutePath, name: String)? in
+                guard case let ValueGraphDependency.target(name, path) = dependency else {
+                    return nil
+                }
+                return (path, name)
+            }
+            .compactMap { graph.targets[$0.path]?[$0.name] }
+            .filter { $0.product.isStatic }
+            .map { .product(target: $0.name, productName: $0.productNameWithExtension) } ?? []
+    }
+
     /// It traverses the depdency graph and returns all the dependencies.
     /// - Parameter path: Path to the project from where traverse the dependency tree.
     public func allDependencies(path: AbsolutePath) -> Set<ValueGraphDependency> {

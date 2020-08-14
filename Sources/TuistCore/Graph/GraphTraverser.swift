@@ -30,4 +30,8 @@ public final class GraphTraverser: GraphTraversing {
     public func testTargetsDependingOn(path: AbsolutePath, name: String) -> [Target] {
         graph.testTargetsDependingOn(path: path, name: name).map(\.target)
     }
+
+    public func directStaticDependencies(path: AbsolutePath, name: String) -> [GraphDependencyReference] {
+        graph.staticDependencies(path: path, name: name)
+    }
 }
