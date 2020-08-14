@@ -13,6 +13,7 @@
   <img src="https://img.shields.io/opencollective/sponsors/tuistapp?style=flat-square" alt="Sponsors">
   <img src="https://img.shields.io/opencollective/all/tuistapp?style=flat-square" alt="Backers and sponsors">
   <img src="https://img.shields.io/github/license/tuist/tuist?style=flat-square" alt="License">
+  <img src="https://img.shields.io/badge/Powered%20by-Tuist-blue" alt="Powered by Tuist">
 </div>
 
 ## What's Tuist 🕺
