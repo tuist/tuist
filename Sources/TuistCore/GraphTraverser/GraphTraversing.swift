@@ -2,6 +2,16 @@ import Foundation
 import TSCBasic
 
 public protocol GraphTraversing {
+    /// It returns the target with the given name in the project that is defined in the given directory path.
+    /// - Parameters:
+    ///   - path: Path to the directory that contains the definition of the project with the target is defined.
+    ///   - name: Name of the target.
+    func target(path: AbsolutePath, name: String) -> Target?
+
+    /// It returns the targets of the project defined in the directory at the given path.
+    /// - Parameter path: Path to the directory that contains the definition of the project.
+    func targets(at path: AbsolutePath) -> [Target]
+
     /// Given a project directory and target name, it returns all its direct target dependencies.
     /// - Parameters:
     ///   - path: Path to the directory that contains the project.

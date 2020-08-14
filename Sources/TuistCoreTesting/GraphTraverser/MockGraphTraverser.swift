@@ -3,6 +3,34 @@ import TSCBasic
 @testable import TuistCore
 
 final class MockGraphTraverser: GraphTraversing {
+    var invokedTarget = false
+    var invokedTargetCount = 0
+    var invokedTargetParameters: (path: AbsolutePath, name: String)?
+    var invokedTargetParametersList = [(path: AbsolutePath, name: String)]()
+    var stubbedTargetResult: Target!
+
+    func target(path: AbsolutePath, name: String) -> Target? {
+        invokedTarget = true
+        invokedTargetCount += 1
+        invokedTargetParameters = (path, name)
+        invokedTargetParametersList.append((path, name))
+        return stubbedTargetResult
+    }
+
+    var invokedTargets = false
+    var invokedTargetsCount = 0
+    var invokedTargetsParameters: (path: AbsolutePath, Void)?
+    var invokedTargetsParametersList = [(path: AbsolutePath, Void)]()
+    var stubbedTargetsResult: [Target]! = []
+
+    func targets(at path: AbsolutePath) -> [Target] {
+        invokedTargets = true
+        invokedTargetsCount += 1
+        invokedTargetsParameters = (path, ())
+        invokedTargetsParametersList.append((path, ()))
+        return stubbedTargetsResult
+    }
+
     var invokedDirectTargetDependencies = false
     var invokedDirectTargetDependenciesCount = 0
     var invokedDirectTargetDependenciesParameters: (path: AbsolutePath, name: String)?

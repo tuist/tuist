@@ -9,6 +9,15 @@ public class ValueGraphTraverser: GraphTraversing {
         self.graph = graph
     }
 
+    public func target(path: AbsolutePath, name: String) -> Target? {
+        graph.targets[path]?[name]
+    }
+
+    public func targets(at path: AbsolutePath) -> [Target] {
+        guard let targets = graph.targets[path] else { return [] }
+        return Array(targets.values)
+    }
+
     public func directTargetDependencies(path: AbsolutePath, name: String) -> [Target] {
         guard let dependencies = graph.dependencies[.target(name: name, path: path)] else { return [] }
         return dependencies.flatMap { (dependency) -> [Target] in

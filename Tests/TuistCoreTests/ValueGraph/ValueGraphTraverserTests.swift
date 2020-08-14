@@ -8,6 +8,36 @@ import XCTest
 @testable import TuistSupportTesting
 
 final class ValueGraphTraverserTests: TuistUnitTestCase {
+    func test_target() {
+        // Given
+        let target = Target.test(name: "App", product: .app)
+        let graph = ValueGraph.test(path: "/", targets: [
+            "/": ["App": target],
+        ])
+        let subject = ValueGraphTraverser(graph: graph)
+
+        // When
+        let got = subject.target(path: "/", name: "App")
+
+        // Then
+        XCTAssertEqual(got, target)
+    }
+
+    func test_targets() {
+        // Given
+        let target = Target.test(name: "App", product: .app)
+        let graph = ValueGraph.test(path: "/", targets: [
+            "/": ["App": target],
+        ])
+        let subject = ValueGraphTraverser(graph: graph)
+
+        // When
+        let got = subject.targets(at: "/")
+
+        // Then
+        XCTAssertEqual(got, [target])
+    }
+
     func test_directTargetDependencies() {
         // Given
         // A -> B -> C
@@ -295,7 +325,7 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         XCTAssertEqual(staticFramework2Results.map(\.name), [])
     }
 
-    func test_target() {
+    func test_target_from_dependency() {
         // Given
         let project = Project.test()
         let app = Target.test(name: "App", product: .app)
