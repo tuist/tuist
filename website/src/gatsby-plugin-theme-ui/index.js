@@ -38,7 +38,7 @@ fontSizes.display = fontSizes[5]
 
 // Colors
 const colors = {
-  text: '#000',
+  text: '#2d3748', // text-gray-800
   background: '#ffffff',
   primary: '#046abd',
   secondary: '#6F52DA',
@@ -77,6 +77,7 @@ const styles = {
     fontSize: [5, 6],
   },
   h2: {
+    color: 'text',
     mt: 5,
     variant: 'text.heading',
     fontSize: 5,
@@ -131,7 +132,7 @@ const styles = {
   inlineCode: {
     fontSize: 1,
     fontFamily: 'monospace',
-    color: 'secondary',
+    color: 'primary',
   },
   hr: {
     border: 0,
