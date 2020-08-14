@@ -10,9 +10,10 @@ import XCTest
 final class ValueGraphTraverserTests: TuistUnitTestCase {
     func test_target() {
         // Given
-        let target = Target.test(name: "App", product: .app)
+        let app = Target.test(name: "App", product: .app)
+        let framework = Target.test(name: "Framework", product: .framework)
         let graph = ValueGraph.test(path: "/", targets: [
-            "/": ["App": target],
+            "/": ["App": app, "Framework": framework],
         ])
         let subject = ValueGraphTraverser(graph: graph)
 
@@ -20,14 +21,15 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         let got = subject.target(path: "/", name: "App")
 
         // Then
-        XCTAssertEqual(got, target)
+        XCTAssertEqual(got, app)
     }
 
     func test_targets() {
         // Given
-        let target = Target.test(name: "App", product: .app)
+        let app = Target.test(name: "App", product: .app)
+        let framework = Target.test(name: "Framework", product: .framework)
         let graph = ValueGraph.test(path: "/", targets: [
-            "/": ["App": target],
+            "/": ["App": app, "Framework": framework],
         ])
         let subject = ValueGraphTraverser(graph: graph)
 
@@ -35,7 +37,37 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         let got = subject.targets(at: "/")
 
         // Then
-        XCTAssertEqual(got, [target])
+        XCTAssertEqual(got, [app, framework])
+    }
+
+    func test_testTargetsDependingOn() {
+        // Given
+        let path = AbsolutePath.root
+        let framework = Target.test(name: "Framework", product: .framework)
+        let dependantFramework = Target.test(name: "DependantFramework", product: .framework)
+        let unitTests = Target.test(name: "UnitTests", product: .unitTests)
+        let uiTests = Target.test(name: "UITests", product: .uiTests)
+        let targets: [AbsolutePath: [String: Target]] = [
+            path: [framework.name: framework,
+                   dependantFramework.name: dependantFramework,
+                   unitTests.name: unitTests,
+                   uiTests.name: uiTests],
+        ]
+        let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
+            .target(name: unitTests.name, path: path): Set([.target(name: framework.name, path: path)]),
+            .target(name: uiTests.name, path: path): Set([.target(name: framework.name, path: path)]),
+            .target(name: dependantFramework.name, path: path): Set([.target(name: framework.name, path: path)]),
+        ]
+        let graph = ValueGraph.test(path: path,
+                                    targets: targets,
+                                    dependencies: dependencies)
+        let subject = ValueGraphTraverser(graph: graph)
+
+        // When
+        let got = subject.testTargetsDependingOn(path: path, name: framework.name)
+
+        // Then
+        XCTAssertEqual(got, [uiTests, unitTests])
     }
 
     func test_directTargetDependencies() {

@@ -15,7 +15,7 @@ public class ValueGraphTraverser: GraphTraversing {
 
     public func targets(at path: AbsolutePath) -> [Target] {
         guard let targets = graph.targets[path] else { return [] }
-        return Array(targets.values)
+        return Array(targets.values).sorted()
     }
 
     public func directTargetDependencies(path: AbsolutePath, name: String) -> [Target] {
@@ -48,9 +48,13 @@ public class ValueGraphTraverser: GraphTraversing {
         return bundleTargets.sorted()
     }
 
-    /// Given a dependency, it returns the target if the dependency represents a target and the
-    /// target exists in the graph.
-    /// - Parameter from: Dependency.
+    public func testTargetsDependingOn(path: AbsolutePath, name: String) -> [Target] {
+        graph.targets[path]?.values
+            .filter { $0.product.testsBundle }
+            .filter { graph.dependencies[.target(name: $0.name, path: path)]?.contains(.target(name: name, path: path)) == true }
+            .sorted() ?? []
+    }
+
     public func target(from dependency: ValueGraphDependency) -> Target? {
         guard case let ValueGraphDependency.target(name, path) = dependency else {
             return nil

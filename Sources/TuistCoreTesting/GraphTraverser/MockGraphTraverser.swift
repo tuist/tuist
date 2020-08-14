@@ -72,4 +72,18 @@ final class MockGraphTraverser: GraphTraversing {
         invokedResourceBundleDependenciesParametersList.append((path, name))
         return stubbedResourceBundleDependenciesResult
     }
+
+    var invokedTestTargetsDependingOn = false
+    var invokedTestTargetsDependingOnCount = 0
+    var invokedTestTargetsDependingOnParameters: (path: AbsolutePath, name: String)?
+    var invokedTestTargetsDependingOnParametersList = [(path: AbsolutePath, name: String)]()
+    var stubbedTestTargetsDependingOnResult: [Target]! = []
+
+    func testTargetsDependingOn(path: AbsolutePath, name: String) -> [Target] {
+        invokedTestTargetsDependingOn = true
+        invokedTestTargetsDependingOnCount += 1
+        invokedTestTargetsDependingOnParameters = (path, name)
+        invokedTestTargetsDependingOnParametersList.append((path, name))
+        return stubbedTestTargetsDependingOnResult
+    }
 }

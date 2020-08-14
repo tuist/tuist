@@ -26,4 +26,8 @@ public final class GraphTraverser: GraphTraversing {
     public func resourceBundleDependencies(path: AbsolutePath, name: String) -> [Target] {
         graph.resourceBundleDependencies(path: path, name: name).map { $0.target }
     }
+
+    public func testTargetsDependingOn(path: AbsolutePath, name: String) -> [Target] {
+        graph.testTargetsDependingOn(path: path, name: name).map(\.target)
+    }
 }
