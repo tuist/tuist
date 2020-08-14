@@ -81,7 +81,8 @@ public class ValueGraphTraverser: GraphTraversing {
             }
             .compactMap { graph.targets[$0.path]?[$0.name] }
             .filter { $0.product.isStatic }
-            .map { .product(target: $0.name, productName: $0.productNameWithExtension) } ?? []
+            .map { .product(target: $0.name, productName: $0.productNameWithExtension) }
+            .sorted() ?? []
     }
 
     /// It traverses the depdency graph and returns all the dependencies.
