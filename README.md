@@ -55,13 +55,3 @@ Do you want to know more about what Tuist can offer you? Or perhaps want to cont
 ## Contribute 👩‍💻
 
 If you are interested in contributed to the project, our documentation has a section with resources for contributors. We recommend starting from [this page](https://tuist.io/docs/contribution/getting-started/).
-
-## Shield
-
-If your project uses Tuist, you can add the following badge to your project README:
-
-[![Tuist Badge](https://img.shields.io/badge/powered%20by-Tuist-green.svg?longCache=true)](https://github.com/tuist)
-
-```md
-[![Tuist Badge](https://img.shields.io/badge/powered%20by-Tuist-green.svg?longCache=true)](https://github.com/tuist)
-```
