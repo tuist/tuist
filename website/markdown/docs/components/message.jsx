@@ -23,8 +23,8 @@ const Message = ({ title, description, info, warning }) => {
   }
 
   return (
-    <div className="my-3">
-      <div className="rounded-md p-4" css={[backgroundColor]}>
+    <div className="my-4">
+      <div css={[backgroundColor, tw`rounded-md p-4`]}>
         <div className="flex">
           <div className="flex-shrink-0">
             <svg
