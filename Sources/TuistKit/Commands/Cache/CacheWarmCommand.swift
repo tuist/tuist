@@ -12,7 +12,8 @@ struct CacheWarmCommand: ParsableCommand {
 
     @Option(
         name: .shortAndLong,
-        help: "The path to the directory that contains the project whose frameworks will be cached"
+        help: "The path to the directory that contains the project whose frameworks will be cached",
+        completion: .directory
     )
     var path: String?
 
