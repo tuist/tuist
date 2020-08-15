@@ -1,5 +1,7 @@
 import Head from '../components/head'
 import { ProjectIcon, EyeIcon, VersionsIcon } from '@primer/octicons-react'
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { faMobileAlt } from '@fortawesome/free-solid-svg-icons'
 
 const Workflows = () => {
   return (
@@ -209,6 +211,50 @@ const Environment = () => {
 }
 
 const Projects = () => {
+  const data = [
+    {
+      name: '18-24',
+      uv: 31.47,
+      pv: 2400,
+      fill: '#8884d8',
+    },
+    {
+      name: '25-29',
+      uv: 26.69,
+      pv: 4567,
+      fill: '#83a6ed',
+    },
+    {
+      name: '30-34',
+      uv: -15.69,
+      pv: 1398,
+      fill: '#8dd1e1',
+    },
+    {
+      name: '35-39',
+      uv: 8.22,
+      pv: 9800,
+      fill: '#82ca9d',
+    },
+    {
+      name: '40-49',
+      uv: -8.63,
+      pv: 3908,
+      fill: '#a4de6c',
+    },
+    {
+      name: '50+',
+      uv: -2.63,
+      pv: 4800,
+      fill: '#d0ed57',
+    },
+    {
+      name: 'unknow',
+      uv: 6.67,
+      pv: 4800,
+      fill: '#ffc658',
+    },
+  ]
   return (
     <div className="mt-10">
       <h1 className="mt-2 mb-8 text-3xl text-center leading-8 font-bold tracking-tight text-gray-900 sm:text-4xl sm:leading-10">
@@ -216,7 +262,7 @@ const Projects = () => {
       </h1>
       <div>
         <h3 className="text-lg leading-6 font-medium text-gray-900">
-          Last 30 days
+          Average in the last 30 days
         </h3>
         <div className="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
           <div className="bg-white overflow-hidden shadow rounded-lg">
@@ -240,11 +286,11 @@ const Projects = () => {
                 <div className="ml-5 w-0 flex-1">
                   <dl>
                     <dt className="text-sm leading-5 font-medium text-gray-500 truncate">
-                      Projects generated
+                      Number of targets
                     </dt>
                     <dd className="flex items-baseline">
                       <div className="text-2xl leading-8 font-semibold text-gray-900">
-                        71897
+                        20
                       </div>
                       <div className="ml-2 flex items-baseline text-sm leading-5 font-semibold text-green-600">
                         <svg
@@ -258,22 +304,11 @@ const Projects = () => {
                             clipRule="evenodd"
                           />
                         </svg>
-                        <span className="sr-only">Increased by</span>
-                        122
+                        <span className="sr-only">Increased by</span>2
                       </div>
                     </dd>
                   </dl>
                 </div>
-              </div>
-            </div>
-            <div className="bg-gray-50 px-4 py-4 sm:px-6">
-              <div className="text-sm leading-5">
-                <a
-                  href="#"
-                  className="font-medium text-blue-600 hover:text-blue-500 transition ease-in-out duration-150"
-                >
-                  View all
-                </a>
               </div>
             </div>
           </div>
@@ -298,7 +333,7 @@ const Projects = () => {
                 <div className="ml-5 w-0 flex-1">
                   <dl>
                     <dt className="text-sm leading-5 font-medium text-gray-500 truncate">
-                      Focused projects
+                      Number of resources
                     </dt>
                     <dd className="flex items-baseline">
                       <div className="text-2xl leading-8 font-semibold text-gray-900">
@@ -324,16 +359,6 @@ const Projects = () => {
                 </div>
               </div>
             </div>
-            <div className="bg-gray-50 px-4 py-4 sm:px-6">
-              <div className="text-sm leading-5">
-                <a
-                  href="#"
-                  className="font-medium text-blue-600 hover:text-blue-500 transition ease-in-out duration-150"
-                >
-                  View all
-                </a>
-              </div>
-            </div>
           </div>
           <div className="bg-white overflow-hidden shadow rounded-lg">
             <div className="px-4 py-5 sm:p-6">
@@ -356,7 +381,7 @@ const Projects = () => {
                 <div className="ml-5 w-0 flex-1">
                   <dl>
                     <dt className="text-sm leading-5 font-medium text-gray-500 truncate">
-                      Scaffolds
+                      Number of sour
                     </dt>
                     <dd className="flex items-baseline">
                       <div className="text-2xl leading-8 font-semibold text-gray-900">
@@ -382,19 +407,108 @@ const Projects = () => {
                 </div>
               </div>
             </div>
-            <div className="bg-gray-50 px-4 py-4 sm:px-6">
-              <div className="text-sm leading-5">
-                <a
-                  href="#"
-                  className="font-medium text-blue-600 hover:text-blue-500 transition ease-in-out duration-150"
-                >
-                  View all
-                </a>
+          </div>
+          <div className="bg-white overflow-hidden shadow rounded-lg">
+            <div className="px-4 py-5 sm:p-6">
+              <div className="flex items-center">
+                <div className="flex-shrink-0 bg-blue-500 rounded-md p-3">
+                  <svg
+                    className="h-6 w-6 text-white"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
+                    />
+                  </svg>
+                </div>
+                <div className="ml-5 w-0 flex-1">
+                  <dl>
+                    <dt className="text-sm leading-5 font-medium text-gray-500 truncate">
+                      Number of headers
+                    </dt>
+                    <dd className="flex items-baseline">
+                      <div className="text-2xl leading-8 font-semibold text-gray-900">
+                        20
+                      </div>
+                      <div className="ml-2 flex items-baseline text-sm leading-5 font-semibold text-green-600">
+                        <svg
+                          className="self-center flex-shrink-0 h-5 w-5 text-green-500"
+                          fill="currentColor"
+                          viewBox="0 0 20 20"
+                        >
+                          <path
+                            fillRule="evenodd"
+                            d="M5.293 9.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L11 7.414V15a1 1 0 11-2 0V7.414L6.707 9.707a1 1 0 01-1.414 0z"
+                            clipRule="evenodd"
+                          />
+                        </svg>
+                        <span className="sr-only">Increased by</span>2
+                      </div>
+                    </dd>
+                  </dl>
+                </div>
               </div>
             </div>
           </div>
         </div>
+        <h3 className="text-lg leading-6 font-medium text-gray-900 mt-10">
+          Most used in the last 30 days
+        </h3>
+        <div className="mt-5 flex flex-row">
+          <MostUsedBox
+            title="iOS"
+            subtitle="platform"
+            className="bg-blue-600 flex-1"
+          />
+          <MostUsedBox
+            title="App"
+            subtitle="Product"
+            className="bg-green-600 flex-1"
+          />
+        </div>
+        <div className="mt-5 flex flex-column">
+          <MostUsedBox
+            title="13.4"
+            subtitle="Minimum supported iOS version"
+            className="bg-indigo-600 flex-1"
+          />
+          <MostUsedBox
+            title="4.3"
+            subtitle="watchOS version"
+            className="bg-indigo-600 flex-1"
+          />
+          <MostUsedBox
+            title="10.15"
+            subtitle="macOS version"
+            className="bg-indigo-600 flex-1"
+          />
+          <MostUsedBox
+            title="5.3"
+            subtitle="tvOS version"
+            className="bg-indigo-600 flex-1"
+          />
+        </div>
       </div>
+    </div>
+  )
+}
+
+const MostUsedBox = ({ title, subtitle, className }) => {
+  return (
+    <div className={`${className} text-white p-4 rounded-lg shadow mr-5`}>
+      <FontAwesomeIcon
+        icon={faMobileAlt}
+        color="white"
+        size="xs"
+        className="w-6 h-6"
+      />
+      <div className="text-3xl font-bold">{title}</div>
+      <div className="uppercase text-base">{subtitle}</div>
     </div>
   )
 }
@@ -434,8 +548,8 @@ function HomePage() {
         <div className="relative px-4 sm:px-6 lg:px-8">
           <div className="text-lg max-w-prose mx-auto mb-6">
             <Header />
-            <Workflows />
             <Projects />
+            <Workflows />
             <Environment />
           </div>
         </div>

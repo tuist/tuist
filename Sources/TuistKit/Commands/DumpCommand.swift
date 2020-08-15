@@ -14,7 +14,8 @@ struct DumpCommand: ParsableCommand {
 
     @Option(
         name: .shortAndLong,
-        help: "The path to the folder where the project manifest is"
+        help: "The path to the folder where the project manifest is",
+        completion: .directory
     )
     var path: String?
 
