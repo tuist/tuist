@@ -38,12 +38,7 @@ class CacheGraphMutator: CacheGraphMutating {
         var loadedXCFrameworks: [AbsolutePath: XCFrameworkNode] = [:]
         var sourceTargets: Set<TargetNode> = Set()
 
-        let entryNodes = Set(graph.entryNodes)
-        try graph.targets.flatMap { $0.value }
-            .filter { targetNode in
-                // We traverse the graph from nodes that are either entry nodes, or are targets that depend on XCTest.
-                entryNodes.contains(targetNode) || (targetNode.dependsOnXCTest && !targetNode.target.product.testsBundle)
-            }
+        try graph.entryNodes.compactMap { $0 as? TargetNode }
             .forEach { try visit(targetNode: $0,
                                  xcframeworks: xcframeworks,
                                  sources: sources,
