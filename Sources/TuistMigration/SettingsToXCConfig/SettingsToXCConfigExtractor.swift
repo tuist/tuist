@@ -1,3 +1,4 @@
+import Foundation
 import PathKit
 import TSCBasic
 import TuistSupport
@@ -41,11 +42,49 @@ public enum SettingsToXCConfigExtractorError: FatalError, Equatable {
 public class SettingsToXCConfigExtractor: SettingsToXCConfigExtracting {
     public init() {}
 
-    public func extract(xcodeprojPath: AbsolutePath, targetName: String?, xcconfigPath _: AbsolutePath) throws {
+    public func extract(xcodeprojPath: AbsolutePath, targetName: String?, xcconfigPath: AbsolutePath) throws {
         guard FileHandler.shared.exists(xcodeprojPath) else { throw SettingsToXCConfigExtractorError.missingXcodeProj(xcodeprojPath) }
         let project = try XcodeProj(path: Path(xcodeprojPath.pathString))
         let pbxproj = project.pbxproj
         let buildConfigurations = try self.buildConfigurations(pbxproj: pbxproj, targetName: targetName)
+
+        if buildConfigurations.isEmpty {
+            logger.info("The list of configurations is empty. Exiting...")
+            return
+        }
+
+        let repeatedBuildSettingsKeys = buildConfigurations.reduce(into: Set<String>()) { acc, next in
+            acc.formIntersection(next.buildSettings.keys)
+        }
+
+        /// We get the build settings that are in common to define them as SETTING_KEY=SETTING_VALUE
+        /// Otherwise, we have to define them as SETTING_KEY[config=Config]=SETTING_VALUE
+        let commonBuildSettings = repeatedBuildSettingsKeys.filter { (buildSetting) -> Bool in
+            let values = buildConfigurations.map { $0.buildSettings[buildSetting]! }
+            let stringValues = values.compactMap { $0 as? String }
+            if values.count != stringValues.count { return false }
+            return Set(stringValues).count == 1
+        }
+
+        var xcconfigContent = ""
+
+        // Common build settings
+        commonBuildSettings.forEach { setting in
+            xcconfigContent.append("\(setting)=\(buildConfigurations.first!.buildSettings[setting]!)\n")
+        }
+
+        // Per-configuration build settings
+        buildConfigurations.forEach { configuration in
+            configuration.buildSettings.forEach { key, value in
+                if commonBuildSettings.contains(key) { return }
+                xcconfigContent.append("\(key)[config=\(configuration.name)]=\(value)\n")
+            }
+        }
+
+        if !FileHandler.shared.exists(xcconfigPath.parentDirectory) {
+            try FileHandler.shared.createFolder(xcconfigPath.parentDirectory)
+        }
+        try FileHandler.shared.write(xcconfigContent, path: xcconfigPath, atomically: true)
     }
 
     private func buildConfigurations(pbxproj: PBXProj, targetName: String?) throws -> [XCBuildConfiguration] {
