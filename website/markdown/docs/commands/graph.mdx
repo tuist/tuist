@@ -5,21 +5,31 @@ excerpt: "Learn how to use the graph command to get a visual representation of y
 
 # Project graph
 
-When projects grow, it becomes hard to visualize the dependencies between all the targets that are part of the project. Fortunately, Tuist provides a command, `tuist graph`, that loads your project dependencies graph and exports it in a human-readable format.
+When projects grow, it becomes hard to visualize the dependencies between all the targets that are part of the project. Fortunately, Tuist provides a command, `tuist graph`, that loads your project dependencies graph and exports it.
+The command will output the dependency graph in `dot` (see [DOT](<https://en.wikipedia.org/wiki/DOT_(graph_description_language)>)) or `png` format.
+For producing a `png` image that represent the graph, you can use some well known graphviz [layout algorithms](https://graphviz.org/documentation/).
 
 ## Command
 
-Being in a directory that contains a workspace or project manifest, run the following command:
+Run the following command from a directory that contains a workspace or project manifest:
 
 ```bash
-tuist graph
+tuist graph --format=png
 ```
 
-### Besides running the plain graph command, an enduser can opt to exclude either tests and/or third party dependencies
+If you prefer to have the dot representation of the graph and render it separately, you can run:
+
+```bash
+tuist graph --format=dot
+```
+
+### All options
 
 The additional arguments are:
 - `skipTestTargets`
 - `skipExternalDependencies`
 - `format`: `dot` (default), `png`
+- `layout-algorithm`: `dot`, `neato`, `twopi`, `circo`, `fdp`, `sfddp`, `patchwork`. The deafault is `dot`, `fdp` is particularly good for big graphs.
+- `path` the path were the png image of the graph will be saved. When not specified, it defaults to the current directory
 
-The command will output the dependency graph in `dot` (see [DOT](<https://en.wikipedia.org/wiki/DOT_(graph_description_language)>)) or `png` format.
+
