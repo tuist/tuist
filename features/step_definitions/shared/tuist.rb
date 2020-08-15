@@ -31,7 +31,7 @@ Then(/^tuist generates a project with cached targets at (.+)$/) do |path|
 end
 
 Then(/^tuist generates a project with cached targets with sources ([a-zA-Z]+) at (.+)$/) do |sources, path|
-  system("swift", "run", "tuist", "generate", "--path", File.join(@dir, path), "--cache", "--sources", sources)
+  system("swift", "run", "tuist", "generate", "--path", File.join(@dir, path), "--cache", "--include-sources", sources)
   @workspace_path = Dir.glob(File.join(@dir, path, "*.xcworkspace")).first
   @xcodeproj_path = Dir.glob(File.join(@dir, path, "*.xcodeproj")).first
 end
