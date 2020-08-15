@@ -22,10 +22,10 @@ class ProjectMapperProvider: ProjectMapperProviding {
 
         // Delete current derived
         mappers.append(DeleteDerivedDirectoryProjectMapper())
-        
+
         // Support for resources in libraries
         mappers.append(ResourcesProjectMapper())
-        
+
         // Info Plist
         mappers.append(GenerateInfoPlistProjectMapper())
 
