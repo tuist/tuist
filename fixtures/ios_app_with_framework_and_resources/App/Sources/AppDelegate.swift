@@ -4,6 +4,7 @@ import StaticFramework
 import StaticFramework2
 import StaticFramework3
 import StaticFramework4
+import StaticFramework5
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -19,10 +20,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         print(hello())
         print("AppDelegate -> \(framework1.hello())")
         print("Main bundle image: \(String(describing: UIImage(named: "tuist")))")
-        print("StaticFrameworkResouce image: \(String(describing: staticFrameworkResources.tuist))")
-        print("StaticFramework2Resouce image: \(String(describing: staticFramework2Resources.loadImage()))")
-        print("StaticFramework3Resouce image: \(String(describing: resourcesStaticFramework3.loadImage()))")
-        print("StaticFramework4Resouce image: \(String(describing: resourcesStaticFramework4.loadImage()))")
+        print("StaticFrameworkResource image: \(String(describing: staticFrameworkResources.tuist))")
+        print("StaticFramework2Resource image: \(String(describing: staticFramework2Resources.loadImage()))")
+        print("StaticFramework3Resource image: \(String(describing: resourcesStaticFramework3.loadImage()))")
+        print("StaticFramework4Resource image: \(String(describing: resourcesStaticFramework4.loadImage()))")
+        print("StaticFramework5Resource image: \(String(describing: UIImage(named:"StaticFramework5Resources-tuist", in: StaticFramework5Resources.bundle, compatibleWith: nil)))")
     }
     
 
