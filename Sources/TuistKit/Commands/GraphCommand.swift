@@ -15,12 +15,12 @@ struct GraphCommand: ParsableCommand {
     @Flag(
         help: "Skip Test targets during graph rendering."
     )
-    var skipTestTargets: Bool
+    var skipTestTargets: Bool = false
 
     @Flag(
         help: "Skip external dependencies."
     )
-    var skipExternalDependencies: Bool
+    var skipExternalDependencies: Bool = false
 
     @Option(
         default: .dot,

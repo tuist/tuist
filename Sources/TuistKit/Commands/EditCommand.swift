@@ -13,7 +13,8 @@ struct EditCommand: ParsableCommand {
 
     @Option(
         name: .shortAndLong,
-        help: "The path to the directory whose project will be edited"
+        help: "The path to the directory whose project will be edited",
+        completion: .directory
     )
     var path: String?
 
@@ -21,7 +22,7 @@ struct EditCommand: ParsableCommand {
         name: [.long, .customShort("P")],
         help: "It creates the project in the current directory or the one indicated by -p and doesn't block the process"
     )
-    var permanent: Bool
+    var permanent: Bool = false
 
     func run() throws {
         try EditService().run(path: path,

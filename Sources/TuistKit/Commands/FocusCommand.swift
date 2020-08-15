@@ -17,11 +17,12 @@ struct FocusCommand: ParsableCommand {
     }
 
     @Flag(help: "Generate a project replacing dependencies with pre-compiled assets.")
-    var cache: Bool
+    var cache: Bool = false
 
     @Option(
         name: .shortAndLong,
-        help: "The path to the directory containing the project you plan to focus on."
+        help: "The path to the directory containing the project you plan to focus on.",
+        completion: .directory
     )
     var path: String?
 

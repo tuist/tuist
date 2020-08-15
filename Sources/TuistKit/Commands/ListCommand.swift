@@ -11,11 +11,12 @@ struct ListCommand: ParsableCommand {
     @Flag(
         help: "The output in JSON format"
     )
-    var json: Bool
+    var json: Bool = false
 
     @Option(
         name: .shortAndLong,
-        help: "The path where you want to list templates from"
+        help: "The path where you want to list templates from",
+        completion: .directory
     )
     var path: String?
 

@@ -4,6 +4,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Removed
+
+- **Breaking** Support for Xcode 11.3.x and Xcode 11.4.x [#1604](https://github.com/tuist/tuist/pull/1604) by [@fortmarek](https://github.com/fortmarek)
+
 ## 1.15.0 - Riga
 
 ### Changed
@@ -17,9 +21,11 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Add graph visualization in Tuist graph command: "tuist graph --format=png" [#1624](https://github.com/tuist/tuist/pull/1591) by [@AndreaCipriani](https://github.com/andreacipriani)
 - Add support for `.xctest` dependency for tvOS targets [#1597](https://github.com/tuist/tuist/pull/1597) by [@kwridan](https://github.com/kwridan).
 - Fix missing ui test host applications for apps with "-" characters in their name [#1630](https://github.com/tuist/tuist/pull/1630) by [@kwridan](https://github.com/kwridan).
+- Added @Flag in TuistKit.TuistCommand to improve --help-env discoverability by [@facumenzella](https://github.com/facumenzella).
 
 ### Added
 
+- Autocompletions support [#1604](https://github.com/tuist/tuist/issues/1592) by [@fortmarek](https://github.com/fortmarek)
 - Add an acceptance test suite to cover a `test cache warm` command on a micro-feature architecture kind of application that is fully statically linked [#1594](https://github.com/tuist/tuist/pull/1594) by [@RomainBoulay](https://github.com/RomainBoulay)
 - Add support for setting launch arguments at the target level. [#1596](https://github.com/tuist/tuist/pull/1596) by [@jeroenleenarts](https://github.com/jeroenleenarts)
 - Add Homebrew cask up [#1601](https://github.com/tuist/tuist/pull/1601) by [@leszko11](https://github.com/leszko11)
