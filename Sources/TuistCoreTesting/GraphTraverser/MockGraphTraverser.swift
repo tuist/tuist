@@ -3,6 +3,34 @@ import TSCBasic
 @testable import TuistCore
 
 final class MockGraphTraverser: GraphTraversing {
+    var invokedTarget = false
+    var invokedTargetCount = 0
+    var invokedTargetParameters: (path: AbsolutePath, name: String)?
+    var invokedTargetParametersList = [(path: AbsolutePath, name: String)]()
+    var stubbedTargetResult: Target!
+
+    func target(path: AbsolutePath, name: String) -> Target? {
+        invokedTarget = true
+        invokedTargetCount += 1
+        invokedTargetParameters = (path, name)
+        invokedTargetParametersList.append((path, name))
+        return stubbedTargetResult
+    }
+
+    var invokedTargets = false
+    var invokedTargetsCount = 0
+    var invokedTargetsParameters: (path: AbsolutePath, Void)?
+    var invokedTargetsParametersList = [(path: AbsolutePath, Void)]()
+    var stubbedTargetsResult: [Target]! = []
+
+    func targets(at path: AbsolutePath) -> [Target] {
+        invokedTargets = true
+        invokedTargetsCount += 1
+        invokedTargetsParameters = (path, ())
+        invokedTargetsParametersList.append((path, ()))
+        return stubbedTargetsResult
+    }
+
     var invokedDirectTargetDependencies = false
     var invokedDirectTargetDependenciesCount = 0
     var invokedDirectTargetDependenciesParameters: (path: AbsolutePath, name: String)?
@@ -43,5 +71,33 @@ final class MockGraphTraverser: GraphTraversing {
         invokedResourceBundleDependenciesParameters = (path, name)
         invokedResourceBundleDependenciesParametersList.append((path, name))
         return stubbedResourceBundleDependenciesResult
+    }
+
+    var invokedTestTargetsDependingOn = false
+    var invokedTestTargetsDependingOnCount = 0
+    var invokedTestTargetsDependingOnParameters: (path: AbsolutePath, name: String)?
+    var invokedTestTargetsDependingOnParametersList = [(path: AbsolutePath, name: String)]()
+    var stubbedTestTargetsDependingOnResult: [Target]! = []
+
+    func testTargetsDependingOn(path: AbsolutePath, name: String) -> [Target] {
+        invokedTestTargetsDependingOn = true
+        invokedTestTargetsDependingOnCount += 1
+        invokedTestTargetsDependingOnParameters = (path, name)
+        invokedTestTargetsDependingOnParametersList.append((path, name))
+        return stubbedTestTargetsDependingOnResult
+    }
+
+    var invokedDirectStaticDependencies = false
+    var invokedDirectStaticDependenciesCount = 0
+    var invokedDirectStaticDependenciesParameters: (path: AbsolutePath, name: String)?
+    var invokedDirectStaticDependenciesParametersList = [(path: AbsolutePath, name: String)]()
+    var stubbedDirectStaticDependenciesResult: [GraphDependencyReference]! = []
+
+    func directStaticDependencies(path: AbsolutePath, name: String) -> [GraphDependencyReference] {
+        invokedDirectStaticDependencies = true
+        invokedDirectStaticDependenciesCount += 1
+        invokedDirectStaticDependenciesParameters = (path, name)
+        invokedDirectStaticDependenciesParametersList.append((path, name))
+        return stubbedDirectStaticDependenciesResult
     }
 }
