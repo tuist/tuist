@@ -9,12 +9,12 @@ import TuistLoader
 import TuistSupport
 
 protocol FocusServiceProjectGeneratorFactorying {
-    func generator(cache: Bool, cacheSources: Set<String>) -> ProjectGenerating
+    func generator(cache: Bool, includeSources: Set<String>) -> ProjectGenerating
 }
 
 final class FocusServiceProjectGeneratorFactory: FocusServiceProjectGeneratorFactorying {
-    func generator(cache: Bool, cacheSources: Set<String>) -> ProjectGenerating {
-        ProjectGenerator(graphMapperProvider: GraphMapperProvider(cache: cache, cacheSources: cacheSources))
+    func generator(cache: Bool, includeSources: Set<String>) -> ProjectGenerating {
+        ProjectGenerator(graphMapperProvider: GraphMapperProvider(cache: cache, includeSources: includeSources))
     }
 }
 
@@ -49,12 +49,12 @@ final class FocusService {
         self.projectGeneratorFactory = projectGeneratorFactory
     }
 
-    func run(cache: Bool, path: String?, cacheSources: Set<String>) throws {
+    func run(cache: Bool, path: String?, includeSources: Set<String>) throws {
         let path = self.path(path)
         if isWorkspace(path: path), cache {
             throw FocusServiceError.cacheWorkspaceNonSupported
         }
-        let generator = projectGeneratorFactory.generator(cache: cache, cacheSources: cacheSources)
+        let generator = projectGeneratorFactory.generator(cache: cache, includeSources: includeSources)
         let workspacePath = try generator.generate(path: path, projectOnly: false)
         try opener.open(path: workspacePath)
     }
