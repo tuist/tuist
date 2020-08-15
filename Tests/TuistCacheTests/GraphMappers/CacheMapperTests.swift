@@ -12,19 +12,20 @@ import XCTest
 final class CacheMapperTests: TuistUnitTestCase {
     var cache: MockCacheStorage!
     var graphContentHasher: MockGraphContentHasher!
-    var cacheGraphMapper: MockCacheGraphMapper!
+    var cacheGraphMutator: MockCacheGraphMutator!
     var subject: CacheMapper!
     var config: Config!
 
     override func setUp() {
         cache = MockCacheStorage()
         graphContentHasher = MockGraphContentHasher()
-        cacheGraphMapper = MockCacheGraphMapper()
+        cacheGraphMutator = MockCacheGraphMutator()
         config = .test()
         subject = CacheMapper(config: config,
                               cache: cache,
                               graphContentHasher: graphContentHasher,
-                              cacheGraphMapper: cacheGraphMapper,
+                              sources: [],
+                              cacheGraphMutator: cacheGraphMutator,
                               queue: DispatchQueue.main)
         super.setUp()
     }
@@ -34,7 +35,7 @@ final class CacheMapperTests: TuistUnitTestCase {
         config = nil
         cache = nil
         graphContentHasher = nil
-        cacheGraphMapper = nil
+        cacheGraphMutator = nil
         subject = nil
     }
 
@@ -77,7 +78,7 @@ final class CacheMapperTests: TuistUnitTestCase {
             if hash == cHash { return cXCFrameworkPath }
             else { fatalError("unexpected call to fetch") }
         }
-        cacheGraphMapper.mapStub = .success(outputGraph)
+        cacheGraphMutator.stubbedMapResult = outputGraph
 
         // When
         let (got, _) = try subject.map(graph: inputGraph)
@@ -125,7 +126,7 @@ final class CacheMapperTests: TuistUnitTestCase {
             if hash == cHash { throw error }
             else { fatalError("unexpected call to fetch") }
         }
-        cacheGraphMapper.mapStub = .success(outputGraph)
+        cacheGraphMutator.stubbedMapResult = outputGraph
 
         // Then
         XCTAssertThrowsSpecific(try subject.map(graph: inputGraph), error)

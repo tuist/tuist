@@ -20,6 +20,13 @@ struct FocusCommand: ParsableCommand {
     var cache: Bool = false
 
     @Option(
+        name: NameSpecification([.customShort("i"), .customLong("include-sources", withSingleDash: false)]),
+        parsing: .singleValue,
+        help: "When used with --cache, it generates the given target (with the sources) even if it exists in the cache."
+    )
+    var includeSources: [String]
+
+    @Option(
         name: .shortAndLong,
         help: "The path to the directory containing the project you plan to focus on.",
         completion: .directory
@@ -27,6 +34,6 @@ struct FocusCommand: ParsableCommand {
     var path: String?
 
     func run() throws {
-        try FocusService().run(cache: cache, path: path)
+        try FocusService().run(cache: cache, path: path, includeSources: Set(includeSources))
     }
 }
