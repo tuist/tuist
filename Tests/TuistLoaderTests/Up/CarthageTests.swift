@@ -19,7 +19,7 @@ final class CarthageTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_update() throws {
+    func test_bootstrap() throws {
         let temporaryPath = try self.temporaryPath()
         system.whichStub = { tool in
             if tool == "carthage" {
@@ -28,12 +28,12 @@ final class CarthageTests: TuistUnitTestCase {
                 throw NSError.test()
             }
         }
-        system.succeedCommand("/path/to/carthage", "update", "--project-directory", temporaryPath.pathString, "--platform", "iOS,macOS", "Alamofire",
+        system.succeedCommand("/path/to/carthage", "bootstrap", "--project-directory", temporaryPath.pathString, "--platform", "iOS,macOS", "Alamofire",
                               output: "")
 
-        try subject.update(path: temporaryPath,
-                           platforms: [.iOS, .macOS],
-                           dependencies: ["Alamofire"])
+        try subject.bootstrap(path: temporaryPath,
+                              platforms: [.iOS, .macOS],
+                              dependencies: ["Alamofire"])
     }
 
     func test_outdated() throws {

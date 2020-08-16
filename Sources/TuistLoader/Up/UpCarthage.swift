@@ -3,9 +3,9 @@ import TSCBasic
 import TuistCore
 import TuistSupport
 
-/// Up that updates outdated Carthage dependencies.
+/// Up that bootstraps outdated Carthage dependencies.
 class UpCarthage: Up, GraphInitiatable {
-    /// The platforms Carthage dependencies should be updated for.
+    /// The platforms Carthage dependencies should be bootstraped for.
     let platforms: [Platform]
 
     /// Up homebrew for installing Carthge.
@@ -17,7 +17,7 @@ class UpCarthage: Up, GraphInitiatable {
     /// Initializes the Carthage command.
     ///
     /// - Parameters:
-    ///   - platforms: The platforms Carthage dependencies should be updated for.
+    ///   - platforms: The platforms Carthage dependencies should be bootstraped for.
     ///   - upHomebrew: Up homebrew for installing Carthage.
     ///   - carthage: Carthage instace to interact with the project Carthage setup.
     init(platforms: [Platform],
@@ -27,7 +27,7 @@ class UpCarthage: Up, GraphInitiatable {
         self.platforms = platforms
         self.upHomebrew = upHomebrew
         self.carthage = carthage
-        super.init(name: "Carthage update")
+        super.init(name: "Carthage bootstrap")
     }
 
     /// Default constructor of entities that are part of the manifest.
@@ -69,9 +69,9 @@ class UpCarthage: Up, GraphInitiatable {
             try upHomebrew.meet(projectPath: projectPath)
         }
 
-        /// Updating Carthage dependencies.
+        /// Bootstraping Carthage dependencies.
         let oudated = try carthage.outdated(path: projectPath) ?? []
-        try carthage.update(path: projectPath, platforms: platforms, dependencies: oudated)
+        try carthage.bootstrap(path: projectPath, platforms: platforms, dependencies: oudated)
     }
 
     func whatever() {}

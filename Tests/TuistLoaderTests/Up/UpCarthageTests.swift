@@ -94,7 +94,7 @@ final class UpCarthageTests: TuistUnitTestCase {
         carthage.outdatedStub = { _ in
             ["Dependency"]
         }
-        carthage.updateStub = { projectPath, platforms, dependencies in
+        carthage.bootstrapStub = { projectPath, platforms, dependencies in
             XCTAssertEqual(projectPath, temporaryPath)
             XCTAssertEqual(platforms, self.platforms)
             XCTAssertEqual(dependencies, ["Dependency"])
@@ -103,6 +103,6 @@ final class UpCarthageTests: TuistUnitTestCase {
         try subject.meet(projectPath: temporaryPath)
 
         XCTAssertEqual(upHomebrew.meetCallCount, 0)
-        XCTAssertEqual(carthage.updateCallCount, 1)
+        XCTAssertEqual(carthage.bootstrapCallCount, 1)
     }
 }
