@@ -86,7 +86,7 @@ public final class XCFrameworkBuilder: XCFrameworkBuilding {
             let deviceArchivePath = temporaryPath.appending(component: "device.xcarchive")
             let deviceArchiveObservable = xcodeBuildController.archive(projectTarget,
                                                                        scheme: scheme,
-                                                                       clean: true,
+                                                                       clean: false,
                                                                        archivePath: deviceArchivePath,
                                                                        arguments: [
                                                                            .sdk(target.platform.xcodeDeviceSDK),
