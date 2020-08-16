@@ -4,12 +4,12 @@ import TuistLoader
 import TuistSupport
 
 protocol GenerateServiceProjectGeneratorFactorying {
-    func generator(cache: Bool) -> ProjectGenerating
+    func generator(cache: Bool, includeSources: Set<String>) -> ProjectGenerating
 }
 
 final class GenerateServiceProjectGeneratorFactory: GenerateServiceProjectGeneratorFactorying {
-    func generator(cache: Bool) -> ProjectGenerating {
-        ProjectGenerator(graphMapperProvider: GraphMapperProvider(cache: cache))
+    func generator(cache: Bool, includeSources: Set<String>) -> ProjectGenerating {
+        ProjectGenerator(graphMapperProvider: GraphMapperProvider(cache: cache, includeSources: includeSources))
     }
 }
 
@@ -28,11 +28,12 @@ final class GenerateService {
 
     func run(path: String?,
              projectOnly: Bool,
-             cache: Bool) throws
+             cache: Bool,
+             cacheSources: Set<String>) throws
     {
         let timer = clock.startTimer()
         let path = self.path(path)
-        let generator = projectGeneratorFactory.generator(cache: cache)
+        let generator = projectGeneratorFactory.generator(cache: cache, includeSources: cacheSources)
 
         _ = try generator.generate(path: path, projectOnly: projectOnly)
 

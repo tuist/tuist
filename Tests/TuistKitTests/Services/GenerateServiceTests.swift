@@ -13,15 +13,15 @@ import XCTest
 final class MockGenerateServiceProjectGeneratorFactory: GenerateServiceProjectGeneratorFactorying {
     var invokedGenerator = false
     var invokedGeneratorCount = 0
-    var invokedGeneratorParameters: (cache: Bool, Void)?
-    var invokedGeneratorParametersList = [(cache: Bool, Void)]()
+    var invokedGeneratorParameters: (cache: Bool, includeSources: Set<String>)?
+    var invokedGeneratorParametersList = [(cache: Bool, includeSources: Set<String>)]()
     var stubbedGeneratorResult: ProjectGenerating!
 
-    func generator(cache: Bool) -> ProjectGenerating {
+    func generator(cache: Bool, includeSources: Set<String>) -> ProjectGenerating {
         invokedGenerator = true
         invokedGeneratorCount += 1
-        invokedGeneratorParameters = (cache, ())
-        invokedGeneratorParametersList.append((cache, ()))
+        invokedGeneratorParameters = (cache, includeSources)
+        invokedGeneratorParametersList.append((cache, includeSources))
         return stubbedGeneratorResult
     }
 }
@@ -160,6 +160,7 @@ extension GenerateService {
     {
         try run(path: path,
                 projectOnly: projectOnly,
-                cache: cache)
+                cache: cache,
+                cacheSources: Set())
     }
 }
