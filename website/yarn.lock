@@ -8132,10 +8132,10 @@ gatsby-plugin-sharp@2.6.25:
     svgo "1.3.2"
     uuid "^3.4.0"
 
-gatsby-plugin-sitemap@^2.4.7:
-  version "2.4.7"
-  resolved "https://registry.yarnpkg.com/gatsby-plugin-sitemap/-/gatsby-plugin-sitemap-2.4.7.tgz#9f04a1f4d750c404b220a76a3b31536eb5e7f8fa"
-  integrity sha512-1U3hcynH6RVwJXwgYZSc+Y7pDU71hqvnxX8Ir5JCEgOyvAZSUV9RyXVOUU6qM26C+kDXHSJhwT0EP765U7VEbw==
+gatsby-plugin-sitemap@^2.4.11:
+  version "2.4.11"
+  resolved "https://registry.yarnpkg.com/gatsby-plugin-sitemap/-/gatsby-plugin-sitemap-2.4.11.tgz#080b3fe49e011a473582a660720de7a36089ae84"
+  integrity sha512-OX8Jry3t6iPqWoo/WDo0DTmaKuIPa0RDrd/fFeS5DYGyclpIVnAK1fr92X2222ZtdRwn6NLd5c+RpNrjxDvJDA==
   dependencies:
     "@babel/runtime" "^7.10.3"
     minimatch "^3.0.4"
