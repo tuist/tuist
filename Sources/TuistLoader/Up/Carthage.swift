@@ -112,9 +112,7 @@ final class Carthage: Carthaging {
 }
 
 extension Carthage {
-
     private enum DependencyType: String {
         case github, git, binary
     }
-
 }
