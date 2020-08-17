@@ -36,6 +36,33 @@ jobs:
           rm -rf .coverage
           mkdir -p .coverage
           swift test --enable-code-coverage
+  performance_tests:
+    name: Performance tests
+    runs-on: macOS-latest
+    strategy:
+      matrix:
+        xcode: ["11.5"]
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          path: reference
+          ref: master
+      - uses: actions/checkout@v1
+          with:
+            path: current
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_${{ matrix.xcode }}.app
+      - name: Record baseline measurements
+        run: |
+            cd reference
+            TEST_RECORD_BASELINES=1 swift test -c release --filter "PerformanceTests" -Xswiftc -enable-testing
+      - name: Copy baselines measurements
+        run: |
+            cp -r reference/performance_tests_baselines current/performance_tests_baselines
+      - name: Run performance tests
+        run: |
+          cd current
+          swift test -c release --filter "PerformanceTests" -Xswiftc -enable-testing
   release_build:
     name: Release build
     runs-on: macOS-latest
