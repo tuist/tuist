@@ -6,7 +6,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - **Breaking** Support for Xcode 11.3.x and Xcode 11.4.x [#1604](https://github.com/tuist/tuist/pull/1604) by [@fortmarek](https://github.com/fortmarek)
 - Support multiple rendering algorithms in Tuist Graph  [#1655]([1655](https://github.com/tuist/tuist/pull/1655/)) by [@andreacipriani][https://github.com/andreacipriani]
-- Fix Carthage support for binary dependencies by [@softmaxsg](https://github.com/softmaxsg) 
+- Fix Carthage support for binary dependencies [#1675](https://github.com/tuist/tuist/pull/1675) by [@softmaxsg](https://github.com/softmaxsg) 
 
 ## 1.15.0 - Riga
 
