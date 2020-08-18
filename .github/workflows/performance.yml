@@ -1,0 +1,37 @@
+name: Performance Tests
+
+on:  
+  pull_request:
+    paths:
+      - Sources/**/*
+      - Tests/**/*
+      - .github/workflows/performance.yml
+
+jobs:
+  performance_tests:
+    name: Performance tests
+    runs-on: macOS-latest
+    strategy:
+      matrix:
+        xcode: ["11.5"]
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/checkout@v2
+        with:
+          path: reference_branch
+          ref: master
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_${{ matrix.xcode }}.app
+      - name: Record baseline measurements
+        run: |
+            cd reference_branch
+            TEST_RECORD_BASELINES=1 swift test -c release --filter "PerformanceTests" -Xswiftc -enable-testing
+      - name: Copy baselines measurements
+        id: copy_baselines
+        continue-on-error: true
+        run: |
+            cp -r reference_branch/performance_tests_baselines performance_tests_baselines
+      - name: Run performance tests
+        if: steps.copy_baselines.outcome == 'success'
+        run: |
+          swift test -c release --filter "PerformanceTests" -Xswiftc -enable-testing
