@@ -48,8 +48,8 @@ jobs:
           path: reference
           ref: master
       - uses: actions/checkout@v1
-          with:
-            path: current
+        with:
+          path: current
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_${{ matrix.xcode }}.app
       - name: Record baseline measurements
