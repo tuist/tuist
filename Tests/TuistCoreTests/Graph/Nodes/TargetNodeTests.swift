@@ -91,4 +91,13 @@ final class TargetNodeTests: XCTestCase {
         // Then
         XCTAssertTrue(subject.dependsOnXCTest)
     }
+
+    func test_dependsOnXCTest_when_testBundle() {
+        // When
+        let target = Target.test(product: .uiTests)
+        let subject = TargetNode.test(target: target)
+
+        // Then
+        XCTAssertTrue(subject.dependsOnXCTest)
+    }
 }
