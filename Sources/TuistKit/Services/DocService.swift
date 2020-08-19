@@ -2,7 +2,7 @@ import Foundation
 
 struct DocService {
 
-    func run(path: String?) throws {
+    func run(paths: [String]) throws {
         
     }
 }
