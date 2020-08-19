@@ -17,7 +17,7 @@ struct DocCommand: ParsableCommand {
     // MARK: - Run
 
     func run() throws {
-        
+        try DocService().run(paths: options.inputs)
     }
 }
 
