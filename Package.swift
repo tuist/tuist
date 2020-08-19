@@ -60,6 +60,18 @@ let package = Package(
             dependencies: ["TuistCore", "TuistSupportTesting"]
         ),
         .target(
+            name: "TuistDoc",
+            dependencies: []
+        ),
+        .target(
+            name: "TuistDocTesting",
+            dependencies: []
+        ),
+        .testTarget(
+            name: "TuistDocTests",
+            dependencies: []
+        ),
+        .target(
             name: "TuistKit",
             dependencies: ["XcodeProj", "SwiftToolsSupport-auto", "ArgumentParser", "TuistSupport", "TuistGenerator", "TuistCache", "TuistAutomation", "ProjectDescription", "Signals", "RxSwift", "RxBlocking", "Checksum", "TuistLoader", "TuistInsights", "TuistScaffold", "TuistSigning", "TuistCloud", "GraphViz", "TuistMigration"]
         ),
