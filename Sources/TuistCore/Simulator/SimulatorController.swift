@@ -1,4 +1,5 @@
 import Foundation
+import RxBlocking
 import RxSwift
 import TuistSupport
 
@@ -11,6 +12,9 @@ public protocol SimulatorControlling {
 
     /// Returns the list of simulator devices and runtimes.
     func devicesAndRuntimes() -> Single<[SimulatorDeviceAndRuntime]>
+    
+    /// Boots a given simulator
+    func bootSimulator(_ simulator: SimulatorDevice) throws
 }
 
 public enum SimulatorControllerError: FatalError {
@@ -30,9 +34,9 @@ public enum SimulatorControllerError: FatalError {
 }
 
 public final class SimulatorController: SimulatorControlling {
-    private let jsonDecoder = JSONDecoder()
-
-    public init() {}
+    private let jsonDecoder: JSONDecoder = JSONDecoder()
+    
+    public init() { }
 
     public func devices() -> Single<[SimulatorDevice]> {
         System.shared.observable(["/usr/bin/xcrun", "simctl", "list", "devices", "--json"])
@@ -100,5 +104,13 @@ public final class SimulatorController: SimulatorControlling {
                     return SimulatorDeviceAndRuntime(device: device, runtime: runtime)
                 }
             }
+    }
+    
+    public func bootSimulator(_ simulator: SimulatorDevice) throws {
+        logger.log(level: .notice, "Booting \(simulator.description)", metadata: .section)
+        _ = try System.shared.observable(["/usr/bin/xcrun", "simctl", "boot", "\(simulator.udid)"])
+            .mapToString()
+            .toBlocking()
+            .last()
     }
 }

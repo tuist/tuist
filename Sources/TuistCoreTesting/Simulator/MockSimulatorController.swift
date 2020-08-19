@@ -43,4 +43,9 @@ public final class MockSimulatorController: SimulatorControlling {
             return .error(TestError("call to non-stubbed method runtimesAndDevices"))
         }
     }
+    
+    public var simulatorArgs: [SimulatorDevice] = []
+    public func bootSimulator(_ simulator: SimulatorDevice) throws {
+        simulatorArgs.append(simulator)
+    }
 }
