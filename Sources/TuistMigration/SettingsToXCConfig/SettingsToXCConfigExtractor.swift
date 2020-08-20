@@ -86,8 +86,9 @@ public class SettingsToXCConfigExtractor: SettingsToXCConfigExtracting {
             try FileHandler.shared.createFolder(xcconfigPath.parentDirectory)
         }
         let buildSettingsContent = [commonBuildSettingsLines.sorted().joined(separator: "\n"),
-                                    buildSettingsLines.joined(separator: "\n")].joined(separator: "\n\n")
+                                    buildSettingsLines.sorted().joined(separator: "\n")].joined(separator: "\n\n")
         try FileHandler.shared.write(buildSettingsContent, path: xcconfigPath, atomically: true)
+        logger.info("Build settings successfully extracted into \(xcconfigPath.pathString)", metadata: .success)
     }
 
     private func buildConfigurations(pbxproj: PBXProj, targetName: String?) throws -> [XCBuildConfiguration] {

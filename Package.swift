@@ -227,6 +227,10 @@ let package = Package(
             name: "TuistMigrationTests",
             dependencies: ["TuistMigration", "TuistSupportTesting", "TuistCoreTesting", "TuistMigrationTesting"]
         ),
+        .testTarget(
+            name: "TuistMigrationIntegrationTests",
+            dependencies: ["TuistMigration", "TuistSupportTesting", "TuistCoreTesting", "TuistMigrationTesting"]
+        ),
         .target(
             name: "TuistLoader",
             dependencies: ["XcodeProj", "SwiftToolsSupport-auto", "TuistCore", "TuistSupport", "ProjectDescription"]
