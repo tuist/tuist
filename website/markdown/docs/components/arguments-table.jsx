@@ -34,23 +34,31 @@ const ArgumentsTable = ({ args }) => {
                     <div css={[tw`font-bold md:font-normal`]}>
                       <ReactMarkdown source={arg.long} />
                     </div>
-                    <div css={[tw`block md:hidden`]}>
+                    <div css={[tw`block md:hidden font-bold`]}>
                       <ReactMarkdown source={arg.short} />
                     </div>
-                    {/* <div css={[tw`block md:hidden mt-3`]}>
-                      <span css={[tw`font-medium`]}>Type: </span>{' '}
-                      <Styled.inlineCode>{type}</Styled.inlineCode>
-                    </div> */}
                     <div css={[tw`block md:hidden`]}>
-                      <span css={[tw`font-medium`]}>Optional: </span>{' '}
-                      {optionalValue}
+                      <span css={[tw`font-semibold mt-3 uppercase`]}>
+                        Description:{' '}
+                      </span>{' '}
+                      <ReactMarkdown source={arg.description} />
                     </div>
-                    <div css={[tw`block md:hidden`]}>
-                      <span css={[tw`font-medium`]}>Default value: </span>{' '}
-                      {arg.default != '' && (
-                        <Styled.inlineCode>{arg.default}</Styled.inlineCode>
-                      )}
-                    </div>
+                    {arg.values && (
+                      <div css={[tw`block md:hidden mt-3`]}>
+                        <span css={[tw`font-semibold uppercase`]}>
+                          Values:{' '}
+                        </span>{' '}
+                        <ReactMarkdown source={arg.values.join(', ')} />
+                      </div>
+                    )}
+                    {arg.default && (
+                      <div css={[tw`block md:hidden mt-3`]}>
+                        <span css={[tw`font-semibold uppercase`]}>
+                          Default:{' '}
+                        </span>{' '}
+                        <ReactMarkdown source={arg.default} />
+                      </div>
+                    )}
                   </td>
                   <td css={[cellStyle, tw`hidden md:table-cell`]}>
                     <ReactMarkdown source={arg.short} />

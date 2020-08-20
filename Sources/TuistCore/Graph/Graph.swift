@@ -387,7 +387,7 @@ public class Graph: Encodable, Equatable {
     /// - Parameter project: Project whose dependency references will be returned.
     public func allDependencyReferences(for project: Project) throws -> [GraphDependencyReference] {
         let linkableDependencies = try project.targets.flatMap {
-            try self.linkableDependencies(path: project.path, name: $0.name)
+            self.linkableDependencies(path: project.path, name: $0.name)
         }
 
         let embeddableDependencies = try project.targets.flatMap {

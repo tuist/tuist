@@ -33,7 +33,7 @@ public struct TuistCommand: ParsableCommand {
         name: [.customLong("help-env")],
         help: "Display subcommands to manage the environment tuist versions."
     )
-    var isTuistEnvHelp: Bool
+    var isTuistEnvHelp: Bool = false
 
     public static func main(_ arguments: [String]? = nil) -> Never {
         let errorHandler = ErrorHandler()
