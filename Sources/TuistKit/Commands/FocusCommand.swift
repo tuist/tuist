@@ -24,7 +24,7 @@ struct FocusCommand: ParsableCommand {
         parsing: .singleValue,
         help: "When used with --cache, it generates the given target (with the sources) even if it exists in the cache."
     )
-    var includeSources: [String]
+    var includeSources: [String] = []
 
     @Option(
         name: .shortAndLong,
