@@ -14004,6 +14004,13 @@ react-spring@^8.0.22:
     "@babel/runtime" "^7.3.1"
     prop-types "^15.5.8"
 
+react-sticky-header@^0.2.0:
+  version "0.2.0"
+  resolved "https://registry.yarnpkg.com/react-sticky-header/-/react-sticky-header-0.2.0.tgz#cf4ebb30ebcb2763898c2026f72b3ae3746dd037"
+  integrity sha512-bdqLXiS+vOA2jkWNZdUe6L7beH/HMYZEcTJTyE8GDjxCh/D03LFQ9rCPttquFNA63T4FybZ/a2j7fWZ86kQBjg==
+  dependencies:
+    react "^15.5.4"
+
 react-style-singleton@^2.1.0:
   version "2.1.0"
   resolved "https://registry.yarnpkg.com/react-style-singleton/-/react-style-singleton-2.1.0.tgz#7396885332e9729957f9df51f08cadbfc164e1c4"
@@ -14043,6 +14050,13 @@ react-twitter-embed@^3.0.3:
     react-proptype-conditional-require "^1.0.4"
     scriptjs "^2.5.9"
 
+react-use-scroll@^1.0.3:
+  version "1.0.3"
+  resolved "https://registry.yarnpkg.com/react-use-scroll/-/react-use-scroll-1.0.3.tgz#65b098eef93f36a88c211c1ff34ff09bbfdb79dd"
+  integrity sha512-BWa3gnyv8il+LH/Llc5uTPrKA4rR4nSFmF/etyqd7lhlox9gva8JMgjOYpPPO79Z0LsP87we+uEGqqut/YWetA==
+  dependencies:
+    react "^16.8.6"
+
 react-use-visibility@^0.3.0:
   version "0.3.0"
   resolved "https://registry.yarnpkg.com/react-use-visibility/-/react-use-visibility-0.3.0.tgz#1bf967dbde36a61af47d785156e5988c4c807e8e"
@@ -14050,7 +14064,7 @@ react-use-visibility@^0.3.0:
   dependencies:
     lodash.throttle "^4.1.1"
 
-react@15:
+react@15, react@^15.5.4:
   version "15.6.2"
   resolved "https://registry.yarnpkg.com/react/-/react-15.6.2.tgz#dba0434ab439cfe82f108f0f511663908179aa72"
   integrity sha1-26BDSrQ5z+gvEI8PURZjkIF5qnI=

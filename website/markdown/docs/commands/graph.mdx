@@ -31,13 +31,11 @@ tuist graph --format dot
       long: '`--skip-test-targets`',
       short: '`-s`',
       description: 'Excludes test targets from the generated graph.',
-      optional: false,
     },
     {
       long: '`--skip-external-dependencies`',
       short: '`-s`',
       description: 'Excludes test targets from the generated graph.',
-      optional: true,
     },
     {
       long: '`--format`',
@@ -45,7 +43,6 @@ tuist graph --format dot
       description: 'The format of the generated graph',
       values: ['`dot`', '`png`'],
       default: '`png`',
-      optional: true,
     },
     {
       long: '`--layout-algorithm`',
@@ -62,7 +59,6 @@ tuist graph --format dot
         '`sfddp`',
         '`patchwork`',
       ],
-      optional: true,
     },
     {
       long: '`--path`',
@@ -70,7 +66,6 @@ tuist graph --format dot
       description:
         'The path to where the image will be exported. When not specified, it exports the image in the current directory.',
       default: '',
-      optional: true,
     },
   ]}
 />
