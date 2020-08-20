@@ -5,14 +5,14 @@ import TuistGenerator
 import TuistLoader
 import TuistSupport
 
-enum LintServiceError: FatalError, Equatable {
+enum LintCodeServiceError: FatalError, Equatable {
     /// Thrown when neither a workspace or a project is found in the given path.
-    case manifestNotFound(AbsolutePath)
+    case targetNotFound(String)
 
     /// Error type.
     var type: ErrorType {
         switch self {
-        case .manifestNotFound:
+        case .targetNotFound:
             return .abort
         }
     }
@@ -20,32 +20,29 @@ enum LintServiceError: FatalError, Equatable {
     /// Description
     var description: String {
         switch self {
-        case let .manifestNotFound(path):
-            return "Couldn't find Project.swift nor Workspace.swift at \(path.pathString)"
+        case let .targetNotFound(name):
+            return "Target with name '\(name)' not found in the project."
         }
     }
 }
 
-final class LintService {
-    /// Graph linter
-    private let graphLinter: GraphLinting
-    private let environmentLinter: EnvironmentLinting
-    private let manifestLoading: ManifestLoading
+final class LintCodeService {
     private let graphLoader: GraphLoading
+    private let manifestLoading: ManifestLoading
+    private let codeLinter: CodeLinting
 
-    init(graphLinter: GraphLinting = GraphLinter(),
-         environmentLinter: EnvironmentLinting = EnvironmentLinter(),
+    init(codeLinter: CodeLinting = CodeLinter(),
+         rootDirectoryLocator _: RootDirectoryLocating = RootDirectoryLocator(),
          manifestLoading: ManifestLoading = ManifestLoader(),
          graphLoader: GraphLoading = GraphLoader(modelLoader: GeneratorModelLoader(manifestLoader: ManifestLoader(),
                                                                                    manifestLinter: AnyManifestLinter())))
     {
-        self.graphLinter = graphLinter
-        self.environmentLinter = environmentLinter
+        self.codeLinter = codeLinter
         self.manifestLoading = manifestLoading
         self.graphLoader = graphLoader
     }
 
-    func run(path: String?) throws {
+    func run(path: String?, targetName: String?) throws {
         let path = self.path(path)
 
         // Load graph
@@ -60,23 +57,22 @@ final class LintService {
             logger.notice("Loading project at \(path.pathString)")
             (graph, _) = try graphLoader.loadProject(path: path)
         } else {
-            throw LintServiceError.manifestNotFound(path)
+            throw LintProjectServiceError.manifestNotFound(path)
         }
 
-        logger.notice("Running linters")
-        let config = try graphLoader.loadConfig(path: path)
-
-        var issues: [LintingIssue] = []
-        logger.notice("Linting the environment")
-        issues.append(contentsOf: try environmentLinter.lint(config: config))
-        logger.notice("Linting the loaded dependency graph")
-        issues.append(contentsOf: graphLinter.lint(graph: graph))
-
-        if issues.isEmpty {
-            logger.notice("No linting issues found", metadata: .success)
+        // Get sources
+        let sources: [AbsolutePath]
+        if let targetName = targetName {
+            if let target = graph.targets.flatMap({ $0.value }).map(\.target).first(where: { $0.name == targetName }) {
+                sources = target.sources.map { $0.path }
+            } else {
+                throw LintCodeServiceError.targetNotFound(targetName)
+            }
         } else {
-            try issues.printAndThrowIfNeeded()
+            sources = graph.targets.flatMap { $0.value }.map(\.target).flatMap { $0.sources }.map { $0.path }
         }
+
+        try codeLinter.lint(sources: sources, path: path)
     }
 
     // MARK: - Helpers

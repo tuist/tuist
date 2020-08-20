@@ -6,17 +6,9 @@ import TSCBasic
 struct LintCommand: ParsableCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(commandName: "lint",
-                             abstract: "Lints a workspace or a project that check whether they are well configured")
-    }
-
-    @Option(
-        name: .shortAndLong,
-        help: "The path to the directory that contains the workspace or project to be linted",
-        completion: .directory
-    )
-    var path: String?
-
-    func run() throws {
-        try LintService().run(path: path)
+                             abstract: "A set of tools for linting projects and code.", subcommands: [
+                                 LintProjectCommand.self,
+                                 LintCodeCommand.self,
+                             ])
     }
 }
