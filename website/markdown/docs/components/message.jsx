@@ -23,10 +23,10 @@ const Message = ({ title, description, info, warning }) => {
   }
 
   return (
-    <div className="my-6">
+    <div css={[tw`my-6`]}>
       <div css={[backgroundColor, tw`rounded-md p-4`]}>
-        <div className="flex">
-          <div className="flex-shrink-0">
+        <div css={[tw`flex`]}>
+          <div css={[tw`flex-shrink-0`]}>
             <svg
               css={[iconColor, tw`h-5 w-5`, warning ? tw`block` : tw`hidden`]}
               viewBox="0 0 20 20"
@@ -50,11 +50,11 @@ const Message = ({ title, description, info, warning }) => {
               />
             </svg>
           </div>
-          <div className="ml-3">
-            <h3 className="text-sm leading-5 font-medium" css={[titleColor]}>
+          <div css={[tw`ml-3`]}>
+            <h3 css={[titleColor, tw`text-sm leading-5 font-medium`]}>
               {title}
             </h3>
-            <div className="mt-2 text-sm leading-5" css={[textColor]}>
+            <div css={[textColor, tw`mt-2 text-sm leading-5`]}>
               <ReactMarkdown source={description} />
             </div>
           </div>

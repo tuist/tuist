@@ -14,22 +14,63 @@ For producing a `png` image that represent the graph, you can use some well know
 Run the following command from a directory that contains a workspace or project manifest:
 
 ```bash
-tuist graph --format=png
+tuist graph --format png
 ```
 
 If you prefer to have the dot representation of the graph and render it separately, you can run:
 
 ```bash
-tuist graph --format=dot
+tuist graph --format dot
 ```
 
-### All options
+### Arguments
 
-The additional arguments are:
-- `skipTestTargets`
-- `skipExternalDependencies`
-- `format`: `dot` (default), `png`
-- `layout-algorithm`: `dot`, `neato`, `twopi`, `circo`, `fdp`, `sfddp`, `patchwork`. The deafault is `dot`, `fdp` is particularly good for big graphs.
-- `path` the path were the png image of the graph will be saved. When not specified, it defaults to the current directory
-
-
+<ArgumentsTable
+  args={[
+    {
+      long: '`--skip-test-targets`',
+      short: '`-s`',
+      description: 'Excludes test targets from the generated graph.',
+      optional: false,
+    },
+    {
+      long: '`--skip-external-dependencies`',
+      short: '`-s`',
+      description: 'Excludes test targets from the generated graph.',
+      optional: true,
+    },
+    {
+      long: '`--format`',
+      short: '`-f`',
+      description: 'The format of the generated graph',
+      values: ['`dot`', '`png`'],
+      default: '`png`',
+      optional: true,
+    },
+    {
+      long: '`--layout-algorithm`',
+      short: '`-l`',
+      description:
+        "The algorithm used for drawing the graph. For large graphs, it's recommended to use `fdp`.",
+      default: '`dot`',
+      values: [
+        '`dot`',
+        '`neato`',
+        '`twopi`',
+        '`circo`',
+        '`fdp`',
+        '`sfddp`',
+        '`patchwork`',
+      ],
+      optional: true,
+    },
+    {
+      long: '`--path`',
+      short: '`-p`',
+      description:
+        'The path to where the image will be exported. When not specified, it exports the image in the current directory.',
+      default: '',
+      optional: true,
+    },
+  ]}
+/>

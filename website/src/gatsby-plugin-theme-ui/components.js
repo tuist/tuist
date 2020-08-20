@@ -5,6 +5,7 @@ import React from 'react'
 import Code from './code'
 import Message from '../../markdown/docs/components/message'
 import Email from '../../markdown/docs/components/email'
+import ArgumentsTable from '../../markdown/docs/components/arguments-table'
 
 const heading = (Tag) => (props) => {
   if (!props.id) return <Tag {...props} />
@@ -28,4 +29,5 @@ export default {
   h6: heading('h6'),
   Message: Message,
   Email: Email,
+  ArgumentsTable: ArgumentsTable,
 }
