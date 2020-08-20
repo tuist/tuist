@@ -54,7 +54,7 @@ public class SettingsToXCConfigExtractor: SettingsToXCConfigExtracting {
         }
 
         let repeatedBuildSettingsKeys = buildConfigurations.reduce(into: Set<String>()) { acc, next in
-            acc.formIntersection(next.buildSettings.keys)
+            if acc.isEmpty { acc.formUnion(next.buildSettings.keys) } else { acc.formIntersection(next.buildSettings.keys) }
         }
 
         /// We get the build settings that are in common to define them as SETTING_KEY=SETTING_VALUE
@@ -66,25 +66,28 @@ public class SettingsToXCConfigExtractor: SettingsToXCConfigExtracting {
             return Set(stringValues).count == 1
         }
 
-        var xcconfigContent = ""
+        var commonBuildSettingsLines: [String] = []
+        var buildSettingsLines: [String] = []
 
         // Common build settings
         commonBuildSettings.forEach { setting in
-            xcconfigContent.append("\(setting)=\(buildConfigurations.first!.buildSettings[setting]!)\n")
+            commonBuildSettingsLines.append("\(setting)=\(buildConfigurations.first!.buildSettings[setting]!)")
         }
 
         // Per-configuration build settings
         buildConfigurations.forEach { configuration in
             configuration.buildSettings.forEach { key, value in
                 if commonBuildSettings.contains(key) { return }
-                xcconfigContent.append("\(key)[config=\(configuration.name)]=\(value)\n")
+                buildSettingsLines.append("\(key)[config=\(configuration.name)]=\(value)")
             }
         }
 
         if !FileHandler.shared.exists(xcconfigPath.parentDirectory) {
             try FileHandler.shared.createFolder(xcconfigPath.parentDirectory)
         }
-        try FileHandler.shared.write(xcconfigContent, path: xcconfigPath, atomically: true)
+        let buildSettingsContent = [commonBuildSettingsLines.sorted().joined(separator: "\n"),
+                                    buildSettingsLines.joined(separator: "\n")].joined(separator: "\n\n")
+        try FileHandler.shared.write(buildSettingsContent, path: xcconfigPath, atomically: true)
     }
 
     private func buildConfigurations(pbxproj: PBXProj, targetName: String?) throws -> [XCBuildConfiguration] {
