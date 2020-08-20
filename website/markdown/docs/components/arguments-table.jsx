@@ -18,6 +18,7 @@ const ArgumentsTable = ({ args }) => {
               <th css={[headerStyle, tw`hidden md:table-cell`]}>Description</th>
               <th css={[headerStyle, tw`hidden md:table-cell`]}>Values</th>
               <th css={[headerStyle, tw`hidden md:table-cell`]}>Default</th>
+              <th css={[headerStyle, tw`hidden md:table-cell`]}>Required</th>
             </tr>
           </thead>
 
@@ -75,6 +76,9 @@ const ArgumentsTable = ({ args }) => {
                     {arg.default != '' && (
                       <ReactMarkdown source={arg.default} />
                     )}
+                  </td>
+                  <td css={[cellStyle, tw`hidden md:table-cell`]}>
+                    {arg.required === true ? 'Yes' : 'No'}
                   </td>
                 </tr>
               )
