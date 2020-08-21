@@ -71,19 +71,12 @@ enum LinkGeneratorPath: Hashable {
 
 // swiftlint:disable type_body_length
 final class LinkGenerator: LinkGenerating {
-    /// An instance to locate tuist binaries.
-    let binaryLocator: BinaryLocating
-
     /// Utility that generates the script to embed dynamic frameworks.
     let embedScriptGenerator: EmbedScriptGenerating
 
     /// Initializes the link generator with its attributes.
-    /// - Parameter binaryLocator: An instance to locate tuist binaries.
     /// - Parameter embedScriptGenerator: Utility that generates the script to embed dynamic frameworks.
-    init(binaryLocator: BinaryLocating = BinaryLocator(),
-         embedScriptGenerator: EmbedScriptGenerating = EmbedScriptGenerator())
-    {
-        self.binaryLocator = binaryLocator
+    init(embedScriptGenerator: EmbedScriptGenerating = EmbedScriptGenerator()) {
         self.embedScriptGenerator = embedScriptGenerator
     }
 

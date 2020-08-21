@@ -1,5 +1,7 @@
 import ArgumentParser
 import Foundation
+import TSCBasic
+import TuistSupport
 
 // MARK: - DocCommand
 
@@ -8,32 +10,26 @@ struct DocCommand: ParsableCommand {
         CommandConfiguration(commandName: "doc",
                              abstract: "Generates documentation for a specifc target.")
     }
-    
+
     // MARK: - Attributes
-    
-    @OptionGroup()
-    var options: DocCommand.Options
-        
+
+    @Option(
+        name: .shortAndLong,
+        help: "The path to the directory that contains the project whose documentation will be generated.",
+        completion: .directory
+    )
+    var path: String?
+
     // MARK: - Run
 
     func run() throws {
-        try DocService().run(paths: options.inputs)
-    }
-}
+        let absolutePath: AbsolutePath
+        if let path = path {
+            absolutePath = AbsolutePath(path, relativeTo: FileHandler.shared.currentPath)
+        } else {
+            absolutePath = FileHandler.shared.currentPath
+        }
 
-// MARK: - Options
-
-extension DocCommand {
-    struct Options: ParsableArguments {
-        @Argument(help: "One or more paths to Swift files")
-        var inputs: [String] = []
-        
-        @Option(name: [.long, .customShort("n")],
-                help: "The name of the module")
-        var moduleName: String
-        
-        @Option(name: .shortAndLong,
-                help: "The path for generated output")
-        var output: String = "./build/documentation"
+        try DocService().run(path: absolutePath)
     }
 }

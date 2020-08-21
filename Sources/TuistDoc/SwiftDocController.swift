@@ -1,6 +1,3 @@
 public struct SwiftDocController {
-    
-    public func generate() {
-        
-    }
+    public func generate() {}
 }
