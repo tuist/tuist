@@ -118,7 +118,7 @@ class CommandRunner: CommandRunning {
         var environment = ProcessInfo.processInfo.environment
         environment[Constants.EnvironmentVariables.colouredOutput] = "\(self.environment.shouldOutputBeColoured)"
         if CommandLine.arguments.contains("--verbose") {
-            environment["TUIST_VERBOSE"] = "true"
+            environment[Constants.EnvironmentVariables.verbose] = "true"
         }
 
         do {
