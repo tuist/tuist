@@ -568,62 +568,6 @@ The type of build product this target will output. It can be any of the followin
   ]}
 />
 
-<Message
-  info
-  title="Extensions"
-  description="Application targets need to declare a dependency on any Extension targets they wish to bundle."
-/>
-
-### App Extensions
-
-The `.appExtension` product type actually covers a wide range of different app extensions types (e.g. Notification Service, Intents, Widgets, etc...).
-Xcode treats them all as the same product type, however each have a different set of `Info.plist` keys and values.
-
-For example, this is how a Notification Service Extension can be declared:
-
-```swift
-let project = Project(name: "App",
-                      targets: [
-                        Target(name: "App",
-                               platform: .iOS,
-                               product: .app,
-                               bundleId: "io.tuist.App",
-                               infoPlist: "Info.plist",
-                               sources: ["Sources/**"],
-                               dependencies: [
-                                    .target(name: "NotificationServiceExtension"),
-                                ]),
-                        Target(name: "NotificationServiceExtension",
-                               platform: .iOS,
-                               product: .appExtension,
-                               bundleId: "io.tuist.App.NotificationServiceExtension",
-                               infoPlist: .extendingDefault(with: [
-                                       "CFBundleDisplayName": "$(PRODUCT_NAME)",
-                                       "NSExtension": [
-                                               "NSExtensionPointIdentifier": "com.apple.usernotifications.service", 
-                                               "NSExtensionPrincipalClass": "$(PRODUCT_MODULE_NAME).NotificationService"
-                                       ]
-                               ]),
-                               sources: "NotificationServiceExtension/**",
-                               dependencies: [
-                                   
-                               ]),
-```
-
-One of the key differences lies within the `NSExtensionPointIdentifier` value.
-
-For example, here is a list of some of the extensions and their corresponding identifier:
-
-| Extension                              | `NSExtensionPointIdentifier`                 | 
-| -------------------------------------- | -------------------------------------------- |
-| Intents Extension                      | `com.apple.intents-service`                  |
-| Intents UI Extension                   | `com.apple.intents-ui-service`               |
-| Notification Service                   | `com.apple.usernotifications.service`        |
-| Widgets Extension                      | `com.apple.widgetkit-extension`              |
-
-To find out what the identifier for an extension type that isn't listed, you can examine the `NSExtensionPointIdentifier` value within an existing `Info.plist` file if one exists, 
-or create a new sample project using the Xcode UI with the desired app extension target and examine the `Info.plist` file created by Xcode.
-
 ## InfoPlist
 
 The `InfoPlist` model represents a target `Info.plist` file. It can have any of the following values:<EnumTable
