@@ -48,10 +48,9 @@ private enum SubjectAttribute: String {
 
 final class CertificateParser: CertificateParsing {
     func parse(publicKey: AbsolutePath, privateKey: AbsolutePath) throws -> Certificate {
-        let publicKeyComponents = publicKey.basenameWithoutExt.components(separatedBy: ".")
-        guard publicKeyComponents.count == 2 else { throw CertificateParserError.invalidFormat(publicKey.pathString) }
-        let targetName = publicKeyComponents[0]
-        let configurationName = publicKeyComponents[1]
+        guard let (targetName, configurationName) = publicKey.extractTargetAndConfigurationName() else {
+            throw CertificateParserError.invalidFormat(publicKey.pathString)
+        }
 
         let subject = try self.subject(at: publicKey)
         let isRevoked = subject.contains("REVOKED")

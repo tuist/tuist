@@ -49,9 +49,13 @@ final class SigningMatcher: SigningMatching {
         let provisioningProfiles: [TargetName: [ConfigurationName: ProvisioningProfile]] = try signingFilesLocator.locateProvisioningProfiles(from: path)
             .map(provisioningProfileParser.parse)
             .reduce(into: [:]) { dict, profile in
-                var currentTargetDict = dict[profile.targetName] ?? [:]
-                currentTargetDict[profile.configurationName] = profile
-                dict[profile.targetName] = currentTargetDict
+                guard let path = profile.path else { return }
+                guard let (targetName, configurationName) = profile.path?.extractTargetAndConfigurationName() else {
+                    throw ProvisioningProfileParserError.invalidFormat(path.pathString)
+                }
+                var currentTargetDict = dict[targetName] ?? [:]
+                currentTargetDict[configurationName] = profile
+                dict[targetName] = currentTargetDict
             }
 
         return (certificates: certificates, provisioningProfiles: provisioningProfiles)

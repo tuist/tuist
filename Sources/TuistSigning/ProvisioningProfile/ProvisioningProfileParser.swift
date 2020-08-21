@@ -5,7 +5,7 @@ import TuistSupport
 enum ProvisioningProfileParserError: FatalError {
     var type: ErrorType {
         switch self {
-        case .valueNotFound:
+        case .valueNotFound, .invalidFormat:
             return .abort
         }
     }
@@ -14,10 +14,13 @@ enum ProvisioningProfileParserError: FatalError {
         switch self {
         case let .valueNotFound(value, path):
             return "Could not find \(value). Check if the provided xml at \(path.pathString) is valid."
+        case let .invalidFormat(provisioningProfile):
+            return "Provisioning Profile \(provisioningProfile) is in invalid format. Please name your certificates in the following way: Target.Configuration.mobileprovision"
         }
     }
 
     case valueNotFound(String, AbsolutePath)
+    case invalidFormat(String)
 }
 
 protocol ProvisioningProfileParsing {
