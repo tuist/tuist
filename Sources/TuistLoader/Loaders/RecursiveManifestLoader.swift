@@ -23,7 +23,8 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
     private let manifestLoader: ManifestLoading
     private let fileHandler: FileHandling
     public init(manifestLoader: ManifestLoading = ManifestLoader(),
-                fileHandler: FileHandling = FileHandler.shared) {
+                fileHandler: FileHandling = FileHandler.shared)
+    {
         self.manifestLoader = manifestLoader
         self.fileHandler = fileHandler
     }

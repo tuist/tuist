@@ -55,6 +55,7 @@ final class SDKNodeTests: XCTestCase {
         let libraries: [(name: String, platform: Platform)] = [
             ("XCTest.framework", .iOS),
             ("XCTest.framework", .macOS),
+            ("XCTest.framework", .tvOS),
         ]
 
         // When
@@ -64,12 +65,11 @@ final class SDKNodeTests: XCTestCase {
         XCTAssertEqual(nodes.map(\.path), [
             "/Platforms/iPhoneOS.platform/Developer/Library/Frameworks/XCTest.framework",
             "/Platforms/MacOSX.platform/Developer/Library/Frameworks/XCTest.framework",
+            "/Platforms/AppleTVOS.platform/Developer/Library/Frameworks/XCTest.framework",
         ])
     }
 
     func test_xctest_sdk_framework_unsupported_platforms_path() throws {
-        XCTAssertThrowsSpecific(try SDKNode(name: "XCTest.framework", platform: .tvOS, status: .required, source: .developer),
-                                SDKNode.Error.unsupported(sdk: "XCTest.framework"))
         XCTAssertThrowsSpecific(try SDKNode(name: "XCTest.framework", platform: .watchOS, status: .required, source: .developer),
                                 SDKNode.Error.unsupported(sdk: "XCTest.framework"))
     }

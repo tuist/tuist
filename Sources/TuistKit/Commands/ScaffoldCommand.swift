@@ -32,11 +32,12 @@ struct ScaffoldCommand: ParsableCommand {
     @Flag(
         help: "The output in JSON format"
     )
-    var json: Bool
+    var json: Bool = false
 
     @Option(
         name: .shortAndLong,
-        help: "The path to the folder where the template will be generated (Default: Current directory)"
+        help: "The path to the folder where the template will be generated (Default: Current directory)",
+        completion: .directory
     )
     var path: String?
 

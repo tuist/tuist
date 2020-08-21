@@ -14,7 +14,7 @@ struct UpdateCommand: ParsableCommand {
         name: .shortAndLong,
         help: "Re-installs the latest version compiling it from the source"
     )
-    var force: Bool
+    var force: Bool = false
 
     func run() throws {
         try UpdateService().run(force: force)

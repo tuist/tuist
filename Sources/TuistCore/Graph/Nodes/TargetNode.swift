@@ -23,7 +23,8 @@ public class TargetNode: GraphNode {
 
     public init(project: Project,
                 target: Target,
-                dependencies: [GraphNode]) {
+                dependencies: [GraphNode])
+    {
         self.project = project
         self.target = target
         self.dependencies = dependencies
@@ -104,6 +105,6 @@ public class TargetNode: GraphNode {
 
     /// Returns true if the target depends on XCTest
     public var dependsOnXCTest: Bool {
-        sdkDependencies.contains(where: { $0.name == "XCTest" })
+        sdkDependencies.contains(where: { $0.name == "XCTest" }) || target.product.testsBundle
     }
 }

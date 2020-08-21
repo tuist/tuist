@@ -355,12 +355,12 @@ final class SchemesGeneratorTests: XCTestCase {
         // Given
         let projectPath = AbsolutePath("/somepath/Workspace/Projects/Project")
         let environment = ["env1": "1", "env2": "2", "env3": "3", "env4": "4"]
-        let launch = ["arg1": true, "arg2": true, "arg3": false, "arg4": true]
+        let launchArguments = ["arg1": true, "arg2": true, "arg3": false, "arg4": true]
 
         let buildAction = BuildAction.test(targets: [TargetReference(projectPath: projectPath, name: "App")])
         let runAction = RunAction.test(configurationName: "Release",
                                        executable: TargetReference(projectPath: projectPath, name: "App"),
-                                       arguments: Arguments(environment: environment, launch: launch))
+                                       arguments: Arguments(environment: environment, launchArguments: launchArguments))
         let scheme = Scheme.test(buildAction: buildAction, runAction: runAction)
 
         let app = Target.test(name: "App", product: .app, environment: environment)

@@ -28,12 +28,6 @@ it will make sure that projects are consistently defined and that they remain si
 In the aim of easing that work,
 we are giving you some guidelines based on the feedback that we have received from the users.
 
-<Message
-  info
-  title="Migration commands"
-  description="We are currently working on providing commands to assist you in the process. Until those commands are available, you might consider building simple CLI tools that leverage [XcodeProj](https://github.com/tuist/xcodeproj)"
-/>
-
 ## Guidelines
 
 #### Extract your build settings into `.xcconfig` files
@@ -46,7 +40,11 @@ You must prevent developers from defining settings using build settings.
 You can use this snippet for that:
 
 ```bash
-xcodebuild -scheme "MyScheme" -showBuildSettings >> MyScheme.xcconfig
+# Extract target build settings
+tuist migration settings-to-xcconfig -p Project.xcodeproj -t MyApp -x MyApp.xcconfig
+
+# Extract project build settings
+tuist migration settings-to-xcconfig -p Project.xcodeproj -x MyAppProject.xcconfig
 ```
 
 #### Migrate the most dependant projects first

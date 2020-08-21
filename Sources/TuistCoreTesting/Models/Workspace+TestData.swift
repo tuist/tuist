@@ -6,7 +6,8 @@ public extension Workspace {
     static func test(path: AbsolutePath = AbsolutePath("/"),
                      name: String = "test",
                      projects: [AbsolutePath] = [],
-                     additionalFiles: [FileElement] = []) -> Workspace {
+                     additionalFiles: [FileElement] = []) -> Workspace
+    {
         Workspace(path: path,
                   name: name,
                   projects: projects,

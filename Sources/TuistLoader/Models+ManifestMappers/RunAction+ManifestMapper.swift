@@ -9,7 +9,8 @@ extension TuistCore.RunAction {
     ///   - manifest: Manifest representation of  the settings.
     ///   - generatorPaths: Generator paths.
     static func from(manifest: ProjectDescription.RunAction,
-                     generatorPaths: GeneratorPaths) throws -> TuistCore.RunAction {
+                     generatorPaths: GeneratorPaths) throws -> TuistCore.RunAction
+    {
         let configurationName = manifest.configurationName
         let arguments = manifest.arguments.map { TuistCore.Arguments.from(manifest: $0) }
 

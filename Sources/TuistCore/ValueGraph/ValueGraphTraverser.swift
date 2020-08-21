@@ -2,52 +2,20 @@ import Foundation
 import TSCBasic
 import TuistSupport
 
-public protocol ValueGraphTraversing {
-    init(graph: ValueGraph)
-
-    /// Given a project directory and target name, it returns all its direct target dependencies.
-    /// - Parameters:
-    ///   - path: Path to the directory that contains the project.
-    ///   - name: Target name.
-    func directTargetDependencies(path: AbsolutePath, name: String) -> [Target]
-
-    /// Given a project directory and a target name, it returns all the dependencies that are extensions.
-    /// - Parameters:
-    ///   - path: Path to the directory that contains the project.
-    ///   - name: Target name.
-    func appExtensionDependencies(path: AbsolutePath, name: String) -> [Target]
-
-    /// Returns the transitive resource bundle dependencies for the given target.
-    /// - Parameters:
-    ///   - path: Path to the directory where the project that defines the target is located.
-    ///   - name: Name of the target.
-    func resourceBundleDependencies(path: AbsolutePath, name: String) -> [Target]
-
-    /// Given a dependency, it returns the target if the dependency represents a target and the
-    /// target exists in the graph.
-    /// - Parameter from: Dependency.
-    func target(from: ValueGraphDependency) -> Target?
-
-    /// It traverses the depdency graph and returns all the dependencies.
-    /// - Parameter path: Path to the project from where traverse the dependency tree.
-    func allDependencies(path: AbsolutePath) -> Set<ValueGraphDependency>
-
-    /// The method collects the dependencies that are selected by the provided test closure.
-    /// The skip closure allows skipping the traversing of a specific dependendency branch.
-    /// - Parameters:
-    ///   - from: Dependency from which the traverse is done.
-    ///   - test: If the closure returns true, the dependency is included.
-    ///   - skip: If the closure returns false, the traversing logic doesn't traverse the dependencies from that dependency.
-    func filterDependencies(from rootDependency: ValueGraphDependency,
-                            test: (ValueGraphDependency) -> Bool,
-                            skip: (ValueGraphDependency) -> Bool) -> Set<ValueGraphDependency>
-}
-
-public class ValueGraphTraverser: ValueGraphTraversing {
+public class ValueGraphTraverser: GraphTraversing {
     private let graph: ValueGraph
 
     public required init(graph: ValueGraph) {
         self.graph = graph
+    }
+
+    public func target(path: AbsolutePath, name: String) -> Target? {
+        graph.targets[path]?[name]
+    }
+
+    public func targets(at path: AbsolutePath) -> [Target] {
+        guard let targets = graph.targets[path] else { return [] }
+        return Array(targets.values).sorted()
     }
 
     public func directTargetDependencies(path: AbsolutePath, name: String) -> [Target] {
@@ -80,6 +48,13 @@ public class ValueGraphTraverser: ValueGraphTraversing {
         return bundleTargets.sorted()
     }
 
+    public func testTargetsDependingOn(path: AbsolutePath, name: String) -> [Target] {
+        graph.targets[path]?.values
+            .filter { $0.product.testsBundle }
+            .filter { graph.dependencies[.target(name: $0.name, path: path)]?.contains(.target(name: name, path: path)) == true }
+            .sorted() ?? []
+    }
+
     public func target(from dependency: ValueGraphDependency) -> Target? {
         guard case let ValueGraphDependency.target(name, path) = dependency else {
             return nil
@@ -96,6 +71,22 @@ public class ValueGraphTraverser: ValueGraphTraversing {
             .sorted()
     }
 
+    public func directStaticDependencies(path: AbsolutePath, name: String) -> [GraphDependencyReference] {
+        graph.dependencies[.target(name: name, path: path)]?
+            .compactMap { (dependency: ValueGraphDependency) -> (path: AbsolutePath, name: String)? in
+                guard case let ValueGraphDependency.target(name, path) = dependency else {
+                    return nil
+                }
+                return (path, name)
+            }
+            .compactMap { graph.targets[$0.path]?[$0.name] }
+            .filter { $0.product.isStatic }
+            .map { .product(target: $0.name, productName: $0.productNameWithExtension) }
+            .sorted() ?? []
+    }
+
+    /// It traverses the depdency graph and returns all the dependencies.
+    /// - Parameter path: Path to the project from where traverse the dependency tree.
     public func allDependencies(path: AbsolutePath) -> Set<ValueGraphDependency> {
         guard let targets = graph.targets[path]?.values else { return Set() }
 
@@ -109,9 +100,16 @@ public class ValueGraphTraverser: ValueGraphTraversing {
         return references
     }
 
+    /// The method collects the dependencies that are selected by the provided test closure.
+    /// The skip closure allows skipping the traversing of a specific dependendency branch.
+    /// - Parameters:
+    ///   - from: Dependency from which the traverse is done.
+    ///   - test: If the closure returns true, the dependency is included.
+    ///   - skip: If the closure returns false, the traversing logic doesn't traverse the dependencies from that dependency.
     public func filterDependencies(from rootDependency: ValueGraphDependency,
                                    test: (ValueGraphDependency) -> Bool = { _ in true },
-                                   skip: (ValueGraphDependency) -> Bool = { _ in false }) -> Set<ValueGraphDependency> {
+                                   skip: (ValueGraphDependency) -> Bool = { _ in false }) -> Set<ValueGraphDependency>
+    {
         var stack = Stack<ValueGraphDependency>()
 
         stack.push(rootDependency)

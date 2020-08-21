@@ -23,7 +23,8 @@ extension Renderer {
 
     func delta(first: TimeInterval,
                second: TimeInterval,
-               threshold: TimeInterval) -> String {
+               threshold: TimeInterval) -> String
+    {
         let delta = first - second
         let prefix = delta > 0 ? "+" : ""
         let percentageString = prefix + format((delta / second) * 100)

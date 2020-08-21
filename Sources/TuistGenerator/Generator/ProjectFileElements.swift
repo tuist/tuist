@@ -38,7 +38,8 @@ class ProjectFileElements {
     // MARK: - Init
 
     init(_ elements: [AbsolutePath: PBXFileElement] = [:],
-         playgrounds: Playgrounding = Playgrounds()) {
+         playgrounds: Playgrounding = Playgrounds())
+    {
         self.elements = elements
         self.playgrounds = playgrounds
     }
@@ -46,7 +47,8 @@ class ProjectFileElements {
     func generateProjectFiles(project: Project,
                               graph: Graph,
                               groups: ProjectGroups,
-                              pbxproj: PBXProj) throws {
+                              pbxproj: PBXProj) throws
+    {
         var files = Set<GroupFileElement>()
 
         try project.targets.forEach { target in
@@ -147,7 +149,8 @@ class ProjectFileElements {
     func generate(files: [GroupFileElement],
                   groups: ProjectGroups,
                   pbxproj: PBXProj,
-                  sourceRootPath: AbsolutePath) throws {
+                  sourceRootPath: AbsolutePath) throws
+    {
         try files.forEach {
             try generate(fileElement: $0, groups: groups, pbxproj: pbxproj, sourceRootPath: sourceRootPath)
         }
@@ -156,7 +159,8 @@ class ProjectFileElements {
     func generatePlaygrounds(path: AbsolutePath,
                              groups: ProjectGroups,
                              pbxproj: PBXProj,
-                             sourceRootPath _: AbsolutePath) {
+                             sourceRootPath _: AbsolutePath)
+    {
         let paths = playgrounds.paths(path: path)
         if paths.isEmpty { return }
 
@@ -176,7 +180,8 @@ class ProjectFileElements {
                   groups: ProjectGroups,
                   pbxproj: PBXProj,
                   sourceRootPath: AbsolutePath,
-                  filesGroup: ProjectGroup) throws {
+                  filesGroup: ProjectGroup) throws
+    {
         let sortedDependencies = dependencyReferences.sorted()
 
         func generatePrecompiled(_ path: AbsolutePath) throws {
@@ -211,7 +216,8 @@ class ProjectFileElements {
     private func generateProduct(targetName: String,
                                  productName: String,
                                  groups: ProjectGroups,
-                                 pbxproj: PBXProj) {
+                                 pbxproj: PBXProj)
+    {
         guard products[targetName] == nil else { return }
         let fileType = RelativePath(productName).extension.flatMap { Xcode.filetype(extension: $0) }
         let fileReference = PBXFileReference(sourceTree: .buildProductsDir,
@@ -227,7 +233,8 @@ class ProjectFileElements {
     func generate(fileElement: GroupFileElement,
                   groups: ProjectGroups,
                   pbxproj: PBXProj,
-                  sourceRootPath: AbsolutePath) throws {
+                  sourceRootPath: AbsolutePath) throws
+    {
         // The file already exists
         if elements[fileElement.path] != nil { return }
 
@@ -245,7 +252,8 @@ class ProjectFileElements {
                                             isLeaf: closestRelativeRelativePath == fileElementRelativeToSourceRoot,
                                             from: sourceRootPath,
                                             toGroup: group,
-                                            pbxproj: pbxproj) else {
+                                            pbxproj: pbxproj)
+        else {
             return
         }
 
@@ -263,7 +271,8 @@ class ProjectFileElements {
                                            isLeaf: component.offset == components.count - 1,
                                            from: lastPath,
                                            toGroup: lastGroup!,
-                                           pbxproj: pbxproj) else {
+                                           pbxproj: pbxproj)
+            else {
                 return
             }
             lastGroup = element.element as? PBXGroup
@@ -277,7 +286,8 @@ class ProjectFileElements {
                                        isLeaf: Bool,
                                        from: AbsolutePath,
                                        toGroup: PBXGroup,
-                                       pbxproj: PBXProj) -> (element: PBXFileElement, path: AbsolutePath)? {
+                                       pbxproj: PBXProj) -> (element: PBXFileElement, path: AbsolutePath)?
+    {
         let absolutePath = from.appending(relativePath)
         if elements[absolutePath] != nil {
             return (element: elements[absolutePath]!, path: from.appending(relativePath))
@@ -331,7 +341,8 @@ class ProjectFileElements {
 
     func addLocalizedFile(localizedFile: AbsolutePath,
                           toGroup: PBXGroup,
-                          pbxproj: PBXProj) {
+                          pbxproj: PBXProj)
+    {
         // e.g.
         // from: resources/en.lproj/
         // localizedFile: resources/en.lproj/App.strings
@@ -358,7 +369,8 @@ class ProjectFileElements {
     private func addVariantGroup(variantGroupPath: AbsolutePath,
                                  localizedName: String,
                                  toGroup: PBXGroup,
-                                 pbxproj: PBXProj) -> PBXVariantGroup {
+                                 pbxproj: PBXProj) -> PBXVariantGroup
+    {
         if let variantGroup = elements[variantGroupPath] as? PBXVariantGroup {
             return variantGroup
         }
@@ -373,7 +385,8 @@ class ProjectFileElements {
     private func addLocalizedFileElement(localizedFile: AbsolutePath,
                                          variantGroup: PBXVariantGroup,
                                          localizedContainer: AbsolutePath,
-                                         pbxproj: PBXProj) {
+                                         pbxproj: PBXProj)
+    {
         let localizedFilePath = localizedFile.relative(to: localizedContainer.parentDirectory)
         let lastKnownFileType = localizedFile.extension.flatMap { Xcode.filetype(extension: $0) }
         let language = localizedContainer.basenameWithoutExt
@@ -391,7 +404,8 @@ class ProjectFileElements {
                                 folderRelativePath: RelativePath,
                                 name: String?,
                                 toGroup: PBXGroup,
-                                pbxproj: PBXProj) -> (element: PBXFileElement, path: AbsolutePath) {
+                                pbxproj: PBXProj) -> (element: PBXFileElement, path: AbsolutePath)
+    {
         let versionGroupType = Xcode.filetype(extension: folderRelativePath.extension!)
         let group = XCVersionGroup(currentVersion: nil,
                                    path: folderRelativePath.pathString,
@@ -409,7 +423,8 @@ class ProjectFileElements {
                          folderRelativePath: RelativePath,
                          name: String?,
                          toGroup: PBXGroup,
-                         pbxproj: PBXProj) -> (element: PBXFileElement, path: AbsolutePath) {
+                         pbxproj: PBXProj) -> (element: PBXFileElement, path: AbsolutePath)
+    {
         let group = PBXGroup(children: [], sourceTree: .group, name: name, path: folderRelativePath.pathString)
         pbxproj.add(object: group)
         toGroup.children.append(group)
@@ -422,7 +437,8 @@ class ProjectFileElements {
                         fileRelativePath: RelativePath,
                         name: String?,
                         toGroup: PBXGroup,
-                        pbxproj: PBXProj) {
+                        pbxproj: PBXProj)
+    {
         let lastKnownFileType = fileAbsolutePath.extension.flatMap { Xcode.filetype(extension: $0) }
         let file = PBXFileReference(sourceTree: .group, name: name, lastKnownFileType: lastKnownFileType, path: fileRelativePath.pathString)
         pbxproj.add(object: file)
@@ -432,7 +448,8 @@ class ProjectFileElements {
 
     private func generateSDKFileElement(sdkNodePath: AbsolutePath,
                                         toGroup: PBXGroup,
-                                        pbxproj: PBXProj) {
+                                        pbxproj: PBXProj)
+    {
         guard sdks[sdkNodePath] == nil else {
             return
         }
@@ -442,7 +459,8 @@ class ProjectFileElements {
 
     private func addSDKElement(sdkNodePath: AbsolutePath,
                                toGroup: PBXGroup,
-                               pbxproj: PBXProj) {
+                               pbxproj: PBXProj)
+    {
         let sdkPath = sdkNodePath.relative(to: AbsolutePath("/")) // SDK paths are relative
 
         let lastKnownFileType = sdkPath.extension.flatMap { Xcode.filetype(extension: $0) }
@@ -498,7 +516,8 @@ class ProjectFileElements {
         let range = NSRange(location: 0, length: pathString.count)
         if let localizedMatch = ProjectFileElements.localizedRegex.firstMatch(in: pathString,
                                                                               options: [],
-                                                                              range: range) {
+                                                                              range: range)
+        {
             let lprojPath = (pathString as NSString).substring(with: localizedMatch.range(at: 1))
             return AbsolutePath(lprojPath)
         } else {

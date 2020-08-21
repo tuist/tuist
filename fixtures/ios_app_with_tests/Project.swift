@@ -33,5 +33,28 @@ let project = Project(name: "App",
                                  sources: "UITests/**",
                                  dependencies: [
                                     .target(name: "App"),
-                                    ])
+                                    ]),
+
+
+                         Target(name: "App-dash",
+                                 platform: .iOS,
+                                 product: .app,
+                                 bundleId: "io.tuist.AppDash",
+                                 infoPlist: "Info.plist",
+                                 sources: .paths([.relativeToManifest("Sources/**")]),
+                                 dependencies: [
+                                     /* Target dependencies can be defined here */
+                                     /* .framework(path: "framework") */
+                                 ],
+                                 settings: Settings(base: ["CODE_SIGN_IDENTITY": "",
+                                                           "CODE_SIGNING_REQUIRED": "NO"])),
+                        Target(name: "App-dashUITests",
+                                 platform: .iOS,
+                                 product: .uiTests,
+                                 bundleId: "io.tuist.AppDashUITests",
+                                 infoPlist: "Tests.plist",
+                                 sources: "UITests/**",
+                                 dependencies: [
+                                    .target(name: "App-dash"),
+                                    ]),
 ])

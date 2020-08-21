@@ -22,12 +22,19 @@ public struct TuistCommand: ParsableCommand {
                                  CreateIssueCommand.self,
                                  ScaffoldCommand.self,
                                  InitCommand.self,
-                                 ScaleCommand.self,
+                                 CloudCommand.self,
                                  CacheCommand.self,
                                  SigningCommand.self,
+                                 MigrationCommand.self,
                                  CleanCommand.self,
                              ])
     }
+
+    @Flag(
+        name: [.customLong("help-env")],
+        help: "Display subcommands to manage the environment tuist versions."
+    )
+    var isTuistEnvHelp: Bool = false
 
     public static func main(_ arguments: [String]? = nil) -> Never {
         let errorHandler = ErrorHandler()

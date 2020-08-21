@@ -77,7 +77,8 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
                 targets: [Target],
                 packages: [Package],
                 schemes: [Scheme],
-                additionalFiles: [FileElement]) {
+                additionalFiles: [FileElement])
+    {
         self.path = path
         self.sourceRootPath = sourceRootPath
         self.xcodeProjPath = xcodeProjPath

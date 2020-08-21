@@ -16,7 +16,8 @@ class ListService {
     private let templateLoader: TemplateLoading
 
     init(templatesDirectoryLocator: TemplatesDirectoryLocating = TemplatesDirectoryLocator(),
-         templateLoader: TemplateLoading = TemplateLoader()) {
+         templateLoader: TemplateLoading = TemplateLoader())
+    {
         self.templatesDirectoryLocator = templatesDirectoryLocator
         self.templateLoader = templateLoader
     }
@@ -45,7 +46,8 @@ class ListService {
     }
 
     private func string(for templates: [PrintableTemplate],
-                        in format: ListService.OutputFormat) throws -> String {
+                        in format: ListService.OutputFormat) throws -> String
+    {
         switch format {
         case .table:
             let textTable = TextTable<PrintableTemplate> { [

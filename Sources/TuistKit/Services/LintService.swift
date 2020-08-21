@@ -37,7 +37,8 @@ final class LintService {
          environmentLinter: EnvironmentLinting = EnvironmentLinter(),
          manifestLoading: ManifestLoading = ManifestLoader(),
          graphLoader: GraphLoading = GraphLoader(modelLoader: GeneratorModelLoader(manifestLoader: ManifestLoader(),
-                                                                                   manifestLinter: AnyManifestLinter()))) {
+                                                                                   manifestLinter: AnyManifestLinter())))
+    {
         self.graphLinter = graphLinter
         self.environmentLinter = environmentLinter
         self.manifestLoading = manifestLoading

@@ -10,7 +10,8 @@ struct EncryptCommand: ParsableCommand {
 
     @Option(
         name: .shortAndLong,
-        help: "The path to the folder containing the certificates you would like to encrypt"
+        help: "The path to the folder containing the certificates you would like to encrypt",
+        completion: .directory
     )
     var path: String?
 

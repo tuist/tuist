@@ -80,7 +80,13 @@ final class Carthage: Carthaging {
                                                range: NSRange(location: 0,
                                                               length: carfileResolved.count)).forEach { match in
             let dependencyNameRange = match.range(at: 2)
-            let dependencyName = String(carfileResolvedNSString.substring(with: dependencyNameRange).split(separator: "/").last!)
+            var dependencyName = String(carfileResolvedNSString.substring(with: dependencyNameRange).split(separator: "/").last!)
+
+            let dependencyTypeRange = match.range(at: 1)
+            let dependencyType = DependencyType(rawValue: carfileResolvedNSString.substring(with: dependencyTypeRange))
+            if dependencyType == .binary {
+                dependencyName = (dependencyName as NSString).deletingPathExtension
+            }
 
             let dependencyRevisionRange = match.range(at: 3)
             let dependencyRevision = carfileResolvedNSString.substring(with: dependencyRevisionRange)
@@ -102,5 +108,11 @@ final class Carthage: Carthaging {
         }
 
         return outdated
+    }
+}
+
+extension Carthage {
+    private enum DependencyType: String {
+        case github, git, binary
     }
 }

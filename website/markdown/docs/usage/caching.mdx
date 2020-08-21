@@ -33,6 +33,15 @@ All we need to do is run the following command:
 tuist focus --cache
 ```
 
+### Include sources
+
+We might want to generate a target with sources for any of the direct or transitive dependencies of the focused target.
+To do so, we can use the `--include-sources` argument:
+
+```
+tuist focus --cache --include-sources FeatureFramework
+```
+
 ## Debugging
 
 ### Print target hashes
