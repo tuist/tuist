@@ -4,6 +4,7 @@ import TuistSupport
 import XCTest
 
 public class MockEnvironment: Environmenting {
+    
     let directory: TemporaryDirectory
     var setupCallCount: UInt = 0
     var setupErrorStub: Error?
@@ -15,6 +16,7 @@ public class MockEnvironment: Environmenting {
                                                 attributes: nil)
     }
 
+    public var isVerbose: Bool = false
     public var cacheDirectoryStub: AbsolutePath?
 
     public var shouldOutputBeColoured: Bool = false
