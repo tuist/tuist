@@ -10,6 +10,17 @@ public extension Observable where Element == SystemEvent<Data> {
 }
 
 public extension Observable where Element == SystemEvent<String> {
+    func print() -> Observable<SystemEvent<String>> {
+        `do`(onNext: { (event: SystemEvent<String>) in
+            switch event {
+            case let .standardError(error):
+                logger.error("\(error)")
+            case let .standardOutput(output):
+                logger.info("\(output)")
+            }
+        })
+    }
+
     /// Returns an observable that prints the standard error.
     func printStandardError() -> Observable<SystemEvent<String>> {
         `do`(onNext: { event in

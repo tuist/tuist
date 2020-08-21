@@ -9,6 +9,7 @@ import TuistSupport
 protocol ProjectGenerating {
     @discardableResult
     func load(path: AbsolutePath) throws -> Graph
+    func loadProject(path: AbsolutePath) throws -> (Project, Graph, [SideEffectDescriptor])
     func generate(path: AbsolutePath, projectOnly: Bool) throws -> AbsolutePath
     func generateWithGraph(path: AbsolutePath, projectOnly: Bool) throws -> (AbsolutePath, Graph)
     func generateProjectWorkspace(path: AbsolutePath) throws -> (AbsolutePath, Graph)
@@ -78,6 +79,39 @@ class ProjectGenerator: ProjectGenerating {
         } else {
             throw ManifestLoaderError.manifestNotFound(path)
         }
+    }
+
+    // swiftlint:disable:next large_tuple
+    func loadProject(path: AbsolutePath) throws -> (Project, Graph, [SideEffectDescriptor]) {
+        // Load all manifests
+        let manifests = try recursiveManifestLoader.loadProject(at: path)
+
+        // Lint Manifests
+        try manifests.projects.flatMap {
+            manifestLinter.lint(project: $0.value)
+        }.printAndThrowIfNeeded()
+
+        // Load config
+        let config = try graphLoader.loadConfig(path: path)
+
+        // Convert to models
+        let models = try convert(manifests: manifests)
+
+        // Apply any registered model mappers
+        let projectMapper = projectMapperProvider.mapper(config: config)
+        let updatedModels = try models.map(projectMapper.map)
+        let updatedProjects = updatedModels.map(\.0)
+        let modelMapperSideEffects = updatedModels.flatMap { $0.1 }
+
+        // Load Graph
+        let cachedModelLoader = CachedModelLoader(projects: updatedProjects)
+        let cachedGraphLoader = GraphLoader(modelLoader: cachedModelLoader)
+        let (graph, project) = try cachedGraphLoader.loadProject(path: path)
+
+        // Apply graph mappers
+        let (updatedGraph, graphMapperSideEffects) = try graphMapperProvider.mapper(config: config).map(graph: graph)
+
+        return (project, updatedGraph, modelMapperSideEffects + graphMapperSideEffects)
     }
 
     private func generateProject(path: AbsolutePath) throws -> (AbsolutePath, Graph) {
@@ -160,41 +194,6 @@ class ProjectGenerator: ProjectGenerating {
         try signingInteractor.install(graph: graph)
         try swiftPackageManagerInteractor.install(graph: graph, workspaceName: workspaceName)
         try cocoapodsInteractor.install(graph: graph)
-    }
-
-    // MARK: -
-
-    // swiftlint:disable:next large_tuple
-    private func loadProject(path: AbsolutePath) throws -> (Project, Graph, [SideEffectDescriptor]) {
-        // Load all manifests
-        let manifests = try recursiveManifestLoader.loadProject(at: path)
-
-        // Lint Manifests
-        try manifests.projects.flatMap {
-            manifestLinter.lint(project: $0.value)
-        }.printAndThrowIfNeeded()
-
-        // Load config
-        let config = try graphLoader.loadConfig(path: path)
-
-        // Convert to models
-        let models = try convert(manifests: manifests)
-
-        // Apply any registered model mappers
-        let projectMapper = projectMapperProvider.mapper(config: config)
-        let updatedModels = try models.map(projectMapper.map)
-        let updatedProjects = updatedModels.map(\.0)
-        let modelMapperSideEffects = updatedModels.flatMap { $0.1 }
-
-        // Load Graph
-        let cachedModelLoader = CachedModelLoader(projects: updatedProjects)
-        let cachedGraphLoader = GraphLoader(modelLoader: cachedModelLoader)
-        let (graph, project) = try cachedGraphLoader.loadProject(path: path)
-
-        // Apply graph mappers
-        let (updatedGraph, graphMapperSideEffects) = try graphMapperProvider.mapper(config: config).map(graph: graph)
-
-        return (project, updatedGraph, modelMapperSideEffects + graphMapperSideEffects)
     }
 
     // swiftlint:disable:next large_tuple
