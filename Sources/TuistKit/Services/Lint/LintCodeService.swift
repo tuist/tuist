@@ -47,41 +47,24 @@ final class LintCodeService {
     }
 
     func run(path: String?, targetName: String?) throws {
+        // Determine destination path
         let path = self.path(path)
 
         // Load graph
-        let manifests = manifestLoading.manifests(at: path)
-        var graph: Graph!
-
-        logger.notice("Loading the dependency graph")
-        if manifests.contains(.workspace) {
-            logger.notice("Loading workspace at \(path.pathString)")
-            (graph, _) = try graphLoader.loadWorkspace(path: path)
-        } else if manifests.contains(.project) {
-            logger.notice("Loading project at \(path.pathString)")
-            (graph, _) = try graphLoader.loadProject(path: path)
-        } else {
-            throw LintCodeServiceError.manifestNotFound(path)
-        }
+        let graph = try loadDependencyGraph(at: path)
 
         // Get sources
-        let sources: [AbsolutePath]
-        if let targetName = targetName {
-            if let target = graph.targets.flatMap({ $0.value }).map(\.target).first(where: { $0.name == targetName }) {
-                sources = target.sources.map { $0.path }
-            } else {
-                throw LintCodeServiceError.targetNotFound(targetName)
-            }
-        } else {
-            sources = graph.targets.flatMap { $0.value }.map(\.target).flatMap { $0.sources }.map { $0.path }
-        }
+        let sources: [AbsolutePath] = try getSources(targetName: targetName, graph: graph)
 
+        // Lint code
         try codeLinter.lint(sources: sources, path: path)
     }
+}
 
-    // MARK: - Helpers
+// MARK: - Destination path
 
-    private func path(_ path: String?) -> AbsolutePath {
+private extension LintCodeService {
+    func path(_ path: String?) -> AbsolutePath {
         if let path = path {
             return AbsolutePath(path, relativeTo: FileHandler.shared.currentPath)
         } else {
@@ -89,3 +72,49 @@ final class LintCodeService {
         }
     }
 }
+
+// MARK: - Load dependency graph
+
+private extension LintCodeService {
+    func loadDependencyGraph(at path: AbsolutePath) throws -> Graph {
+        let manifests = manifestLoading.manifests(at: path)
+        
+        logger.notice("Loading the dependency graph")
+        if manifests.contains(.workspace) {
+            logger.notice("Loading workspace at \(path.pathString)")
+            let (graph, _) = try graphLoader.loadWorkspace(path: path)
+            return graph
+        } else if manifests.contains(.project) {
+            logger.notice("Loading project at \(path.pathString)")
+            let (graph, _) = try graphLoader.loadProject(path: path)
+            return graph
+        } else {
+            throw LintCodeServiceError.manifestNotFound(path)
+        }
+    }
+}
+
+// MARK: - Get sources to lint
+
+private extension LintCodeService {
+    func getSources(targetName: String?, graph: Graph) throws -> [AbsolutePath] {
+        if let targetName = targetName {
+            return try getTargetSources(targetName: targetName, graph: graph)
+        } else {
+            return getAllSources(graph: graph)
+        }
+    }
+    
+    func getAllSources(graph: Graph) -> [AbsolutePath] {
+        return graph.targets.flatMap { $0.value }.map(\.target).flatMap { $0.sources }.map { $0.path }
+    }
+    
+    func getTargetSources(targetName: String, graph: Graph) throws -> [AbsolutePath] {
+        guard let target = graph.targets.flatMap({ $0.value }).map(\.target).first(where: { $0.name == targetName }) else {
+            throw LintCodeServiceError.targetNotFound(targetName)
+        }
+        
+        return target.sources.map { $0.path }
+    }
+}
+
