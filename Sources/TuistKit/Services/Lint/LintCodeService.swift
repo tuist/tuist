@@ -7,12 +7,14 @@ import TuistSupport
 
 enum LintCodeServiceError: FatalError, Equatable {
     /// Thrown when neither a workspace or a project is found in the given path.
+    case manifestNotFound(AbsolutePath)
+    /// Thrown when neither a workspace or a project is found in the given path.
     case targetNotFound(String)
 
     /// Error type.
     var type: ErrorType {
         switch self {
-        case .targetNotFound:
+        case .manifestNotFound, .targetNotFound:
             return .abort
         }
     }
@@ -20,6 +22,8 @@ enum LintCodeServiceError: FatalError, Equatable {
     /// Description
     var description: String {
         switch self {
+        case let .manifestNotFound(path):
+            return "Couldn't find Project.swift nor Workspace.swift at \(path.pathString)"
         case let .targetNotFound(name):
             return "Target with name '\(name)' not found in the project."
         }
@@ -57,7 +61,7 @@ final class LintCodeService {
             logger.notice("Loading project at \(path.pathString)")
             (graph, _) = try graphLoader.loadProject(path: path)
         } else {
-            throw LintProjectServiceError.manifestNotFound(path)
+            throw LintCodeServiceError.manifestNotFound(path)
         }
 
         // Get sources
