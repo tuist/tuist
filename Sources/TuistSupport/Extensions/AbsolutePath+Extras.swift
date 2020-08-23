@@ -107,7 +107,7 @@ extension AbsolutePath {
     /// Expects the file to be named "TargetName.ConfigurationName.extension"
     ///
     /// - Returns: Tuple consisting of targetName and configurationName
-    func extractTargetAndConfigurationName() -> (targetName: String, configurationName: String)? {
+    public func extractTargetAndConfigurationName() -> (targetName: String, configurationName: String)? {
         let components = self.basenameWithoutExt.components(separatedBy: ".")
         guard components.count == 2 else { return nil }
         return (String(components[0]), String(components[1]))
