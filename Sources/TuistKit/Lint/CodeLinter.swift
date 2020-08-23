@@ -1,5 +1,4 @@
 import Foundation
-import SwiftLintFramework
 import TSCBasic
 import TuistCore
 import TuistSupport
