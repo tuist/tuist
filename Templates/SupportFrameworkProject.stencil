@@ -1,4 +1,0 @@
-import ProjectDescription
-import ProjectDescriptionHelpers
-
-let project = Project.framework(name: "{{ name }}Support", platform: .{{ platform }}, dependencies: [])
