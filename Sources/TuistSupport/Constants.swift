@@ -20,6 +20,10 @@ public struct Constants {
     public static let joinSlackURL: String = "https://slack.tuist.io/"
     public static let tuistGeneratedFileName = ".tuist-generated"
 
+    public struct Vendor {
+        public static let swiftLint = "swiftlint"
+    }
+    
     public struct DerivedDirectory {
         public static let name = "Derived"
         public static let infoPlists = "InfoPlists"
