@@ -108,11 +108,10 @@ extension AbsolutePath {
     ///
     /// - Returns: Tuple consisting of targetName and configurationName
     public func extractTargetAndConfigurationName() -> (targetName: String, configurationName: String)? {
-        let components = self.basenameWithoutExt.components(separatedBy: ".")
+        let components = basenameWithoutExt.components(separatedBy: ".")
         guard components.count == 2 else { return nil }
         return (String(components[0]), String(components[1]))
     }
-
 }
 
 extension AbsolutePath: ExpressibleByStringLiteral {
