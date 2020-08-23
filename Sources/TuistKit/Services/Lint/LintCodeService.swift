@@ -31,17 +31,19 @@ enum LintCodeServiceError: FatalError, Equatable {
 }
 
 final class LintCodeService {
+    private let binaryLocator: BinaryLocating
     private let graphLoader: GraphLoading
     private let manifestLoading: ManifestLoading
-    private let codeLinter: CodeLinting
+    private let rootDirectoryLocator: RootDirectoryLocating
 
-    init(codeLinter: CodeLinting = CodeLinter(),
-         rootDirectoryLocator _: RootDirectoryLocating = RootDirectoryLocator(),
+    init(binaryLocator: BinaryLocating = BinaryLocator(),
+         rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator(),
          manifestLoading: ManifestLoading = ManifestLoader(),
          graphLoader: GraphLoading = GraphLoader(modelLoader: GeneratorModelLoader(manifestLoader: ManifestLoader(),
                                                                                    manifestLinter: AnyManifestLinter())))
     {
-        self.codeLinter = codeLinter
+        self.binaryLocator = binaryLocator
+        self.rootDirectoryLocator = rootDirectoryLocator
         self.manifestLoading = manifestLoading
         self.graphLoader = graphLoader
     }
@@ -57,7 +59,9 @@ final class LintCodeService {
         let sources: [AbsolutePath] = try getSources(targetName: targetName, graph: graph)
 
         // Lint code
-        try codeLinter.lint(sources: sources, path: path)
+        let swiftLintPath = try binaryLocator.swiftLintPath()
+        
+        #warning("Implement: lint code (`sources`) using binary under `swiftLintPath`")
     }
 }
 
@@ -118,3 +122,15 @@ private extension LintCodeService {
     }
 }
 
+// MARK: - Get SwiftLint's config path
+
+private extension LintCodeService {
+    #warning("Thorw error if config can not be found?")
+    func swiftlintConfigPath(path: AbsolutePath) -> AbsolutePath? {
+        guard let rootPath = rootDirectoryLocator.locate(from: path) else { return nil }
+        return ["yml", "yaml"].compactMap { (fileExtension) -> AbsolutePath? in
+            let swiftlintPath = rootPath.appending(RelativePath("\(Constants.tuistDirectoryName)/swiftlint.\(fileExtension)"))
+            return (FileHandler.shared.exists(swiftlintPath)) ? swiftlintPath : nil
+        }.first
+    }
+}
