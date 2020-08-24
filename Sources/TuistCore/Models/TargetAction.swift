@@ -22,11 +22,6 @@ public struct TargetAction: Equatable {
     /// Path to the script to execute
     public let path: AbsolutePath?
 
-    /// We want to skip linting for actions we create
-    /// Eg when a mapper returns a file descriptor to create a new file
-    /// It will not exist before the initial linting
-    public let skipLint: Bool
-
     /// Target action order
     public let order: Order
 
@@ -52,7 +47,6 @@ public struct TargetAction: Equatable {
     ///   - order: Target action order
     ///   - tool: Name of the tool to execute. Tuist will look up the tool on the environment's PATH
     ///   - path: Path to the script to execute
-    ///   - skipLint: Should skip or not linting of this action
     ///   - arguments: Arguments that to be passed
     ///   - inputPaths: List of input file paths
     ///   - inputFileListPaths: List of input filelist paths
@@ -62,7 +56,6 @@ public struct TargetAction: Equatable {
                 order: Order,
                 tool: String? = nil,
                 path: AbsolutePath? = nil,
-                skipLint: Bool = false,
                 arguments: [String] = [],
                 inputPaths: [AbsolutePath] = [],
                 inputFileListPaths: [AbsolutePath] = [],
@@ -73,7 +66,6 @@ public struct TargetAction: Equatable {
         self.order = order
         self.tool = tool
         self.path = path
-        self.skipLint = skipLint
         self.arguments = arguments
         self.inputPaths = inputPaths
         self.inputFileListPaths = inputFileListPaths
