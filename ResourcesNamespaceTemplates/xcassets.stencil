@@ -2,12 +2,13 @@
 // Generated using SwiftGen — https://github.com/SwiftGen/SwiftGen
 
 {% if catalogs %}
-{% set enumName %}{{param.enumName|default:"Asset"}}{% endset %}
-{% set arResourceGroupType %}{{param.arResourceGroupTypeName|default:"ARResourceGroupAsset"}}{% endset %}
-{% set colorType %}{{param.colorTypeName|default:"ColorAsset"}}{% endset %}
-{% set dataType %}{{param.dataTypeName|default:"DataAsset"}}{% endset %}
-{% set imageType %}{{param.imageTypeName|default:"ImageAsset"}}{% endset %}
+{% set enumName %}{{param.name}}Asset{% endset %}
+{% set arResourceGroupType %}{{param.name}}ARResourceGroup{% endset %}
+{% set colorType %}{{param.name}}Colors{% endset %}
+{% set dataType %}{{param.name}}Data{% endset %}
+{% set imageType %}{{param.name}}Images{% endset %}
 {% set forceNamespaces %}{{param.forceProvidesNamespaces|default:"false"}}{% endset %}
+{% set bundleToken %}{{param.name}}Resources{% endset %}
 {% set accessModifier %}{% if param.publicAccess %}public{% else %}internal{% endif %}{% endset %}
 #if os(macOS)
   import AppKit
@@ -130,7 +131,7 @@
 @available(iOS 11.3, *)
 {{accessModifier}} extension ARReferenceImage {
   static func referenceImages(in asset: {{arResourceGroupType}}) -> Set<ARReferenceImage> {
-    let bundle = BundleToken.bundle
+    let bundle = .bundle
     return referenceImages(inGroupNamed: asset.name, bundle: bundle) ?? Set()
   }
 }
@@ -138,7 +139,7 @@
 @available(iOS 12.0, *)
 {{accessModifier}} extension ARReferenceObject {
   static func referenceObjects(in asset: {{arResourceGroupType}}) -> Set<ARReferenceObject> {
-    let bundle = BundleToken.bundle
+    let bundle = {{bundleToken}}.bundle
     return referenceObjects(inGroupNamed: asset.name, bundle: bundle) ?? Set()
   }
 }
@@ -171,7 +172,7 @@
 {{accessModifier}} extension {{colorType}}.Color {
   @available(iOS 11.0, tvOS 11.0, watchOS 4.0, macOS 10.13, *)
   convenience init?(asset: {{colorType}}) {
-    let bundle = BundleToken.bundle
+    let bundle = {{bundleToken}}.bundle
     #if os(iOS) || os(tvOS)
     self.init(named: asset.name, in: bundle, compatibleWith: nil)
     #elseif os(macOS)
@@ -202,7 +203,7 @@
 @available(iOS 9.0, macOS 10.11, *)
 {{accessModifier}} extension NSDataAsset {
   convenience init?(asset: {{dataType}}) {
-    let bundle = BundleToken.bundle
+    let bundle = {{bundleToken}}.bundle
     #if os(iOS) || os(tvOS)
     self.init(name: asset.name, bundle: bundle)
     #elseif os(macOS)
@@ -224,7 +225,7 @@
   #endif
 
   {{accessModifier}} var image: Image {
-    let bundle = BundleToken.bundle
+    let bundle = {{bundleToken}}.bundle
     #if os(iOS) || os(tvOS)
     let image = Image(named: name, in: bundle, compatibleWith: nil)
     #elseif os(macOS)
@@ -244,7 +245,7 @@
     message: "This initializer is unsafe on macOS, please use the {{imageType}}.image property")
   convenience init?(asset: {{imageType}}) {
     #if os(iOS) || os(tvOS)
-    let bundle = BundleToken.bundle
+    let bundle = {{bundleToken}}.bundle
     self.init(named: asset.name, in: bundle, compatibleWith: nil)
     #elseif os(macOS)
     self.init(named: NSImage.Name(asset.name))
@@ -255,13 +256,6 @@
 }
 
 {% endif %}
-// swiftlint:disable convenience_type
-private final class BundleToken {
-  static let bundle: Bundle = {
-    Bundle(for: BundleToken.self)
-  }()
-}
-// swiftlint:enable convenience_type
 {% else %}
 // No assets found
 {% endif %}

@@ -29,7 +29,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
 
     func test_map() throws {
         // Given
-        synthesizedResourceInterfacesGenerator.renderStub = { _, paths in
+        synthesizedResourceInterfacesGenerator.renderStub = { _, _, paths in
             paths
                 .map(\.basenameWithoutExt)
                 .map { (name: $0, contents: $0) }

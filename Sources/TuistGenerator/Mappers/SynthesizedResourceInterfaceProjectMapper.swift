@@ -89,7 +89,11 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping {
         let paths = self.paths(for: synthesizedResourceInterfaceType, target: target)
 
         let renderedResources = Set(
-            try synthesizedResourceInterfacesGenerator.render(synthesizedResourceInterfaceType, paths: paths)
+            try synthesizedResourceInterfacesGenerator.render(
+                synthesizedResourceInterfaceType,
+                name: target.name.camelized.uppercasingFirst,
+                paths: paths
+            )
                 .map { name, contents in
                     RenderedFile(
                         path: derivedPath.appending(component: name + ".swift"),

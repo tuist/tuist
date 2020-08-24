@@ -20,11 +20,11 @@ enum SynthesizedResourceInterfaceTemplatesError: FatalError {
     }
 }
 
-protocol SynthesizedResourceInterfaceLocating {
+protocol SynthesizedResourceInterfaceTemplatesLocating {
     func locateTemplate(for namespaceType: SynthesizedResourceInterfaceType) throws -> AbsolutePath
 }
 
-final class SynthesizedResourceInterfaceTemplatesLocator: SynthesizedResourceInterfaceLocating {
+final class SynthesizedResourceInterfaceTemplatesLocator: SynthesizedResourceInterfaceTemplatesLocating {
     func locateTemplate(for synthesizedResourceInterfaceType: SynthesizedResourceInterfaceType) throws -> AbsolutePath {
         let template = try locateResourcesNamespaceTemplatesDirectory().appending(component: synthesizedResourceInterfaceType.templateFileName)
         guard
