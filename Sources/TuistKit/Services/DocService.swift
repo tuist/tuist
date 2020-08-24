@@ -37,7 +37,8 @@ struct DocService {
                              "generate",
                              "--format", "html",
                              "--module-name", project.name,
-                             "--output", generationDirectory.pathString]
+                             "--output", generationDirectory.pathString,
+                             "--base-url", "./"]
             arguments.append(contentsOf: sources.map(\.pathString))
 
             _ = try System.shared.observable(arguments)
