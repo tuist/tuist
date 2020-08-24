@@ -1,7 +1,7 @@
 import TSCBasic
 import TuistSupport
 
-enum ResourcesNamespaceTemplatesError: FatalError {
+enum SynthesizedResourceInterfaceTemplatesError: FatalError {
     /// File at given path was not found
     case fileNotFound(AbsolutePath)
 
@@ -20,17 +20,17 @@ enum ResourcesNamespaceTemplatesError: FatalError {
     }
 }
 
-protocol ResourcesNamespaceTemplatesLocating {
-    func locateTemplate(for namespaceType: NamespaceType) throws -> AbsolutePath
+protocol SynthesizedResourceInterfaceLocating {
+    func locateTemplate(for namespaceType: SynthesizedResourceInterfaceType) throws -> AbsolutePath
 }
 
-final class ResourcesNamespaceTemplatesLocator: ResourcesNamespaceTemplatesLocating {
-    func locateTemplate(for namespaceType: NamespaceType) throws -> AbsolutePath {
-        let template = try locateResourcesNamespaceTemplatesDirectory().appending(component: namespaceType.templateFileName)
+final class SynthesizedResourceInterfaceTemplatesLocator: SynthesizedResourceInterfaceLocating {
+    func locateTemplate(for synthesizedResourceInterfaceType: SynthesizedResourceInterfaceType) throws -> AbsolutePath {
+        let template = try locateResourcesNamespaceTemplatesDirectory().appending(component: synthesizedResourceInterfaceType.templateFileName)
         guard
             FileHandler.shared.exists(template)
         else {
-            throw ResourcesNamespaceTemplatesError.fileNotFound(template)
+            throw SynthesizedResourceInterfaceTemplatesError.fileNotFound(template)
         }
         return template
     }
@@ -54,7 +54,7 @@ final class ResourcesNamespaceTemplatesLocator: ResourcesNamespaceTemplatesLocat
         guard
             FileHandler.shared.exists(templatesPath)
         else {
-            throw ResourcesNamespaceTemplatesError.fileNotFound(templatesPath)
+            throw SynthesizedResourceInterfaceTemplatesError.fileNotFound(templatesPath)
         }
         return templatesPath
     }

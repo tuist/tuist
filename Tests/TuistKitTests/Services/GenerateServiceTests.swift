@@ -26,8 +26,8 @@ final class MockGenerateServiceProjectGeneratorFactory: GenerateServiceProjectGe
     }
 }
 
-final class GenerateWrokspaceServiceTests: TuistUnitTestCase {
-    var subject: GenerateWorkspaceService!
+final class GenerateServiceTests: TuistUnitTestCase {
+    var subject: GenerateService!
     var generator: MockProjectGenerator!
     var clock: StubClock!
     var projectGeneratorFactory: MockGenerateServiceProjectGeneratorFactory!
@@ -42,7 +42,7 @@ final class GenerateWrokspaceServiceTests: TuistUnitTestCase {
             AbsolutePath("/Test")
         }
 
-        subject = GenerateWorkspaceService(
+        subject = GenerateService(
             clock: clock,
             projectGeneratorFactory: projectGeneratorFactory
         )
@@ -155,7 +155,7 @@ final class GenerateWrokspaceServiceTests: TuistUnitTestCase {
     }
 }
 
-extension GenerateWorkspaceService {
+extension GenerateService {
     func testRun(path: String? = nil,
                  projectOnly: Bool = false,
                  cache: Bool = false) throws

@@ -1,9 +1,9 @@
 import TSCBasic
 @testable import TuistGenerator
 
-final class MockNamespaceGenerator: NamespaceGenerating {
-    var renderStub: ((NamespaceType, [AbsolutePath]) throws -> [(name: String, contents: String)])?
-    func render(_ namespaceType: NamespaceType, paths: [AbsolutePath]) throws -> [(name: String, contents: String)] {
+final class MockNamespaceGenerator: SynthesizedResourceInterfacesGenerating {
+    var renderStub: ((SynthesizedResourceInterfaceType, [AbsolutePath]) throws -> [(name: String, contents: String)])?
+    func render(_ namespaceType: SynthesizedResourceInterfaceType, paths: [AbsolutePath]) throws -> [(name: String, contents: String)] {
         try renderStub?(namespaceType, paths) ?? []
     }
 

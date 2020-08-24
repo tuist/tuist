@@ -4,7 +4,7 @@ import SwiftGenKit
 import TSCBasic
 import TuistSupport
 
-enum NamespaceType {
+enum SynthesizedResourceInterfaceType {
     case assets
     case strings
 
@@ -16,10 +16,8 @@ enum NamespaceType {
             return "strings.stencil"
         }
     }
-}
-
-private extension NamespaceType {
-    func parser() throws -> Parser {
+    
+    fileprivate func parser() throws -> Parser {
         switch self {
         case .assets:
             return try AssetsCatalog.Parser()
@@ -29,29 +27,32 @@ private extension NamespaceType {
     }
 }
 
-protocol NamespaceGenerating {
-    func render(_ namespaceType: NamespaceType, paths: [AbsolutePath]) throws -> [(name: String, contents: String)]
+protocol SynthesizedResourceInterfacesGenerating {
+    func render(_ namespaceType: SynthesizedResourceInterfaceType, paths: [AbsolutePath]) throws -> [(name: String, contents: String)]
     func generateNamespaceScript() -> String
 }
 
-final class NamespaceGenerator: NamespaceGenerating {
-    private let resourcesNamespaceTemplatesLocator: ResourcesNamespaceTemplatesLocating
+final class SynthesizedResourceInterfacesGenerator: SynthesizedResourceInterfacesGenerating {
+    private let resourcesNamespaceTemplatesLocator: SynthesizedResourceInterfaceLocating
 
     init(
-        resourcesNamespaceTemplatesLocator: ResourcesNamespaceTemplatesLocating = ResourcesNamespaceTemplatesLocator()
+        resourcesNamespaceTemplatesLocator: SynthesizedResourceInterfaceLocating = SynthesizedResourceInterfaceTemplatesLocator()
     ) {
         self.resourcesNamespaceTemplatesLocator = resourcesNamespaceTemplatesLocator
     }
 
-    func render(_ namespaceType: NamespaceType, paths: [AbsolutePath]) throws -> [(name: String, contents: String)] {
-        let templatePath = try resourcesNamespaceTemplatesLocator.locateTemplate(for: namespaceType)
+    func render(
+        _ synthesizedResourceInterfaceType: SynthesizedResourceInterfaceType,
+        paths: [AbsolutePath]
+    ) throws -> [(name: String, contents: String)] {
+        let templatePath = try resourcesNamespaceTemplatesLocator.locateTemplate(for: synthesizedResourceInterfaceType)
         let template = StencilSwiftTemplate(
             templateString: try FileHandler.shared.readTextFile(templatePath),
             environment: stencilSwiftEnvironment()
         )
 
         return try paths.map { path in
-            let parser = try namespaceType.parser()
+            let parser = try synthesizedResourceInterfaceType.parser()
             try parser.parse(path: Path(path.pathString), relativeTo: Path(""))
             var context = parser.stencilContext()
             context = try StencilContext.enrich(context: context, parameters: ["publicAccess": true])

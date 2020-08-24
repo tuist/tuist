@@ -3,18 +3,18 @@ import TSCBasic
 import TuistCore
 import TuistSupport
 
-/// A project mapper that generates namespace for resources
-public final class ResourcesNamespaceProjectMapper: ProjectMapping {
-    private let namespaceGenerator: NamespaceGenerating
+/// A project mapper that synthezies resource interfaces
+public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping {
+    private let synthesizedResourceInterfacesGenerator: SynthesizedResourceInterfacesGenerating
 
     public convenience init() {
-        self.init(namespaceGenerator: NamespaceGenerator())
+        self.init(synthesizedResourceInterfacesGenerator: SynthesizedResourceInterfacesGenerator())
     }
 
     init(
-        namespaceGenerator: NamespaceGenerating
+        synthesizedResourceInterfacesGenerator: SynthesizedResourceInterfacesGenerating
     ) {
-        self.namespaceGenerator = namespaceGenerator
+        self.synthesizedResourceInterfacesGenerator = synthesizedResourceInterfacesGenerator
     }
 
     public func map(project: Project) throws -> (Project, [SideEffectDescriptor]) {
@@ -34,7 +34,7 @@ public final class ResourcesNamespaceProjectMapper: ProjectMapping {
         let contents: Data?
     }
 
-    /// Map and generate namespace for a given `Target` and `Project`
+    /// Map and generate resource interfaces for a given `Target` and `Project`
     private func mapTarget(_ target: Target, project: Project) throws -> (Target, [SideEffectDescriptor]) {
         guard !target.resources.isEmpty else { return (target, []) }
 
@@ -68,22 +68,22 @@ public final class ResourcesNamespaceProjectMapper: ProjectMapping {
         inputPaths += stringsInputPaths
         outputPaths.formUnion(stringsOutputPaths)
 
-        let namespaceScriptSideEffects: [SideEffectDescriptor]
-        (target, namespaceScriptSideEffects) = mapAndGenerateNamespaceScript(
+        let synthesizedResourceInterfaceScriptSideEffects: [SideEffectDescriptor]
+        (target, synthesizedResourceInterfaceScriptSideEffects) = mapAndGenerateNamespaceScript(
             target,
             project: project,
             inputPaths: inputPaths,
             outputPaths: Array(outputPaths)
         )
 
-        sideEffects += namespaceScriptSideEffects
+        sideEffects += synthesizedResourceInterfaceScriptSideEffects
 
         return (target, sideEffects)
     }
 
     /// - Returns: Modified `Target`, side effects, input paths and output paths which can then be later used in generate script
     private func renderAndMapTarget(
-        _ namespaceType: NamespaceType,
+        _ synthesizedResourceInterfaceType: SynthesizedResourceInterfaceType,
         target: Target,
         project: Project
     ) throws -> (
@@ -96,10 +96,10 @@ public final class ResourcesNamespaceProjectMapper: ProjectMapping {
             .appending(component: Constants.DerivedDirectory.name)
             .appending(component: Constants.DerivedDirectory.sources)
 
-        let paths = self.paths(for: namespaceType, target: target)
+        let paths = self.paths(for: synthesizedResourceInterfaceType, target: target)
 
         let renderedResources = Set(
-            try namespaceGenerator.render(namespaceType, paths: paths)
+            try synthesizedResourceInterfacesGenerator.render(synthesizedResourceInterfaceType, paths: paths)
                 .map { name, contents in
                     RenderedFile(
                         path: derivedPath.appending(component: name + ".swift"),
@@ -126,10 +126,13 @@ public final class ResourcesNamespaceProjectMapper: ProjectMapping {
         )
     }
 
-    private func paths(for namespaceType: NamespaceType, target: Target) -> [AbsolutePath] {
+    private func paths(
+        for synthesizedResourceInterfaceType: SynthesizedResourceInterfaceType,
+        target: Target
+    ) -> [AbsolutePath] {
         let resourcesPaths = target.resources
             .map(\.path)
-        switch namespaceType {
+        switch synthesizedResourceInterfaceType {
         case .assets:
             return resourcesPaths
                 .filter(\.isFolder)
@@ -166,7 +169,7 @@ public final class ResourcesNamespaceProjectMapper: ProjectMapping {
             .file(
                 FileDescriptor(
                     path: generateNamespaceScriptPath,
-                    contents: namespaceGenerator.generateNamespaceScript().data(using: .utf8)
+                    contents: synthesizedResourceInterfacesGenerator.generateNamespaceScript().data(using: .utf8)
                 )
             ),
             .command(

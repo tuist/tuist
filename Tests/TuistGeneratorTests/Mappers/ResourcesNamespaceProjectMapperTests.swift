@@ -8,34 +8,34 @@ import XCTest
 @testable import TuistSupportTesting
 
 final class ResourcesNamespaceProjectMapperTests: TuistUnitTestCase {
-    private var subject: ResourcesNamespaceProjectMapper!
-    private var namespaceGenerator: MockNamespaceGenerator!
+    private var subject: SynthesizedResourceInterfaceProjectMapper!
+    private var synthesizedResourceInterfacesGenerator: MockNamespaceGenerator!
 
     override func setUp() {
         super.setUp()
 
-        namespaceGenerator = MockNamespaceGenerator()
-        subject = ResourcesNamespaceProjectMapper(
-            namespaceGenerator: namespaceGenerator
+        synthesizedResourceInterfacesGenerator = MockNamespaceGenerator()
+        subject = SynthesizedResourceInterfaceProjectMapper(
+            synthesizedResourceInterfacesGenerator: synthesizedResourceInterfacesGenerator
         )
     }
 
     override func tearDown() {
         super.tearDown()
 
-        namespaceGenerator = nil
+        synthesizedResourceInterfacesGenerator = nil
         subject = nil
     }
 
     func test_map() throws {
         // Given
-        namespaceGenerator.renderStub = { _, paths in
+        synthesizedResourceInterfacesGenerator.renderStub = { _, paths in
             paths
                 .map(\.basenameWithoutExt)
                 .map { (name: $0, contents: $0) }
         }
 
-        namespaceGenerator.generateNamespaceScriptStub = {
+        synthesizedResourceInterfacesGenerator.generateNamespaceScriptStub = {
             "generate namespace"
         }
 

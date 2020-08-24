@@ -11,7 +11,7 @@ struct NamespaceService {
     init(
         projectGenerator: ProjectGenerating = ProjectGenerator(),
         sideEffectDescriptorExecutor: SideEffectDescriptorExecuting = SideEffectDescriptorExecutor(),
-        resourcesNamespaceProjectMapper: ProjectMapping = ResourcesNamespaceProjectMapper()
+        resourcesNamespaceProjectMapper: ProjectMapping = SynthesizedResourceInterfaceProjectMapper()
     ) {
         self.projectGenerator = projectGenerator
         self.sideEffectDescriptorExecutor = sideEffectDescriptorExecutor
