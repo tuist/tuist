@@ -35,13 +35,13 @@ let project = Project(name: "App",
                                infoPlist: .extendingDefault(with: [
                                        "CFBundleDisplayName": "$(PRODUCT_NAME)",
                                        "NSExtension": [
-                                               "NSExtensionPointIdentifier": "com.apple.usernotifications.service", 
+                                               "NSExtensionPointIdentifier": "com.apple.usernotifications.service",
                                                "NSExtensionPrincipalClass": "$(PRODUCT_MODULE_NAME).NotificationService"
                                        ]
                                ]),
                                sources: "NotificationServiceExtension/**",
                                dependencies: [
-                                   
+
                                ]),
                       ])
 ```
@@ -52,16 +52,16 @@ Different app extensions have a different set of `Info.plist` key requirements, 
 
 For example, here is a list of some of the extension types and their corresponding identifier value:
 
-| Extension                              | `NSExtensionPointIdentifier`                 | 
-| -------------------------------------- | -------------------------------------------- |
-| Intents Extension                      | `com.apple.intents-service`                  |
-| Intents UI Extension                   | `com.apple.intents-ui-service`               |
-| Notification Service                   | `com.apple.usernotifications.service`        |
-| Widgets Extension                      | `com.apple.widgetkit-extension`              |
+| Extension            | `NSExtensionPointIdentifier`          |
+| -------------------- | ------------------------------------- |
+| Intents Extension    | `com.apple.intents-service`           |
+| Intents UI Extension | `com.apple.intents-ui-service`        |
+| Notification Service | `com.apple.usernotifications.service` |
+| Widgets Extension    | `com.apple.widgetkit-extension`       |
 
-Knowing the different key/value requirements may be needed when leveraging the auto-generated `Info.plist` file _(see [Info Plist](/docs/usage/project-description/#infoplist))_.
+Knowing the different key/value requirements may be needed when leveraging the auto-generated `Info.plist` file _(see [Info Plist](/docs/usage/project-description/))_.
 
-To find out what the identifier for an extension type is or any other required key, you can examine the values within an existing `Info.plist` file _(if one exists)_, 
+To find out what the identifier for an extension type is or any other required key, you can examine the values within an existing `Info.plist` file _(if one exists)_,
 or create a new sample project using the Xcode UI with the desired app extension target and examine the `Info.plist` file created by Xcode.
 
 ## Associating Extensions With Applications
