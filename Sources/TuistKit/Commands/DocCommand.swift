@@ -13,23 +13,32 @@ struct DocCommand: ParsableCommand {
 
     // MARK: - Attributes
 
-    @Option(
-        name: .shortAndLong,
-        help: "The path to the directory that contains the project whose documentation will be generated.",
-        completion: .directory
-    )
-    var path: String?
+    @OptionGroup()
+    var options: DocCommand.Options
 
     // MARK: - Run
 
     func run() throws {
         let absolutePath: AbsolutePath
-        if let path = path {
+        if let path = options.path {
             absolutePath = AbsolutePath(path, relativeTo: FileHandler.shared.currentPath)
         } else {
             absolutePath = FileHandler.shared.currentPath
         }
 
         try DocService().run(path: absolutePath)
+    }
+}
+
+// MARK: - Options
+
+extension DocCommand {
+    struct Options: ParsableArguments {
+        @Option(
+            name: .shortAndLong,
+            help: "The path to target sources folder",
+            completion: .directory
+        )
+        var path: String?
     }
 }
