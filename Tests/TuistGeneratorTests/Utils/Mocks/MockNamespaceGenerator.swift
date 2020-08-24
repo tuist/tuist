@@ -6,9 +6,4 @@ final class MockNamespaceGenerator: SynthesizedResourceInterfacesGenerating {
     func render(_ namespaceType: SynthesizedResourceInterfaceType, paths: [AbsolutePath]) throws -> [(name: String, contents: String)] {
         try renderStub?(namespaceType, paths) ?? []
     }
-
-    var generateNamespaceScriptStub: (() -> String)?
-    func generateNamespaceScript() -> String {
-        generateNamespaceScriptStub?() ?? ""
-    }
 }

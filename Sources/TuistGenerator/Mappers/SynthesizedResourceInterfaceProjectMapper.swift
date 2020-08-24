@@ -68,16 +68,6 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping {
         inputPaths += stringsInputPaths
         outputPaths.formUnion(stringsOutputPaths)
 
-        let synthesizedResourceInterfaceScriptSideEffects: [SideEffectDescriptor]
-        (target, synthesizedResourceInterfaceScriptSideEffects) = mapAndGenerateNamespaceScript(
-            target,
-            project: project,
-            inputPaths: inputPaths,
-            outputPaths: Array(outputPaths)
-        )
-
-        sideEffects += synthesizedResourceInterfaceScriptSideEffects
-
         return (target, sideEffects)
     }
 
@@ -141,44 +131,5 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping {
             return resourcesPaths
                 .filter { $0.extension == "strings" }
         }
-    }
-
-    private func mapAndGenerateNamespaceScript(
-        _ target: Target,
-        project: Project,
-        inputPaths: [AbsolutePath],
-        outputPaths: [AbsolutePath]
-    ) -> (Target, [SideEffectDescriptor]) {
-        let generateNamespaceScriptPath = project.path
-            .appending(component: Constants.DerivedDirectory.name)
-            .appending(component: "generate_namespace.sh")
-
-        var target = target
-        target.actions.append(
-            TargetAction(
-                name: "Generate namespace",
-                order: .pre,
-                path: generateNamespaceScriptPath,
-                skipLint: true,
-                inputPaths: inputPaths,
-                outputPaths: outputPaths
-            )
-        )
-
-        let sideEffects: [SideEffectDescriptor] = [
-            .file(
-                FileDescriptor(
-                    path: generateNamespaceScriptPath,
-                    contents: synthesizedResourceInterfacesGenerator.generateNamespaceScript().data(using: .utf8)
-                )
-            ),
-            .command(
-                CommandDescriptor(
-                    command: "chmod", "+x", generateNamespaceScriptPath.pathString
-                )
-            ),
-        ]
-
-        return (target, sideEffects)
     }
 }

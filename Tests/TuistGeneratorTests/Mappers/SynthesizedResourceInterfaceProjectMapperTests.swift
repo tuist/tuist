@@ -7,7 +7,7 @@ import XCTest
 @testable import TuistGenerator
 @testable import TuistSupportTesting
 
-final class ResourcesNamespaceProjectMapperTests: TuistUnitTestCase {
+final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
     private var subject: SynthesizedResourceInterfaceProjectMapper!
     private var synthesizedResourceInterfacesGenerator: MockNamespaceGenerator!
 
@@ -35,10 +35,6 @@ final class ResourcesNamespaceProjectMapperTests: TuistUnitTestCase {
                 .map { (name: $0, contents: $0) }
         }
 
-        synthesizedResourceInterfacesGenerator.generateNamespaceScriptStub = {
-            "generate namespace"
-        }
-
         let projectPath = try temporaryPath()
         let targetAPath = projectPath.appending(component: "TargetA")
         let aAssets = targetAPath.appending(component: "a.xcassets")
@@ -58,10 +54,6 @@ final class ResourcesNamespaceProjectMapperTests: TuistUnitTestCase {
                 .file(path: bAssets),
                 .file(path: frenchStrings),
                 .file(path: englishStrings),
-            ],
-            actions: [
-                TargetAction(name: "Preaction", order: .pre),
-                TargetAction(name: "Postaction", order: .post),
             ]
         )
 
@@ -80,10 +72,6 @@ final class ResourcesNamespaceProjectMapperTests: TuistUnitTestCase {
             .appending(component: Constants.DerivedDirectory.name)
         let derivedSourcesPath = derivedPath
             .appending(component: Constants.DerivedDirectory.sources)
-
-        let generateNamespaceScriptPath = derivedPath
-            .appending(component: "generate_namespace.sh")
-
         XCTAssertEqual(
             sideEffects,
             [
@@ -97,17 +85,6 @@ final class ResourcesNamespaceProjectMapperTests: TuistUnitTestCase {
                     FileDescriptor(
                         path: derivedSourcesPath.appending(component: "aStrings.swift"),
                         contents: "aStrings".data(using: .utf8)
-                    )
-                ),
-                .file(
-                    FileDescriptor(
-                        path: generateNamespaceScriptPath,
-                        contents: "generate namespace".data(using: .utf8)
-                    )
-                ),
-                .command(
-                    CommandDescriptor(
-                        command: "chmod", "+x", generateNamespaceScriptPath.pathString
                     )
                 ),
             ]
@@ -128,28 +105,7 @@ final class ResourcesNamespaceProjectMapperTests: TuistUnitTestCase {
                                 .appending(component: "aStrings.swift"),
                                 compilerFlags: nil),
                         ],
-                        resources: targetA.resources,
-                        actions: [
-                            TargetAction(name: "Preaction", order: .pre),
-                            TargetAction(name: "Postaction", order: .post),
-                            TargetAction(
-                                name: "Generate namespace",
-                                order: .pre,
-                                path: generateNamespaceScriptPath,
-                                skipLint: true,
-                                inputPaths: [
-                                    aAssets,
-                                    frenchStrings,
-                                    englishStrings,
-                                ],
-                                outputPaths: [
-                                    derivedSourcesPath
-                                        .appending(component: "a.swift"),
-                                    derivedSourcesPath
-                                        .appending(component: "aStrings.swift"),
-                                ]
-                            ),
-                        ]
+                        resources: targetA.resources
                     ),
                 ]
             )
