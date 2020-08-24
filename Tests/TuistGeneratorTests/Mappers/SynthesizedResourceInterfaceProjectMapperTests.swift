@@ -29,10 +29,8 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
 
     func test_map() throws {
         // Given
-        synthesizedResourceInterfacesGenerator.renderStub = { _, _, paths in
-            paths
-                .map(\.basenameWithoutExt)
-                .map { (name: $0, contents: $0) }
+        synthesizedResourceInterfacesGenerator.renderStub = { _, _, path in
+            (name: path.basenameWithoutExt, contents: path.basenameWithoutExt)
         }
 
         let projectPath = try temporaryPath()
@@ -41,11 +39,13 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
         let bAssets = targetAPath.appending(component: "b.xcassets")
         let frenchStrings = targetAPath.appending(components: "french", "aStrings.strings")
         let englishStrings = targetAPath.appending(components: "english", "aStrings.strings")
+        let environmentPlist = targetAPath.appending(component: "Environment.plist")
 
         try fileHandler.createFolder(aAssets)
         try fileHandler.touch(bAssets)
         try fileHandler.touch(frenchStrings)
         try fileHandler.touch(englishStrings)
+        try fileHandler.touch(environmentPlist)
 
         let targetA = Target.test(
             name: "TargetA",
@@ -54,6 +54,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
                 .file(path: bAssets),
                 .file(path: frenchStrings),
                 .file(path: englishStrings),
+                .file(path: environmentPlist)
             ]
         )
 
@@ -87,6 +88,12 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
                         contents: "aStrings".data(using: .utf8)
                     )
                 ),
+                .file(
+                    FileDescriptor(
+                        path: derivedSourcesPath.appending(component: "Environment.swift"),
+                        contents: "Environment".data(using: .utf8)
+                    )
+                ),
             ]
         )
 
@@ -103,6 +110,9 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
                                 compilerFlags: nil),
                             (path: derivedSourcesPath
                                 .appending(component: "aStrings.swift"),
+                                compilerFlags: nil),
+                            (path: derivedSourcesPath
+                                .appending(component: "Environment.swift"),
                                 compilerFlags: nil),
                         ],
                         resources: targetA.resources

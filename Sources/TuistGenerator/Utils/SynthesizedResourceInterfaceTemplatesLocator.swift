@@ -46,10 +46,10 @@ final class SynthesizedResourceInterfaceTemplatesLocator: SynthesizedResourceInt
                 .removingLastComponent()
                 .removingLastComponent()
                 .removingLastComponent()
-                .appending(component: "ResourcesNamespaceTemplates")
+                .appending(component: "SynthesizedResourceInterfaceTemplates")
         #else
             let templatesPath = AbsolutePath(Bundle(for: ResourcesNamespaceTemplatesLocator.self).bundleURL.path)
-                .appending(component: "ResourcesNamespaceTemplates")
+                .appending(component: "SynthesizedResourceInterfaceTemplates")
         #endif
         guard
             FileHandler.shared.exists(templatesPath)

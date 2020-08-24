@@ -7,6 +7,7 @@ import TuistSupport
 enum SynthesizedResourceInterfaceType {
     case assets
     case strings
+    case plists
     
     var templateFileName: String {
         switch self {
@@ -14,6 +15,8 @@ enum SynthesizedResourceInterfaceType {
             return "xcassets.stencil"
         case .strings:
             return "strings.stencil"
+        case .plists:
+            return "plists.stencil"
         }
     }
     
@@ -23,16 +26,18 @@ enum SynthesizedResourceInterfaceType {
             return try AssetsCatalog.Parser()
         case .strings:
             return try Strings.Parser()
+        case .plists:
+            return try Plist.Parser()
         }
     }
 }
 
 protocol SynthesizedResourceInterfacesGenerating {
     func render(
-        _ namespaceType: SynthesizedResourceInterfaceType,
+        _ synthesizedResourceInterfaceType: SynthesizedResourceInterfaceType,
         name: String,
-        paths: [AbsolutePath]
-    ) throws -> [(name: String, contents: String)]
+        path: AbsolutePath
+    ) throws -> (name: String, contents: String)
 }
 
 final class SynthesizedResourceInterfacesGenerator: SynthesizedResourceInterfacesGenerating {
@@ -47,32 +52,24 @@ final class SynthesizedResourceInterfacesGenerator: SynthesizedResourceInterface
     func render(
         _ synthesizedResourceInterfaceType: SynthesizedResourceInterfaceType,
         name: String,
-        paths: [AbsolutePath]
-    ) throws -> [(name: String, contents: String)] {
+        path: AbsolutePath
+    ) throws -> (name: String, contents: String) {
         let templatePath = try synthesizedResourceInterfaceTemplatesLocator.locateTemplate(for: synthesizedResourceInterfaceType)
         let template = StencilSwiftTemplate(
             templateString: try FileHandler.shared.readTextFile(templatePath),
             environment: stencilSwiftEnvironment()
         )
         
-        return try paths.map { path in
-            let parser = try synthesizedResourceInterfaceType.parser()
-            try parser.parse(path: Path(path.pathString), relativeTo: Path(""))
-            var context = parser.stencilContext()
-            context = try StencilContext.enrich(
-                context: context,
-                parameters: [
-                    "publicAccess": true,
-                    "name": name
-                ]
-            )
-            return (path.basenameWithoutExt, try template.render(context))
-        }
+        let parser = try synthesizedResourceInterfaceType.parser()
+        try parser.parse(path: Path(path.pathString), relativeTo: Path(""))
+        var context = parser.stencilContext()
+        context = try StencilContext.enrich(
+            context: context,
+            parameters: [
+                "publicAccess": true,
+                "name": name,
+            ]
+        )
+        return (path.basenameWithoutExt, try template.render(context))
     }
 }
-
-//{% set enumName %}{{param.enumName|default:"Asset"}}{% endset %}
-//{% set arResourceGroupType %}{{param.arResourceGroupTypeName|default:"ARResourceGroupAsset"}}{% endset %}
-//{% set colorType %}{{param.colorTypeName|default:"ColorAsset"}}{% endset %}
-//{% set dataType %}{{param.dataTypeName|default:"DataAsset"}}{% endset %}
-//{% set imageType %}{{param.imageTypeName|default:"ImageAsset"}}{% endset %}

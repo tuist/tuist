@@ -75,3 +75,4 @@ Feature: Generate a new project using Tuist (suite 2)
     Then a file App/Derived/Sources/Bundle+App.swift exists
     Then a file App/Derived/Sources/Greetings.swift exists
     Then a file App/Derived/Sources/Assets.swift exists
+    Then a file App/Derived/Sources/Environment.swift exists
