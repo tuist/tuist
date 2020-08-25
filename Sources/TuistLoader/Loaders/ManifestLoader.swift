@@ -165,7 +165,7 @@ public class ManifestLoader: ManifestLoading {
             let data = try loadManifestData(at: manifestPath)
             if Environment.shared.isVerbose {
                 let string = String(data: data, encoding: .utf8)
-                logger.debug("Could not load manifest represented by the following JSON representation:\n\(string)")
+                logger.debug("Trying to load the manifest represented by the following JSON representation:\n\(string)")
             }
             return try decoder.decode(T.self, from: data)
         }
