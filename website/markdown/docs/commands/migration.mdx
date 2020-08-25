@@ -48,3 +48,34 @@ tuist migration settings-to-xcconfig -p Project.xcodeproj -x MyAppProject.xcconf
     },
   ]}
 />
+
+## Ensure project and target build settings are empty
+
+After making `.xcconfig` files the source of truth for build settings,
+it's important to ensure that build settings are no longer set to the project.
+To help with that, Tuist includes a command that fails if the build settings of a project or a target are not empty:
+
+```bash
+tuist migration check-empty-settings -p Project.xcodeproj -t MyApp
+```
+
+#### Arguments
+
+<ArgumentsTable
+  args={[
+    {
+      long: '`--xcodeproj-path`',
+      short: '`-p`',
+      description:
+        'Path to the Xcode project whose build settings will be checked.',
+      required: true,
+    },
+    {
+      long: '`--target`',
+      short: '`-t`',
+      description:
+        'The name of the target whose build settings will be checked. When not passed, it checks the build settings of the project.',
+      required: false,
+    },
+  ]}
+/>
