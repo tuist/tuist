@@ -25,20 +25,20 @@ final class MigrationCheckEmptyBuildSettingsServiceTests: TuistUnitTestCase {
 
     func test_run() throws {
         // Given
-        let xcodeprojPath = "/test.xcodeproj"
+        let xcodeprojPath = AbsolutePath("/test.xcodeproj")
         let target = "test"
 
         // When
         try subject.run(xcodeprojPath: xcodeprojPath, target: target)
 
         // Then
-        XCTAssertEqual(emptyBuildSettingsChecker.invokedCheckParameters?.xcodeprojPath, AbsolutePath(xcodeprojPath))
+        XCTAssertEqual(emptyBuildSettingsChecker.invokedCheckParameters?.xcodeprojPath, xcodeprojPath)
         XCTAssertEqual(emptyBuildSettingsChecker.invokedCheckParameters?.targetName, target)
     }
 
     func test_run_rethrows_errors_thrown_by_the_checker() throws {
         // Given
-        let xcodeprojPath = "/test.xcodeproj"
+        let xcodeprojPath = AbsolutePath("/test.xcodeproj")
         let target = "test"
         let error = TestError("error")
         emptyBuildSettingsChecker.stubbedCheckError = error

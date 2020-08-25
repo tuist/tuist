@@ -24,7 +24,7 @@ public final class ErrorHandler: ErrorHandling {
         let isSilent = error.type == .abortSilent || error.type == .bugSilent
         if !error.description.isEmpty, !isSilent {
             logger.error("\(error.description)")
-        } else if isSilent {
+        } else if error.type == .bugSilent {
             let message = """
             An unexpected error happened. We've opened an issue to fix it as soon as possible.
             We are sorry for any inconveniences it might have caused.

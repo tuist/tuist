@@ -16,7 +16,7 @@ class MigrationCheckEmptyBuildSettingsService {
 
     // MARK: - Internal
 
-    func run(xcodeprojPath: String, target: String?) throws {
-        try emptyBuildSettingsChecker.check(xcodeprojPath: AbsolutePath(xcodeprojPath), targetName: target)
+    func run(xcodeprojPath: AbsolutePath, target: String?) throws {
+        try emptyBuildSettingsChecker.check(xcodeprojPath: xcodeprojPath, targetName: target)
     }
 }
