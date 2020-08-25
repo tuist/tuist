@@ -39,8 +39,7 @@ extension Project {
             infoPlist: .default,
             sources: "Tests/**",
             dependencies: [
-                .target(name: "\(name)"),
-                .xctest
+                .target(name: "\(name)")
         ])
         return [mainTarget, testTarget]
     }

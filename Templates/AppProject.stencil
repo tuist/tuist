@@ -20,7 +20,7 @@ import ProjectDescriptionHelpers
 // MARK: - {{ name }} Kit Framework
 
 let kit = Target(name: "{{ name }}Kit",
-                platform: {{ platform }},
+                platform: .{{ platform }},
                 product: .framework,
                 bundleId: "io.tuist.{{ name }}Kit",
                 infoPlist: .extendingDefault(with: [:]),
@@ -29,7 +29,7 @@ let kit = Target(name: "{{ name }}Kit",
                 dependencies: [])
 
 let ui = Target(name: "{{ name }}UI",
-                platform: {{ platform }},
+                platform: .{{ platform }},
                 product: .framework,
                 bundleId: "io.tuist.{{ name }}UI",
                 infoPlist: .extendingDefault(with: [:]),
