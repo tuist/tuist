@@ -29,8 +29,8 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
 
     func test_map() throws {
         // Given
-        synthesizedResourceInterfacesGenerator.renderStub = { _, _, path in
-            (name: path.basenameWithoutExt, contents: path.basenameWithoutExt)
+        synthesizedResourceInterfacesGenerator.renderStub = { _, _, _ in
+            ""
         }
 
         let projectPath = try temporaryPath()
@@ -40,12 +40,18 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
         let frenchStrings = targetAPath.appending(components: "french", "aStrings.strings")
         let englishStrings = targetAPath.appending(components: "english", "aStrings.strings")
         let environmentPlist = targetAPath.appending(component: "Environment.plist")
+        let ttfFont = targetAPath.appending(component: "ttfFont.ttf")
+        let otfFont = targetAPath.appending(component: "otfFont.otf")
+        let ttcFont = targetAPath.appending(component: "ttcFont.ttc")
 
         try fileHandler.createFolder(aAssets)
         try fileHandler.touch(bAssets)
         try fileHandler.touch(frenchStrings)
         try fileHandler.touch(englishStrings)
         try fileHandler.touch(environmentPlist)
+        try fileHandler.touch(ttfFont)
+        try fileHandler.touch(otfFont)
+        try fileHandler.touch(ttcFont)
 
         let targetA = Target.test(
             name: "TargetA",
@@ -54,7 +60,10 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
                 .file(path: bAssets),
                 .file(path: frenchStrings),
                 .file(path: englishStrings),
-                .file(path: environmentPlist)
+                .file(path: environmentPlist),
+                .file(path: ttfFont),
+                .file(path: otfFont),
+                .file(path: ttcFont),
             ]
         )
 
@@ -78,20 +87,26 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
             [
                 .file(
                     FileDescriptor(
-                        path: derivedSourcesPath.appending(component: "a.swift"),
-                        contents: "a".data(using: .utf8)
+                        path: derivedSourcesPath.appending(component: "Assets+TargetA.swift"),
+                        contents: "".data(using: .utf8)
                     )
                 ),
                 .file(
                     FileDescriptor(
-                        path: derivedSourcesPath.appending(component: "aStrings.swift"),
-                        contents: "aStrings".data(using: .utf8)
+                        path: derivedSourcesPath.appending(component: "Strings+TargetA.swift"),
+                        contents: "".data(using: .utf8)
                     )
                 ),
                 .file(
                     FileDescriptor(
                         path: derivedSourcesPath.appending(component: "Environment.swift"),
-                        contents: "Environment".data(using: .utf8)
+                        contents: "".data(using: .utf8)
+                    )
+                ),
+                .file(
+                    FileDescriptor(
+                        path: derivedSourcesPath.appending(component: "Fonts+TargetA.swift"),
+                        contents: "".data(using: .utf8)
                     )
                 ),
             ]
@@ -106,13 +121,16 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
                         name: targetA.name,
                         sources: [
                             (path: derivedSourcesPath
-                                .appending(component: "a.swift"),
+                                .appending(component: "Assets+TargetA.swift"),
                                 compilerFlags: nil),
                             (path: derivedSourcesPath
-                                .appending(component: "aStrings.swift"),
+                                .appending(component: "Strings+TargetA.swift"),
                                 compilerFlags: nil),
                             (path: derivedSourcesPath
                                 .appending(component: "Environment.swift"),
+                                compilerFlags: nil),
+                            (path: derivedSourcesPath
+                                .appending(component: "Fonts+TargetA.swift"),
                                 compilerFlags: nil),
                         ],
                         resources: targetA.resources

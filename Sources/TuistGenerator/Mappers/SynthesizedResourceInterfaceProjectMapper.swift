@@ -80,6 +80,18 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping {
         inputPaths += plistsInputPaths
         outputPaths.formUnion(plistsOutputPaths)
         
+        let fontsSideEffects: [SideEffectDescriptor]
+        let fontsInputPaths: [AbsolutePath]
+        let fontsOutputPaths: Set<AbsolutePath>
+        (target, fontsSideEffects, fontsInputPaths, fontsOutputPaths) = try renderAndMapTarget(
+            .fonts,
+            target: target,
+            project: project
+        )
+        sideEffects += fontsSideEffects
+        inputPaths += fontsInputPaths
+        outputPaths.formUnion(fontsOutputPaths)
+        
         return (target, sideEffects)
     }
     
@@ -100,20 +112,49 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping {
             
             let paths = self.paths(for: synthesizedResourceInterfaceType, target: target)
             
-            let renderedResources = Set(
-                try paths.map { path in
+            let renderedInterfaces: [(String, String)]
+            
+            switch synthesizedResourceInterfaceType {
+            case .plists:
+                renderedInterfaces = try paths.map { path in
                     let name = self.name(
                         for: synthesizedResourceInterfaceType,
                         path: path,
                         target: target
                     )
-                    return try synthesizedResourceInterfacesGenerator.render(
-                        synthesizedResourceInterfaceType,
-                        name: name,
-                        path: path
+                    return (
+                        name,
+                        try synthesizedResourceInterfacesGenerator.render(
+                            synthesizedResourceInterfaceType,
+                            name: name,
+                            paths: [path]
+                        )
                     )
                 }
-                .map { name, contents in
+            case .assets, .fonts, .strings:
+                if paths.isEmpty {
+                    renderedInterfaces = []
+                    break
+                }
+                let name = self.name(
+                    for: synthesizedResourceInterfaceType,
+                    path: project.path,
+                    target: target
+                )
+                renderedInterfaces = [
+                    (
+                        synthesizedResourceInterfaceType.name + "+" + name,
+                        try synthesizedResourceInterfacesGenerator.render(
+                            synthesizedResourceInterfaceType,
+                            name: name,
+                            paths: paths
+                        )
+                    )
+                ]
+            }
+            
+            let renderedResources = Set(
+                renderedInterfaces.map { name, contents in
                     RenderedFile(
                         path: derivedPath.appending(component: name + ".swift"),
                         contents: contents.data(using: .utf8)
@@ -145,7 +186,7 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping {
         target: Target
     ) -> String {
         switch synthesizedResourceInterfaceType {
-        case .assets, .strings:
+        case .assets, .strings, .fonts:
             return target.name.camelized.uppercasingFirst
         case .plists:
             return path.basenameWithoutExt.camelized.uppercasingFirst
@@ -164,11 +205,17 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping {
                 .filter(\.isFolder)
                 .filter { $0.extension == "xcassets" }
         case .strings:
+            var seen: Set<String> = []
             return resourcesPaths
                 .filter { $0.extension == "strings" }
+                .filter { seen.insert($0.basename).inserted }
         case .plists:
             return resourcesPaths
                 .filter { $0.extension == "plist" }
+        case .fonts:
+            let fontExtensions = ["otf", "ttc", "ttf"]
+            return resourcesPaths
+                .filter { $0.extension.map(fontExtensions.contains) ?? false }
         }
     }
 }

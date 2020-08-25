@@ -73,6 +73,7 @@ Feature: Generate a new project using Tuist (suite 2)
     Then the product 'StaticFramework3Resources.bundle' with destination 'Debug-iphoneos' contains resource 'StaticFramework3Resources-tuist.png'
     Then the product 'StaticFramework4Resources.bundle' with destination 'Debug-iphoneos' contains resource 'StaticFramework4Resources-tuist.png'
     Then a file App/Derived/Sources/Bundle+App.swift exists
-    Then a file App/Derived/Sources/Greetings.swift exists
-    Then a file App/Derived/Sources/Assets.swift exists
+    Then a file App/Derived/Sources/Strings+App.swift exists
+    Then a file App/Derived/Sources/Assets+App.swift exists
+    Then a file App/Derived/Sources/Fonts+App.swift exists
     Then a file App/Derived/Sources/Environment.swift exists

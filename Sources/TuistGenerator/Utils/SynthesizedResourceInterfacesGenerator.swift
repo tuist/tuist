@@ -8,6 +8,20 @@ enum SynthesizedResourceInterfaceType {
     case assets
     case strings
     case plists
+    case fonts
+    
+    var name: String {
+        switch self {
+        case .assets:
+            return "Assets"
+        case .strings:
+            return "Strings"
+        case .plists:
+            return "Plists"
+        case .fonts:
+            return "Fonts"
+        }
+    }
     
     var templateFileName: String {
         switch self {
@@ -17,6 +31,8 @@ enum SynthesizedResourceInterfaceType {
             return "strings.stencil"
         case .plists:
             return "plists.stencil"
+        case .fonts:
+            return "fonts.stencil"
         }
     }
     
@@ -28,6 +44,8 @@ enum SynthesizedResourceInterfaceType {
             return try Strings.Parser()
         case .plists:
             return try Plist.Parser()
+        case .fonts:
+            return try Fonts.Parser()
         }
     }
 }
@@ -36,8 +54,8 @@ protocol SynthesizedResourceInterfacesGenerating {
     func render(
         _ synthesizedResourceInterfaceType: SynthesizedResourceInterfaceType,
         name: String,
-        path: AbsolutePath
-    ) throws -> (name: String, contents: String)
+        paths: [AbsolutePath]
+    ) throws -> String
 }
 
 final class SynthesizedResourceInterfacesGenerator: SynthesizedResourceInterfacesGenerating {
@@ -52,8 +70,8 @@ final class SynthesizedResourceInterfacesGenerator: SynthesizedResourceInterface
     func render(
         _ synthesizedResourceInterfaceType: SynthesizedResourceInterfaceType,
         name: String,
-        path: AbsolutePath
-    ) throws -> (name: String, contents: String) {
+        paths: [AbsolutePath]
+    ) throws -> String {
         let templatePath = try synthesizedResourceInterfaceTemplatesLocator.locateTemplate(for: synthesizedResourceInterfaceType)
         let template = StencilSwiftTemplate(
             templateString: try FileHandler.shared.readTextFile(templatePath),
@@ -61,7 +79,7 @@ final class SynthesizedResourceInterfacesGenerator: SynthesizedResourceInterface
         )
         
         let parser = try synthesizedResourceInterfaceType.parser()
-        try parser.parse(path: Path(path.pathString), relativeTo: Path(""))
+        try paths.forEach { try parser.parse(path: Path($0.pathString), relativeTo: Path("")) }
         var context = parser.stencilContext()
         context = try StencilContext.enrich(
             context: context,
@@ -70,6 +88,6 @@ final class SynthesizedResourceInterfacesGenerator: SynthesizedResourceInterface
                 "name": name,
             ]
         )
-        return (path.basenameWithoutExt, try template.render(context))
+        return try template.render(context)
     }
 }
