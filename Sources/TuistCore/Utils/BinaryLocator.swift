@@ -30,7 +30,17 @@ public final class BinaryLocator: BinaryLocating {
     public init() {}
     
     public func swiftLintPath() throws -> AbsolutePath {
-        let bundlePath = AbsolutePath(Bundle(for: BinaryLocator.self).bundleURL.path)
+        #if DEBUG
+            // Used only for debug purposes
+            let bundlePath = AbsolutePath(#file.replacingOccurrences(of: "file://", with: ""))
+                .removingLastComponent()
+                .removingLastComponent()
+                .removingLastComponent()
+                .removingLastComponent()
+                .appending(RelativePath("vendor"))
+        #else
+            let bundlePath = AbsolutePath(Bundle(for: BinaryLocator.self).bundleURL.path)
+        #endif
         let paths = [
             bundlePath,
             bundlePath.parentDirectory,

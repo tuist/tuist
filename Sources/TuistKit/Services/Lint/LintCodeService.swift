@@ -1,4 +1,5 @@
 import Foundation
+import RxBlocking
 import TSCBasic
 import TuistCore
 import TuistGenerator
@@ -60,8 +61,15 @@ final class LintCodeService {
 
         // Lint code
         let swiftLintPath = try binaryLocator.swiftLintPath()
-        
-        #warning("Implement: lint code (`sources`) using binary under `swiftLintPath`")
+        let swiftLintConfigPath = self.swiftLintConfigPath(path: path)
+        let swiftLintArguments = buildSwiftLintArguments(swiftLintPath: swiftLintPath,
+                                                         sources: path, // TODO: if targetName exist provide here target's root folder
+                                                         configPath: swiftLintConfigPath)
+
+        _ = try System.shared.observable(swiftLintArguments)
+            .mapToString()
+            .toBlocking()
+            .last()
     }
 }
 
@@ -118,19 +126,29 @@ private extension LintCodeService {
             throw LintCodeServiceError.targetNotFound(targetName)
         }
         
-        return target.sources.map { $0.path }
+        return target.sources.map { $0.path }.map { $0.parentDirectory }
     }
 }
 
-// MARK: - Get SwiftLint's config path
+// MARK: - SwiftLint
 
 private extension LintCodeService {
-    #warning("Thorw error if config can not be found?")
-    func swiftlintConfigPath(path: AbsolutePath) -> AbsolutePath? {
+    func swiftLintConfigPath(path: AbsolutePath) -> AbsolutePath? {
         guard let rootPath = rootDirectoryLocator.locate(from: path) else { return nil }
         return ["yml", "yaml"].compactMap { (fileExtension) -> AbsolutePath? in
             let swiftlintPath = rootPath.appending(RelativePath("\(Constants.tuistDirectoryName)/swiftlint.\(fileExtension)"))
             return (FileHandler.shared.exists(swiftlintPath)) ? swiftlintPath : nil
         }.first
+    }
+    
+    func buildSwiftLintArguments(swiftLintPath: AbsolutePath, sources: AbsolutePath, configPath: AbsolutePath?) -> [String] {
+        var arguments = [swiftLintPath.pathString, "lint"]
+        arguments += ["--path", sources.pathString]
+
+        if let configPath = configPath {
+            arguments += ["--config", configPath.pathString]
+        }
+        
+        return arguments
     }
 }
