@@ -35,19 +35,25 @@ final class ProvisioningProfileParser: ProvisioningProfileParsing {
     }
 
     func parse(at path: AbsolutePath) throws -> ProvisioningProfile {
+        let provisioningProfileComponents = path.basenameWithoutExt.components(separatedBy: ".")
+        guard provisioningProfileComponents.count == 2 else { throw ProvisioningProfileParserError.invalidFormat(path.pathString) }
+        let targetName = provisioningProfileComponents[0]
+        let configurationName = provisioningProfileComponents[1]
+
         let unencryptedProvisioningProfile = try securityController.decodeFile(at: path)
         let plistData = Data(unencryptedProvisioningProfile.utf8)
-        let provisioningProfile = try PropertyListDecoder().decode(ProvisioningProfile.self, from: plistData)
+        let provisioningProfileContent = try PropertyListDecoder().decode(ProvisioningProfile.Content.self, from: plistData)
+
         return ProvisioningProfile(path: path,
-                                   name: provisioningProfile.name,
-                                   targetName: provisioningProfile.targetName,
-                                   configurationName: provisioningProfile.configurationName,
-                                   uuid: provisioningProfile.uuid,
-                                   teamId: provisioningProfile.teamId,
-                                   appId: provisioningProfile.appId,
-                                   appIdName: provisioningProfile.appIdName,
-                                   applicationIdPrefix: provisioningProfile.applicationIdPrefix,
-                                   platforms: provisioningProfile.platforms,
-                                   expirationDate: provisioningProfile.expirationDate)
+                                   name: provisioningProfileContent.name,
+                                   targetName: targetName,
+                                   configurationName: configurationName,
+                                   uuid: provisioningProfileContent.uuid,
+                                   teamId: provisioningProfileContent.teamId,
+                                   appId: provisioningProfileContent.appId,
+                                   appIdName: provisioningProfileContent.appIdName,
+                                   applicationIdPrefix: provisioningProfileContent.applicationIdPrefix,
+                                   platforms: provisioningProfileContent.platforms,
+                                   expirationDate: provisioningProfileContent.expirationDate)
     }
 }

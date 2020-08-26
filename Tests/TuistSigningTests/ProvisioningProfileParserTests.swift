@@ -25,10 +25,10 @@ final class ProvisioningProfileParserTests: TuistUnitTestCase {
 
     func test_parse_provisioning_profile() throws {
         // Given
-        let path = try temporaryPath()
+        let path = try temporaryPath().appending(component: "Target.Configuration.mobileprovision")
         let expectedProvisioningProfile = ProvisioningProfile(
             path: path,
-            name: "Target.Configuration",
+            name: "SomeRandomName",
             targetName: "Target",
             configurationName: "Configuration",
             uuid: "UUID",
@@ -41,7 +41,7 @@ final class ProvisioningProfileParserTests: TuistUnitTestCase {
         )
         securityController.decodeFileStub = { _ in
             .testProvisioningProfile(
-                name: "Target.Configuration",
+                name: "SomeRandomName",
                 uuid: "UUID",
                 teamId: "TeamID",
                 appId: "AppID",

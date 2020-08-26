@@ -16,9 +16,20 @@ struct ProvisioningProfile: Equatable {
     let applicationIdPrefix: [String]
     let platforms: [String]
     let expirationDate: Date
+
+    struct Content {
+        let name: String
+        let uuid: String
+        let teamId: String
+        let appId: String
+        let appIdName: String
+        let applicationIdPrefix: [String]
+        let platforms: [String]
+        let expirationDate: Date
+    }
 }
 
-extension ProvisioningProfile: Decodable {
+extension ProvisioningProfile.Content: Decodable {
     private struct Entitlements: Decodable {
         let appId: String
 
@@ -54,16 +65,5 @@ extension ProvisioningProfile: Decodable {
         let entitlements = try container.decode(Entitlements.self, forKey: .entitlements)
         appId = entitlements.appId
         expirationDate = try container.decode(Date.self, forKey: .expirationDate)
-
-        let nameComponents = name.components(separatedBy: ".")
-        guard
-            let targetName = nameComponents.first,
-            let configurationName = nameComponents.last
-        else { throw DecodingError.dataCorruptedError(forKey: .name,
-                                                      in: container,
-                                                      debugDescription: "Provisioning profile's name is not in format {Target}.{Configuration}")
-        }
-        self.targetName = targetName
-        self.configurationName = configurationName
     }
 }

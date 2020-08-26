@@ -101,17 +101,6 @@ extension AbsolutePath {
     public func sha256() -> Data? {
         try? SHA256Digest.file(at: url)
     }
-
-    /// Returns target and configuration name from a file name
-    ///
-    /// Expects the file to be named "TargetName.ConfigurationName.extension"
-    ///
-    /// - Returns: Tuple consisting of targetName and configurationName
-    public func extractTargetAndConfigurationName() -> (targetName: String, configurationName: String)? {
-        let components = basenameWithoutExt.components(separatedBy: ".")
-        guard components.count == 2 else { return nil }
-        return (String(components[0]), String(components[1]))
-    }
 }
 
 extension AbsolutePath: ExpressibleByStringLiteral {
