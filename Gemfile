@@ -2,7 +2,7 @@
 
 source "https://rubygems.org"
 
-gem "cucumber", "~> 4.1"
+gem "cucumber", "~> 5.1"
 gem "rake", "~> 13.0"
 gem "byebug", "~> 11.1"
 gem "minitest", "~> 5.14"

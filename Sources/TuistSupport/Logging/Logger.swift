@@ -20,7 +20,7 @@ extension LoggingConfig {
 
         let osLog = environment["TUIST_OS_LOG"] != nil
         let detailed = environment["TUIST_DETAILED_LOG"] != nil
-        let verbose = environment["TUIST_VERBOSE"] != nil
+        let verbose = environment[Constants.EnvironmentVariables.verbose] != nil
 
         if osLog {
             return .init(loggerType: .osLog, verbose: verbose)

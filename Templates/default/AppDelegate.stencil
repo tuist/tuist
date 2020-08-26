@@ -1,5 +1,6 @@
 {% if platform == "macOS" %}import Cocoa
 import {{ name }}Kit
+import {{ name }}UI
 
 @NSApplicationMain
 class AppDelegate: NSObject, NSApplicationDelegate {
@@ -16,6 +17,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
 }{% else %}import UIKit
 import {{ name }}Kit
+import {{ name }}UI
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -31,6 +33,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         viewController.view.backgroundColor = .white
         window?.rootViewController = viewController
         window?.makeKeyAndVisible()
+        
+        {{ name }}Kit.hello()
+        {{ name }}UI.hello()
+
         return true
     }
 

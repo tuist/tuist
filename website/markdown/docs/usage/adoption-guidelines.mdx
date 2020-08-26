@@ -47,7 +47,13 @@ tuist migration settings-to-xcconfig -p Project.xcodeproj -t MyApp -x MyApp.xcco
 tuist migration settings-to-xcconfig -p Project.xcodeproj -x MyAppProject.xcconfig
 ```
 
-#### Migrate the most dependant projects first
+After extracting the build settings into `.xcconfig` files, we recommend adding a check in continuous integration to ensure that build settings are not set to the project:
+
+```
+tuist migration check-empty-settings -p Project.xcodeproj -t MyApp
+```
+
+#### Migrate the most independent projects first
 
 Those are usually simpler and contain fewer dependencies than the rest.
 That makes them good candidates from which we can start the migration.

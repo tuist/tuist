@@ -25,6 +25,9 @@ public protocol Environmenting: AnyObject {
 
     /// Returns all the environment variables that are specific to Tuist (prefixed with TUIST_)
     var tuistVariables: [String: String] { get }
+
+    /// Returns true if Tuist is running with verbose mode enabled.
+    var isVerbose: Bool { get }
 }
 
 /// Local environment controller.
@@ -83,6 +86,11 @@ public class Environment: Environmenting {
             return true
         }
         return false
+    }
+
+    public var isVerbose: Bool {
+        guard let variable = ProcessInfo.processInfo.environment[Constants.EnvironmentVariables.verbose] else { return false }
+        return Constants.trueValues.contains(variable)
     }
 
     /// Returns the directory where all the versions are.
