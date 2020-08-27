@@ -9,14 +9,12 @@ on:
       - Sources/**/*
       - Tests/**/*
       - fixtures/**/*
-      - Templates/**/*
       - .github/workflows/checks.yml
   pull_request:
     paths:
       - Sources/**/*
       - Tests/**/*
       - fixtures/**/*
-      - Templates/**/*
       - .github/workflows/checks.yml
 
 jobs:
