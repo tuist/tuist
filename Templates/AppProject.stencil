@@ -40,4 +40,4 @@ let ui = Target(name: "{{ name }}UI",
 // MARK: - Example app
 
 // Creates our project using a helper function defined in ProjectDescriptionHelpers
-let project = Project.app(name: "{{ name }}App", additionalTargets: [kit, ui])
+let project = Project.app(name: "{{ name }}", additionalTargets: [kit, ui])
