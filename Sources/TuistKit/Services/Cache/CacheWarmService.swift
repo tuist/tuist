@@ -16,12 +16,12 @@ final class CacheWarmService {
                                                     manifestLinter: manifestLinter)
     }
 
-    func run(path: String?) throws {
+    func run(path: String?, withDevice: Bool) throws {
         let path = self.path(path)
         let config = try generatorModelLoader.loadConfig(at: currentPath)
         let cache = Cache(storageProvider: CacheStorageProvider(config: config))
         let cacheController = CacheController(cache: cache)
-        try cacheController.cache(path: path)
+        try cacheController.cache(path: path, withDevice: withDevice)
     }
 
     // MARK: - Helpers

@@ -17,7 +17,12 @@ struct CacheWarmCommand: ParsableCommand {
     )
     var path: String?
 
+    @Flag(
+        help: "Cache frameworks built for devices (only frameworks built for simulator are cached by default)"
+    )
+    var withDevice: Bool = false
+
     func run() throws {
-        try CacheWarmService().run(path: path)
+        try CacheWarmService().run(path: path, withDevice: withDevice)
     }
 }
