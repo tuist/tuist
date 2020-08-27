@@ -157,7 +157,8 @@ public final class XCFrameworkBuilder: XCFrameworkBuilding {
             var frameworkpaths: [AbsolutePath] = [AbsolutePath]()
             if let simulatorArchivePath = simulatorArchivePath {
                 frameworkpaths.append(frameworkPath(fromArchivePath: simulatorArchivePath, productName: target.productName))
-            } else if withDevice {
+            }
+            if withDevice {
                 frameworkpaths.append(frameworkPath(fromArchivePath: deviceArchivePath, productName: target.productName))
             }
 
