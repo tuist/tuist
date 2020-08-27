@@ -26,16 +26,16 @@ let template = Template(
         .file(path: projectPath + "/Sources/SceneDelegate.swift",
               templatePath: "SceneDelegate.stencil"),
         .file(path: projectPath + "/Sources/main.swift",
-          templatePath: "main.stencil"),
+              templatePath: "main.stencil"),
         .file(path: projectPath + "/Sources/ContentView.swift",
-          templatePath: "ContentView.stencil"),
+              templatePath: "ContentView.stencil"),
         .file(path: projectPath + "/Tests/AppTests.swift",
               templatePath: templatePath("AppTests.stencil")),
         .file(path: kitFrameworkPath + "/Sources/\(nameAttribute)Kit.swift",
               templatePath: templatePath("KitSource.stencil")),
         .file(path: uiFrameworkPath + "/Sources/\(nameAttribute)UI.swift",
-              templatePath: templatePath("UISource.stencil")),              
+              templatePath: templatePath("UISource.stencil")),
         .file(path: ".gitignore",
-              templatePath: templatePath("Gitignore.stencil"))
+              templatePath: templatePath("Gitignore.stencil")),
     ]
 )
