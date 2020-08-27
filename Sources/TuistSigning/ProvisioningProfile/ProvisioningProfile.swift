@@ -5,7 +5,7 @@ import TuistSupport
 /// Model of a provisioning profile
 struct ProvisioningProfile: Equatable {
     /// Path to the provisioning profile
-    var path: AbsolutePath?
+    var path: AbsolutePath
     let name: String
     let targetName: String
     let configurationName: String
