@@ -21,7 +21,7 @@ Then(/I should be able to (.+) for (iOS|macOS|tvOS|watchOS) the scheme (.+)/) do
   end
 
   if action == "build" && platform == "iOS"
-    args << "-sdk\ iphoneos"
+    args << "-sdk\ iphonesimulator"
   end
 
   args << "clean"
