@@ -12,13 +12,13 @@ struct CacheWarmCommand: ParsableCommand {
 
     @Option(
         name: .shortAndLong,
-        help: "The path to the directory that contains the project whose frameworks will be cached",
+        help: "The path to the directory that contains the project whose targets will be cached",
         completion: .directory
     )
     var path: String?
 
     @Flag(
-        help: "Cache frameworks built for devices (only frameworks built for simulator are cached by default)"
+        help: "When passed it caches the targets also for device (only targets built for simulator are cached by default)"
     )
     var withDevice: Bool = false
 
