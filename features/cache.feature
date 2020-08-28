@@ -5,10 +5,10 @@ Feature: Generates projects with pre-compiled cached dependencies
     And I have a working directory
     And I initialize a ios application named MyApp
     And tuist warms the cache
-    When tuist generates a project with cached targets at Projects/MyApp
+    When tuist generates a project with cached targets 
     Then MyApp links the xcframework MyAppKit
     Then MyApp embeds the xcframework MyAppKit
-    Then MyApp embeds the xcframework MyAppSupport
+    Then MyApp embeds the xcframework MyAppUI
     Then I should be able to build for iOS the scheme MyApp
     Then I should be able to test for iOS the scheme MyAppTests
 
