@@ -18,6 +18,7 @@ struct CacheWarmCommand: ParsableCommand {
     var path: String?
 
     @Flag(
+        name: [.customShort("d"), .long],
         help: "When passed it caches the targets also for device (only targets built for simulator are cached by default)"
     )
     var withDevice: Bool = false
