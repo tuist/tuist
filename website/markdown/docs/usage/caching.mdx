@@ -23,6 +23,20 @@ We recommend setting up a continuous integration pipeline that runs on every mas
 tuist cache warm
 ```
 
+### Arguments
+
+<ArgumentsTable
+  args={[
+    {
+      long: '`--with-device`',
+      short: '`-d`',
+      description:
+        'When passed, it includes the architecture for device when caching the targets.',
+      default: '`false`',
+    },
+  ]}
+/>
+
 ## Focusing on a project
 
 Once the cache has been warmed with the pre-compiled targets,
