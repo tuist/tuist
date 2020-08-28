@@ -28,8 +28,12 @@ let template = Template(
               templatePath: templatePath("AppTests.stencil")),
         .file(path: kitFrameworkPath + "/Sources/\(nameAttribute)Kit.swift",
               templatePath: templatePath("/KitSource.stencil")),
+        .file(path: kitFrameworkPath + "/Tests/\(nameAttribute)KitTests.swift",
+              templatePath: templatePath("/KitTests.stencil")),
         .file(path: uiFrameworkPath + "/Sources/\(nameAttribute)UI.swift",
               templatePath: templatePath("/UISource.stencil")),
+        .file(path: uiFrameworkPath + "/Tests/\(nameAttribute)UITests.swift",
+              templatePath: templatePath("/UITests.stencil")),
         .file(path: ".gitignore",
               templatePath: templatePath("Gitignore.stencil")),
     ]
