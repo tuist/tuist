@@ -30,7 +30,7 @@ extension Project {
             product: .app,
             bundleId: "io.tuist.\(name)",
             infoPlist: .extendingDefault(with: infoPlist),
-            sources: ["Sources/**"],
+            sources: ["Targets/\(name)/Sources/**"],
             resources: [],
             dependencies: dependencies
         )
@@ -41,7 +41,7 @@ extension Project {
             product: .unitTests,
             bundleId: "io.tuist.\(name)Tests",
             infoPlist: .default,
-            sources: "Tests/**",
+            sources: ["Targets/\(name)/Tests/**"],
             dependencies: [
                 .target(name: "\(name)")
         ])
