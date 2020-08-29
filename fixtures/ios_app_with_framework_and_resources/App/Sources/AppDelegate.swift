@@ -4,6 +4,7 @@ import StaticFramework
 import StaticFramework2
 import StaticFramework3
 import StaticFramework4
+import StaticFramework5
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -28,6 +29,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         print("StaticFramework3Resource image: \(String(describing: resourcesStaticFramework3.loadImage()))")
         print("StaticFramework3Resource asset catalogue image: \(String(describing: StaticFramework3Asset.assetCatalogLogo.image))")
         print("StaticFramework4Resource image: \(String(describing: resourcesStaticFramework4.loadImage()))")
+        print("StaticFramework5Resource image: \(String(describing: UIImage(named:"StaticFramework5Resources-tuist", in: StaticFramework5Resources.bundle, compatibleWith: nil)))")
     }
     
 

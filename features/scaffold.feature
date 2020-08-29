@@ -19,11 +19,3 @@ Feature: Scaffold a project using Tuist
       // Generated file with platform: ios and name: TemplateProject
 
       """
-  Scenario: The project is a just initialized project
-    Given that tuist is available
-    And I have a working directory
-    And I initialize a ios application named MyApp
-    And tuist scaffolds a framework template to Projects/ named MyFeature
-    When tuist generates the project at Projects/MyFeature
-    Then I should be able to build for iOS the scheme MyFeature
-    Then I should be able to test for iOS the scheme MyFeature

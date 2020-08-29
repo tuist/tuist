@@ -34,17 +34,6 @@ final class SigningInstallerTests: TuistUnitTestCase {
         )
     }
 
-    func test_installling_provisioning_profile_fails_when_no_path() throws {
-        // Given
-        let provisioningProfile = ProvisioningProfile.test(path: nil)
-
-        // When
-        XCTAssertThrowsSpecific(
-            try subject.installProvisioningProfile(provisioningProfile),
-            SigningInstallerError.provisioningProfilePathNotFound(provisioningProfile)
-        )
-    }
-
     func test_installing_provisioning_profile_fails_when_no_extension() throws {
         // Given
         let provisioningProfilePath = try temporaryPath().appending(component: "file")

@@ -49,7 +49,7 @@ A µFeature represents an application feature and is a combination of the follow
 
 - **Source:** Contains the feature source code _(Swift, Objective-C, C++, React Native...)_ and its resources _(images, fonts, storyboards, xibs)_.
 - **Tests:** Contains the feature unit and integration tests.
-- **Testing:** Provides testing data that can be used for the tests and from the example app. It also provide mocks for uFeature classes and protocols that can be used by other features as we'll see later.
+- **Testing:** Provides testing data that can be used for the tests and from the example app. It also provides mocks for uFeature classes and protocols that can be used by other features as we'll see later.
 - **Example:** Contains an example app that developers can use to try out the feature under certain conditions _(different languages, screen sizes, settings)_.
 
 The diagram below shows the 4 targets and the dependencies between them:
@@ -60,7 +60,7 @@ The diagram below shows the 4 targets and the dependencies between them:
 
 ### Clear and concise APIs
 
-When all the app source code lives in the same target is very easy to build implicit dependencies in code, and end up with the so well-known spaghetti code. Everything is strongly coupled, the state is sometimes unpredictable, and introducing new changes become a nightmare. When we define features in independent targets we need to design public APIs as part of our feature implementation. We need to decide what should be public, how our feature should be consumed, what should remain private. We have more control over how we want our feature _"clients"_ to use the feature and we can enforce good practises by designing safe APIs.
+When all the app source code lives in the same target is very easy to build implicit dependencies in code, and end up with the so well-known spaghetti code. Everything is strongly coupled, the state is sometimes unpredictable, and introducing new changes become a nightmare. When we define features in independent targets we need to design public APIs as part of our feature implementation. We need to decide what should be public, how our feature should be consumed, what should remain private. We have more control over how we want our feature _"clients"_ to use the feature and we can enforce good practices by designing safe APIs.
 
 ### Small modules
 
@@ -180,8 +180,8 @@ It's recommended to organize the µFeatures in three layers below the product la
 
 Product µFeatures don't depend on each other, instead we use the **dependency inversion principle** to expose their interfaces in a layer underneath them. There are a couple of advantages that support it:
 
-- It delegates to the app the decission about how different features are connected. We could decide in a product-basis.
-- It decouples the targets in the same layer, removing the need to compile all the dependencie when we try to compile a single product µFeature _(faster compilation)_.
+- It delegates to the app the decision about how different features are connected. We could decide in a product-basis.
+- It decouples the targets in the same layer, removing the need to compile all the dependencies when we try to compile a single product µFeature _(faster compilation)_.
 
 ## Dependencies
 
@@ -271,7 +271,7 @@ Please, note that the project doesn't contain any code, it's just a definition o
 
 #### One or multiple Git repositories?
 
-If you are working with git branches, we recommend you to keep everything in the same repository for convenience reasons. Facebook is a good example of a huge company keeping all the project in a single repositories and Uber [wrote about it](https://eng.uber.com/ios-monorepo/) a year ago.
+If you are working with git branches, we recommend you to keep everything in the same repository for convenience reasons. Facebook is a good example of a huge company keeping all the projects in a single repositories and Uber [wrote about it](https://eng.uber.com/ios-monorepo/) a year ago.
 
 #### How do you version µFeatures?
 
@@ -279,7 +279,7 @@ If µFeatures are part of the same repository, they are versioned with the app. 
 
 #### External dependencies?
 
-This architecture doesn't limit you from using external dependencies. There's one thing to keep in mind though: you won't be able to use [CocoaPods](https://cocoapods.org) dependencies with your µFeatures. CocoaPods is not able to analyze your dependencies tree, and setup all the targets in the stack accordingly. If you want to use an external dependency from a µFeature framework, we recommend you to use [Carthage](https://github.com/carthage)or the [Swift Package Manager](https://swift.org/package-manager/).
+This architecture doesn't limit you from using external dependencies. There's one thing to keep in mind though: you won't be able to use [CocoaPods](https://cocoapods.org) dependencies with your µFeatures. CocoaPods is not able to analyze your dependencies tree, and setup all the targets in the stack accordingly. If you want to use an external dependency from a µFeature framework, we recommend you to use [Carthage](https://github.com/carthage) or the [Swift Package Manager](https://swift.org/package-manager/).
 
 #### Can I include resources?
 

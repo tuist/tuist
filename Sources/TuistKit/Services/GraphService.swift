@@ -21,6 +21,7 @@ final class GraphService {
     }
 
     func run(format: GraphFormat,
+             layoutAlgorithm: GraphViz.LayoutAlgorithm,
              skipTestTargets: Bool,
              skipExternalDependencies: Bool,
              path: String?) throws
@@ -34,7 +35,7 @@ final class GraphService {
             logger.notice("Deleting existing graph at \(filePath.pathString)")
             try FileHandler.shared.delete(filePath)
         }
-        try export(graph: graphVizGraph, at: filePath, withFormat: format)
+        try export(graph: graphVizGraph, at: filePath, withFormat: format, layoutAlgorithm: layoutAlgorithm)
         logger.notice("Graph exported to \(filePath.pathString).", metadata: .success)
     }
 
@@ -46,12 +47,16 @@ final class GraphService {
         }
     }
 
-    private func export(graph: GraphViz.Graph, at filePath: AbsolutePath, withFormat format: GraphFormat) throws {
+    private func export(graph: GraphViz.Graph,
+                        at filePath: AbsolutePath,
+                        withFormat format: GraphFormat,
+                        layoutAlgorithm: LayoutAlgorithm) throws
+    {
         switch format {
         case .dot:
             try exportDOTRepresentation(from: graph, at: filePath)
         case .png:
-            try exportPNGRepresentation(from: graph, at: filePath)
+            try exportPNGRepresentation(from: graph, at: filePath, layoutAlgorithm: layoutAlgorithm)
         }
     }
 
@@ -60,11 +65,14 @@ final class GraphService {
         try FileHandler.shared.write(dotFile, path: filePath, atomically: true)
     }
 
-    private func exportPNGRepresentation(from graphVizGraph: GraphViz.Graph, at filePath: AbsolutePath) throws {
+    private func exportPNGRepresentation(from graphVizGraph: GraphViz.Graph,
+                                         at filePath: AbsolutePath,
+                                         layoutAlgorithm: LayoutAlgorithm) throws
+    {
         if try !isGraphVizInstalled() {
             try installGraphViz()
         }
-        let data = try graphVizGraph.render(using: .dot, to: .png)
+        let data = try graphVizGraph.render(using: layoutAlgorithm, to: .png)
         FileManager.default.createFile(atPath: filePath.pathString, contents: data, attributes: nil)
         try System.shared.async(["open", filePath.pathString])
     }

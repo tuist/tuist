@@ -163,6 +163,10 @@ public class ManifestLoader: ManifestLoading {
             let manifestPath = path.appending(component: fileName)
             if !FileHandler.shared.exists(manifestPath) { continue }
             let data = try loadManifestData(at: manifestPath)
+            if Environment.shared.isVerbose {
+                let string = String(data: data, encoding: .utf8)
+                logger.debug("Trying to load the manifest represented by the following JSON representation:\n\(string)")
+            }
             return try decoder.decode(T.self, from: data)
         }
 

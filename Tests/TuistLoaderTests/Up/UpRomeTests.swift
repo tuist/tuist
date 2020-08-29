@@ -80,23 +80,20 @@ final class UpRomeTests: TuistUnitTestCase {
 
         upHomebrew.isMetStub = { _ in true }
         rome.downloadStub = { _, _ in }
-        /// Returns empty string to indicate that no frameworks are missing
-        rome.missingStub = { _, _ in "" }
 
         //  Then
         let result = try subject.isMet(projectPath: temporaryPath)
 
         //  When
-        XCTAssertTrue(result)
+        XCTAssertFalse(result)
     }
 
     func test_when_not_isMet() throws {
         //  Given
         let temporaryPath = try self.temporaryPath()
 
-        upHomebrew.isMetStub = { _ in true }
+        upHomebrew.isMetStub = { _ in false }
         rome.downloadStub = { _, _ in }
-        rome.missingStub = { _, _ in "MissingFramework ABC, Other framework missing" }
 
         //  Then
         let result = try subject.isMet(projectPath: temporaryPath)

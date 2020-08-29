@@ -1,6 +1,43 @@
 import ProjectDescription
 import ProjectDescriptionHelpers
 
-let project = Project.app(name: "{{ name }}", platform: .{{ platform }}, dependencies: [
-    .project(target: "{{ name }}Kit", path: .relativeToManifest("../{{ name }}Kit"))
-])
+/*
+                +-------------+
+                |             |
+                |     App     | Contains {{ name }} App target and {{ name }} unit-test target
+                |             |
+         +------+-------------+-------+
+         |         depends on         |
+         |                            |
+ +----v-----+                   +-----v-----+
+ |          |                   |           |
+ |   Kit    |                   |     UI    |   Two independent frameworks to share code and start modularising your app
+ |          |                   |           |
+ +----------+                   +-----------+
+
+ */
+
+// MARK: - {{ name }} Kit Framework
+
+let kit = Target(name: "{{ name }}Kit",
+                platform: .{{ platform }},
+                product: .framework,
+                bundleId: "io.tuist.{{ name }}Kit",
+                infoPlist: .default,
+                sources: ["Targets/{{ name }}Kit/Sources/**"],
+                resources: [],
+                dependencies: [])
+
+let ui = Target(name: "{{ name }}UI",
+                platform: .{{ platform }},
+                product: .framework,
+                bundleId: "io.tuist.{{ name }}UI",
+                infoPlist: .default,
+                sources: ["Targets/{{ name }}UI/Sources/**"],
+                resources: [],
+                dependencies: [])
+
+// MARK: - Example app
+
+// Creates our project using a helper function defined in ProjectDescriptionHelpers
+let project = Project.app(name: "{{ name }}", additionalTargets: [kit, ui])

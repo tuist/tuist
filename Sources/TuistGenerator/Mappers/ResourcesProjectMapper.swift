@@ -34,6 +34,7 @@ public class ResourcesProjectMapper: ProjectMapping {
                                          product: .bundle,
                                          productName: nil,
                                          bundleId: "\(target.bundleId).resources",
+                                         infoPlist: .extendingDefault(with: [:]),
                                          resources: target.resources,
                                          filesGroup: target.filesGroup)
             modifiedTarget.resources = []

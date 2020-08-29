@@ -15,6 +15,7 @@ public class MockEnvironment: Environmenting {
                                                 attributes: nil)
     }
 
+    public var isVerbose: Bool = false
     public var cacheDirectoryStub: AbsolutePath?
 
     public var shouldOutputBeColoured: Bool = false

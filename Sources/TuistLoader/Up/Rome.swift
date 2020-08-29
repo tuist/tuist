@@ -12,14 +12,6 @@ protocol Romeaging {
     ///   - cachePrefix: Cache Prefix to use when downloading dependencies
     /// - Throws: An error if the dependencies download fails.
     func download(platforms: [Platform], cachePrefix: String?) throws
-
-    /// Retrieves the list of dependencies that are missing
-    ///
-    /// - Parameters:
-    ///   - platforms: Platforms the dependencies will be updated for.
-    ///   - cachePrefix: Cache Prefix to use when downloading dependencies
-    /// - Throws: An error if the dependencies download fails.
-    func missing(platforms: [Platform], cachePrefix: String?) throws -> String?
 }
 
 final class Rome: Romeaging {
@@ -47,31 +39,5 @@ final class Rome: Romeaging {
         }
 
         try System.shared.run(command)
-    }
-
-    /// Retrieves the list of dependencies that are missing
-    ///
-    /// - Parameters:
-    ///   - platforms: Platforms the dependencies will be updated for.
-    ///   - cachePrefix: Cache Prefix to use when downloading dependencies
-    /// - Throws: An error if the dependencies download fails.
-    func missing(platforms: [Platform], cachePrefix: String?) throws -> String? {
-        let romePath = try System.shared.which("rome")
-
-        var command: [String] = [romePath]
-        command.append("list")
-        command.append("--missing")
-
-        if let cachePrefix = cachePrefix {
-            command.append("--cache-prefix")
-            command.append(cachePrefix)
-        }
-
-        if !platforms.isEmpty {
-            command.append("--platform")
-            command.append(platforms.map { $0.caseValue }.joined(separator: ","))
-        }
-
-        return try System.shared.capture(command)
     }
 }

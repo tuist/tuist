@@ -1,5 +1,6 @@
 import ArgumentParser
 import Foundation
+import GraphViz
 import TSCBasic
 import TuistGenerator
 import TuistLoader
@@ -13,20 +14,28 @@ struct GraphCommand: ParsableCommand {
     }
 
     @Flag(
+        name: [.customShort("t"), .long],
         help: "Skip Test targets during graph rendering."
     )
-    var skipTestTargets: Bool
+    var skipTestTargets: Bool = false
 
     @Flag(
+        name: [.customShort("d"), .long],
         help: "Skip external dependencies."
     )
-    var skipExternalDependencies: Bool
+    var skipExternalDependencies: Bool = false
 
     @Option(
-        default: .dot,
+        name: [.customShort("f"), .long],
         help: "Available formats: dot, png"
     )
-    var format: GraphFormat
+    var format: GraphFormat = .dot
+
+    @Option(
+        name: [.customShort("a"), .customLong("algorithm")],
+        help: "Available formats: dot, neato, twopi, circo, fdp, sfddp, patchwork"
+    )
+    var layoutAlgorithm: GraphViz.LayoutAlgorithm = .dot
 
     @Option(
         name: .shortAndLong,
@@ -36,6 +45,7 @@ struct GraphCommand: ParsableCommand {
 
     func run() throws {
         try GraphService().run(format: format,
+                               layoutAlgorithm: layoutAlgorithm,
                                skipTestTargets: skipTestTargets,
                                skipExternalDependencies: skipExternalDependencies,
                                path: path)
@@ -45,3 +55,5 @@ struct GraphCommand: ParsableCommand {
 enum GraphFormat: String, ExpressibleByArgument {
     case dot, png
 }
+
+extension GraphViz.LayoutAlgorithm: ExpressibleByArgument {}

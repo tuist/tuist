@@ -4,6 +4,21 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Removed
+
+- **Breaking** Support for Xcode 11.3.x and Xcode 11.4.x [#1604](https://github.com/tuist/tuist/pull/1604) by [@fortmarek](https://github.com/fortmarek)
+
+### Fixed
+
+- Generate the default `Info.plist` file for static frameworks that only contain resources [#1661](https://github.com/tuist/tuist/pull/1661) by [@Juanpe](https://github.com/juanpe)
+- Fix Carthage support for binary dependencies [#1675](https://github.com/tuist/tuist/pull/1675) by [@softmaxsg](https://github.com/softmaxsg)
+- Use profile filename to match targets and configs [#1690](https://github.com/tuist/tuist/pull/1690) by [@rist](https://github.com/rist)
+
+### Changed
+
+- `Target.dependsOnXCTest` returns true if the target is a test bundle [#1679](https://github.com/tuist/tuist/pull/1679) by [@pepibumur](https://github.com/pepibumur)
+- Support multiple rendering algorithms in Tuist Graph [#1655](<[1655](https://github.com/tuist/tuist/pull/1655/)>) by [@andreacipriani][https://github.com/andreacipriani]
+
 ## 1.15.0 - Riga
 
 ### Changed
@@ -17,9 +32,11 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Add graph visualization in Tuist graph command: "tuist graph --format=png" [#1624](https://github.com/tuist/tuist/pull/1591) by [@AndreaCipriani](https://github.com/andreacipriani)
 - Add support for `.xctest` dependency for tvOS targets [#1597](https://github.com/tuist/tuist/pull/1597) by [@kwridan](https://github.com/kwridan).
 - Fix missing ui test host applications for apps with "-" characters in their name [#1630](https://github.com/tuist/tuist/pull/1630) by [@kwridan](https://github.com/kwridan).
+- Added @Flag in TuistKit.TuistCommand to improve --help-env discoverability by [@facumenzella](https://github.com/facumenzella).
 
 ### Added
 
+- Autocompletions support [#1604](https://github.com/tuist/tuist/issues/1592) by [@fortmarek](https://github.com/fortmarek)
 - Add an acceptance test suite to cover a `test cache warm` command on a micro-feature architecture kind of application that is fully statically linked [#1594](https://github.com/tuist/tuist/pull/1594) by [@RomainBoulay](https://github.com/RomainBoulay)
 - Add support for setting launch arguments at the target level. [#1596](https://github.com/tuist/tuist/pull/1596) by [@jeroenleenarts](https://github.com/jeroenleenarts)
 - Add Homebrew cask up [#1601](https://github.com/tuist/tuist/pull/1601) by [@leszko11](https://github.com/leszko11)

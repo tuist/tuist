@@ -186,7 +186,7 @@ public class Graph: Encodable, Equatable {
     /// - Parameters:
     ///   - path: Path to the directory where the project that defines the target is located.
     ///   - name: Name of the target.
-    public func linkableDependencies(path: AbsolutePath, name: String) throws -> [GraphDependencyReference] {
+    public func linkableDependencies(path: AbsolutePath, name: String) -> [GraphDependencyReference] {
         guard let targetNode = findTargetNode(path: path, name: name) else {
             return []
         }
@@ -387,7 +387,7 @@ public class Graph: Encodable, Equatable {
     /// - Parameter project: Project whose dependency references will be returned.
     public func allDependencyReferences(for project: Project) throws -> [GraphDependencyReference] {
         let linkableDependencies = try project.targets.flatMap {
-            try self.linkableDependencies(path: project.path, name: $0.name)
+            self.linkableDependencies(path: project.path, name: $0.name)
         }
 
         let embeddableDependencies = try project.targets.flatMap {
