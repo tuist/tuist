@@ -6,11 +6,11 @@ Scenario: The project is an iOS application with frameworks and tests (ios_app_w
     Then I copy the fixture ios_app_with_framework_linking_static_framework into the working directory
     Then tuist generates the project
     Then I should be able to build for iOS the scheme App
-    Then the product 'App.app' with destination 'Debug-iphoneos' contains resource 'Frameworks/Framework1.framework/Framework1'
-    Then the product 'App.app' with destination 'Debug-iphoneos' does not contain resource 'Frameworks/Framework2.framework/Framework2'
-    Then the product 'App.app' with destination 'Debug-iphoneos' does not contain resource 'Frameworks/Framework3.framework/Framework3'
-    Then the product 'App.app' with destination 'Debug-iphoneos' does not contain resource 'Frameworks/Framework4.framework/Framework4'
-    Then the product 'App.app' with destination 'Debug-iphoneos' does not contain headers
+    Then the product 'App.app' with destination 'Debug-iphonesimulator' contains resource 'Frameworks/Framework1.framework/Framework1'
+    Then the product 'App.app' with destination 'Debug-iphonesimulator' does not contain resource 'Frameworks/Framework2.framework/Framework2'
+    Then the product 'App.app' with destination 'Debug-iphonesimulator' does not contain resource 'Frameworks/Framework3.framework/Framework3'
+    Then the product 'App.app' with destination 'Debug-iphonesimulator' does not contain resource 'Frameworks/Framework4.framework/Framework4'
+    Then the product 'App.app' with destination 'Debug-iphonesimulator' does not contain headers
     Then I should be able to test for iOS the scheme AppTests
     Then I should be able to build for iOS the scheme Framework1
     Then I should be able to test for iOS the scheme Framework1Tests
