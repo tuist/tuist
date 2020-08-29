@@ -100,6 +100,7 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping {
         _ synthesizedResourceInterfaceType: SynthesizedResourceInterfaceType,
         target: Target,
         project: Project
+        // swiftlint:disable:next large_tuple
     ) throws -> (
         target: Target,
         sideEffects: [SideEffectDescriptor],
