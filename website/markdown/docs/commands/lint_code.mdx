@@ -1,0 +1,37 @@
+---
+name: Lint code
+excerpt: 'Learn how to use the lint command to enforce Swift style and conventions using SwiftLint.'
+---
+
+# Lint code
+
+A command to lint the Swift code using [SwiftLint](https://github.com/realm/SwiftLint).
+
+## Command
+
+Run the following command from a directory that contains a workspace or project manifest:
+
+```bash
+tuist lint code
+```
+
+To lint specific target, you can run:
+
+```bash
+tuist lint code [TARGET_NAME]
+```
+
+### Arguments
+
+<ArgumentsTable
+  args={[
+    {
+      long: '`--path`',
+      short: '`-p`',
+      description:
+        'The path to the directory that contains the workspace or project whose code will be linted.',
+      default: '',
+      optional: true,
+    },
+  ]}
+/>
