@@ -4,6 +4,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Added
+
+- Synthesize resource interface accessors [#1635](https://github.com/tuist/tuist/pull/1635) by [@fortmarek](https://github.com/fortmarek)
+
 ### Removed
 
 - **Breaking** Support for Xcode 11.3.x and Xcode 11.4.x [#1604](https://github.com/tuist/tuist/pull/1604) by [@fortmarek](https://github.com/fortmarek)
