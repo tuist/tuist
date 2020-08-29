@@ -190,16 +190,6 @@ final class Installer: Installing {
                 try FileHandler.shared.copy(from: templatesDirectory,
                                             to: buildDirectory.appending(component: Constants.templatesDirectoryName))
             }
-            
-            let synthesizedResourceInterfaceTemplatesDirectory = temporaryDirectory.appending(
-                component: Constants.synthesizedResourceInterfaceTemplatesDirectoryDirectoryName
-            )
-            if FileHandler.shared.exists(synthesizedResourceInterfaceTemplatesDirectory) {
-                try FileHandler.shared.copy(
-                    from: synthesizedResourceInterfaceTemplatesDirectory,
-                    to: buildDirectory.appending(component: Constants.synthesizedResourceInterfaceTemplatesDirectoryDirectoryName)
-                )
-            }
 
             try buildCopier.copy(from: buildDirectory,
                                  to: installationDirectory)

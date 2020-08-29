@@ -23,16 +23,16 @@ enum SynthesizedResourceInterfaceType {
         }
     }
     
-    var templateFileName: String {
+    fileprivate var templateString: String {
         switch self {
         case .assets:
-            return "xcassets.stencil"
+            return SynthesizedResourceInterfaceTemplates.assetsTemplate
         case .strings:
-            return "strings.stencil"
+            return SynthesizedResourceInterfaceTemplates.stringsTemplate
         case .plists:
-            return "plists.stencil"
+            return SynthesizedResourceInterfaceTemplates.plistsTemplate
         case .fonts:
-            return "fonts.stencil"
+            return SynthesizedResourceInterfaceTemplates.fontsTemplate
         }
     }
     
@@ -59,22 +59,13 @@ protocol SynthesizedResourceInterfacesGenerating {
 }
 
 final class SynthesizedResourceInterfacesGenerator: SynthesizedResourceInterfacesGenerating {
-    private let synthesizedResourceInterfaceTemplatesLocator: SynthesizedResourceInterfaceTemplatesLocating
-    
-    init(
-        synthesizedResourceInterfaceTemplatesLocator: SynthesizedResourceInterfaceTemplatesLocating = SynthesizedResourceInterfaceTemplatesLocator()
-    ) {
-        self.synthesizedResourceInterfaceTemplatesLocator = synthesizedResourceInterfaceTemplatesLocator
-    }
-    
     func render(
         _ synthesizedResourceInterfaceType: SynthesizedResourceInterfaceType,
         name: String,
         paths: [AbsolutePath]
     ) throws -> String {
-        let templatePath = try synthesizedResourceInterfaceTemplatesLocator.locateTemplate(for: synthesizedResourceInterfaceType)
         let template = StencilSwiftTemplate(
-            templateString: try FileHandler.shared.readTextFile(templatePath),
+            templateString: synthesizedResourceInterfaceType.templateString,
             environment: stencilSwiftEnvironment()
         )
         
