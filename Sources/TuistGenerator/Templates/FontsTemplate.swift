@@ -5,7 +5,7 @@ extension SynthesizedResourceInterfaceTemplates {
 
     {% if families %}
     {% set accessModifier %}{% if param.publicAccess %}public{% else %}internal{% endif %}{% endset %}
-    {% set fontType %}{{param.fontTypeName|default:"FontConvertible"}}{% endset %}
+    {% set fontType %}{{param.name}}FontConvertible{% endset %}
     #if os(OSX)
       import AppKit.NSFont
     #elseif os(iOS) || os(tvOS) || os(watchOS)
@@ -25,7 +25,7 @@ extension SynthesizedResourceInterfaceTemplates {
         {{path|basename}}
       {% endif %}
     {% endfilter %}{% endmacro %}
-    {{accessModifier}} enum {{param.enumName|default:"FontFamily"}} {
+    {{accessModifier}} enum {{param.name}}FontFamily {
       {% for family in families %}
       {{accessModifier}} enum {{family.name|swiftIdentifier:"pretty"|escapeReservedKeywords}} {
         {% for font in family.fonts %}

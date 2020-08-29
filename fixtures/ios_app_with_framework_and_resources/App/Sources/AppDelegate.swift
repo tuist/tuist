@@ -22,7 +22,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         print("Main bundle image: \(String(describing: UIImage(named: "tuist")))")
         print("Asset catalogue image: \(String(describing: AppAsset.assetCatalogLogo.image))")
         print("Strings: \(AppStrings.morning)")
-        print("Font: \(FontFamily.SFProDisplay.bold.name)")
+        print("Font: \(AppFontFamily.SFProDisplay.bold.name)")
         print("StaticFrameworkResource image: \(String(describing: staticFrameworkResources.tuist))")
         print("StaticFramework2Resource image: \(String(describing: staticFramework2Resources.loadImage()))")
         print("StaticFramework3Resource image: \(String(describing: resourcesStaticFramework3.loadImage()))")

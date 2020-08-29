@@ -9,7 +9,7 @@ enum SynthesizedResourceInterfaceType {
     case strings
     case plists
     case fonts
-    
+
     var name: String {
         switch self {
         case .assets:
@@ -22,7 +22,7 @@ enum SynthesizedResourceInterfaceType {
             return "Fonts"
         }
     }
-    
+
     fileprivate var templateString: String {
         switch self {
         case .assets:
@@ -35,7 +35,7 @@ enum SynthesizedResourceInterfaceType {
             return SynthesizedResourceInterfaceTemplates.fontsTemplate
         }
     }
-    
+
     fileprivate func parser() throws -> Parser {
         switch self {
         case .assets:
@@ -68,7 +68,7 @@ final class SynthesizedResourceInterfacesGenerator: SynthesizedResourceInterface
             templateString: synthesizedResourceInterfaceType.templateString,
             environment: stencilSwiftEnvironment()
         )
-        
+
         let parser = try synthesizedResourceInterfaceType.parser()
         try paths.forEach { try parser.parse(path: Path($0.pathString), relativeTo: Path("")) }
         var context = parser.stencilContext()
