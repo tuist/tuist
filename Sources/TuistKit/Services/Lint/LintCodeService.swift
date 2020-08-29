@@ -32,18 +32,18 @@ enum LintCodeServiceError: FatalError, Equatable {
 }
 
 final class LintCodeService {
-    private let binaryLocator: BinaryLocating
+    private let codeLinter: CodeLinting
     private let graphLoader: GraphLoading
     private let manifestLoading: ManifestLoading
     private let rootDirectoryLocator: RootDirectoryLocating
 
-    init(binaryLocator: BinaryLocating = BinaryLocator(),
+    init(codeLinter: CodeLinting = CodeLinter(),
          rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator(),
          manifestLoading: ManifestLoading = ManifestLoader(),
          graphLoader: GraphLoading = GraphLoader(modelLoader: GeneratorModelLoader(manifestLoader: ManifestLoader(),
                                                                                    manifestLinter: AnyManifestLinter())))
     {
-        self.binaryLocator = binaryLocator
+        self.codeLinter = codeLinter
         self.rootDirectoryLocator = rootDirectoryLocator
         self.manifestLoading = manifestLoading
         self.graphLoader = graphLoader
@@ -60,16 +60,9 @@ final class LintCodeService {
         let sources: [AbsolutePath] = try getSources(targetName: targetName, graph: graph)
 
         // Lint code
-        let swiftLintPath = try binaryLocator.swiftLintPath()
-        let swiftLintConfigPath = self.swiftLintConfigPath(path: path)
-        let swiftLintArguments = buildSwiftLintArguments(swiftLintPath: swiftLintPath,
-                                                         sources: sources,
-                                                         configPath: swiftLintConfigPath)
-
-        _ = try System.shared.observable(swiftLintArguments)
-            .mapToString()
-            .toBlocking()
-            .last()
+        logger.notice("Running code linting")
+        try codeLinter.lint(sources: sources, path: path)
+        logger.notice("No linting issues found", metadata: .success)
     }
 }
 
@@ -77,11 +70,9 @@ final class LintCodeService {
 
 private extension LintCodeService {
     func path(_ path: String?) -> AbsolutePath {
-        if let path = path {
-            return AbsolutePath(path, relativeTo: FileHandler.shared.currentPath)
-        } else {
-            return FileHandler.shared.currentPath
-        }
+        guard let path = path else { return FileHandler.shared.currentPath  }
+        
+        return AbsolutePath(path, relativeTo: FileHandler.shared.currentPath)
     }
 }
 
@@ -126,30 +117,6 @@ private extension LintCodeService {
             throw LintCodeServiceError.targetNotFound(targetName)
         }
         
-        return target.sources.map { $0.path }.map { $0.parentDirectory }
-    }
-}
-
-// MARK: - SwiftLint
-
-private extension LintCodeService {
-    func swiftLintConfigPath(path: AbsolutePath) -> AbsolutePath? {
-        guard let rootPath = rootDirectoryLocator.locate(from: path) else { return nil }
-        return ["yml", "yaml"].compactMap { (fileExtension) -> AbsolutePath? in
-            let swiftlintPath = rootPath.appending(RelativePath("\(Constants.tuistDirectoryName)/swiftlint.\(fileExtension)"))
-            return (FileHandler.shared.exists(swiftlintPath)) ? swiftlintPath : nil
-        }.first
-    }
-    
-    func buildSwiftLintArguments(swiftLintPath: AbsolutePath, sources: [AbsolutePath], configPath: AbsolutePath?) -> [String] {
-        var arguments = [swiftLintPath.pathString, "lint"]
-        
-        if let configPath = configPath {
-            arguments += ["--config", configPath.pathString]
-        }
-        
-        arguments += ["--"] + sources.map { $0.pathString }
-
-        return arguments
+        return target.sources.map { $0.path }
     }
 }
