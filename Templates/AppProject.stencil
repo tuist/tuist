@@ -17,27 +17,9 @@ import ProjectDescriptionHelpers
 
  */
 
-// MARK: - {{ name }} Kit Framework
-
-let kit = Target(name: "{{ name }}Kit",
-                platform: .{{ platform }},
-                product: .framework,
-                bundleId: "io.tuist.{{ name }}Kit",
-                infoPlist: .default,
-                sources: ["Targets/{{ name }}Kit/Sources/**"],
-                resources: [],
-                dependencies: [])
-
-let ui = Target(name: "{{ name }}UI",
-                platform: .{{ platform }},
-                product: .framework,
-                bundleId: "io.tuist.{{ name }}UI",
-                infoPlist: .default,
-                sources: ["Targets/{{ name }}UI/Sources/**"],
-                resources: [],
-                dependencies: [])
-
-// MARK: - Example app
+// MARK: - Project
 
 // Creates our project using a helper function defined in ProjectDescriptionHelpers
-let project = Project.app(name: "{{ name }}", additionalTargets: [kit, ui])
+let project = Project.app(name: "{{ name }}",
+                          platform: .{{ platform }},
+                          additionalTargets: ["{{name}}Kit", "{{name}}UI"])

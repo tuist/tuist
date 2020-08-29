@@ -1,0 +1,8 @@
+import Foundation
+import XCTest
+
+final class {{ name }}KitTests: XCTestCase {
+    func test_example() {
+        XCTAssertEqual("{{ name }}Kit", "{{ name }}Kit")
+    }
+}
