@@ -23,7 +23,7 @@ public struct Constants {
     public struct Vendor {
         public static let swiftLint = "swiftlint"
     }
-    
+
     public struct DerivedDirectory {
         public static let name = "Derived"
         public static let infoPlists = "InfoPlists"

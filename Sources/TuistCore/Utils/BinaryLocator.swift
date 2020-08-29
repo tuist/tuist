@@ -28,7 +28,7 @@ public protocol BinaryLocating {
 
 public final class BinaryLocator: BinaryLocating {
     public init() {}
-    
+
     public func swiftLintPath() throws -> AbsolutePath {
         #if DEBUG
             // Used only for debug purposes
@@ -48,11 +48,11 @@ public final class BinaryLocator: BinaryLocating {
         let candidates = paths.map { path in
             path.appending(component: Constants.Vendor.swiftLint)
         }
-        
+
         guard let existingPath = candidates.first(where: FileHandler.shared.exists) else {
             throw BinaryLocatorError.swiftLintNotFound
         }
-        
+
         return existingPath
     }
 }

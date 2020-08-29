@@ -70,8 +70,8 @@ final class LintCodeService {
 
 private extension LintCodeService {
     func path(_ path: String?) -> AbsolutePath {
-        guard let path = path else { return FileHandler.shared.currentPath  }
-        
+        guard let path = path else { return FileHandler.shared.currentPath }
+
         return AbsolutePath(path, relativeTo: FileHandler.shared.currentPath)
     }
 }
@@ -81,7 +81,7 @@ private extension LintCodeService {
 private extension LintCodeService {
     func loadDependencyGraph(at path: AbsolutePath) throws -> Graph {
         let manifests = manifestLoading.manifests(at: path)
-        
+
         logger.notice("Loading the dependency graph")
         if manifests.contains(.workspace) {
             logger.notice("Loading workspace at \(path.pathString)")
@@ -107,16 +107,16 @@ private extension LintCodeService {
             return getAllSources(graph: graph)
         }
     }
-    
+
     func getAllSources(graph: Graph) -> [AbsolutePath] {
-        return graph.targets.flatMap { $0.value }.map(\.target).flatMap { $0.sources }.map { $0.path }
+        graph.targets.flatMap { $0.value }.map(\.target).flatMap { $0.sources }.map { $0.path }
     }
-    
+
     func getTargetSources(targetName: String, graph: Graph) throws -> [AbsolutePath] {
         guard let target = graph.targets.flatMap({ $0.value }).map(\.target).first(where: { $0.name == targetName }) else {
             throw LintCodeServiceError.targetNotFound(targetName)
         }
-        
+
         return target.sources.map { $0.path }
     }
 }
