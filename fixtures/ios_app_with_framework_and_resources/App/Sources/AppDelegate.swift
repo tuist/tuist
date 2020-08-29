@@ -26,6 +26,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         print("StaticFrameworkResource image: \(String(describing: staticFrameworkResources.tuist))")
         print("StaticFramework2Resource image: \(String(describing: staticFramework2Resources.loadImage()))")
         print("StaticFramework3Resource image: \(String(describing: resourcesStaticFramework3.loadImage()))")
+        print("StaticFramework3Resource asset catalogue image: \(String(describing: StaticFramework3Asset.assetCatalogLogo.image))")
         print("StaticFramework4Resource image: \(String(describing: resourcesStaticFramework4.loadImage()))")
     }
     

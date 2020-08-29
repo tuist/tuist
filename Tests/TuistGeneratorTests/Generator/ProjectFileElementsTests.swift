@@ -172,7 +172,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
 
     func test_addElement_xcassets_and_scnassets_multiple_files() throws {
         // Given
-        let resouces = [
+        let resources = [
             "/path/myfolder/resources/assets.xcassets/foo/a.png",
             "/path/myfolder/resources/assets.xcassets/foo/abc/b.png",
             "/path/myfolder/resources/assets.xcassets/foo/def/c.png",
@@ -181,7 +181,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
             "/path/myfolder/resources/assets.scnassets/bar.exr",
             "/path/myfolder/resources/assets.scnassets",
         ]
-        let elements = resouces.map {
+        let elements = resources.map {
             GroupFileElement(path: AbsolutePath($0),
                              group: .group(name: "Project"))
         }
@@ -205,14 +205,14 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
     func test_addElement_lproj_multiple_files() throws {
         // Given
         let temporaryPath = try self.temporaryPath()
-        let resouces = try createFiles([
+        let resources = try createFiles([
             "resources/en.lproj/App.strings",
             "resources/en.lproj/Extension.strings",
             "resources/fr.lproj/App.strings",
             "resources/fr.lproj/Extension.strings",
         ])
 
-        let elements = resouces.map {
+        let elements = resources.map {
             GroupFileElement(path: $0,
                              group: .group(name: "Project"),
                              isReference: true)
@@ -244,7 +244,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
     func test_addElement_lproj_knownRegions() throws {
         // Given
         let temporaryPath = try self.temporaryPath()
-        let resouces = try createFiles([
+        let resources = try createFiles([
             "resources/en.lproj/App.strings",
             "resources/en.lproj/Extension.strings",
             "resources/fr.lproj/App.strings",
@@ -253,7 +253,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
             "resources/Base.lproj/Extension.strings",
         ])
 
-        let elements = resouces.map {
+        let elements = resources.map {
             GroupFileElement(path: $0,
                              group: .group(name: "Project"),
                              isReference: true)

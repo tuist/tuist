@@ -12,10 +12,6 @@ extension SynthesizedResourceInterfaceTemplates {
       import UIKit.UIFont
     #endif
 
-    // Deprecated typealiases
-    @available(*, deprecated, renamed: "{{fontType}}.Font", message: "This typealias will be removed in SwiftGen 7.0")
-    {{accessModifier}} typealias {{param.fontAliasName|default:"Font"}} = {{fontType}}.Font
-
     // swiftlint:disable superfluous_disable_command
     // swiftlint:disable file_length
 

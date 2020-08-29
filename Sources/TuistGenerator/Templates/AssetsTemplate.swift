@@ -23,16 +23,6 @@ extension SynthesizedResourceInterfaceTemplates {
       import UIKit
     #endif
 
-    // Deprecated typealiases
-    {% if resourceCount.color > 0 %}
-    @available(*, deprecated, renamed: "{{colorType}}.Color", message: "This typealias will be removed in SwiftGen 7.0")
-    {{accessModifier}} typealias {{param.colorAliasName|default:"AssetColorTypeAlias"}} = {{colorType}}.Color
-    {% endif %}
-    {% if resourceCount.image > 0 %}
-    @available(*, deprecated, renamed: "{{imageType}}.Image", message: "This typealias will be removed in SwiftGen 7.0")
-    {{accessModifier}} typealias {{param.imageAliasName|default:"AssetImageTypeAlias"}} = {{imageType}}.Image
-    {% endif %}
-
     // swiftlint:disable superfluous_disable_command file_length implicit_return
 
     // MARK: - Asset Catalogs

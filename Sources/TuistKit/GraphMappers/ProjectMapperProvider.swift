@@ -23,14 +23,14 @@ class ProjectMapperProvider: ProjectMapperProviding {
         // Info Plist
         mappers.append(DeleteDerivedDirectoryProjectMapper())
         mappers.append(GenerateInfoPlistProjectMapper())
-
-        // Support for resources in libraries
-        mappers.append(ResourcesProjectMapper())
-
+        
         // Namespace generator
         if !config.generationOptions.contains(.disableSynthesizedResourceAccessors) {
             mappers.append(SynthesizedResourceInterfaceProjectMapper())
         }
+        
+        // Support for resources in libraries
+        mappers.append(ResourcesProjectMapper())
 
         // Project name mapper
         mappers.append(ProjectNameAndOrganizationMapper(config: config))
