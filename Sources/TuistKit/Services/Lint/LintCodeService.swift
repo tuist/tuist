@@ -63,7 +63,7 @@ final class LintCodeService {
         let swiftLintPath = try binaryLocator.swiftLintPath()
         let swiftLintConfigPath = self.swiftLintConfigPath(path: path)
         let swiftLintArguments = buildSwiftLintArguments(swiftLintPath: swiftLintPath,
-                                                         sources: path, // TODO: if targetName exist provide here target's root folder
+                                                         sources: sources,
                                                          configPath: swiftLintConfigPath)
 
         _ = try System.shared.observable(swiftLintArguments)
@@ -141,14 +141,15 @@ private extension LintCodeService {
         }.first
     }
     
-    func buildSwiftLintArguments(swiftLintPath: AbsolutePath, sources: AbsolutePath, configPath: AbsolutePath?) -> [String] {
+    func buildSwiftLintArguments(swiftLintPath: AbsolutePath, sources: [AbsolutePath], configPath: AbsolutePath?) -> [String] {
         var arguments = [swiftLintPath.pathString, "lint"]
-        arguments += ["--path", sources.pathString]
-
+        
         if let configPath = configPath {
             arguments += ["--config", configPath.pathString]
         }
         
+        arguments += ["--"] + sources.map { $0.pathString }
+
         return arguments
     }
 }
