@@ -1,7 +1,7 @@
 import TSCBasic
 @testable import TuistGenerator
 
-final class MockNamespaceGenerator: SynthesizedResourceInterfacesGenerating {
+final class MockSynthesizedResourceInterfaceGenerator: SynthesizedResourceInterfacesGenerating {
     var renderStub: ((SynthesizedResourceInterfaceType, String, [AbsolutePath]) throws -> String)?
     func render(
         _ namespaceType: SynthesizedResourceInterfaceType,

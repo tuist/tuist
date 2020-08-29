@@ -9,12 +9,12 @@ import XCTest
 
 final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
     private var subject: SynthesizedResourceInterfaceProjectMapper!
-    private var synthesizedResourceInterfacesGenerator: MockNamespaceGenerator!
+    private var synthesizedResourceInterfacesGenerator: MockSynthesizedResourceInterfaceGenerator!
 
     override func setUp() {
         super.setUp()
 
-        synthesizedResourceInterfacesGenerator = MockNamespaceGenerator()
+        synthesizedResourceInterfacesGenerator = MockSynthesizedResourceInterfaceGenerator()
         subject = SynthesizedResourceInterfaceProjectMapper(
             synthesizedResourceInterfacesGenerator: synthesizedResourceInterfacesGenerator
         )
