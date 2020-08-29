@@ -9,22 +9,22 @@ import XCTest
 @testable import TuistLoaderTesting
 @testable import TuistSupportTesting
 
-final class LintServiceTests: TuistUnitTestCase {
+final class LintProjectServiceTests: TuistUnitTestCase {
     var graphLinter: MockGraphLinter!
     var environmentLinter: MockEnvironmentLinter!
     var manifestLoader: MockManifestLoader!
     var graphLoader: MockGraphLoader!
-    var subject: LintService!
+    var subject: LintProjectService!
 
     override func setUp() {
         graphLinter = MockGraphLinter()
         environmentLinter = MockEnvironmentLinter()
         manifestLoader = MockManifestLoader()
         graphLoader = MockGraphLoader()
-        subject = LintService(graphLinter: graphLinter,
-                              environmentLinter: environmentLinter,
-                              manifestLoading: manifestLoader,
-                              graphLoader: graphLoader)
+        subject = LintProjectService(graphLinter: graphLinter,
+                                     environmentLinter: environmentLinter,
+                                     manifestLoading: manifestLoader,
+                                     graphLoader: graphLoader)
         super.setUp()
     }
 
@@ -43,7 +43,7 @@ final class LintServiceTests: TuistUnitTestCase {
         manifestLoader.manifestsAtStub = { _ in Set() }
 
         // When
-        XCTAssertThrowsSpecific(try subject.run(path: path.pathString), LintServiceError.manifestNotFound(path))
+        XCTAssertThrowsSpecific(try subject.run(path: path.pathString), LintProjectServiceError.manifestNotFound(path))
     }
 
     func test_run_when_there_are_no_issues_and_project_manifest() throws {
