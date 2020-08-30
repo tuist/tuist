@@ -15,5 +15,5 @@ Scenario: The project is an iOS application with core data models (ios_app_with_
     Then I copy the fixture ios_app_with_coredata into the working directory
     Then tuist generates the project
     Then I should be able to build for iOS the scheme App
-    Then the product 'App.app' with destination 'Debug-iphoneos' contains resource 'Users.momd'
-    Then the product 'App.app' with destination 'Debug-iphoneos' contains resource '1_2.cdm'
+    Then the product 'App.app' with destination 'Debug-iphonesimulator' contains resource 'Users.momd'
+    Then the product 'App.app' with destination 'Debug-iphonesimulator' contains resource '1_2.cdm'

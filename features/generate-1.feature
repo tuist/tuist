@@ -21,7 +21,7 @@ Feature: Generate a new project using Tuist (suite 1)
     Then I should be able to build for macOS the scheme Framework2-macOS
     Then I should be able to test for iOS the scheme Framework2Tests
     Then I should be able to build for iOS the scheme Framework1
-    Then the product 'Framework1.framework' with destination 'Debug-iphoneos' contains the Info.plist key 'Test'
+    Then the product 'Framework1.framework' with destination 'Debug-iphonesimulator' contains the Info.plist key 'Test'
 
   Scenario: The project is an iOS application with headers (ios_app_with_headers)
     Given that tuist is available
