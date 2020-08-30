@@ -64,7 +64,7 @@ final class FocusServiceTests: TuistUnitTestCase {
             throw error
         }
 
-        XCTAssertThrowsError(try subject.run(cache: false, path: nil, includeSources: Set())) {
+        XCTAssertThrowsError(try subject.run(cache: false, path: nil, includeSources: Set(), noOpen: true)) {
             XCTAssertEqual($0 as NSError?, error)
         }
     }
@@ -76,7 +76,7 @@ final class FocusServiceTests: TuistUnitTestCase {
             workspacePath
         }
 
-        try subject.run(cache: false, path: nil, includeSources: Set())
+        try subject.run(cache: false, path: nil, includeSources: Set(), noOpen: false)
 
         XCTAssertEqual(opener.openArgs.last?.0, workspacePath.pathString)
     }
