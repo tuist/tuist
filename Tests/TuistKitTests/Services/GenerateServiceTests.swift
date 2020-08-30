@@ -13,15 +13,11 @@ import XCTest
 final class MockGenerateServiceProjectGeneratorFactory: GenerateServiceProjectGeneratorFactorying {
     var invokedGenerator = false
     var invokedGeneratorCount = 0
-    var invokedGeneratorParameters: (cache: Bool, includeSources: Set<String>)?
-    var invokedGeneratorParametersList = [(cache: Bool, includeSources: Set<String>)]()
     var stubbedGeneratorResult: ProjectGenerating!
 
-    func generator(cache: Bool, includeSources: Set<String>) -> ProjectGenerating {
+    func generator() -> ProjectGenerating {
         invokedGenerator = true
         invokedGeneratorCount += 1
-        invokedGeneratorParameters = (cache, includeSources)
-        invokedGeneratorParametersList.append((cache, includeSources))
         return stubbedGeneratorResult
     }
 }
@@ -169,13 +165,10 @@ final class GenerateServiceTests: TuistUnitTestCase {
 extension GenerateService {
     func testRun(path: String? = nil,
                  projectOnly: Bool = false,
-                 cache: Bool = false,
                  open: Bool = false) throws
     {
         try run(path: path,
                 projectOnly: projectOnly,
-                cache: cache,
-                cacheSources: Set(),
                 open: open)
     }
 }
