@@ -7,6 +7,12 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Removed
 
 - **Breaking** Support for Xcode 11.3.x and Xcode 11.4.x [#1604](https://github.com/tuist/tuist/pull/1604) by [@fortmarek](https://github.com/fortmarek)
+- **Breaking** `--cache` & `--include-sources` arguments from `tuist generate` [#1712](https://github.com/tuist/tuist/pull/1712) by [@pepibumur](https://github.com/pepibumur).
+
+### Added
+
+- `--open` argument to the `tuist generate` command [#1712](https://github.com/tuist/tuist/pull/1712) by [@pepibumur](https://github.com/pepibumur).
+- `--no-open` argument to the `tuist focus` command to support disabling opening the project [#1712](https://github.com/tuist/tuist/pull/1712) by [@pepibumur](https://github.com/pepibumur).
 
 ### Fixed
 
