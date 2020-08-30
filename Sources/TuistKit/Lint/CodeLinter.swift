@@ -31,7 +31,7 @@ class CodeLinter: CodeLinting {
             .mapToString()
             .toBlocking()
             .toArray()
-        
+
         // TODO: swiftlint errors should break tuist (?)
         result
             .forEach {
@@ -53,11 +53,11 @@ private extension CodeLinter {
 
     func buildSwiftLintArguments(swiftLintPath: AbsolutePath, sources: AbsolutePath, configPath: AbsolutePath?) -> [String] {
         var arguments = [swiftLintPath.pathString, "lint", sources.pathString]
-        
+
         if let configPath = configPath {
             arguments += ["--config", configPath.pathString]
         }
-        
+
         return arguments
     }
 }

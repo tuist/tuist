@@ -110,25 +110,25 @@ private extension LintCodeService {
             return graph.entryPath
         }
     }
-    
+
     // TODO: move it to Graph extension (?)
     func getTargetSources(targetName: String, graph: Graph) throws -> AbsolutePath {
         guard let target = graph.targets.flatMap({ $0.value }).map(\.target).first(where: { $0.name == targetName }) else {
             throw LintCodeServiceError.targetNotFound(targetName)
         }
-        
+
         // TODO: move it to AbsolutePath+Extras.swift (?)
         let sources = target.sources.map { $0.path }
         if sources.isEmpty {
             throw LintCodeServiceError.lintableFilesForTargetNotFound(targetName)
         }
-        let rootPath = sources.reduce(sources[0]) { (result, nextPath) in
-            return result.commonAncestor(with: nextPath)
+        let rootPath = sources.reduce(sources[0]) { result, nextPath in
+            result.commonAncestor(with: nextPath)
         }
-        
+
         return rootPath
     }
-    
+
     func isAllEqual<T: Hashable>(_ sequence: [T]) -> Bool {
         Set(sequence).count <= 1
     }
