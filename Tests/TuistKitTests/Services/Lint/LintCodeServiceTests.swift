@@ -64,6 +64,25 @@ final class LintCodeServiceTests: TuistUnitTestCase {
         // When
         XCTAssertThrowsSpecific(try subject.run(path: path.pathString, targetName: fakeNoExistTargetName), LintCodeServiceError.targetNotFound(fakeNoExistTargetName))
     }
+    
+    func test_run_throws_an_error_when_target_to_lint_has_no_sources() throws {
+        // Given
+        let path = try temporaryPath()
+        manifestLoader.manifestsAtStub = { _ in Set([.workspace]) }
+        
+        let target01 = Target.test(name: "Target1", sources: [])
+        let target02 = Target.test(name: "Target2", sources: [])
+        let target03 = Target.test(name: "Target3", sources: [])
+        let graph = Graph.test(
+            targets: [
+                "/path1": [.test(target: target01), .test(target: target02), .test(target: target03)],
+            ]
+        )
+        graphLoader.loadWorkspaceStub = { _ in (graph, Workspace.test()) }
+        
+        // When
+        XCTAssertThrowsSpecific(try subject.run(path: path.pathString, targetName: target01.name), LintCodeServiceError.lintableFilesForTargetNotFound(target01.name))
+    }
 
     func test_run_thorws_an_error_when_code_liner_throws_error() throws {
         // Given
