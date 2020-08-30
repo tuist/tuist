@@ -23,6 +23,11 @@ struct GenerateCommand: ParsableCommand {
     @Flag(help: "Generate a project replacing dependencies with pre-compiled assets.")
     var cache: Bool = false
 
+    @Flag(
+        help: "Open the project after generating it."
+    )
+    var open: Bool = false
+
     @Option(
         name: NameSpecification([.customShort("i"), .customLong("include-sources", withSingleDash: false)]),
         parsing: .singleValue,
@@ -34,6 +39,7 @@ struct GenerateCommand: ParsableCommand {
         try GenerateService().run(path: path,
                                   projectOnly: projectOnly,
                                   cache: cache,
-                                  cacheSources: Set(includeSources))
+                                  cacheSources: Set(includeSources),
+                                  open: open)
     }
 }
