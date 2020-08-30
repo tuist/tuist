@@ -30,9 +30,9 @@ public protocol XCFrameworkBuilding {
     /// - Parameters:
     ///   - workspacePath: Path to the generated .xcworkspace that contains the given target.
     ///   - target: Target whose .xcframework will be generated.
-    ///   - withDevice: Define whether the .xcframework will also contain the target built for devices (it only contains the target built for simulators by default).
+    ///   - includeDeviceArch: Define whether the .xcframework will also contain the target built for devices (it only contains the target built for simulators by default).
     /// - Returns: Path to the compiled .xcframework.
-    func build(workspacePath: AbsolutePath, target: Target, withDevice: Bool) throws -> Observable<AbsolutePath>
+    func build(workspacePath: AbsolutePath, target: Target, includeDeviceArch: Bool) throws -> Observable<AbsolutePath>
 
     /// Returns an observable to build an xcframework for the given target.
     /// The target must have framework as product.
@@ -40,9 +40,9 @@ public protocol XCFrameworkBuilding {
     /// - Parameters:
     ///   - projectPath: Path to the generated .xcodeproj that contains the given target.
     ///   - target: Target whose .xcframework will be generated.
-    ///   - withDevice: Define whether the .xcframework will also contain the target built for devices (it only contains the target built for simulators by default).
+    ///   - includeDeviceArch: Define whether the .xcframework will also contain the target built for devices (it only contains the target built for simulators by default).
     /// - Returns: Path to the compiled .xcframework.
-    func build(projectPath: AbsolutePath, target: Target, withDevice: Bool) throws -> Observable<AbsolutePath>
+    func build(projectPath: AbsolutePath, target: Target, includeDeviceArch: Bool) throws -> Observable<AbsolutePath>
 }
 
 public final class XCFrameworkBuilder: XCFrameworkBuilding {
@@ -61,12 +61,12 @@ public final class XCFrameworkBuilder: XCFrameworkBuilding {
 
     // MARK: - XCFrameworkBuilding
 
-    public func build(workspacePath: AbsolutePath, target: Target, withDevice: Bool) throws -> Observable<AbsolutePath> {
-        try build(.workspace(workspacePath), target: target, withDevice: withDevice)
+    public func build(workspacePath: AbsolutePath, target: Target, includeDeviceArch: Bool) throws -> Observable<AbsolutePath> {
+        try build(.workspace(workspacePath), target: target, includeDeviceArch: includeDeviceArch)
     }
 
-    public func build(projectPath: AbsolutePath, target: Target, withDevice: Bool) throws -> Observable<AbsolutePath> {
-        try build(.project(projectPath), target: target, withDevice: withDevice)
+    public func build(projectPath: AbsolutePath, target: Target, includeDeviceArch: Bool) throws -> Observable<AbsolutePath> {
+        try build(.project(projectPath), target: target, includeDeviceArch: includeDeviceArch)
     }
 
     // MARK: - Fileprivate
@@ -114,7 +114,7 @@ public final class XCFrameworkBuilder: XCFrameworkBuilding {
     }
 
     // swiftlint:disable:next function_body_length
-    fileprivate func build(_ projectTarget: XcodeBuildTarget, target: Target, withDevice: Bool) throws -> Observable<AbsolutePath> {
+    fileprivate func build(_ projectTarget: XcodeBuildTarget, target: Target, includeDeviceArch: Bool) throws -> Observable<AbsolutePath> {
         guard target.product.isFramework else {
             throw XCFrameworkBuilderError.nonFrameworkTarget(target.name)
         }
@@ -142,7 +142,7 @@ public final class XCFrameworkBuilder: XCFrameworkBuilding {
             // Build for the device - if required
             let deviceArchivePath = temporaryPath.appending(component: "device.xcarchive")
             var deviceArchiveObservable: Observable<SystemEvent<XcodeBuildOutput>>
-            if withDevice {
+            if includeDeviceArch {
                 deviceArchiveObservable = deviceBuild(
                     projectTarget: projectTarget,
                     scheme: scheme,
@@ -158,7 +158,7 @@ public final class XCFrameworkBuilder: XCFrameworkBuilding {
             if let simulatorArchivePath = simulatorArchivePath {
                 frameworkpaths.append(frameworkPath(fromArchivePath: simulatorArchivePath, productName: target.productName))
             }
-            if withDevice {
+            if includeDeviceArch {
                 frameworkpaths.append(frameworkPath(fromArchivePath: deviceArchivePath, productName: target.productName))
             }
 

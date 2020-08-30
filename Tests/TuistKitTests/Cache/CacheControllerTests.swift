@@ -83,7 +83,7 @@ final class CacheControllerTests: TuistUnitTestCase {
             }
         }
 
-        try subject.cache(path: path, withDevice: true)
+        try subject.cache(path: path, includeDeviceArch: true)
 
         // Then
         XCTAssertPrinterOutputContains("""

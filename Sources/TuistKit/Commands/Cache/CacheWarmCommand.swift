@@ -21,9 +21,9 @@ struct CacheWarmCommand: ParsableCommand {
         name: [.customShort("d"), .long],
         help: "When passed it caches the targets also for device (only targets built for simulator are cached by default)"
     )
-    var withDevice: Bool = false
+    var includeDeviceArch: Bool = false
 
     func run() throws {
-        try CacheWarmService().run(path: path, withDevice: withDevice)
+        try CacheWarmService().run(path: path, includeDeviceArch: includeDeviceArch)
     }
 }

@@ -14,8 +14,8 @@ protocol CacheControlling {
     /// Caches the cacheable targets that are part of the workspace or project at the given path.
     /// - Parameters:
     ///   - path: Path to the directory that contains a workspace or a project.
-    ///   - withDevice: Define whether the .xcframework will also contain the target built for devices (it only contains the target built for simulators by default).
-    func cache(path: AbsolutePath, withDevice: Bool) throws
+    ///   - includeDeviceArch: Define whether the .xcframework will also contain the target built for devices (it only contains the target built for simulators by default).
+    func cache(path: AbsolutePath, includeDeviceArch: Bool) throws
 }
 
 final class CacheController: CacheControlling {
@@ -49,7 +49,7 @@ final class CacheController: CacheControlling {
         self.graphContentHasher = graphContentHasher
     }
 
-    func cache(path: AbsolutePath, withDevice: Bool) throws {
+    func cache(path: AbsolutePath, includeDeviceArch: Bool) throws {
         let (path, graph) = try generator.generateWithGraph(path: path, projectOnly: false)
 
         logger.notice("Hashing cacheable frameworks")
@@ -58,7 +58,7 @@ final class CacheController: CacheControlling {
         let completables = try cacheableTargets.map { try buildAndCacheXCFramework(path: path,
                                                                                    target: $0.key,
                                                                                    hash: $0.value,
-                                                                                   withDevice: withDevice) }
+                                                                                   includeDeviceArch: includeDeviceArch) }
         _ = try Completable.zip(completables).toBlocking().last()
 
         logger.notice("All cacheable frameworks have been cached successfully", metadata: .success)
@@ -82,11 +82,11 @@ final class CacheController: CacheControlling {
     ///   - path: Path to either the .xcodeproj or .xcworkspace that contains the framework to be cached.
     ///   - target: Target whose .xcframework will be built and cached.
     ///   - hash: Hash of the target.
-    ///   - withDevice: Define whether the .xcframework will also contain the target built for devices (it only contains the target built for simulators by default).
+    ///   - includeDeviceArch: Define whether the .xcframework will also contain the target built for devices (it only contains the target built for simulators by default).
     fileprivate func buildAndCacheXCFramework(path: AbsolutePath,
                                               target: TargetNode,
                                               hash: String,
-                                              withDevice: Bool) throws -> Completable
+                                              includeDeviceArch: Bool) throws -> Completable
     {
         // Build targets sequentially
         let xcframeworkPath: AbsolutePath!
@@ -95,11 +95,11 @@ final class CacheController: CacheControlling {
         if path.extension == "xcworkspace" {
             xcframeworkPath = try xcframeworkBuilder.build(workspacePath: path,
                                                            target: target.target,
-                                                           withDevice: withDevice).toBlocking().single()
+                                                           includeDeviceArch: includeDeviceArch).toBlocking().single()
         } else {
             xcframeworkPath = try xcframeworkBuilder.build(projectPath: path,
                                                            target: target.target,
-                                                           withDevice: withDevice).toBlocking().single()
+                                                           includeDeviceArch: includeDeviceArch).toBlocking().single()
         }
 
         // Create tasks to cache and delete the xcframeworks asynchronously
