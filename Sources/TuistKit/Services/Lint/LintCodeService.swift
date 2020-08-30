@@ -9,13 +9,15 @@ import TuistSupport
 enum LintCodeServiceError: FatalError, Equatable {
     /// Thrown when neither a workspace or a project is found in the given path.
     case manifestNotFound(AbsolutePath)
-    /// Thrown when neither a workspace or a project is found in the given path.
+    /// Thrown when target with given name does not exist.
     case targetNotFound(String)
+    /// Throws when no lintable files found for target with given name.
+    case lintableFilesForTargetNotFound(String)
 
     /// Error type.
     var type: ErrorType {
         switch self {
-        case .manifestNotFound, .targetNotFound:
+        case .manifestNotFound, .targetNotFound, .lintableFilesForTargetNotFound:
             return .abort
         }
     }
@@ -27,24 +29,26 @@ enum LintCodeServiceError: FatalError, Equatable {
             return "Couldn't find Project.swift nor Workspace.swift at \(path.pathString)"
         case let .targetNotFound(name):
             return "Target with name '\(name)' not found in the project."
+        case let .lintableFilesForTargetNotFound(name):
+            return "No lintable files for target with name '\(name)'"
         }
     }
 }
 
 final class LintCodeService {
+    private let rootDirectoryLocator: RootDirectoryLocating
     private let codeLinter: CodeLinting
     private let graphLoader: GraphLoading
     private let manifestLoading: ManifestLoading
-    private let rootDirectoryLocator: RootDirectoryLocating
 
-    init(codeLinter: CodeLinting = CodeLinter(),
-         rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator(),
+    init(rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator(),
+         codeLinter: CodeLinting = CodeLinter(),
          manifestLoading: ManifestLoading = ManifestLoader(),
          graphLoader: GraphLoading = GraphLoader(modelLoader: GeneratorModelLoader(manifestLoader: ManifestLoader(),
                                                                                    manifestLinter: AnyManifestLinter())))
     {
-        self.codeLinter = codeLinter
         self.rootDirectoryLocator = rootDirectoryLocator
+        self.codeLinter = codeLinter
         self.manifestLoading = manifestLoading
         self.graphLoader = graphLoader
     }
@@ -57,12 +61,11 @@ final class LintCodeService {
         let graph = try loadDependencyGraph(at: path)
 
         // Get sources
-        let sources: [AbsolutePath] = try getSources(targetName: targetName, graph: graph)
+        let sources = try getSources(targetName: targetName, graph: graph)
 
         // Lint code
         logger.notice("Running code linting")
         try codeLinter.lint(sources: sources, path: path)
-        logger.notice("No linting issues found", metadata: .success)
     }
 }
 
@@ -100,23 +103,33 @@ private extension LintCodeService {
 // MARK: - Get sources to lint
 
 private extension LintCodeService {
-    func getSources(targetName: String?, graph: Graph) throws -> [AbsolutePath] {
+    func getSources(targetName: String?, graph: Graph) throws -> AbsolutePath {
         if let targetName = targetName {
             return try getTargetSources(targetName: targetName, graph: graph)
         } else {
-            return getAllSources(graph: graph)
+            return graph.entryPath
         }
     }
-
-    func getAllSources(graph: Graph) -> [AbsolutePath] {
-        graph.targets.flatMap { $0.value }.map(\.target).flatMap { $0.sources }.map { $0.path }
-    }
-
-    func getTargetSources(targetName: String, graph: Graph) throws -> [AbsolutePath] {
+    
+    // TODO: move it to Graph extension (?)
+    func getTargetSources(targetName: String, graph: Graph) throws -> AbsolutePath {
         guard let target = graph.targets.flatMap({ $0.value }).map(\.target).first(where: { $0.name == targetName }) else {
             throw LintCodeServiceError.targetNotFound(targetName)
         }
-
-        return target.sources.map { $0.path }
+        
+        // TODO: move it to AbsolutePath+Extras.swift (?)
+        let sources = target.sources.map { $0.path }
+        if sources.isEmpty {
+            throw LintCodeServiceError.lintableFilesForTargetNotFound(targetName)
+        }
+        let rootPath = sources.reduce(sources[0]) { (result, nextPath) in
+            return result.commonAncestor(with: nextPath)
+        }
+        
+        return rootPath
+    }
+    
+    func isAllEqual<T: Hashable>(_ sequence: [T]) -> Bool {
+        Set(sequence).count <= 1
     }
 }

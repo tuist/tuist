@@ -4,7 +4,7 @@ import TuistCore
 import TuistSupport
 
 protocol CodeLinting {
-    func lint(sources: [AbsolutePath], path: AbsolutePath) throws
+    func lint(sources: AbsolutePath, path: AbsolutePath) throws
 }
 
 class CodeLinter: CodeLinting {
@@ -20,17 +20,23 @@ class CodeLinter: CodeLinting {
 
     // MARK: - CodeLinting
 
-    func lint(sources: [AbsolutePath], path: AbsolutePath) throws {
+    func lint(sources: AbsolutePath, path: AbsolutePath) throws {
         let swiftLintPath = try binaryLocator.swiftLintPath()
         let swiftLintConfigPath = self.swiftLintConfigPath(path: path)
         let swiftLintArguments = buildSwiftLintArguments(swiftLintPath: swiftLintPath,
                                                          sources: sources,
                                                          configPath: swiftLintConfigPath)
 
-        _ = try System.shared.observable(swiftLintArguments)
+        let result = try System.shared.observable(swiftLintArguments)
             .mapToString()
             .toBlocking()
-            .last()
+            .toArray()
+        
+        // TODO: swiftlint errors should break tuist (?)
+        result
+            .forEach {
+                logger.notice(Logger.Message(stringLiteral: $0.value))
+            }
     }
 }
 
@@ -45,15 +51,13 @@ private extension CodeLinter {
         }.first
     }
 
-    func buildSwiftLintArguments(swiftLintPath: AbsolutePath, sources: [AbsolutePath], configPath: AbsolutePath?) -> [String] {
-        var arguments = [swiftLintPath.pathString, "lint"]
-
+    func buildSwiftLintArguments(swiftLintPath: AbsolutePath, sources: AbsolutePath, configPath: AbsolutePath?) -> [String] {
+        var arguments = [swiftLintPath.pathString, "lint", sources.pathString]
+        
         if let configPath = configPath {
             arguments += ["--config", configPath.pathString]
         }
-
-        arguments += ["--"] + sources.map { $0.pathString }
-
+        
         return arguments
     }
 }

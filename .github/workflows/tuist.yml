@@ -68,6 +68,7 @@ jobs:
             'generate-6',
             'init',
             'lint-project',
+            'lint-code',
             'scaffold',
             'up',
             'build',

@@ -11,7 +11,6 @@ import XCTest
 
 final class LintCodeServiceTests: TuistUnitTestCase {
     private var codeLinter: MockCodeLinter!
-    private var rootDirectoryLocator: MockRootDirectoryLocator!
     private var manifestLoader: MockManifestLoader!
     private var graphLoader: MockGraphLoader!
 
@@ -21,12 +20,10 @@ final class LintCodeServiceTests: TuistUnitTestCase {
         super.setUp()
 
         codeLinter = MockCodeLinter()
-        rootDirectoryLocator = MockRootDirectoryLocator()
         manifestLoader = MockManifestLoader()
         graphLoader = MockGraphLoader()
 
         subject = LintCodeService(codeLinter: codeLinter,
-                                  rootDirectoryLocator: rootDirectoryLocator,
                                   manifestLoading: manifestLoader,
                                   graphLoader: graphLoader)
     }
@@ -35,7 +32,6 @@ final class LintCodeServiceTests: TuistUnitTestCase {
         subject = nil
 
         codeLinter = nil
-        rootDirectoryLocator = nil
         manifestLoader = nil
         graphLoader = nil
 
@@ -97,9 +93,12 @@ final class LintCodeServiceTests: TuistUnitTestCase {
         let target03 = Target.test(sources: [
             ("/target03/file1.swift", nil),
         ])
-        let graph = Graph.test(targets: [
-            "/path1": [.test(target: target01), .test(target: target02), .test(target: target03)],
-        ])
+        let graph = Graph.test(
+            entryPath: "/rootPath",
+            targets: [
+                "/path1": [.test(target: target01), .test(target: target02), .test(target: target03)],
+            ]
+        )
         graphLoader.loadWorkspaceStub = { _ in (graph, Workspace.test()) }
 
         // When
@@ -107,18 +106,15 @@ final class LintCodeServiceTests: TuistUnitTestCase {
 
         // Then
         let invokedLintParameters = codeLinter.invokedLintParameters
-        let expectedSources = (target01.sources + target02.sources + target03.sources)
-            .map { $0.path }
 
         XCTAssertEqual(codeLinter.invokedLintCount, 1)
-        XCTAssertEqual(invokedLintParameters?.sources, expectedSources)
+        XCTAssertEqual(invokedLintParameters?.sources, "/rootPath")
         XCTAssertEqual(invokedLintParameters?.path, path)
 
         XCTAssertPrinterOutputContains("""
         Loading the dependency graph
         Loading workspace at \(path.pathString)
         Running code linting
-        No linting issues found
         """)
     }
 
@@ -139,9 +135,12 @@ final class LintCodeServiceTests: TuistUnitTestCase {
         let target03 = Target.test(sources: [
             ("/target03/file1.swift", nil),
         ])
-        let graph = Graph.test(targets: [
-            "/path1": [.test(target: target01), .test(target: target02), .test(target: target03)],
-        ])
+        let graph = Graph.test(
+            entryPath: "/rootPath",
+            targets: [
+                "/path1": [.test(target: target01), .test(target: target02), .test(target: target03)],
+            ]
+        )
         graphLoader.loadProjectStub = { _ in (graph, Project.test()) }
 
         // When
@@ -149,18 +148,15 @@ final class LintCodeServiceTests: TuistUnitTestCase {
 
         // Then
         let invokedLintParameters = codeLinter.invokedLintParameters
-        let expectedSources = (target01.sources + target02.sources + target03.sources)
-            .map { $0.path }
 
         XCTAssertEqual(codeLinter.invokedLintCount, 1)
-        XCTAssertEqual(invokedLintParameters?.sources, expectedSources)
+        XCTAssertEqual(invokedLintParameters?.sources, "/rootPath")
         XCTAssertEqual(invokedLintParameters?.path, path)
 
         XCTAssertPrinterOutputContains("""
         Loading the dependency graph
         Loading project at \(path.pathString)
         Running code linting
-        No linting issues found
         """)
     }
 
@@ -186,25 +182,20 @@ final class LintCodeServiceTests: TuistUnitTestCase {
         ])
         graphLoader.loadWorkspaceStub = { _ in (graph, Workspace.test()) }
 
-        let targetToLint = target01
-
         // When
-        try subject.run(path: path.pathString, targetName: targetToLint.name)
+        try subject.run(path: path.pathString, targetName: target01.name)
 
         // Then
         let invokedLintParameters = codeLinter.invokedLintParameters
-        let expectedSources = targetToLint.sources
-            .map { $0.path }
 
         XCTAssertEqual(codeLinter.invokedLintCount, 1)
-        XCTAssertEqual(invokedLintParameters?.sources, expectedSources)
+        XCTAssertEqual(invokedLintParameters?.sources, "/target01")
         XCTAssertEqual(invokedLintParameters?.path, path)
 
         XCTAssertPrinterOutputContains("""
         Loading the dependency graph
         Loading workspace at \(path.pathString)
         Running code linting
-        No linting issues found
         """)
     }
 }
