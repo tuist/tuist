@@ -27,16 +27,11 @@ class CodeLinter: CodeLinting {
                                                          sources: sources,
                                                          configPath: swiftLintConfigPath)
 
-        let result = try System.shared.observable(swiftLintArguments)
+        _ = try System.shared.observable(swiftLintArguments)
             .mapToString()
+            .printStandardError()
             .toBlocking()
-            .toArray()
-
-        // TODO: swiftlint errors should break tuist (?)
-        result
-            .forEach {
-                logger.notice(Logger.Message(stringLiteral: $0.value))
-            }
+            .last()
     }
 }
 
