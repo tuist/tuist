@@ -42,7 +42,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - `Target.dependsOnXCTest` returns true if the target is a test bundle [#1679](https://github.com/tuist/tuist/pull/1679) by [@pepibumur](https://github.com/pepibumur)
 - Support multiple rendering algorithms in Tuist Graph [#1655](<[1655](https://github.com/tuist/tuist/pull/1655/)>) by [@andreacipriani][https://github.com/andreacipriani]
-- Command for linting a workspace or a project has been renamed from `tuist lint` to `tuist lint project` [#1682](https://github.com/tuist/tuist/pull/1682) by [@laxmorek](https://github.com/laxmorek)
+- **Breaking** Command for linting a workspace or a project has been renamed from `tuist lint` to `tuist lint project` [#1682](https://github.com/tuist/tuist/pull/1682) by [@laxmorek](https://github.com/laxmorek)
 
 ## 1.15.0 - Riga
 
