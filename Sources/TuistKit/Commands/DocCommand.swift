@@ -8,7 +8,7 @@ import TuistSupport
 struct DocCommand: ParsableCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(commandName: "doc",
-                             abstract: "Generates documentation for a specifc target.")
+                             abstract: "Generates html documentation for a given target.")
     }
 
     // MARK: - Attributes

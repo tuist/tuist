@@ -50,7 +50,6 @@ struct DocService {
             let indexPath = generationDirectory.appending(component: "index.html")
             
             // TODO: If index doesn't exist, it's possible swift-doc threw a warning. Handle it better.
-            // TODO: Extend package to include the binary.
 
             Signals.trap(signals: [.int, .abrt]) { _ in
                 // swiftlint:disable:next force_try
