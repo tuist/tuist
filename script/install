@@ -5,6 +5,7 @@ curl -LSs --output /tmp/tuistenv.zip https://storage.googleapis.com/tuist-releas
 echo "Installing Tuist"
 unzip -o /tmp/tuistenv.zip -d /tmp/tuistenv > /dev/null
 mv /tmp/tuistenv/tuistenv /usr/local/bin/tuist
+ln -s /usr/local/bin/tuist /usr/local/bin/swift-project
 
 chmod +x /usr/local/bin/tuist
 

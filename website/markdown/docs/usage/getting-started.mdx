@@ -97,6 +97,17 @@ tuist generate --project-only
 
 This will generate an Xcode project for the local project only.
 
+### Swift project
+
+Tuist's installation creates a symbolic link at `/usr/local/bin/swift-project`.
+Thanks to that, the Swift CLI exposes the interface `swift project` for running Tuist:
+
+```bash
+swift project init # tuist init
+swift project build # tuist build
+swift project edit # tuist edit
+```
+
 ### Add a badge to your project's README
 
 [![Tuist badge](https://img.shields.io/badge/Powered%20by-Tuist-blue)](https://tuist.io)

@@ -37,6 +37,7 @@ final class EnvUpdater: EnvUpdating {
 
             // Replace
             try System.shared.async(["/bin/cp", "-rf", binaryPath, "/usr/local/bin/tuist"])
+            try System.shared.async(["/bin/ln", "-s", "/usr/local/bin/tuist", "/usr/local/bin/swift-project"])
             try System.shared.async(["/bin/rm", binaryPath])
         }
     }
