@@ -205,6 +205,7 @@ def package
 
   FileUtils.cp(".build/release/tuist.zip", "build/tuist.zip")
   FileUtils.cp(".build/release/tuistenv.zip", "build/tuistenv.zip")
+  FileUtils.cp("vendor/swift-doc", "build/swift-doc")
 end
 
 def release
