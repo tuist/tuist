@@ -26,7 +26,7 @@ struct DocCommand: ParsableCommand {
             absolutePath = FileHandler.shared.currentPath
         }
 
-        try DocService().run(path: absolutePath)
+        try DocService().run(path: absolutePath, target: options.target)
     }
 }
 
@@ -40,5 +40,11 @@ extension DocCommand {
             completion: .directory
         )
         var path: String?
+        
+        @Option(
+            name: .shortAndLong,
+            help: "The name of the target to generate documentation"
+        )
+        var target: String?
     }
 }
