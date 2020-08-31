@@ -48,9 +48,8 @@ struct DocService {
                 .last()
 
             let indexPath = generationDirectory.appending(component: "index.html")
-
+            
             // TODO: If index doesn't exist, it's possible swift-doc threw a warning. Handle it better.
-            // TODO: Fix css path.
             // TODO: Extend package to include the binary.
 
             Signals.trap(signals: [.int, .abrt]) { _ in
