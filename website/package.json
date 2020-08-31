@@ -5,7 +5,7 @@
   "version": "0.1.0",
   "author": "Pedro Piñera <pedro@ppinera.es>",
   "dependencies": {
-    "@brainhubeu/react-carousel": "^1.18.10",
+    "@brainhubeu/react-carousel": "^1.19.26",
     "@emotion/core": "^10.0.35",
     "@fortawesome/fontawesome-svg-core": "^1.2.30",
     "@fortawesome/free-brands-svg-icons": "^5.14.0",
