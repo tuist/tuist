@@ -67,22 +67,18 @@ final class LintCodeService {
         logger.notice("Running code linting")
         try codeLinter.lint(sources: sources, path: path)
     }
-}
 
-// MARK: - Destination path
+    // MARK: - Destination path
 
-private extension LintCodeService {
-    func path(_ path: String?) -> AbsolutePath {
+    private func path(_ path: String?) -> AbsolutePath {
         guard let path = path else { return FileHandler.shared.currentPath }
 
         return AbsolutePath(path, relativeTo: FileHandler.shared.currentPath)
     }
-}
 
-// MARK: - Load dependency graph
+    // MARK: - Load dependency graph
 
-private extension LintCodeService {
-    func loadDependencyGraph(at path: AbsolutePath) throws -> Graph {
+    private func loadDependencyGraph(at path: AbsolutePath) throws -> Graph {
         let manifests = manifestLoading.manifests(at: path)
 
         logger.notice("Loading the dependency graph")
@@ -98,12 +94,10 @@ private extension LintCodeService {
             throw LintCodeServiceError.manifestNotFound(path)
         }
     }
-}
 
-// MARK: - Get sources to lint
+    // MARK: - Get sources to lint
 
-private extension LintCodeService {
-    func getSources(targetName: String?, graph: Graph) throws -> AbsolutePath {
+    private func getSources(targetName: String?, graph: Graph) throws -> AbsolutePath {
         if let targetName = targetName {
             return try getTargetSources(targetName: targetName, graph: graph)
         } else {
@@ -111,13 +105,11 @@ private extension LintCodeService {
         }
     }
 
-    // TODO: move it to Graph extension (?)
-    func getTargetSources(targetName: String, graph: Graph) throws -> AbsolutePath {
+    private func getTargetSources(targetName: String, graph: Graph) throws -> AbsolutePath {
         guard let target = graph.targets.flatMap({ $0.value }).map(\.target).first(where: { $0.name == targetName }) else {
             throw LintCodeServiceError.targetNotFound(targetName)
         }
 
-        // TODO: move it to AbsolutePath+Extras.swift (?)
         let sources = target.sources.map { $0.path }
         if sources.isEmpty {
             throw LintCodeServiceError.lintableFilesForTargetNotFound(targetName)
@@ -127,9 +119,5 @@ private extension LintCodeService {
         }
 
         return rootPath
-    }
-
-    func isAllEqual<T: Hashable>(_ sequence: [T]) -> Bool {
-        Set(sequence).count <= 1
     }
 }

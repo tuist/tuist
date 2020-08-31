@@ -33,20 +33,19 @@ class CodeLinter: CodeLinting {
             .toBlocking()
             .last()
     }
-}
 
-// MARK: - Helpers
+    // MARK: - Helpers
 
-private extension CodeLinter {
-    func swiftLintConfigPath(path: AbsolutePath) -> AbsolutePath? {
+    private func swiftLintConfigPath(path: AbsolutePath) -> AbsolutePath? {
         guard let rootPath = rootDirectoryLocator.locate(from: path) else { return nil }
+
         return ["yml", "yaml"].compactMap { (fileExtension) -> AbsolutePath? in
             let swiftlintPath = rootPath.appending(RelativePath("\(Constants.tuistDirectoryName)/swiftlint.\(fileExtension)"))
             return (FileHandler.shared.exists(swiftlintPath)) ? swiftlintPath : nil
         }.first
     }
 
-    func buildSwiftLintArguments(swiftLintPath: AbsolutePath, sources: AbsolutePath, configPath: AbsolutePath?) -> [String] {
+    private func buildSwiftLintArguments(swiftLintPath: AbsolutePath, sources: AbsolutePath, configPath: AbsolutePath?) -> [String] {
         var arguments = [swiftLintPath.pathString, "lint", sources.pathString]
 
         if let configPath = configPath {
