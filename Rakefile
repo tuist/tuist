@@ -16,6 +16,16 @@ Cucumber::Rake::Task.new(:features) do |t|
   t.cucumber_opts = "--format pretty"
 end
 
+desc("Updates swift-doc binary with the latest version available.")
+task :swift_doc_update do
+  system("git", "clone", "https://github.com/SwiftDocOrg/swift-doc.git")
+  Dir.chdir("swift-doc") do
+    system("make", "swift-doc")
+  end
+  system("cp", "swift-doc/.build/release/swift-doc", "vendor/swift-doc")
+  system("rm", "-rf", "swift-doc")
+end
+
 desc("Formats the code style")
 task :style_correct do
   system(swiftlint_path, "autocorrect")
