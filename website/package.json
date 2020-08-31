@@ -53,7 +53,7 @@
     "graphviz-react": "^1.1.1",
     "is-absolute-url": "^3.0.3",
     "moment": "^2.27.0",
-    "polished": "^3.6.5",
+    "polished": "^3.6.6",
     "prettier": "^2.0.5",
     "prismjs": "^1.21.0",
     "prop-types": "^15.7.2",
