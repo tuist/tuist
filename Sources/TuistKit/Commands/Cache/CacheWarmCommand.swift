@@ -12,12 +12,18 @@ struct CacheWarmCommand: ParsableCommand {
 
     @Option(
         name: .shortAndLong,
-        help: "The path to the directory that contains the project whose frameworks will be cached",
+        help: "The path to the directory that contains the project whose targets will be cached",
         completion: .directory
     )
     var path: String?
 
+    @Flag(
+        name: [.customShort("d"), .long],
+        help: "When passed it caches the targets also for device (only targets built for simulator are cached by default)"
+    )
+    var includeDeviceArch: Bool = false
+
     func run() throws {
-        try CacheWarmService().run(path: path)
+        try CacheWarmService().run(path: path, includeDeviceArch: includeDeviceArch)
     }
 }

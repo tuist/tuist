@@ -4,19 +4,29 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+## 1.16.0 - Alhambra
+
 ### Removed
 
 - **Breaking** Support for Xcode 11.3.x and Xcode 11.4.x [#1604](https://github.com/tuist/tuist/pull/1604) by [@fortmarek](https://github.com/fortmarek)
+- **Breaking** `--cache` & `--include-sources` arguments from `tuist generate` [#1712](https://github.com/tuist/tuist/pull/1712) by [@pepibumur](https://github.com/pepibumur).
+
+### Added
+
+- `--open` argument to the `tuist generate` command [#1712](https://github.com/tuist/tuist/pull/1712) by [@pepibumur](https://github.com/pepibumur).
+- `--no-open` argument to the `tuist focus` command to support disabling opening the project [#1712](https://github.com/tuist/tuist/pull/1712) by [@pepibumur](https://github.com/pepibumur).
+- Support for running Tuist through `swift project` [#1713](https://github.com/tuist/tuist/pull/1713) by [@pepibumur](https://github.com/pepibumur).
 
 ### Fixed
 
 - Generate the default `Info.plist` file for static frameworks that only contain resources [#1661](https://github.com/tuist/tuist/pull/1661) by [@Juanpe](https://github.com/juanpe)
 - Fix Carthage support for binary dependencies [#1675](https://github.com/tuist/tuist/pull/1675) by [@softmaxsg](https://github.com/softmaxsg)
+- Use profile filename to match targets and configs [#1690](https://github.com/tuist/tuist/pull/1690) by [@rist](https://github.com/rist)
 
 ### Changed
 
 - `Target.dependsOnXCTest` returns true if the target is a test bundle [#1679](https://github.com/tuist/tuist/pull/1679) by [@pepibumur](https://github.com/pepibumur)
-- Support multiple rendering algorithms in Tuist Graph [#1655](<[1655](https://github.com/tuist/tuist/pull/1655/)>) by [@andreacipriani][https://github.com/andreacipriani]
+- Support multiple rendering algorithms in Tuist Graph [#1655](<[1655](https://github.com/tuist/tuist/pull/1655/)>) by [@andreacipriani](https://github.com/andreacipriani)
 
 ## 1.15.0 - Riga
 

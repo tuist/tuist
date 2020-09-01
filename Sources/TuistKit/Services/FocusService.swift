@@ -49,14 +49,16 @@ final class FocusService {
         self.projectGeneratorFactory = projectGeneratorFactory
     }
 
-    func run(cache: Bool, path: String?, includeSources: Set<String>) throws {
+    func run(cache: Bool, path: String?, includeSources: Set<String>, noOpen: Bool) throws {
         let path = self.path(path)
         if isWorkspace(path: path), cache {
             throw FocusServiceError.cacheWorkspaceNonSupported
         }
         let generator = projectGeneratorFactory.generator(cache: cache, includeSources: includeSources)
         let workspacePath = try generator.generate(path: path, projectOnly: false)
-        try opener.open(path: workspacePath)
+        if !noOpen {
+            try opener.open(path: workspacePath)
+        }
     }
 
     // MARK: - Helpers

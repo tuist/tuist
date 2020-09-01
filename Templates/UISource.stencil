@@ -1,0 +1,7 @@
+import Foundation
+
+public final class {{ name }}UI {
+    public static func hello() {
+        print("Hello, from your UI framework")
+    }
+}

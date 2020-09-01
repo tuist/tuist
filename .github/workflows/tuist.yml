@@ -8,6 +8,7 @@ on:
       - Sources/**/*
       - Tests/**/*
       - fixtures/**/*
+      - Templates/**/*
       - .github/workflows/tuist.yml
       - Package.swift
       - Package.resolved
@@ -16,6 +17,7 @@ on:
       - Sources/**/*
       - Tests/**/*
       - fixtures/**/*
+      - Templates/**/*
       - .github/workflows/tuist.yml
       - Package.swift
       - Package.resolved

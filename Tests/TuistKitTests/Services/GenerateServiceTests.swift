@@ -13,15 +13,11 @@ import XCTest
 final class MockGenerateServiceProjectGeneratorFactory: GenerateServiceProjectGeneratorFactorying {
     var invokedGenerator = false
     var invokedGeneratorCount = 0
-    var invokedGeneratorParameters: (cache: Bool, includeSources: Set<String>)?
-    var invokedGeneratorParametersList = [(cache: Bool, includeSources: Set<String>)]()
     var stubbedGeneratorResult: ProjectGenerating!
 
-    func generator(cache: Bool, includeSources: Set<String>) -> ProjectGenerating {
+    func generator() -> ProjectGenerating {
         invokedGenerator = true
         invokedGeneratorCount += 1
-        invokedGeneratorParameters = (cache, includeSources)
-        invokedGeneratorParametersList.append((cache, includeSources))
         return stubbedGeneratorResult
     }
 }
@@ -29,11 +25,13 @@ final class MockGenerateServiceProjectGeneratorFactory: GenerateServiceProjectGe
 final class GenerateServiceTests: TuistUnitTestCase {
     var subject: GenerateService!
     var generator: MockProjectGenerator!
+    var opener: MockOpener!
     var clock: StubClock!
     var projectGeneratorFactory: MockGenerateServiceProjectGeneratorFactory!
 
     override func setUp() {
         super.setUp()
+        opener = MockOpener()
         projectGeneratorFactory = MockGenerateServiceProjectGeneratorFactory()
         generator = MockProjectGenerator()
         projectGeneratorFactory.stubbedGeneratorResult = generator
@@ -43,6 +41,7 @@ final class GenerateServiceTests: TuistUnitTestCase {
         }
 
         subject = GenerateService(clock: clock,
+                                  opener: opener,
                                   projectGeneratorFactory: projectGeneratorFactory)
     }
 
@@ -51,6 +50,7 @@ final class GenerateServiceTests: TuistUnitTestCase {
         generator = nil
         clock = nil
         subject = nil
+        opener = nil
         super.tearDown()
     }
 
@@ -59,7 +59,16 @@ final class GenerateServiceTests: TuistUnitTestCase {
         try subject.testRun()
 
         // Then
+        XCTAssertEqual(opener.openCallCount, 0)
         XCTAssertPrinterOutputContains("Project generated.")
+    }
+
+    func test_run_opens_the_project_when_open_is_true() throws {
+        // When
+        try subject.testRun(open: true)
+
+        // Then
+        XCTAssertEqual(opener.openCallCount, 1)
     }
 
     func test_run_timeIsPrinted() throws {
@@ -156,11 +165,10 @@ final class GenerateServiceTests: TuistUnitTestCase {
 extension GenerateService {
     func testRun(path: String? = nil,
                  projectOnly: Bool = false,
-                 cache: Bool = false) throws
+                 open: Bool = false) throws
     {
         try run(path: path,
                 projectOnly: projectOnly,
-                cache: cache,
-                cacheSources: Set())
+                open: open)
     }
 }

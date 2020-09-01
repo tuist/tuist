@@ -1,22 +1,24 @@
 version: 2
 updates:
-- package-ecosystem: npm
-  directory: "/website"
-  schedule:
-    interval: weekly
-    time: '11:00'
-  open-pull-requests-limit: 10
-  reviewers:
-  - tuist/core
-  labels:
-  - dependencies
-- package-ecosystem: bundler
-  directory: "/"
-  schedule:
-    interval: weekly
-    time: '11:00'
-  open-pull-requests-limit: 10
-  reviewers:
-  - tuist/core
-  labels:
-  - dependencies
+  - package-ecosystem: npm
+    directory: '/website'
+    schedule:
+      interval: weekly
+      time: '11:00'
+    open-pull-requests-limit: 10
+    reviewers:
+      - tuist/core
+    labels:
+      - dependencies
+      - automerge
+  - package-ecosystem: bundler
+    directory: '/'
+    schedule:
+      interval: weekly
+      time: '11:00'
+    open-pull-requests-limit: 10
+    reviewers:
+      - tuist/core
+    labels:
+      - dependencies
+      - automerge

@@ -65,8 +65,8 @@ class UpRome: Up, GraphInitiatable {
     /// - Throws: An error if the check fails.
     override func isMet(projectPath: AbsolutePath) throws -> Bool {
         if try !upHomebrew.isMet(projectPath: projectPath) { return false }
-        guard let missing = try rome.missing(platforms: platforms, cachePrefix: cachePrefix) else { return false }
-        return missing.isEmpty
+
+        return false
     }
 
     /// When the command is not met, this method runs it.

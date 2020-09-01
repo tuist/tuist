@@ -33,7 +33,16 @@ struct FocusCommand: ParsableCommand {
     )
     var path: String?
 
+    @Flag(
+        name: .shortAndLong,
+        help: "Don't open the project after generating it."
+    )
+    var noOpen: Bool = false
+
     func run() throws {
-        try FocusService().run(cache: cache, path: path, includeSources: Set(includeSources))
+        try FocusService().run(cache: cache,
+                               path: path,
+                               includeSources: Set(includeSources),
+                               noOpen: noOpen)
     }
 }
