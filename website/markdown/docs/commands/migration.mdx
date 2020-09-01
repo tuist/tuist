@@ -79,3 +79,26 @@ tuist migration check-empty-settings -p Project.xcodeproj -t MyApp
     },
   ]}
 />
+
+## List targets sorted by dependencies
+
+Migration of big Xcode projects to Tuist can happen iteratively, one target at a time. It makes sense to start from the target with the lowest number of dependencies.
+To help with that, Tuist includes a command that lists the targets of a project sorted by number dependencies ascending. 
+
+```bash
+tuist migration list-targets -p Project.xcodeproj
+```
+
+#### Arguments
+
+<ArgumentsTable
+  args={[
+    {
+      long: '`--xcodeproj-path`',
+      short: '`-p`',
+      description:
+        'Path to the Xcode project whose build settings will be checked.',
+      required: true,
+    }
+  ]}
+/>
