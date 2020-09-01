@@ -39,7 +39,7 @@ final class TargetsExtractorIntegrationTests: TuistTestCase {
         let depsCount = targets.map { $0.dependenciesCount }
 
         XCTAssertEqual(targetNames, ["iOS", "macOS", "tvOS", "watchOS"])
-        XCTAssertEqual(depsCount, [0,0,0,0])
+        XCTAssertEqual(depsCount, [0, 0, 0, 0])
     }
 
     func test_whenProjectIsMicrofeaturesFixtureApp_returnsExpectedFrameworks() throws {

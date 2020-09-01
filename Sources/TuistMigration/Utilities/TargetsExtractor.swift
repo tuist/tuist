@@ -8,7 +8,7 @@ import XcodeProj
 public protocol TargetsExtracting {
     /// - Parameters:
     ///   - xcodeprojPath: Path to the Xcode project.
-    func targetsSortedByDependencies(xcodeprojPath: AbsolutePath) throws -> [(targetName: String, dependenciesCount:Int)]
+    func targetsSortedByDependencies(xcodeprojPath: AbsolutePath) throws -> [(targetName: String, dependenciesCount: Int)]
 }
 
 public final class TargetsExtractor: TargetsExtracting {
@@ -18,7 +18,7 @@ public final class TargetsExtractor: TargetsExtracting {
 
     // MARK: - EmptyBuildSettingsChecking
 
-    public func targetsSortedByDependencies(xcodeprojPath: AbsolutePath) throws -> [(targetName: String, dependenciesCount:Int)] {
+    public func targetsSortedByDependencies(xcodeprojPath: AbsolutePath) throws -> [(targetName: String, dependenciesCount: Int)] {
         guard FileHandler.shared.exists(xcodeprojPath) else { throw TargetsExtractorError.missingXcodeProj(xcodeprojPath) }
         let pbxproj = try XcodeProj(path: Path(xcodeprojPath.pathString)).pbxproj
         let targets = pbxproj.nativeTargets + pbxproj.aggregateTargets + pbxproj.legacyTargets
@@ -41,7 +41,7 @@ public final class TargetsExtractor: TargetsExtracting {
             }
             return lCount < rCount
         }
-        return try sortedTargets.map { (targetName: $0.name, dependenciesCount: try countDependencies(of: $0) )}
+        return try sortedTargets.map { (targetName: $0.name, dependenciesCount: try countDependencies(of: $0)) }
     }
 
     private func countDependencies(of target: PBXTarget) throws -> Int {
@@ -64,7 +64,7 @@ enum TargetsExtractorError: FatalError, Equatable {
         case let .missingXcodeProj(path): return "Couldn't find Xcode project at path \(path.pathString)."
         case .missingProject: return "The project's pbxproj file contains no projects."
         case .noTargets: return "The project doesn't have any targets"
-        case .failedToExtractTargets(let reason): return "Failed to extract targets for reason: \(reason)"
+        case let .failedToExtractTargets(reason): return "Failed to extract targets for reason: \(reason)"
         }
     }
 
@@ -76,7 +76,7 @@ enum TargetsExtractorError: FatalError, Equatable {
             return .abort
         case .noTargets:
             return .abort
-        case .failedToExtractTargets(_):
+        case .failedToExtractTargets:
             return .bug
         }
     }
