@@ -4,6 +4,33 @@ import TSCBasic
 import TuistSupport
 import XcodeProj
 
+enum TargetsExtractorError: FatalError, Equatable {
+    case missingProject
+    case noTargets
+    case failedToExtractTargets(String)
+
+    public var description: String {
+        switch self {
+        case .missingProject: return "The project's pbxproj file contains no projects."
+        case .noTargets: return "The project doesn't have any targets."
+        case let .failedToExtractTargets(reason): return "Failed to extract targets for reason: \(reason)."
+        }
+    }
+
+    public var type: ErrorType {
+        switch self {
+        case .missingXcodeProj:
+            return .abort
+        case .missingProject:
+            return .abort
+        case .noTargets:
+            return .abort
+        case .failedToExtractTargets:
+            return .bug
+        }
+    }
+}
+
 /// An interface to extract all targets from an xcode project, sorted by number of dependencies
 public protocol TargetsExtracting {
     /// - Parameters:
@@ -25,11 +52,7 @@ public final class TargetsExtractor: TargetsExtracting {
         if targets.isEmpty {
             throw TargetsExtractorError.noTargets
         }
-        do {
-            return try sortTargetsByDependenciesCount(targets)
-        } catch {
-            throw TargetsExtractorError.failedToExtractTargets(error.localizedDescription)
-        }
+        return try sortTargetsByDependenciesCount(targets)
     }
 
     private func sortTargetsByDependenciesCount(_ targets: [PBXTarget]) throws -> [(targetName: String, dependenciesCount: Int)] {
@@ -50,34 +73,5 @@ public final class TargetsExtractor: TargetsExtracting {
             count += frameworkFiles.count
         }
         return count
-    }
-}
-
-enum TargetsExtractorError: FatalError, Equatable {
-    case missingXcodeProj(AbsolutePath)
-    case missingProject
-    case noTargets
-    case failedToExtractTargets(String)
-
-    public var description: String {
-        switch self {
-        case let .missingXcodeProj(path): return "Couldn't find Xcode project at path \(path.pathString)."
-        case .missingProject: return "The project's pbxproj file contains no projects."
-        case .noTargets: return "The project doesn't have any targets"
-        case let .failedToExtractTargets(reason): return "Failed to extract targets for reason: \(reason)"
-        }
-    }
-
-    public var type: ErrorType {
-        switch self {
-        case .missingXcodeProj:
-            return .abort
-        case .missingProject:
-            return .abort
-        case .noTargets:
-            return .abort
-        case .failedToExtractTargets:
-            return .bug
-        }
     }
 }
