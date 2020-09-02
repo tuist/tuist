@@ -19,7 +19,7 @@ jobs:
       - uses: actions/checkout@v2
         with:
           path: reference_branch
-          ref: master
+          ref: prototype/performance-tests-on-ci
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_${{ matrix.xcode }}.app
       - name: Record baseline measurements
