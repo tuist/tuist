@@ -217,7 +217,7 @@ final class ProjectGenerator: ProjectGenerating {
                     sourceTree: .group,
                     name: path.components.last,
                     lastKnownFileType: "folder",
-                    path: path.pathString
+                    path: path.relative(to: project.sourceRootPath).pathString
                 )
 
                 pbxproj.add(object: reference)

@@ -4,6 +4,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Fixed
+
+- Use relative paths for Local Swift Packages [#1706](https://github.com/tuist/tuist/pull/1706) by [@kwridan](https://github.com/kwridan)
+
 ## 1.16.0 - Alhambra
 
 ### Removed
