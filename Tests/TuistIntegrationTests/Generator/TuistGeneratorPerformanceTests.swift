@@ -13,41 +13,33 @@ import XCTest
 final class TuistGeneratorPerformanceTests: TuistTestCase {
     private let manualTimer = ManualTestTimer()
 
-    override func setUp() {
-        super.setUp()
+    override func setUpWithError() throws {
+        try XCTSkipIf(
+            isRunningInDebug(),
+            "Performance tests need to be run in Release Mode for more realistic results"
+        )
     }
 
     // MARK: - Tests
 
     func test_generateWorkspace_performance() throws {
-        guard !isRunningInDebug() else {
-            // Performance tests need to be run in Release Mode for more realistic results
-            // Note: When we switch to Xcode11.5+ only on CI we can use `XCTSkipIf` instead of a guard statement
-            //
-            // XCTSkipIf(isRunningInDebug(), "Performance tests need to be run in Release Mode for more realistic results")
-            return
-        }
+        // Given
+        let subject = DescriptorGenerator()
+        let config = TestModelGenerator.WorkspaceConfig(projects: 50,
+                                                        testTargets: 5,
+                                                        frameworkTargets: 5,
+                                                        schemes: 10,
+                                                        sources: 200,
+                                                        resources: 100,
+                                                        headers: 100)
+        let temporaryPath = try self.temporaryPath()
+        let modelGenerator = TestModelGenerator(rootPath: temporaryPath, config: config)
+        let (graph, workspace) = try modelGenerator.generate()
 
-        measureMetrics([.wallClockTime], automaticallyStartMeasuring: false) {
+        // When
+        measure {
             do {
-                // Given
-                let subject = DescriptorGenerator()
-                let config = TestModelGenerator.WorkspaceConfig(projects: 50,
-                                                                testTargets: 5,
-                                                                frameworkTargets: 5,
-                                                                schemes: 10,
-                                                                sources: 200,
-                                                                resources: 100,
-                                                                headers: 100)
-                let temporaryPath = try self.temporaryPath()
-                let modelGenerator = TestModelGenerator(rootPath: temporaryPath, config: config)
-                let (graph, workspace) = try modelGenerator.generate()
-
-                // When
-                startMeasuring()
                 _ = try subject.generateWorkspace(workspace: workspace, graph: graph)
-                stopMeasuring()
-
             } catch {
                 XCTFail("Failed to generate workspace: \(error)")
             }
