@@ -64,6 +64,30 @@ Currently, we support these types of resources with the following interface name
 - Plists {NameOfPlist} `{NameOfPlist}.swift`
 - Fonts `Fonts+{TargetName}.swift`
 
+So, for example if you have a target `MyFramework` with the following resources:
+
+- Assets.xcassets
+   - image1
+   - image2
+- Environment.plist
+  - myKey
+- Fonts
+  - SF-Pro-Display-Bold.otf
+  - SF-Pro-Display-Heavy.otf
+
+```swift
+// Accessing Asset Catalog Images
+let image1 = MyFrameworkAssets.myImage1
+let image2 = MyFrameworkAssets.myImage2
+
+// Accessing Plist Key values
+let myKeyValue = Environment.myKey
+
+// Accessing Fonts
+let sfProBoldFont = MyFrameworkFontFamily.SFProDisplay.bold
+let sfProHeavyFont = MyFrameworkFontFamily.SFProDisplay.heavy
+```
+
 To ensure that it works well with our cache feature, it's not possible to run it from a build path.
 
 You can also opt out of this feature by adding `disableSynthesizedResourceAccessors` to `generationOptions` in `Config.swift`
