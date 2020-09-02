@@ -5,9 +5,13 @@ import TSCBasic
 import TuistCore
 import TuistSupport
 
+// MARK: - DocServicing
+
 protocol DocServicing {
     func run(path: AbsolutePath) throws
 }
+
+// MARK: - DocService
 
 struct DocService {
     private static var temporaryDirectory: AbsolutePath?
@@ -74,6 +78,8 @@ struct DocService {
         }
     }
 }
+
+// MARK: - Error
 
 extension DocService {
     enum Error: FatalError {
