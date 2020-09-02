@@ -14,11 +14,11 @@ protocol GraphMapperProviding {
 
 final class GraphMapperProvider: GraphMapperProviding {
     fileprivate let cache: Bool
-    fileprivate let includeSources: Set<String>
+    fileprivate let sources: Set<String>
 
-    init(cache: Bool = false, includeSources: Set<String> = Set()) {
+    init(cache: Bool = false, sources: Set<String> = Set()) {
         self.cache = cache
-        self.includeSources = includeSources
+        self.sources = sources
     }
 
     func mapper(config: Config) -> GraphMapping {
@@ -32,7 +32,7 @@ final class GraphMapperProvider: GraphMapperProviding {
         if cache {
             let cacheMapper = CacheMapper(config: config,
                                           cacheStorageProvider: CacheStorageProvider(config: config),
-                                          sources: includeSources)
+                                          sources: sources)
             mappers.append(cacheMapper)
         }
 
