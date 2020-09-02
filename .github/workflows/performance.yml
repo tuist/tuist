@@ -34,4 +34,4 @@ jobs:
       - name: Run performance tests
         if: steps.copy_baselines.outcome == 'success'
         run: |
-          swift test -c release --filter "PerformanceTests" -Xswiftc -enable-testing
+          TEST_FAIL_MISSING_BASELINES=1 swift test -c release --filter "PerformanceTests" -Xswiftc -enable-testing
