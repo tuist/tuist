@@ -40,11 +40,8 @@ extension DocCommand {
             completion: .directory
         )
         var path: String?
-        
-        @Option(
-            name: .shortAndLong,
-            help: "The name of the target to generate documentation"
-        )
-        var target: String?
+
+        @Argument(help: "The name of the target to generate documentation")
+        var target: String
     }
 }
