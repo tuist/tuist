@@ -41,56 +41,38 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping {
         var target = target
 
         var sideEffects: [SideEffectDescriptor] = []
-        var inputPaths: [AbsolutePath] = []
-        var outputPaths: Set<AbsolutePath> = []
 
         let assetsSideEffects: [SideEffectDescriptor]
-        let assetsInputPaths: [AbsolutePath]
-        let assetsOutputPaths: Set<AbsolutePath>
-        (target, assetsSideEffects, assetsInputPaths, assetsOutputPaths) = try renderAndMapTarget(
+        (target, assetsSideEffects) = try renderAndMapTarget(
             .assets,
             target: target,
             project: project
         )
         sideEffects += assetsSideEffects
-        inputPaths += assetsInputPaths
-        outputPaths.formUnion(assetsOutputPaths)
 
         let stringsSideEffects: [SideEffectDescriptor]
-        let stringsInputPaths: [AbsolutePath]
-        let stringsOutputPaths: Set<AbsolutePath>
-        (target, stringsSideEffects, stringsInputPaths, stringsOutputPaths) = try renderAndMapTarget(
+        (target, stringsSideEffects) = try renderAndMapTarget(
             .strings,
             target: target,
             project: project
         )
         sideEffects += stringsSideEffects
-        inputPaths += stringsInputPaths
-        outputPaths.formUnion(stringsOutputPaths)
 
         let plistsSideEffects: [SideEffectDescriptor]
-        let plistsInputPaths: [AbsolutePath]
-        let plistsOutputPaths: Set<AbsolutePath>
-        (target, plistsSideEffects, plistsInputPaths, plistsOutputPaths) = try renderAndMapTarget(
+        (target, plistsSideEffects) = try renderAndMapTarget(
             .plists,
             target: target,
             project: project
         )
         sideEffects += plistsSideEffects
-        inputPaths += plistsInputPaths
-        outputPaths.formUnion(plistsOutputPaths)
 
         let fontsSideEffects: [SideEffectDescriptor]
-        let fontsInputPaths: [AbsolutePath]
-        let fontsOutputPaths: Set<AbsolutePath>
-        (target, fontsSideEffects, fontsInputPaths, fontsOutputPaths) = try renderAndMapTarget(
+        (target, fontsSideEffects) = try renderAndMapTarget(
             .fonts,
             target: target,
             project: project
         )
         sideEffects += fontsSideEffects
-        inputPaths += fontsInputPaths
-        outputPaths.formUnion(fontsOutputPaths)
 
         return (target, sideEffects)
     }
@@ -100,12 +82,9 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping {
         _ synthesizedResourceInterfaceType: SynthesizedResourceInterfaceType,
         target: Target,
         project: Project
-        // swiftlint:disable:next large_tuple
     ) throws -> (
         target: Target,
-        sideEffects: [SideEffectDescriptor],
-        inputPaths: [AbsolutePath],
-        outputPaths: Set<AbsolutePath>
+        sideEffects: [SideEffectDescriptor]
     ) {
         let derivedPath = project.path
             .appending(component: Constants.DerivedDirectory.name)
@@ -175,9 +154,7 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping {
 
         return (
             target: target,
-            sideEffects: sideEffects,
-            inputPaths: paths,
-            outputPaths: Set(renderedResources.map(\.path))
+            sideEffects: sideEffects
         )
     }
 
@@ -203,7 +180,6 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping {
         switch synthesizedResourceInterfaceType {
         case .assets:
             return resourcesPaths
-                .filter(\.isFolder)
                 .filter { $0.extension == "xcassets" }
         case .strings:
             var seen: Set<String> = []
