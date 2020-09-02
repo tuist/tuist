@@ -11,10 +11,10 @@ protocol DocServicing {
 
 struct DocService {
     private static var temporaryDirectory: AbsolutePath?
-    let projectGenerator: ProjectGenerating
-    let binaryLocator: BinaryLocating
-    let opener: Opening
-    let fileHandler: FileHandling
+    private let projectGenerator: ProjectGenerating
+    private let binaryLocator: BinaryLocating
+    private let opener: Opening
+    private let fileHandler: FileHandling
 
     init(projectGenerator: ProjectGenerating = ProjectGenerator(),
          binaryLocator: BinaryLocating = BinaryLocator(),
