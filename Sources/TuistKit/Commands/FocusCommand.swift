@@ -11,14 +11,14 @@ import TuistSupport
 
 enum FocusCommandError: FatalError {
     case noSources
-    
+
     var description: String {
         switch self {
         case .noSources:
             return "A list of targets is required: tuist focus MyTarget."
         }
     }
-    
+
     var type: ErrorType {
         switch self {
         case .noSources:
@@ -40,7 +40,7 @@ struct FocusCommand: ParsableCommand {
         completion: .directory
     )
     var path: String?
-    
+
     @Argument(help: "A list of targets in which you'd like to focus. Those and their dependant targets will be generated as sources.")
     var sources: [String] = []
 
