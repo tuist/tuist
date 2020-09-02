@@ -36,16 +36,14 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
         let projectPath = try temporaryPath()
         let targetAPath = projectPath.appending(component: "TargetA")
         let aAssets = targetAPath.appending(component: "a.xcassets")
-        let bAssets = targetAPath.appending(component: "b.xcassets")
-        let frenchStrings = targetAPath.appending(components: "french", "aStrings.strings")
-        let englishStrings = targetAPath.appending(components: "english", "aStrings.strings")
+        let frenchStrings = targetAPath.appending(components: "fr.lproj", "aStrings.strings")
+        let englishStrings = targetAPath.appending(components: "en.lproj", "aStrings.strings")
         let environmentPlist = targetAPath.appending(component: "Environment.plist")
         let ttfFont = targetAPath.appending(component: "ttfFont.ttf")
         let otfFont = targetAPath.appending(component: "otfFont.otf")
         let ttcFont = targetAPath.appending(component: "ttcFont.ttc")
 
         try fileHandler.createFolder(aAssets)
-        try fileHandler.touch(bAssets)
         try fileHandler.touch(frenchStrings)
         try fileHandler.touch(englishStrings)
         try fileHandler.touch(environmentPlist)
@@ -57,7 +55,6 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
             name: "TargetA",
             resources: [
                 .folderReference(path: aAssets),
-                .file(path: bAssets),
                 .file(path: frenchStrings),
                 .file(path: englishStrings),
                 .file(path: environmentPlist),
