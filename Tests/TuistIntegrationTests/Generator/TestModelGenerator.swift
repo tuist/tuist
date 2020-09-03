@@ -17,6 +17,7 @@ final class TestModelGenerator {
         var sources: Int = 100
         var resources: Int = 100
         var headers: Int = 100
+        var shuffle: Bool = true
     }
 
     private let rootPath: AbsolutePath
@@ -127,7 +128,7 @@ final class TestModelGenerator {
         let sources: [SourceFile] = (0 ..< config.sources)
             .map { "Sources/SourceFile\($0).swift" }
             .map { SourceFile(path: path.appending(RelativePath($0))) }
-            .shuffled()
+            .shuffled(config.shuffle)
         return sources
     }
 
@@ -135,17 +136,17 @@ final class TestModelGenerator {
         let publicHeaders = (0 ..< config.headers)
             .map { "Sources/PublicHeader\($0).h" }
             .map { path.appending(RelativePath($0)) }
-            .shuffled()
+            .shuffled(config.shuffle)
 
         let privateHeaders = (0 ..< config.headers)
             .map { "Sources/PrivateHeader\($0).h" }
             .map { path.appending(RelativePath($0)) }
-            .shuffled()
+            .shuffled(config.shuffle)
 
         let projectHeaders = (0 ..< config.headers)
             .map { "Sources/ProjectHeader\($0).h" }
             .map { path.appending(RelativePath($0)) }
-            .shuffled()
+            .shuffled(config.shuffle)
 
         return Headers(public: publicHeaders, private: privateHeaders, project: projectHeaders)
     }
@@ -159,7 +160,7 @@ final class TestModelGenerator {
             .map { "Resources/Folder\($0)" }
             .map { FileElement.folderReference(path: path.appending(RelativePath($0))) }
 
-        return (files + folderReferences).shuffled()
+        return (files + folderReferences).shuffled(config.shuffle)
     }
 
     private func createAdditionalFiles(path: AbsolutePath) -> [FileElement] {
@@ -183,7 +184,7 @@ final class TestModelGenerator {
             .map { "Documentation\($0)" }
             .map { FileElement.folderReference(path: path.appending(RelativePath($0))) }
 
-        return (filesWithFolderPaths + folderReferences).shuffled()
+        return (filesWithFolderPaths + folderReferences).shuffled(config.shuffle)
     }
 
     private func createFrameworkTarget(name: String,
@@ -207,7 +208,7 @@ final class TestModelGenerator {
 
         let libraries = try createLibraries(relativeTo: path)
 
-        return (frameworks + libraries).shuffled()
+        return (frameworks + libraries).shuffled(config.shuffle)
     }
 
     private func createLibraries(relativeTo path: AbsolutePath) throws -> [Dependency] {
@@ -289,5 +290,14 @@ final class TestModelGenerator {
 
     private func targetReference(from target: Target, projectName: String) -> TargetReference {
         TargetReference(projectPath: pathTo(projectName), name: target.name)
+    }
+}
+
+private extension Array {
+    func shuffled(_ shuffle: Bool) -> Self {
+        if shuffle {
+            return shuffled()
+        }
+        return self
     }
 }
