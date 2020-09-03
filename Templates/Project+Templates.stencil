@@ -36,7 +36,7 @@ extension Project {
                 infoPlist: .default,
                 sources: ["Targets/\(name)/Tests/**"],
                 resources: [],
-                dependencies: [])
+                dependencies: [.target(name: name)])
         return [sources, tests]
     }
 

@@ -77,7 +77,7 @@ final class CacheGraphMapperTests: TuistUnitTestCase {
         }
 
         // When
-        let got = try subject.map(graph: graph, xcframeworks: xcframeworks, sources: Set())
+        let got = try subject.map(graph: graph, xcframeworks: xcframeworks, sources: Set(["App"]))
 
         // Then
         let appNode = try XCTUnwrap(got.entryNodes.first as? TargetNode)
@@ -145,7 +145,7 @@ final class CacheGraphMapperTests: TuistUnitTestCase {
         }
 
         // When
-        let got = try subject.map(graph: graph, xcframeworks: xcframeworks, sources: Set())
+        let got = try subject.map(graph: graph, xcframeworks: xcframeworks, sources: Set(["App"]))
 
         // Then
         let app = try XCTUnwrap(got.entryNodes.first as? TargetNode)
@@ -217,7 +217,7 @@ final class CacheGraphMapperTests: TuistUnitTestCase {
         }
 
         // When
-        let got = try subject.map(graph: graph, xcframeworks: xcframeworks, sources: Set())
+        let got = try subject.map(graph: graph, xcframeworks: xcframeworks, sources: Set(["App"]))
 
         // Then
         let app = try XCTUnwrap(got.entryNodes.first as? TargetNode)
@@ -285,7 +285,7 @@ final class CacheGraphMapperTests: TuistUnitTestCase {
         }
 
         // When
-        let got = try subject.map(graph: graph, xcframeworks: xcframeworks, sources: Set())
+        let got = try subject.map(graph: graph, xcframeworks: xcframeworks, sources: Set(["App"]))
 
         // Then
         let app = try XCTUnwrap(got.entryNodes.first as? TargetNode)
@@ -328,7 +328,7 @@ final class CacheGraphMapperTests: TuistUnitTestCase {
         let graph = Graph.test(entryNodes: [appTargetNode], projects: graphProjects(targetNodes), targets: graphTargets(targetNodes))
 
         // When
-        let got = try subject.map(graph: graph, xcframeworks: [:], sources: Set())
+        let got = try subject.map(graph: graph, xcframeworks: [:], sources: Set(["App"]))
 
         // Then
         let app = try XCTUnwrap(got.entryNodes.first as? TargetNode)
