@@ -32,11 +32,16 @@ public struct Constants {
         public static let signingKeychain = "signing.keychain"
     }
 
+    public struct AsyncQueue {
+        public static let directoryName: String = "Queue"
+    }
+
     public struct EnvironmentVariables {
         public static let verbose = "TUIST_VERBOSE"
         public static let colouredOutput = "TUIST_COLOURED_OUTPUT"
         public static let versionsDirectory = "TUIST_VERSIONS_DIRECTORY"
         public static let cacheDirectory = "TUIST_CACHE_DIRECTORY"
+        public static let queueDirectory = "TUIST_QUEUE_DIRECTORY"
         public static let cloudToken = "TUIST_CLOUD_TOKEN"
         public static let cacheManifests = "TUIST_CACHE_MANIFESTS"
     }

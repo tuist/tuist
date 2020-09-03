@@ -1,5 +1,6 @@
 import Foundation
 import enum TSCBasic.ProcessEnv
+import TuistAsyncQueue
 import TuistSupport
 import enum TuistSupport.LogOutput
 
@@ -8,4 +9,7 @@ if CommandLine.arguments.contains("--verbose") { try? ProcessEnv.setVar(Constant
 LogOutput.bootstrap()
 
 import TuistKit
-TuistCommand.main()
+
+try AsyncQueue.run {
+    TuistCommand.main()
+}
