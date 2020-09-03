@@ -201,4 +201,37 @@ final class ProjectGeneratorTests: TuistUnitTestCase {
             "ORGANIZATIONNAME": "tuist",
         ])
     }
+
+    func test_generate_localSwiftPackagePaths() throws {
+        // Given
+        let projectPath = AbsolutePath("/Project")
+        let localPackagePath = AbsolutePath("/Packages/LocalPackageA")
+        let project = Project.test(path: projectPath,
+                                   sourceRootPath: projectPath,
+                                   name: "Project",
+                                   targets: [.test(dependencies: [.package(product: "A")])],
+                                   packages: [.local(path: localPackagePath)])
+
+        let target = Target.test()
+        let packageNode = PackageNode(package: .local(path: localPackagePath),
+                                      path: localPackagePath)
+        let packageProductNode = PackageProductNode(product: "A", path: localPackagePath)
+        let graph = Graph.test(entryPath: projectPath,
+                               entryNodes: [TargetNode(project: project,
+                                                       target: target,
+                                                       dependencies: [packageProductNode])],
+                               projects: [project],
+                               packages: [packageNode])
+
+        // When
+        let got = try subject.generate(project: project, graph: graph)
+
+        // Then
+        let pbxproj = got.xcodeProj.pbxproj
+        let rootGroup = try XCTUnwrap(pbxproj.rootGroup())
+        let paths = rootGroup.children.compactMap { $0.path }
+        XCTAssertEqual(paths, [
+            "../Packages/LocalPackageA",
+        ])
+    }
 }
