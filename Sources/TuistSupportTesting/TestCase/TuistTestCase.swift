@@ -38,6 +38,14 @@ public final class MockFileHandler: FileHandler {
             return super.exists(path)
         }
         return stubExists(path)
+    }   
+ 
+    public var pathExistsStub: Bool?
+    public override func exists(_ path: AbsolutePath) -> Bool {
+        guard let pathExists = pathExistsStub else {
+            return super.exists(path)
+        }
+        return pathExists
     }
 }
 

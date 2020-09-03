@@ -4,6 +4,7 @@ import Signals
 import TSCBasic
 import TuistCore
 import TuistSupport
+import TuistDoc
 
 // MARK: - DocServicing
 
@@ -15,51 +16,40 @@ protocol DocServicing {
 
 struct DocService {
     private static var temporaryDirectory: AbsolutePath?
+    
     private let projectGenerator: ProjectGenerating
-    private let binaryLocator: BinaryLocating
+    private let swiftDocController: SwiftDocControlling
     private let opener: Opening
     private let fileHandler: FileHandling
 
     init(projectGenerator: ProjectGenerating = ProjectGenerator(),
-         binaryLocator: BinaryLocating = BinaryLocator(),
+         swiftDocController: SwiftDocControlling = SwiftDocController(),
          opener: Opening = Opener(),
          fileHandler: FileHandling = FileHandler())
     {
         self.projectGenerator = projectGenerator
-        self.binaryLocator = binaryLocator
+        self.swiftDocController = swiftDocController
         self.opener = opener
         self.fileHandler = fileHandler
     }
 
     func run(path: AbsolutePath, target targetName: String) throws {
-        let swiftDocPath = try binaryLocator.swiftDocPath()
-
         let (_, graph, _) = try projectGenerator.loadProject(path: path)
-        let targets = graph.targets
-            .flatMap { $0.value }
-            .filter { !$0.dependsOnXCTest }
-            .map { (path: $0.path, name: $0.name) }
-
-        guard let module = targets.first(where: { $0.name == targetName }) else {
+        
+        guard let path = graph.targetPath(name: targetName) else {
             throw Error.targetNotFound(name: targetName)
         }
                         
         try withTemporaryDirectory { generationDirectory in
             DocService.temporaryDirectory = generationDirectory
             
-            let arguments = [swiftDocPath.pathString,
-                             "generate",
-                             "--format", "html",
-                             "--module-name", module.name,
-                             "--output", generationDirectory.pathString,
-                             "--base-url", "./",
-                             "\(module.path)"]
-            
-            _ = try System.shared.observable(arguments)
-                .mapToString()
-                .print()
-                .toBlocking()
-                .last()
+            try swiftDocController.generate(
+                format: .html,
+                moduleName: targetName,
+                outputDirectory: generationDirectory.pathString,
+                baseURL: "./", // without this the css breaks
+                sourcesPath: "\(path)"
+            )
 
             let indexPath = generationDirectory.appending(component: "index.html")
             
@@ -76,6 +66,12 @@ struct DocService {
             logger.pretty("Opening the documentation. Press \(.keystroke("CTRL + C")) once you are done.")
             try opener.open(path: indexPath, wait: true)
         }
+    }
+}
+
+extension Graph {
+    func targetPath(name: String) -> AbsolutePath? {
+        return targets.flatMap { $0.value }.first(where: { $0.name == name })?.path
     }
 }
 
