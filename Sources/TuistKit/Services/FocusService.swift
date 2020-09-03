@@ -51,7 +51,7 @@ final class FocusService {
 
     func run(path: String?, sources: Set<String>, noOpen: Bool) throws {
         let path = self.path(path)
-        if !isProject(path: path) {
+        if isWorkspace(path: path) {
             throw FocusServiceError.cacheWorkspaceNonSupported
         }
         let generator = projectGeneratorFactory.generator(sources: sources)
@@ -71,7 +71,7 @@ final class FocusService {
         }
     }
 
-    private func isProject(path: AbsolutePath) -> Bool {
-        manifestLoader.manifests(at: path).contains(.project)
+    private func isWorkspace(path: AbsolutePath) -> Bool {
+        manifestLoader.manifests(at: path).contains(.workspace)
     }
 }

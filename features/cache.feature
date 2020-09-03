@@ -5,7 +5,7 @@ Feature: Focuses projects with pre-compiled cached dependencies
     And I have a working directory
     And I initialize a ios application named MyApp
     And tuist warms the cache
-    When tuist focuses a project with cached targets 
+    When tuist focuses the target MyApp
     Then MyApp links the xcframework MyAppKit
     Then MyApp embeds the xcframework MyAppKit
     Then MyApp embeds the xcframework MyAppUI
@@ -17,7 +17,7 @@ Scenario: The project is an application (ios_workspace_with_microfeature_archite
     And I have a working directory
     Then I copy the fixture ios_workspace_with_microfeature_architecture into the working directory
     And tuist warms the cache
-    When tuist focuses a project with cached targets at App
+    When tuist focuses the target App at App
     Then App embeds the xcframework Core
     Then App embeds the xcframework Data
     Then App embeds the xcframework FeatureContracts
@@ -31,7 +31,7 @@ Scenario: The project is an application and a target is modified after being cac
     Then I copy the fixture ios_workspace_with_microfeature_architecture into the working directory
     And tuist warms the cache
     And I add an empty line at the end of the file Frameworks/FeatureAFramework/Sources/FrameworkA.swift
-    When tuist focuses a project with cached targets at App
+    When tuist focuses the target App at App
     Then App embeds the xcframework Core
     Then App embeds the xcframework Data
     Then App embeds the framework FrameworkA
@@ -46,7 +46,7 @@ Scenario: The project is an application and a target is generated as sources (io
     And I have a working directory
     Then I copy the fixture ios_workspace_with_microfeature_architecture into the working directory
     And tuist warms the cache
-    When tuist focuses a project with cached targets with sources FrameworkA at App
+    When tuist focuses the targets App,FrameworkA at App
     Then App embeds the xcframework Core
     Then App embeds the xcframework Data
     Then App embeds the framework FrameworkA

@@ -24,20 +24,20 @@ Then(/^tuist generates the project at (.+)$/) do |path|
   @xcodeproj_path = Dir.glob(File.join(@dir, path, "*.xcodeproj")).first
 end
 
-Then(/^tuist focuses a project with cached targets at (.+)$/) do |path|
-  system("swift", "run", "tuist", "focus", "--no-open", "--path", File.join(@dir, path), "--cache")
-  @workspace_path = Dir.glob(File.join(@dir, path, "*.xcworkspace")).first
-  @xcodeproj_path = Dir.glob(File.join(@dir, path, "*.xcodeproj")).first
-end
-
-Then(/^tuist focuses a project with cached targets$/) do
-  system("swift", "run", "tuist", "focus", "--no-open", "--path", @dir, "--cache")
+Then(/^tuist focuses the target ([a-zA-Z]+)$/) do |target|
+  system("swift", "run", "tuist", "focus", "--no-open", "--path", @dir, target)
   @workspace_path = Dir.glob(File.join(@dir, "*.xcworkspace")).first
   @xcodeproj_path = Dir.glob(File.join(@dir, "*.xcodeproj")).first
 end
 
-Then(/^tuist focuses a project with cached targets with sources ([a-zA-Z]+) at (.+)$/) do |sources, path|
-  system("swift", "run", "tuist", "focus", "--no-open", "--path", File.join(@dir, path), "--cache", "--include-sources", sources)
+Then(/^tuist focuses the target ([a-zA-Z]+) at (.+)$/) do |target, path|
+  system("swift", "run", "tuist", "focus", "--no-open", "--path", File.join(@dir, path), target)
+  @workspace_path = Dir.glob(File.join(@dir, path, "*.xcworkspace")).first
+  @xcodeproj_path = Dir.glob(File.join(@dir, path, "*.xcodeproj")).first
+end
+
+Then(/^tuist focuses the targets ([a-zA-Z,]+) at (.+)$/) do |targets, path|
+  system("swift", "run", "tuist", "focus", "--no-open", "--path", File.join(@dir, path), *targets.split(","))
   @workspace_path = Dir.glob(File.join(@dir, path, "*.xcworkspace")).first
   @xcodeproj_path = Dir.glob(File.join(@dir, path, "*.xcodeproj")).first
 end
