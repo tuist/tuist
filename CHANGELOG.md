@@ -4,6 +4,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+## 1.17.0 - Luft
+
 ### Changed
 
 - **Breaking** `tuist focus` only works with `Project.swift` [#1739](https://github.com/tuist/tuist/pull/1739) by [@pepibumur](https://github.com/pepibumur).
