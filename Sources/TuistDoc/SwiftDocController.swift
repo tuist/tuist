@@ -11,7 +11,7 @@ public protocol SwiftDocControlling {
 }
 
 public enum SwiftDocFormat: String {
-    case html = "html", markdown = "md"
+    case html = "html", commonmark = "commonmark"
 }
 
 public struct SwiftDocController: SwiftDocControlling {
