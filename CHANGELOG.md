@@ -4,6 +4,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+- **Breaking** UpCarthage should perform bootstrap instead of update by [@softmaxsg](https://github.com/softmaxsg)
+
 ## 1.17.0 - Luft
 
 ### Changed
