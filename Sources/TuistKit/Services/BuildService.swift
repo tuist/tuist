@@ -67,7 +67,9 @@ final class BuildService {
             try buildScheme(scheme: scheme, graph: graph, path: path, clean: clean, configuration: configuration)
         } else {
             var cleaned: Bool = false
-            try buildableSchemes.forEach {
+            // Run only buildable entry schemes when specific schemes has not been passed
+            let buildableEntrySchemes = buildGraphInspector.buildableEntrySchemes(graph: graph)
+            try buildableEntrySchemes.forEach {
                 try buildScheme(scheme: $0, graph: graph, path: path, clean: !cleaned && clean, configuration: configuration)
                 cleaned = true
             }
