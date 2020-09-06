@@ -3,11 +3,17 @@ import TSCBasic
 @testable import TuistCore
 
 public final class MockBinaryLocator: BinaryLocating {
-    public init() {}
-
-    public var swiftLintPathStub: (() throws -> AbsolutePath)?
+    var invokedSwiftLintPath = false
+    var invokedSwiftLintPathCount = 0
+    var stubbedSwiftLintPathError: Error?
+    var stubbedSwiftLintPathResult: AbsolutePath!
 
     public func swiftLintPath() throws -> AbsolutePath {
-        try swiftLintPathStub?() ?? ""
+        invokedSwiftLintPath = true
+        invokedSwiftLintPathCount += 1
+        if let error = stubbedSwiftLintPathError {
+            throw error
+        }
+        return stubbedSwiftLintPathResult
     }
 }
