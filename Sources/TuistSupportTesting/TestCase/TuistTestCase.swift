@@ -31,7 +31,7 @@ public final class MockFileHandler: FileHandler {
         }
         try closure(stubInTemporaryDirectory)
     }
-    
+
     public var stubExists: ((AbsolutePath) -> Bool)?
     override public func exists(_ path: AbsolutePath) -> Bool {
         guard let stubExists = stubExists else {
