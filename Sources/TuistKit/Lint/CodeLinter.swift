@@ -4,6 +4,10 @@ import TuistCore
 import TuistSupport
 
 protocol CodeLinting {
+    /// Lints source code in the given directory.
+    /// - Parameters:
+    ///   - sources: Directory in which source code will be linted.
+    ///   - path: Directory whose project will be linted.
     func lint(sources: AbsolutePath, path: AbsolutePath) throws
 }
 
