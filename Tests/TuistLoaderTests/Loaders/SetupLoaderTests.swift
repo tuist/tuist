@@ -21,25 +21,30 @@ final class SetupLoaderTests: TuistUnitTestCase {
     var subject: SetupLoader!
     var upLinter: MockUpLinter!
     var manifestLoader: MockManifestLoader!
+    var setupLocator: MockSetupLocator!
 
     override func setUp() {
         super.setUp()
         upLinter = MockUpLinter()
         manifestLoader = MockManifestLoader()
-        subject = SetupLoader(upLinter: upLinter, manifestLoader: manifestLoader)
+        setupLocator = MockSetupLocator()
+        subject = SetupLoader(upLinter: upLinter, manifestLoader: manifestLoader, setupLocator: setupLocator)
     }
 
     override func tearDown() {
+        subject = nil
         upLinter = nil
         manifestLoader = nil
-        subject = nil
+        setupLocator = nil
         super.tearDown()
     }
 
     func test_meet_when_no_actions() throws {
         // given
         let projectPath = try temporaryPath()
-        try FileHandler.shared.touch(projectPath.appending(component: Manifest.setup.fileName(projectPath)))
+        let setupPath = projectPath.appending(component: Manifest.setup.fileName(projectPath))
+        setupLocator.stubbedLocateResult = setupPath
+        
         var receivedPaths = [String]()
         manifestLoader.loadSetupStub = { gotPath in
             receivedPaths.append(gotPath.pathString)
@@ -49,14 +54,14 @@ final class SetupLoaderTests: TuistUnitTestCase {
         // when / then
         XCTAssertNoThrow(try subject.meet(at: projectPath))
 
-        XCTAssertEqual(receivedPaths, [projectPath.pathString])
+        XCTAssertEqual(receivedPaths, [setupPath.pathString])
         XCTAssertEqual(upLinter.lintCount, 0)
     }
 
     func test_meet_when_actions_provided() throws {
         // given
         let projectPath = try temporaryPath()
-        try FileHandler.shared.touch(projectPath.appending(component: Manifest.setup.fileName(projectPath)))
+        setupLocator.stubbedLocateResult = projectPath.appending(component: Manifest.setup.fileName(projectPath))
 
         let mockUp1 = MockUp(name: "1")
         mockUp1.isMetStub = { _ in true }
@@ -82,7 +87,7 @@ final class SetupLoaderTests: TuistUnitTestCase {
         // given
         let temporaryPath = try self.temporaryPath()
         let projectPath = temporaryPath.appending(component: "Project")
-        try FileHandler.shared.touch(temporaryPath.appending(component: Manifest.setup.fileName(projectPath)))
+        setupLocator.stubbedLocateResult = temporaryPath.appending(component: Manifest.setup.fileName(projectPath))
 
         let mockUp1 = MockUp(name: "1")
         mockUp1.isMetStub = { _ in true }
@@ -107,7 +112,7 @@ final class SetupLoaderTests: TuistUnitTestCase {
     func test_meet_when_loadSetup_throws() throws {
         // given
         let projectPath = try temporaryPath()
-        try FileHandler.shared.touch(projectPath.appending(component: Manifest.setup.fileName(projectPath)))
+        setupLocator.stubbedLocateResult = projectPath.appending(component: Manifest.setup.fileName(projectPath))
         manifestLoader.loadSetupStub = { _ in throw ManifestLoaderError.manifestNotFound(.setup, projectPath) }
 
         // when / then

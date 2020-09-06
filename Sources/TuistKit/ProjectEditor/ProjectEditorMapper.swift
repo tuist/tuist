@@ -41,6 +41,12 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         if !templates.isEmpty {
             manifestsDependencies.append(.target(name: "Templates"))
         }
+//        if configPath != nil {
+//            manifestsDependencies.append(.target(name: "Config"))
+//        }
+//        if setupPath != nil {
+//            manifestsDependencies.append(.target(name: "Setup"))
+//        }
 
         let manifestsTargets = named(manifests: manifests).map { name, manifest in
             Target(name: name,
