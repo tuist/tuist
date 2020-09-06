@@ -5,10 +5,15 @@ public class FrameworkClass       {
     
     func foo() {
         let bar: Int? = 2
-        print(bar!) // trigger opt_in `force_unwrapping` rule
+        print(bar!) // triggers opt_in `force_unwrapping` rule
+
+
+    
     }
     
-    
+    func bar() {
+        NSNumber() ↓as! Int //  triggers `force_cast` rule
+    }
     
     
     
