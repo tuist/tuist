@@ -7,6 +7,7 @@ protocol ProjectEditorMapping: AnyObject {
     func map(tuistPath: AbsolutePath,
              sourceRootPath: AbsolutePath,
              xcodeProjPath: AbsolutePath,
+             setupPath: AbsolutePath?,
              manifests: [AbsolutePath],
              helpers: [AbsolutePath],
              templates: [AbsolutePath],
@@ -18,6 +19,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
     func map(tuistPath: AbsolutePath,
              sourceRootPath: AbsolutePath,
              xcodeProjPath: AbsolutePath,
+             setupPath: AbsolutePath?,
              manifests: [AbsolutePath],
              helpers: [AbsolutePath],
              templates: [AbsolutePath],
@@ -41,9 +43,9 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         if !templates.isEmpty {
             manifestsDependencies.append(.target(name: "Templates"))
         }
-//        if configPath != nil {
-//            manifestsDependencies.append(.target(name: "Config"))
-//        }
+        if setupPath != nil {
+            manifestsDependencies.append(.target(name: "Setup"))
+        }
 //        if setupPath != nil {
 //            manifestsDependencies.append(.target(name: "Setup"))
 //        }
@@ -72,11 +74,18 @@ final class ProjectEditorMapper: ProjectEditorMapping {
                                                         targetSettings: targetSettings,
                                                         sourcePaths: templates)
         }
+        var setupTarget: Target?
+        if let setupPath = setupPath {
+            setupTarget = Target.editorHelperTarget(name: "Setup",
+                                                     targetSettings: targetSettings,
+                                                     sourcePaths: [setupPath])
+        }
 
         var targets: [Target] = []
         targets.append(contentsOf: manifestsTargets)
         if let helpersTarget = helpersTarget { targets.append(helpersTarget) }
         if let templatesTarget = templatesTarget { targets.append(templatesTarget) }
+        if let setupTarget = setupTarget { targets.append(setupTarget) }
 
         // Run Scheme
         let buildAction = BuildAction(targets: targets.map { TargetReference(projectPath: sourceRootPath, name: $0.name) })
@@ -107,6 +116,10 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         if let templatesTarget = templatesTarget {
             let templatesNode = TargetNode(project: project, target: templatesTarget, dependencies: [])
             dependencies.append(templatesNode)
+        }
+        if let setupTarget = setupTarget {
+            let setupNode = TargetNode(project: project, target: setupTarget, dependencies: [])
+            dependencies.append(setupNode)
         }
 
         let manifestTargetNodes = manifestsTargets.map { TargetNode(project: project, target: $0, dependencies: dependencies) }

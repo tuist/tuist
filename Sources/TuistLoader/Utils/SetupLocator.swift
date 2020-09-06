@@ -20,7 +20,7 @@ public final class SetupLocator: SetupLocating {
         let manfiestPath = path.appending(component: Manifest.setup.fileName(path))
         
         if FileHandler.shared.exists(manfiestPath) {
-            return path
+            return manfiestPath
         } else if path != .root {
             return locate(at: path.parentDirectory)
         } else {
