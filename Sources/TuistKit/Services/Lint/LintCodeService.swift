@@ -30,7 +30,7 @@ enum LintCodeServiceError: FatalError, Equatable {
         case let .targetNotFound(name):
             return "Target with name '\(name)' not found in the project."
         case let .lintableFilesForTargetNotFound(name):
-            return "No lintable files for target with name '\(name)'"
+            return "No lintable files for target with name '\(name)'."
         }
     }
 }

@@ -13,5 +13,5 @@ Feature: Lint code using Tuist (SwiftLint)
       And I have a working directory
       Then I copy the fixture app_with_framework_and_tests_where_framework_failing_swiftlint into the working directory
       Then tuist lints project's code and fails
-      Then tuist lints code of target with name "Framework" and failes
+      Then tuist lints code of target with name "Framework" and fails
       Then tuist lints code of target with name "App" and passes

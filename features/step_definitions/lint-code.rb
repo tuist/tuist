@@ -46,7 +46,7 @@ Then(/tuist lints code of target with name "(.+)" and passes/) do |targetName|
   assert actual_msg.include?(expected_msg), error_message
 end
 
-Then(/tuist lints code of target with name "(.+)" and failes/) do |targetName|
+Then(/tuist lints code of target with name "(.+)" and fails/) do |targetName|
   out, _, _ = Open3.capture3("swift", "run", "tuist", "lint", "code", targetName, "--path", @dir)
   actual_msg = out.strip
   dont_expected_msg = "Done linting! Found 0 violations, 0 serious"
