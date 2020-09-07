@@ -6,7 +6,6 @@ public protocol SwiftDocControlling {
     func generate(format: SwiftDocFormat,
                   moduleName: String,
                   outputDirectory: String,
-                  baseURL: String,
                   sourcesPath path: String) throws
 }
 
@@ -24,7 +23,6 @@ public struct SwiftDocController: SwiftDocControlling {
     public func generate(format: SwiftDocFormat,
                          moduleName: String,
                          outputDirectory: String,
-                         baseURL: String,
                          sourcesPath path: String) throws {
         let swiftDocPath = try binaryLocator.swiftDocPath()
 
@@ -32,8 +30,8 @@ public struct SwiftDocController: SwiftDocControlling {
                          "generate",
                          "--format", format.rawValue,
                          "--module-name", moduleName,
+                         "--base-url", "http://localhost:9080/",
                          "--output", outputDirectory,
-                         "--base-url", baseURL,
                          path]
         
         _ = try System.shared.observable(arguments)

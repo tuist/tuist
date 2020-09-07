@@ -48,6 +48,11 @@ public final class HTTPRedirectListener: HTTPRedirectListening {
 
         runningSemaphore = DispatchSemaphore(value: 0)
         httpServer[path] = { request in
+            
+            guard let fileRelativePath = request.params.first else {
+                return .notFound
+            }
+            
             result = .success(request.queryParams.reduce(into: [String: String]()) { $0[$1.0] = $1.1 })
             DispatchQueue.global().async { runningSemaphore.signal() }
             return HttpResponse.ok(.html(self.html(logoURL: logoURL, redirectMessage: redirectMessage)))

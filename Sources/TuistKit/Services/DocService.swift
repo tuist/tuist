@@ -19,16 +19,19 @@ struct DocService {
     
     private let projectGenerator: ProjectGenerating
     private let swiftDocController: SwiftDocControlling
+    private let swiftDocServer: SwiftDocServing
     private let opener: Opening
     private let fileHandler: FileHandling
 
     init(projectGenerator: ProjectGenerating = ProjectGenerator(),
          swiftDocController: SwiftDocControlling = SwiftDocController(),
+         swiftDocServer: SwiftDocServing = SwiftDocServer(),
          opener: Opening = Opener(),
          fileHandler: FileHandling = FileHandler())
     {
         self.projectGenerator = projectGenerator
         self.swiftDocController = swiftDocController
+        self.swiftDocServer = swiftDocServer
         self.opener = opener
         self.fileHandler = fileHandler
     }
@@ -47,24 +50,24 @@ struct DocService {
                 format: .html,
                 moduleName: targetName,
                 outputDirectory: generationDirectory.pathString,
-                baseURL: "./", // without this the css breaks
                 sourcesPath: "\(path)"
             )
 
             let indexPath = generationDirectory.appending(component: "index.html")
+            try System.shared.run(["open", generationDirectory.pathString])
             
             guard fileHandler.exists(indexPath) else {
                 throw Error.documentationNotGenerated
             }
-
+            
             Signals.trap(signals: [.int, .abrt]) { _ in
                 // swiftlint:disable:next force_try
                 try! DocService.temporaryDirectory.map(FileHandler.shared.delete)
                 exit(0)
             }
-
+            
             logger.pretty("Opening the documentation. Press \(.keystroke("CTRL + C")) once you are done.")
-            try opener.open(path: indexPath, wait: true)
+            try swiftDocServer.serve(path: generationDirectory, port: 4040)
         }
     }
 }
