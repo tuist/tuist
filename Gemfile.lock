@@ -142,7 +142,7 @@ GEM
     memoist (0.16.2)
     middleware (0.1.0)
     mini_mime (1.0.2)
-    minitest (5.14.1)
+    minitest (5.14.2)
     molinillo (0.6.6)
     multi_json (1.15.0)
     multi_test (0.1.2)
