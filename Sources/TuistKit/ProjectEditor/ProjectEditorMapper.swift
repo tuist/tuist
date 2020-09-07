@@ -26,12 +26,12 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         // Settings
         let projectSettings = Settings(base: [:],
                                        configurations: Settings.default.configurations,
-                                       defaultSettings: .recommended)
+                                       defaultSettings: .recommended([]))
 
         let swiftVersion = try System.shared.swiftVersion()
         let targetSettings = Settings(base: settings(projectDescriptionPath: projectDescriptionPath, swiftVersion: swiftVersion),
                                       configurations: Settings.default.configurations,
-                                      defaultSettings: .recommended)
+                                      defaultSettings: .recommended([]))
 
         // Targets
         var manifestsDependencies: [Dependency] = []

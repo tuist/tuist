@@ -88,7 +88,7 @@ public class SigningMapper: ProjectMapping {
         target.settings = Settings(
             base: target.settings?.base ?? [:],
             configurations: configurations,
-            defaultSettings: target.settings?.defaultSettings ?? .recommended
+            defaultSettings: target.settings?.defaultSettings ?? .recommended([])
         )
         return target
     }

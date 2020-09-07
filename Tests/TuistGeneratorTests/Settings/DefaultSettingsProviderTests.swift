@@ -132,7 +132,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let buildConfiguration: BuildConfiguration = .debug
         let settings = Settings(base: [:],
                                 configurations: [buildConfiguration: nil],
-                                defaultSettings: .essential)
+                                defaultSettings: .essential([]))
         let project = Project.test(settings: settings)
 
         // When
@@ -148,7 +148,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let buildConfiguration: BuildConfiguration = .release
         let settings = Settings(base: [:],
                                 configurations: [buildConfiguration: nil],
-                                defaultSettings: .essential)
+                                defaultSettings: .essential([]))
         let project = Project.test(settings: settings)
 
         // When
@@ -164,7 +164,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let buildConfiguration: BuildConfiguration = .debug
         let settings = Settings(base: [:],
                                 configurations: [buildConfiguration: nil],
-                                defaultSettings: .essential)
+                                defaultSettings: .essential([]))
         let project = Project.test()
         let target = Target.test(product: .app, settings: settings)
 
@@ -182,7 +182,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let buildConfiguration: BuildConfiguration = .debug
         let settings = Settings(base: [:],
                                 configurations: [buildConfiguration: nil],
-                                defaultSettings: .essential)
+                                defaultSettings: .essential([]))
         let project = Project.test()
         let target = Target.test(product: .framework, settings: settings)
 
@@ -200,7 +200,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let buildConfiguration: BuildConfiguration = .release
         let settings = Settings(base: [:],
                                 configurations: [buildConfiguration: nil],
-                                defaultSettings: .essential)
+                                defaultSettings: .essential([]))
         let project = Project.test()
         let target = Target.test(product: .framework, settings: settings)
 
@@ -218,7 +218,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let buildConfiguration: BuildConfiguration = .debug
         let settings = Settings(base: [:],
                                 configurations: [buildConfiguration: nil],
-                                defaultSettings: .recommended)
+                                defaultSettings: .recommended([]))
         let project = Project.test(settings: settings)
 
         // When
@@ -236,7 +236,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let buildConfiguration: BuildConfiguration = .release
         let settings = Settings(base: [:],
                                 configurations: [buildConfiguration: nil],
-                                defaultSettings: .recommended)
+                                defaultSettings: .recommended([]))
         let project = Project.test(settings: settings)
 
         // When
@@ -285,7 +285,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let buildConfiguration: BuildConfiguration = .debug
         let settings = Settings(base: [:],
                                 configurations: [buildConfiguration: nil],
-                                defaultSettings: .recommended)
+                                defaultSettings: .recommended([]))
         let project = Project.test()
         let target = Target.test(settings: settings)
         xcodeController.selectedVersionStub = .success(Version(11, 0, 0))
@@ -302,7 +302,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
 
     func testTargetSettings_inheritsProjectDefaultSettings_when_targetBuildSettings_are_nil() throws {
         // Given
-        let project = Project.test(settings: .test(defaultSettings: .essential))
+        let project = Project.test(settings: .test(defaultSettings: .essential([])))
         let target = Target.test(settings: nil)
 
         // When
@@ -319,7 +319,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let buildConfiguration: BuildConfiguration = .debug
         let settings = Settings(base: [:],
                                 configurations: [buildConfiguration: nil],
-                                defaultSettings: .recommended)
+                                defaultSettings: .recommended([]))
         let target = Target.test(settings: settings)
         let project = Project.test()
         xcodeController.selectedVersionStub = .success(Version(10, 0, 0))
@@ -338,7 +338,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let buildConfiguration: BuildConfiguration = .debug
         let settings = Settings(base: [:],
                                 configurations: [buildConfiguration: nil],
-                                defaultSettings: .recommended)
+                                defaultSettings: .recommended([]))
         let target = Target.test(settings: settings)
         let project = Project.test()
         xcodeController.selectedVersionStub = .success(Version(11, 0, 0))
@@ -357,7 +357,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let buildConfiguration: BuildConfiguration = .release
         let settings = Settings(base: [:],
                                 configurations: [buildConfiguration: nil],
-                                defaultSettings: .recommended)
+                                defaultSettings: .recommended([]))
         let target = Target.test(product: .app, settings: settings)
         let project = Project.test()
         xcodeController.selectedVersionStub = .success(Version(11, 0, 0))
@@ -377,7 +377,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let buildConfiguration: BuildConfiguration = .debug
         let settings = Settings(base: [:],
                                 configurations: [buildConfiguration: nil],
-                                defaultSettings: .recommended)
+                                defaultSettings: .recommended([]))
         let project = Project.test()
         let target = Target.test(product: .framework, settings: settings)
 
@@ -396,7 +396,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let buildConfiguration: BuildConfiguration = .release
         let settings = Settings(base: [:],
                                 configurations: [buildConfiguration: nil],
-                                defaultSettings: .recommended)
+                                defaultSettings: .recommended([]))
         let project = Project.test()
         let target = Target.test(product: .framework, settings: settings)
 
@@ -451,7 +451,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let buildConfiguration: BuildConfiguration = .debug
         let settings = Settings(base: [:],
                                 configurations: [buildConfiguration: nil],
-                                defaultSettings: .recommended)
+                                defaultSettings: .recommended([]))
         let project = Project.test()
         let target = Target.test(product: .unitTests, settings: settings)
 
@@ -469,7 +469,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let buildConfiguration: BuildConfiguration = .debug
         let settings = Settings(base: [:],
                                 configurations: [buildConfiguration: nil],
-                                defaultSettings: .recommended)
+                                defaultSettings: .recommended([]))
         let project = Project.test()
         let target = Target.test(product: .uiTests, settings: settings)
 
@@ -487,7 +487,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let buildConfiguration: BuildConfiguration = .debug
         let settings = Settings(base: [:],
                                 configurations: [buildConfiguration: nil],
-                                defaultSettings: .essential)
+                                defaultSettings: .essential([]))
         let project = Project.test()
         let target = Target.test(product: .unitTests, settings: settings)
 
@@ -505,7 +505,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let buildConfiguration: BuildConfiguration = .debug
         let settings = Settings(base: [:],
                                 configurations: [buildConfiguration: nil],
-                                defaultSettings: .essential)
+                                defaultSettings: .essential([]))
         let project = Project.test()
         let target = Target.test(product: .uiTests, settings: settings)
 

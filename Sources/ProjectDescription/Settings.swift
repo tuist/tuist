@@ -124,12 +124,56 @@ public extension CustomConfiguration {
 /// The default settings can be overridden via `Settings base: SettingsDictionary`
 /// and `Configuration settings: SettingsDictionary`.
 ///
-/// - all: Essential settings plus all the recommended settings (including extra warnings)
+/// - `recommended`: Essential settings plus all the recommended settings (including extra warnings)
 /// - essential: Only essential settings to make the projects compile (i.e. `TARGETED_DEVICE_FAMILY`)
-public enum DefaultSettings: String, Codable {
-    case recommended
-    case essential
+public enum DefaultSettings: Codable, Equatable {
+    case recommended(Set<String> = [])
+    case essential(Set<String> = [])
     case none
+
+    enum CodingKeys: CodingKey {
+        case recommended, essential, none
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let key = container.allKeys.first
+
+        switch key {
+        case .recommended:
+            var nestedContainer = try container.nestedUnkeyedContainer(forKey: .recommended)
+            let excludedKeys = try nestedContainer.decode(Set<String>.self)
+            self = .recommended(excludedKeys)
+        case .essential:
+            var nestedContainer = try container.nestedUnkeyedContainer(forKey: .essential)
+            let excludedKeys = try nestedContainer.decode(Set<String>.self)
+            self = .essential(excludedKeys)
+        case .none:
+            self = .none
+        default:
+            throw DecodingError.dataCorrupted(
+                DecodingError.Context(
+                    codingPath: container.codingPath,
+                    debugDescription: "Unable to decode DefaultSettings."
+                )
+            )
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+
+        switch self {
+        case .recommended(let excludedKeys):
+            var nestedContainer = container.nestedUnkeyedContainer(forKey: .recommended)
+            try nestedContainer.encode(excludedKeys)
+        case .essential(let excludedKeys):
+            var nestedContainer = container.nestedUnkeyedContainer(forKey: .essential)
+            try nestedContainer.encode(excludedKeys)
+        case .none:
+            try container.encode(true, forKey: .none)
+        }
+    }
 }
 
 // MARK: - Settings
@@ -155,7 +199,7 @@ public struct Settings: Equatable, Codable {
     public init(base: SettingsDictionary = [:],
                 debug: Configuration? = nil,
                 release: Configuration? = nil,
-                defaultSettings: DefaultSettings = .recommended)
+                defaultSettings: DefaultSettings = .recommended([]))
     {
         configurations = [
             CustomConfiguration(name: "Debug", variant: .debug, configuration: debug),
@@ -180,7 +224,7 @@ public struct Settings: Equatable, Codable {
     /// - seealso: DefaultSettings
     public init(base: SettingsDictionary = [:],
                 configurations: [CustomConfiguration],
-                defaultSettings: DefaultSettings = .recommended)
+                defaultSettings: DefaultSettings = .recommended([]))
     {
         self.base = base
         self.configurations = configurations
