@@ -4,8 +4,8 @@ import TuistDoc
 final class MockSwiftDocController: SwiftDocControlling {
     func generate(format: SwiftDocFormat,
                   moduleName: String,
-                  outputDirectory: String,
                   baseURL: String,
+                  outputDirectory: String,
                   sourcesPath path: String) throws {
         
     }

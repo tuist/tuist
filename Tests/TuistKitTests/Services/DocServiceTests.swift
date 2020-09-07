@@ -15,6 +15,7 @@ final class TuistDocServiceTests: TuistUnitTestCase {
     var projectGenerator: MockProjectGenerator!
     var swiftDocController: MockSwiftDocController!
     var opener: MockOpener!
+    var swiftDocServer: MockSwiftDocServer!
     
     override func setUp() {
         super.setUp()
@@ -22,11 +23,14 @@ final class TuistDocServiceTests: TuistUnitTestCase {
         projectGenerator = MockProjectGenerator()
         swiftDocController = MockSwiftDocController()
         opener = MockOpener()
+        swiftDocServer = MockSwiftDocServer()
+        swiftDocServer.stubBaseURL = "http://tuist.io"
+        
         fileHandler = MockFileHandler(temporaryDirectory: { try self.temporaryPath() })
         
         subject = DocService(projectGenerator: projectGenerator,
                              swiftDocController: swiftDocController,
-                             opener: opener,
+                             swiftDocServer: swiftDocServer,
                              fileHandler: fileHandler)
     }
     
@@ -58,6 +62,18 @@ final class TuistDocServiceTests: TuistUnitTestCase {
         fileHandler.pathExistsStub = true
         
         try! subject.run(path: path, target: targetName)
+    }
+    
+    func test_server_error() {
+        let targetName = "CustomTarget"
+        let path = AbsolutePath("/.")
+        
+        mockGraph(targetName: targetName, atPath: path)
+        fileHandler.pathExistsStub = true
+        
+        swiftDocServer.stubError = MockSwiftDocServer.MockError.mockError
+        
+        XCTAssertThrowsError(try subject.run(path: path, target: targetName))
     }
     
     private func mockGraph(targetName: String, atPath path: AbsolutePath) {
