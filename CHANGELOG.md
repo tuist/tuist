@@ -6,6 +6,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Changed
 
+- **Breaking** UpCarthage should perform bootstrap instead of update [#1744](https://github.com/tuist/tuist/pull/1744) by [@softmaxsg](https://github.com/softmaxsg)
 - Add excluding argument to `recommended`/`essential` `DefaultSettings` [#1746](https://github.com/tuist/tuist/pull/1739) by [@rist](https://github.com/rist).
 
 ## 1.17.0 - Luft
