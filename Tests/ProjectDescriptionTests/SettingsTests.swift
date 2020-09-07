@@ -30,6 +30,22 @@ final class SettingsTests: XCTestCase {
         ])
     }
 
+    func test_codable_config_with_exclusions() throws {
+        // Given
+        let recommendedSubject = Settings(base: [:], configurations: [], defaultSettings: .recommended(excluding: ["someRecommendedKey", "anotherKey"]))
+        let essentialSubject = Settings(base: [:], configurations: [], defaultSettings: .essential(excluding: ["someEssentialKey", "anotherKey"]))
+
+        // When
+        let recommendedData = try encoder.encode(recommendedSubject)
+        let essentialData = try encoder.encode(essentialSubject)
+
+        // Then
+        let recommendedDecoded = try decoder.decode(Settings.self, from: recommendedData)
+        XCTAssertEqual(recommendedDecoded, recommendedSubject)
+        let essentialDecoded = try decoder.decode(Settings.self, from: essentialData)
+        XCTAssertEqual(essentialDecoded, essentialSubject)
+    }
+
     func test_codable_multi_configs() throws {
         // Given
         let configurations: [CustomConfiguration] = [
