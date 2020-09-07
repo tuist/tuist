@@ -132,7 +132,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let buildConfiguration: BuildConfiguration = .debug
         let settings = Settings(base: [:],
                                 configurations: [buildConfiguration: nil],
-                                defaultSettings: .excluding(.essential, ["CLANG_CXX_LIBRARY"]))
+                                defaultSettings: .essential(excluding: ["CLANG_CXX_LIBRARY"]))
         let project = Project.test(settings: settings)
 
         // When

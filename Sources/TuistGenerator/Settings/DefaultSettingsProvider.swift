@@ -124,20 +124,16 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
                               newXcodeKeys: [Version: Set<String>] = [:]) throws -> (String, SettingValue) -> Bool
     {
         switch defaultSettings {
-        case .essential:
-            return { key, _ in essentialKeys.contains(key) }
-        case .recommended:
+        case .essential(let excludedKeys):
+            return { key, _ in essentialKeys.contains(key) && !excludedKeys.contains(key) }
+        case .recommended(let excludedKeys):
             let xcodeVersion = try XcodeController.shared.selectedVersion()
             return { key, _ in
                 // Filter keys that are from higher Xcode version than current (otherwise return true)
                 !newXcodeKeys
                     .filter { $0.key > xcodeVersion }
-                    .values.flatMap { $0 }.contains(key)
-            }
-        case .excluding(let base, let excludedKeys):
-            let baseFilter = try self.createFilter(defaultSettings: base, essentialKeys: essentialKeys, newXcodeKeys: newXcodeKeys)
-            return { key, value in
-                !excludedKeys.contains(key) && baseFilter(key, value)
+                    .values.flatMap { $0 }.contains(key) &&
+                !excludedKeys.contains(key)
             }
         case .none:
             return { _, _ in false }

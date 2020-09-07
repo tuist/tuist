@@ -126,14 +126,13 @@ public extension CustomConfiguration {
 ///
 /// - `recommended`: Essential settings plus all the recommended settings (including extra warnings)
 /// - essential: Only essential settings to make the projects compile (i.e. `TARGETED_DEVICE_FAMILY`)
-indirect public enum DefaultSettings: Codable, Equatable {
-    case recommended
-    case essential
+public enum DefaultSettings: Codable, Equatable {
+    case recommended(excluding: Set<String> = [])
+    case essential(excluding: Set<String> = [])
     case none
-    case excluding(DefaultSettings, Set<String>)
 
     enum CodingKeys: CodingKey {
-        case recommended, essential, none, excluding
+        case recommended, essential, none
     }
 
     public init(from decoder: Decoder) throws {
@@ -142,16 +141,15 @@ indirect public enum DefaultSettings: Codable, Equatable {
 
         switch key {
         case .recommended:
-            self = .recommended
+            var nestedContainer = try container.nestedUnkeyedContainer(forKey: .recommended)
+            let excludedKeys = try nestedContainer.decode(Set<String>.self)
+            self = .recommended(excluding: excludedKeys)
         case .essential:
-            self = .essential
+            var nestedContainer = try container.nestedUnkeyedContainer(forKey: .essential)
+            let excludedKeys = try nestedContainer.decode(Set<String>.self)
+            self = .essential(excluding: excludedKeys)
         case .none:
             self = .none
-        case .excluding:
-            var nestedContainer = try container.nestedUnkeyedContainer(forKey: .excluding)
-            let base = try nestedContainer.decode(DefaultSettings.self)
-            let excludedKeys = try nestedContainer.decode(Set<String>.self)
-            self = .excluding(base, excludedKeys)
         default:
             throw DecodingError.dataCorrupted(
                 DecodingError.Context(
@@ -166,18 +164,26 @@ indirect public enum DefaultSettings: Codable, Equatable {
         var container = encoder.container(keyedBy: CodingKeys.self)
 
         switch self {
-        case .recommended:
-            try container.encode(true, forKey: .recommended)
-        case .essential:
-            try container.encode(true, forKey: .essential)
-        case .excluding(let base, let excludedKeys):
-            var nestedContainer = container.nestedUnkeyedContainer(forKey: .excluding)
-            try nestedContainer.encode(base)
+        case .recommended(let excludedKeys):
+            var nestedContainer = container.nestedUnkeyedContainer(forKey: .recommended)
+            try nestedContainer.encode(excludedKeys)
+        case .essential(let excludedKeys):
+            var nestedContainer = container.nestedUnkeyedContainer(forKey: .essential)
             try nestedContainer.encode(excludedKeys)
         case .none:
             try container.encode(true, forKey: .none)
         }
     }
+}
+
+extension DefaultSettings {
+  public static var recommended: DefaultSettings {
+      return .recommended(excluding: [])
+  }
+
+  public static var essential: DefaultSettings {
+      return .essential(excluding: [])
+  }
 }
 
 // MARK: - Settings

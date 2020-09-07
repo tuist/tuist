@@ -55,14 +55,12 @@ public final class SettingsContentHasher: SettingsContentHashing {
     private func hash(_ defaultSettings: DefaultSettings) throws -> String {
         var defaultSettingHash: String
         switch defaultSettings {
-        case .recommended:
+        case .recommended(let excludedKeys):
             defaultSettingHash = "recommended"
-        case .essential:
+            let excludedKeysHash = try contentHasher.hash(excludedKeys.sorted())
+            defaultSettingHash += excludedKeysHash
+        case .essential(let excludedKeys):
             defaultSettingHash = "essential"
-        case .excluding(let base, let excludedKeys):
-            defaultSettingHash = "excluding"
-            let baseKeysHash = try hash(base)
-            defaultSettingHash += baseKeysHash
             let excludedKeysHash = try contentHasher.hash(excludedKeys.sorted())
             defaultSettingHash += excludedKeysHash
         case .none:
