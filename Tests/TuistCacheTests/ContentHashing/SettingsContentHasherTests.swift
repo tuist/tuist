@@ -36,7 +36,7 @@ final class SettingsContentHasherTests: TuistUnitTestCase {
             configurations: [
                 BuildConfiguration.debug("dev"): Configuration(settings: ["SWIFT_VERSION": SettingValue.string("5")], xcconfig: filePath1),
             ],
-            defaultSettings: .recommended([])
+            defaultSettings: .recommended()
         )
 
         // When
@@ -55,7 +55,7 @@ final class SettingsContentHasherTests: TuistUnitTestCase {
             configurations: [
                 BuildConfiguration.release("prod"): Configuration(settings: ["SWIFT_VERSION": SettingValue.string("5")], xcconfig: nil),
             ],
-            defaultSettings: .essential([])
+            defaultSettings: .essential()
         )
 
         // When

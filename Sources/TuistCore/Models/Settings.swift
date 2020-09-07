@@ -60,7 +60,7 @@ public enum DefaultSettings {
 
 public class Settings: Equatable {
     public static let `default` = Settings(configurations: [.release: nil, .debug: nil],
-                                           defaultSettings: .recommended([]))
+                                           defaultSettings: .recommended())
 
     // MARK: - Attributes
 
@@ -72,7 +72,7 @@ public class Settings: Equatable {
 
     public init(base: SettingsDictionary = [:],
                 configurations: [BuildConfiguration: Configuration?],
-                defaultSettings: DefaultSettings = .recommended([]))
+                defaultSettings: DefaultSettings = .recommended())
     {
         self.base = base
         self.configurations = configurations

@@ -85,7 +85,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(project.name, "Manifests")
         XCTAssertEqual(project.settings, Settings(base: [:],
                                                   configurations: Settings.default.configurations,
-                                                  defaultSettings: .recommended([])))
+                                                  defaultSettings: .recommended()))
         XCTAssertEqual(project.filesGroup, .group(name: "Manifests"))
         XCTAssertEqual(project.targets.sorted { $0.name < $1.name }, targetNodes.map { $0.target })
 
@@ -143,7 +143,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(project.name, "Manifests")
         XCTAssertEqual(project.settings, Settings(base: [:],
                                                   configurations: Settings.default.configurations,
-                                                  defaultSettings: .recommended([])))
+                                                  defaultSettings: .recommended()))
         XCTAssertEqual(project.filesGroup, .group(name: "Manifests"))
         XCTAssertEqual(project.targets, targetNodes.map { $0.target })
 
@@ -218,7 +218,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(project.name, "Manifests")
         XCTAssertEqual(project.settings, Settings(base: [:],
                                                   configurations: Settings.default.configurations,
-                                                  defaultSettings: .recommended([])))
+                                                  defaultSettings: .recommended()))
         XCTAssertEqual(project.filesGroup, .group(name: "Manifests"))
         XCTAssertEqual(project.targets.sorted(by: { $0.name > $1.name }), targetNodes.map { $0.target }.sorted(by: { $0.name > $1.name }))
 
@@ -245,6 +245,6 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         ]
         return Settings(base: base,
                         configurations: Settings.default.configurations,
-                        defaultSettings: .recommended([]))
+                        defaultSettings: .recommended())
     }
 }
