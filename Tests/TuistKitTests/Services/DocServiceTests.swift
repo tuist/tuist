@@ -37,6 +37,10 @@ final class TuistDocServiceTests: TuistUnitTestCase {
     override func tearDown() {
         super.tearDown()
 
+        projectGenerator = nil
+        swiftDocController = nil
+        opener = nil
+        swiftDocServer = nil
         subject = nil
     }
 
