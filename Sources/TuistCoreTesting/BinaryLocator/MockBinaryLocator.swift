@@ -3,13 +3,12 @@ import TSCBasic
 @testable import TuistCore
 
 public final class MockBinaryLocator: BinaryLocating {
-    public var absolutePath: AbsolutePath?
-
     public init() {}
 
+    public var swiftDocPathStub: (() throws -> AbsolutePath)?
     public func swiftDocPath() throws -> AbsolutePath {
-        if let absolutePath = absolutePath {
-            return absolutePath
+        if let swiftDocPathStub = swiftDocPathStub {
+            return try swiftDocPathStub()
         } else {
             throw BinaryLocatorError.swiftDocNotFound
         }
