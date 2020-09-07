@@ -8272,16 +8272,16 @@ gatsby-remark-check-links@^2.1.0:
   dependencies:
     unist-util-visit "^1.4.1"
 
-gatsby-remark-copy-linked-files@^2.3.13:
-  version "2.3.13"
-  resolved "https://registry.yarnpkg.com/gatsby-remark-copy-linked-files/-/gatsby-remark-copy-linked-files-2.3.13.tgz#f76d8535f0d071ffd6d17732c5c8e713ebe7d27a"
-  integrity sha512-Qra6CpN6CChCsR5Eq2+FWF/7VyGjA7ozi/2jCO42AGrkGHfttyP07EhDq7ebk3VCtWT0tR7Zxerdq4dCnmyfFg==
+gatsby-remark-copy-linked-files@^2.3.14:
+  version "2.3.14"
+  resolved "https://registry.yarnpkg.com/gatsby-remark-copy-linked-files/-/gatsby-remark-copy-linked-files-2.3.14.tgz#9f8516188685c2cc26179ab494f1bb0e73debe2c"
+  integrity sha512-ELhRCVspyk1GjG6wkFSGL6+U43ljnJZ+7yWhWPpIt+9SRyJdVi0NtPJaNhALSpZ1KIRLRN0epunW49T+ooAgFA==
   dependencies:
     "@babel/runtime" "^7.10.3"
     cheerio "^1.0.0-rc.3"
     fs-extra "^8.1.0"
     is-relative-url "^3.0.0"
-    lodash "^4.17.15"
+    lodash "^4.17.20"
     path-is-inside "^1.0.2"
     probe-image-size "^5.0.0"
     unist-util-visit "^1.4.1"
