@@ -1,6 +1,6 @@
+import RxBlocking
 import TuistCore
 import TuistSupport
-import RxBlocking
 
 public protocol SwiftDocControlling {
     func generate(format: SwiftDocFormat,
@@ -11,12 +11,12 @@ public protocol SwiftDocControlling {
 }
 
 public enum SwiftDocFormat: String {
-    case html = "html", commonmark = "commonmark"
+    case html, commonmark
 }
 
 public struct SwiftDocController: SwiftDocControlling {
     private let binaryLocator: BinaryLocating
-    
+
     public init(binaryLocator: BinaryLocating = BinaryLocator()) {
         self.binaryLocator = binaryLocator
     }
@@ -25,7 +25,8 @@ public struct SwiftDocController: SwiftDocControlling {
                          moduleName: String,
                          baseURL: String,
                          outputDirectory: String,
-                         sourcesPath path: String) throws {
+                         sourcesPath path: String) throws
+    {
         let swiftDocPath = try binaryLocator.swiftDocPath()
 
         let arguments = [swiftDocPath.pathString,
@@ -35,7 +36,7 @@ public struct SwiftDocController: SwiftDocControlling {
                          "--base-url", baseURL,
                          "--output", outputDirectory,
                          path]
-        
+
         logger.pretty("Generating documentation for \(.bold(.raw(moduleName))).")
 
         _ = try System.shared.observable(arguments)

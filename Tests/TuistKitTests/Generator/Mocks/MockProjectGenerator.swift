@@ -58,7 +58,7 @@ final class MockProjectGenerator: ProjectGenerating {
             return Graph.test()
         }
     }
-    
+
     var loadProjectStub: ((AbsolutePath) throws -> (Project, Graph, [SideEffectDescriptor]))?
     func loadProject(path: AbsolutePath) throws -> (Project, Graph, [SideEffectDescriptor]) {
         if let loadProjectStub = loadProjectStub {

@@ -4,9 +4,9 @@ import TSCBasic
 
 public final class MockBinaryLocator: BinaryLocating {
     var absolutePath: AbsolutePath?
-    
-    public init() { }
-    
+
+    public init() {}
+
     public func swiftDocPath() throws -> AbsolutePath {
         if let absolutePath = absolutePath {
             return absolutePath

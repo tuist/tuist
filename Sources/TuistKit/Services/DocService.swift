@@ -3,8 +3,8 @@ import RxBlocking
 import Signals
 import TSCBasic
 import TuistCore
-import TuistSupport
 import TuistDoc
+import TuistSupport
 
 // MARK: - DocServicing
 
@@ -33,14 +33,14 @@ struct DocService {
 
     func run(path: AbsolutePath, target targetName: String) throws {
         let (_, graph, _) = try projectGenerator.loadProject(path: path)
-        
+
         guard let path = graph.targetPath(name: targetName) else {
             throw Error.targetNotFound(name: targetName)
         }
-                        
+
         let port: UInt16 = 4040
         let baseURL = swiftDocServer.baseURL.appending(":\(port)")
-        
+
         try withTemporaryDirectory { generationDirectory in
             try swiftDocController.generate(
                 format: .html,
@@ -49,12 +49,12 @@ struct DocService {
                 outputDirectory: generationDirectory.pathString,
                 sourcesPath: "\(path)"
             )
-            
+
             let indexPath = generationDirectory.appending(component: "index.html")
             guard fileHandler.exists(indexPath) else {
                 throw Error.documentationNotGenerated
             }
-            
+
             try swiftDocServer.serve(path: generationDirectory, port: port)
         }
     }
@@ -62,7 +62,7 @@ struct DocService {
 
 extension Graph {
     func targetPath(name: String) -> AbsolutePath? {
-        return targets.flatMap { $0.value }.first(where: { $0.name == name })?.path
+        targets.flatMap { $0.value }.first(where: { $0.name == name })?.path
     }
 }
 
@@ -72,7 +72,7 @@ extension DocService {
     enum Error: FatalError {
         case targetNotFound(name: String)
         case documentationNotGenerated
-        
+
         var description: String {
             switch self {
             case let .targetNotFound(name):
@@ -81,7 +81,7 @@ extension DocService {
                 return "The documentation was not generated. Problably the provided target does not have public symbols."
             }
         }
-        
+
         var type: ErrorType {
             switch self {
             case .targetNotFound:
