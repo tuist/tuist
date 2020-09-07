@@ -126,13 +126,14 @@ public extension CustomConfiguration {
 ///
 /// - `recommended`: Essential settings plus all the recommended settings (including extra warnings)
 /// - essential: Only essential settings to make the projects compile (i.e. `TARGETED_DEVICE_FAMILY`)
-public enum DefaultSettings: Codable, Equatable {
-    case recommended(Set<String> = [])
-    case essential(Set<String> = [])
+indirect public enum DefaultSettings: Codable, Equatable {
+    case recommended
+    case essential
     case none
+    case excluding(DefaultSettings, Set<String>)
 
     enum CodingKeys: CodingKey {
-        case recommended, essential, none
+        case recommended, essential, none, excluding
     }
 
     public init(from decoder: Decoder) throws {
@@ -141,15 +142,16 @@ public enum DefaultSettings: Codable, Equatable {
 
         switch key {
         case .recommended:
-            var nestedContainer = try container.nestedUnkeyedContainer(forKey: .recommended)
-            let excludedKeys = try nestedContainer.decode(Set<String>.self)
-            self = .recommended(excludedKeys)
+            self = .recommended
         case .essential:
-            var nestedContainer = try container.nestedUnkeyedContainer(forKey: .essential)
-            let excludedKeys = try nestedContainer.decode(Set<String>.self)
-            self = .essential(excludedKeys)
+            self = .essential
         case .none:
             self = .none
+        case .excluding:
+            var nestedContainer = try container.nestedUnkeyedContainer(forKey: .excluding)
+            let base = try nestedContainer.decode(DefaultSettings.self)
+            let excludedKeys = try nestedContainer.decode(Set<String>.self)
+            self = .excluding(base, excludedKeys)
         default:
             throw DecodingError.dataCorrupted(
                 DecodingError.Context(
@@ -164,11 +166,13 @@ public enum DefaultSettings: Codable, Equatable {
         var container = encoder.container(keyedBy: CodingKeys.self)
 
         switch self {
-        case .recommended(let excludedKeys):
-            var nestedContainer = container.nestedUnkeyedContainer(forKey: .recommended)
-            try nestedContainer.encode(excludedKeys)
-        case .essential(let excludedKeys):
-            var nestedContainer = container.nestedUnkeyedContainer(forKey: .essential)
+        case .recommended:
+            try container.encode(true, forKey: .recommended)
+        case .essential:
+            try container.encode(true, forKey: .essential)
+        case .excluding(let base, let excludedKeys):
+            var nestedContainer = container.nestedUnkeyedContainer(forKey: .excluding)
+            try nestedContainer.encode(base)
             try nestedContainer.encode(excludedKeys)
         case .none:
             try container.encode(true, forKey: .none)
@@ -199,7 +203,7 @@ public struct Settings: Equatable, Codable {
     public init(base: SettingsDictionary = [:],
                 debug: Configuration? = nil,
                 release: Configuration? = nil,
-                defaultSettings: DefaultSettings = .recommended())
+                defaultSettings: DefaultSettings = .recommended)
     {
         configurations = [
             CustomConfiguration(name: "Debug", variant: .debug, configuration: debug),
@@ -224,7 +228,7 @@ public struct Settings: Equatable, Codable {
     /// - seealso: DefaultSettings
     public init(base: SettingsDictionary = [:],
                 configurations: [CustomConfiguration],
-                defaultSettings: DefaultSettings = .recommended())
+                defaultSettings: DefaultSettings = .recommended)
     {
         self.base = base
         self.configurations = configurations

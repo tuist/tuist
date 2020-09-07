@@ -107,8 +107,8 @@ final class ContentHashingIntegrationTests: TuistTestCase {
         let contentHash = try subject.contentHashes(for: graph)
 
         // Then
-        XCTAssertEqual(contentHash[framework1], "959a33d298f7d1815d8f747e557240f7")
-        XCTAssertEqual(contentHash[framework2], "95d3a5a751b713a854957b4b30d996eb")
+        XCTAssertEqual(contentHash[framework1], "fceaf5e214a39983e22493500cf6794d")
+        XCTAssertEqual(contentHash[framework2], "31f46fc5bff3dfad3d9c721337a9a4e8")
     }
 
     // MARK: - Resources

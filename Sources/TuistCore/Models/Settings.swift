@@ -52,15 +52,16 @@ public struct Configuration: Equatable {
     }
 }
 
-public enum DefaultSettings {
-    case recommended(Set<String> = [])
-    case essential(Set<String> = [])
+indirect public enum DefaultSettings {
+    case recommended
+    case essential
     case none
+    case excluding(DefaultSettings, Set<String>)
 }
 
 public class Settings: Equatable {
     public static let `default` = Settings(configurations: [.release: nil, .debug: nil],
-                                           defaultSettings: .recommended())
+                                           defaultSettings: .recommended)
 
     // MARK: - Attributes
 
@@ -72,7 +73,7 @@ public class Settings: Equatable {
 
     public init(base: SettingsDictionary = [:],
                 configurations: [BuildConfiguration: Configuration?],
-                defaultSettings: DefaultSettings = .recommended())
+                defaultSettings: DefaultSettings = .recommended)
     {
         self.base = base
         self.configurations = configurations
