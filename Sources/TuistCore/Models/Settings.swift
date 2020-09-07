@@ -59,13 +59,13 @@ public enum DefaultSettings {
 }
 
 extension DefaultSettings {
-  public static var recommended: DefaultSettings {
-      return .recommended(excluding: [])
-  }
+    public static var recommended: DefaultSettings {
+        .recommended(excluding: [])
+    }
 
-  public static var essential: DefaultSettings {
-      return .essential(excluding: [])
-  }
+    public static var essential: DefaultSettings {
+        .essential(excluding: [])
+    }
 }
 
 public class Settings: Equatable {

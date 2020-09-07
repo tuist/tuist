@@ -11,9 +11,9 @@ extension TuistCore.DefaultSettings {
     ///   - generatorPaths: Generator paths.
     static func from(manifest: ProjectDescription.DefaultSettings) -> TuistCore.DefaultSettings {
         switch manifest {
-        case .recommended(let excludedKeys):
+        case let .recommended(excludedKeys):
             return .recommended(excluding: excludedKeys)
-        case .essential(let excludedKeys):
+        case let .essential(excludedKeys):
             return .essential(excluding: excludedKeys)
         case .none:
             return .none

@@ -164,10 +164,10 @@ public enum DefaultSettings: Codable, Equatable {
         var container = encoder.container(keyedBy: CodingKeys.self)
 
         switch self {
-        case .recommended(let excludedKeys):
+        case let .recommended(excludedKeys):
             var nestedContainer = container.nestedUnkeyedContainer(forKey: .recommended)
             try nestedContainer.encode(excludedKeys)
-        case .essential(let excludedKeys):
+        case let .essential(excludedKeys):
             var nestedContainer = container.nestedUnkeyedContainer(forKey: .essential)
             try nestedContainer.encode(excludedKeys)
         case .none:
@@ -177,13 +177,13 @@ public enum DefaultSettings: Codable, Equatable {
 }
 
 extension DefaultSettings {
-  public static var recommended: DefaultSettings {
-      return .recommended(excluding: [])
-  }
+    public static var recommended: DefaultSettings {
+        .recommended(excluding: [])
+    }
 
-  public static var essential: DefaultSettings {
-      return .essential(excluding: [])
-  }
+    public static var essential: DefaultSettings {
+        .essential(excluding: [])
+    }
 }
 
 // MARK: - Settings
