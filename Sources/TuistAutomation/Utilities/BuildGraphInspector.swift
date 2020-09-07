@@ -22,7 +22,7 @@ public protocol BuildGraphInspecting {
     /// Given a graph, it returns a list of buildable schemes.
     /// - Parameter graph: Dependency graph.
     func buildableSchemes(graph: Graph) -> [Scheme]
-    
+
     /// Given a graph, it returns a list of buildable schemes that are part of the entry node
     /// - Parameters:
     ///     - graph: Dependency graph
@@ -61,13 +61,13 @@ public class BuildGraphInspector: BuildGraphInspecting {
     }
 
     public func buildableSchemes(graph: Graph) -> [Scheme] {
-        return graph.targets.values.flatMap {
+        graph.targets.values.flatMap {
             $0.flatMap { $0.project.schemes }
         }
         .filter { $0.buildAction?.targets.isEmpty == false }
         .sorted(by: { $0.name < $1.name })
     }
-    
+
     public func buildableEntrySchemes(graph: Graph) -> [Scheme] {
         let projects = Set(graph.entryNodes.compactMap { ($0 as? TargetNode)?.project })
         return projects

@@ -29,7 +29,7 @@ public final class MockBuildGraphInspector: BuildGraphInspecting {
             return []
         }
     }
-    
+
     public var buildableEntrySchemesStub: ((Graph) -> [Scheme])?
     public func buildableEntrySchemes(graph: Graph) -> [Scheme] {
         buildableEntrySchemesStub?(graph) ?? []

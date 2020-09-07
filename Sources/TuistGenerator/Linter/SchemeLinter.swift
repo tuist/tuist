@@ -77,7 +77,6 @@ private extension SchemeLinter {
     }
 
     func projectSchemeCantReferenceRemoteTargets(scheme: Scheme, project: Project) -> [LintingIssue] {
-        return []
         var issues: [LintingIssue] = []
 
         scheme.targetDependencies().forEach {
