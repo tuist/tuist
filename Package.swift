@@ -63,7 +63,7 @@ let package = Package(
         ),
         .target(
             name: "TuistDoc",
-            dependencies: ["SwiftToolsSupport-auto", "TuistCore", "TuistSupport", "Signals"]
+            dependencies: ["SwiftToolsSupport-auto", "TuistCore", "TuistSupport", "Signals", "RxBlocking"]
         ),
         .target(
             name: "TuistDocTesting",

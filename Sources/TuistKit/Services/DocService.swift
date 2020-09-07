@@ -14,23 +14,20 @@ protocol DocServicing {
 
 // MARK: - DocService
 
-struct DocService {    
+struct DocService {
     private let projectGenerator: ProjectGenerating
     private let swiftDocController: SwiftDocControlling
     private let swiftDocServer: SwiftDocServing
-    private let opener: Opening
     private let fileHandler: FileHandling
 
     init(projectGenerator: ProjectGenerating = ProjectGenerator(),
          swiftDocController: SwiftDocControlling = SwiftDocController(),
          swiftDocServer: SwiftDocServing = SwiftDocServer(),
-         opener: Opening = Opener(),
          fileHandler: FileHandling = FileHandler())
     {
         self.projectGenerator = projectGenerator
         self.swiftDocController = swiftDocController
         self.swiftDocServer = swiftDocServer
-        self.opener = opener
         self.fileHandler = fileHandler
     }
 
@@ -41,11 +38,14 @@ struct DocService {
             throw Error.targetNotFound(name: targetName)
         }
                         
+        let port: UInt16 = 4040
+        let baseURL = swiftDocServer.baseURL.appending(":\(port)")
+        
         try withTemporaryDirectory { generationDirectory in
-            
             try swiftDocController.generate(
                 format: .html,
                 moduleName: targetName,
+                baseURL: baseURL,
                 outputDirectory: generationDirectory.pathString,
                 sourcesPath: "\(path)"
             )
@@ -55,8 +55,7 @@ struct DocService {
                 throw Error.documentationNotGenerated
             }
             
-            logger.pretty("Opening the documentation. Press \(.keystroke("CTRL + C")) once you are done.")
-            try swiftDocServer.serve(path: generationDirectory, port: 4040)
+            try swiftDocServer.serve(path: generationDirectory, port: port)
         }
     }
 }
