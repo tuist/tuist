@@ -3,7 +3,7 @@ import TSCBasic
 @testable import TuistCore
 
 public final class MockBinaryLocator: BinaryLocating {
-    var absolutePath: AbsolutePath?
+    public var absolutePath: AbsolutePath?
 
     public init() {}
 
