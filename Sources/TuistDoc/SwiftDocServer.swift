@@ -11,16 +11,20 @@ public protocol SwiftDocServing {
 }
 
 public final class SwiftDocServer: SwiftDocServing {
+    private static var temporaryDirectory: AbsolutePath?
+
     private var server: HttpServer?
     private var semaphore: DispatchSemaphore?
-    
+        
     public init() { }
     
     public func serve(path: AbsolutePath, port: UInt16) throws {
+        SwiftDocServer.temporaryDirectory = path
+
         // 1. Serves the directory (e.g. localhost:4040)
         // 2. Blocks the process until it gets a SIGKILL signal (ctrl + c)
                 
-        func okReponse(at path: String) throws -> HttpResponse {
+        func okReponse(fileAt path: String) throws -> HttpResponse {
             guard let file = try? path.openForReading() else {
                 return .notFound
             }
@@ -38,18 +42,23 @@ public final class SwiftDocServer: SwiftDocServing {
             }
             let filePath = path.pathString + String.pathSeparator + value
             do {
-                guard try filePath.exists() else {
-                    return .notFound
-                }
+                guard try filePath.exists() else { return .notFound }
+                
                 if try filePath.directory() {
                     let indexPath = filePath + "/index.html"
-                    return try okReponse(at: indexPath)
+                    return try okReponse(fileAt: indexPath)
                 } else {
-                    return try okReponse(at: filePath)
+                    return try okReponse(fileAt: filePath)
                 }
             } catch {
                 return .internalServerError
             }
+        }
+        
+        Signals.trap(signals: [.int, .abrt]) { _ in
+            // swiftlint:disable:next force_try
+            try! SwiftDocServer.temporaryDirectory.map(FileHandler.shared.delete)
+            exit(0)
         }
 
         semaphore = DispatchSemaphore(value: 0)

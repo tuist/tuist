@@ -14,9 +14,7 @@ protocol DocServicing {
 
 // MARK: - DocService
 
-struct DocService {
-    private static var temporaryDirectory: AbsolutePath?
-    
+struct DocService {    
     private let projectGenerator: ProjectGenerating
     private let swiftDocController: SwiftDocControlling
     private let swiftDocServer: SwiftDocServing
@@ -44,7 +42,6 @@ struct DocService {
         }
                         
         try withTemporaryDirectory { generationDirectory in
-            DocService.temporaryDirectory = generationDirectory
             
             try swiftDocController.generate(
                 format: .html,
@@ -52,18 +49,10 @@ struct DocService {
                 outputDirectory: generationDirectory.pathString,
                 sourcesPath: "\(path)"
             )
-
-            let indexPath = generationDirectory.appending(component: "index.html")
-            try System.shared.run(["open", generationDirectory.pathString])
             
+            let indexPath = generationDirectory.appending(component: "index.html")
             guard fileHandler.exists(indexPath) else {
                 throw Error.documentationNotGenerated
-            }
-            
-            Signals.trap(signals: [.int, .abrt]) { _ in
-                // swiftlint:disable:next force_try
-                try! DocService.temporaryDirectory.map(FileHandler.shared.delete)
-                exit(0)
             }
             
             logger.pretty("Opening the documentation. Press \(.keystroke("CTRL + C")) once you are done.")
