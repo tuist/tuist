@@ -154,7 +154,7 @@ public enum DefaultSettings: Codable, Equatable {
             throw DecodingError.dataCorrupted(
                 DecodingError.Context(
                     codingPath: container.codingPath,
-                    debugDescription: "Unable to decode DefaultSettings."
+                    debugDescription: "Unable to decode DefaultSettings. \(String(describing: key)) is an unexpected key. Expected .recommended, .essential or .none."
                 )
             )
         }
