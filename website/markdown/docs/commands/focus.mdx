@@ -1,0 +1,25 @@
+---
+name: Focus on targets
+excerpt: 'Learn how to generate projects with the focus on specific targets removing the unnecessary targets and schemes, and replacing direct and transitive dependencies with pre-compiled targets from the cache.'
+---
+
+# Focus on targets
+
+In large Xcode projects that contain many targets and schemes, Xcode can be slow indexing the project.
+Moreover, the build system, which needs to resolve implicit dependencies, might take longer to do so because there are more Xcode objects to analyze.
+This is **not ideal for developers' productivity** and for that reason Tuist includes a command that allows users to focus on a specific target or set of targets.
+
+```bash
+tuist focus MyApp
+```
+
+The command generates and opens an Xcode workspace where the targets and schemes that are not directly related to `MyApp` are removed.
+Moreover, if the direct and transitive dependencies exist in the [cache](/docs/usage/caching/),
+Tuist replaces them with their pre-compiled version.
+Thanks to that developers can safely clean their Xcode environment because they'll only be building the target they are focusing on.
+
+<Message
+  info
+  title="Only compatible with Project.swift"
+  description="Since Tuist generates a workspace that is optimized for the user's intent, Tuist needs to own the structure of the workspace. For that reason this command only works with directories that contain a `Project.swift` and not a `Workspace.swift`."
+/>

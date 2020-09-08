@@ -13,7 +13,7 @@ Most projects include a list of steps in the `README` file for developers to fol
 1. Clone the repository.
 2. Install Carthage if it's not already installed.
 3. Install `brew install swiftlint`.
-4. Run `carthage update`.
+4. Run `carthage bootstrap`.
 5. Open the project.
 ```
 
@@ -36,7 +36,7 @@ let setup = Setup([
 
 We have turned the markdown steps that we saw before into up commands in the setup manifest. When you run `tuist up`, Tuist translates those declarations into actual commands that are executed in your system.
 
-Moreover, it assesses whether those dependencies are already met in the environment, and if they are, it skips them. For instance, if the Carthage dependencies exist and are up to date, it doesn’t run the Carthage update command.
+Moreover, it assesses whether those dependencies are already met in the environment, and if they are, it skips them. For instance, if the Carthage dependencies exist and are up to date, it doesn’t run the Carthage bootstrap command.
 
 ```bash
 tuist up

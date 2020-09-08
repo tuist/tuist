@@ -36,9 +36,11 @@ class CacheGraphMutator: CacheGraphMutating {
     public func map(graph: Graph, xcframeworks: [TargetNode: AbsolutePath], sources: Set<String>) throws -> Graph {
         var visitedXCFrameworkPaths: [TargetNode: VisitedXCFramework?] = [:]
         var loadedXCFrameworks: [AbsolutePath: XCFrameworkNode] = [:]
-        var sourceTargets: Set<TargetNode> = Set()
+        let userSpecifiedSourceTargets = graph.targets.flatMap { $0.value }.filter { sources.contains($0.target.name) }
+        let userSpecifiedSourceTestTargets = userSpecifiedSourceTargets.flatMap { graph.testTargetsDependingOn(path: $0.path, name: $0.name) }
+        var sourceTargets: Set<TargetNode> = Set(userSpecifiedSourceTargets)
 
-        try graph.entryNodes.compactMap { $0 as? TargetNode }
+        try (userSpecifiedSourceTargets + userSpecifiedSourceTestTargets)
             .forEach { try visit(targetNode: $0,
                                  xcframeworks: xcframeworks,
                                  sources: sources,
@@ -119,40 +121,35 @@ class CacheGraphMutator: CacheGraphMutating {
     }
 
     func treeShake(graph: Graph, sourceTargets: Set<TargetNode>) -> Graph {
-        let entryProjects = Set(graph.entryNodes.compactMap { $0 as? TargetNode }.map { $0.project })
         let targetReferences = Set(sourceTargets.map { TargetReference(projectPath: $0.path, name: $0.name) })
 
         let projects = graph.projects.compactMap { (project) -> Project? in
-            if entryProjects.contains(project) {
-                return project
+            let targets: [Target] = project.targets.compactMap { (target) -> Target? in
+                guard let targetNode = graph.target(path: project.path, name: target.name) else { return nil }
+                guard sourceTargets.contains(targetNode) else { return nil }
+                return target
+            }
+            if targets.isEmpty {
+                return nil
             } else {
-                let targets: [Target] = project.targets.compactMap { (target) -> Target? in
-                    guard let targetNode = graph.target(path: project.path, name: target.name) else { return nil }
-                    guard sourceTargets.contains(targetNode) else { return nil }
-                    return target
+                let schemes: [Scheme] = project.schemes.compactMap { scheme -> Scheme? in
+                    let buildActionTargets = scheme.buildAction?.targets.filter { targetReferences.contains($0) } ?? []
+
+                    // The scheme contains no buildable targets so we don't include it.
+                    if buildActionTargets.isEmpty { return nil }
+
+                    let testActionTargets = scheme.testAction?.targets.filter { targetReferences.contains($0.target) } ?? []
+                    var scheme = scheme
+                    var buildAction = scheme.buildAction
+                    var testAction = scheme.testAction
+                    buildAction?.targets = buildActionTargets
+                    testAction?.targets = testActionTargets
+                    scheme.buildAction = buildAction
+                    scheme.testAction = testAction
+
+                    return scheme
                 }
-                if targets.isEmpty {
-                    return nil
-                } else {
-                    let schemes: [Scheme] = project.schemes.compactMap { scheme -> Scheme? in
-                        let buildActionTargets = scheme.buildAction?.targets.filter { targetReferences.contains($0) } ?? []
-
-                        // The scheme contains no buildable targets so we don't include it.
-                        if buildActionTargets.isEmpty { return nil }
-
-                        let testActionTargets = scheme.testAction?.targets.filter { targetReferences.contains($0.target) } ?? []
-                        var scheme = scheme
-                        var buildAction = scheme.buildAction
-                        var testAction = scheme.testAction
-                        buildAction?.targets = buildActionTargets
-                        testAction?.targets = testActionTargets
-                        scheme.buildAction = buildAction
-                        scheme.testAction = testAction
-
-                        return scheme
-                    }
-                    return project.with(targets: targets).with(schemes: schemes)
-                }
+                return project.with(targets: targets).with(schemes: schemes)
             }
         }
 
