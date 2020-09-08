@@ -39,7 +39,7 @@ struct DocService {
             .flatMap { $0.target.sources }
             .map { $0.path }
         
-        let port: UInt16 = 4040
+        let port: UInt16 = 4040 // TODO: add a parameter for this
         let baseURL = swiftDocServer.baseURL.appending(":\(port)")
 
         try withTemporaryDirectory { generationDirectory in
