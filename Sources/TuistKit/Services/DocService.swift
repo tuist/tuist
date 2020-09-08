@@ -33,11 +33,12 @@ struct DocService {
 
     func run(path: AbsolutePath, target targetName: String) throws {
         let (_, graph, _) = try projectGenerator.loadProject(path: path)
-
-        guard let path = graph.targetPath(name: targetName) else {
-            throw Error.targetNotFound(name: targetName)
-        }
-
+        
+        let sources = graph.targets(at: path)
+            .filter( { !$0.dependsOnXCTest } )
+            .flatMap { $0.target.sources }
+            .map { $0.path }
+        
         let port: UInt16 = 4040
         let baseURL = swiftDocServer.baseURL.appending(":\(port)")
 
@@ -47,7 +48,7 @@ struct DocService {
                 moduleName: targetName,
                 baseURL: baseURL,
                 outputDirectory: generationDirectory.pathString,
-                sourcesPath: "\(path)"
+                sourcesPaths: sources
             )
 
             let indexPath = generationDirectory.appending(component: "index.html")

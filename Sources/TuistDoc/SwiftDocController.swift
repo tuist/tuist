@@ -1,13 +1,14 @@
 import RxBlocking
 import TuistCore
 import TuistSupport
+import TSCBasic
 
 public protocol SwiftDocControlling {
     func generate(format: SwiftDocFormat,
                   moduleName: String,
                   baseURL: String,
                   outputDirectory: String,
-                  sourcesPath path: String) throws
+                  sourcesPaths paths: [AbsolutePath]) throws
 }
 
 public enum SwiftDocFormat: String {
@@ -25,18 +26,18 @@ public struct SwiftDocController: SwiftDocControlling {
                          moduleName: String,
                          baseURL: String,
                          outputDirectory: String,
-                         sourcesPath path: String) throws
+                         sourcesPaths paths: [AbsolutePath]) throws
     {
         let swiftDocPath = try binaryLocator.swiftDocPath()
 
-        let arguments = [swiftDocPath.pathString,
+        var arguments = [swiftDocPath.pathString,
                          "generate",
                          "--format", format.rawValue,
                          "--module-name", moduleName,
                          "--base-url", baseURL,
-                         "--output", outputDirectory,
-                         path]
-
+                         "--output", outputDirectory]
+        arguments.append(contentsOf: Set(paths.map { $0.dirname }))
+        
         logger.pretty("Generating documentation for \(.bold(.raw(moduleName))).")
 
         _ = try System.shared.observable(arguments)
