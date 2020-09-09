@@ -42,11 +42,6 @@ Then(/^tuist focuses the targets ([a-zA-Z,]+) at (.+)$/) do |targets, path|
   @xcodeproj_path = Dir.glob(File.join(@dir, path, "*.xcodeproj")).first
 end
 
-Then(/tuist lints the project and fails/) do
-  _, _, status = Open3.capture3("swift", "run", "tuist", "lint", "--path", @dir)
-  refute(status.success?, "Expected 'tuist lint' to fail but it didn't")
-end
-
 Then(/tuist edits the project/) do
   system("swift", "run", "tuist", "edit", "--path", @dir, "--permanent")
   @xcodeproj_path = Dir.glob(File.join(@dir, "*.xcodeproj")).first
