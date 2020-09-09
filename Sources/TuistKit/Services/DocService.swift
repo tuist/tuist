@@ -31,39 +31,67 @@ struct DocService {
         self.fileHandler = fileHandler
     }
 
-    func run(path: AbsolutePath, target targetName: String) throws {
+    func run(project path: AbsolutePath, target targetName: String, serve: Bool, port: UInt16) throws {
         let (_, graph, _) = try projectGenerator.loadProject(path: path)
         
         let sources = graph.targets(at: path)
             .filter( { !$0.dependsOnXCTest } )
             .flatMap { $0.target.sources }
             .map { $0.path }
-        
-        let port: UInt16 = 4040 // TODO: add a parameter for this
-        let baseURL = swiftDocServer.baseURL.appending(":\(port)")
-
+                
         try withTemporaryDirectory { generationDirectory in
+            let parameters = Parameters.init(serve: serve,
+                                             swiftDocServer: swiftDocServer,
+                                             port: port,
+                                             generationDirectory: generationDirectory.pathString)
+
+            
             try swiftDocController.generate(
-                format: .html,
+                format: parameters.format,
                 moduleName: targetName,
-                baseURL: baseURL,
+                baseURL: parameters.baseURL,
                 outputDirectory: generationDirectory.pathString,
                 sourcesPaths: sources
             )
 
-            let indexPath = generationDirectory.appending(component: "index.html")
+            let indexPath = generationDirectory.appending(component: parameters.indexName)
+            
             guard fileHandler.exists(indexPath) else {
                 throw Error.documentationNotGenerated
             }
-
-            try swiftDocServer.serve(path: generationDirectory, port: port)
+            
+            if serve {
+                try swiftDocServer.serve(path: generationDirectory, port: port)
+            } else {
+                logger.pretty("You can find the documentation at \(generationDirectory.pathString)")
+            }
         }
     }
 }
 
-extension Graph {
-    func targetPath(name: String) -> AbsolutePath? {
-        targets.flatMap { $0.value }.first(where: { $0.name == name })?.path
+// MARK - Parameters
+
+extension DocService {
+    struct Parameters {
+        let format: SwiftDocFormat
+        let indexName: String
+        let baseURL: String
+        
+        init(serve: Bool,
+             swiftDocServer: SwiftDocServing,
+             port: UInt16,
+             generationDirectory: String) {
+            if serve {
+                format = .html
+                indexName = "index.html"
+                baseURL = swiftDocServer.baseURL.appending(":\(port)")
+            } else {
+                
+                format = .commonmark
+                indexName = "Home.md"
+                baseURL = generationDirectory
+            }
+        }
     }
 }
 

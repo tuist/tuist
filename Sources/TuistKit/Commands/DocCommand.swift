@@ -11,8 +11,8 @@ struct DocCommand: ParsableCommand {
                              abstract: "Generates html documentation for a given target.")
     }
 
-    // MARK: - Attributes
-
+    // MARK: - Options
+    
     @OptionGroup()
     var options: DocCommand.Options
 
@@ -26,22 +26,54 @@ struct DocCommand: ParsableCommand {
             absolutePath = FileHandler.shared.currentPath
         }
 
-        try DocService().run(path: absolutePath, target: options.target)
+        try DocService().run(project: absolutePath,
+                             target: options.target,
+                             serve: options.mode.shouldServe,
+                             port: options.port)
     }
+}
+
+extension DocCommand.Mode {
+    var shouldServe: Bool { self == .localhost }
 }
 
 // MARK: - Options
 
 extension DocCommand {
+    enum Mode: EnumerableFlag {
+        case localhost
+        case filesOnly
+        
+        static func name(for value: DocCommand.Mode) -> NameSpecification {
+            switch value {
+            case .localhost:
+                return [.long]
+            case .filesOnly:
+                return [.long]
+            }
+        }
+    }
+    
     struct Options: ParsableArguments {
         @Option(
             name: .shortAndLong,
-            help: "The path to target sources folder",
+            help: "The path to the Project.swift container folder.",
             completion: .directory
         )
         var path: String?
 
-        @Argument(help: "The name of the target to generate documentation")
+        @Flag(
+            help: "Provide the documentation as md files in a temporal folder or serve it as a website."
+        )
+        var mode: DocCommand.Mode = .localhost
+        
+        @Option(
+            name: .long,
+            help: "The port to use while serving the website. Only valid for localhost mode."
+        )
+        var port: UInt16 = 4040
+        
+        @Argument(help: "The name of the target to generate documentation.")
         var target: String
     }
 }
