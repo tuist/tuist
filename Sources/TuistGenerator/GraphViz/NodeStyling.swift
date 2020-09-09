@@ -5,6 +5,7 @@ import TuistCore
 extension GraphViz.Node {
     mutating func applyAttributes(attributes: NodeStyleAttributes?) {
         self.fillColor = attributes?.fillColor
+        self.textColor = attributes?.textColor
         self.strokeWidth = attributes?.strokeWidth
         self.shape = attributes?.shape
     }
@@ -12,13 +13,16 @@ extension GraphViz.Node {
 
 struct NodeStyleAttributes {
     let fillColor: GraphViz.Color?
+    var textColor: GraphViz.Color?
     let strokeWidth: Double?
     let shape: GraphViz.Node.Shape?
 
-    init(colorName: GraphViz.Color.Name? = nil,
+    init(fillColorName: GraphViz.Color.Name? = nil,
+         textColorName: GraphViz.Color.Name? = nil,
          strokeWidth: Double? = nil,
          shape: GraphViz.Node.Shape? = nil) {
-        self.fillColor = colorName.map { GraphViz.Color.named($0) }
+        self.fillColor = fillColorName.map { GraphViz.Color.named($0) }
+        self.textColor = textColorName.map { GraphViz.Color.named($0) }
         self.strokeWidth = strokeWidth
         self.shape = shape
     }
@@ -27,45 +31,49 @@ struct NodeStyleAttributes {
 extension GraphNode {
     var styleAttributes: NodeStyleAttributes? {
         if self is SDKNode {
-            return .init(colorName: .blueviolet, shape: .rectangle)
+            return .init(fillColorName: .violet, shape: .rectangle)
         }
 
         if self is CocoaPodsNode {
-            return .init(colorName: .red2)
+            return .init(fillColorName: .red2, textColorName: .white)
         }
 
         if self is FrameworkNode {
-            return .init(colorName: .darkgoldenrod3, shape: .trapezium)
+            return .init(fillColorName: .darkgoldenrod3, shape: .trapezium)
         }
 
         if self is LibraryNode {
-            return .init(colorName: .lightgray, shape: .folder)
+            return .init(fillColorName: .lightgray, shape: .folder)
         }
 
         if self is PackageProductNode {
-            return .init(colorName: .tan4, shape: .tab)
+            return .init(fillColorName: .tan4, textColorName: .white, shape: .tab)
         }
 
         if self is PrecompiledNode {
-            return .init(colorName: .skyblue, shape: .trapezium)
+            return .init(fillColorName: .lightskyblue1, shape: .trapezium)
         }
 
         if let targetNode = self as? TargetNode {
             switch targetNode.target.product {
             case .app, .watch2App:
-                return .init(colorName: .deepskyblue, strokeWidth: 1.5, shape: .box3d)
+                return .init(fillColorName: .deepskyblue, strokeWidth: 1.5, shape: .box3d)
             case .appExtension, .watch2Extension:
-                return .init(colorName: .deepskyblue2, shape: .component)
+                return .init(fillColorName: .deepskyblue2, shape: .component)
+            case .messagesExtension, .stickerPackExtension:
+                return .init(fillColorName: .springgreen2, shape: .component)
             case .framework:
-                return .init(colorName: .darkgoldenrod1, shape: .cylinder)
+                return .init(fillColorName: .darkgoldenrod1, shape: .cylinder)
 //            case .staticLibrary:
-//                return .init(colorName: .darkgoldenrod1, shape: .cylinder)
+//                return .init(fillColorName: .darkgoldenrod1, shape: .cylinder)
 //            case .staticFramework:
-//                return .init(colorName: .darkgoldenrod1, shape: .cylinder)
+//                return .init(fillColorName: .darkgoldenrod1, shape: .cylinder)
 //            case .dynamicLibrary
-//                return .init(colorName: .darkgoldenrod1, shape: .cylinder)
-//            case .bundle: return .named()
-//            case .uiTests, .unitTests:
+//                return .init(fillColorName: .darkgoldenrod1, shape: .cylinder)
+            case .bundle:
+                return .init(fillColorName: .grey90, shape: .rectangle)
+            case .uiTests, .unitTests:
+                return .init(fillColorName: .limegreen, shape: .octagon)
             default: return nil
             }
         }
