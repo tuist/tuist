@@ -38,6 +38,15 @@
         }
       },
       {
+        "package": "Commander",
+        "repositoryURL": "https://github.com/kylef/Commander.git",
+        "state": {
+          "branch": null,
+          "revision": "4b6133c3071d521489a80c38fb92d7983f19d438",
+          "version": "0.9.1"
+        }
+      },
+      {
         "package": "CryptoSwift",
         "repositoryURL": "https://github.com/krzyzanowskim/CryptoSwift",
         "state": {
@@ -62,6 +71,15 @@
           "branch": null,
           "revision": "6fb29b2378166a30d72120980e1c099c664598de",
           "version": "0.4.1"
+        }
+      },
+      {
+        "package": "Kanna",
+        "repositoryURL": "https://github.com/tid-kijyun/Kanna.git",
+        "state": {
+          "branch": null,
+          "revision": "609367a2cd84827a33383cf7923cb4fe8f69ee0a",
+          "version": "5.2.2"
         }
       },
       {
@@ -106,6 +124,15 @@
         "state": {
           "branch": "master",
           "revision": "124df01d3c5defdce07872fe1828c764bb969b38",
+          "version": null
+        }
+      },
+      {
+        "package": "StencilSwiftKit",
+        "repositoryURL": "https://github.com/fortmarek/StencilSwiftKit.git",
+        "state": {
+          "branch": "stable",
+          "revision": "33cf26bc68f3aced91cb810bc0a4e5ce445a140f",
           "version": null
         }
       },
@@ -155,6 +182,15 @@
         }
       },
       {
+        "package": "SwiftGen",
+        "repositoryURL": "https://github.com/fortmarek/SwiftGen",
+        "state": {
+          "branch": "stable",
+          "revision": "db5c510ab89be880b5d7f9d6d43a19faa5f172de",
+          "version": null
+        }
+      },
+      {
         "package": "xcbeautify",
         "repositoryURL": "https://github.com/thii/xcbeautify.git",
         "state": {
@@ -179,6 +215,15 @@
           "branch": null,
           "revision": "21a510c225ff2bc83d5920a21d902af4b1e7e218",
           "version": "0.1.0"
+        }
+      },
+      {
+        "package": "Yams",
+        "repositoryURL": "https://github.com/jpsim/Yams.git",
+        "state": {
+          "branch": null,
+          "revision": "81a65c4069c28011ee432f2858ba0de49b086677",
+          "version": "3.0.1"
         }
       },
       {
