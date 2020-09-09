@@ -29,7 +29,7 @@ struct GraphCommand: ParsableCommand {
         name: [.customShort("f"), .long],
         help: "Available formats: dot, png"
     )
-    var format: GraphFormat = .dot
+    var format: GraphFormat = .png
 
     @Option(
         name: [.customShort("a"), .customLong("algorithm")],
