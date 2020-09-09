@@ -24,12 +24,14 @@ final class GraphService {
              layoutAlgorithm: GraphViz.LayoutAlgorithm,
              skipTestTargets: Bool,
              skipExternalDependencies: Bool,
-             path: String?) throws
+             path: String?,
+             disableStyling: Bool) throws
     {
         let graphVizGraph = try graphVizGenerator.generate(at: FileHandler.shared.currentPath,
                                                            manifestLoader: manifestLoader,
                                                            skipTestTargets: skipTestTargets,
-                                                           skipExternalDependencies: skipExternalDependencies)
+                                                           skipExternalDependencies: skipExternalDependencies,
+                                                           disableStyling: disableStyling)
         let filePath = makeAbsolutePath(from: path).appending(component: "graph.\(format.rawValue)")
         if FileHandler.shared.exists(filePath) {
             logger.notice("Deleting existing graph at \(filePath.pathString)")

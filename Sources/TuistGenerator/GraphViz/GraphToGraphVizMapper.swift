@@ -8,7 +8,7 @@ protocol GraphToGraphVizMapping {
     ///
     /// - Parameter graph: Graph to be converted into a GraphViz.Graph.
     /// - Returns: The GraphViz.Graph representation.
-    func map(graph: TuistCore.Graph, skipTestTargets: Bool, skipExternalDependencies: Bool) -> GraphViz.Graph
+    func map(graph: TuistCore.Graph, skipTestTargets: Bool, skipExternalDependencies: Bool, disableStyling: Bool) -> GraphViz.Graph
 }
 
 final class GraphToGraphVizMapper: GraphToGraphVizMapping {
@@ -16,7 +16,7 @@ final class GraphToGraphVizMapper: GraphToGraphVizMapping {
     ///
     /// - Parameter graph: TuistCore.Graph to be converted into a GraphViz.Graph.
     /// - Returns: The GraphViz.Graph representation.
-    func map(graph: TuistCore.Graph, skipTestTargets: Bool, skipExternalDependencies: Bool) -> GraphViz.Graph {
+    func map(graph: TuistCore.Graph, skipTestTargets: Bool, skipExternalDependencies: Bool, disableStyling: Bool) -> GraphViz.Graph {
         var nodes: [GraphViz.Node] = []
         var dependencies: [GraphViz.Edge] = []
         var graphVizGraph = GraphViz.Graph(directed: true)
@@ -31,12 +31,16 @@ final class GraphToGraphVizMapper: GraphToGraphVizMapping {
                 }
 
                 var leftNode = GraphViz.Node(target.target.name)
-                leftNode.applyAttributes(attributes: target.styleAttributes)
+                if !disableStyling {
+                    leftNode.applyAttributes(attributes: target.styleAttributes)
+                }
                 nodes.append(leftNode)
 
                 target.dependencies.forEach { dependency in
                     var rightNode = GraphViz.Node(dependency.name)
-                    rightNode.applyAttributes(attributes: dependency.styleAttributes)
+                    if !disableStyling {
+                        rightNode.applyAttributes(attributes: dependency.styleAttributes)
+                    }
                     nodes.append(rightNode)
                     if skipExternalDependencies, dependency.isExternal { return }
                     let edge = GraphViz.Edge(from: leftNode, to: rightNode)

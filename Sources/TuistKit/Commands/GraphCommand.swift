@@ -37,6 +37,12 @@ struct GraphCommand: ParsableCommand {
     )
     var layoutAlgorithm: GraphViz.LayoutAlgorithm = .dot
 
+    @Flag(
+        name: [.customShort("s"), .customLong("simple")],
+        help: "Simple graph: disable styling and colors"
+    )
+    var disableStyling: Bool = false
+
     @Option(
         name: .shortAndLong,
         help: "The path where the graph will be generated."
@@ -48,7 +54,8 @@ struct GraphCommand: ParsableCommand {
                                layoutAlgorithm: layoutAlgorithm,
                                skipTestTargets: skipTestTargets,
                                skipExternalDependencies: skipExternalDependencies,
-                               path: path)
+                               path: path,
+                               disableStyling: disableStyling)
     }
 }
 
