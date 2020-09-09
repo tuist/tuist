@@ -35,8 +35,10 @@ class TargetActionLinter: TargetActionLinting {
     }
 
     func lintPathExistence(_ action: TargetAction) -> [LintingIssue] {
-        guard let path = action.path else { return [] }
-        if FileHandler.shared.exists(path) { return [] }
+        guard
+            let path = action.path,
+            !FileHandler.shared.exists(path)
+        else { return [] }
         return [LintingIssue(reason: "The action path \(path.pathString) doesn't exist",
                              severity: .error)]
     }
