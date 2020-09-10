@@ -26,11 +26,5 @@ let project = Project(
                 .target(name: "App")
             ]
         )
-    ],
-    schemes: [
-        Scheme(
-            name: "AppCustomScheme",
-            buildAction: BuildAction(targets: [TargetReference("App")])
-        )
     ]
 )
