@@ -64,17 +64,16 @@ extension GraphNode {
                 return .init(fillColorName: .springgreen2, shape: .component)
             case .framework:
                 return .init(fillColorName: .darkgoldenrod1, shape: .cylinder)
-//            case .staticLibrary:
-//                return .init(fillColorName: .darkgoldenrod1, shape: .cylinder)
-//            case .staticFramework:
-//                return .init(fillColorName: .darkgoldenrod1, shape: .cylinder)
-//            case .dynamicLibrary
-//                return .init(fillColorName: .darkgoldenrod1, shape: .cylinder)
+            case .staticLibrary:
+                return .init(fillColorName: .coral1)
+            case .staticFramework:
+                return .init(fillColorName: .coral1, shape: .cylinder)
+            case .dynamicLibrary:
+                return .init(fillColorName: .darkgoldenrod3)
             case .bundle:
                 return .init(fillColorName: .grey90, shape: .rectangle)
             case .uiTests, .unitTests:
                 return .init(fillColorName: .limegreen, shape: .octagon)
-            default: return nil
             }
         }
 
