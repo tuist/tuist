@@ -33,19 +33,18 @@ struct DocService {
 
     func run(project path: AbsolutePath, target targetName: String, serve: Bool, port: UInt16) throws {
         let (_, graph, _) = try projectGenerator.loadProject(path: path)
-        
+
         let sources = graph.targets(at: path)
-            .filter( { !$0.dependsOnXCTest } )
+            .filter { !$0.dependsOnXCTest }
             .flatMap { $0.target.sources }
             .map { $0.path }
-                
-        try withTemporaryDirectory { generationDirectory in
-            let parameters = Parameters.init(serve: serve,
-                                             swiftDocServer: swiftDocServer,
-                                             port: port,
-                                             generationDirectory: generationDirectory.pathString)
 
-            
+        try withTemporaryDirectory { generationDirectory in
+            let parameters = Parameters(serve: serve,
+                                        swiftDocServer: swiftDocServer,
+                                        port: port,
+                                        generationDirectory: generationDirectory.pathString)
+
             try swiftDocController.generate(
                 format: parameters.format,
                 moduleName: targetName,
@@ -55,11 +54,11 @@ struct DocService {
             )
 
             let indexPath = generationDirectory.appending(component: parameters.indexName)
-            
+
             guard fileHandler.exists(indexPath) else {
                 throw Error.documentationNotGenerated
             }
-            
+
             if serve {
                 try swiftDocServer.serve(path: generationDirectory, port: port)
             } else {
@@ -69,24 +68,24 @@ struct DocService {
     }
 }
 
-// MARK - Parameters
+// MARK: - Parameters
 
 extension DocService {
     struct Parameters {
         let format: SwiftDocFormat
         let indexName: String
         let baseURL: String
-        
+
         init(serve: Bool,
              swiftDocServer: SwiftDocServing,
              port: UInt16,
-             generationDirectory: String) {
+             generationDirectory: String)
+        {
             if serve {
                 format = .html
                 indexName = "index.html"
                 baseURL = swiftDocServer.baseURL.appending(":\(port)")
             } else {
-                
                 format = .commonmark
                 indexName = "Home.md"
                 baseURL = generationDirectory

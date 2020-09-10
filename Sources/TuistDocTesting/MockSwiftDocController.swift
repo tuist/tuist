@@ -1,5 +1,5 @@
-import TuistDoc
 import TSCBasic
+import TuistDoc
 @testable import TuistCore
 
 public final class MockSwiftDocController: SwiftDocControlling {

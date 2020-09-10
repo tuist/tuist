@@ -1,7 +1,7 @@
 import RxBlocking
+import TSCBasic
 import TuistCore
 import TuistSupport
-import TSCBasic
 
 public protocol SwiftDocControlling {
     func generate(format: SwiftDocFormat,

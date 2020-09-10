@@ -12,7 +12,7 @@ struct DocCommand: ParsableCommand {
     }
 
     // MARK: - Options
-    
+
     @OptionGroup()
     var options: DocCommand.Options
 
@@ -43,7 +43,7 @@ extension DocCommand {
     enum Mode: EnumerableFlag {
         case localhost
         case filesOnly
-        
+
         static func name(for value: DocCommand.Mode) -> NameSpecification {
             switch value {
             case .localhost:
@@ -53,7 +53,7 @@ extension DocCommand {
             }
         }
     }
-    
+
     struct Options: ParsableArguments {
         @Option(
             name: .shortAndLong,
@@ -66,13 +66,13 @@ extension DocCommand {
             help: "Provide the documentation as md files in a temporal folder or serve it as a website."
         )
         var mode: DocCommand.Mode = .localhost
-        
+
         @Option(
             name: .long,
             help: "The port to use while serving the website. Only valid for localhost mode."
         )
         var port: UInt16 = 4040
-        
+
         @Argument(help: "The name of the target to generate documentation.")
         var target: String
     }
