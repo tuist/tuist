@@ -39,7 +39,7 @@ struct GraphCommand: ParsableCommand {
 
     @Flag(
         name: [.customShort("s"), .customLong("simple")],
-        help: "Simple graph: disable styling and colors"
+        help: "Simple graph: disable different shapes and colors"
     )
     var disableStyling: Bool = false
 
