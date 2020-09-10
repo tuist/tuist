@@ -1,5 +1,4 @@
 Feature: Build projects using Tuist build
-
   Scenario: The project is an application with templates (ios_app_with_templates)
     Given that tuist is available
     And I have a working directory
@@ -7,6 +6,7 @@ Feature: Build projects using Tuist build
     Then tuist builds the project
     Then tuist builds the scheme MyApp from the project
     Then tuist builds the scheme MyApp and configuration Debug from the project
+    Then tuist builds the scheme MyAppCustomScheme from the project
 
   Scenario: The project is an application with framework and tests (app_with_framework_and_tests)
     Given that tuist is available
