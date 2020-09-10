@@ -54,8 +54,7 @@ final class BuildService {
         generate: Bool,
         clean: Bool,
         configuration: String?,
-        path: AbsolutePath,
-        listSchemes: Bool
+        path: AbsolutePath
     ) throws {
         let graph: Graph
         if try (generate || buildGraphInspector.workspacePath(directory: path) == nil) {
@@ -66,9 +65,7 @@ final class BuildService {
 
         let buildableSchemes = buildGraphInspector.buildableSchemes(graph: graph)
 
-        if listSchemes {
-            logger.log(level: .notice, "Found the following buildable schemes: \(buildableSchemes.map(\.name).joined(separator: ", "))")
-        }
+        logger.log(level: .debug, "Found the following buildable schemes: \(buildableSchemes.map(\.name).joined(separator: ", "))")
 
         if let schemeName = schemeName {
             guard let scheme = buildableSchemes.first(where: { $0.name == schemeName }) else {
