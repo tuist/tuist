@@ -61,11 +61,10 @@ public class BuildGraphInspector: BuildGraphInspecting {
     }
 
     public func buildableSchemes(graph: Graph) -> [Scheme] {
-        graph.targets.values.flatMap {
-            $0.flatMap { $0.project.schemes }
-        }
-        .filter { $0.buildAction?.targets.isEmpty == false }
-        .sorted(by: { $0.name < $1.name })
+        // TODO: Test!
+        graph.schemes
+            .filter { $0.buildAction?.targets.isEmpty == false }
+            .sorted(by: { $0.name < $1.name })
     }
 
     public func buildableEntrySchemes(graph: Graph) -> [Scheme] {

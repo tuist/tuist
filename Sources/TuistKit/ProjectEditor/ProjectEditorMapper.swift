@@ -105,14 +105,17 @@ final class ProjectEditorMapper: ProjectEditorMapping {
 
         let manifestTargetNodes = manifestsTargets.map { TargetNode(project: project, target: $0, dependencies: dependencies) }
 
-        let graph = Graph(name: "Manifests",
-                          entryPath: sourceRootPath,
-                          entryNodes: manifestTargetNodes,
-                          projects: [project],
-                          cocoapods: [],
-                          packages: [],
-                          precompiled: [],
-                          targets: [sourceRootPath: manifestTargetNodes + dependencies])
+        let graph = Graph(
+            name: "Manifests",
+            entryPath: sourceRootPath,
+            entryNodes: manifestTargetNodes,
+            projects: [project],
+            cocoapods: [],
+            packages: [],
+            precompiled: [],
+            targets: [sourceRootPath: manifestTargetNodes + dependencies],
+            schemes: project.schemes
+        )
 
         // Project
         return (project, graph)

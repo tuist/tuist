@@ -33,7 +33,7 @@ public class Graph: Encodable, Equatable {
     /// The entry nodes of the graph.
     public let entryNodes: [GraphNode]
 
-    /// Dictionary whose keys are paths to directories where projects are defined, and the values are the representation of the projects.
+    /// Projects of the graph
     public let projects: [Project]
 
     /// Dictionary whose keys are paths to directories where projects are defined, and the values are the CocoaPods nodes define in them.
@@ -53,29 +53,37 @@ public class Graph: Encodable, Equatable {
 
     /// Dictionary whose keys are path to directories where projects are defined, and the values are target nodes defined in them.
     public let targets: [AbsolutePath: [TargetNode]]
+    
+    /// Schemes of the graph
+    public let schemes: [Scheme]
 
     // MARK: - Init
 
     convenience init(name: String, entryPath: AbsolutePath, cache: GraphLoaderCaching, entryNodes: [GraphNode]) {
-        self.init(name: name,
-                  entryPath: entryPath,
-                  entryNodes: entryNodes,
-                  projects: Array(cache.projects.values),
-                  cocoapods: Array(cache.cocoapodsNodes.values),
-                  packages: Array(cache.packages.flatMap { $0.value }),
-                  precompiled: Array(cache.precompiledNodes.values),
-                  targets: cache.targetNodes.mapValues { Array($0.values) })
+        self.init(
+            name: name,
+            entryPath: entryPath,
+            entryNodes: entryNodes,
+            projects: Array(cache.projects.values),
+            cocoapods: Array(cache.cocoapodsNodes.values),
+            packages: Array(cache.packages.flatMap { $0.value }),
+            precompiled: Array(cache.precompiledNodes.values),
+            targets: cache.targetNodes.mapValues { Array($0.values) },
+            schemes: cache.projects.values.flatMap(\.schemes)
+        )
     }
 
-    public init(name: String,
-                entryPath: AbsolutePath,
-                entryNodes: [GraphNode],
-                projects: [Project],
-                cocoapods: [CocoaPodsNode],
-                packages: [PackageNode],
-                precompiled: [PrecompiledNode],
-                targets: [AbsolutePath: [TargetNode]])
-    {
+    public init(
+        name: String,
+        entryPath: AbsolutePath,
+        entryNodes: [GraphNode],
+        projects: [Project],
+        cocoapods: [CocoaPodsNode],
+        packages: [PackageNode],
+        precompiled: [PrecompiledNode],
+        targets: [AbsolutePath: [TargetNode]],
+        schemes: [Scheme]
+    ) {
         self.name = name
         self.entryPath = entryPath
         self.entryNodes = entryNodes
@@ -84,6 +92,7 @@ public class Graph: Encodable, Equatable {
         self.packages = packages
         self.precompiled = precompiled
         self.targets = targets
+        self.schemes = schemes
     }
 
     // MARK: - Encodable
@@ -386,7 +395,7 @@ public class Graph: Encodable, Equatable {
     /// This method is useful to know which references should be added to the products directory in the generated project.
     /// - Parameter project: Project whose dependency references will be returned.
     public func allDependencyReferences(for project: Project) throws -> [GraphDependencyReference] {
-        let linkableDependencies = try project.targets.flatMap {
+        let linkableDependencies = project.targets.flatMap {
             self.linkableDependencies(path: project.path, name: $0.name)
         }
 
@@ -534,28 +543,50 @@ public class Graph: Encodable, Equatable {
     /// Returns a copy of the graph with the given projects set.
     /// - Parameter projects: Projects to be set to the copy.
     public func with(projects: [Project]) -> Graph {
-        Graph(name: name,
-              entryPath: entryPath,
-              entryNodes: entryNodes,
-              projects: projects,
-              cocoapods: cocoapods,
-              packages: packages,
-              precompiled: precompiled,
-              targets: targets)
+        Graph(
+            name: name,
+            entryPath: entryPath,
+            entryNodes: entryNodes,
+            projects: projects,
+            cocoapods: cocoapods,
+            packages: packages,
+            precompiled: precompiled,
+            targets: targets,
+            schemes: schemes
+        )
     }
 
     /// Returns a copy of the graph with the given targets.
     /// - Parameter targets: Targets to be set to the copy.
     /// - Returns: New graph with the given targets.
     public func with(targets: [AbsolutePath: [TargetNode]]) -> Graph {
-        Graph(name: name,
-              entryPath: entryPath,
-              entryNodes: entryNodes,
-              projects: projects,
-              cocoapods: cocoapods,
-              packages: packages,
-              precompiled: precompiled,
-              targets: targets)
+        Graph(
+            name: name,
+            entryPath: entryPath,
+            entryNodes: entryNodes,
+            projects: projects,
+            cocoapods: cocoapods,
+            packages: packages,
+            precompiled: precompiled,
+            targets: targets,
+            schemes: schemes
+        )
+    }
+    
+    /// Returns a copy of the graph with the given schemes set.
+    /// - Parameter schemes: Schemes to be set to the copy.
+    public func with(schemes: [Scheme]) -> Graph {
+        Graph(
+            name: name,
+            entryPath: entryPath,
+            entryNodes: entryNodes,
+            projects: projects,
+            cocoapods: cocoapods,
+            packages: packages,
+            precompiled: precompiled,
+            targets: targets,
+            schemes: schemes
+        )
     }
 
     public func forEach(closure: (GraphNode) -> Void) {
