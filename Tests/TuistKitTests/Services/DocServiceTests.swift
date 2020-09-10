@@ -1,12 +1,12 @@
 import Foundation
 import TSCBasic
 import TuistCore
+import TuistDoc
+import TuistDocTesting
 import TuistSupport
 import XCTest
-import TuistDoc
 
 @testable import TuistCoreTesting
-@testable import TuistDocTesting
 @testable import TuistKit
 @testable import TuistSupportTesting
 

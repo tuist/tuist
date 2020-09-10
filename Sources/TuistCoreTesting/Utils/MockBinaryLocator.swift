@@ -16,7 +16,7 @@ public final class MockBinaryLocator: BinaryLocating {
         }
         return stubbedSwiftLintPathResult
     }
-    
+
     public var swiftDocPathStub: (() throws -> AbsolutePath)?
     public func swiftDocPath() throws -> AbsolutePath {
         if let swiftDocPathStub = swiftDocPathStub {

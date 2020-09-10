@@ -6,7 +6,13 @@ import TSCBasic
 import TuistSupport
 
 public protocol SwiftDocServing {
+    /// Base url for the server
     var baseURL: String { get }
+
+    /// Serves the documentation at a given path
+    /// - Parameters:
+    ///   - path: Path to the folder containing the documentation
+    ///   - port: Port to use for hosting the website
     func serve(path: AbsolutePath, port: UInt16) throws
 }
 
@@ -14,9 +20,16 @@ public final class SwiftDocServer: SwiftDocServing {
     private static let index = "index.html"
     private static var temporaryDirectory: AbsolutePath?
 
+    /// Utility to manipulate files
     private let fileHandling: FileHandling
+
+    /// Utility to open files
     private let opener: Opening
+
+    /// HTTPServer from Swifter
     private var server: HttpServer?
+
+    /// Semaphore to block the execution
     private var semaphore: DispatchSemaphore?
 
     public let baseURL: String = "http://localhost"

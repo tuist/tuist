@@ -8,6 +8,8 @@ public final class MockSwiftDocServer: SwiftDocServing {
 
     public var stubError: Error?
 
+    public init() {}
+
     public func serve(path _: AbsolutePath, port _: UInt16) throws {
         guard let error = stubError else { return }
         throw error
@@ -17,7 +19,7 @@ public final class MockSwiftDocServer: SwiftDocServing {
 // MARK: - Error
 
 public extension MockSwiftDocServer {
-    public enum MockError: Error {
+    enum MockError: Error {
         case mockError
     }
 }
