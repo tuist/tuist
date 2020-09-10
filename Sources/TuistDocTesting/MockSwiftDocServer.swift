@@ -17,7 +17,7 @@ public final class MockSwiftDocServer: SwiftDocServing {
 // MARK: - Error
 
 public extension MockSwiftDocServer {
-    enum MockError: Error {
+    public enum MockError: Error {
         case mockError
     }
 }

@@ -3,6 +3,7 @@ import TSCBasic
 import TuistCore
 import TuistSupport
 import XCTest
+import TuistDoc
 
 @testable import TuistCoreTesting
 @testable import TuistDocTesting
@@ -46,16 +47,16 @@ final class TuistDocServiceTests: TuistUnitTestCase {
 
     func test_doc_fail_missing_target() {
         let path = AbsolutePath("/.")
-        XCTAssertThrowsError(try subject.run(path: path, target: "CustomTarget"))
+        XCTAssertThrowsError(try subject.run(project: path, target: "CustomTarget", serve: false, port: 4040))
     }
 
     func test_doc_fail_missing_file() {
         let targetName = "CustomTarget"
         let path = AbsolutePath("/.")
         mockGraph(targetName: targetName, atPath: path)
-        fileHandler.pathExistsStub = false
+        fileHandler.stubExists = { _ in false }
 
-        XCTAssertThrowsError(try subject.run(path: path, target: targetName))
+        XCTAssertThrowsError(try subject.run(project: path, target: targetName, serve: false, port: 4040))
     }
 
     func test_doc_success() {
@@ -63,9 +64,9 @@ final class TuistDocServiceTests: TuistUnitTestCase {
         let path = AbsolutePath("/.")
 
         mockGraph(targetName: targetName, atPath: path)
-        fileHandler.pathExistsStub = true
+        fileHandler.stubExists = { _ in true }
 
-        try! subject.run(path: path, target: targetName)
+        XCTAssertThrowsError(try subject.run(project: path, target: targetName, serve: false, port: 4040))
     }
 
     func test_server_error() {
@@ -73,11 +74,10 @@ final class TuistDocServiceTests: TuistUnitTestCase {
         let path = AbsolutePath("/.")
 
         mockGraph(targetName: targetName, atPath: path)
-        fileHandler.pathExistsStub = true
+        fileHandler.stubExists = { _ in true }
 
         swiftDocServer.stubError = MockSwiftDocServer.MockError.mockError
-
-        XCTAssertThrowsError(try subject.run(path: path, target: targetName))
+        XCTAssertThrowsError(try subject.run(project: path, target: targetName, serve: true, port: 4040))
     }
 
     private func mockGraph(targetName _: String, atPath path: AbsolutePath) {
