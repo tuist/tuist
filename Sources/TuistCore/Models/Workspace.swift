@@ -8,7 +8,7 @@ public struct Workspace: Equatable {
     public let path: AbsolutePath
     public let name: String
     public let projects: [AbsolutePath]
-    public let schemes: [Scheme]
+    public var schemes: [Scheme]
     public let additionalFiles: [FileElement]
 
     // MARK: - Init
