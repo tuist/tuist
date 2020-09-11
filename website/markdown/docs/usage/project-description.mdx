@@ -1495,14 +1495,14 @@ A `FileElement` can be one of the following options:
 A `DefaultSettings` can be one of the following options:<EnumTable
 cases={[
 {
-case: '.recommended',
+case: '.recommended(excluding: Set<String>)',
 description:
-'Recommented settings including warning flags to help you catch some of the bugs at the early stage of development.',
+'Recommented settings including warning flags to help you catch some of the bugs at the early stage of development. If you need to override certain settings in a `CustomConfiguration` it's possible to add those keys to `excluding`.',
 },
 {
-case: '.essential',
+case: '.essential(excluding: Set<String>)',
 description:
-"A minimal set of settings to make the project compile without any additional settings for example `'PRODUCT_NAME'` or `'TARGETED_DEVICE_FAMILY'`.",
+"A minimal set of settings to make the project compile without any additional settings for example `'PRODUCT_NAME'` or `'TARGETED_DEVICE_FAMILY'`. If you need to override certain settings in a `CustomConfiguration` it's possible to add those keys to `excluding`.",
 },
 {
 case: '.none',
