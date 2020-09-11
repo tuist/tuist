@@ -38,7 +38,12 @@ final class CodeLinterTests: TuistUnitTestCase {
     func test_lint_throws_an_error_when_binary_no_found() {
         // Given
         let fakeError = TestError("binaryNotFound")
-        let fakeSources = AbsolutePath("/xyz/abc")
+        let fakeSources = [
+            AbsolutePath("/xyz/abc"),
+            AbsolutePath("/xyz/def"),
+            AbsolutePath("/xyz/hij"),
+        ]
+
         let fakePath = AbsolutePath("/foo/bar")
         binaryLocator.stubbedSwiftLintPathError = fakeError
 
@@ -48,12 +53,16 @@ final class CodeLinterTests: TuistUnitTestCase {
 
     func test_lint_no_configuration() throws {
         // Given
-        let fakeSources = AbsolutePath("/xyz/abc")
+        let fakeSources = [
+            AbsolutePath("/xyz/abc"),
+            AbsolutePath("/xyz/def"),
+            AbsolutePath("/xyz/hij"),
+        ]
         let fakePath = AbsolutePath("/foo/bar")
         binaryLocator.stubbedSwiftLintPathResult = "/swiftlint"
         system.succeedCommand(binaryLocator.stubbedSwiftLintPathResult.pathString,
                               "lint",
-                              fakeSources.pathString)
+                              "--use-script-input-files")
 
         // When
         try subject.lint(sources: fakeSources, path: fakePath)
@@ -61,18 +70,29 @@ final class CodeLinterTests: TuistUnitTestCase {
 
     func test_lint_with_configuration_yml() throws {
         // Given
-        let fakeSources = AbsolutePath("/xyz/abc")
+        let fakeSources = [
+            AbsolutePath("/xyz/abc"),
+            AbsolutePath("/xyz/def"),
+            AbsolutePath("/xyz/hij"),
+        ]
         let fakePath = AbsolutePath("/foo/bar")
         let fakeRoot = AbsolutePath("/root")
         let fakeSwiftLintPath = AbsolutePath("/swiftlint")
-        let swiftLintConfigPath = fakeRoot.appending(RelativePath("\(Constants.tuistDirectoryName)/swiftlint.yml"))
+        let swiftLintConfigPath = fakeRoot.appending(RelativePath("\(Constants.tuistDirectoryName)/.swiftlint.yml"))
 
         rootDirectoryLocator.locateStub = fakeRoot
         binaryLocator.stubbedSwiftLintPathResult = fakeSwiftLintPath
         fileHandler.stubExists = { $0 == swiftLintConfigPath }
+
+        system.env = [
+            "SCRIPT_INPUT_FILE_COUNT": "3",
+            "SCRIPT_INPUT_FILE_0": fakeSources[0].pathString,
+            "SCRIPT_INPUT_FILE_1": fakeSources[1].pathString,
+            "SCRIPT_INPUT_FILE_2": fakeSources[2].pathString,
+        ]
         system.succeedCommand(binaryLocator.stubbedSwiftLintPathResult.pathString,
                               "lint",
-                              fakeSources.pathString,
+                              "--use-script-input-files",
                               "--config",
                               swiftLintConfigPath.pathString)
 
@@ -82,18 +102,22 @@ final class CodeLinterTests: TuistUnitTestCase {
 
     func test_lint_with_configuration_yaml() throws {
         // Given
-        let fakeSources = AbsolutePath("/xyz/abc")
+        let fakeSources = [
+            AbsolutePath("/xyz/abc"),
+            AbsolutePath("/xyz/def"),
+            AbsolutePath("/xyz/hij"),
+        ]
         let fakePath = AbsolutePath("/foo/bar")
         let fakeRoot = AbsolutePath("/root")
         let fakeSwiftLintPath = AbsolutePath("/swiftlint")
-        let swiftLintConfigPath = fakeRoot.appending(RelativePath("\(Constants.tuistDirectoryName)/swiftlint.yaml"))
+        let swiftLintConfigPath = fakeRoot.appending(RelativePath("\(Constants.tuistDirectoryName)/.swiftlint.yaml"))
 
         rootDirectoryLocator.locateStub = fakeRoot
         binaryLocator.stubbedSwiftLintPathResult = fakeSwiftLintPath
         fileHandler.stubExists = { $0 == swiftLintConfigPath }
         system.succeedCommand(binaryLocator.stubbedSwiftLintPathResult.pathString,
                               "lint",
-                              fakeSources.pathString,
+                              "--use-script-input-files",
                               "--config",
                               swiftLintConfigPath.pathString)
 
