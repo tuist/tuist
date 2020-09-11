@@ -71,7 +71,7 @@ public final class BinaryLocator: BinaryLocating {
         }
 
         guard let existingPath = candidates.first(where: FileHandler.shared.exists) else {
-            throw BinaryLocatorError.swiftLintNotFound
+            throw BinaryLocatorError.swiftDocNotFound
         }
         return existingPath
     }

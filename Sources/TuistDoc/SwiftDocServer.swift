@@ -53,19 +53,15 @@ public final class SwiftDocServer: SwiftDocServing {
                 file.close()
             }
         }
-
-        server = HttpServer()
-
-        server?["/:param"] = { [weak self] request in
-            guard let self = self else { return .internalServerError }
-
+        
+        func handleRequest(_ request: HttpRequest) -> HttpResponse {
             guard let (_, value) = request.params.first else {
                 return .notFound
             }
-
+            
             let filePath = path.appending(component: value)
             guard self.fileHandling.exists(filePath) else { return .notFound }
-
+            
             do {
                 if try filePath.pathString.directory() {
                     // this is how swift-doc generates it
@@ -79,6 +75,10 @@ public final class SwiftDocServer: SwiftDocServing {
                 return .internalServerError
             }
         }
+
+        server = HttpServer()
+
+        server?["/:param"] = handleRequest
 
         Signals.trap(signals: [.int, .abrt]) { _ in
             // swiftlint:disable:next force_try
@@ -100,7 +100,7 @@ public final class SwiftDocServer: SwiftDocServing {
 
             semaphore?.wait()
         } catch {
-            print("Server start error: \(error)")
+            logger.error("Server start error: \(error)")
             semaphore?.signal()
             throw Error.unableToStartServer(at: port)
         }

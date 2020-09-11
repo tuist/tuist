@@ -23,7 +23,7 @@ Tuist is a command line tool that helps you **generate**, **maintain** and **int
 It's open source and written in Swift.
 
 ## Install ⬇️
-x
+
 ### Running script (Recommended)
 
 ```bash

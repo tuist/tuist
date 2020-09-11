@@ -66,7 +66,7 @@ final class TuistDocServiceTests: TuistUnitTestCase {
         mockGraph(targetName: targetName, atPath: path)
         fileHandler.stubExists = { _ in true }
 
-        XCTAssertThrowsError(try subject.run(project: path, target: targetName, serve: false, port: 4040))
+        try? subject.run(project: path, target: targetName, serve: false, port: 4040)
     }
 
     func test_server_error() {
@@ -76,7 +76,7 @@ final class TuistDocServiceTests: TuistUnitTestCase {
         mockGraph(targetName: targetName, atPath: path)
         fileHandler.stubExists = { _ in true }
 
-        swiftDocServer.stubError = MockSwiftDocServer.MockError.mockError
+        swiftDocServer.stubError = NSError.test()
         XCTAssertThrowsError(try subject.run(project: path, target: targetName, serve: true, port: 4040))
     }
 
