@@ -11,6 +11,7 @@ require 'colorize'
 require 'highline'
 require 'tmpdir'
 require 'json'
+require 'zip'
 
 Cucumber::Rake::Task.new(:features) do |t|
   t.cucumber_opts = "--format pretty"
@@ -18,12 +19,15 @@ end
 
 desc("Updates swift-doc binary with the latest version available.")
 task :swift_doc_update do
-  system("git", "clone", "https://github.com/SwiftDocOrg/swift-doc.git")
-  Dir.chdir("swift-doc") do
+  version = "1.0.0-beta.4"
+  system("curl", "-LO", "https://github.com/SwiftDocOrg/swift-doc/archive/#{version}.zip")
+  extract_zip("#{version}.zip", "swift-doc")
+  Dir.chdir("swift-doc/swift-doc-#{version}") do
     system("make", "swift-doc")
   end
-  system("cp", "swift-doc/.build/release/swift-doc", "vendor/swift-doc")
+  system("cp", "swift-doc/swift-doc-#{version}/.build/release/swift-doc", "vendor/swift-doc")
   system("rm", "-rf", "swift-doc")
+  system("rm", "#{version}.zip")
 end
 
 desc("Formats the code style")
@@ -267,4 +271,15 @@ end
 
 def print_section(text)
   puts(text.bold.green)
+end
+
+def extract_zip(file, destination)
+  FileUtils.mkdir_p(destination)
+
+  Zip::File.open(file) do |zip_file|
+    zip_file.each do |f|
+      fpath = File.join(destination, f.name)
+      zip_file.extract(f, fpath) unless File.exist?(fpath)
+    end
+  end
 end
