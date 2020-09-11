@@ -53,15 +53,15 @@ public final class SwiftDocServer: SwiftDocServing {
                 file.close()
             }
         }
-        
+
         func handleRequest(_ request: HttpRequest) -> HttpResponse {
             guard let (_, value) = request.params.first else {
                 return .notFound
             }
-            
+
             let filePath = path.appending(component: value)
-            guard self.fileHandling.exists(filePath) else { return .notFound }
-            
+            guard fileHandling.exists(filePath) else { return .notFound }
+
             do {
                 if try filePath.pathString.directory() {
                     // this is how swift-doc generates it
