@@ -134,6 +134,27 @@ public class TuistTestCase: XCTestCase {
         XCTAssertTrue(output.contains(expected), message, file: file, line: line)
     }
 
+    public func XCTAssertPrinterNotContains(
+        _ notExpected: String,
+        at level: Logger.Level,
+        _ comparison: (Logger.Level, Logger.Level) -> Bool,
+        file: StaticString = #file, line: UInt = #line
+    ) {
+        let output = TestingLogHandler.collected[level, comparison]
+
+        let message = """
+        The output:
+        ===========
+        \(output)
+
+        Contains the not expected:
+        ===========
+        \(notExpected)
+        """
+
+        XCTAssertFalse(output.contains(notExpected), message, file: file, line: line)
+    }
+
     public func temporaryFixture(_ pathString: String) throws -> AbsolutePath {
         let path = RelativePath(pathString)
         let fixturePath = self.fixturePath(path: path)

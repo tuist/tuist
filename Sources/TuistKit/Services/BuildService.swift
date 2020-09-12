@@ -49,7 +49,13 @@ final class BuildService {
         self.buildGraphInspector = buildGraphInspector
     }
 
-    func run(schemeName: String?, generate: Bool, clean: Bool, configuration: String?, path: AbsolutePath) throws {
+    func run(
+        schemeName: String?,
+        generate: Bool,
+        clean: Bool,
+        configuration: String?,
+        path: AbsolutePath
+    ) throws {
         let graph: Graph
         if try (generate || buildGraphInspector.workspacePath(directory: path) == nil) {
             graph = try projectGenerator.generateWithGraph(path: path, projectOnly: false).1
@@ -58,7 +64,8 @@ final class BuildService {
         }
 
         let buildableSchemes = buildGraphInspector.buildableSchemes(graph: graph)
-        logger.log(level: .notice, "Found the following buildable schemes: \(buildableSchemes.map(\.name).joined(separator: ", "))")
+
+        logger.log(level: .debug, "Found the following buildable schemes: \(buildableSchemes.map(\.name).joined(separator: ", "))")
 
         if let schemeName = schemeName {
             guard let scheme = buildableSchemes.first(where: { $0.name == schemeName }) else {
@@ -67,7 +74,9 @@ final class BuildService {
             try buildScheme(scheme: scheme, graph: graph, path: path, clean: clean, configuration: configuration)
         } else {
             var cleaned: Bool = false
-            try buildableSchemes.forEach {
+            // Run only buildable entry schemes when specific schemes has not been passed
+            let buildableEntrySchemes = buildGraphInspector.buildableEntrySchemes(graph: graph)
+            try buildableEntrySchemes.forEach {
                 try buildScheme(scheme: $0, graph: graph, path: path, clean: !cleaned && clean, configuration: configuration)
                 cleaned = true
             }

@@ -6,6 +6,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Added
 
+- Possibility to build schemes that are not part of any entry node [#1761](https://github.com/tuist/tuist/pull/1761) by [@fortmarek](htttps://github.com/fortmarek)
 - `tuist lint code` - command to lint the Swift code using Swiftlint [#1682](https://github.com/tuist/tuist/pull/1682) by [@laxmorek](https://github.com/laxmorek)
 
 ### Changed

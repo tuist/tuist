@@ -45,10 +45,12 @@ struct BuildCommand: ParsableCommand {
         } else {
             absolutePath = FileHandler.shared.currentPath
         }
-        try BuildService().run(schemeName: scheme,
-                               generate: generate,
-                               clean: clean,
-                               configuration: configuration,
-                               path: absolutePath)
+        try BuildService().run(
+            schemeName: scheme,
+            generate: generate,
+            clean: clean,
+            configuration: configuration,
+            path: absolutePath
+        )
     }
 }

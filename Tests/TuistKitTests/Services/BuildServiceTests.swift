@@ -1,5 +1,6 @@
 import Foundation
 import RxSwift
+import TSCBasic
 import TuistCore
 import TuistSupport
 import XCTest
@@ -83,7 +84,10 @@ final class BuildServiceTests: TuistUnitTestCase {
         }
 
         // Then
-        try subject.run(schemeName: scheme.name, generate: true, clean: true, configuration: nil, path: path)
+        try subject.testRun(
+            schemeName: scheme.name,
+            path: path
+        )
     }
 
     func test_run_when_the_project_is_already_generated() throws {
@@ -123,7 +127,10 @@ final class BuildServiceTests: TuistUnitTestCase {
         }
 
         // Then
-        try subject.run(schemeName: scheme.name, generate: false, clean: true, configuration: nil, path: path)
+        try subject.testRun(
+            schemeName: scheme.name,
+            path: path
+        )
     }
 
     func test_run_only_cleans_the_first_time() throws {
@@ -174,7 +181,9 @@ final class BuildServiceTests: TuistUnitTestCase {
         }
 
         // Then
-        try subject.run(schemeName: nil, generate: false, clean: true, configuration: nil, path: path)
+        try subject.testRun(
+            path: path
+        )
     }
 
     func test_run_only_runs_the_given_scheme_when_passed() throws {
@@ -221,6 +230,62 @@ final class BuildServiceTests: TuistUnitTestCase {
         }
 
         // Then
-        try subject.run(schemeName: "A", generate: false, clean: true, configuration: nil, path: path)
+        try subject.testRun(
+            schemeName: "A",
+            path: path
+        )
+    }
+
+    func test_run_lists_schemes() throws {
+        // Given
+        let path = try temporaryPath()
+        let workspacePath = path.appending(component: "App.xcworkspace")
+        let graph = Graph.test()
+        let schemeA = Scheme.test(name: "A")
+        let schemeB = Scheme.test(name: "B")
+        projectGenerator.loadStub = { _path in
+            XCTAssertEqual(_path, path)
+            return graph
+        }
+        buildgraphInspector.workspacePathStub = { _path in
+            XCTAssertEqual(_path, path)
+            return workspacePath
+        }
+        buildgraphInspector.buildableSchemesStub = { _ in
+            [
+                schemeA,
+                schemeB,
+            ]
+        }
+
+        // When
+        try subject.testRun(
+            path: path,
+            listSchemes: true
+        )
+
+        // Then
+        XCTAssertPrinterContains("Found the following buildable schemes: A, B", at: .debug, ==)
+    }
+}
+
+// MARK: - Helpers
+
+private extension BuildService {
+    func testRun(
+        schemeName: String? = nil,
+        generate: Bool = false,
+        clean: Bool = true,
+        configuration: String? = nil,
+        path: AbsolutePath,
+        listSchemes _: Bool = true
+    ) throws {
+        try run(
+            schemeName: schemeName,
+            generate: generate,
+            clean: clean,
+            configuration: configuration,
+            path: path
+        )
     }
 }

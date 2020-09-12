@@ -119,22 +119,39 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         // Given
         let path = try temporaryPath()
         let projectPath = path.appending(component: "Project.xcodeproj")
-        let scheme = Scheme.test(buildAction: .test(targets: [.init(projectPath: projectPath, name: "Core")]))
-        let target = Target.test(name: "Core")
-        let project = Project.test(path: projectPath, schemes: [scheme])
-        let targetNode = TargetNode.test(project: project,
-                                         target: target)
-        let graph = Graph.test(entryNodes: [targetNode],
-                               targets: [projectPath: [targetNode]])
+        let coreProjectPath = path.appending(component: "CoreProject.xcodeproj")
+        let coreScheme = Scheme.test(name: "Core", buildAction: .test(targets: [.init(projectPath: coreProjectPath, name: "Core")]))
+        let kitScheme = Scheme.test(name: "Kit", buildAction: .test(targets: [.init(projectPath: projectPath, name: "Kit")]))
+        let coreTarget = Target.test(name: "Core")
+        let coreProject = Project.test(path: coreProjectPath, schemes: [coreScheme])
+        let coreTargetNode = TargetNode.test(project: coreProject,
+                                             target: coreTarget)
+        let kitTarget = Target.test(name: "Kit", dependencies: [.target(name: "Core")])
+        let kitProject = Project.test(path: projectPath, schemes: [kitScheme])
+        let kitTargetNode = TargetNode.test(project: kitProject,
+                                            target: kitTarget)
+        let graph = Graph.test(
+            entryNodes: [kitTargetNode],
+            targets: [
+                projectPath: [kitTargetNode],
+                coreProjectPath: [coreTargetNode],
+            ]
+        )
 
         // When
         let got = subject.buildableSchemes(graph: graph)
 
         // Then
-        XCTAssertEqual(got, [scheme])
+        XCTAssertEqual(
+            got,
+            [
+                coreScheme,
+                kitScheme,
+            ]
+        )
     }
 
-    func test_buildableSchemes_only_includes_entryTargets() throws {
+    func test_buildableEntrySchemes_only_includes_entryTargets() throws {
         // Given
         let path = try temporaryPath()
 
@@ -156,7 +173,7 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
                                targets: [projectAPath: [targetANode], projectBPath: [targetBNode]])
 
         // When
-        let got = subject.buildableSchemes(graph: graph)
+        let got = subject.buildableEntrySchemes(graph: graph)
 
         // Then
         XCTAssertEqual(got, [schemeA])
