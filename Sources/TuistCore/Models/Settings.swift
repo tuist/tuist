@@ -52,10 +52,20 @@ public struct Configuration: Equatable {
     }
 }
 
-public enum DefaultSettings: String {
-    case recommended
-    case essential
+public enum DefaultSettings {
+    case recommended(excluding: Set<String> = [])
+    case essential(excluding: Set<String> = [])
     case none
+}
+
+extension DefaultSettings {
+    public static var recommended: DefaultSettings {
+        .recommended(excluding: [])
+    }
+
+    public static var essential: DefaultSettings {
+        .essential(excluding: [])
+    }
 }
 
 public class Settings: Equatable {
