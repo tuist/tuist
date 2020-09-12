@@ -9,7 +9,7 @@ public final class MockBinaryLocator: BinaryLocating {
     var stubbedSwiftLintPathResult: AbsolutePath!
 
     public init() {}
-    
+
     public func swiftLintPath() throws -> AbsolutePath {
         invokedSwiftLintPath = true
         invokedSwiftLintPathCount += 1

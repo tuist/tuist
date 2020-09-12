@@ -6,9 +6,9 @@ import TuistSupport
 import XCTest
 
 @testable import TuistCoreTesting
+@testable import TuistDoc
 @testable import TuistKit
 @testable import TuistSupportTesting
-@testable import TuistDoc
 
 final class TuistDocServiceTests: TuistUnitTestCase {
     var subject: DocService!
@@ -48,7 +48,7 @@ final class TuistDocServiceTests: TuistUnitTestCase {
     func test_doc_fail_missing_target() {
         // Given
         let path = AbsolutePath("/.")
-        
+
         // When / Then
         XCTAssertThrowsSpecific(try subject.run(project: path, target: "CustomTarget", serve: false, port: 4040),
                                 DocService.Error.targetNotFound(name: "CustomTarget"))
@@ -63,7 +63,7 @@ final class TuistDocServiceTests: TuistUnitTestCase {
         swiftDocController.generateStub = { _, _, _, _, _ in }
 
         fileHandler.stubExists = { _ in false }
-                    
+
         // When / Then
         XCTAssertThrowsSpecific(try subject.run(project: path, target: targetName, serve: false, port: 4040),
                                 DocService.Error.documentationNotGenerated)
@@ -81,7 +81,7 @@ final class TuistDocServiceTests: TuistUnitTestCase {
 
         // When
         try subject.run(project: path, target: targetName, serve: false, port: 4040)
-        
+
         // Then
         XCTAssertPrinterContains(
             "You can find the documentation at",
@@ -99,7 +99,7 @@ final class TuistDocServiceTests: TuistUnitTestCase {
         fileHandler.stubExists = { _ in true }
         swiftDocController.generateStub = { _, _, _, _, _ in }
         swiftDocServer.stubError = SwiftDocServer.Error.unableToStartServer(at: 4040)
-        
+
         // When / Then
         XCTAssertThrowsSpecific(try subject.run(project: path, target: targetName, serve: true, port: 4040),
                                 SwiftDocServer.Error.unableToStartServer(at: 4040))

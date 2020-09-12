@@ -48,7 +48,7 @@ extension DocCommand {
                 return [.long]
             }
         }
-        
+
         var shouldServe: Bool { self == .localhost }
     }
 

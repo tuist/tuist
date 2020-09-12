@@ -1,8 +1,8 @@
+import Foundation
 import TSCBasic
 import TuistDoc
-@testable import TuistCore
 import TuistSupportTesting
-import Foundation
+@testable import TuistCore
 
 public final class MockSwiftDocController: SwiftDocControlling {
     public init() {}
@@ -12,7 +12,8 @@ public final class MockSwiftDocController: SwiftDocControlling {
                          moduleName: String,
                          baseURL: String,
                          outputDirectory: String,
-                         sourcesPaths: [AbsolutePath]) throws {
+                         sourcesPaths: [AbsolutePath]) throws
+    {
         guard let generateStub = generateStub else { throw NSError.test() }
         try generateStub(format, moduleName, baseURL, outputDirectory, sourcesPaths)
     }

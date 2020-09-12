@@ -1,13 +1,13 @@
 import Foundation
 import TSCBasic
+import TuistCoreTesting
 import TuistDoc
 import TuistDocTesting
 import TuistSupport
-import TuistCoreTesting
 import XCTest
 
-@testable import TuistSupportTesting
 @testable import TuistCore
+@testable import TuistSupportTesting
 
 final class SwiftDocControllerTests: TuistUnitTestCase {
     var subject: SwiftDocController!
@@ -17,28 +17,28 @@ final class SwiftDocControllerTests: TuistUnitTestCase {
     var baseURL: String!
     var outputDirectory: String!
     var sourcePaths: [AbsolutePath]!
-    
+
     override func setUp() {
         binaryLocator = MockBinaryLocator()
         subject = SwiftDocController(binaryLocator: binaryLocator)
-        
+
         super.setUp()
     }
-    
+
     override func tearDown() {
         super.tearDown()
         binaryLocator = nil
     }
-    
+
     func test_binary_not_found() {
-        //Given
+        // Given
         moduleName = "Module"
         baseURL = "./"
         outputDirectory = "./tmp"
         sourcePaths = [AbsolutePath("/.")]
-        
+
         binaryLocator.swiftDocPathStub = { throw BinaryLocatorError.swiftDocNotFound }
-        
+
         // Then
         XCTAssertThrowsSpecific(
             // When
@@ -50,16 +50,16 @@ final class SwiftDocControllerTests: TuistUnitTestCase {
             BinaryLocatorError.swiftDocNotFound
         )
     }
-    
+
     func test_parameters_swiftdoc_html() throws {
-        //Given
+        // Given
         moduleName = "Module"
         baseURL = "/"
         outputDirectory = "/tmp"
         sourcePaths = [AbsolutePath("/.")]
-        
-        binaryLocator.swiftDocPathStub = { return AbsolutePath("/path/to/swift-doc") }
-        
+
+        binaryLocator.swiftDocPathStub = { AbsolutePath("/path/to/swift-doc") }
+
         let arguments: [String] = [
             "/path/to/swift-doc",
             "generate",
@@ -71,7 +71,7 @@ final class SwiftDocControllerTests: TuistUnitTestCase {
             baseURL,
             "--output",
             outputDirectory,
-            "/"
+            "/",
         ]
         system.succeedCommand(arguments, output: nil)
 
@@ -82,16 +82,16 @@ final class SwiftDocControllerTests: TuistUnitTestCase {
                              outputDirectory: outputDirectory,
                              sourcesPaths: sourcePaths)
     }
-    
+
     func test_parameters_swiftdoc_commonmark() throws {
-        //Given
+        // Given
         moduleName = "Module"
         baseURL = "./"
         outputDirectory = "./tmp"
         sourcePaths = [AbsolutePath("/.")]
-        
-        binaryLocator.swiftDocPathStub = { return AbsolutePath("/path/to/swift-doc") }
-        
+
+        binaryLocator.swiftDocPathStub = { AbsolutePath("/path/to/swift-doc") }
+
         let arguments: [String] = [
             "/path/to/swift-doc",
             "generate",
@@ -103,10 +103,10 @@ final class SwiftDocControllerTests: TuistUnitTestCase {
             baseURL,
             "--output",
             outputDirectory,
-            "/"
+            "/",
         ]
         system.succeedCommand(arguments, output: nil)
-        
+
         // When
         try subject.generate(format: .commonmark,
                              moduleName: moduleName,

@@ -34,15 +34,14 @@ struct DocService {
     func run(project path: AbsolutePath, target targetName: String, serve: Bool, port: UInt16) throws {
         let (_, graph, _) = try projectGenerator.loadProject(path: path)
 
-
         let targets = graph.targets(at: path)
             .filter { !$0.dependsOnXCTest }
             .map { $0.target }
-        
-        guard let target = targets.first(where:  { $0.name == targetName }) else {
+
+        guard let target = targets.first(where: { $0.name == targetName }) else {
             throw DocService.Error.targetNotFound(name: targetName)
         }
-        
+
         let sources = target.sources.map(\.path)
 
         try withTemporaryDirectory { generationDirectory in
