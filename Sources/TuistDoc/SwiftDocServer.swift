@@ -110,7 +110,7 @@ public final class SwiftDocServer: SwiftDocServing {
 // MARK: - Error
 
 extension SwiftDocServer {
-    enum Error: FatalError {
+    enum Error: FatalError, Equatable {
         case unableToStartServer(at: UInt16)
 
         var description: String {

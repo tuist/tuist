@@ -33,10 +33,6 @@ struct DocCommand: ParsableCommand {
     }
 }
 
-extension DocCommand.Mode {
-    var shouldServe: Bool { self == .localhost }
-}
-
 // MARK: - Options
 
 extension DocCommand {
@@ -52,6 +48,8 @@ extension DocCommand {
                 return [.long]
             }
         }
+        
+        var shouldServe: Bool { self == .localhost }
     }
 
     struct Options: ParsableArguments {

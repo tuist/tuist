@@ -1,7 +1,6 @@
 import Foundation
 import TSCBasic
 import TuistCore
-import TuistDoc
 import TuistDocTesting
 import TuistSupport
 import XCTest
@@ -9,6 +8,7 @@ import XCTest
 @testable import TuistCoreTesting
 @testable import TuistKit
 @testable import TuistSupportTesting
+@testable import TuistDoc
 
 final class TuistDocServiceTests: TuistUnitTestCase {
     var subject: DocService!
@@ -46,43 +46,68 @@ final class TuistDocServiceTests: TuistUnitTestCase {
     }
 
     func test_doc_fail_missing_target() {
+        // Given
         let path = AbsolutePath("/.")
-        XCTAssertThrowsError(try subject.run(project: path, target: "CustomTarget", serve: false, port: 4040))
+        
+        // When / Then
+        XCTAssertThrowsSpecific(try subject.run(project: path, target: "CustomTarget", serve: false, port: 4040),
+                                DocService.Error.targetNotFound(name: "CustomTarget"))
     }
 
     func test_doc_fail_missing_file() {
+        // Given
+
         let targetName = "CustomTarget"
         let path = AbsolutePath("/.")
         mockGraph(targetName: targetName, atPath: path)
-        fileHandler.stubExists = { _ in false }
+        swiftDocController.generateStub = { _, _, _, _, _ in }
 
-        XCTAssertThrowsError(try subject.run(project: path, target: targetName, serve: false, port: 4040))
+        fileHandler.stubExists = { _ in false }
+                    
+        // When / Then
+        XCTAssertThrowsSpecific(try subject.run(project: path, target: targetName, serve: false, port: 4040),
+                                DocService.Error.documentationNotGenerated)
     }
 
-    func test_doc_success() {
+    func test_doc_success() throws {
+        // Given
+
         let targetName = "CustomTarget"
         let path = AbsolutePath("/.")
 
         mockGraph(targetName: targetName, atPath: path)
+        swiftDocController.generateStub = { _, _, _, _, _ in }
         fileHandler.stubExists = { _ in true }
 
-        try? subject.run(project: path, target: targetName, serve: false, port: 4040)
+        // When
+        try subject.run(project: path, target: targetName, serve: false, port: 4040)
+        
+        // Then
+        XCTAssertPrinterContains(
+            "You can find the documentation at",
+            at: .notice,
+            ==
+        )
     }
 
     func test_server_error() {
+        // Given
         let targetName = "CustomTarget"
         let path = AbsolutePath("/.")
 
         mockGraph(targetName: targetName, atPath: path)
         fileHandler.stubExists = { _ in true }
-
-        swiftDocServer.stubError = NSError.test()
-        XCTAssertThrowsError(try subject.run(project: path, target: targetName, serve: true, port: 4040))
+        swiftDocController.generateStub = { _, _, _, _, _ in }
+        swiftDocServer.stubError = SwiftDocServer.Error.unableToStartServer(at: 4040)
+        
+        // When / Then
+        XCTAssertThrowsSpecific(try subject.run(project: path, target: targetName, serve: true, port: 4040),
+                                SwiftDocServer.Error.unableToStartServer(at: 4040))
     }
 
-    private func mockGraph(targetName _: String, atPath path: AbsolutePath) {
+    private func mockGraph(targetName: String, atPath path: AbsolutePath) {
         let project = Project.test()
-        let target = Target.test(name: "CustomTarget")
+        let target = Target.test(name: targetName)
         let targetNode = TargetNode(project: project, target: target, dependencies: [])
         let graph = Graph.test(targets: [path: [targetNode]])
 
