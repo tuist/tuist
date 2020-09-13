@@ -133,12 +133,15 @@ class ProjectGenerator: ProjectGenerating {
         // Lint
         try lint(graph: graph)
 
+        let projectSchemes = graph.projects.flatMap(\.schemes)
+        let workspaceSchemes = graph.schemes.filter { !projectSchemes.contains($0) }
+
         // Generate
         let workspace = Workspace(
             path: path,
             name: project.name,
             projects: Array(graph.projects.map { $0.path }),
-            schemes: graph.schemes
+            schemes: workspaceSchemes
         )
         let workspaceDescriptor = try generator.generateWorkspace(workspace: workspace, graph: graph)
 

@@ -53,7 +53,7 @@ public class Graph: Encodable, Equatable {
 
     /// Dictionary whose keys are path to directories where projects are defined, and the values are target nodes defined in them.
     public let targets: [AbsolutePath: [TargetNode]]
-    
+
     /// Schemes of the graph
     public let schemes: [Scheme]
 
@@ -572,7 +572,7 @@ public class Graph: Encodable, Equatable {
             schemes: schemes
         )
     }
-    
+
     /// Returns a copy of the graph with the given schemes set.
     /// - Parameter schemes: Schemes to be set to the copy.
     public func with(schemes: [Scheme]) -> Graph {

@@ -260,8 +260,7 @@ final class BuildServiceTests: TuistUnitTestCase {
 
         // When
         try subject.testRun(
-            path: path,
-            listSchemes: true
+            path: path
         )
 
         // Then
