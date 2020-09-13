@@ -175,13 +175,15 @@ class InitService {
     }
 
     private func name(_ name: String?, path: AbsolutePath) throws -> String {
+        let initName: String
         if let name = name {
-            return name
+            initName = name
         } else if let name = path.components.last {
-            return name
+            initName = name
         } else {
             throw InitServiceError.ungettableProjectName(AbsolutePath.current)
         }
+        return initName.camelized.uppercasingFirst
     }
 
     private func path(_ path: String?) -> AbsolutePath {
