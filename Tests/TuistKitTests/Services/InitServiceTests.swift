@@ -53,14 +53,14 @@ final class InitServiceTests: TuistUnitTestCase {
         templatesDirectoryLocator.templateDirectoriesStub = { _ in
             [defaultTemplatePath]
         }
-        let expectedAttributes = ["name": "name", "platform": "macOS"]
+        let expectedAttributes = ["name": "Name", "platform": "macOS"]
         var generatorAttributes: [String: String] = [:]
         templateGenerator.generateStub = { _, _, attributes in
             generatorAttributes = attributes
         }
 
         // When
-        try subject.testRun(name: "name", platform: "macos")
+        try subject.testRun(name: "Name", platform: "macos")
 
         // Then
         XCTAssertEqual(expectedAttributes, generatorAttributes)
@@ -72,14 +72,14 @@ final class InitServiceTests: TuistUnitTestCase {
         templatesDirectoryLocator.templateDirectoriesStub = { _ in
             [defaultTemplatePath]
         }
-        let expectedAttributes = ["name": "name", "platform": "iOS"]
+        let expectedAttributes = ["name": "Name", "platform": "iOS"]
         var generatorAttributes: [String: String] = [:]
         templateGenerator.generateStub = { _, _, attributes in
             generatorAttributes = attributes
         }
 
         // When
-        try subject.testRun(name: "name")
+        try subject.testRun(name: "Name")
 
         // Then
         XCTAssertEqual(expectedAttributes, generatorAttributes)

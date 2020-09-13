@@ -22,4 +22,4 @@ import ProjectDescriptionHelpers
 // Creates our project using a helper function defined in ProjectDescriptionHelpers
 let project = Project.app(name: "{{ name }}",
                           platform: .{{ platform }},
-                          additionalTargets: ["{{name }}Kit", "{{name}}UI"])
+                          additionalTargets: ["{{name}}Kit", "{{name}}UI"])
