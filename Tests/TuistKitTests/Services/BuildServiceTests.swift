@@ -236,7 +236,7 @@ final class BuildServiceTests: TuistUnitTestCase {
         )
     }
 
-    func test_run_when_should_list_schemes() throws {
+    func test_run_lists_schemes() throws {
         // Given
         let path = try temporaryPath()
         let workspacePath = path.appending(component: "App.xcworkspace")
@@ -265,39 +265,7 @@ final class BuildServiceTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertPrinterContains("Found the following buildable schemes: A, B", at: .notice, ==)
-    }
-
-    func test_run_when_should_not_list_schemes() throws {
-        // Given
-        let path = try temporaryPath()
-        let workspacePath = path.appending(component: "App.xcworkspace")
-        let graph = Graph.test()
-        let schemeA = Scheme.test(name: "A")
-        let schemeB = Scheme.test(name: "B")
-        projectGenerator.loadStub = { _path in
-            XCTAssertEqual(_path, path)
-            return graph
-        }
-        buildgraphInspector.workspacePathStub = { _path in
-            XCTAssertEqual(_path, path)
-            return workspacePath
-        }
-        buildgraphInspector.buildableSchemesStub = { _ in
-            [
-                schemeA,
-                schemeB,
-            ]
-        }
-
-        // When
-        try subject.testRun(
-            path: path,
-            listSchemes: false
-        )
-
-        // Then
-        XCTAssertPrinterNotContains("Found the following buildable schemes: A, B", at: .notice, ==)
+        XCTAssertPrinterContains("Found the following buildable schemes: A, B", at: .debug, ==)
     }
 }
 
@@ -309,16 +277,14 @@ private extension BuildService {
         generate: Bool = false,
         clean: Bool = true,
         configuration: String? = nil,
-        path: AbsolutePath,
-        listSchemes: Bool = true
+        path: AbsolutePath
     ) throws {
         try run(
             schemeName: schemeName,
             generate: generate,
             clean: clean,
             configuration: configuration,
-            path: path,
-            listSchemes: listSchemes
+            path: path
         )
     }
 }

@@ -61,7 +61,6 @@ public class BuildGraphInspector: BuildGraphInspecting {
     }
 
     public func buildableSchemes(graph: Graph) -> [Scheme] {
-        // TODO: Test!
         graph.schemes
             .filter { $0.buildAction?.targets.isEmpty == false }
             .sorted(by: { $0.name < $1.name })

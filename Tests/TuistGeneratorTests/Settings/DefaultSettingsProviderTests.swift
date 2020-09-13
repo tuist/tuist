@@ -127,6 +127,23 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         subject = nil
     }
 
+    func testProjectSettings_whenExcludingEssentialDebug() throws {
+        // Given
+        let buildConfiguration: BuildConfiguration = .debug
+        let settings = Settings(base: [:],
+                                configurations: [buildConfiguration: nil],
+                                defaultSettings: .essential(excluding: ["CLANG_CXX_LIBRARY"]))
+        let project = Project.test(settings: settings)
+
+        // When
+        let got = try subject.projectSettings(project: project,
+                                              buildConfiguration: buildConfiguration)
+
+        // Then
+        XCTAssertNotEqual(got, projectEssentialDebugSettings)
+        XCTAssertNil(got["CLANG_CXX_LIBRARY"])
+    }
+
     func testProjectSettings_whenEssentialDebug() throws {
         // Given
         let buildConfiguration: BuildConfiguration = .debug

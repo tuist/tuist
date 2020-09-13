@@ -9,7 +9,7 @@ let project = Project(name: "App",
                                infoPlist: "Support/App-Info.plist",
                                sources: ["Sources/**"],
                                resources: [
-                                       /* Path to resouces can be defined here */
+                                       /* Path to resources can be defined here */
                                        // "Resources/**"
                                ],
                                dependencies: [

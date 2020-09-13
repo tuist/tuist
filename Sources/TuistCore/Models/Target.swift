@@ -219,6 +219,7 @@ public struct Target: Equatable, Hashable, Comparable {
             lhs.resources == rhs.resources &&
             lhs.headers == rhs.headers &&
             lhs.coreDataModels == rhs.coreDataModels &&
+            lhs.actions == rhs.actions &&
             lhs.dependencies == rhs.dependencies &&
             lhs.environment == rhs.environment
     }

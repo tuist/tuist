@@ -7,10 +7,14 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Added
 
 - Possibility to build schemes that are not part of any entry node [#1761](https://github.com/tuist/tuist/pull/1761) by [@fortmarek](htttps://github.com/fortmarek)
+- `tuist lint code` - command to lint the Swift code using Swiftlint [#1682](https://github.com/tuist/tuist/pull/1682) by [@laxmorek](https://github.com/laxmorek)
 
 ### Changed
 
+- **Breaking** Command for linting a workspace or a project has been renamed from `tuist lint` to `tuist lint project` [#1682](https://github.com/tuist/tuist/pull/1682) by [@laxmorek](https://github.com/laxmorek)
 - **Breaking** UpCarthage should perform bootstrap instead of update [#1744](https://github.com/tuist/tuist/pull/1744) by [@softmaxsg](https://github.com/softmaxsg)
+- Add excluding argument to `recommended`/`essential` `DefaultSettings` [#1746](https://github.com/tuist/tuist/pull/1739) by [@rist](https://github.com/rist).
+- Synthesize resource interface accessors [#1635](https://github.com/tuist/tuist/pull/1635) by [@fortmarek](https://github.com/fortmarek)
 
 ## 1.17.0 - Luft
 
@@ -46,7 +50,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Changed
 
 - `Target.dependsOnXCTest` returns true if the target is a test bundle [#1679](https://github.com/tuist/tuist/pull/1679) by [@pepibumur](https://github.com/pepibumur)
-- Support multiple rendering algorithms in Tuist Graph [#1655](<[1655](https://github.com/tuist/tuist/pull/1655/)>) by [@andreacipriani](https://github.com/andreacipriani)
+- Support multiple rendering algorithms in Tuist Graph [#1655](<[1655](https://github.com/tuist/tuist/pull/1655/)>) by [@andreacipriani][https://github.com/andreacipriani]
 
 ## 1.15.0 - Riga
 

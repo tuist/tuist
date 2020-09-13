@@ -55,8 +55,7 @@ struct BuildCommand: ParsableCommand {
             generate: generate,
             clean: clean,
             configuration: configuration,
-            path: absolutePath,
-            listSchemes: list
+            path: absolutePath
         )
     }
 }
