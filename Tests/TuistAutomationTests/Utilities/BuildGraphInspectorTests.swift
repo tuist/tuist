@@ -135,6 +135,10 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
             targets: [
                 projectPath: [kitTargetNode],
                 coreProjectPath: [coreTargetNode],
+            ],
+            schemes: [
+                coreScheme,
+                kitScheme,
             ]
         )
 
