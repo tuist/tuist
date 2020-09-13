@@ -83,7 +83,7 @@ public final class SwiftDocServer: SwiftDocServing {
         Signals.trap(signals: [.int, .abrt]) { _ in
             // swiftlint:disable:next force_try
             logger.pretty("Deleting temporary folder.")
-            try! SwiftDocServer.temporaryDirectory.map(FileHandler.shared.delete)
+            try? SwiftDocServer.temporaryDirectory.map(FileHandler.shared.delete)
             exit(0)
         }
 
