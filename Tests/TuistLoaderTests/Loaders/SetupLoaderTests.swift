@@ -32,10 +32,10 @@ final class SetupLoaderTests: TuistUnitTestCase {
     }
 
     override func tearDown() {
-        subject = nil
         upLinter = nil
         manifestLoader = nil
         setupLocator = nil
+        subject = nil
         super.tearDown()
     }
 
