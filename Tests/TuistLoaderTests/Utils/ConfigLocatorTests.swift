@@ -7,12 +7,12 @@ import XCTest
 @testable import TuistLoader
 @testable import TuistSupportTesting
 
-final class SetupLocatorTests: TuistUnitTestCase {
-    private var subject: SetupLocator!
+final class ConfigLocatorTests: TuistUnitTestCase {
+    private var subject: ConfigLocator!
     
     override func setUp() {
         super.setUp()
-        subject = SetupLocator()
+        subject = ConfigLocator()
     }
     
     override func tearDown() {
@@ -34,7 +34,7 @@ final class SetupLocatorTests: TuistUnitTestCase {
             
             "File01.swift",
             "File02.swift",
-            "Setup.swift",
+            "Tuist/Config.swift",
         ])
         
         // When
@@ -45,7 +45,7 @@ final class SetupLocatorTests: TuistUnitTestCase {
         XCTAssertEqual(paths.last, setupPath)
     }
     
-    func test_traversing_locate() throws {
+    func test_test_locate_traversing() throws {
         // Given
         let paths = try createFiles([
             "Module01/File01.swift",
@@ -59,7 +59,7 @@ final class SetupLocatorTests: TuistUnitTestCase {
             
             "File01.swift",
             "File02.swift",
-            "Setup.swift",
+            "Tuist/Config.swift",
         ])
         let locatingPath = paths[5] // "Module02/Subdir01/File01.swift"
         
@@ -71,7 +71,7 @@ final class SetupLocatorTests: TuistUnitTestCase {
         XCTAssertEqual(paths.last, setupPath)
     }
     
-    func test_locate_where_setup_not_exist() throws {
+    func test_locate_where_config_not_exist() throws {
         // Given
         _ = try createFiles([
             "Module01/File01.swift",
@@ -94,7 +94,7 @@ final class SetupLocatorTests: TuistUnitTestCase {
         XCTAssertNil(setupPath)
     }
     
-    func test_locate_traversing_where_setup_not_exist() throws {
+    func test_locate_traversing_where_config_not_exist() throws {
         // Given
         let paths = try createFiles([
             "Module01/File01.swift",
