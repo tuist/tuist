@@ -12,6 +12,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Add Workspace Mappers [#1767](https://github.com/tuist/tuist/pull/1767) by [@kwridan](https://github.com/kwridan)
 
+### Changed
+
+- The `tuist edit` command adds `Setup.swift` and `Config.swift` to the generated project if they exist.
+
 ## 1.18.1 - Manaslu
 
 ### Fixed
