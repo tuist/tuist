@@ -8,6 +8,7 @@ protocol ProjectEditorMapping: AnyObject {
              sourceRootPath: AbsolutePath,
              xcodeProjPath: AbsolutePath,
              setupPath: AbsolutePath?,
+             configPath: AbsolutePath?,
              manifests: [AbsolutePath],
              helpers: [AbsolutePath],
              templates: [AbsolutePath],
@@ -20,6 +21,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
              sourceRootPath: AbsolutePath,
              xcodeProjPath: AbsolutePath,
              setupPath: AbsolutePath?,
+             configPath: AbsolutePath?,
              manifests: [AbsolutePath],
              helpers: [AbsolutePath],
              templates: [AbsolutePath],
@@ -46,9 +48,9 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         if setupPath != nil {
             manifestsDependencies.append(.target(name: "Setup"))
         }
-//        if setupPath != nil {
-//            manifestsDependencies.append(.target(name: "Setup"))
-//        }
+        if configPath != nil {
+            manifestsDependencies.append(.target(name: "Config"))
+        }
 
         let manifestsTargets = named(manifests: manifests).map { name, manifest in
             Target(name: name,
@@ -77,8 +79,14 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         var setupTarget: Target?
         if let setupPath = setupPath {
             setupTarget = Target.editorHelperTarget(name: "Setup",
+                                                    targetSettings: targetSettings,
+                                                    sourcePaths: [setupPath])
+        }
+        var configTarget: Target?
+        if let configPath = configPath {
+            configTarget = Target.editorHelperTarget(name: "Config",
                                                      targetSettings: targetSettings,
-                                                     sourcePaths: [setupPath])
+                                                     sourcePaths: [configPath])
         }
 
         var targets: [Target] = []
@@ -86,6 +94,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         if let helpersTarget = helpersTarget { targets.append(helpersTarget) }
         if let templatesTarget = templatesTarget { targets.append(templatesTarget) }
         if let setupTarget = setupTarget { targets.append(setupTarget) }
+        if let configTarget = configTarget { targets.append(configTarget) }
 
         // Run Scheme
         let buildAction = BuildAction(targets: targets.map { TargetReference(projectPath: sourceRootPath, name: $0.name) })
@@ -121,7 +130,11 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             let setupNode = TargetNode(project: project, target: setupTarget, dependencies: [])
             dependencies.append(setupNode)
         }
-
+        if let configTarget = configTarget {
+            let configNode = TargetNode(project: project, target: configTarget, dependencies: [])
+            dependencies.append(configNode)
+        }
+        
         let manifestTargetNodes = manifestsTargets.map { TargetNode(project: project, target: $0, dependencies: dependencies) }
 
         let graph = Graph(name: "Manifests",

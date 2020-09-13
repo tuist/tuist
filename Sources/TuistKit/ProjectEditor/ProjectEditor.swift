@@ -120,6 +120,7 @@ final class ProjectEditor: ProjectEditing {
                                                            sourceRootPath: at,
                                                            xcodeProjPath: xcodeprojPath,
                                                            setupPath: setupPath,
+                                                           configPath: nil, // TODO: implement me
                                                            manifests: manifests.map { $0.1 },
                                                            helpers: helpers,
                                                            templates: templates,
