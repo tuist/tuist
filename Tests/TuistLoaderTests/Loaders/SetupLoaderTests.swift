@@ -54,7 +54,7 @@ final class SetupLoaderTests: TuistUnitTestCase {
         // when / then
         XCTAssertNoThrow(try subject.meet(at: projectPath))
 
-        XCTAssertEqual(receivedPaths, [setupPath.pathString])
+        XCTAssertEqual(receivedPaths, [projectPath.pathString])
         XCTAssertEqual(upLinter.lintCount, 0)
     }
 
