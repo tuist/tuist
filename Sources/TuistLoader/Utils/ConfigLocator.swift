@@ -11,14 +11,14 @@ public protocol ConfigLocating {
 
 public final class ConfigLocator: ConfigLocating {
     let rootDirectoryLocator: RootDirectoryLocating
-    
+
     public init(rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator()) {
         self.rootDirectoryLocator = rootDirectoryLocator
     }
-    
+
     public func locate(at path: AbsolutePath) -> AbsolutePath? {
         let manfiestPath = path.appending(components: Constants.tuistDirectoryName, Manifest.config.fileName(path))
-        
+
         if FileHandler.shared.exists(manfiestPath) {
             return manfiestPath
         } else if path != .root {

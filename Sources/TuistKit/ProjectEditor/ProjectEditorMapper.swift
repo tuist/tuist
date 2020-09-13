@@ -134,7 +134,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             let configNode = TargetNode(project: project, target: configTarget, dependencies: [])
             dependencies.append(configNode)
         }
-        
+
         let manifestTargetNodes = manifestsTargets.map { TargetNode(project: project, target: $0, dependencies: dependencies) }
 
         let graph = Graph(name: "Manifests",

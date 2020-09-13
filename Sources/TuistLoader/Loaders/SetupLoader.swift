@@ -35,7 +35,7 @@ public class SetupLoader: SetupLoading {
 
     /// Manifset loader instance to load the setup.
     private let manifestLoader: ManifestLoading
-    
+
     /// Locator for `Setup.swift` file
     private let setupLocator: SetupLocating
 
@@ -70,9 +70,9 @@ public class SetupLoader: SetupLoading {
     public func meet(at path: AbsolutePath) throws {
         guard let setupPath = setupLocator.locate(at: path) else { throw SetupLoaderError.setupNotFound(path) }
         logger.info("Setting up the environment defined in \(setupPath).pathString)")
-        
+
         let setupParentPath = setupPath.parentDirectory
-        
+
         let setup = try manifestLoader.loadSetup(at: setupParentPath)
         try setup.map { command in upLinter.lint(up: command) }
             .flatMap { $0 }

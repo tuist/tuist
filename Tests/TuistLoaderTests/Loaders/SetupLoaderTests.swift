@@ -44,7 +44,7 @@ final class SetupLoaderTests: TuistUnitTestCase {
         let projectPath = try temporaryPath()
         let setupPath = projectPath.appending(component: Manifest.setup.fileName(projectPath))
         setupLocator.stubbedLocateResult = setupPath
-        
+
         var receivedPaths = [String]()
         manifestLoader.loadSetupStub = { gotPath in
             receivedPaths.append(gotPath.pathString)

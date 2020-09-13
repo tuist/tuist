@@ -48,10 +48,10 @@ final class ProjectEditor: ProjectEditing {
 
     /// Utility to locate `Setup.swift` file.
     let setupLocator: SetupLocating
-    
+
     /// Utitily to locate `Config.swif` file
     let configLocator: ConfigLocating
-    
+
     /// Utility to locate Tuist's resources.
     let resourceLocator: ResourceLocating
 
