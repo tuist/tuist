@@ -29,7 +29,7 @@
     "gatsby-plugin-feed": "^2.5.11",
     "gatsby-plugin-google-analytics": "^2.3.13",
     "gatsby-plugin-manifest": "2.4.28",
-    "gatsby-plugin-mdx": "^1.2.38",
+    "gatsby-plugin-mdx": "^1.2.39",
     "gatsby-plugin-meta-redirect": "^1.1.1",
     "gatsby-plugin-netlify": "^2.3.14",
     "gatsby-plugin-next-seo": "^1.6.1",
