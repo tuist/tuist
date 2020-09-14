@@ -57,19 +57,21 @@ final class DocService {
     private let opener: Opening
     
     /// Semaphore to block the execution
-    private var semaphore: DispatchSemaphore?
+    private let semaphore: Semaphoring
 
     init(projectGenerator: ProjectGenerating = ProjectGenerator(),
          swiftDocController: SwiftDocControlling = SwiftDocController(),
          swiftDocServer: SwiftDocServing = SwiftDocServer(),
          fileHandler: FileHandling = FileHandler.shared,
-         opener: Opening = Opener())
+         opener: Opening = Opener(),
+         semaphore: Semaphoring = Semaphore())
     {
         self.projectGenerator = projectGenerator
         self.swiftDocController = swiftDocController
         self.swiftDocServer = swiftDocServer
         self.fileHandler = fileHandler
         self.opener = opener
+        self.semaphore = semaphore
     }
 
     func run(project path: AbsolutePath, target targetName: String) throws {
@@ -114,15 +116,27 @@ final class DocService {
                 exit(0)
             }
             
-            semaphore = DispatchSemaphore(value: 0)
             try swiftDocServer.serve(path: generationDirectory, port: port)
             
             let urlPath = baseURL.appendingPathComponent(indexName)
             logger.pretty("Opening the documentation. Press \(.keystroke("CTRL + C")) once you are done.")
             try opener.open(url: urlPath)
             
-            semaphore?.wait()
-            
+            semaphore.wait()
         }
+    }
+}
+
+// MARK - Semaphoring
+
+protocol Semaphoring {
+    func wait()
+}
+
+struct Semaphore: Semaphoring {
+    let semaphore = DispatchSemaphore(value: 0)
+    
+    func wait() {
+        semaphore.wait()
     }
 }

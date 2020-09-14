@@ -17,7 +17,8 @@ final class TuistDocServiceTests: TuistUnitTestCase {
     var swiftDocController: MockSwiftDocController!
     var opener: MockOpener!
     var swiftDocServer: MockSwiftDocServer!
-
+    var semaphore: MockSemaphore!
+    
     override func setUp() {
         super.setUp()
 
@@ -25,6 +26,7 @@ final class TuistDocServiceTests: TuistUnitTestCase {
         swiftDocController = MockSwiftDocController()
         opener = MockOpener()
         swiftDocServer = MockSwiftDocServer()
+        semaphore = MockSemaphore()
         MockSwiftDocServer.stubBaseURL = "http://tuist.io"
 
         fileHandler = MockFileHandler(temporaryDirectory: { try self.temporaryPath() })
@@ -32,7 +34,9 @@ final class TuistDocServiceTests: TuistUnitTestCase {
         subject = DocService(projectGenerator: projectGenerator,
                              swiftDocController: swiftDocController,
                              swiftDocServer: swiftDocServer,
-                             fileHandler: fileHandler)
+                             fileHandler: fileHandler,
+                             opener: opener,
+                             semaphore: semaphore)
     }
 
     override func tearDown() {
@@ -83,8 +87,10 @@ final class TuistDocServiceTests: TuistUnitTestCase {
         try subject.run(project: path, target: targetName)
 
         // Then
+        XCTAssertTrue(opener.openCallCount == 1)
+        XCTAssertTrue(semaphore.waitWasCalled)
         XCTAssertPrinterContains(
-            "You can find the documentation at",
+            "Opening the documentation. Press",
             at: .notice,
             ==
         )
@@ -114,5 +120,13 @@ final class TuistDocServiceTests: TuistUnitTestCase {
         projectGenerator.loadProjectStub = { _ in
             (Project.test(), graph, [])
         }
+    }
+}
+
+final class MockSemaphore: Semaphoring {
+    
+    var waitWasCalled: Bool = false
+    func wait() {
+        waitWasCalled = true
     }
 }

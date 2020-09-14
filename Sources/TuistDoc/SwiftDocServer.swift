@@ -52,7 +52,6 @@ public final class SwiftDocServer: SwiftDocServing {
 
     /// HTTPServer from Swifter
     private var server: HttpServer?
-    private static var temporaryDirectory: AbsolutePath?
 
     public init(fileHandling: FileHandling = FileHandler.shared)
     {
@@ -60,8 +59,6 @@ public final class SwiftDocServer: SwiftDocServing {
     }
 
     public func serve(path: AbsolutePath, port: UInt16) throws {
-        SwiftDocServer.temporaryDirectory = path
-
         server = HttpServer()
 
         server?["/:param"] = { [weak self] request in
