@@ -30,6 +30,9 @@ enum SwiftDocServerError: FatalError, Equatable {
 public protocol SwiftDocServing {
     /// Base url for the server
     static var baseURL: String { get }
+    
+    /// Name of the generated index page
+    static var indexName : String { get }
 
     /// Serves the documentation at a given path
     /// - Parameters:
@@ -42,27 +45,18 @@ public protocol SwiftDocServing {
 
 public final class SwiftDocServer: SwiftDocServing {
     public static let baseURL: String = "http://localhost"
-    private static let index = "index.html"
+    public static let indexName: String = "index.html"
     
-    private static var temporaryDirectory: AbsolutePath?
-
     /// Utility to manipulate files
     private let fileHandling: FileHandling
 
-    /// Utility to open files
-    private let opener: Opening
-
     /// HTTPServer from Swifter
     private var server: HttpServer?
+    private static var temporaryDirectory: AbsolutePath?
 
-    /// Semaphore to block the execution
-    private var semaphore: DispatchSemaphore?
-
-    public init(fileHandling: FileHandling = FileHandler.shared,
-                opener: Opening = Opener())
+    public init(fileHandling: FileHandling = FileHandler.shared)
     {
         self.fileHandling = fileHandling
-        self.opener = opener
     }
 
     public func serve(path: AbsolutePath, port: UInt16) throws {
@@ -74,29 +68,12 @@ public final class SwiftDocServer: SwiftDocServing {
             guard let self = self else { return .internalServerError }
             return self.handleRequest(request, atPath: path) }
 
-        Signals.trap(signals: [.int, .abrt]) { _ in
-            try? SwiftDocServer.temporaryDirectory.map(FileHandler.shared.delete)
-            exit(0)
-        }
-
         guard let serverURL = URL(string: SwiftDocServer.baseURL + ":\(port)") else {
             throw SwiftDocServerError.unableToStartServer(at: port)
         }
 
-        semaphore = DispatchSemaphore(value: 0)
-        do {
-            logger.pretty("Starting server at \(.bold(.raw(serverURL.absoluteString))).")
-            try server?.start(port, forceIPv4: true)
-
-            let urlPath = serverURL.appendingPathComponent(SwiftDocServer.index)
-            logger.pretty("Opening the documentation. Press \(.keystroke("CTRL + C")) once you are done.")
-            try opener.open(url: urlPath)
-
-            semaphore?.wait()
-        } catch let e {
-            semaphore?.signal()
-            throw e
-        }
+        logger.pretty("Starting server at \(.bold(.raw(serverURL.absoluteString))).")
+        try server?.start(port, forceIPv4: true)
     }
     
     private func okReponse(fileAt path: AbsolutePath) throws -> HttpResponse {
@@ -121,7 +98,7 @@ public final class SwiftDocServer: SwiftDocServing {
             if try filePath.pathString.directory() {
                 // this is how swift-doc generates it
                 let indexPath = filePath
-                    .appending(component: SwiftDocServer.index)
+                    .appending(component: SwiftDocServer.indexName)
                 return try okReponse(fileAt: indexPath)
             } else {
                 return try okReponse(fileAt: filePath)

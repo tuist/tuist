@@ -3,6 +3,9 @@ import TuistDoc
 @testable import TuistCore
 
 public final class MockSwiftDocServer: SwiftDocServing {
+    public static var stubIndexName: String!
+    public static var indexName: String { stubBaseURL }
+    
     public static var stubBaseURL: String!
     public static var baseURL: String { stubBaseURL }
 
