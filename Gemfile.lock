@@ -225,7 +225,7 @@ DEPENDENCIES
   rubocop (~> 0.90.0)
   simctl (~> 1.6)
   xcodeproj (~> 1.18)
-  zip
+  zip (~> 2.0.2)
 
 BUNDLED WITH
    2.1.2
