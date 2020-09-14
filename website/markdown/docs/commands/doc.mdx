@@ -5,27 +5,10 @@ excerpt: 'Learn how to generate documentation for your Xcode projects.'
 
 # Generate documentation
 
-Leveraging on [swift-doc](https://github.com/SwiftDocOrg/swift-doc), we facilitate a convenient way to generate documentation for your Xcode projects. It is as simple as running:
+When working in modular codebases, it might be useful to check out the documentation of the public API of a given module. For that reason, Tuist provides a command, tuist doc, that given a target, it generates its documentation and opens it on the browser. Under the hood, it uses [swift-doc](https://github.com/SwiftDocOrg/swift-doc).
 
 ```bash
 tuist doc --path /path/to/Project.swift MyApp
-```
-
-## Modes
-
-### localhost
-Tuist generates an html website that you can navigate with your browser.
-
-```bash
-tuist doc --path /path/to/Project.swift MyApp --localhost
-```
-
-### files-only
-Tuist generates markdown documentation in a temporary directory.
-
-
-```bash
-tuist doc --path /path/to/Project.swift MyApp --files-only
 ```
 
 ## Arguments
@@ -36,10 +19,6 @@ tuist doc --path /path/to/Project.swift MyApp --files-only
       long: '`--path`',
       short: '`-p`',
       description: "Path to the project's directory where the Project.swift is located."
-    },
-    {
-      long: '`--port`',
-      description: "The port to use while serving the website. Only valid for *localhost* mode."
-    },
+    }
   ]}
 />
