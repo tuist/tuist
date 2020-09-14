@@ -4,10 +4,10 @@ import TuistCore
 
 extension GraphViz.Node {
     mutating func applyAttributes(attributes: NodeStyleAttributes?) {
-        self.fillColor = attributes?.fillColor
-        self.textColor = attributes?.textColor
-        self.strokeWidth = attributes?.strokeWidth
-        self.shape = attributes?.shape
+        fillColor = attributes?.fillColor
+        textColor = attributes?.textColor
+        strokeWidth = attributes?.strokeWidth
+        shape = attributes?.shape
     }
 }
 
@@ -20,9 +20,10 @@ struct NodeStyleAttributes {
     init(fillColorName: GraphViz.Color.Name? = nil,
          textColorName: GraphViz.Color.Name? = nil,
          strokeWidth: Double? = nil,
-         shape: GraphViz.Node.Shape? = nil) {
-        self.fillColor = fillColorName.map { GraphViz.Color.named($0) }
-        self.textColor = textColorName.map { GraphViz.Color.named($0) }
+         shape: GraphViz.Node.Shape? = nil)
+    {
+        fillColor = fillColorName.map { GraphViz.Color.named($0) }
+        textColor = textColorName.map { GraphViz.Color.named($0) }
         self.strokeWidth = strokeWidth
         self.shape = shape
     }
@@ -80,4 +81,3 @@ extension GraphNode {
         return nil
     }
 }
-
