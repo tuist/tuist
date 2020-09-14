@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+SWIFTDOC_VERSION = "1.0.0-beta.4".freeze
+
 require 'rubygems'
 require 'cucumber'
 require 'cucumber/rake/task'
@@ -19,15 +21,14 @@ end
 
 desc("Updates swift-doc binary with the latest version available.")
 task :swift_doc_update do
-  version = "1.0.0-beta.4"
-  system("curl", "-LO", "https://github.com/SwiftDocOrg/swift-doc/archive/#{version}.zip")
-  extract_zip("#{version}.zip", "swift-doc")
-  Dir.chdir("swift-doc/swift-doc-#{version}") do
+  system("curl", "-LO", "https://github.com/SwiftDocOrg/swift-doc/archive/#{SWIFTDOC_VERSION}.zip")
+  extract_zip("#{SWIFTDOC_VERSION}.zip", "swift-doc")
+  Dir.chdir("swift-doc/swift-doc-#{SWIFTDOC_VERSION}") do
     system("make", "swift-doc")
   end
-  system("cp", "swift-doc/swift-doc-#{version}/.build/release/swift-doc", "vendor/swift-doc")
+  system("cp", "swift-doc/swift-doc-#{SWIFTDOC_VERSION}/.build/release/swift-doc", "vendor/swift-doc")
   system("rm", "-rf", "swift-doc")
-  system("rm", "#{version}.zip")
+  system("rm", "#{SWIFTDOC_VERSION}.zip")
 end
 
 desc("Formats the code style")
