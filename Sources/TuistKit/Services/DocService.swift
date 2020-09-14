@@ -6,7 +6,7 @@ import TuistCore
 import TuistDoc
 import TuistSupport
 
-// MARK: - Error
+// MARK: - DocServiceError
 
 enum DocServiceError: FatalError, Equatable {
     case targetNotFound(name: String)
