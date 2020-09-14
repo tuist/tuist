@@ -10,14 +10,14 @@ public protocol GraphVizGenerating {
     /// - Parameter path: Path to the folder that contains the project.
     /// - Returns: Dot graph representation.
     /// - Throws: An error if the project can't be loaded.
-    func generateProject(at path: AbsolutePath, skipTestTargets: Bool, skipExternalDependencies: Bool, disableStyling: Bool) throws -> GraphViz.Graph
+    func generateProject(at path: AbsolutePath, skipTestTargets: Bool, skipExternalDependencies: Bool) throws -> GraphViz.Graph
 
     /// Generates the dot graph from the workspace in the current directory and returns it.
     ///
     /// - Parameter path: Path to the folder that contains the workspace.
     /// - Returns: Dot graph representation.
     /// - Throws: An error if the workspace can't be loaded.
-    func generateWorkspace(at path: AbsolutePath, skipTestTargets: Bool, skipExternalDependencies: Bool, disableStyling: Bool) throws -> GraphViz.Graph
+    func generateWorkspace(at path: AbsolutePath, skipTestTargets: Bool, skipExternalDependencies: Bool) throws -> GraphViz.Graph
 }
 
 public final class GraphVizGenerator: GraphVizGenerating {
@@ -53,9 +53,9 @@ public final class GraphVizGenerator: GraphVizGenerating {
     /// - Parameter path: Path to the folder that contains the project.
     /// - Returns: GraphViz graph representation.
     /// - Throws: An error if the project can't be loaded.
-    public func generateProject(at path: AbsolutePath, skipTestTargets: Bool, skipExternalDependencies: Bool, disableStyling: Bool) throws -> GraphViz.Graph {
+    public func generateProject(at path: AbsolutePath, skipTestTargets: Bool, skipExternalDependencies: Bool) throws -> GraphViz.Graph {
         let (graph, _) = try graphLoader.loadProject(path: path)
-        return graphToGraphVizMapper.map(graph: graph, skipTestTargets: skipTestTargets, skipExternalDependencies: skipExternalDependencies, disableStyling: disableStyling)
+        return graphToGraphVizMapper.map(graph: graph, skipTestTargets: skipTestTargets, skipExternalDependencies: skipExternalDependencies)
     }
 
     /// Generates the dot graph from the workspace in the current directory and returns it.
@@ -63,8 +63,8 @@ public final class GraphVizGenerator: GraphVizGenerating {
     /// - Parameter path: Path to the folder that contains the workspace.
     /// - Returns: Dot graph representation.
     /// - Throws: An error if the workspace can't be loaded.
-    public func generateWorkspace(at path: AbsolutePath, skipTestTargets: Bool, skipExternalDependencies: Bool, disableStyling: Bool) throws -> GraphViz.Graph {
+    public func generateWorkspace(at path: AbsolutePath, skipTestTargets: Bool, skipExternalDependencies: Bool) throws -> GraphViz.Graph {
         let (graph, _) = try graphLoader.loadWorkspace(path: path)
-        return graphToGraphVizMapper.map(graph: graph, skipTestTargets: skipTestTargets, skipExternalDependencies: skipExternalDependencies, disableStyling: disableStyling)
+        return graphToGraphVizMapper.map(graph: graph, skipTestTargets: skipTestTargets, skipExternalDependencies: skipExternalDependencies)
     }
 }

@@ -38,7 +38,7 @@ final class GraphToGraphVizMapperTests: XCTestCase {
                                targets: [project.path: [core, iOSApp, watchApp]])
 
         // When
-        let got = subject.map(graph: graph, skipTestTargets: false, skipExternalDependencies: false, disableStyling: false)
+        let got = subject.map(graph: graph, skipTestTargets: false, skipExternalDependencies: false)
         let expected = makeExpectedGraphViz()
         let gotNodeIds = got.nodes.map { $0.id }.sorted()
         let expectedNodeIds = expected.nodes.map { $0.id }.sorted()
@@ -67,7 +67,7 @@ final class GraphToGraphVizMapperTests: XCTestCase {
                                targets: [project.path: [core, iOSApp, watchApp]])
 
         // When
-        let got = subject.map(graph: graph, skipTestTargets: false, skipExternalDependencies: true, disableStyling: false)
+        let got = subject.map(graph: graph, skipTestTargets: false, skipExternalDependencies: true)
         let expected = makeExpectedGraphViz(includeExternalDependencies: false)
         let gotNodeIds = got.nodes.map { $0.id }.sorted()
         let expectedNodeIds = expected.nodes.map { $0.id }.sorted()
