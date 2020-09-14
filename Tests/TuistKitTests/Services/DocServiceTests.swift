@@ -101,7 +101,7 @@ final class TuistDocServiceTests: TuistUnitTestCase {
         swiftDocServer.stubError = SwiftDocServerError.unableToStartServer(at: 4040)
 
         // When / Then
-        XCTAssertThrowsSpecific(try subject.run(project: path, target: targetName),
+        XCTAssertThrowsSpecific(try subject.run(project: path, target: targetNameg),
                                 SwiftDocServerError.unableToStartServer(at: 4040))
     }
 
