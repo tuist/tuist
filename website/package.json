@@ -79,7 +79,7 @@
     "semantic-ui-react": "^1.2.1",
     "slug": "^3.3.4",
     "theme-ui": "^0.3.1",
-    "twin.macro": "^1.8.1",
+    "twin.macro": "^1.9.0",
     "url-join": "^4.0.1"
   },
   "keywords": [
