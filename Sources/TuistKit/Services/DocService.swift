@@ -23,7 +23,7 @@ struct DocService {
     init(projectGenerator: ProjectGenerating = ProjectGenerator(),
          swiftDocController: SwiftDocControlling = SwiftDocController(),
          swiftDocServer: SwiftDocServing = SwiftDocServer(),
-         fileHandler: FileHandling = FileHandler())
+         fileHandler: FileHandling = FileHandler.shared)
     {
         self.projectGenerator = projectGenerator
         self.swiftDocController = swiftDocController

@@ -1,8 +1,8 @@
 import Foundation
 import TSCBasic
-import TuistSupport
 import XCTest
 
+@testable import TuistSupport
 @testable import TuistLoader
 @testable import TuistSupportTesting
 

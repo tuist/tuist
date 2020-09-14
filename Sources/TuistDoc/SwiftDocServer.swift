@@ -58,7 +58,7 @@ public final class SwiftDocServer: SwiftDocServing {
 
     public let baseURL: String = "http://localhost"
 
-    public init(fileHandling: FileHandling = FileHandler(),
+    public init(fileHandling: FileHandling = FileHandler.shared,
                 opener: Opening = Opener())
     {
         self.fileHandling = fileHandling
@@ -111,7 +111,9 @@ public final class SwiftDocServer: SwiftDocServing {
             exit(0)
         }
 
-        guard let serverURL = URL(string: baseURL + ":\(port)") else { throw Error.unableToStartServer(at: port) }
+        guard let serverURL = URL(string: baseURL + ":\(port)") else {
+            throw SwiftDocServerError.unableToStartServer(at: port)
+        }
 
         semaphore = DispatchSemaphore(value: 0)
         do {
@@ -126,7 +128,7 @@ public final class SwiftDocServer: SwiftDocServing {
         } catch {
             logger.error("Server start error: \(error)")
             semaphore?.signal()
-            throw Error.unableToStartServer(at: port)
+            throw SwiftDocServerError.unableToStartServer(at: port)
         }
     }
 }
