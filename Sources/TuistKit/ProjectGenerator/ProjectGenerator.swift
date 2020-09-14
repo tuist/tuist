@@ -212,7 +212,7 @@ class ProjectGenerator: ProjectGenerating {
         // Convert to models
         let projects = try convert(manifests: manifests)
         let workspaceName = manifests.projects[path]?.name ?? "Workspace"
-        let workspace = Workspace(path: path, name: workspaceName, projects: projects.map(\.path))
+        let workspace = Workspace(path: path, name: workspaceName, projects: [])
         let models = (workspace: workspace, projects: projects)
 
         // Apply any registered model mappers
@@ -225,12 +225,12 @@ class ProjectGenerator: ProjectGenerating {
         let cachedModelLoader = CachedModelLoader(projects: updatedModels.projects)
         let cachedGraphLoader = GraphLoader(modelLoader: cachedModelLoader)
         let (graph, project) = try cachedGraphLoader.loadProject(path: path)
-        let updatedWorkspace = updatedModels
-            .workspace
-            .merging(projects: graph.projects.map { $0.path })
 
         // Apply graph mappers
         let (updatedGraph, graphMapperSideEffects) = try graphMapperProvider.mapper(config: config).map(graph: graph)
+        let updatedWorkspace = updatedModels
+            .workspace
+            .merging(projects: updatedGraph.projects.map { $0.path })
 
         return (updatedWorkspace, project, updatedGraph, modelMapperSideEffects + graphMapperSideEffects)
     }
@@ -261,11 +261,11 @@ class ProjectGenerator: ProjectGenerating {
         let cachedModelLoader = CachedModelLoader(workspace: [updatedModels.workspace], projects: updatedModels.projects)
         let cachedGraphLoader = GraphLoader(modelLoader: cachedModelLoader)
         let (graph, workspace) = try cachedGraphLoader.loadWorkspace(path: path)
-        let updatedWorkspace = workspace
-            .merging(projects: graph.projects.map { $0.path })
 
         // Apply graph mappers
         let (updatedGraph, graphMapperSideEffects) = try graphMapperProvider.mapper(config: config).map(graph: graph)
+        let updatedWorkspace = workspace
+            .merging(projects: updatedGraph.projects.map { $0.path })
 
         return (updatedWorkspace, updatedGraph, modelMapperSideEffects + graphMapperSideEffects)
     }
