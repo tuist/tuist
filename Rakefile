@@ -32,6 +32,7 @@ task :swift_doc_update do
       system("cp", "swift-doc/swift-doc-#{SWIFTDOC_VERSION}/.build/release/swift-doc", "#{root_dir}/vendor/swift-doc")
     end
   end
+  system("rm .swift-doc.version && echo \"#{SWIFTDOC_VERSION}\" >> .swift-doc.version")
 end
 
 desc("Formats the code style")
