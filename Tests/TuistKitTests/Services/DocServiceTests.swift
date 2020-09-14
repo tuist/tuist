@@ -25,7 +25,7 @@ final class TuistDocServiceTests: TuistUnitTestCase {
         swiftDocController = MockSwiftDocController()
         opener = MockOpener()
         swiftDocServer = MockSwiftDocServer()
-        swiftDocServer.stubBaseURL = "http://tuist.io"
+        MockSwiftDocServer.stubBaseURL = "http://tuist.io"
 
         fileHandler = MockFileHandler(temporaryDirectory: { try self.temporaryPath() })
 

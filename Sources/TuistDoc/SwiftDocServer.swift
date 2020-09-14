@@ -29,7 +29,7 @@ enum SwiftDocServerError: FatalError, Equatable {
 
 public protocol SwiftDocServing {
     /// Base url for the server
-    var baseURL: String { get }
+    static var baseURL: String { get }
 
     /// Serves the documentation at a given path
     /// - Parameters:
@@ -41,7 +41,9 @@ public protocol SwiftDocServing {
 // MARK: - SwiftDocServer
 
 public final class SwiftDocServer: SwiftDocServing {
+    public static let baseURL: String = "http://localhost"
     private static let index = "index.html"
+    
     private static var temporaryDirectory: AbsolutePath?
 
     /// Utility to manipulate files
@@ -56,8 +58,6 @@ public final class SwiftDocServer: SwiftDocServing {
     /// Semaphore to block the execution
     private var semaphore: DispatchSemaphore?
 
-    public let baseURL: String = "http://localhost"
-
     public init(fileHandling: FileHandling = FileHandler.shared,
                 opener: Opening = Opener())
     {
@@ -68,41 +68,11 @@ public final class SwiftDocServer: SwiftDocServing {
     public func serve(path: AbsolutePath, port: UInt16) throws {
         SwiftDocServer.temporaryDirectory = path
 
-        func okReponse(fileAt path: AbsolutePath) throws -> HttpResponse {
-            guard let file = try? path.pathString.openForReading() else {
-                return .notFound
-            }
-            return .raw(200, "OK", [:]) { writer in
-                try? writer.write(file)
-                file.close()
-            }
-        }
-
-        func handleRequest(_ request: HttpRequest) -> HttpResponse {
-            guard let (_, value) = request.params.first else {
-                return .notFound
-            }
-
-            let filePath = path.appending(component: value)
-            guard fileHandling.exists(filePath) else { return .notFound }
-
-            do {
-                if try filePath.pathString.directory() {
-                    // this is how swift-doc generates it
-                    let indexPath = filePath
-                        .appending(component: SwiftDocServer.index)
-                    return try okReponse(fileAt: indexPath)
-                } else {
-                    return try okReponse(fileAt: filePath)
-                }
-            } catch {
-                return .internalServerError
-            }
-        }
-
         server = HttpServer()
 
-        server?["/:param"] = handleRequest
+        server?["/:param"] = { [weak self] request in
+            guard let self = self else { return .internalServerError }
+            return self.handleRequest(request, atPath: path) }
 
         Signals.trap(signals: [.int, .abrt]) { _ in
             // swiftlint:disable:next force_try
@@ -111,7 +81,7 @@ public final class SwiftDocServer: SwiftDocServing {
             exit(0)
         }
 
-        guard let serverURL = URL(string: baseURL + ":\(port)") else {
+        guard let serverURL = URL(string: SwiftDocServer.baseURL + ":\(port)") else {
             throw SwiftDocServerError.unableToStartServer(at: port)
         }
 
@@ -129,6 +99,38 @@ public final class SwiftDocServer: SwiftDocServing {
             logger.error("Server start error: \(error)")
             semaphore?.signal()
             throw SwiftDocServerError.unableToStartServer(at: port)
+        }
+    }
+    
+    private func okReponse(fileAt path: AbsolutePath) throws -> HttpResponse {
+        guard let file = try? path.pathString.openForReading() else {
+            return .notFound
+        }
+        return .raw(200, "OK", [:]) { writer in
+            try? writer.write(file)
+            file.close()
+        }
+    }
+    
+    private func handleRequest(_ request: HttpRequest, atPath path: AbsolutePath) -> HttpResponse {
+        guard let (_, value) = request.params.first else {
+            return .notFound
+        }
+        
+        let filePath = path.appending(component: value)
+        guard fileHandling.exists(filePath) else { return .notFound }
+        
+        do {
+            if try filePath.pathString.directory() {
+                // this is how swift-doc generates it
+                let indexPath = filePath
+                    .appending(component: SwiftDocServer.index)
+                return try okReponse(fileAt: indexPath)
+            } else {
+                return try okReponse(fileAt: filePath)
+            }
+        } catch {
+            return .internalServerError
         }
     }
 }

@@ -3,8 +3,8 @@ import TuistDoc
 @testable import TuistCore
 
 public final class MockSwiftDocServer: SwiftDocServing {
-    public var stubBaseURL: String!
-    public var baseURL: String { stubBaseURL }
+    public static var stubBaseURL: String!
+    public static var baseURL: String { stubBaseURL }
 
     public var stubError: Error?
 

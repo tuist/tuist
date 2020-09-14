@@ -86,7 +86,7 @@ struct DocService {
             let indexPath = generationDirectory.appending(component: parameters.indexName)
 
             guard fileHandler.exists(indexPath) else {
-                throw Error.documentationNotGenerated
+                throw DocServiceError.documentationNotGenerated
             }
 
             if serve {
@@ -114,7 +114,7 @@ extension DocService {
             if serve {
                 format = .html
                 indexName = "index.html"
-                baseURL = swiftDocServer.baseURL.appending(":\(port)")
+                baseURL = type(of: swiftDocServer).baseURL.appending(":\(port)")
             } else {
                 format = .commonmark
                 indexName = "Home.md"
