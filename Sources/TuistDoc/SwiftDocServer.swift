@@ -93,9 +93,9 @@ public final class SwiftDocServer: SwiftDocServing {
             try opener.open(url: urlPath)
 
             semaphore?.wait()
-        } catch {
+        } catch let e {
             semaphore?.signal()
-            throw SwiftDocServerError.unableToStartServer(at: port)
+            throw e
         }
     }
     
