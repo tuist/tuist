@@ -6,6 +6,31 @@ import TuistCore
 import TuistDoc
 import TuistSupport
 
+// MARK: - Error
+
+enum DocServiceError: FatalError, Equatable {
+    case targetNotFound(name: String)
+    case documentationNotGenerated
+    
+    var description: String {
+        switch self {
+        case let .targetNotFound(name):
+            return "The target \(name) is not visible in the current project."
+        case .documentationNotGenerated:
+            return "The documentation was not generated. Problably the provided target does not have public symbols."
+        }
+    }
+    
+    var type: ErrorType {
+        switch self {
+        case .targetNotFound:
+            return .abort
+        case .documentationNotGenerated:
+            return .abort
+        }
+    }
+}
+
 // MARK: - DocServicing
 
 protocol DocServicing {
@@ -39,7 +64,7 @@ struct DocService {
             .map { $0.target }
 
         guard let target = targets.first(where: { $0.name == targetName }) else {
-            throw DocService.Error.targetNotFound(name: targetName)
+            throw DocServiceError.targetNotFound(name: targetName)
         }
 
         let sources = target.sources.map(\.path)
@@ -94,33 +119,6 @@ extension DocService {
                 format = .commonmark
                 indexName = "Home.md"
                 baseURL = generationDirectory
-            }
-        }
-    }
-}
-
-// MARK: - Error
-
-extension DocService {
-    enum Error: FatalError, Equatable {
-        case targetNotFound(name: String)
-        case documentationNotGenerated
-
-        var description: String {
-            switch self {
-            case let .targetNotFound(name):
-                return "The target \(name) is not visible in the current project."
-            case .documentationNotGenerated:
-                return "The documentation was not generated. Problably the provided target does not have public symbols."
-            }
-        }
-
-        var type: ErrorType {
-            switch self {
-            case .targetNotFound:
-                return .abort
-            case .documentationNotGenerated:
-                return .abort
             }
         }
     }

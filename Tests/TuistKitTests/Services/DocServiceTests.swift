@@ -51,7 +51,7 @@ final class TuistDocServiceTests: TuistUnitTestCase {
 
         // When / Then
         XCTAssertThrowsSpecific(try subject.run(project: path, target: "CustomTarget", serve: false, port: 4040),
-                                DocService.Error.targetNotFound(name: "CustomTarget"))
+                                DocServiceError.targetNotFound(name: "CustomTarget"))
     }
 
     func test_doc_fail_missing_file() {
@@ -66,7 +66,7 @@ final class TuistDocServiceTests: TuistUnitTestCase {
 
         // When / Then
         XCTAssertThrowsSpecific(try subject.run(project: path, target: targetName, serve: false, port: 4040),
-                                DocService.Error.documentationNotGenerated)
+                                DocServiceError.documentationNotGenerated)
     }
 
     func test_doc_success() throws {
