@@ -21,14 +21,17 @@ end
 
 desc("Updates swift-doc binary with the latest version available.")
 task :swift_doc_update do
-  system("curl", "-LO", "https://github.com/SwiftDocOrg/swift-doc/archive/#{SWIFTDOC_VERSION}.zip")
-  extract_zip("#{SWIFTDOC_VERSION}.zip", "swift-doc")
-  Dir.chdir("swift-doc/swift-doc-#{SWIFTDOC_VERSION}") do
-    system("make", "swift-doc")
+  root_dir = Dir.pwd.strip
+  Dir.mktmpdir do |temporary_dir|
+    Dir.chdir(temporary_dir) do
+      system("curl", "-LO", "https://github.com/SwiftDocOrg/swift-doc/archive/#{SWIFTDOC_VERSION}.zip")
+      extract_zip("#{SWIFTDOC_VERSION}.zip", "swift-doc")
+      Dir.chdir("swift-doc/swift-doc-#{SWIFTDOC_VERSION}") do
+        system("make", "swift-doc")
+      end
+      system("cp", "swift-doc/swift-doc-#{SWIFTDOC_VERSION}/.build/release/swift-doc", "#{root_dir}/vendor/swift-doc")
+    end
   end
-  system("cp", "swift-doc/swift-doc-#{SWIFTDOC_VERSION}/.build/release/swift-doc", "vendor/swift-doc")
-  system("rm", "-rf", "swift-doc")
-  system("rm", "#{SWIFTDOC_VERSION}.zip")
 end
 
 desc("Formats the code style")
