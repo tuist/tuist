@@ -5,6 +5,28 @@ import Swifter
 import TSCBasic
 import TuistSupport
 
+// MARK: - SwiftDocServerError
+
+enum SwiftDocServerError: FatalError, Equatable {
+    case unableToStartServer(at: UInt16)
+    
+    var description: String {
+        switch self {
+        case let .unableToStartServer(port):
+            return "We were unable to start the server at port \(port)."
+        }
+    }
+    
+    var type: ErrorType {
+        switch self {
+        case .unableToStartServer:
+            return .abort
+        }
+    }
+}
+
+// MARK: - SwiftDocServing
+
 public protocol SwiftDocServing {
     /// Base url for the server
     var baseURL: String { get }
@@ -15,6 +37,8 @@ public protocol SwiftDocServing {
     ///   - port: Port to use for hosting the website
     func serve(path: AbsolutePath, port: UInt16) throws
 }
+
+// MARK: - SwiftDocServer
 
 public final class SwiftDocServer: SwiftDocServing {
     private static let index = "index.html"
@@ -103,28 +127,6 @@ public final class SwiftDocServer: SwiftDocServing {
             logger.error("Server start error: \(error)")
             semaphore?.signal()
             throw Error.unableToStartServer(at: port)
-        }
-    }
-}
-
-// MARK: - Error
-
-extension SwiftDocServer {
-    enum Error: FatalError, Equatable {
-        case unableToStartServer(at: UInt16)
-
-        var description: String {
-            switch self {
-            case let .unableToStartServer(port):
-                return "We were unable to start the server at port \(port)."
-            }
-        }
-
-        var type: ErrorType {
-            switch self {
-            case .unableToStartServer:
-                return .abort
-            }
         }
     }
 }

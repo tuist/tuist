@@ -98,11 +98,11 @@ final class TuistDocServiceTests: TuistUnitTestCase {
         mockGraph(targetName: targetName, atPath: path)
         fileHandler.stubExists = { _ in true }
         swiftDocController.generateStub = { _, _, _, _, _ in }
-        swiftDocServer.stubError = SwiftDocServer.Error.unableToStartServer(at: 4040)
+        swiftDocServer.stubError = SwiftDocServerError.unableToStartServer(at: 4040)
 
         // When / Then
         XCTAssertThrowsSpecific(try subject.run(project: path, target: targetName, serve: true, port: 4040),
-                                SwiftDocServer.Error.unableToStartServer(at: 4040))
+                                SwiftDocServerError.unableToStartServer(at: 4040))
     }
 
     private func mockGraph(targetName: String, atPath path: AbsolutePath) {
