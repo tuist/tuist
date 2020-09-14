@@ -23,7 +23,7 @@ enum DocServiceError: FatalError, Equatable {
             return "\(url):\(port) is not a valid URL"
         }
     }
-    
+
     var type: ErrorType {
         switch self {
         case .targetNotFound:
@@ -50,12 +50,12 @@ final class DocService {
     private let projectGenerator: ProjectGenerating
     private let swiftDocController: SwiftDocControlling
     private let swiftDocServer: SwiftDocServing
-    
+
     /// Utility to work with files
     private let fileHandler: FileHandling
     /// Utility to open files
     private let opener: Opening
-    
+
     /// Semaphore to block the execution
     private let semaphore: Semaphoring
 
@@ -89,14 +89,14 @@ final class DocService {
         let format: SwiftDocFormat = .html
         let indexName = "index.html"
         let port: UInt16 = 4040
-        
+
         guard let baseURL = URL(string: type(of: swiftDocServer).baseURL.appending(":\(port)")) else {
             throw DocServiceError.invalidHostURL(urlString: type(of: swiftDocServer).baseURL, port: port)
         }
-        
+
         try withTemporaryDirectory { generationDirectory in
             DocService.temporaryDirectory = generationDirectory
-                
+
             try swiftDocController.generate(
                 format: format,
                 moduleName: targetName,
@@ -110,24 +110,24 @@ final class DocService {
             guard fileHandler.exists(indexPath) else {
                 throw DocServiceError.documentationNotGenerated
             }
-            
+
             Signals.trap(signals: [.int, .abrt]) { _ in
                 try? DocService.temporaryDirectory.map(FileHandler.shared.delete)
                 exit(0)
             }
-            
+
             try swiftDocServer.serve(path: generationDirectory, port: port)
-            
+
             let urlPath = baseURL.appendingPathComponent(indexName)
             logger.pretty("Opening the documentation. Press \(.keystroke("CTRL + C")) once you are done.")
             try opener.open(url: urlPath)
-            
+
             semaphore.wait()
         }
     }
 }
 
-// MARK - Semaphoring
+// MARK: - Semaphoring
 
 protocol Semaphoring {
     func wait()
@@ -135,7 +135,7 @@ protocol Semaphoring {
 
 struct Semaphore: Semaphoring {
     let semaphore = DispatchSemaphore(value: 0)
-    
+
     func wait() {
         semaphore.wait()
     }

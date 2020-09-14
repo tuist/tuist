@@ -18,7 +18,7 @@ final class TuistDocServiceTests: TuistUnitTestCase {
     var opener: MockOpener!
     var swiftDocServer: MockSwiftDocServer!
     var semaphore: MockSemaphore!
-    
+
     override func setUp() {
         super.setUp()
 
@@ -124,7 +124,6 @@ final class TuistDocServiceTests: TuistUnitTestCase {
 }
 
 final class MockSemaphore: Semaphoring {
-    
     var waitWasCalled: Bool = false
     func wait() {
         waitWasCalled = true
