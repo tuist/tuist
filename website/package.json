@@ -63,7 +63,7 @@
     "react-cookie": "^4.0.3",
     "react-dom": "^16.13.1",
     "react-helmet": "^6.1.0",
-    "react-helmet-async": "^1.0.6",
+    "react-helmet-async": "^1.0.7",
     "react-markdown": "^4.3.1",
     "react-pose": "^4.0.10",
     "react-protected-mailto": "^1.0.3",
