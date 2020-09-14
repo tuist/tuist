@@ -50,7 +50,7 @@ final class TuistDocServiceTests: TuistUnitTestCase {
         let path = AbsolutePath("/.")
 
         // When / Then
-        XCTAssertThrowsSpecific(try subject.run(project: path, target: "CustomTarget", serve: false, port: 4040),
+        XCTAssertThrowsSpecific(try subject.run(project: path, target: "CustomTarget"),
                                 DocServiceError.targetNotFound(name: "CustomTarget"))
     }
 
@@ -65,7 +65,7 @@ final class TuistDocServiceTests: TuistUnitTestCase {
         fileHandler.stubExists = { _ in false }
 
         // When / Then
-        XCTAssertThrowsSpecific(try subject.run(project: path, target: targetName, serve: false, port: 4040),
+        XCTAssertThrowsSpecific(try subject.run(project: path, target: targetName),
                                 DocServiceError.documentationNotGenerated)
     }
 
@@ -80,7 +80,7 @@ final class TuistDocServiceTests: TuistUnitTestCase {
         fileHandler.stubExists = { _ in true }
 
         // When
-        try subject.run(project: path, target: targetName, serve: false, port: 4040)
+        try subject.run(project: path, target: targetName)
 
         // Then
         XCTAssertPrinterContains(
@@ -101,7 +101,7 @@ final class TuistDocServiceTests: TuistUnitTestCase {
         swiftDocServer.stubError = SwiftDocServerError.unableToStartServer(at: 4040)
 
         // When / Then
-        XCTAssertThrowsSpecific(try subject.run(project: path, target: targetName, serve: true, port: 4040),
+        XCTAssertThrowsSpecific(try subject.run(project: path, target: targetName),
                                 SwiftDocServerError.unableToStartServer(at: 4040))
     }
 

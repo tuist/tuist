@@ -56,7 +56,7 @@ struct DocService {
         self.fileHandler = fileHandler
     }
 
-    func run(project path: AbsolutePath, target targetName: String, serve: Bool, port: UInt16) throws {
+    func run(project path: AbsolutePath, target targetName: String) throws {
         let (_, graph, _) = try projectGenerator.loadProject(path: path)
 
         let targets = graph.targets(at: path)
@@ -68,58 +68,29 @@ struct DocService {
         }
 
         let sources = target.sources.map(\.path)
-
+        let format: SwiftDocFormat = .html
+        let indexName = "index.html"
+        let port: UInt16 = 4040
+        
+        let baseURL = type(of: swiftDocServer).baseURL.appending(":\(port)")
+        
         try withTemporaryDirectory { generationDirectory in
-            let parameters = Parameters(serve: serve,
-                                        swiftDocServer: swiftDocServer,
-                                        port: port,
-                                        generationDirectory: generationDirectory.pathString)
 
             try swiftDocController.generate(
-                format: parameters.format,
+                format: format,
                 moduleName: targetName,
-                baseURL: parameters.baseURL,
+                baseURL: baseURL,
                 outputDirectory: generationDirectory.pathString,
                 sourcesPaths: sources
             )
 
-            let indexPath = generationDirectory.appending(component: parameters.indexName)
+            let indexPath = generationDirectory.appending(component: indexName)
 
             guard fileHandler.exists(indexPath) else {
                 throw DocServiceError.documentationNotGenerated
             }
 
-            if serve {
-                try swiftDocServer.serve(path: generationDirectory, port: port)
-            } else {
-                logger.pretty("You can find the documentation at \(generationDirectory.pathString)")
-            }
-        }
-    }
-}
-
-// MARK: - Parameters
-
-extension DocService {
-    struct Parameters {
-        let format: SwiftDocFormat
-        let indexName: String
-        let baseURL: String
-
-        init(serve: Bool,
-             swiftDocServer: SwiftDocServing,
-             port: UInt16,
-             generationDirectory: String)
-        {
-            if serve {
-                format = .html
-                indexName = "index.html"
-                baseURL = type(of: swiftDocServer).baseURL.appending(":\(port)")
-            } else {
-                format = .commonmark
-                indexName = "Home.md"
-                baseURL = generationDirectory
-            }
+            try swiftDocServer.serve(path: generationDirectory, port: port)
         }
     }
 }
