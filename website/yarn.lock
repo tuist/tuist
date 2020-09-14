@@ -8417,14 +8417,14 @@ gatsby-theme-tailwindcss@^1.1.0:
     tailwind.macro "^1.0.0-alpha.10"
     tailwindcss "^1.2.0"
 
-gatsby-transformer-yaml@^2.4.10:
-  version "2.4.10"
-  resolved "https://registry.yarnpkg.com/gatsby-transformer-yaml/-/gatsby-transformer-yaml-2.4.10.tgz#730604e4c33bc4a4ce76063e87750196154ceffc"
-  integrity sha512-jQwtyIn0pvT1GfmdxKUKgdJwgK/z8aVVN7wFeHuskhDwWzxCghB88ybyhS7gOF0ttyKNYjQIpwgwt9PnL+AJBQ==
+gatsby-transformer-yaml@^2.4.11:
+  version "2.4.11"
+  resolved "https://registry.yarnpkg.com/gatsby-transformer-yaml/-/gatsby-transformer-yaml-2.4.11.tgz#9dbf1a20096934826e743e56d4c9eb29e949b907"
+  integrity sha512-ysnT7N+sPV8eXqVavc2cFlqRxL0pJL5sG136Pu47xafGKBXpmmAcNJEpydNvqXPznXJk8YBM9cAdoqFL864low==
   dependencies:
     "@babel/runtime" "^7.10.3"
     js-yaml "^3.14.0"
-    lodash "^4.17.15"
+    lodash "^4.17.20"
     unist-util-select "^1.5.0"
 
 gatsby@^2.24.58:
