@@ -28,6 +28,10 @@ final class SwiftDocControllerTests: TuistUnitTestCase {
     override func tearDown() {
         super.tearDown()
         binaryLocator = nil
+        moduleName = nil
+        baseURL = nil
+        outputDirectory = nil
+        sourcePaths = nil
     }
 
     func test_binary_not_found() {
