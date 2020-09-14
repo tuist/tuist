@@ -94,7 +94,6 @@ public final class SwiftDocServer: SwiftDocServing {
 
             semaphore?.wait()
         } catch {
-            logger.error("Server start error: \(error)")
             semaphore?.signal()
             throw SwiftDocServerError.unableToStartServer(at: port)
         }
