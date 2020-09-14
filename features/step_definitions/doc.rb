@@ -2,7 +2,7 @@
 
 Then("I should be able to access the documentation of target {string}") do |target|
   cmd = "swift run tuist doc --path #{@dir}/#{target}/ #{target}"
-  pid = IO.popen(cmd, :err=>[:child, :out]) # merge standard output and standard error
+  io = IO.popen(cmd, :err=>[:child, :out]) # merge standard output and standard error
 
   sleep 1
 
@@ -13,6 +13,6 @@ Then("I should be able to access the documentation of target {string}") do |targ
     http.request(request)
   end
 
-  Process.kill("INT", pid) unless response.code != 200
+  flunk("The request to #{uri.to_s} returned status code #{response.code}") if response.code != "200"
+  Process.kill("INT", io.pid)
 end
-
