@@ -4,6 +4,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Fixed
+
+- Support initializing projects with dashes [#1766](https://github.com/tuist/tuist/pull/1766) by [@fortmarek](https://github.com/fortmarek)
+
 ### Added
 
 - Possibility to build schemes that are not part of any entry node [#1761](https://github.com/tuist/tuist/pull/1761) by [@fortmarek](htttps://github.com/fortmarek)

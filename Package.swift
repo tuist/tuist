@@ -159,7 +159,7 @@ let package = Package(
         ),
         .target(
             name: "TuistScaffold",
-            dependencies: ["SwiftToolsSupport-auto", "TuistCore", "TuistSupport", "Stencil"]
+            dependencies: ["SwiftToolsSupport-auto", "TuistCore", "TuistSupport", "StencilSwiftKit", "Stencil"]
         ),
         .target(
             name: "TuistScaffoldTesting",
