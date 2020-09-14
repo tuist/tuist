@@ -16,7 +16,7 @@ let config = TapestryConfig(
             .post(
                 .githubRelease(
                     owner: "tuist",
-                    repository: "xcodeproj",
+                    repository: "tuist",
                     assetPaths: [
                         "build/tuist.zip",
                         "build/tuistenv.zip",
@@ -25,8 +25,6 @@ let config = TapestryConfig(
             )
         ],
         add: [
-            "README.md",
-            "xcodeproj.podspec",
             "CHANGELOG.md"
         ],
         commitMessage: "Version \(Argument.version)",
