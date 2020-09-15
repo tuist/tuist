@@ -51,7 +51,8 @@ final class GraphServiceTests: TuistUnitTestCase {
         try subject.run(format: .dot,
                         layoutAlgorithm: .dot,
                         skipTestTargets: false,
-                        skipExternalDependencies: false, path: nil)
+                        skipExternalDependencies: false,
+                        path: nil)
         let got = try FileHandler.shared.readTextFile(graphPath)
         let expected = "graph { }"
         // Then

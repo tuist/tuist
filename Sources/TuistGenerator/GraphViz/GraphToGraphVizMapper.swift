@@ -30,11 +30,13 @@ final class GraphToGraphVizMapper: GraphToGraphVizMapping {
                     return
                 }
 
-                let leftNode = GraphViz.Node(target.target.name)
+                var leftNode = GraphViz.Node(target.target.name)
+                leftNode.applyAttributes(attributes: target.styleAttributes)
                 nodes.append(leftNode)
 
                 target.dependencies.forEach { dependency in
-                    let rightNode = GraphViz.Node(dependency.name)
+                    var rightNode = GraphViz.Node(dependency.name)
+                    rightNode.applyAttributes(attributes: dependency.styleAttributes)
                     nodes.append(rightNode)
                     if skipExternalDependencies, dependency.isExternal { return }
                     let edge = GraphViz.Edge(from: leftNode, to: rightNode)
