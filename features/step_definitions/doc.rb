@@ -2,9 +2,9 @@
 
 Then("I should be able to access the documentation of target {string}") do |target|
   cmd = "swift run tuist doc --path #{@dir}/#{target}/ #{target}"
-  io = IO.popen(cmd, :err=>[:child, :out]) # merge standard output and standard error
+  io = IO.popen(cmd, :mode=>"r+") # merge standard output and standard error
 
-  sleep 1
+  sleep 10 # This is important. If the request is done before the server is ready, it fails
 
   uri = URI.parse("http://localhost:4040/index.html")
   request = Net::HTTP::Get.new(uri)
