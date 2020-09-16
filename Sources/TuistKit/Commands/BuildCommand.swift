@@ -41,7 +41,7 @@ struct BuildCommand: ParsableCommand {
     func run() throws {
         let absolutePath: AbsolutePath
         if let path = path {
-            absolutePath = AbsolutePath(path)
+            absolutePath = AbsolutePath(path, relativeTo: FileHandler.shared.currentPath)
         } else {
             absolutePath = FileHandler.shared.currentPath
         }

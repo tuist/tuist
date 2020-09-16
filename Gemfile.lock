@@ -207,6 +207,7 @@ GEM
       claide (>= 1.0.2, < 2.0)
       colored2 (~> 3.1)
       nanaimo (~> 0.3.0)
+    zip (2.0.2)
 
 PLATFORMS
   ruby
@@ -224,6 +225,7 @@ DEPENDENCIES
   rubocop (~> 0.90.0)
   simctl (~> 1.6)
   xcodeproj (~> 1.18)
+  zip (~> 2.0.2)
 
 BUNDLED WITH
-   2.0.2
+   2.1.2
