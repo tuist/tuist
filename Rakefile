@@ -206,8 +206,11 @@ def package
   system("swift", "build", "--product", "tuistenv", "--configuration", "release")
   
   build_templates_path = File.join(__dir__, ".build/release/Templates")
+  vendor_path = File.join(__dir__, ".build/release/vendor")
+
   FileUtils.rm_rf(build_templates_path) if File.exist?(build_templates_path)
   FileUtils.cp_r(File.expand_path("Templates", __dir__), build_templates_path)
+  FileUtils.cp_r(File.expand_path("vendor", __dir__), vendor_path)
 
   File.delete("tuist.zip") if File.exist?("tuist.zip")
   File.delete("tuistenv.zip") if File.exist?("tuistenv.zip")
@@ -218,13 +221,13 @@ def package
       "tuist.zip", "tuist",
       "ProjectDescription.swiftmodule", "ProjectDescription.swiftdoc", "libProjectDescription.dylib", "ProjectDescription.swiftinterface",
       "Templates",
+      "vendor"
     )
     system("zip", "-q", "-r", "--symlinks", "tuistenv.zip", "tuistenv")
   end
 
   FileUtils.cp(".build/release/tuist.zip", "build/tuist.zip")
   FileUtils.cp(".build/release/tuistenv.zip", "build/tuistenv.zip")
-  FileUtils.cp("vendor/swift-doc", "build/swift-doc")
 end
 
 def release

@@ -51,6 +51,7 @@ public final class BinaryLocator: BinaryLocating {
         return [
             bundlePath,
             bundlePath.parentDirectory,
+            bundlePath.appending(RelativePath("vendor")),
         ]
     }
 
