@@ -45,7 +45,7 @@ In this case, the Bundle needs to be accessed using the target name to avoid nam
 NSBundle *bundle = [MyFeatureResources bundle];
 ```
 
-# Synthesized Resource Interface Accessors
+## Synthesized Resource Interface Accessors
 
 Accessing images, strings and other resources with String-based APIs gets messy real fast, which is why lots of teams
 have opted to use [SwiftGen](https://github.com/SwiftGen/SwiftGen) or some other code generator.
@@ -56,9 +56,10 @@ so teams can use it out of the box without having to set it up themselves!
 So, how does one synthesize the resource interface accessors? It's simple, you just add `resources` to your `Target`
 and the rest is done for you.
 
-It generates code that uses tuist's aforementioned bundle accessor, so you can use it safely in your libraries, too. 
+It generates code that uses tuist's aforementioned bundle accessor, so you can use it safely in your libraries, too.
 
 Currently, we support these types of resources with the following interface names and files:
+
 - Assets (images and colors) {TargetName}Assets `Assets+{TargetName}.swift`
 - Strings {TargetName}Assets `Strings+{TargetName}.swift`
 - Plists {NameOfPlist} `{NameOfPlist}.swift`
@@ -67,8 +68,8 @@ Currently, we support these types of resources with the following interface name
 So, for example if you have a target `MyFramework` with the following resources:
 
 - Assets.xcassets
-   - image1
-   - image2
+  - image1
+  - image2
 - Environment.plist
   - myKey
 - Fonts
