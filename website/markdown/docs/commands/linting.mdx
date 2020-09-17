@@ -1,9 +1,21 @@
 ---
-name: Lint
+name: Linting
 excerpt: 'Learn how to use the lint command to validate your projects and catch errors before building them with Xcode and enforce Swift style and conventions using SwiftLint.'
 ---
 
-# Lint projects
+import {
+  List,
+  ListItem,
+  ListIcon,
+  ListContent,
+  ListHeader,
+  ListDescription,
+  ListList,
+} from '../components/list'
+
+# Linting
+
+## Projct linting
 
 One of the benefits of making the definition of projects explicit,
 is that we can run checks on them and uncover configuration issues that otherwise would be bubbled up by the build system later on.
@@ -20,23 +32,37 @@ Please note that there are checks that only the compiler and the build system ca
 In other words,
 those will only be uncover by compiling the app with Xcode or `xcodebuild`.
 
-# Lint code
+## Code linting
 
-A command to lint the Swift code using [SwiftLint](https://github.com/realm/SwiftLint).
-
-## Command
-
-Run the following command from a directory that contains a workspace or project manifest:
+Tuist provides a command for linting the Swift code of your projects by leveraging [SwiftLint](https://github.com/realm/SwiftLint). All you need to do is run the following command:
 
 ```bash
-tuist lint code
+tuist lint code # All the targets
+tuist lint code MyTarget
 ```
 
-To lint specific target, you can run:
+You can provide your SwiftLint configuration file by placing it under the root `/Tuist` directory:
 
-```bash
-tuist lint code [TARGET_NAME]
-```
+<List>
+  <ListItem>
+    <ListIcon name="folder" />
+    <ListContent>
+      <ListHeader folder>Tuist</ListHeader>
+      <ListDescription>A global Tuist's directory</ListDescription>
+      <ListList>
+        <ListItem>
+          <ListIcon name="code" />
+          <ListContent>
+            <ListHeader>swiftlint.yml</ListHeader>
+            <ListDescription>
+              Provide your own SwiftLint configuration file
+            </ListDescription>
+          </ListContent>
+        </ListItem>
+      </ListList>
+    </ListContent>
+  </ListItem>
+</List>
 
 ### Arguments
 
