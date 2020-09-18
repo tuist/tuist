@@ -165,7 +165,7 @@ public class ManifestLoader: ManifestLoading {
             let data = try loadManifestData(at: manifestPath)
             if Environment.shared.isVerbose {
                 let string = String(data: data, encoding: .utf8)
-                logger.debug("Trying to load the manifest represented by the following JSON representation:\n\(string)")
+                logger.debug("Trying to load the manifest represented by the following JSON representation:\n\(string ?? "")")
             }
             return try decoder.decode(T.self, from: data)
         }
@@ -175,16 +175,17 @@ public class ManifestLoader: ManifestLoading {
 
     private func loadManifestData(at path: AbsolutePath) throws -> Data {
         let projectDescriptionPath = try resourceLocator.projectDescription()
-
+        let searchPaths = ProjectDescriptionSearchPaths.paths(for: projectDescriptionPath)
         var arguments: [String] = [
             "/usr/bin/xcrun",
             "swiftc",
             "--driver-mode=swift",
             "-suppress-warnings",
-            "-I", projectDescriptionPath.parentDirectory.pathString,
-            "-L", projectDescriptionPath.parentDirectory.pathString,
-            "-F", projectDescriptionPath.parentDirectory.pathString,
+            "-I", searchPaths.includeSearchPath.pathString,
+            "-L", searchPaths.librarySearchPath.pathString,
+            "-F", searchPaths.frameworkSearchPath.pathString,
             "-lProjectDescription",
+            "-framework", "ProjectDescription",
         ]
 
         // Helpers
@@ -201,7 +202,9 @@ public class ManifestLoader: ManifestLoading {
         arguments.append(path.pathString)
         arguments.append("--tuist-dump")
 
-        let result = System.shared.observable(arguments, verbose: false, environment: environment.tuistVariables)
+        let result = System.shared.observable(arguments,
+                                              verbose: false,
+                                              environment: environment.manifestLoadingVariables)
             .toBlocking()
             .materialize()
 
