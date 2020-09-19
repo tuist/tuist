@@ -4,9 +4,12 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+## 1.18.1 - Manaslu
+
 ### Fixed
 
 - Added `tuist lint code` support for custom .swiftlint.yml files. [1764](https://github.com/tuist/tuist/pull/1764) by [@facumenzella](https://github.com/facumenzella)
+- Fix GenerationOptions decoding [#1781](https://github.com/tuist/tuist/pull/1781) by [@alvarhansen](https://github.com/alvarhansen)
 
 ## 1.18.0 - Himalaya
 
