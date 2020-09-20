@@ -1,0 +1,24 @@
+{
+  "files": [
+    "README.md"
+  ],
+  "imageSize": 100,
+  "commit": false,
+  "contributors": [
+    {
+      "login": "kalkwarf",
+      "name": "kalkwarf",
+      "avatar_url": "https://avatars1.githubusercontent.com/u/1033839?v=4",
+      "profile": "https://github.com/kalkwarf",
+      "contributions": [
+        "ideas"
+      ]
+    }
+  ],
+  "contributorsPerLine": 7,
+  "projectName": "tuist",
+  "projectOwner": "tuist",
+  "repoType": "github",
+  "repoHost": "https://github.com",
+  "skipCi": true
+}
