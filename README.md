@@ -1,6 +1,6 @@
 <div align="center">
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-2-orange.svg?style=flat-square)](#contributors-)
+[![All Contributors](https://img.shields.io/badge/all_contributors-3-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 <img src="assets/header.gif"/>
   <img src="https://github.com/tuist/tuist/workflows/Tuist/badge.svg" alt="Tuist">
@@ -70,6 +70,7 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
   <tr>
     <td align="center"><a href="https://github.com/kalkwarf"><img src="https://avatars1.githubusercontent.com/u/1033839?v=4" width="100px;" alt=""/><br /><sub><b>kalkwarf</b></sub></a><br /><a href="#ideas-kalkwarf" title="Ideas, Planning, & Feedback">🤔</a></td>
     <td align="center"><a href="https://github.com/fortmarek"><img src="https://avatars0.githubusercontent.com/u/9371695?v=4" width="100px;" alt=""/><br /><sub><b>Marek Fořt</b></sub></a><br /><a href="#ideas-fortmarek" title="Ideas, Planning, & Feedback">🤔</a></td>
+    <td align="center"><a href="http://www.matrixprojects.net"><img src="https://avatars3.githubusercontent.com/u/11914919?v=4" width="100px;" alt=""/><br /><sub><b>Kas</b></sub></a><br /><a href="https://github.com/tuist/tuist/commits?author=kwridan" title="Code">💻</a></td>
   </tr>
 </table>
 
