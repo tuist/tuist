@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 SWIFTDOC_VERSION = "1.0.0-beta.4".freeze
+SWIFTLINT_VERSION = "0.40.2".freeze
 
 require 'rubygems'
 require 'cucumber'
@@ -33,6 +34,19 @@ task :swift_doc_update do
     end
   end
   system("rm .swift-doc.version && echo \"#{SWIFTDOC_VERSION}\" >> .swift-doc.version")
+end
+
+desc("Updates swift-lint binary with the latest version available.")
+task :swift_lint_update do
+  root_dir = Dir.pwd.strip
+  Dir.mktmpdir do |temporary_dir|
+    Dir.chdir(temporary_dir) do
+      system("curl", "-LO", "https://github.com/realm/SwiftLint/releases/download/#{SWIFTLINT_VERSION}/portable_swiftlint.zip")
+      extract_zip("portable_swiftlint.zip", "portable_swiftlint")
+      system("cp", "portable_swiftlint/swiftlint", "#{root_dir}/vendor/swiftlint")
+    end
+  end
+  system("rm .swift-lint.version && echo \"#{SWIFTLINT_VERSION}\" >> .swift-lint.version")
 end
 
 desc("Formats the code style")
