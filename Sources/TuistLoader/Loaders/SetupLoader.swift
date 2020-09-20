@@ -37,14 +37,14 @@ public class SetupLoader: SetupLoading {
     private let manifestLoader: ManifestLoading
 
     /// Locator for `Setup.swift` file
-    private let setupLocator: SetupLocating
+    private let manifestFilesLocator: ManifestFilesLocating
 
     /// Default constructor.
     public convenience init() {
         let upLinter = UpLinter()
         let manifestLoader = ManifestLoader()
-        let setupLocator = SetupLocator()
-        self.init(upLinter: upLinter, manifestLoader: manifestLoader, setupLocator: setupLocator)
+        let manifestFilesLocator = ManifestFilesLocator()
+        self.init(upLinter: upLinter, manifestLoader: manifestLoader, manifestFilesLocator: manifestFilesLocator)
     }
 
     /// Initializes the command with its arguments.
@@ -52,14 +52,14 @@ public class SetupLoader: SetupLoading {
     /// - Parameters:
     ///   - upLinter: Linter for up commands.
     ///   - manifestLoader: Manifset loader instance to load the setup.
-    ///   - setupLocator: Locator for `Setup.swift` file
+    ///   - manifestFilesLocator: Locator for `Setup.swift` file
     init(upLinter: UpLinting,
          manifestLoader: ManifestLoading,
-         setupLocator: SetupLocating)
+         manifestFilesLocator: ManifestFilesLocating)
     {
         self.upLinter = upLinter
         self.manifestLoader = manifestLoader
-        self.setupLocator = setupLocator
+        self.manifestFilesLocator = manifestFilesLocator
     }
 
     /// It runs meet on each command if it is not met.
@@ -68,7 +68,7 @@ public class SetupLoader: SetupLoading {
     /// - Throws: An error if any of the commands exit unsuccessfully
     ///           or if there isn't a `Setup.swift` file within the project path.
     public func meet(at path: AbsolutePath) throws {
-        guard let setupPath = setupLocator.locate(at: path) else { throw SetupLoaderError.setupNotFound(path) }
+        guard let setupPath = manifestFilesLocator.locateSetup(at: path) else { throw SetupLoaderError.setupNotFound(path) }
         logger.info("Setting up the environment defined in \(setupPath).pathString)")
 
         let setupParentPath = setupPath.parentDirectory
