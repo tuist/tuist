@@ -21,13 +21,13 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_edit_when_there_are_helpers_are_setup_are_config() throws {
+    func test_edit_when_there_are_helpers_and_setup_and_config() throws {
         // Given
         let sourceRootPath = try temporaryPath()
         let xcodeProjPath = sourceRootPath.appending(component: "Project.xcodeproj")
         let manifestPaths = [sourceRootPath].map { $0.appending(component: "Project.swift") }
         let setupPath = sourceRootPath.appending(component: "Setup.swift")
-        let configPath = sourceRootPath.appending(components: "Tuist", "Config.swift")
+        let configPath = sourceRootPath.appending(components: Constants.tuistDirectoryName, "Config.swift")
         let helperPaths = [sourceRootPath].map { $0.appending(component: "Project+Template.swift") }
         let templates = [sourceRootPath].map { $0.appending(component: "template") }
         let projectDescriptionPath = sourceRootPath.appending(component: "ProjectDescription.framework")
@@ -133,7 +133,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(runAction.arguments, Arguments(launchArguments: [generateArgument: true]))
     }
 
-    func test_edit_when_there_are_no_helpers_are_no_setup_are_no_config() throws {
+    func test_edit_when_there_are_no_helpers_and_no_setup_and_no_config() throws {
         // Given
         let sourceRootPath = try temporaryPath()
         let xcodeProjPath = sourceRootPath.appending(component: "Project.xcodeproj")
@@ -159,7 +159,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
 
         // expecting `targetNodes == [TemporaryDirectory.XXXMainifest]`
         XCTAssertEqual(targetNodes.count, 1)
-        XCTAssertEqual(targetNodes.first?.dependencies.sorted(by: { $0.name < $1.name }), [])
+        XCTAssertEqual(targetNodes.first?.dependencies, [])
 
         // Generated Manifests target
         let manifestsTarget = try XCTUnwrap(project.targets.first)
@@ -200,7 +200,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         let sourceRootPath = try temporaryPath()
         let xcodeProjPath = sourceRootPath.appending(component: "Project.xcodeproj")
         let setupPath = sourceRootPath.appending(component: "Setup.swift")
-        let configPath = sourceRootPath.appending(components: "Tuist", "Config.swift")
+        let configPath = sourceRootPath.appending(components: Constants.tuistDirectoryName, "Config.swift")
         let otherProjectPath = "Module"
         let manifestPaths = [
             sourceRootPath.appending(component: "Project.swift"),

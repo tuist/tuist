@@ -17,7 +17,7 @@ public final class SetupLocator: SetupLocating {
     }
 
     public func locate(at path: AbsolutePath) -> AbsolutePath? {
-        let manfiestPath = path.appending(component: Manifest.setup.fileName(path))
+        let manifestPath = path.appending(component: Manifest.setup.fileName(path))
 
         if FileHandler.shared.exists(manfiestPath) {
             return manfiestPath

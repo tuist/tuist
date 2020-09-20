@@ -17,7 +17,7 @@ public final class ConfigLocator: ConfigLocating {
     }
 
     public func locate(at path: AbsolutePath) -> AbsolutePath? {
-        let manfiestPath = path.appending(components: Constants.tuistDirectoryName, Manifest.config.fileName(path))
+        let manifestPath = path.appending(components: Constants.tuistDirectoryName, Manifest.config.fileName(path))
 
         if FileHandler.shared.exists(manfiestPath) {
             return manfiestPath
