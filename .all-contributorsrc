@@ -22,6 +22,15 @@
       "contributions": [
         "ideas"
       ]
+    },
+    {
+      "login": "kwridan",
+      "name": "Kas",
+      "avatar_url": "https://avatars3.githubusercontent.com/u/11914919?v=4",
+      "profile": "http://www.matrixprojects.net",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,
