@@ -55,6 +55,12 @@ The repository is a monorepo with multiple projects:
 
 Do you want to know more about what Tuist can offer you? Or perhaps want to contribute to the project and you need a starting point? You can check out the [project documentation](https://tuist.io/docs/usage/getting-started/).
 
+## Supported by MacStadium
+
+MacStadium supports this project by providing Mac mini hardware that we can use for running performance tests.
+
+<img width="200" src="assets/MacStadium.png"/>
+
 ## Contribute 👩‍💻
 
 If you are interested in contributed to the project, our documentation has a section with resources for contributors. We recommend starting from [this page](https://tuist.io/docs/contribution/getting-started/).
