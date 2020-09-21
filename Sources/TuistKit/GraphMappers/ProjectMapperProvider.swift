@@ -3,6 +3,7 @@ import TuistCore
 import TuistGenerator
 import TuistLoader
 import TuistSigning
+import TuistSupport
 
 /// It defines an interface for providing the project mappers to be used for a specific configuration.
 protocol ProjectMapperProviding {
@@ -11,7 +12,7 @@ protocol ProjectMapperProviding {
     func mapper(config: Config) -> ProjectMapping
 }
 
-class ProjectMapperProvider: ProjectMapperProviding {
+final class ProjectMapperProvider: ProjectMapperProviding {
     func mapper(config: Config) -> ProjectMapping {
         var mappers: [ProjectMapping] = []
 
