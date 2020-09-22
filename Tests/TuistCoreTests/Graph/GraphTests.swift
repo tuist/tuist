@@ -730,8 +730,12 @@ final class GraphTests: TuistUnitTestCase {
         let precompiledNode = mockDynamicFrameworkNode(at: AbsolutePath("/test/test.framework"))
         let unitTests = Target.test(name: "AppUnitTests", product: .unitTests)
         let project = Project.test(path: "/path/a")
+        let target = Target.test(name: "LocallyBuiltFramework", product: .framework)
+        let targetNode = TargetNode(project: project,
+                                    target: target,
+                                    dependencies: [])
 
-        let unitTestsNode = TargetNode(project: project, target: unitTests, dependencies: [precompiledNode])
+        let unitTestsNode = TargetNode(project: project, target: unitTests, dependencies: [precompiledNode, targetNode])
 
         let cache = GraphLoaderCache()
         cache.add(project: project)
