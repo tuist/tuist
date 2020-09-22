@@ -29,6 +29,13 @@ final class ProjectMapperProvider: ProjectMapperProviding {
             mappers.append(SynthesizedResourceInterfaceProjectMapper())
         }
 
+        // Logfile noise suppression
+        if config.generationOptions.contains(.disableShowEnvironmentVarsInScriptPhases) {
+            mappers.append(
+                TargetProjectMapper(mapper: TargetActionEnvironmentMapper(false))
+            )
+        }
+
         // Support for resources in libraries
         mappers.append(ResourcesProjectMapper())
 

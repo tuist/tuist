@@ -43,6 +43,7 @@ let package = Package(
         .package(url: "https://github.com/tuist/GraphViz.git", .branch("tuist")),
         .package(url: "https://github.com/fortmarek/SwiftGen", .branch("stable")),
         .package(url: "https://github.com/fortmarek/StencilSwiftKit.git", .branch("stable")),
+      
     ],
     targets: [
         .target(
