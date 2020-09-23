@@ -148,7 +148,7 @@ public enum DefaultSettings: Codable, Equatable {
             var nestedContainer = try container.nestedUnkeyedContainer(forKey: .essential)
             let excludedKeys = try nestedContainer.decode(Set<String>.self)
             self = .essential(excluding: excludedKeys)
-        case .none:
+        case .none?:
             self = .none
         default:
             throw DecodingError.dataCorrupted(
