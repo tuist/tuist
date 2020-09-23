@@ -1,5 +1,7 @@
 import TuistCore
 
+/// This mapper takes the `Config`level setting `disableShowEnvironmentVarsInScriptPhases` and pushes it down into all of the `Project`'s shell script `TargetAction`s`
+
 public final class TargetActionEnvironmentMapper: TargetMapping {
     let showEnvVarsInLog: Bool
 
