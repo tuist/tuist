@@ -3,7 +3,7 @@ import XCTest
 @testable import TuistGenerator
 @testable import TuistSupportTesting
 
-public final class ConfigShowEnvironmentMapperTests: TuistUnitTestCase {
+final class ConfigShowEnvironmentMapperTests: TuistUnitTestCase {
     func test_map_environmentLoggingDisables() throws {
         // Given
         let targetMapper = TargetActionEnvironmentMapper(false)
