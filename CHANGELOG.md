@@ -7,6 +7,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Added
 
 - Add Workspace Mappers [#1767](https://github.com/tuist/tuist/pull/1767) by [@kwridan](https://github.com/kwridan)
+- Extended `Config`'s generationOptions with `.disableShowEnvironmentVarsInScriptPhases`. It does what you'd think. [#1782](https://github.com/tuist/tuist/pull/1782) by [@kalkwarf](https://github.com/kalkwarf)
 
 ## 1.18.1 - Manaslu
 
