@@ -19,6 +19,7 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Encodable {
     //    case messagesApplication = "messages_application"
     case messagesExtension = "messages_extension"
     case stickerPackExtension = "sticker_pack_extension"
+    case appClips
 
     public var caseValue: String {
         switch self {
@@ -56,6 +57,8 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Encodable {
             return "messagesExtension"
         case .stickerPackExtension:
             return "stickerPackExtension"
+        case .appClips:
+            return "appClips"
         }
     }
 
@@ -95,6 +98,8 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Encodable {
             return "iMessage extension"
         case .stickerPackExtension:
             return "sticker pack extension"
+        case .appClips:
+            return "appClips"
         }
     }
 
@@ -195,6 +200,8 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Encodable {
             return .messagesExtension
         case .stickerPackExtension:
             return .stickerPack
+        case .appClips:
+          return .onDemandInstallCapableApplication
         }
     }
 }

@@ -60,7 +60,7 @@ extension GraphNode {
 
         if let targetNode = self as? TargetNode {
             switch targetNode.target.product {
-            case .app, .watch2App:
+            case .app, .watch2App, .appClips:
                 return .init(fillColorName: .deepskyblue, strokeWidth: 1.5, shape: .box3d)
             case .appExtension, .watch2Extension:
                 return .init(fillColorName: .deepskyblue2, shape: .component)
