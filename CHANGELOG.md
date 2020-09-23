@@ -4,6 +4,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Fixed
+
+- Fixed decoding bug on DefaultSettings [#1817](https://github.com/tuist/tuist/issues/1817) by [@jakeatoms](https://github.com/jakeatoms)
+
 ### Added
 
 - Add Workspace Mappers [#1767](https://github.com/tuist/tuist/pull/1767) by [@kwridan](https://github.com/kwridan)
