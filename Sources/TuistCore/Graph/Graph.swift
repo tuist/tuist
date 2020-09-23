@@ -366,7 +366,7 @@ public class Graph: Encodable, Equatable {
             if let hostApp = hostApplication(for: targetNode) {
                 references.subtract(try embeddableFrameworks(path: hostApp.path, name: hostApp.name))
             } else {
-                references.subtract(precompiledFrameworks)
+                references = []
             }
         }
 

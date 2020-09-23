@@ -1,5 +1,5 @@
 import Foundation
-import struct Stencil.Environment
+import func StencilSwiftKit.stencilSwiftEnvironment
 import TSCBasic
 import TuistCore
 import TuistSupport
@@ -68,7 +68,7 @@ public final class TemplateGenerator: TemplateGenerating {
                                attributes: [String: String],
                                destinationPath: AbsolutePath) throws
     {
-        let environment = Environment()
+        let environment = stencilSwiftEnvironment()
         try renderedFiles.forEach {
             let renderedContents: String
             switch $0.contents {

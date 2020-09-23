@@ -4,17 +4,21 @@ import TuistSupport
 
 enum BinaryLocatorError: FatalError, Equatable {
     case swiftLintNotFound
+    case swiftDocNotFound
 
     var description: String {
         switch self {
         case .swiftLintNotFound:
             return "Couldn't find the swift-lint binary."
+        case .swiftDocNotFound:
+            return "Couldn't find the swift-doc binary."
         }
     }
 
     var type: ErrorType {
         switch self {
-        case .swiftLintNotFound:
+        case .swiftLintNotFound,
+             .swiftDocNotFound:
             return .bug
         }
     }
@@ -24,12 +28,15 @@ enum BinaryLocatorError: FatalError, Equatable {
 public protocol BinaryLocating {
     /// Returns the path to the swift-lint binary.
     func swiftLintPath() throws -> AbsolutePath
+
+    /// Returns the path to the swift-doc binary.
+    func swiftDocPath() throws -> AbsolutePath
 }
 
 public final class BinaryLocator: BinaryLocating {
     public init() {}
 
-    public func swiftLintPath() throws -> AbsolutePath {
+    private func binariesPaths() throws -> [AbsolutePath] {
         #if DEBUG
             // Used only for debug purposes
             let bundlePath = AbsolutePath(#file.replacingOccurrences(of: "file://", with: ""))
@@ -41,18 +48,32 @@ public final class BinaryLocator: BinaryLocating {
         #else
             let bundlePath = AbsolutePath(Bundle(for: BinaryLocator.self).bundleURL.path)
         #endif
-        let paths = [
+        return [
             bundlePath,
             bundlePath.parentDirectory,
+            bundlePath.appending(RelativePath("vendor")),
         ]
-        let candidates = paths.map { path in
+    }
+
+    public func swiftLintPath() throws -> AbsolutePath {
+        let candidates = try binariesPaths().map { path in
             path.appending(component: Constants.Vendor.swiftLint)
         }
 
         guard let existingPath = candidates.first(where: FileHandler.shared.exists) else {
             throw BinaryLocatorError.swiftLintNotFound
         }
+        return existingPath
+    }
 
+    public func swiftDocPath() throws -> AbsolutePath {
+        let candidates = try binariesPaths().map { path in
+            path.appending(component: Constants.Vendor.swiftDoc)
+        }
+
+        guard let existingPath = candidates.first(where: FileHandler.shared.exists) else {
+            throw BinaryLocatorError.swiftDocNotFound
+        }
         return existingPath
     }
 }

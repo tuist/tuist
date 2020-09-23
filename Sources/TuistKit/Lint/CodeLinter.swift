@@ -8,10 +8,10 @@ protocol CodeLinting {
     /// - Parameters:
     ///   - sources: Directory in which source code will be linted.
     ///   - path: Directory whose project will be linted.
-    func lint(sources: AbsolutePath, path: AbsolutePath) throws
+    func lint(sources: [AbsolutePath], path: AbsolutePath) throws
 }
 
-class CodeLinter: CodeLinting {
+final class CodeLinter: CodeLinting {
     private let rootDirectoryLocator: RootDirectoryLocating
     private let binaryLocator: BinaryLocating
 
@@ -24,14 +24,17 @@ class CodeLinter: CodeLinting {
 
     // MARK: - CodeLinting
 
-    func lint(sources: AbsolutePath, path: AbsolutePath) throws {
+    func lint(sources: [AbsolutePath], path: AbsolutePath) throws {
         let swiftLintPath = try binaryLocator.swiftLintPath()
         let swiftLintConfigPath = self.swiftLintConfigPath(path: path)
         let swiftLintArguments = buildSwiftLintArguments(swiftLintPath: swiftLintPath,
                                                          sources: sources,
                                                          configPath: swiftLintConfigPath)
+        let environment = buildEnvironment(sources: sources)
 
-        _ = try System.shared.observable(swiftLintArguments)
+        _ = try System.shared.observable(swiftLintArguments,
+                                         verbose: false,
+                                         environment: environment)
             .mapToString()
             .printStandardError()
             .toBlocking()
@@ -42,15 +45,27 @@ class CodeLinter: CodeLinting {
 
     private func swiftLintConfigPath(path: AbsolutePath) -> AbsolutePath? {
         guard let rootPath = rootDirectoryLocator.locate(from: path) else { return nil }
-
         return ["yml", "yaml"].compactMap { (fileExtension) -> AbsolutePath? in
-            let swiftlintPath = rootPath.appending(RelativePath("\(Constants.tuistDirectoryName)/swiftlint.\(fileExtension)"))
+            let swiftlintPath = rootPath.appending(RelativePath("\(Constants.tuistDirectoryName)/.swiftlint.\(fileExtension)"))
             return (FileHandler.shared.exists(swiftlintPath)) ? swiftlintPath : nil
         }.first
     }
 
-    private func buildSwiftLintArguments(swiftLintPath: AbsolutePath, sources: AbsolutePath, configPath: AbsolutePath?) -> [String] {
-        var arguments = [swiftLintPath.pathString, "lint", sources.pathString]
+    private func buildEnvironment(sources: [AbsolutePath]) -> [String: String] {
+        var environment = ["SCRIPT_INPUT_FILE_COUNT": "\(sources.count)"]
+        for source in sources.enumerated() {
+            environment["SCRIPT_INPUT_FILE_\(source.offset)"] = source.element.pathString
+        }
+        return environment
+    }
+
+    private func buildSwiftLintArguments(swiftLintPath: AbsolutePath,
+                                         sources _: [AbsolutePath],
+                                         configPath: AbsolutePath?) -> [String]
+    {
+        var arguments = [swiftLintPath.pathString,
+                         "lint",
+                         "--use-script-input-files"]
 
         if let configPath = configPath {
             arguments += ["--config", configPath.pathString]

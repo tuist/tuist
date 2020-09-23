@@ -8,6 +8,8 @@ public final class MockBinaryLocator: BinaryLocating {
     var stubbedSwiftLintPathError: Error?
     var stubbedSwiftLintPathResult: AbsolutePath!
 
+    public init() {}
+
     public func swiftLintPath() throws -> AbsolutePath {
         invokedSwiftLintPath = true
         invokedSwiftLintPathCount += 1
@@ -15,5 +17,14 @@ public final class MockBinaryLocator: BinaryLocating {
             throw error
         }
         return stubbedSwiftLintPathResult
+    }
+
+    public var swiftDocPathStub: (() throws -> AbsolutePath)?
+    public func swiftDocPath() throws -> AbsolutePath {
+        if let swiftDocPathStub = swiftDocPathStub {
+            return try swiftDocPathStub()
+        } else {
+            throw BinaryLocatorError.swiftDocNotFound
+        }
     }
 }

@@ -127,7 +127,14 @@ final class LintCodeServiceTests: TuistUnitTestCase {
         let invokedLintParameters = codeLinter.invokedLintParameters
 
         XCTAssertEqual(codeLinter.invokedLintCount, 1)
-        XCTAssertEqual(invokedLintParameters?.sources, "/rootPath")
+        XCTAssertEqual(invokedLintParameters?.sources, [
+            "/target01/file1.swift",
+            "/target01/file2.swift",
+            "/target02/file1.swift",
+            "/target02/file2.swift",
+            "/target02/file3.swift",
+            "/target03/file1.swift",
+        ])
         XCTAssertEqual(invokedLintParameters?.path, path)
 
         XCTAssertPrinterOutputContains("""
@@ -169,7 +176,14 @@ final class LintCodeServiceTests: TuistUnitTestCase {
         let invokedLintParameters = codeLinter.invokedLintParameters
 
         XCTAssertEqual(codeLinter.invokedLintCount, 1)
-        XCTAssertEqual(invokedLintParameters?.sources, "/rootPath")
+        XCTAssertEqual(invokedLintParameters?.sources, [
+            "/target01/file1.swift",
+            "/target01/file2.swift",
+            "/target02/file1.swift",
+            "/target02/file2.swift",
+            "/target02/file3.swift",
+            "/target03/file1.swift",
+        ])
         XCTAssertEqual(invokedLintParameters?.path, path)
 
         XCTAssertPrinterOutputContains("""
@@ -208,7 +222,10 @@ final class LintCodeServiceTests: TuistUnitTestCase {
         let invokedLintParameters = codeLinter.invokedLintParameters
 
         XCTAssertEqual(codeLinter.invokedLintCount, 1)
-        XCTAssertEqual(invokedLintParameters?.sources, "/target01")
+        XCTAssertEqual(invokedLintParameters?.sources, [
+            "/target01/file1.swift",
+            "/target01/file2.swift",
+        ])
         XCTAssertEqual(invokedLintParameters?.path, path)
 
         XCTAssertPrinterOutputContains("""

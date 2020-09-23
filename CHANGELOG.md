@@ -6,8 +6,26 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Added
 
+- Add Workspace Mappers [#1767](https://github.com/tuist/tuist/pull/1767) by [@kwridan](https://github.com/kwridan)
+
+## 1.18.1 - Manaslu
+
+### Fixed
+
+- Added `tuist lint code` support for custom .swiftlint.yml files. [1764](https://github.com/tuist/tuist/pull/1764) by [@facumenzella](https://github.com/facumenzella)
+- Fix GenerationOptions decoding [#1781](https://github.com/tuist/tuist/pull/1781) by [@alvarhansen](https://github.com/alvarhansen)
+
+## 1.18.0 - Himalaya
+
+### Fixed
+
+- Support initializing projects with dashes [#1766](https://github.com/tuist/tuist/pull/1766) by [@fortmarek](https://github.com/fortmarek)
+
+### Added
+
 - Possibility to build schemes that are not part of any entry node [#1761](https://github.com/tuist/tuist/pull/1761) by [@fortmarek](htttps://github.com/fortmarek)
 - `tuist lint code` - command to lint the Swift code using Swiftlint [#1682](https://github.com/tuist/tuist/pull/1682) by [@laxmorek](https://github.com/laxmorek)
+- `tuist doc` - command to generate documentation for your modules using SwiftDoc [#1683](https://github.com/tuist/tuist/pull/1683) by [@facumenzella](https://github.com/facumenzella)
 
 ### Changed
 
@@ -15,6 +33,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - **Breaking** UpCarthage should perform bootstrap instead of update [#1744](https://github.com/tuist/tuist/pull/1744) by [@softmaxsg](https://github.com/softmaxsg)
 - Add excluding argument to `recommended`/`essential` `DefaultSettings` [#1746](https://github.com/tuist/tuist/pull/1739) by [@rist](https://github.com/rist).
 - Synthesize resource interface accessors [#1635](https://github.com/tuist/tuist/pull/1635) by [@fortmarek](https://github.com/fortmarek)
+- Graph command now adds different colors and shapes for different types of targets and dependencies [#1763](https://github.com/tuist/tuist/pull/1763) by [@natanrolnik](https://github.com/natanrolnik)
 
 ## 1.17.0 - Luft
 

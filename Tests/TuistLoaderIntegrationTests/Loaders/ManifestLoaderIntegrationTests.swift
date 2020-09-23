@@ -1,9 +1,9 @@
 import Foundation
 import TSCBasic
-import TuistSupport
 import XCTest
 
 @testable import TuistLoader
+@testable import TuistSupport
 @testable import TuistSupportTesting
 
 final class ManifestLoaderTests: TuistTestCase {

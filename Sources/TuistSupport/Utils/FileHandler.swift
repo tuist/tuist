@@ -171,7 +171,7 @@ public class FileHandler: FileHandling {
     /// Initializes the file handler with its attributes.
     ///
     /// - Parameter fileManager: File manager instance.
-    public init(fileManager: FileManager = .default) {
+    init(fileManager: FileManager = .default) {
         self.fileManager = fileManager
     }
 

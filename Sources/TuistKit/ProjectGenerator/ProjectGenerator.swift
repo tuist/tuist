@@ -9,6 +9,7 @@ import TuistSupport
 protocol ProjectGenerating {
     @discardableResult
     func load(path: AbsolutePath) throws -> Graph
+    func loadProject(path: AbsolutePath) throws -> (Project, Graph, [SideEffectDescriptor])
     func generate(path: AbsolutePath, projectOnly: Bool) throws -> AbsolutePath
     func generateWithGraph(path: AbsolutePath, projectOnly: Bool) throws -> (AbsolutePath, Graph)
     func generateProjectWorkspace(path: AbsolutePath) throws -> (AbsolutePath, Graph)
@@ -30,10 +31,12 @@ class ProjectGenerator: ProjectGenerating {
     private let sideEffectDescriptorExecutor: SideEffectDescriptorExecuting
     private let graphMapperProvider: GraphMapperProviding
     private let projectMapperProvider: ProjectMapperProviding
+    private let workspaceMapperProvider: WorkspaceMapperProviding
     private let manifestLoader: ManifestLoading
 
     init(graphMapperProvider: GraphMapperProviding = GraphMapperProvider(),
          projectMapperProvider: ProjectMapperProviding = ProjectMapperProvider(),
+         workspaceMapperProvider: WorkspaceMapperProviding = WorkspaceMapperProvider(),
          manifestLoaderFactory: ManifestLoaderFactory = ManifestLoaderFactory())
     {
         let manifestLoader = manifestLoaderFactory.createManifestLoader()
@@ -46,6 +49,7 @@ class ProjectGenerator: ProjectGenerating {
         self.modelLoader = modelLoader
         self.graphMapperProvider = graphMapperProvider
         self.projectMapperProvider = projectMapperProvider
+        self.workspaceMapperProvider = workspaceMapperProvider
         self.manifestLoader = manifestLoader
     }
 
@@ -80,100 +84,8 @@ class ProjectGenerator: ProjectGenerating {
         }
     }
 
-    private func generateProject(path: AbsolutePath) throws -> (AbsolutePath, Graph) {
-        // Load
-        let (project, graph, sideEffects) = try loadProject(path: path)
-
-        // Lint
-        try lint(graph: graph)
-
-        // Generate
-        let projectDescriptor = try generator.generateProject(project: project, graph: graph)
-
-        // Write
-        try writer.write(project: projectDescriptor)
-
-        // Mapper side effects
-        try sideEffectDescriptorExecutor.execute(sideEffects: sideEffects)
-
-        // Post Generate Actions
-        try postGenerationActions(for: graph, workspaceName: projectDescriptor.xcodeprojPath.basename)
-
-        return (projectDescriptor.xcodeprojPath, graph)
-    }
-
-    private func generateWorkspace(path: AbsolutePath) throws -> (AbsolutePath, Graph) {
-        // Load
-        let (workspace, graph, sideEffects) = try loadWorkspace(path: path)
-
-        // Lint
-        try lint(graph: graph)
-
-        // Generate
-        let updatedWorkspace = workspace.merging(projects: Array(graph.projects.map { $0.path }))
-        let workspaceDescriptor = try generator.generateWorkspace(workspace: updatedWorkspace,
-                                                                  graph: graph)
-
-        // Write
-        try writer.write(workspace: workspaceDescriptor)
-
-        // Mapper side effects
-        try sideEffectDescriptorExecutor.execute(sideEffects: sideEffects)
-
-        // Post Generate Actions
-        try postGenerationActions(for: graph, workspaceName: workspaceDescriptor.xcworkspacePath.basename)
-
-        return (workspaceDescriptor.xcworkspacePath, graph)
-    }
-
-    internal func generateProjectWorkspace(path: AbsolutePath) throws -> (AbsolutePath, Graph) {
-        // Load
-        let (project, graph, sideEffects) = try loadProjectWorkspace(path: path)
-
-        // Lint
-        try lint(graph: graph)
-
-        let projectSchemes = graph.projects.flatMap(\.schemes)
-        let workspaceSchemes = graph.schemes.filter { !projectSchemes.contains($0) }
-
-        // Generate
-        let workspace = Workspace(
-            path: path,
-            name: project.name,
-            projects: Array(graph.projects.map { $0.path }),
-            schemes: workspaceSchemes
-        )
-        let workspaceDescriptor = try generator.generateWorkspace(workspace: workspace, graph: graph)
-
-        // Write
-        try writer.write(workspace: workspaceDescriptor)
-
-        // Mapper side effects
-        try sideEffectDescriptorExecutor.execute(sideEffects: sideEffects)
-
-        // Post Generate Actions
-        try postGenerationActions(for: graph, workspaceName: workspaceDescriptor.xcworkspacePath.basename)
-
-        return (workspaceDescriptor.xcworkspacePath, graph)
-    }
-
-    private func lint(graph: Graph) throws {
-        let config = try graphLoader.loadConfig(path: graph.entryPath)
-
-        try environmentLinter.lint(config: config).printAndThrowIfNeeded()
-        try graphLinter.lint(graph: graph).printAndThrowIfNeeded()
-    }
-
-    private func postGenerationActions(for graph: Graph, workspaceName: String) throws {
-        try signingInteractor.install(graph: graph)
-        try swiftPackageManagerInteractor.install(graph: graph, workspaceName: workspaceName)
-        try cocoapodsInteractor.install(graph: graph)
-    }
-
-    // MARK: -
-
     // swiftlint:disable:next large_tuple
-    private func loadProject(path: AbsolutePath) throws -> (Project, Graph, [SideEffectDescriptor]) {
+    func loadProject(path: AbsolutePath) throws -> (Project, Graph, [SideEffectDescriptor]) {
         // Load all manifests
         let manifests = try recursiveManifestLoader.loadProject(at: path)
 
@@ -205,22 +117,125 @@ class ProjectGenerator: ProjectGenerating {
         return (project, updatedGraph, modelMapperSideEffects + graphMapperSideEffects)
     }
 
-    // swiftlint:disable:next large_tuple
-    private func loadProjectWorkspace(path: AbsolutePath) throws -> (Project, Graph, [SideEffectDescriptor]) {
-        // Load project
+    private func generateProject(path: AbsolutePath) throws -> (AbsolutePath, Graph) {
+        // Load
         let (project, graph, sideEffects) = try loadProject(path: path)
 
-        /// Used to disambiguate which workspaces are generated by tuist and which are not
-        let tuistGeneratedFileDescriptor = FileDescriptor(
-            path: project.path.appending(components: "\(project.name).xcworkspace", Constants.tuistGeneratedFileName)
+        // Lint
+        try lint(graph: graph)
+
+        // Generate
+        let projectDescriptor = try generator.generateProject(project: project, graph: graph)
+
+        // Write
+        try writer.write(project: projectDescriptor)
+
+        // Mapper side effects
+        try sideEffectDescriptorExecutor.execute(sideEffects: sideEffects)
+
+        // Post Generate Actions
+        try postGenerationActions(for: graph, workspaceName: projectDescriptor.xcodeprojPath.basename)
+
+        return (projectDescriptor.xcodeprojPath, graph)
+    }
+
+    private func generateWorkspace(path: AbsolutePath) throws -> (AbsolutePath, Graph) {
+        // Load
+        let (workspace, graph, sideEffects) = try loadWorkspace(path: path)
+
+        // Lint
+        try lint(graph: graph)
+
+        // Generate
+        let workspaceDescriptor = try generator.generateWorkspace(workspace: workspace, graph: graph)
+
+        // Write
+        try writer.write(workspace: workspaceDescriptor)
+
+        // Mapper side effects
+        try sideEffectDescriptorExecutor.execute(sideEffects: sideEffects)
+
+        // Post Generate Actions
+        try postGenerationActions(for: graph, workspaceName: workspaceDescriptor.xcworkspacePath.basename)
+
+        return (workspaceDescriptor.xcworkspacePath, graph)
+    }
+
+    internal func generateProjectWorkspace(path: AbsolutePath) throws -> (AbsolutePath, Graph) {
+        // Load
+        let (workspace, _, graph, sideEffects) = try loadProjectWorkspace(path: path)
+
+        // Lint
+        try lint(graph: graph)
+
+        let projectSchemes = graph.projects.flatMap(\.schemes)
+        let workspaceSchemes = graph.schemes.filter { !projectSchemes.contains($0) }
+
+        // Generate
+        let workspaceDescriptor = try generator.generateWorkspace(workspace: workspace, graph: graph)
+
+        // Write
+        try writer.write(workspace: workspaceDescriptor)
+
+        // Mapper side effects
+        try sideEffectDescriptorExecutor.execute(sideEffects: sideEffects)
+
+        // Post Generate Actions
+        try postGenerationActions(for: graph, workspaceName: workspaceDescriptor.xcworkspacePath.basename)
+
+        return (workspaceDescriptor.xcworkspacePath, graph)
+    }
+
+    private func lint(graph: Graph) throws {
+        let config = try graphLoader.loadConfig(path: graph.entryPath)
+
+        try environmentLinter.lint(config: config).printAndThrowIfNeeded()
+        try graphLinter.lint(graph: graph).printAndThrowIfNeeded()
+    }
+
+    private func postGenerationActions(for graph: Graph, workspaceName: String) throws {
+        try signingInteractor.install(graph: graph)
+        try swiftPackageManagerInteractor.install(graph: graph, workspaceName: workspaceName)
+        try cocoapodsInteractor.install(graph: graph)
+    }
+
+    // swiftlint:disable:next large_tuple
+    private func loadProjectWorkspace(path: AbsolutePath) throws -> (Workspace, Project, Graph, [SideEffectDescriptor]) {
+        // Load all manifests
+        let manifests = try recursiveManifestLoader.loadProject(at: path)
+
+        // Lint Manifests
+        try manifests.projects.flatMap {
+            manifestLinter.lint(project: $0.value)
+        }.printAndThrowIfNeeded()
+
+        // Load config
+        let config = try graphLoader.loadConfig(path: path)
+
+        // Convert to models
+        let projects = try convert(manifests: manifests)
+        let workspaceName = manifests.projects[path]?.name ?? "Workspace"
+        let workspace = Workspace(path: path, name: workspaceName, projects: [])
+        let models = (workspace: workspace, projects: projects)
+
+        // Apply any registered model mappers
+        let workspaceMapper = workspaceMapperProvider.mapper(config: config)
+        let (updatedModels, modelMapperSideEffects) = try workspaceMapper.map(
+            workspace: .init(workspace: models.workspace, projects: models.projects)
         )
 
-        /// Additional side effects
-        let additionalSideEffects: [SideEffectDescriptor] = [
-            .file(tuistGeneratedFileDescriptor),
-        ]
+        // Load Graph
+        let cachedModelLoader = CachedModelLoader(projects: updatedModels.projects)
+        let cachedGraphLoader = GraphLoader(modelLoader: cachedModelLoader)
+        let (graph, project) = try cachedGraphLoader.loadProject(path: path)
 
-        return (project, graph, sideEffects + additionalSideEffects)
+        // Apply graph mappers
+        let (updatedGraph, graphMapperSideEffects) = try graphMapperProvider.mapper(config: config).map(graph: graph)
+        let updatedWorkspace = updatedModels
+            .workspace
+            .merging(projects: updatedGraph.projects.map { $0.path })
+
+        return (updatedWorkspace, project, updatedGraph, modelMapperSideEffects + graphMapperSideEffects)
     }
 
     // swiftlint:disable:next large_tuple
@@ -240,30 +255,22 @@ class ProjectGenerator: ProjectGenerating {
         let models = try convert(manifests: manifests)
 
         // Apply model mappers
-        let projectMapper = projectMapperProvider.mapper(config: config)
-        let updatedModels = try models.projects.map(projectMapper.map)
-        let updatedProjects = updatedModels.map(\.0)
-        let modelMapperSideEffects = updatedModels.flatMap { $0.1 }
+        let workspaceMapper = workspaceMapperProvider.mapper(config: config)
+        let (updatedModels, modelMapperSideEffects) = try workspaceMapper.map(
+            workspace: .init(workspace: models.workspace, projects: models.projects)
+        )
 
         // Load Graph
-        let cachedModelLoader = CachedModelLoader(workspace: [models.workspace], projects: updatedProjects)
+        let cachedModelLoader = CachedModelLoader(workspace: [updatedModels.workspace], projects: updatedModels.projects)
         let cachedGraphLoader = GraphLoader(modelLoader: cachedModelLoader)
         let (graph, workspace) = try cachedGraphLoader.loadWorkspace(path: path)
 
         // Apply graph mappers
         let (updatedGraph, graphMapperSideEffects) = try graphMapperProvider.mapper(config: config).map(graph: graph)
+        let updatedWorkspace = workspace
+            .merging(projects: updatedGraph.projects.map { $0.path })
 
-        /// Used to disambiguate which workspaces are generated by tuist and which are not
-        let tuistGeneratedFileDescriptor = FileDescriptor(
-            path: workspace.path.appending(components: "\(workspace.name).xcworkspace", Constants.tuistGeneratedFileName)
-        )
-
-        /// Additional side effects
-        let additionalSideEffects: [SideEffectDescriptor] = [
-            .file(tuistGeneratedFileDescriptor),
-        ]
-
-        return (workspace, updatedGraph, modelMapperSideEffects + graphMapperSideEffects + additionalSideEffects)
+        return (updatedWorkspace, updatedGraph, modelMapperSideEffects + graphMapperSideEffects)
     }
 
     private func convert(manifests: LoadedProjects,

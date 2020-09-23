@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+SWIFTDOC_VERSION = "1.0.0-beta.4".freeze
+
 require 'rubygems'
 require 'cucumber'
 require 'cucumber/rake/task'
@@ -11,9 +13,26 @@ require 'colorize'
 require 'highline'
 require 'tmpdir'
 require 'json'
+require 'zip'
 
 Cucumber::Rake::Task.new(:features) do |t|
   t.cucumber_opts = "--format pretty"
+end
+
+desc("Updates swift-doc binary with the latest version available.")
+task :swift_doc_update do
+  root_dir = Dir.pwd.strip
+  Dir.mktmpdir do |temporary_dir|
+    Dir.chdir(temporary_dir) do
+      system("curl", "-LO", "https://github.com/SwiftDocOrg/swift-doc/archive/#{SWIFTDOC_VERSION}.zip")
+      extract_zip("#{SWIFTDOC_VERSION}.zip", "swift-doc")
+      Dir.chdir("swift-doc/swift-doc-#{SWIFTDOC_VERSION}") do
+        system("make", "swift-doc")
+      end
+      system("cp", "swift-doc/swift-doc-#{SWIFTDOC_VERSION}/.build/release/swift-doc", "#{root_dir}/vendor/swift-doc")
+    end
+  end
+  system("rm .swift-doc.version && echo \"#{SWIFTDOC_VERSION}\" >> .swift-doc.version")
 end
 
 desc("Formats the code style")
@@ -187,8 +206,11 @@ def package
   system("swift", "build", "--product", "tuistenv", "--configuration", "release")
   
   build_templates_path = File.join(__dir__, ".build/release/Templates")
+  vendor_path = File.join(__dir__, ".build/release/vendor")
+
   FileUtils.rm_rf(build_templates_path) if File.exist?(build_templates_path)
   FileUtils.cp_r(File.expand_path("Templates", __dir__), build_templates_path)
+  FileUtils.cp_r(File.expand_path("vendor", __dir__), vendor_path)
 
   File.delete("tuist.zip") if File.exist?("tuist.zip")
   File.delete("tuistenv.zip") if File.exist?("tuistenv.zip")
@@ -198,7 +220,8 @@ def package
       "zip", "-q", "-r", "--symlinks",
       "tuist.zip", "tuist",
       "ProjectDescription.swiftmodule", "ProjectDescription.swiftdoc", "libProjectDescription.dylib", "ProjectDescription.swiftinterface",
-      "Templates"
+      "Templates",
+      "vendor"
     )
     system("zip", "-q", "-r", "--symlinks", "tuistenv.zip", "tuistenv")
   end
@@ -256,4 +279,15 @@ end
 
 def print_section(text)
   puts(text.bold.green)
+end
+
+def extract_zip(file, destination)
+  FileUtils.mkdir_p(destination)
+
+  Zip::File.open(file) do |zip_file|
+    zip_file.each do |f|
+      fpath = File.join(destination, f.name)
+      zip_file.extract(f, fpath) unless File.exist?(fpath)
+    end
+  end
 end

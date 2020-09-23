@@ -97,27 +97,30 @@ final class LintCodeService {
 
     // MARK: - Get sources to lint
 
-    private func getSources(targetName: String?, graph: Graph) throws -> AbsolutePath {
+    private func getSources(targetName: String?, graph: Graph) throws -> [AbsolutePath] {
         if let targetName = targetName {
             return try getTargetSources(targetName: targetName, graph: graph)
         } else {
-            return graph.entryPath
+            return graph.targets
+                .flatMap { $0.value }
+                .flatMap { $0.target.sources }
+                .map { $0.path }
         }
     }
 
-    private func getTargetSources(targetName: String, graph: Graph) throws -> AbsolutePath {
-        guard let target = graph.targets.flatMap({ $0.value }).map(\.target).first(where: { $0.name == targetName }) else {
+    private func getTargetSources(targetName: String, graph: Graph) throws -> [AbsolutePath] {
+        guard let target = graph.targets.flatMap({ $0.value })
+            .map(\.target)
+            .first(where: { $0.name == targetName })
+        else {
             throw LintCodeServiceError.targetNotFound(targetName)
         }
 
         let sources = target.sources.map { $0.path }
+
         if sources.isEmpty {
             throw LintCodeServiceError.lintableFilesForTargetNotFound(targetName)
         }
-        let rootPath = sources.reduce(sources[0]) { result, nextPath in
-            result.commonAncestor(with: nextPath)
-        }
-
-        return rootPath
+        return sources
     }
 }
