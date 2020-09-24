@@ -519,11 +519,11 @@ final class LinkGeneratorErrorTests: XCTestCase {
 
         // When
         try subject.generateCopyProductsBuildPhase(path: path,
-                                                    target: target,
-                                                    graph: graph,
-                                                    pbxTarget: xcodeProjElements.pbxTarget,
-                                                    pbxproj: xcodeProjElements.pbxproj,
-                                                    fileElements: fileElements)
+                                                   target: target,
+                                                   graph: graph,
+                                                   pbxTarget: xcodeProjElements.pbxTarget,
+                                                   pbxproj: xcodeProjElements.pbxproj,
+                                                   fileElements: fileElements)
 
         // Then
         let copyProductsPhase = xcodeProjElements
@@ -554,11 +554,11 @@ final class LinkGeneratorErrorTests: XCTestCase {
 
         // When
         try subject.generateCopyProductsBuildPhase(path: path,
-                                                    target: target,
-                                                    graph: graph,
-                                                    pbxTarget: xcodeProjElements.pbxTarget,
-                                                    pbxproj: xcodeProjElements.pbxproj,
-                                                    fileElements: fileElements)
+                                                   target: target,
+                                                   graph: graph,
+                                                   pbxTarget: xcodeProjElements.pbxTarget,
+                                                   pbxproj: xcodeProjElements.pbxproj,
+                                                   fileElements: fileElements)
 
         // Then
         let copyProductsPhase = xcodeProjElements
@@ -584,11 +584,11 @@ final class LinkGeneratorErrorTests: XCTestCase {
 
         // When
         try subject.generateCopyProductsBuildPhase(path: path,
-                                                    target: target,
-                                                    graph: graph,
-                                                    pbxTarget: xcodeProjElements.pbxTarget,
-                                                    pbxproj: xcodeProjElements.pbxproj,
-                                                    fileElements: fileElements)
+                                                   target: target,
+                                                   graph: graph,
+                                                   pbxTarget: xcodeProjElements.pbxTarget,
+                                                   pbxproj: xcodeProjElements.pbxproj,
+                                                   fileElements: fileElements)
 
         // Then
         let copyProductsPhase = xcodeProjElements

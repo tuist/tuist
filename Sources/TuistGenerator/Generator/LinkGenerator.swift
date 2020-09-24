@@ -113,11 +113,11 @@ final class LinkGenerator: LinkGenerating {
                                  fileElements: fileElements)
 
         try generateCopyProductsBuildPhase(path: path,
-                                            target: target,
-                                            graph: graph,
-                                            pbxTarget: pbxTarget,
-                                            pbxproj: pbxproj,
-                                            fileElements: fileElements)
+                                           target: target,
+                                           graph: graph,
+                                           pbxTarget: pbxTarget,
+                                           pbxproj: pbxproj,
+                                           fileElements: fileElements)
 
         try generatePackages(target: target,
                              pbxTarget: pbxTarget,
@@ -362,11 +362,11 @@ final class LinkGenerator: LinkGenerating {
     }
 
     func generateCopyProductsBuildPhase(path: AbsolutePath,
-                                         target: Target,
-                                         graph: Graph,
-                                         pbxTarget: PBXTarget,
-                                         pbxproj: PBXProj,
-                                         fileElements: ProjectFileElements) throws
+                                        target: Target,
+                                        graph: Graph,
+                                        pbxTarget: PBXTarget,
+                                        pbxproj: PBXProj,
+                                        fileElements: ProjectFileElements) throws
     {
         // If the current target, which is non-shared (e.g., static lib), depends on other focused targets which
         // include Swift code, we must ensure those are treated as dependencies so that Xcode builds the targets
