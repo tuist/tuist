@@ -7,6 +7,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Fixed
 
 - Fixed decoding bug on DefaultSettings [#1817](https://github.com/tuist/tuist/issues/1817) by [@jakeatoms](https://github.com/jakeatoms)
+- Stopped generating empty copy phases [#1181](https://github.com/tuist/tuist/issues/1181) by [@kalkwarf](https://github.com/kalkwarf)  [#1822](https://github.com/tuist/tuist/pull/1822) by [@kalkwarf](https://github.com/kalkwarf)
 
 ### Added
 
