@@ -61,6 +61,11 @@ task :style_ruby_correct do
   system("bundle", "exec", "rubocop", "-a")
 end
 
+desc("Builds and archive a release version of tuist and tuistenv for local testing.")
+task :local_package do
+  package
+end
+
 desc("Builds, archives, and publishes tuist and tuistenv for release")
 task :release do
   decrypt_secrets
