@@ -93,24 +93,37 @@ final class LinkGenerator: LinkGenerating {
         let embeddableFrameworks = try graph.embeddableFrameworks(path: path, name: target.name)
         let linkableModules = graph.linkableDependencies(path: path, name: target.name)
 
-        try setupSearchAndIncludePaths(target: target,
-                                       pbxTarget: pbxTarget,
-                                       sourceRootPath: sourceRootPath,
-                                       path: path,
-                                       graph: graph,
-                                       linkableModules: linkableModules)
+        if !linkableModules.isEmpty {
+            try setupSearchAndIncludePaths(target: target,
+                                           pbxTarget: pbxTarget,
+                                           sourceRootPath: sourceRootPath,
+                                           path: path,
+                                           graph: graph,
+                                           linkableModules: linkableModules)
+        }
 
-        try generateEmbedPhase(dependencies: embeddableFrameworks,
-                               target: target,
-                               pbxTarget: pbxTarget,
-                               pbxproj: pbxproj,
-                               fileElements: fileElements,
-                               sourceRootPath: sourceRootPath)
+        if !embeddableFrameworks.isEmpty {
+            try generateEmbedPhase(dependencies: embeddableFrameworks,
+                                   target: target,
+                                   pbxTarget: pbxTarget,
+                                   pbxproj: pbxproj,
+                                   fileElements: fileElements,
+                                   sourceRootPath: sourceRootPath)
+        }
 
-        try generateLinkingPhase(dependencies: linkableModules,
-                                 pbxTarget: pbxTarget,
-                                 pbxproj: pbxproj,
-                                 fileElements: fileElements)
+        if !linkableModules.isEmpty {
+            try generateLinkingPhase(dependencies: linkableModules,
+                                     pbxTarget: pbxTarget,
+                                     pbxproj: pbxproj,
+                                     fileElements: fileElements)
+        }
+
+        try generateCopyProductsdBuildPhase(path: path,
+                                            target: target,
+                                            graph: graph,
+                                            pbxTarget: pbxTarget,
+                                            pbxproj: pbxproj,
+                                            fileElements: fileElements)
 
         try generateCopyProductsdBuildPhase(path: path,
                                             target: target,
