@@ -504,7 +504,7 @@ final class LinkGeneratorErrorTests: XCTestCase {
         ])
     }
 
-    func test_generateCopyProductsdBuildPhase_staticTargetDependsOnStaticProducts() throws {
+    func test_generateCopyProductsBuildPhase_staticTargetDependsOnStaticProducts() throws {
         // Given
         let path = AbsolutePath("/path/")
         let staticDependency = Target.test(name: "StaticDependency", product: .staticLibrary)
@@ -518,7 +518,7 @@ final class LinkGeneratorErrorTests: XCTestCase {
         let xcodeProjElements = createXcodeprojElements()
 
         // When
-        try subject.generateCopyProductsdBuildPhase(path: path,
+        try subject.generateCopyProductsBuildPhase(path: path,
                                                     target: target,
                                                     graph: graph,
                                                     pbxTarget: xcodeProjElements.pbxTarget,
@@ -539,7 +539,7 @@ final class LinkGeneratorErrorTests: XCTestCase {
         ])
     }
 
-    func test_generateCopyProductsdBuildPhase_dynamicTargetDependsOnStaticProducts() throws {
+    func test_generateCopyProductsBuildPhase_dynamicTargetDependsOnStaticProducts() throws {
         // Given
         let path = AbsolutePath("/path/")
         let staticDependency = Target.test(name: "StaticDependency", product: .staticLibrary)
@@ -553,7 +553,7 @@ final class LinkGeneratorErrorTests: XCTestCase {
         let xcodeProjElements = createXcodeprojElements()
 
         // When
-        try subject.generateCopyProductsdBuildPhase(path: path,
+        try subject.generateCopyProductsBuildPhase(path: path,
                                                     target: target,
                                                     graph: graph,
                                                     pbxTarget: xcodeProjElements.pbxTarget,
@@ -569,7 +569,7 @@ final class LinkGeneratorErrorTests: XCTestCase {
         XCTAssertNil(copyProductsPhase)
     }
 
-    func test_generateCopyProductsdBuildPhase_resourceBundles() throws {
+    func test_generateCopyProductsBuildPhase_resourceBundles() throws {
         // Given
         let path = AbsolutePath("/path/")
         let resourceBundle = Target.test(name: "ResourceBundle", product: .bundle)
@@ -583,7 +583,7 @@ final class LinkGeneratorErrorTests: XCTestCase {
         let xcodeProjElements = createXcodeprojElements()
 
         // When
-        try subject.generateCopyProductsdBuildPhase(path: path,
+        try subject.generateCopyProductsBuildPhase(path: path,
                                                     target: target,
                                                     graph: graph,
                                                     pbxTarget: xcodeProjElements.pbxTarget,

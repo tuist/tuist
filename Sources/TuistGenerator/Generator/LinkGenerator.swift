@@ -112,7 +112,7 @@ final class LinkGenerator: LinkGenerating {
                                  pbxproj: pbxproj,
                                  fileElements: fileElements)
 
-        try generateCopyProductsdBuildPhase(path: path,
+        try generateCopyProductsBuildPhase(path: path,
                                             target: target,
                                             graph: graph,
                                             pbxTarget: pbxTarget,
@@ -361,7 +361,7 @@ final class LinkGenerator: LinkGenerating {
             }
     }
 
-    func generateCopyProductsdBuildPhase(path: AbsolutePath,
+    func generateCopyProductsBuildPhase(path: AbsolutePath,
                                          target: Target,
                                          graph: Graph,
                                          pbxTarget: PBXTarget,
