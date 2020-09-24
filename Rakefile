@@ -22,7 +22,7 @@ end
 
 desc("Updates swift-doc binary with the latest version available.")
 task :swift_doc_update do
-  root_dir = Dir.pwd.strip
+  root_dir = File.expand_path(__dir__)
   Dir.mktmpdir do |temporary_dir|
     Dir.chdir(temporary_dir) do
       system("curl", "-LO", "https://github.com/SwiftDocOrg/swift-doc/archive/#{SWIFTDOC_VERSION}.zip")
@@ -33,12 +33,12 @@ task :swift_doc_update do
       system("cp", "swift-doc/swift-doc-#{SWIFTDOC_VERSION}/.build/release/swift-doc", "#{root_dir}/vendor/swift-doc")
     end
   end
-  system("rm .swift-doc.version && echo \"#{SWIFTDOC_VERSION}\" >> .swift-doc.version")
+  File.write(File.join(root_dir, "vendor/.swiftdoc.version"), SWIFTDOC_VERSION)
 end
 
 desc("Updates swift-lint binary with the latest version available.")
 task :swift_lint_update do
-  root_dir = Dir.pwd.strip
+  root_dir = File.expand_path(__dir__)
   Dir.mktmpdir do |temporary_dir|
     Dir.chdir(temporary_dir) do
       system("curl", "-LO", "https://github.com/realm/SwiftLint/releases/download/#{SWIFTLINT_VERSION}/portable_swiftlint.zip")
@@ -46,7 +46,7 @@ task :swift_lint_update do
       system("cp", "portable_swiftlint/swiftlint", "#{root_dir}/vendor/swiftlint")
     end
   end
-  system("rm .swift-lint.version && echo \"#{SWIFTLINT_VERSION}\" >> .swift-lint.version")
+  File.write(File.join(root_dir, "vendor/.swiftlint.version"), SWIFTLINT_VERSION)
 end
 
 desc("Formats the code style")
