@@ -278,7 +278,7 @@ final class TestModelGenerator {
 
     private func createExecutionActions() -> [ExecutionAction] {
         (0 ..< 10).map {
-            ExecutionAction(title: "ExecutionAction\($0)", scriptText: "ScripText\($0)", target: nil)
+            ExecutionAction(title: "ExecutionAction\($0)", scriptText: "ScripText\($0)", target: nil, showEnvVarsInLog: false)
         }
     }
 
