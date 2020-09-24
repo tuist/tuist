@@ -110,7 +110,7 @@ final class ManifestFileLocatorTests: TuistUnitTestCase {
 
     func test_locateConfig_where_config_not_exist() throws {
         // Given
-        _ = try createFiles([
+        try createFiles([
             "Module01/File01.swift",
             "Module01/File02.swift",
             "Module01/File03.swift",
@@ -208,7 +208,7 @@ final class ManifestFileLocatorTests: TuistUnitTestCase {
 
     func test_locateSetup_where_setup_not_exist() throws {
         // Given
-        _ = try createFiles([
+        try createFiles([
             "Module01/File01.swift",
             "Module01/File02.swift",
             "Module01/File03.swift",
