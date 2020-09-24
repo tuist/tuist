@@ -42,15 +42,6 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         if !helpers.isEmpty {
             manifestsDependencies = [.target(name: "ProjectDescriptionHelpers")]
         }
-        if !templates.isEmpty {
-            manifestsDependencies.append(.target(name: "Templates"))
-        }
-        if setupPath != nil {
-            manifestsDependencies.append(.target(name: "Setup"))
-        }
-        if configPath != nil {
-            manifestsDependencies.append(.target(name: "Config"))
-        }
 
         let manifestsTargets = named(manifests: manifests).map { name, manifest in
             Target(name: name,
