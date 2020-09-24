@@ -60,7 +60,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(manifestsTarget.settings, expectedSettings(sourceRootPath: sourceRootPath))
         XCTAssertEqual(manifestsTarget.sources.map { $0.path }, manifestPaths)
         XCTAssertEqual(manifestsTarget.filesGroup, .group(name: "Manifests"))
-        XCTAssertEqual(manifestsTarget.dependencies, [.target(name: "ProjectDescriptionHelpers"), .target(name: "Templates"), .target(name: "Setup"), .target(name: "Config")])
+        XCTAssertEqual(manifestsTarget.dependencies, [.target(name: "ProjectDescriptionHelpers")])
 
         // Generated Helpers target
         let helpersTarget = try XCTUnwrap(project.targets.last(where: { $0.name == "ProjectDescriptionHelpers" }))
@@ -240,7 +240,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(manifestOneTarget.settings, expectedSettings(sourceRootPath: sourceRootPath))
         XCTAssertEqual(manifestOneTarget.sources.map { $0.path }, [manifestPaths.last])
         XCTAssertEqual(manifestOneTarget.filesGroup, .group(name: "Manifests"))
-        XCTAssertEqual(manifestOneTarget.dependencies, [.target(name: "Setup"), .target(name: "Config")])
+        XCTAssertEqual(manifestOneTarget.dependencies, [])
 
         // Generated Manifests target
         let manifestTwoTarget = try XCTUnwrap(project.targets.first(where: { $0.name != "ModuleManifests" }))
@@ -251,7 +251,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(manifestTwoTarget.settings, expectedSettings(sourceRootPath: sourceRootPath))
         XCTAssertEqual(manifestTwoTarget.sources.map { $0.path }, [manifestPaths.first])
         XCTAssertEqual(manifestTwoTarget.filesGroup, .group(name: "Manifests"))
-        XCTAssertEqual(manifestTwoTarget.dependencies, [.target(name: "Setup"), .target(name: "Config")])
+        XCTAssertEqual(manifestTwoTarget.dependencies, [])
 
         // Generated Setup target
         let setupTarget = try XCTUnwrap(project.targets.last(where: { $0.name == "Setup" }))
