@@ -7,23 +7,24 @@ public extension Graph {
         name: String = "test",
         entryPath: AbsolutePath = AbsolutePath("/test/graph"),
         entryNodes: [GraphNode] = [],
+        workspace: Workspace? = nil,
         projects: [Project] = [],
         cocoapods: [CocoaPodsNode] = [],
         packages: [PackageNode] = [],
         precompiled: [PrecompiledNode] = [],
         targets: [AbsolutePath: [TargetNode]] = [:],
-        schemes: [Scheme] = []
+        schemes _: [Scheme] = []
     ) -> Graph {
         Graph(
             name: name,
             entryPath: entryPath,
             entryNodes: entryNodes,
+            workspace: workspace,
             projects: projects,
             cocoapods: cocoapods,
             packages: packages,
             precompiled: precompiled,
-            targets: targets,
-            schemes: schemes
+            targets: targets
         )
     }
 

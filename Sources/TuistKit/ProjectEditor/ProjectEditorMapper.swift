@@ -109,12 +109,12 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             name: "Manifests",
             entryPath: sourceRootPath,
             entryNodes: manifestTargetNodes,
+            workspace: nil,
             projects: [project],
             cocoapods: [],
             packages: [],
             precompiled: [],
-            targets: [sourceRootPath: manifestTargetNodes + dependencies],
-            schemes: project.schemes
+            targets: [sourceRootPath: manifestTargetNodes + dependencies]
         )
 
         // Project

@@ -68,12 +68,12 @@ final class ValueGraphTests: TuistUnitTestCase {
             name: "Graph",
             entryPath: project.path,
             entryNodes: [appNode],
+            workspace: nil,
             projects: [project],
             cocoapods: [],
             packages: [packageNode],
             precompiled: [xcframeworkNode, libraryNode],
-            targets: [project.path: [appNode, aNode, bNode]],
-            schemes: project.schemes
+            targets: [project.path: [appNode, aNode, bNode]]
         )
 
         // When

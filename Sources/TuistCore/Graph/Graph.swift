@@ -33,6 +33,9 @@ public class Graph: Encodable, Equatable {
     /// The entry nodes of the graph.
     public let entryNodes: [GraphNode]
 
+    /// Workspace of the graph
+    public let workspace: Workspace?
+
     /// Projects of the graph
     public let projects: [Project]
 
@@ -55,21 +58,29 @@ public class Graph: Encodable, Equatable {
     public let targets: [AbsolutePath: [TargetNode]]
 
     /// Schemes of the graph
-    public let schemes: [Scheme]
+    public var schemes: [Scheme] {
+        projects.flatMap(\.schemes) + (workspace?.schemes ?? [])
+    }
 
     // MARK: - Init
 
-    convenience init(name: String, entryPath: AbsolutePath, cache: GraphLoaderCaching, entryNodes: [GraphNode]) {
+    convenience init(
+        name: String,
+        entryPath: AbsolutePath,
+        cache: GraphLoaderCaching,
+        entryNodes: [GraphNode],
+        workspace: Workspace?
+    ) {
         self.init(
             name: name,
             entryPath: entryPath,
             entryNodes: entryNodes,
+            workspace: workspace,
             projects: Array(cache.projects.values),
             cocoapods: Array(cache.cocoapodsNodes.values),
             packages: Array(cache.packages.flatMap { $0.value }),
             precompiled: Array(cache.precompiledNodes.values),
-            targets: cache.targetNodes.mapValues { Array($0.values) },
-            schemes: cache.projects.values.flatMap(\.schemes)
+            targets: cache.targetNodes.mapValues { Array($0.values) }
         )
     }
 
@@ -77,22 +88,22 @@ public class Graph: Encodable, Equatable {
         name: String,
         entryPath: AbsolutePath,
         entryNodes: [GraphNode],
+        workspace: Workspace?,
         projects: [Project],
         cocoapods: [CocoaPodsNode],
         packages: [PackageNode],
         precompiled: [PrecompiledNode],
-        targets: [AbsolutePath: [TargetNode]],
-        schemes: [Scheme]
+        targets: [AbsolutePath: [TargetNode]]
     ) {
         self.name = name
         self.entryPath = entryPath
         self.entryNodes = entryNodes
+        self.workspace = workspace
         self.projects = projects
         self.cocoapods = cocoapods
         self.packages = packages
         self.precompiled = precompiled
         self.targets = targets
-        self.schemes = schemes
     }
 
     // MARK: - Encodable
@@ -547,12 +558,12 @@ public class Graph: Encodable, Equatable {
             name: name,
             entryPath: entryPath,
             entryNodes: entryNodes,
+            workspace: workspace,
             projects: projects,
             cocoapods: cocoapods,
             packages: packages,
             precompiled: precompiled,
-            targets: targets,
-            schemes: schemes
+            targets: targets
         )
     }
 
@@ -564,28 +575,12 @@ public class Graph: Encodable, Equatable {
             name: name,
             entryPath: entryPath,
             entryNodes: entryNodes,
+            workspace: workspace,
             projects: projects,
             cocoapods: cocoapods,
             packages: packages,
             precompiled: precompiled,
-            targets: targets,
-            schemes: schemes
-        )
-    }
-
-    /// Returns a copy of the graph with the given schemes set.
-    /// - Parameter schemes: Schemes to be set to the copy.
-    public func with(schemes: [Scheme]) -> Graph {
-        Graph(
-            name: name,
-            entryPath: entryPath,
-            entryNodes: entryNodes,
-            projects: projects,
-            cocoapods: cocoapods,
-            packages: packages,
-            precompiled: precompiled,
-            targets: targets,
-            schemes: schemes
+            targets: targets
         )
     }
 
