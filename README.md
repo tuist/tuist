@@ -69,7 +69,7 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
 <table>
   <tr>
     <td align="center"><a href="https://github.com/kalkwarf"><img src="https://avatars1.githubusercontent.com/u/1033839?v=4" width="100px;" alt=""/><br /><sub><b>kalkwarf</b></sub></a><br /><a href="#ideas-kalkwarf" title="Ideas, Planning, & Feedback">🤔</a></td>
-    <td align="center"><a href="https://github.com/laxmorek"><img src="https://avatars2.githubusercontent.com/u/4774319?v=4" width="100px;" alt=""/><br /><sub><b>Kamil Harasimowicz</b></sub></a><br /><a href="https://github.com/tuist/tuist/commits?author=laxmorek" title="Code">💻</a></td>
+    <td align="center"><a href="https://github.com/laxmorek"><img src="https://avatars2.githubusercontent.com/u/4774319?v=4" width="100px;" alt=""/><br /><sub><b>Kamil Harasimowicz</b></sub></a><br /><a href="https://github.com/tuist/tuist/commits?author=laxmorek" title="Code">💻</a> <a href="#ideas-laxmorek" title="Ideas, Planning, & Feedback">🤔</a></td>
   </tr>
 </table>
 
