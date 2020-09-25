@@ -5,11 +5,11 @@ import TuistSupport
 public struct Workspace: Equatable {
     // MARK: - Attributes
 
-    public let path: AbsolutePath
-    public let name: String
-    public let projects: [AbsolutePath]
-    public let schemes: [Scheme]
-    public let additionalFiles: [FileElement]
+    public var path: AbsolutePath
+    public var name: String
+    public var projects: [AbsolutePath]
+    public var schemes: [Scheme]
+    public var additionalFiles: [FileElement]
 
     // MARK: - Init
 
@@ -23,6 +23,12 @@ public struct Workspace: Equatable {
 }
 
 extension Workspace {
+    public func with(name: String) -> Workspace {
+        var copy = self
+        copy.name = name
+        return copy
+    }
+
     public func adding(files: [AbsolutePath]) -> Workspace {
         Workspace(path: path,
                   name: name,

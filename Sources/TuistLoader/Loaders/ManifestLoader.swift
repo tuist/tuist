@@ -117,7 +117,7 @@ public class ManifestLoader: ManifestLoading {
     }
 
     public func manifests(at path: AbsolutePath) -> Set<Manifest> {
-        Set(manifestFilesLocator.locate(at: path).map { $0.0 })
+        Set(manifestFilesLocator.locateProjectManifests(at: path).map { $0.0 })
     }
 
     public func loadConfig(at path: AbsolutePath) throws -> ProjectDescription.Config {
@@ -189,7 +189,7 @@ public class ManifestLoader: ManifestLoading {
         ]
 
         // Helpers
-        let projectDesciptionHelpersModulePath = try projectDescriptionHelpersBuilder.build(at: path, projectDescriptionPath: projectDescriptionPath)
+        let projectDesciptionHelpersModulePath = try projectDescriptionHelpersBuilder.build(at: path, projectDescriptionSearchPaths: searchPaths)
         if let projectDesciptionHelpersModulePath = projectDesciptionHelpersModulePath {
             arguments.append(contentsOf: [
                 "-I", projectDesciptionHelpersModulePath.parentDirectory.pathString,
