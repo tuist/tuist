@@ -1,7 +1,4 @@
 <div align="center">
-<!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-3-orange.svg?style=flat-square)](#contributors-)
-<!-- ALL-CONTRIBUTORS-BADGE:END -->
 <img src="assets/header.gif"/>
   <img src="https://github.com/tuist/tuist/workflows/Tuist/badge.svg" alt="Tuist">
   <img src="https://img.shields.io/github/v/release/tuist/tuist?include_prereleases&style=flat-square" alt="Latest Version">
@@ -17,6 +14,7 @@
   <img src="https://img.shields.io/opencollective/all/tuistapp?style=flat-square" alt="Backers and sponsors">
   <img src="https://img.shields.io/github/license/tuist/tuist?style=flat-square" alt="License">
   <img src="https://img.shields.io/badge/Powered%20by-Tuist-blue" alt="Powered by Tuist">
+  <a href="#contributors-"><img src="https://img.shields.io/badge/all_contributors-3-orange.svg?style=flat-square" alt="Contributors"></a>
 </div>
 
 ## What's Tuist 🕺
