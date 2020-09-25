@@ -6,6 +6,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Fixed
 
+- Ensure `DEVELOPER_DIR` is used in all `swiftc` calls [#1819](https://github.com/tuist/tuist/pull/1819) by [@kwridan](https://github.com/kwridan)
 - Fixed decoding bug on DefaultSettings [#1817](https://github.com/tuist/tuist/issues/1817) by [@jakeatoms](https://github.com/jakeatoms)
 
 ### Added
