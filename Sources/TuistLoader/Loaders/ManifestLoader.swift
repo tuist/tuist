@@ -189,7 +189,7 @@ public class ManifestLoader: ManifestLoading {
         ]
 
         // Helpers
-        let projectDesciptionHelpersModulePath = try projectDescriptionHelpersBuilder.build(at: path, projectDescriptionPath: projectDescriptionPath)
+        let projectDesciptionHelpersModulePath = try projectDescriptionHelpersBuilder.build(at: path, projectDescriptionSearchPaths: searchPaths)
         if let projectDesciptionHelpersModulePath = projectDesciptionHelpersModulePath {
             arguments.append(contentsOf: [
                 "-I", projectDesciptionHelpersModulePath.parentDirectory.pathString,
