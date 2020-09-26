@@ -584,6 +584,23 @@ public class Graph: Encodable, Equatable {
         )
     }
 
+    /// Returns a copy of the graph with a given workspace.
+    /// - Parameter workspace: Workspace to be set to the copy.
+    /// - Returns: New graph with a given workspace.
+    public func with(workspace: Workspace?) -> Graph {
+        Graph(
+            name: name,
+            entryPath: entryPath,
+            entryNodes: entryNodes,
+            workspace: workspace,
+            projects: projects,
+            cocoapods: cocoapods,
+            packages: packages,
+            precompiled: precompiled,
+            targets: targets
+        )
+    }
+
     public func forEach(closure: (GraphNode) -> Void) {
         var stack = Stack<GraphNode>()
 

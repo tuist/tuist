@@ -9,8 +9,7 @@ public extension Workspace {
         projects: [AbsolutePath] = [],
         schemes: [Scheme] = [],
         additionalFiles: [FileElement] = []
-    ) -> Workspace
-    {
+    ) -> Workspace {
         Workspace(
             path: path,
             name: name,
