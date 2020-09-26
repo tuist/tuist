@@ -12,8 +12,7 @@ public extension Graph {
         cocoapods: [CocoaPodsNode] = [],
         packages: [PackageNode] = [],
         precompiled: [PrecompiledNode] = [],
-        targets: [AbsolutePath: [TargetNode]] = [:],
-        schemes _: [Scheme] = []
+        targets: [AbsolutePath: [TargetNode]] = [:]
     ) -> Graph {
         Graph(
             name: name,
