@@ -155,7 +155,7 @@ public class CachedManifestLoader: ManifestLoading {
     }
 
     private func calculateEnvironmentHash() -> String? {
-        let tuistEnvVariables = environment.tuistVariables.map { "\($0.key)=\($0.value)" }.sorted()
+        let tuistEnvVariables = environment.manifestLoadingVariables.map { "\($0.key)=\($0.value)" }.sorted()
         guard !tuistEnvVariables.isEmpty else {
             return nil
         }

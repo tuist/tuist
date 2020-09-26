@@ -131,7 +131,6 @@ public class Environment: Environmenting {
 
     public var manifestLoadingVariables: [String: String] {
         let allowedVariableKeys = [
-            "PATH",
             "DEVELOPER_DIR",
         ]
         let allowedVariables = ProcessInfo.processInfo.environment.filter {

@@ -77,4 +77,22 @@ final class ProjectMapperProviderTests: TuistUnitTestCase {
         let sequentialProjectMapper = try XCTUnwrap(got as? SequentialProjectMapper)
         XCTAssertEqual(sequentialProjectMapper.mappers.filter { $0 is SynthesizedResourceInterfaceProjectMapper }.count, 0)
     }
+
+    func test_mappers_does_disable_show_environment_vars() throws {
+        // Given
+        subject = ProjectMapperProvider()
+
+        // When
+        let got = subject.mapper(
+            config: Config.test(
+                generationOptions: [
+                    .disableShowEnvironmentVarsInScriptPhases,
+                ]
+            )
+        )
+
+        // Then
+        let sequentialProjectMapper = try XCTUnwrap(got as? SequentialProjectMapper)
+        XCTAssertEqual(sequentialProjectMapper.mappers.filter { $0 is TargetProjectMapper }.count, 1)
+    }
 }

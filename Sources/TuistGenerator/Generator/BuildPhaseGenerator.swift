@@ -112,7 +112,8 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                                                           outputFileListPaths: action.outputFileListPaths.map { $0.relative(to: sourceRootPath).pathString }, // swiftlint:disable:this line_length
 
                                                           shellPath: "/bin/sh",
-                                                          shellScript: action.shellScript(sourceRootPath: sourceRootPath))
+                                                          shellScript: action.shellScript(sourceRootPath: sourceRootPath),
+                                                          showEnvVarsInLog: action.showEnvVarsInLog)
             pbxproj.add(object: buildPhase)
             pbxTarget.buildPhases.append(buildPhase)
         }
