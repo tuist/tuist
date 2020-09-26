@@ -35,12 +35,9 @@ final class EmbedScriptGeneratorTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(got.inputPaths, [
             RelativePath(path.basename),
-            RelativePath(dsymPath.basename),
-            RelativePath(bcsymbolPath.basename),
         ])
         XCTAssertEqual(got.outputPaths, [
             "${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/\(path.basename)",
-            "${DWARF_DSYM_FOLDER_PATH}/tuist.dSYM", "${BUILT_PRODUCTS_DIR}/\(bcsymbolPath.basename)",
         ])
 
         XCTAssertTrue(got.script.contains("install_framework \"\(path.basename)\""))
