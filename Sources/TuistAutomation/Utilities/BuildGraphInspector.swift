@@ -63,11 +63,14 @@ public class BuildGraphInspector: BuildGraphInspecting {
     }
 
     public func buildableTarget(scheme: Scheme, graph: Graph) -> Target? {
-        if scheme.buildAction?.targets.count == 0 {
+        guard
+            scheme.buildAction?.targets.isEmpty == false,
+            let buildTarget = scheme.buildAction?.targets.first
+        else {
             return nil
         }
-        let buildTarget = scheme.buildAction!.targets.first!
-        return graph.target(path: buildTarget.projectPath, name: buildTarget.name)!.target
+        
+        return graph.target(path: buildTarget.projectPath, name: buildTarget.name)?.target
     }
 
     public func testableTarget(scheme: Scheme, graph: Graph) -> Target? {
