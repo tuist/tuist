@@ -355,12 +355,12 @@ final class SchemesGeneratorTests: XCTestCase {
         // Given
         let projectPath = AbsolutePath("/somepath/Workspace/Projects/Project")
         let environment = ["env1": "1", "env2": "2", "env3": "3", "env4": "4"]
-        let launch = ["arg1": true, "arg2": true, "arg3": false, "arg4": true]
+        let launchArguments = ["arg1": true, "arg2": true, "arg3": false, "arg4": true]
 
         let buildAction = BuildAction.test(targets: [TargetReference(projectPath: projectPath, name: "App")])
         let runAction = RunAction.test(configurationName: "Release",
                                        executable: TargetReference(projectPath: projectPath, name: "App"),
-                                       arguments: Arguments(environment: environment, launch: launch))
+                                       arguments: Arguments(environment: environment, launchArguments: launchArguments))
         let scheme = Scheme.test(buildAction: buildAction, runAction: runAction)
 
         let app = Target.test(name: "App", product: .app, environment: environment)
@@ -394,6 +394,10 @@ final class SchemesGeneratorTests: XCTestCase {
             XCScheme.EnvironmentVariable(variable: "env3", value: "3", enabled: true),
             XCScheme.EnvironmentVariable(variable: "env4", value: "4", enabled: true),
         ])
+        XCTAssertNil(result.askForAppToLaunch)
+        XCTAssertNil(result.launchAutomaticallySubstyle)
+        XCTAssertEqual(result.selectedDebuggerIdentifier, "Xcode.DebuggerFoundation.Debugger.LLDB")
+        XCTAssertEqual(result.selectedLauncherIdentifier, "Xcode.DebuggerFoundation.Launcher.LLDB")
         XCTAssertEqual(buildableReference.referencedContainer, "container:Projects/Project/Project.xcodeproj")
         XCTAssertEqual(buildableReference.buildableName, "App.app")
         XCTAssertEqual(buildableReference.blueprintName, "App")
@@ -634,6 +638,86 @@ final class SchemesGeneratorTests: XCTestCase {
         let schemes = result.map(\.xcScheme.name)
         XCTAssertEqual(schemes, [scheme.name])
     }
+
+    func test_generate_appExtensionScheme() throws {
+        let path = AbsolutePath("/test")
+        let app = Target.test(name: "App", product: .app)
+        let appExtension = Target.test(name: "AppExtension", product: .appExtension)
+        let appScheme = Scheme.test(buildAction: BuildAction(targets: [
+            TargetReference(projectPath: path, name: app.name),
+        ]))
+        let extensionScheme = Scheme.test(buildAction: BuildAction.test(targets: [
+            TargetReference(projectPath: path, name: appExtension.name),
+            TargetReference(projectPath: path, name: app.name),
+        ]))
+        let project = Project.test(path: path,
+                                   targets: [app, appExtension],
+                                   schemes: [
+                                       appScheme,
+                                       extensionScheme,
+                                   ])
+
+        let graph = Graph.create(
+            project: project,
+            dependencies: [
+                (target: app, dependencies: [appExtension]),
+                (target: appExtension, dependencies: []),
+            ]
+        )
+
+        // When
+        let result = try subject.generateProjectSchemes(project: project,
+                                                        generatedProject: generatedProject(targets: project.targets),
+                                                        graph: graph)
+
+        // Then
+        let schemeForExtension = result.map(\.xcScheme.wasCreatedForAppExtension)
+        XCTAssertEqual(schemeForExtension, [
+            nil, // Xcode omits the setting rather than have it set to `false`
+            true,
+        ])
+    }
+
+    func test_generate_appExtensionSchemeLaunchAction() throws {
+        // Given
+        let path = AbsolutePath("/test")
+        let app = Target.test(name: "App", product: .app)
+        let appExtension = Target.test(name: "AppExtension", product: .appExtension)
+        let buildAction = BuildAction.test(targets: [
+            TargetReference(projectPath: path, name: appExtension.name),
+            TargetReference(projectPath: path, name: app.name),
+        ])
+        let runAction = RunAction.test(executable: TargetReference(projectPath: path, name: app.name))
+        let extensionScheme = Scheme.test(buildAction: buildAction, runAction: runAction)
+        let project = Project.test(path: path,
+                                   targets: [app, appExtension],
+                                   schemes: [
+                                       extensionScheme,
+                                   ])
+
+        let graph = Graph.create(
+            project: project,
+            dependencies: [
+                (target: app, dependencies: [appExtension]),
+                (target: appExtension, dependencies: []),
+            ]
+        )
+
+        // When
+        let result = try subject.generateProjectSchemes(project: project,
+                                                        generatedProject: generatedProject(targets: project.targets),
+                                                        graph: graph)
+
+        // Then
+        let scheme = try XCTUnwrap(result.first)
+        let launchAction = try XCTUnwrap(scheme.xcScheme.launchAction)
+        XCTAssertEqual(launchAction.askForAppToLaunch, true)
+        XCTAssertEqual(launchAction.launchAutomaticallySubstyle, "2")
+        XCTAssertEqual(launchAction.selectedDebuggerIdentifier, "")
+        XCTAssertEqual(launchAction.selectedLauncherIdentifier, "Xcode.IDEFoundation.Launcher.PosixSpawn")
+    }
+
+    // MARK: - Helpers
 
     private func createGeneratedProjects(projects: [Project]) -> [AbsolutePath: GeneratedProject] {
         Dictionary(uniqueKeysWithValues: projects.map {

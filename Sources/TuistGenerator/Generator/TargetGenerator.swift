@@ -12,7 +12,6 @@ protocol TargetGenerating: AnyObject {
                         projectSettings: Settings,
                         fileElements: ProjectFileElements,
                         path: AbsolutePath,
-                        sourceRootPath: AbsolutePath,
                         graph: Graph) throws -> PBXNativeTarget
 
     func generateTargetDependencies(path: AbsolutePath,
@@ -34,7 +33,8 @@ final class TargetGenerator: TargetGenerating {
     init(configGenerator: ConfigGenerating = ConfigGenerator(),
          fileGenerator: FileGenerating = FileGenerator(),
          buildPhaseGenerator: BuildPhaseGenerating = BuildPhaseGenerator(),
-         linkGenerator: LinkGenerating = LinkGenerator()) {
+         linkGenerator: LinkGenerating = LinkGenerator())
+    {
         self.configGenerator = configGenerator
         self.fileGenerator = fileGenerator
         self.buildPhaseGenerator = buildPhaseGenerator
@@ -51,8 +51,10 @@ final class TargetGenerator: TargetGenerating {
                         projectSettings: Settings,
                         fileElements: ProjectFileElements,
                         path: AbsolutePath,
-                        sourceRootPath: AbsolutePath,
-                        graph: Graph) throws -> PBXNativeTarget {
+                        graph: Graph) throws -> PBXNativeTarget
+    {
+        let graphTraverser = GraphTraverser(graph: graph)
+
         /// Products reference.
         let productFileReference = fileElements.products[target.name]!
 
@@ -73,7 +75,7 @@ final class TargetGenerator: TargetGenerating {
         try buildPhaseGenerator.generateActions(actions: target.actions.preActions,
                                                 pbxTarget: pbxTarget,
                                                 pbxproj: pbxproj,
-                                                sourceRootPath: sourceRootPath)
+                                                sourceRootPath: project.sourceRootPath)
 
         /// Build configuration
         try configGenerator.generateTargetConfig(target,
@@ -82,17 +84,16 @@ final class TargetGenerator: TargetGenerating {
                                                  pbxproj: pbxproj,
                                                  projectSettings: projectSettings,
                                                  fileElements: fileElements,
-                                                 graph: graph,
-                                                 sourceRootPath: sourceRootPath)
+                                                 graphTraverser: graphTraverser,
+                                                 sourceRootPath: project.sourceRootPath)
 
         /// Build phases
         try buildPhaseGenerator.generateBuildPhases(path: path,
                                                     target: target,
-                                                    graph: graph,
+                                                    graphTraverser: graphTraverser,
                                                     pbxTarget: pbxTarget,
                                                     fileElements: fileElements,
-                                                    pbxproj: pbxproj,
-                                                    sourceRootPath: sourceRootPath)
+                                                    pbxproj: pbxproj)
 
         /// Links
         try linkGenerator.generateLinks(target: target,
@@ -100,21 +101,22 @@ final class TargetGenerator: TargetGenerating {
                                         pbxproj: pbxproj,
                                         fileElements: fileElements,
                                         path: path,
-                                        sourceRootPath: sourceRootPath,
+                                        sourceRootPath: project.sourceRootPath,
                                         graph: graph)
 
         /// Post actions
         try buildPhaseGenerator.generateActions(actions: target.actions.postActions,
                                                 pbxTarget: pbxTarget,
                                                 pbxproj: pbxproj,
-                                                sourceRootPath: sourceRootPath)
+                                                sourceRootPath: project.sourceRootPath)
         return pbxTarget
     }
 
     func generateTargetDependencies(path: AbsolutePath,
                                     targets: [Target],
                                     nativeTargets: [String: PBXNativeTarget],
-                                    graph: Graph) throws {
+                                    graph: Graph) throws
+    {
         try targets.forEach { targetSpec in
             let dependencies = graph.targetDependencies(path: path, name: targetSpec.name)
             try dependencies.forEach { dependency in

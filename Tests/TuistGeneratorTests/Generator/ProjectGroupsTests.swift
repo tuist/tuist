@@ -22,9 +22,10 @@ final class ProjectGroupsTests: XCTestCase {
         playgrounds = MockPlaygrounds()
         sourceRootPath = AbsolutePath("/test/")
         project = Project(path: path,
+                          sourceRootPath: path,
+                          xcodeProjPath: path.appending(component: "Project.xcodeproj"),
                           name: "Project",
                           organizationName: nil,
-                          fileName: nil,
                           settings: .default,
                           filesGroup: .group(name: "Project"),
                           targets: [
@@ -57,8 +58,6 @@ final class ProjectGroupsTests: XCTestCase {
         }
         subject = ProjectGroups.generate(project: project,
                                          pbxproj: pbxproj,
-                                         xcodeprojPath: project.path.appending(component: "\(project.fileName).xcodeproj"),
-                                         sourceRootPath: sourceRootPath,
                                          playgrounds: playgrounds)
 
         let main = subject.sortedMain
@@ -97,8 +96,6 @@ final class ProjectGroupsTests: XCTestCase {
         }
         subject = ProjectGroups.generate(project: project,
                                          pbxproj: pbxproj,
-                                         xcodeprojPath: project.path.appending(component: "\(project.fileName).xcodeproj"),
-                                         sourceRootPath: sourceRootPath,
                                          playgrounds: playgrounds)
 
         XCTAssertNil(subject.playgrounds)
@@ -120,8 +117,6 @@ final class ProjectGroupsTests: XCTestCase {
         // When
         subject = ProjectGroups.generate(project: project,
                                          pbxproj: pbxproj,
-                                         xcodeprojPath: project.path.appending(component: "\(project.fileName).xcodeproj"),
-                                         sourceRootPath: sourceRootPath,
                                          playgrounds: playgrounds)
 
         // Then
@@ -140,8 +135,6 @@ final class ProjectGroupsTests: XCTestCase {
     func test_targetFrameworks() throws {
         subject = ProjectGroups.generate(project: project,
                                          pbxproj: pbxproj,
-                                         xcodeprojPath: project.path.appending(component: "\(project.fileName).xcodeproj"),
-                                         sourceRootPath: sourceRootPath,
                                          playgrounds: playgrounds)
 
         let got = try subject.targetFrameworks(target: "Test")
@@ -154,8 +147,6 @@ final class ProjectGroupsTests: XCTestCase {
         // Given
         subject = ProjectGroups.generate(project: project,
                                          pbxproj: pbxproj,
-                                         xcodeprojPath: project.path.appending(component: "\(project.fileName).xcodeproj"),
-                                         sourceRootPath: sourceRootPath,
                                          playgrounds: playgrounds)
 
         // When / Then
@@ -168,13 +159,14 @@ final class ProjectGroupsTests: XCTestCase {
         let target1 = Target.test(filesGroup: .group(name: "A"))
         let target2 = Target.test(filesGroup: .group(name: "B"))
         let target3 = Target.test(filesGroup: .group(name: "B"))
-        let project = Project.test(filesGroup: .group(name: "P"),
+        let project = Project.test(path: .root,
+                                   sourceRootPath: .root,
+                                   xcodeProjPath: AbsolutePath.root.appending(component: "Project.xcodeproj"),
+                                   filesGroup: .group(name: "P"),
                                    targets: [target1, target2, target3])
 
         subject = ProjectGroups.generate(project: project,
                                          pbxproj: pbxproj,
-                                         xcodeprojPath: project.path.appending(component: "\(project.fileName).xcodeproj"),
-                                         sourceRootPath: sourceRootPath,
                                          playgrounds: playgrounds)
 
         // When / Then

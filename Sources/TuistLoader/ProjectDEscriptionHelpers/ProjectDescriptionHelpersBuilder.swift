@@ -10,7 +10,7 @@ protocol ProjectDescriptionHelpersBuilding: AnyObject {
     /// - Parameters:
     ///   - at: Path to the directory that contains the manifest being loaded.
     ///   - projectDescriptionPath: Path to the project description module.
-    func build(at: AbsolutePath, projectDescriptionPath: AbsolutePath) throws -> AbsolutePath?
+    func build(at: AbsolutePath, projectDescriptionSearchPaths: ProjectDescriptionSearchPaths) throws -> AbsolutePath?
 }
 
 final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding {
@@ -34,13 +34,14 @@ final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding 
     ///   - helpersDirectoryLocating: Instance to locate the helpers directory.
     init(projectDescriptionHelpersHasher: ProjectDescriptionHelpersHashing = ProjectDescriptionHelpersHasher(),
          cacheDirectory: AbsolutePath = Environment.shared.projectDescriptionHelpersCacheDirectory,
-         helpersDirectoryLocator: HelpersDirectoryLocating = HelpersDirectoryLocator()) {
+         helpersDirectoryLocator: HelpersDirectoryLocating = HelpersDirectoryLocator())
+    {
         self.projectDescriptionHelpersHasher = projectDescriptionHelpersHasher
         self.cacheDirectory = cacheDirectory
         self.helpersDirectoryLocator = helpersDirectoryLocator
     }
 
-    func build(at: AbsolutePath, projectDescriptionPath: AbsolutePath) throws -> AbsolutePath? {
+    func build(at: AbsolutePath, projectDescriptionSearchPaths: ProjectDescriptionSearchPaths) throws -> AbsolutePath? {
         guard let helpersDirectory = helpersDirectoryLocator.locate(at: at) else { return nil }
         if let cachedPath = builtHelpers[helpersDirectory] { return cachedPath }
 
@@ -68,8 +69,8 @@ final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding 
 
         let command = self.command(outputDirectory: helpersModuleCachePath,
                                    helpersDirectory: helpersDirectory,
-                                   projectDescriptionPath: projectDescriptionPath)
-        try System.shared.runAndPrint(command, verbose: false, environment: Environment.shared.tuistVariables)
+                                   projectDescriptionSearchPaths: projectDescriptionSearchPaths)
+        try System.shared.runAndPrint(command, verbose: false, environment: Environment.shared.manifestLoadingVariables)
 
         return modulePath
     }
@@ -78,7 +79,8 @@ final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding 
 
     fileprivate func command(outputDirectory: AbsolutePath,
                              helpersDirectory: AbsolutePath,
-                             projectDescriptionPath: AbsolutePath) -> [String] {
+                             projectDescriptionSearchPaths: ProjectDescriptionSearchPaths) -> [String]
+    {
         let files = FileHandler.shared.glob(helpersDirectory, glob: "**/*.swift")
         var command: [String] = [
             "/usr/bin/xcrun", "swiftc",
@@ -88,12 +90,12 @@ final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding 
             "-parse-as-library",
             "-emit-library",
             "-suppress-warnings",
-            "-I", projectDescriptionPath.parentDirectory.pathString,
-            "-L", projectDescriptionPath.parentDirectory.pathString,
-            "-F", projectDescriptionPath.parentDirectory.pathString,
+            "-I", projectDescriptionSearchPaths.includeSearchPath.pathString,
+            "-L", projectDescriptionSearchPaths.librarySearchPath.pathString,
+            "-F", projectDescriptionSearchPaths.frameworkSearchPath.pathString,
             "-working-directory", outputDirectory.pathString,
         ]
-        if projectDescriptionPath.extension == "dylib" {
+        if projectDescriptionSearchPaths.path.extension == "dylib" {
             command.append(contentsOf: ["-lProjectDescription"])
         } else {
             command.append(contentsOf: ["-framework", "ProjectDescription"])

@@ -5,31 +5,88 @@ excerpt: "Learn how to use the graph command to get a visual representation of y
 
 # Project graph
 
-When projects grow, it becomes hard to visualize the dependencies between all the targets that are part of the project. Fortunately, Tuist provides a command, `tuist graph`, that loads your project dependencies graph and exports it in a representable format.
+When projects grow, it becomes hard to visualize the dependencies between all the targets that are part of the project.
+Fortunately, Tuist provides a command, `tuist graph`, that loads your project dependencies graph and exports it. As the
+saying goes, "one image is worth a thousand words":
+
+![Sample graph exported with the graph command](/assets/GraphExample.png)
+
+The command will output the dependency graph as an image, in the `png` format.
+You can also change the format to `dot` (see [DOT](<https://en.wikipedia.org/wiki/DOT_(graph_description_language)>))
+to get the raw contents of the graph.
 
 ## Command
 
-Being in a directory that contains a workspace or project manifest, run the following command:
+Run the following command from a directory that contains a workspace or project manifest:
 
 ```bash
 tuist graph
 ```
 
-### Besides running the plain graph command, an enduser can opt to exclude either tests and/or third party dependencies
-
-The additional arguments are:
-- `skipTestTargets`
-- `skipExternalDependencies`
-
-The command will output a human-readable file, `graph.dot` that describes the dependencies graph using the [DOT](<https://en.wikipedia.org/wiki/DOT_(graph_description_language)>) description language.
-
-## A visual representation of the graph
-
-[Graphviz](https://formulae.brew.sh/formula/graphviz) is a command line tool that take the `.dot` graph and convert it into an image.
+If you prefer to have the dot representation of the graph and render it separately, you can run:
 
 ```bash
-brew install graphviz
-dot -Tpng graph.dot > graph.png
+tuist graph --format dot
 ```
 
-Alternatively, you can use online services like [this one](https://dreampuf.github.io/GraphvizOnline) that renders your graph on a website.
+### Legend
+
+The graph command will style every type of target or dependency differently. This makes it easier to understand
+and visualize the graph. App targets, swift packages, frameworks, and all other types will have different shapes and colors.
+To better understand what which one means, you can use the following legend as a reference.
+
+![Legend: different types of dependencies and targets and their styles in the graph](/assets/Legend.png)
+
+If you prefer the old style, without different colors and shapes, pass the `--simple` flag when creating the graph.
+
+### Arguments
+
+<ArgumentsTable
+  args={[
+    {
+      long: '`--skip-test-targets`',
+      short: '`-t`',
+      description: 'Excludes test targets from the generated graph.',
+    },
+    {
+      long: '`--skip-external-dependencies`',
+      short: '`-d`',
+      description: 'Excludes external dependencies from the generated graph.',
+    },
+    {
+      long: '`--format`',
+      short: '`-f`',
+      description: 'The format of the generated graph',
+      values: ['`dot`', '`png`'],
+      default: '`png`',
+    },
+    {
+      long: '`--simple`',
+      short: '`-s`',
+      description: 'Simple graph: disable different shapes and colors.',
+    },
+    {
+      long: '`--algorithm`',
+      short: '`-a`',
+      description:
+        "The algorithm used for drawing the graph. For large graphs, it's recommended to use `fdp`.",
+      default: '`dot`',
+      values: [
+        '`dot`',
+        '`neato`',
+        '`twopi`',
+        '`circo`',
+        '`fdp`',
+        '`sfddp`',
+        '`patchwork`',
+      ],
+    },
+    {
+      long: '`--path`',
+      short: '`-p`',
+      description:
+        'The path to where the image will be exported. When not specified, it exports the image in the current directory.',
+      default: '',
+    },
+  ]}
+/>

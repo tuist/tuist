@@ -15,7 +15,8 @@ final class GenerateCommand {
     private let fileSystem: FileSystem
 
     init(fileSystem: FileSystem,
-         parser: ArgumentParser) {
+         parser: ArgumentParser)
+    {
         self.fileSystem = fileSystem
 
         pathArgument = parser.add(option: "--path",
@@ -56,7 +57,7 @@ final class GenerateCommand {
         }
 
         guard let path = arguments.get(pathArgument) else {
-            return currentPath
+            return currentPath.appending(component: "Fixture")
         }
         return AbsolutePath(path, relativeTo: currentPath)
     }

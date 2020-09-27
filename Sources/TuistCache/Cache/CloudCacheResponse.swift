@@ -13,16 +13,14 @@ struct CloudCacheResponse: Decodable {
         self.expiresAt = expiresAt
     }
 
-    public static func fetchResource(hash: String, config: Config) throws -> CloudCacheResource {
-        guard let configCloud = config.cloud else { throw CacheAPIError.missingCloudConfig }
-        var request = URLRequest(url: try URL.apiCacheURL(hash: hash, cloudURL: configCloud.url, projectId: configCloud.projectId))
+    public static func fetchResource(hash: String, cloud: Cloud) throws -> CloudCacheResource {
+        var request = URLRequest(url: try URL.apiCacheURL(hash: hash, cacheURL: cloud.url, projectId: cloud.projectId))
         request.httpMethod = "GET"
         return .jsonResource { request }
     }
 
-    public static func storeResource(hash: String, config: Config, contentMD5: String) throws -> CloudCacheResource {
-        guard let configCloud = config.cloud else { throw CacheAPIError.missingCloudConfig }
-        let url = try URL.apiCacheURL(hash: hash, cloudURL: configCloud.url, projectId: configCloud.projectId)
+    public static func storeResource(hash: String, cloud: Cloud, contentMD5: String) throws -> CloudCacheResource {
+        let url = try URL.apiCacheURL(hash: hash, cacheURL: cloud.url, projectId: cloud.projectId)
         var request = URLRequest(url: url.addingQueryItem(name: "content_md5", value: contentMD5))
         request.httpMethod = "POST"
         return .jsonResource { request }

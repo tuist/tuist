@@ -64,6 +64,7 @@ export default ({ menuOpen, setMenuOpen, menuRef }) => {
         >
           {setMenuOpen && (
             <MenuButton
+              size={10}
               sx={{ display: ['inherit', 'none'], zIndex: 1 }}
               onClick={(e) => {
                 setMenuOpen(!menuOpen)
@@ -101,7 +102,6 @@ export default ({ menuOpen, setMenuOpen, menuRef }) => {
             const isResources = location.pathname.startsWith('/resources')
             const isBlog = location.pathname.startsWith('/blog')
             const isAppsAtScale = location.pathname.startsWith('/apps-at-scale')
-            const isFaq = location.pathname.startsWith('/faq')
             return (
               <div
                 sx={{
@@ -157,7 +157,7 @@ export default ({ menuOpen, setMenuOpen, menuRef }) => {
                   <Link
                     sx={{
                       ...linkStyle,
-                      ...(isBlog ? hoverStyle : {}),
+                      ...(isAppsAtScale ? hoverStyle : {}),
                       ml: [0, 4],
                       variant: 'text.header',
                     }}
@@ -166,6 +166,17 @@ export default ({ menuOpen, setMenuOpen, menuRef }) => {
                   >
                     APPS AT SCALE
                   </Link>
+                  <a
+                    sx={{
+                      ...linkStyle,
+                      ml: [0, 4],
+                      variant: 'text.header',
+                    }}
+                    href="https://stats.tuist.io"
+                    alt="Statistics about the usage of Tuist"
+                  >
+                    STATS
+                  </a>
                   <Link
                     sx={{
                       ...linkStyle,
@@ -177,18 +188,6 @@ export default ({ menuOpen, setMenuOpen, menuRef }) => {
                     alt="Ask for free nice-looking stickers"
                   >
                     STICKERS
-                  </Link>
-                  <Link
-                    sx={{
-                      ...linkStyle,
-                      ...(isFaq ? hoverStyle : {}),
-                      ml: [0, 4],
-                      variant: 'text.header',
-                    }}
-                    to="/faq"
-                    alt="Frequently asked questions"
-                  >
-                    FAQ
                   </Link>
                 </div>
 

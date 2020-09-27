@@ -83,7 +83,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         let tuistPath = AbsolutePath(ProcessInfo.processInfo.arguments.first!)
 
         resourceLocator.projectDescriptionStub = { projectDescriptionPath }
-        manifestFilesLocator.locateStub = manifests
+        manifestFilesLocator.locateProjectManifestsStub = manifests
         helpersDirectoryLocator.locateStub = helpersDirectory
         projectEditorMapper.mapStub = (project, graph)
         var mappedProject: Project?
@@ -92,7 +92,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
             return (project, [])
         }
         var generatedProject: Project?
-        generator.generateProjectWithConfigStub = { project, _, _ in
+        generator.generateProjectSub = { project, _ in
             generatedProject = project
             return .test(xcodeprojPath: directory.appending(component: "Edit.xcodeproj"))
         }
@@ -122,7 +122,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         try FileHandler.shared.createFolder(helpersDirectory)
 
         resourceLocator.projectDescriptionStub = { projectDescriptionPath }
-        manifestFilesLocator.locateAllStubs = []
+        manifestFilesLocator.locateAllProjectManifestsStubs = []
         helpersDirectoryLocator.locateStub = helpersDirectory
         projectEditorMapper.mapStub = (project, graph)
 

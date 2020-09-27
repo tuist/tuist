@@ -48,7 +48,7 @@ final class GraphContentHasherTests: TuistUnitTestCase {
                                precompiled: [],
                                targets: [path: [frameworkTarget, secondFrameworkTarget, appTarget, dynamicLibraryTarget, staticFrameworkTarget]])
 
-        let expectedCachableTargets = [frameworkTarget, secondFrameworkTarget].sorted(by: { $0.target.name < $1.target.name })
+        let expectedCachableTargets = [frameworkTarget, secondFrameworkTarget, staticFrameworkTarget].sorted(by: { $0.target.name < $1.target.name })
 
         // When
         let hashes = try subject.contentHashes(for: graph)

@@ -3,12 +3,13 @@ import { jsx, MenuButton } from 'theme-ui'
 
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import {
-  faCloud,
+  faUserAstronaut,
   faKey,
   faUsers,
   faFileCode,
   faLayerGroup,
   faTerminal,
+  faCloud,
 } from '@fortawesome/free-solid-svg-icons'
 
 const Signing = () => {
@@ -16,9 +17,13 @@ const Signing = () => {
     <FontAwesomeIcon sx={{ width: 20, height: 20 }} icon={faKey} size="sm" />
   )
 }
-const Cloud = () => {
+const Astronaut = () => {
   return (
-    <FontAwesomeIcon sx={{ width: 20, height: 20 }} icon={faCloud} size="sm" />
+    <FontAwesomeIcon
+      sx={{ width: 20, height: 20 }}
+      icon={faUserAstronaut}
+      size="sm"
+    />
   )
 }
 const Terminal = () => {
@@ -33,6 +38,11 @@ const Terminal = () => {
 const Users = () => {
   return (
     <FontAwesomeIcon sx={{ width: 20, height: 20 }} icon={faUsers} size="sm" />
+  )
+}
+const Cloud = () => {
+  return (
+    <FontAwesomeIcon sx={{ width: 20, height: 20 }} icon={faCloud} size="sm" />
   )
 }
 const Contributors = () => {
@@ -54,4 +64,12 @@ const Architectures = () => {
     />
   )
 }
-export { Signing, Cloud, Users, Contributors, Architectures, Terminal }
+export {
+  Signing,
+  Astronaut,
+  Users,
+  Contributors,
+  Architectures,
+  Terminal,
+  Cloud,
+}

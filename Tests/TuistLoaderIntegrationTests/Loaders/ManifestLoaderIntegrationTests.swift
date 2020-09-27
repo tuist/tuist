@@ -1,9 +1,9 @@
 import Foundation
 import TSCBasic
-import TuistSupport
 import XCTest
 
 @testable import TuistLoader
+@testable import TuistSupport
 @testable import TuistSupportTesting
 
 final class ManifestLoaderTests: TuistTestCase {
@@ -27,7 +27,7 @@ final class ManifestLoaderTests: TuistTestCase {
         let config = Config(generationOptions: [])
         """
 
-        let manifestPath = temporaryPath.appending(component: Manifest.config.fileName)
+        let manifestPath = temporaryPath.appending(component: Manifest.config.fileName(temporaryPath))
         try content.write(to: manifestPath.url,
                           atomically: true,
                           encoding: .utf8)
@@ -44,7 +44,7 @@ final class ManifestLoaderTests: TuistTestCase {
         let project = Project(name: "tuist")
         """
 
-        let manifestPath = temporaryPath.appending(component: Manifest.project.fileName)
+        let manifestPath = temporaryPath.appending(component: Manifest.project.fileName(temporaryPath))
         try content.write(to: manifestPath.url,
                           atomically: true,
                           encoding: .utf8)
@@ -64,7 +64,7 @@ final class ManifestLoaderTests: TuistTestCase {
         let workspace = Workspace(name: "tuist", projects: [])
         """
 
-        let manifestPath = temporaryPath.appending(component: Manifest.workspace.fileName)
+        let manifestPath = temporaryPath.appending(component: Manifest.workspace.fileName(temporaryPath))
         try content.write(to: manifestPath.url,
                           atomically: true,
                           encoding: .utf8)
@@ -86,7 +86,7 @@ final class ManifestLoaderTests: TuistTestCase {
                     ])
         """
 
-        let manifestPath = temporaryPath.appending(component: Manifest.setup.fileName)
+        let manifestPath = temporaryPath.appending(component: Manifest.setup.fileName(temporaryPath))
         try content.write(to: manifestPath.url,
                           atomically: true,
                           encoding: .utf8)
@@ -102,7 +102,7 @@ final class ManifestLoaderTests: TuistTestCase {
         XCTAssertEqual(customUp?.isMet, ["c"])
     }
 
-    func test_loadTemplate() throws {
+    func test_loadDeprecatedTemplate() throws {
         // Given
         let temporaryPath = try self.temporaryPath()
         let content = """
@@ -125,6 +125,30 @@ final class ManifestLoaderTests: TuistTestCase {
         XCTAssertEqual(got.description, "Template description")
     }
 
+    func test_loadTemplate() throws {
+        // Given
+        let temporaryPath = try self.temporaryPath().appending(component: "folder")
+        try fileHandler.createFolder(temporaryPath)
+        let content = """
+        import ProjectDescription
+
+        let template = Template(
+            description: "Template description"
+        )
+        """
+
+        let manifestPath = temporaryPath.appending(component: "folder.swift")
+        try content.write(to: manifestPath.url,
+                          atomically: true,
+                          encoding: .utf8)
+
+        // When
+        let got = try subject.loadTemplate(at: temporaryPath)
+
+        // Then
+        XCTAssertEqual(got.description, "Template description")
+    }
+
     func test_load_invalidFormat() throws {
         // Given
         let temporaryPath = try self.temporaryPath()
@@ -133,7 +157,7 @@ final class ManifestLoaderTests: TuistTestCase {
         let project
         """
 
-        let manifestPath = temporaryPath.appending(component: Manifest.project.fileName)
+        let manifestPath = temporaryPath.appending(component: Manifest.project.fileName(temporaryPath))
         try content.write(to: manifestPath.url,
                           atomically: true,
                           encoding: .utf8)

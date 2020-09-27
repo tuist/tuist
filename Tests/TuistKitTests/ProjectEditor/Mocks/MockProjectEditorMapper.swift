@@ -10,6 +10,9 @@ final class MockProjectEditorMapper: ProjectEditorMapping {
     var mapArgs: [(
         tuistPath: AbsolutePath,
         sourceRootPath: AbsolutePath,
+        xcodeProjPath: AbsolutePath,
+        setupPath: AbsolutePath?,
+        configPath: AbsolutePath?,
         manifests: [AbsolutePath],
         helpers: [AbsolutePath],
         templates: [AbsolutePath],
@@ -18,12 +21,19 @@ final class MockProjectEditorMapper: ProjectEditorMapping {
 
     func map(tuistPath: AbsolutePath,
              sourceRootPath: AbsolutePath,
+             xcodeProjPath: AbsolutePath,
+             setupPath: AbsolutePath?,
+             configPath: AbsolutePath?,
              manifests: [AbsolutePath],
              helpers: [AbsolutePath],
              templates: [AbsolutePath],
-             projectDescriptionPath: AbsolutePath) -> (Project, Graph) {
+             projectDescriptionPath: AbsolutePath) -> (Project, Graph)
+    {
         mapArgs.append((tuistPath: tuistPath,
                         sourceRootPath: sourceRootPath,
+                        xcodeProjPath: xcodeProjPath,
+                        setupPath: setupPath,
+                        configPath: configPath,
                         manifests: manifests,
                         helpers: helpers,
                         templates: templates,

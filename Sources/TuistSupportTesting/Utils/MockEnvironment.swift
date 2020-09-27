@@ -15,11 +15,13 @@ public class MockEnvironment: Environmenting {
                                                 attributes: nil)
     }
 
+    public var isVerbose: Bool = false
     public var cacheDirectoryStub: AbsolutePath?
 
     public var shouldOutputBeColoured: Bool = false
     public var isStandardOutputInteractive: Bool = false
     public var tuistVariables: [String: String] = [:]
+    public var manifestLoadingVariables: [String: String] = [:]
 
     public var versionsDirectory: AbsolutePath {
         directory.path.appending(component: "Versions")

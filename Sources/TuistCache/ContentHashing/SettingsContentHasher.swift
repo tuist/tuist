@@ -21,7 +21,7 @@ public final class SettingsContentHasher: SettingsContentHashing {
     public func hash(settings: Settings) throws -> String {
         let baseSettingsHash = hash(settings.base)
         let configurationHash = try hash(settings.configurations)
-        let defaultSettingsHash = settings.defaultSettings.rawValue
+        let defaultSettingsHash = try hash(settings.defaultSettings)
         return try contentHasher.hash([baseSettingsHash, configurationHash, defaultSettingsHash])
     }
 
@@ -46,9 +46,26 @@ public final class SettingsContentHasher: SettingsContentHashing {
     private func hash(_ configuration: Configuration) throws -> String {
         var configurationHash = hash(configuration.settings)
         if let xcconfigPath = configuration.xcconfig {
-            let xcconfigHash = try contentHasher.hash(fileAtPath: xcconfigPath)
+            let xcconfigHash = try contentHasher.hash(path: xcconfigPath)
             configurationHash += xcconfigHash
         }
         return configurationHash
+    }
+
+    private func hash(_ defaultSettings: DefaultSettings) throws -> String {
+        var defaultSettingHash: String
+        switch defaultSettings {
+        case let .recommended(excludedKeys):
+            defaultSettingHash = "recommended"
+            let excludedKeysHash = try contentHasher.hash(excludedKeys.sorted())
+            defaultSettingHash += excludedKeysHash
+        case let .essential(excludedKeys):
+            defaultSettingHash = "essential"
+            let excludedKeysHash = try contentHasher.hash(excludedKeys.sorted())
+            defaultSettingHash += excludedKeysHash
+        case .none:
+            defaultSettingHash = "none"
+        }
+        return defaultSettingHash
     }
 }

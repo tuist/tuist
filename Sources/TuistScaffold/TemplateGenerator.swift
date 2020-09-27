@@ -1,5 +1,5 @@
 import Foundation
-import struct Stencil.Environment
+import func StencilSwiftKit.stencilSwiftEnvironment
 import TSCBasic
 import TuistCore
 import TuistSupport
@@ -22,7 +22,8 @@ public final class TemplateGenerator: TemplateGenerating {
 
     public func generate(template: Template,
                          to destinationPath: AbsolutePath,
-                         attributes: [String: String]) throws {
+                         attributes: [String: String]) throws
+    {
         let renderedFiles = renderFiles(template: template,
                                         attributes: attributes)
         try generateDirectories(renderedFiles: renderedFiles,
@@ -37,7 +38,8 @@ public final class TemplateGenerator: TemplateGenerating {
 
     /// Renders files' paths in format  path_to_dir/{{ attribute_name }} with `attributes`
     private func renderFiles(template: Template,
-                             attributes: [String: String]) -> [Template.File] {
+                             attributes: [String: String]) -> [Template.File]
+    {
         attributes.reduce(template.files) { files, attribute in
             files.map {
                 let path = RelativePath($0.path.pathString.replacingOccurrences(of: "{{ \(attribute.key) }}", with: attribute.value))
@@ -48,7 +50,8 @@ public final class TemplateGenerator: TemplateGenerating {
 
     /// Generate all necessary directories
     private func generateDirectories(renderedFiles: [Template.File],
-                                     destinationPath: AbsolutePath) throws {
+                                     destinationPath: AbsolutePath) throws
+    {
         try renderedFiles
             .map(\.path)
             .map {
@@ -63,8 +66,9 @@ public final class TemplateGenerator: TemplateGenerating {
     /// Generate all `renderedFiles`
     private func generateFiles(renderedFiles: [Template.File],
                                attributes: [String: String],
-                               destinationPath: AbsolutePath) throws {
-        let environment = Environment()
+                               destinationPath: AbsolutePath) throws
+    {
+        let environment = stencilSwiftEnvironment()
         try renderedFiles.forEach {
             let renderedContents: String
             switch $0.contents {

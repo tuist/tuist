@@ -1,6 +1,25 @@
 import ProjectDescription
 import ProjectDescriptionHelpers
 
-let project = Project.app(name: "{{ name }}", platform: .{{ platform }}, dependencies: [
-    .project(target: "{{ name }}Kit", path: .relativeToManifest("../{{ name }}Kit"))
-])
+/*
+                +-------------+
+                |             |
+                |     App     | Contains {{ name }} App target and {{ name }} unit-test target
+                |             |
+         +------+-------------+-------+
+         |         depends on         |
+         |                            |
+ +----v-----+                   +-----v-----+
+ |          |                   |           |
+ |   Kit    |                   |     UI    |   Two independent frameworks to share code and start modularising your app
+ |          |                   |           |
+ +----------+                   +-----------+
+
+ */
+
+// MARK: - Project
+
+// Creates our project using a helper function defined in ProjectDescriptionHelpers
+let project = Project.app(name: "{{ name }}",
+                          platform: .{{ platform }},
+                          additionalTargets: ["{{name}}Kit", "{{name}}UI"])

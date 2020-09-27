@@ -317,6 +317,10 @@ class WorkspaceStructureGeneratorTests: XCTestCase {
             []
         }
 
+        func throwingGlob(_: AbsolutePath, glob _: String) throws -> [AbsolutePath] {
+            []
+        }
+
         func write(_: String, path _: AbsolutePath, atomically _: Bool) throws {
             // Do nothing
         }
@@ -384,7 +388,8 @@ class WorkspaceStructureGeneratorTests: XCTestCase {
 extension WorkspaceStructure.Element {
     static func group(_ name: String,
                       _ path: AbsolutePath,
-                      _ contents: [WorkspaceStructure.Element]) -> WorkspaceStructure.Element {
+                      _ contents: [WorkspaceStructure.Element]) -> WorkspaceStructure.Element
+    {
         .group(name: name, path: path, contents: contents)
     }
 

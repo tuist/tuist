@@ -31,7 +31,8 @@ public final class XcodeBuildController: XcodeBuildControlling {
     public func build(_ target: XcodeBuildTarget,
                       scheme: String,
                       clean: Bool = false,
-                      arguments: [XcodeBuildArgument]) -> Observable<SystemEvent<XcodeBuildOutput>> {
+                      arguments: [XcodeBuildArgument]) -> Observable<SystemEvent<XcodeBuildOutput>>
+    {
         var command = ["/usr/bin/xcrun", "xcodebuild"]
 
         // Action
@@ -80,7 +81,8 @@ public final class XcodeBuildController: XcodeBuildControlling {
                         scheme: String,
                         clean: Bool,
                         archivePath: AbsolutePath,
-                        arguments: [XcodeBuildArgument]) -> Observable<SystemEvent<XcodeBuildOutput>> {
+                        arguments: [XcodeBuildArgument]) -> Observable<SystemEvent<XcodeBuildOutput>>
+    {
         var command = ["/usr/bin/xcrun", "xcodebuild"]
 
         // Action
@@ -108,12 +110,14 @@ public final class XcodeBuildController: XcodeBuildControlling {
         var command = ["/usr/bin/xcrun", "xcodebuild", "-create-xcframework"]
         command.append(contentsOf: frameworks.flatMap { ["-framework", $0.pathString] })
         command.append(contentsOf: ["-output", output.pathString])
+        command.append("-allow-internal-distribution")
         return run(command: command)
     }
 
     public func showBuildSettings(_ target: XcodeBuildTarget,
                                   scheme: String,
-                                  configuration: String) -> Single<[String: XcodeBuildSettings]> {
+                                  configuration: String) -> Single<[String: XcodeBuildSettings]>
+    {
         var command = ["/usr/bin/xcrun", "xcodebuild", "archive", "-showBuildSettings", "-skipUnavailableActions"]
 
         // Configuration

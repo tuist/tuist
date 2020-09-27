@@ -81,7 +81,7 @@ private extension SchemeLinter {
 
         scheme.targetDependencies().forEach {
             if $0.projectPath != project.path {
-                issues.append(.init(reason: "The target '\($0.name)' specified in scheme '\(scheme.name)' is not defined in the project. Consider using a workspace scheme instead to reference a target in another project.", severity: .error))
+                issues.append(.init(reason: "The target '\($0.name)' specified in scheme '\(scheme.name)' is not defined in the project named '\(project.name)'. Consider using a workspace scheme instead to reference a target in another project.", severity: .error))
             }
         }
 

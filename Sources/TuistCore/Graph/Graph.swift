@@ -74,7 +74,8 @@ public class Graph: Encodable, Equatable {
                 cocoapods: [CocoaPodsNode],
                 packages: [PackageNode],
                 precompiled: [PrecompiledNode],
-                targets: [AbsolutePath: [TargetNode]]) {
+                targets: [AbsolutePath: [TargetNode]])
+    {
         self.name = name
         self.entryPath = entryPath
         self.entryNodes = entryNodes
@@ -153,7 +154,7 @@ public class Graph: Encodable, Equatable {
             .map(productDependencyReference)
     }
 
-    /// Returns the resource bundle dependencies for the given target.
+    /// Returns the transitive resource bundle dependencies for the given target.
     /// - Parameters:
     ///   - path: Path to the directory where the project that defines the target is located.
     ///   - name: Name of the target.
@@ -162,15 +163,30 @@ public class Graph: Encodable, Equatable {
             return []
         }
 
-        return targetNode.targetDependencies
-            .filter { $0.target.product == .bundle }
+        guard targetNode.target.supportsResources else {
+            return []
+        }
+
+        let canHostResources: (TargetNode) -> Bool = {
+            $0.target.supportsResources
+        }
+
+        let isBundle: (TargetNode) -> Bool = {
+            $0.target.product == .bundle
+        }
+
+        let bundles = findAll(targetNode: targetNode, test: isBundle, skip: canHostResources)
+
+        return bundles.sorted {
+            $0.target.name < $1.target.name
+        }
     }
 
     /// It returns the libraries a given target should be linked against.
     /// - Parameters:
     ///   - path: Path to the directory where the project that defines the target is located.
     ///   - name: Name of the target.
-    public func linkableDependencies(path: AbsolutePath, name: String) throws -> [GraphDependencyReference] {
+    public func linkableDependencies(path: AbsolutePath, name: String) -> [GraphDependencyReference] {
         guard let targetNode = findTargetNode(path: path, name: name) else {
             return []
         }
@@ -312,7 +328,8 @@ public class Graph: Encodable, Equatable {
     ///   - name: Name of the target.
     public func embeddableFrameworks(path: AbsolutePath, name: String) throws -> [GraphDependencyReference] {
         guard let targetNode = findTargetNode(path: path, name: name),
-            canEmbedProducts(targetNode: targetNode) else {
+            canEmbedProducts(targetNode: targetNode)
+        else {
             return []
         }
 
@@ -340,7 +357,7 @@ public class Graph: Encodable, Equatable {
             if let hostApp = hostApplication(for: targetNode) {
                 references.subtract(try embeddableFrameworks(path: hostApp.path, name: hostApp.name))
             } else {
-                references.subtract(precompiledFrameworks)
+                references = []
             }
         }
 
@@ -370,7 +387,7 @@ public class Graph: Encodable, Equatable {
     /// - Parameter project: Project whose dependency references will be returned.
     public func allDependencyReferences(for project: Project) throws -> [GraphDependencyReference] {
         let linkableDependencies = try project.targets.flatMap {
-            try self.linkableDependencies(path: project.path, name: $0.name)
+            self.linkableDependencies(path: project.path, name: $0.name)
         }
 
         let embeddableDependencies = try project.targets.flatMap {
@@ -423,7 +440,8 @@ public class Graph: Encodable, Equatable {
 
     public func findAll<T: GraphNode, S: GraphNode>(targetNode: TargetNode,
                                                     test: (T) -> Bool = { _ in true },
-                                                    skip: (S) -> Bool = { _ in false }) -> Set<T> {
+                                                    skip: (S) -> Bool = { _ in false }) -> Set<T>
+    {
         var stack = Stack<GraphNode>()
 
         stack.push(targetNode)

@@ -17,13 +17,15 @@ struct InitCommand: ParsableCommand {
     }
 
     @Option(
-        help: "The platform (ios, tvos or macos) the product will be for (Default: ios)"
+        help: "The platform (ios, tvos or macos) the product will be for (Default: ios)",
+        completion: .list(["ios", "tvos", "macos"])
     )
     var platform: String?
 
     @Option(
         name: .shortAndLong,
-        help: "The path to the folder where the project will be generated (Default: Current directory)"
+        help: "The path to the folder where the project will be generated (Default: Current directory)",
+        completion: .directory
     )
     var path: String?
 

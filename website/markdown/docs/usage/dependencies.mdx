@@ -1,6 +1,5 @@
 ---
 name: Dependencies
-order: 4
 exceprt: Defining dependencies between modules is a straightforward task in Tuist. This document describes how to use this feature, and all types of dependencies that targets can define.
 ---
 
@@ -8,7 +7,7 @@ import Message from '../components/message'
 
 # Dependencies
 
-**Setting up dependencies in Xcode projects isn't straightforward**. When dependencies have transitive dependencies things get complicated because it requires changes in the targets that are part of the branch where the transitive dependency is. To illustrate that, think about an app, depending on a dynamic framework `Search`, which has no dependencies. If at some point in the future we add a new dynamic framework `Core`, on which `Search` depends, well need to update not only `Search`, but the app to embed the framework into the product.
+**Setting up dependencies in Xcode projects isn't straightforward**. When dependencies have transitive dependencies things get complicated because it requires changes in the targets that are part of the branch where the transitive dependency is. To illustrate that, think about an app, depending on a dynamic framework `Search`, which has no dependencies. If at some point in the future we add a new dynamic framework `Core`, on which `Search` depends, we'll need to update not only `Search`, but the app to embed the framework into the product.
 
 Imagine a modular app made of 8 projects, with at least two targets each of them \(to compile the framework/library and run the tests\), with dependencies between them. That's a very common setup in large projects, especially if you need to reuse code across different targets. With 16 targets to set up, **there's much knowledge that the developers need to keep in mind to do things the right way**. Who is depending on this target? Where do I need to embed this dynamic framework? Which build settings should I update to make the public interface of the library available?
 

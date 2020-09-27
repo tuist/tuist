@@ -12,7 +12,8 @@ public class CloudClient: CloudClienting {
     // MARK: - Init
 
     public init(cloudHTTPRequestAuthenticator: CloudHTTPRequestAuthenticating = CloudHTTPRequestAuthenticator(),
-                requestDispatcher: HTTPRequestDispatching = HTTPRequestDispatcher()) {
+                requestDispatcher: HTTPRequestDispatching = HTTPRequestDispatcher())
+    {
         self.cloudHTTPRequestAuthenticator = cloudHTTPRequestAuthenticator
         self.requestDispatcher = requestDispatcher
     }

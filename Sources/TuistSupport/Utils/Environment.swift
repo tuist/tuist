@@ -25,6 +25,12 @@ public protocol Environmenting: AnyObject {
 
     /// Returns all the environment variables that are specific to Tuist (prefixed with TUIST_)
     var tuistVariables: [String: String] { get }
+
+    /// Returns all the environment variables that can be included during the manifest loading process
+    var manifestLoadingVariables: [String: String] { get }
+
+    /// Returns true if Tuist is running with verbose mode enabled.
+    var isVerbose: Bool { get }
 }
 
 /// Local environment controller.
@@ -85,6 +91,11 @@ public class Environment: Environmenting {
         return false
     }
 
+    public var isVerbose: Bool {
+        guard let variable = ProcessInfo.processInfo.environment[Constants.EnvironmentVariables.verbose] else { return false }
+        return Constants.trueValues.contains(variable)
+    }
+
     /// Returns the directory where all the versions are.
     public var versionsDirectory: AbsolutePath {
         if let envVariable = ProcessInfo.processInfo.environment[Constants.EnvironmentVariables.versionsDirectory] {
@@ -116,6 +127,16 @@ public class Environment: Environmenting {
     /// Returns all the environment variables that are specific to Tuist (prefixed with TUIST_)
     public var tuistVariables: [String: String] {
         ProcessInfo.processInfo.environment.filter { $0.key.hasPrefix("TUIST_") }
+    }
+
+    public var manifestLoadingVariables: [String: String] {
+        let allowedVariableKeys = [
+            "DEVELOPER_DIR",
+        ]
+        let allowedVariables = ProcessInfo.processInfo.environment.filter {
+            allowedVariableKeys.contains($0.key)
+        }
+        return tuistVariables.merging(allowedVariables, uniquingKeysWith: { $1 })
     }
 
     /// Settings path.

@@ -22,9 +22,9 @@ public enum ManifestLoaderError: FatalError, Equatable {
         case let .unexpectedOutput(path):
             return "Unexpected output trying to parse the manifest at path \(path.pathString)"
         case let .manifestNotFound(manifest, path):
-            return "\(manifest?.fileName ?? "Manifest") not found at path \(path.pathString)"
+            return "\(manifest?.fileName(path) ?? "Manifest") not found at path \(path.pathString)"
         case let .manifestCachingFailed(manifest, path):
-            return "Could not cache \(manifest?.fileName ?? "Manifest") at path \(path.pathString)"
+            return "Could not cache \(manifest?.fileName(path) ?? "Manifest") at path \(path.pathString)"
         }
     }
 
@@ -77,9 +77,9 @@ public protocol ManifestLoading {
     /// - Parameter path: Path to the directory that contains the Setup.swift.
     func loadSetup(at path: AbsolutePath) throws -> [Upping]
 
-    /// Loads the Template.swift in the given directory.
+    /// Loads the name_of_template.swift in the given directory.
     /// - Parameters:
-    ///     - path: Path to the directory that contains the Template.swift
+    ///     - path: Path to the directory that contains the name_of_template.swift
     func loadTemplate(at path: AbsolutePath) throws -> ProjectDescription.Template
 
     /// List all the manifests in the given directory.
@@ -107,7 +107,8 @@ public class ManifestLoader: ManifestLoading {
     init(environment: Environmenting = Environment.shared,
          resourceLocator: ResourceLocating,
          projectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding,
-         manifestFilesLocator: ManifestFilesLocating) {
+         manifestFilesLocator: ManifestFilesLocating)
+    {
         self.environment = environment
         self.resourceLocator = resourceLocator
         self.projectDescriptionHelpersBuilder = projectDescriptionHelpersBuilder
@@ -116,7 +117,7 @@ public class ManifestLoader: ManifestLoading {
     }
 
     public func manifests(at path: AbsolutePath) -> Set<Manifest> {
-        Set(manifestFilesLocator.locate(at: path).map { $0.0 })
+        Set(manifestFilesLocator.locateProjectManifests(at: path).map { $0.0 })
     }
 
     public func loadConfig(at path: AbsolutePath) throws -> ProjectDescription.Config {
@@ -136,7 +137,7 @@ public class ManifestLoader: ManifestLoading {
     }
 
     public func loadSetup(at path: AbsolutePath) throws -> [Upping] {
-        let setupPath = path.appending(component: Manifest.setup.fileName)
+        let setupPath = path.appending(component: Manifest.setup.fileName(path))
         guard FileHandler.shared.exists(setupPath) else {
             throw ManifestLoaderError.manifestNotFound(.setup, path)
         }
@@ -153,7 +154,7 @@ public class ManifestLoader: ManifestLoading {
     // MARK: - Private
 
     private func loadManifest<T: Decodable>(_ manifest: Manifest, at path: AbsolutePath) throws -> T {
-        var fileNames = [manifest.fileName]
+        var fileNames = [manifest.fileName(path)]
         if let deprecatedFileName = manifest.deprecatedFileName {
             fileNames.insert(deprecatedFileName, at: 0)
         }
@@ -162,6 +163,10 @@ public class ManifestLoader: ManifestLoading {
             let manifestPath = path.appending(component: fileName)
             if !FileHandler.shared.exists(manifestPath) { continue }
             let data = try loadManifestData(at: manifestPath)
+            if Environment.shared.isVerbose {
+                let string = String(data: data, encoding: .utf8)
+                logger.debug("Trying to load the manifest represented by the following JSON representation:\n\(string ?? "")")
+            }
             return try decoder.decode(T.self, from: data)
         }
 
@@ -170,20 +175,21 @@ public class ManifestLoader: ManifestLoading {
 
     private func loadManifestData(at path: AbsolutePath) throws -> Data {
         let projectDescriptionPath = try resourceLocator.projectDescription()
-
+        let searchPaths = ProjectDescriptionSearchPaths.paths(for: projectDescriptionPath)
         var arguments: [String] = [
             "/usr/bin/xcrun",
             "swiftc",
             "--driver-mode=swift",
             "-suppress-warnings",
-            "-I", projectDescriptionPath.parentDirectory.pathString,
-            "-L", projectDescriptionPath.parentDirectory.pathString,
-            "-F", projectDescriptionPath.parentDirectory.pathString,
+            "-I", searchPaths.includeSearchPath.pathString,
+            "-L", searchPaths.librarySearchPath.pathString,
+            "-F", searchPaths.frameworkSearchPath.pathString,
             "-lProjectDescription",
+            "-framework", "ProjectDescription",
         ]
 
         // Helpers
-        let projectDesciptionHelpersModulePath = try projectDescriptionHelpersBuilder.build(at: path, projectDescriptionPath: projectDescriptionPath)
+        let projectDesciptionHelpersModulePath = try projectDescriptionHelpersBuilder.build(at: path, projectDescriptionSearchPaths: searchPaths)
         if let projectDesciptionHelpersModulePath = projectDesciptionHelpersModulePath {
             arguments.append(contentsOf: [
                 "-I", projectDesciptionHelpersModulePath.parentDirectory.pathString,
@@ -196,7 +202,9 @@ public class ManifestLoader: ManifestLoading {
         arguments.append(path.pathString)
         arguments.append("--tuist-dump")
 
-        let result = System.shared.observable(arguments, verbose: false, environment: environment.tuistVariables)
+        let result = System.shared.observable(arguments,
+                                              verbose: false,
+                                              environment: environment.manifestLoadingVariables)
             .toBlocking()
             .materialize()
 

@@ -21,7 +21,7 @@ public final class InfoPlistContentHasher: InfoPlistContentHashing {
     public func hash(plist: InfoPlist) throws -> String {
         switch plist {
         case let .file(path):
-            return try contentHasher.hash(fileAtPath: path)
+            return try contentHasher.hash(path: path)
         case let .dictionary(dictionary), let .extendingDefault(dictionary):
             var dictionaryString: String = ""
             for key in dictionary.keys.sorted() {
@@ -30,7 +30,7 @@ public final class InfoPlistContentHasher: InfoPlistContentHashing {
             }
             return try contentHasher.hash(dictionaryString)
         case let .generatedFile(path):
-            return try contentHasher.hash(fileAtPath: path)
+            return try contentHasher.hash(path: path)
         }
     }
 }

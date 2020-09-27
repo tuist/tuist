@@ -33,6 +33,7 @@ final class ProjectGeneratorTests: TuistUnitTestCase {
                                platform: .iOS,
                                product: .unitTests)
         let project = Project.test(path: temporaryPath,
+                                   sourceRootPath: temporaryPath,
                                    name: "Project",
                                    targets: [app, test])
 
@@ -65,21 +66,6 @@ final class ProjectGeneratorTests: TuistUnitTestCase {
         }, "Test target is missing from target attributes.")
     }
 
-    func test_generate_testUsingFileName() throws {
-        // Given
-        let project = Project.test(name: "Project",
-                                   fileName: "SomeAwesomeName",
-                                   targets: [])
-        let graph = Graph.create(project: project,
-                                 dependencies: [])
-
-        // When
-        let got = try subject.generate(project: project, graph: graph)
-
-        // Then
-        XCTAssertEqual(got.xcodeprojPath.basename, "SomeAwesomeName.xcodeproj")
-    }
-
     func test_objectVersion_when_xcode11_and_spm() throws {
         xcodeController.selectedVersionStub = .success(Version(11, 0, 0))
 
@@ -87,17 +73,17 @@ final class ProjectGeneratorTests: TuistUnitTestCase {
         let temporaryPath = try self.temporaryPath()
         let project = Project.test(path: temporaryPath,
                                    name: "Project",
-                                   fileName: "SomeAwesomeName",
                                    targets: [.test(dependencies: [.package(product: "A")])],
                                    packages: [.remote(url: "A", requirement: .exact("0.1"))])
 
         let target = Target.test()
         let packageNode = PackageNode(package: .remote(url: "A", requirement: .exact("0.1")),
                                       path: temporaryPath)
+        let packageProductNode = PackageProductNode(product: "A", path: project.path)
         let graph = Graph.test(entryPath: temporaryPath,
                                entryNodes: [TargetNode(project: project,
                                                        target: target,
-                                                       dependencies: [packageNode])],
+                                                       dependencies: [packageProductNode])],
                                projects: [project],
                                packages: [packageNode])
 
@@ -117,7 +103,6 @@ final class ProjectGeneratorTests: TuistUnitTestCase {
         let temporaryPath = try self.temporaryPath()
         let project = Project.test(path: temporaryPath,
                                    name: "Project",
-                                   fileName: "SomeAwesomeName",
                                    targets: [])
         let graph = Graph.test(entryPath: temporaryPath)
 
@@ -137,7 +122,6 @@ final class ProjectGeneratorTests: TuistUnitTestCase {
         let temporaryPath = try self.temporaryPath()
         let project = Project.test(path: temporaryPath,
                                    name: "Project",
-                                   fileName: "SomeAwesomeName",
                                    targets: [])
         let graph = Graph.test(entryPath: temporaryPath)
 
@@ -215,6 +199,39 @@ final class ProjectGeneratorTests: TuistUnitTestCase {
         let attributes = try XCTUnwrap(pbxProject.attributes as? [String: String])
         XCTAssertEqual(attributes, [
             "ORGANIZATIONNAME": "tuist",
+        ])
+    }
+
+    func test_generate_localSwiftPackagePaths() throws {
+        // Given
+        let projectPath = AbsolutePath("/Project")
+        let localPackagePath = AbsolutePath("/Packages/LocalPackageA")
+        let project = Project.test(path: projectPath,
+                                   sourceRootPath: projectPath,
+                                   name: "Project",
+                                   targets: [.test(dependencies: [.package(product: "A")])],
+                                   packages: [.local(path: localPackagePath)])
+
+        let target = Target.test()
+        let packageNode = PackageNode(package: .local(path: localPackagePath),
+                                      path: localPackagePath)
+        let packageProductNode = PackageProductNode(product: "A", path: localPackagePath)
+        let graph = Graph.test(entryPath: projectPath,
+                               entryNodes: [TargetNode(project: project,
+                                                       target: target,
+                                                       dependencies: [packageProductNode])],
+                               projects: [project],
+                               packages: [packageNode])
+
+        // When
+        let got = try subject.generate(project: project, graph: graph)
+
+        // Then
+        let pbxproj = got.xcodeProj.pbxproj
+        let rootGroup = try XCTUnwrap(pbxproj.rootGroup())
+        let paths = rootGroup.children.compactMap { $0.path }
+        XCTAssertEqual(paths, [
+            "../Packages/LocalPackageA",
         ])
     }
 }

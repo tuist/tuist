@@ -12,7 +12,8 @@ public extension TestAction {
                      postActions: [ExecutionAction] = [],
                      diagnosticsOptions: Set<SchemeDiagnosticsOption> = Set(),
                      language: String? = nil,
-                     region: String? = nil) -> TestAction {
+                     region: String? = nil) -> TestAction
+    {
         TestAction(targets: targets,
                    arguments: arguments,
                    configurationName: configurationName,

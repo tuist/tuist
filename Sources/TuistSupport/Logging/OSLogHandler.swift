@@ -1,5 +1,5 @@
 import Foundation
-import Logging
+import struct Logging.Logger
 import os
 
 public struct OSLogHandler: LogHandler {

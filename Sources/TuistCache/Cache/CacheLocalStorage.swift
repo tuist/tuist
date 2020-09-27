@@ -21,27 +21,31 @@ enum CacheLocalStorageError: FatalError, Equatable {
     }
 }
 
-final class CacheLocalStorage: CacheStoring {
+public final class CacheLocalStorage: CacheStoring {
     // MARK: - Attributes
 
     private let cacheDirectory: AbsolutePath
 
     // MARK: - Init
 
-    init(cacheDirectory: AbsolutePath = Environment.shared.xcframeworksCacheDirectory) {
+    public convenience init() {
+        self.init(cacheDirectory: Environment.shared.xcframeworksCacheDirectory)
+    }
+
+    init(cacheDirectory: AbsolutePath) {
         self.cacheDirectory = cacheDirectory
     }
 
     // MARK: - CacheStoring
 
-    func exists(hash: String, config _: Config) -> Single<Bool> {
+    public func exists(hash: String) -> Single<Bool> {
         Single.create { (completed) -> Disposable in
             completed(.success(FileHandler.shared.glob(self.cacheDirectory, glob: "\(hash)/*").count != 0))
             return Disposables.create()
         }
     }
 
-    func fetch(hash: String, config _: Config) -> Single<AbsolutePath> {
+    public func fetch(hash: String) -> Single<AbsolutePath> {
         Single.create { (completed) -> Disposable in
             if let path = FileHandler.shared.glob(self.cacheDirectory, glob: "\(hash)/*").first {
                 completed(.success(path))
@@ -52,7 +56,7 @@ final class CacheLocalStorage: CacheStoring {
         }
     }
 
-    func store(hash: String, config _: Config, xcframeworkPath: AbsolutePath) -> Completable {
+    public func store(hash: String, xcframeworkPath: AbsolutePath) -> Completable {
         let copy = Completable.create { (completed) -> Disposable in
             let hashFolder = self.cacheDirectory.appending(component: hash)
             let destinationPath = hashFolder.appending(component: xcframeworkPath.basename)

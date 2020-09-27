@@ -81,7 +81,7 @@ final class GraphTests: TuistUnitTestCase {
                                     dependencies: [precompiledNode])
         let graph = Graph.test(targets: [targetNode.path: [targetNode]])
 
-        let got = try graph.linkableDependencies(path: project.path, name: target.name)
+        let got = graph.linkableDependencies(path: project.path, name: target.name)
         XCTAssertEqual(got.first, GraphDependencyReference(precompiledNode: precompiledNode))
     }
 
@@ -99,7 +99,7 @@ final class GraphTests: TuistUnitTestCase {
             project.path: [dependencyNode, targetNode],
         ])
 
-        let got = try graph.linkableDependencies(path: project.path, name: target.name)
+        let got = graph.linkableDependencies(path: project.path, name: target.name)
         XCTAssertEqual(got.first, .product(target: "Dependency", productName: "libDependency.a"))
     }
 
@@ -120,12 +120,12 @@ final class GraphTests: TuistUnitTestCase {
                                     dependencies: [dependencyNode])
 
         let graph = Graph.test(projects: [project], targets: [project.path: [targetNode, dependencyNode, staticDependencyNode]])
-        let got = try graph.linkableDependencies(path: project.path,
-                                                 name: target.name)
+        let got = graph.linkableDependencies(path: project.path,
+                                             name: target.name)
         XCTAssertEqual(got.count, 1)
         XCTAssertEqual(got.first, .product(target: "Dependency", productName: "Dependency.framework"))
 
-        let frameworkGot = try graph.linkableDependencies(path: project.path, name: dependency.name)
+        let frameworkGot = graph.linkableDependencies(path: project.path, name: dependency.name)
 
         XCTAssertEqual(frameworkGot.count, 1)
         XCTAssertTrue(frameworkGot.contains(.product(target: "StaticDependency", productName: "libStaticDependency.a")))
@@ -152,7 +152,7 @@ final class GraphTests: TuistUnitTestCase {
                                  ])
 
         // When
-        let result = try graph.linkableDependencies(path: projectA.path, name: app.name)
+        let result = graph.linkableDependencies(path: projectA.path, name: app.name)
 
         // Then
         XCTAssertEqual(result, [GraphDependencyReference.product(target: "DynamicFramework", productName: "DynamicFramework.framework"),
@@ -188,8 +188,8 @@ final class GraphTests: TuistUnitTestCase {
                                  ])
 
         // When
-        let appResult = try graph.linkableDependencies(path: projectA.path, name: app.name)
-        let dynamicFramework1Result = try graph.linkableDependencies(path: projectA.path, name: dynamicFramework1.name)
+        let appResult = graph.linkableDependencies(path: projectA.path, name: app.name)
+        let dynamicFramework1Result = graph.linkableDependencies(path: projectA.path, name: dynamicFramework1.name)
 
         // Then
         XCTAssertEqual(appResult, [
@@ -235,7 +235,7 @@ final class GraphTests: TuistUnitTestCase {
                                  ])
 
         // When
-        let dynamicFramework1Result = try graph.linkableDependencies(path: projectA.path, name: dynamicFramework1.name)
+        let dynamicFramework1Result = graph.linkableDependencies(path: projectA.path, name: dynamicFramework1.name)
 
         // Then
         XCTAssertEqual(dynamicFramework1Result, [GraphDependencyReference.product(target: "DynamicFramework2", productName: "DynamicFramework2.framework")])
@@ -262,7 +262,7 @@ final class GraphTests: TuistUnitTestCase {
                                  ])
 
         // When
-        let result = try graph.linkableDependencies(path: projectA.path, name: app.name)
+        let result = graph.linkableDependencies(path: projectA.path, name: app.name)
 
         // Then
         XCTAssertEqual(result.compactMap(sdkDependency), [
@@ -291,8 +291,8 @@ final class GraphTests: TuistUnitTestCase {
                                  ])
 
         // When
-        let appResult = try graph.linkableDependencies(path: projectA.path, name: app.name)
-        let dynamicResult = try graph.linkableDependencies(path: projectA.path, name: dynamicFramework.name)
+        let appResult = graph.linkableDependencies(path: projectA.path, name: app.name)
+        let dynamicResult = graph.linkableDependencies(path: projectA.path, name: dynamicFramework.name)
 
         // Then
         XCTAssertEqual(appResult.compactMap(sdkDependency), [])
@@ -318,7 +318,7 @@ final class GraphTests: TuistUnitTestCase {
                                  ])
 
         // When
-        let result = try graph.linkableDependencies(path: projectA.path, name: app.name)
+        let result = graph.linkableDependencies(path: projectA.path, name: app.name)
 
         // Then
         XCTAssertEqual(result.compactMap(sdkDependency), [SDKPathAndStatus(name: "some.framework", status: .optional)])
@@ -339,7 +339,7 @@ final class GraphTests: TuistUnitTestCase {
                                  ])
 
         // When
-        let result = try graph.linkableDependencies(path: projectA.path, name: staticFramework.name)
+        let result = graph.linkableDependencies(path: projectA.path, name: staticFramework.name)
 
         // Then
         XCTAssertEqual(result.compactMap(sdkDependency),
@@ -365,7 +365,7 @@ final class GraphTests: TuistUnitTestCase {
                                  ])
 
         // When
-        let result = try graph.linkableDependencies(path: projectA.path, name: staticFrameworkA.name)
+        let result = graph.linkableDependencies(path: projectA.path, name: staticFrameworkA.name)
 
         // Then
         XCTAssertEqual(result.compactMap(sdkDependency),
@@ -387,7 +387,7 @@ final class GraphTests: TuistUnitTestCase {
                                  ])
 
         // When
-        let result = try graph.linkableDependencies(path: project.path, name: watchExtension.name)
+        let result = graph.linkableDependencies(path: project.path, name: watchExtension.name)
 
         // Then
         XCTAssertEqual(result, [
@@ -410,7 +410,7 @@ final class GraphTests: TuistUnitTestCase {
                                  ])
 
         // When
-        let result = try graph.linkableDependencies(path: project.path, name: watchExtension.name)
+        let result = graph.linkableDependencies(path: project.path, name: watchExtension.name)
 
         // Then
         XCTAssertEqual(result, [
@@ -436,7 +436,7 @@ final class GraphTests: TuistUnitTestCase {
                                  ])
 
         // When
-        let result = try graph.linkableDependencies(path: projectA.path, name: tests.name)
+        let result = graph.linkableDependencies(path: projectA.path, name: tests.name)
 
         // Then
         XCTAssertTrue(result.isEmpty)
@@ -459,7 +459,7 @@ final class GraphTests: TuistUnitTestCase {
                                  ])
 
         // When
-        let result = try graph.linkableDependencies(path: projectA.path, name: tests.name)
+        let result = graph.linkableDependencies(path: projectA.path, name: tests.name)
 
         // Then
         XCTAssertEqual(result, [
@@ -484,7 +484,7 @@ final class GraphTests: TuistUnitTestCase {
                                  ])
 
         // When
-        let result = try graph.linkableDependencies(path: projectA.path, name: tests.name)
+        let result = graph.linkableDependencies(path: projectA.path, name: tests.name)
 
         // Then
         XCTAssertTrue(result.isEmpty)
@@ -730,8 +730,12 @@ final class GraphTests: TuistUnitTestCase {
         let precompiledNode = mockDynamicFrameworkNode(at: AbsolutePath("/test/test.framework"))
         let unitTests = Target.test(name: "AppUnitTests", product: .unitTests)
         let project = Project.test(path: "/path/a")
+        let target = Target.test(name: "LocallyBuiltFramework", product: .framework)
+        let targetNode = TargetNode(project: project,
+                                    target: target,
+                                    dependencies: [])
 
-        let unitTestsNode = TargetNode(project: project, target: unitTests, dependencies: [precompiledNode])
+        let unitTestsNode = TargetNode(project: project, target: unitTests, dependencies: [precompiledNode, targetNode])
 
         let cache = GraphLoaderCache()
         cache.add(project: project)
@@ -904,109 +908,6 @@ final class GraphTests: TuistUnitTestCase {
         XCTAssertEqual(got, [AbsolutePath("/test/modules")])
     }
 
-    func test_resourceBundleDependencies_fromTargetDependency() {
-        // Given
-        let bundle = Target.test(name: "Bundle1", product: .bundle)
-        let app = Target.test(name: "App", product: .bundle)
-        let projectA = Project.test(path: "/path/a")
-
-        let graph = Graph.create(project: projectA,
-                                 dependencies: [
-                                     (target: bundle, dependencies: []),
-                                     (target: app, dependencies: [bundle]),
-                                 ])
-
-        // When
-        let result = graph.resourceBundleDependencies(path: projectA.path, name: app.name)
-
-        // Then
-        XCTAssertEqual(result.map(\.target.name), [
-            "Bundle1",
-        ])
-    }
-
-    func test_resourceBundleDependencies_fromProjectDependency() {
-        // Given
-        let bundle = Target.test(name: "Bundle1", product: .bundle)
-        let projectA = Project.test(path: "/path/a")
-
-        let app = Target.test(name: "App", product: .app)
-        let projectB = Project.test(path: "/path/b")
-
-        let graph = Graph.create(projects: [projectA, projectB],
-                                 dependencies: [
-                                     (project: projectA, target: bundle, dependencies: []),
-                                     (project: projectB, target: app, dependencies: [bundle]),
-                                 ])
-
-        // When
-        let result = graph.resourceBundleDependencies(path: projectB.path, name: app.name)
-
-        // Then
-        XCTAssertEqual(result.map(\.target.name), [
-            "Bundle1",
-        ])
-    }
-
-    func test_appExtensionDependencies_when_dependencyIsAppExtension() throws {
-        let target = Target.test(name: "Main")
-        let dependency = Target.test(name: "AppExtension", product: .appExtension)
-        let project = Project.test(targets: [target])
-        let dependencyNode = TargetNode(project: project,
-                                        target: dependency,
-                                        dependencies: [])
-        let targetNode = TargetNode(project: project,
-                                    target: target,
-                                    dependencies: [dependencyNode])
-        let graph = Graph.test(projects: [project], targets: [
-            project.path: [targetNode, dependencyNode],
-        ])
-
-        let got = graph.appExtensionDependencies(path: project.path, name: target.name)
-
-        XCTAssertEqual(got.first?.name, "AppExtension")
-    }
-
-    func test_appExtensionDependencies_when_dependencyIsStickerPackExtension() throws {
-        let target = Target.test(name: "Main")
-        let dependency = Target.test(name: "StickerPackExtension", product: .stickerPackExtension)
-        let project = Project.test(targets: [target])
-        let dependencyNode = TargetNode(project: project,
-                                        target: dependency,
-                                        dependencies: [])
-        let targetNode = TargetNode(project: project,
-                                    target: target,
-                                    dependencies: [dependencyNode])
-        let graph = Graph.test(projects: [project], targets: [
-            project.path: [targetNode, dependencyNode],
-        ])
-
-        let got = graph.appExtensionDependencies(path: project.path, name: target.name)
-
-        XCTAssertEqual(got.first?.name, "StickerPackExtension")
-    }
-
-    func test_appExtensionDependencies_when_dependencyIsMessageExtension() throws {
-        // Given
-        let app = Target.test(name: "App", product: .app)
-        let messageExtension = Target.test(name: "MessageExtension", product: .messagesExtension)
-        let project = Project.test(targets: [app, messageExtension])
-
-        let graph = Graph.create(project: project,
-                                 dependencies: [
-                                     (target: app, dependencies: [messageExtension]),
-                                     (target: messageExtension, dependencies: []),
-                                 ])
-
-        // When
-        let result = graph.appExtensionDependencies(path: project.path, name: app.name)
-
-        // Then
-        XCTAssertEqual(result.map(\.name), [
-            "MessageExtension",
-        ])
-    }
-
     func test_hostTargetNode_watchApp() {
         // Given
         let app = Target.test(name: "App", platform: .iOS, product: .app)
@@ -1096,6 +997,199 @@ final class GraphTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEncodableEqualToJson(graph, expected)
+    }
+
+    func test_appExtensionDependencies_when_dependencyIsAppExtension() throws {
+        let target = Target.test(name: "Main")
+        let dependency = Target.test(name: "AppExtension", product: .appExtension)
+        let project = Project.test(targets: [target])
+        let dependencyNode = TargetNode(project: project,
+                                        target: dependency,
+                                        dependencies: [])
+        let targetNode = TargetNode(project: project,
+                                    target: target,
+                                    dependencies: [dependencyNode])
+        let graph = Graph.test(projects: [project], targets: [
+            project.path: [targetNode, dependencyNode],
+        ])
+
+        let got = graph.appExtensionDependencies(path: project.path, name: target.name)
+
+        XCTAssertEqual(got.first?.name, "AppExtension")
+    }
+
+    func test_appExtensionDependencies_when_dependencyIsStickerPackExtension() throws {
+        let target = Target.test(name: "Main")
+        let dependency = Target.test(name: "StickerPackExtension", product: .stickerPackExtension)
+        let project = Project.test(targets: [target])
+        let dependencyNode = TargetNode(project: project,
+                                        target: dependency,
+                                        dependencies: [])
+        let targetNode = TargetNode(project: project,
+                                    target: target,
+                                    dependencies: [dependencyNode])
+        let graph = Graph.test(projects: [project], targets: [
+            project.path: [targetNode, dependencyNode],
+        ])
+
+        let got = graph.appExtensionDependencies(path: project.path, name: target.name)
+
+        XCTAssertEqual(got.first?.name, "StickerPackExtension")
+    }
+
+    func test_appExtensionDependencies_when_dependencyIsMessageExtension() throws {
+        // Given
+        let app = Target.test(name: "App", product: .app)
+        let messageExtension = Target.test(name: "MessageExtension", product: .messagesExtension)
+        let project = Project.test(targets: [app, messageExtension])
+
+        let graph = Graph.create(project: project,
+                                 dependencies: [
+                                     (target: app, dependencies: [messageExtension]),
+                                     (target: messageExtension, dependencies: []),
+                                 ])
+
+        // When
+        let result = graph.appExtensionDependencies(path: project.path, name: app.name)
+
+        // Then
+        XCTAssertEqual(result.map(\.name), [
+            "MessageExtension",
+        ])
+    }
+
+    func test_resourceBundleDependencies_fromTargetDependency() {
+        // Given
+        let bundle = Target.test(name: "Bundle1", product: .bundle)
+        let app = Target.test(name: "App", product: .bundle)
+        let projectA = Project.test(path: "/path/a")
+
+        let graph = Graph.create(project: projectA,
+                                 dependencies: [
+                                     (target: bundle, dependencies: []),
+                                     (target: app, dependencies: [bundle]),
+                                 ])
+
+        // When
+        let result = graph.resourceBundleDependencies(path: projectA.path, name: app.name)
+
+        // Then
+        XCTAssertEqual(result.map(\.target.name), [
+            "Bundle1",
+        ])
+    }
+
+    func test_resourceBundleDependencies_fromProjectDependency() {
+        // Given
+        let bundle = Target.test(name: "Bundle1", product: .bundle)
+        let projectA = Project.test(path: "/path/a")
+
+        let app = Target.test(name: "App", product: .app)
+        let projectB = Project.test(path: "/path/b")
+
+        let graph = Graph.create(projects: [projectA, projectB],
+                                 dependencies: [
+                                     (project: projectA, target: bundle, dependencies: []),
+                                     (project: projectB, target: app, dependencies: [bundle]),
+                                 ])
+
+        // When
+        let result = graph.resourceBundleDependencies(path: projectB.path, name: app.name)
+
+        // Then
+        XCTAssertEqual(result.map(\.target.name), [
+            "Bundle1",
+        ])
+    }
+
+    func test_resourceBundleDependencies_transitivelyViaSingleStaticFramework() {
+        // Given
+        let bundle = Target.test(name: "ResourceBundle", product: .bundle)
+        let staticFramework = Target.test(name: "StaticFramework", product: .staticFramework)
+        let projectA = Project.test(path: "/path/a", targets: [staticFramework, bundle])
+
+        let app = Target.test(name: "App", product: .app)
+        let projectB = Project.test(path: "/path/b", targets: [app])
+
+        let graph = Graph.create(projects: [projectA, projectB],
+                                 dependencies: [
+                                     (project: projectB, target: app, dependencies: [staticFramework]),
+                                     (project: projectA, target: staticFramework, dependencies: [bundle]),
+                                     (project: projectA, target: bundle, dependencies: []),
+                                 ])
+
+        // When
+        let result = graph.resourceBundleDependencies(path: projectB.path, name: app.name)
+
+        // Then
+        XCTAssertEqual(result.map(\.target.name), [
+            "ResourceBundle",
+        ])
+    }
+
+    func test_resourceBundleDependencies_transitivelyViaMultipleStaticFrameworks() {
+        // Given
+        let bundle1 = Target.test(name: "ResourceBundle1", product: .bundle)
+        let bundle2 = Target.test(name: "ResourceBundle2", product: .bundle)
+        let staticFramework1 = Target.test(name: "StaticFramework1", product: .staticFramework)
+        let staticFramework2 = Target.test(name: "StaticFramework2", product: .staticFramework)
+        let projectA = Project.test(path: "/path/a", targets: [staticFramework1, staticFramework2, bundle1, bundle2])
+
+        let app = Target.test(name: "App", product: .app)
+        let projectB = Project.test(path: "/path/b", targets: [app])
+
+        let graph = Graph.create(projects: [projectA, projectB],
+                                 dependencies: [
+                                     (project: projectB, target: app, dependencies: [staticFramework1]),
+                                     (project: projectA, target: staticFramework1, dependencies: [staticFramework2, bundle1]),
+                                     (project: projectA, target: staticFramework2, dependencies: [bundle2]),
+                                     (project: projectA, target: bundle1, dependencies: []),
+                                     (project: projectA, target: bundle2, dependencies: []),
+                                 ])
+
+        // When
+        let result = graph.resourceBundleDependencies(path: projectB.path, name: app.name)
+
+        // Then
+        XCTAssertEqual(result.map(\.target.name), [
+            "ResourceBundle1",
+            "ResourceBundle2",
+        ])
+    }
+
+    func test_resourceBundleDependencies_transitivelyToDynamicFramework() {
+        // Given
+        let bundle = Target.test(name: "ResourceBundle", product: .bundle)
+        let staticFramework1 = Target.test(name: "StaticFramework1", product: .staticFramework)
+        let staticFramework2 = Target.test(name: "StaticFramework2", product: .staticFramework)
+        let dynamicFramework = Target.test(name: "DynamicFramework", product: .framework)
+        let projectA = Project.test(path: "/path/a", targets: [dynamicFramework, staticFramework1, staticFramework2, bundle])
+
+        let app = Target.test(name: "App", product: .app)
+        let projectB = Project.test(path: "/path/b", targets: [app])
+
+        let graph = Graph.create(projects: [projectA, projectB],
+                                 dependencies: [
+                                     (project: projectB, target: app, dependencies: [dynamicFramework]),
+                                     (project: projectA, target: dynamicFramework, dependencies: [staticFramework2]),
+                                     (project: projectA, target: staticFramework1, dependencies: [staticFramework2]),
+                                     (project: projectA, target: staticFramework2, dependencies: [bundle]),
+                                     (project: projectA, target: bundle, dependencies: []),
+                                 ])
+
+        // When
+        let appResults = graph.resourceBundleDependencies(path: projectB.path, name: app.name)
+        let dynamicFrameworkResults = graph.resourceBundleDependencies(path: projectA.path, name: dynamicFramework.name)
+        let staticFramework1Results = graph.resourceBundleDependencies(path: projectA.path, name: staticFramework1.name)
+        let staticFramework2Results = graph.resourceBundleDependencies(path: projectA.path, name: staticFramework2.name)
+
+        // Then
+        XCTAssertEqual(appResults.map(\.target.name), [])
+        XCTAssertEqual(dynamicFrameworkResults.map(\.target.name), [
+            "ResourceBundle",
+        ])
+        XCTAssertEqual(staticFramework1Results.map(\.target.name), [])
+        XCTAssertEqual(staticFramework2Results.map(\.target.name), [])
     }
 
     // MARK: - Helpers

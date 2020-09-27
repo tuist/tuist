@@ -1,6 +1,5 @@
 ---
 name: Getting started
-order: 1
 excerpt: Learn how to install Tuist in your environment and generate your first project.
 redirect_from:
   - /docs/
@@ -97,3 +96,24 @@ tuist generate --project-only
 ```
 
 This will generate an Xcode project for the local project only.
+
+### Swift project
+
+Tuist's installation creates a symbolic link at `/usr/local/bin/swift-project`.
+Thanks to that, the Swift CLI exposes the interface `swift project` for running Tuist:
+
+```bash
+swift project init # tuist init
+swift project build # tuist build
+swift project edit # tuist edit
+```
+
+### Add a badge to your project's README
+
+[![Tuist badge](https://img.shields.io/badge/Powered%20by-Tuist-blue)](https://tuist.io)
+
+Last but not least, you might want to include a badge in your project's README to indicate that the project is defined using Tuist. Simply copy and paste the following Markdown snippet below the title:
+
+```md
+[![Tuist badge](https://img.shields.io/badge/Powered%20by-Tuist-blue)](https://tuist.io)
+```

@@ -31,9 +31,9 @@ Scenario: The project is an iOS application with Carthage frameworks (ios_app_wi
     Then I copy the fixture ios_app_with_carthage_frameworks into the working directory
     Then tuist generates the project
     Then I should be able to build for iOS the scheme AllTargets
-    Then the product 'App.app' with destination 'Debug-iphoneos' contains the framework 'RxSwift' without architecture 'armv7'
-    Then the product 'App.app' with destination 'Debug-iphoneos' contains the framework 'RxSwift' with architecture 'arm64'
-    Then the product 'App.app' with destination 'Debug-iphoneos' does not contain headers
+    Then the product 'App.app' with destination 'Debug-iphonesimulator' contains the framework 'RxSwift' without architecture 'armv7'
+    Then the product 'App.app' with destination 'Debug-iphonesimulator' contains the framework 'RxSwift' with architecture 'x86_64'
+    Then the product 'App.app' with destination 'Debug-iphonesimulator' does not contain headers
 
 Scenario: The project is an iOS application with extensions (ios_app_with_extensions)
     Given that tuist is available
@@ -41,7 +41,7 @@ Scenario: The project is an iOS application with extensions (ios_app_with_extens
     Then I copy the fixture ios_app_with_extensions into the working directory
     Then tuist generates the project
     Then I should be able to build for iOS the scheme App
-    Then the product 'App.app' with destination 'Debug-iphoneos' contains extension 'StickersPackExtension'
-    Then the product 'App.app' with destination 'Debug-iphoneos' contains extension 'NotificationServiceExtension'
-    Then the product 'App.app' with destination 'Debug-iphoneos' contains extension 'NotificationServiceExtension'
-    Then the product 'App.app' with destination 'Debug-iphoneos' does not contain headers
+    Then the product 'App.app' with destination 'Debug-iphonesimulator' contains extension 'StickersPackExtension'
+    Then the product 'App.app' with destination 'Debug-iphonesimulator' contains extension 'NotificationServiceExtension'
+    Then the product 'App.app' with destination 'Debug-iphonesimulator' contains extension 'NotificationServiceExtension'
+    Then the product 'App.app' with destination 'Debug-iphonesimulator' does not contain headers

@@ -15,38 +15,48 @@ public class CacheMapper: GraphMapping {
     private let graphContentHasher: GraphContentHashing
 
     /// Cache graph mapper.
-    private let cacheGraphMapper: CacheGraphMapping
+    private let cacheGraphMutator: CacheGraphMutating
 
     /// Configuration object
     private let config: Config
+
+    /// List of targets that will be generated as sources instead of pre-compiled targets from the cache.
+    private let sources: Set<String>
 
     /// Dispatch queue.
     private let queue: DispatchQueue
 
     // MARK: - Init
 
-    public convenience init(config: Config, cloudClient: CloudClienting) {
+    public convenience init(config: Config,
+                            cacheStorageProvider: CacheStorageProviding,
+                            sources: Set<String>)
+    {
         self.init(config: config,
-                  cache: Cache(cloudClient: cloudClient),
-                  graphContentHasher: GraphContentHasher())
+                  cache: Cache(storageProvider: cacheStorageProvider),
+                  graphContentHasher: GraphContentHasher(),
+                  sources: sources)
     }
 
     init(config: Config,
          cache: CacheStoring,
          graphContentHasher: GraphContentHashing,
-         cacheGraphMapper: CacheGraphMapping = CacheGraphMapper(),
-         queue: DispatchQueue = CacheMapper.dispatchQueue()) {
+         sources: Set<String>,
+         cacheGraphMutator: CacheGraphMutating = CacheGraphMutator(),
+         queue: DispatchQueue = CacheMapper.dispatchQueue())
+    {
         self.config = config
         self.cache = cache
         self.graphContentHasher = graphContentHasher
         self.queue = queue
-        self.cacheGraphMapper = cacheGraphMapper
+        self.cacheGraphMutator = cacheGraphMutator
+        self.sources = sources
     }
 
     // MARK: - GraphMapping
 
     public func map(graph: Graph) throws -> (Graph, [SideEffectDescriptor]) {
-        let single = hashes(graph: graph).flatMap { self.map(graph: graph, hashes: $0) }
+        let single = hashes(graph: graph).flatMap { self.map(graph: graph, hashes: $0, sources: self.sources) }
         return try (single.toBlocking().single(), [])
     }
 
@@ -70,18 +80,20 @@ public class CacheMapper: GraphMapping {
         .subscribeOn(ConcurrentDispatchQueueScheduler(queue: queue))
     }
 
-    fileprivate func map(graph: Graph, hashes: [TargetNode: String]) -> Single<Graph> {
+    fileprivate func map(graph: Graph, hashes: [TargetNode: String], sources: Set<String>) -> Single<Graph> {
         fetch(hashes: hashes).map { xcframeworkPaths in
-            try self.cacheGraphMapper.map(graph: graph, xcframeworks: xcframeworkPaths)
+            try self.cacheGraphMutator.map(graph: graph,
+                                           xcframeworks: xcframeworkPaths,
+                                           sources: sources)
         }
     }
 
     fileprivate func fetch(hashes: [TargetNode: String]) -> Single<[TargetNode: AbsolutePath]> {
         Single.zip(hashes.map { target, hash in
-            self.cache.exists(hash: hash, config: config)
+            self.cache.exists(hash: hash)
                 .flatMap { (exists) -> Single<(target: TargetNode, path: AbsolutePath?)> in
                     guard exists else { return Single.just((target: target, path: nil)) }
-                    return self.cache.fetch(hash: hash, config: self.config).map { (target: target, path: $0) }
+                    return self.cache.fetch(hash: hash).map { (target: target, path: $0) }
                 }
         })
             .map { result in

@@ -27,9 +27,9 @@ final class CacheControllerTests: TuistUnitTestCase {
         manifestLoader = MockManifestLoader()
         graphContentHasher = MockGraphContentHasher()
         config = .test()
-        subject = CacheController(generator: generator,
+        subject = CacheController(cache: cache,
+                                  generator: generator,
                                   xcframeworkBuilder: xcframeworkBuilder,
-                                  cache: cache,
                                   graphContentHasher: graphContentHasher)
 
         super.setUp()
@@ -83,7 +83,7 @@ final class CacheControllerTests: TuistUnitTestCase {
             }
         }
 
-        try subject.cache(path: path, config: config)
+        try subject.cache(path: path, includeDeviceArch: true)
 
         // Then
         XCTAssertPrinterOutputContains("""

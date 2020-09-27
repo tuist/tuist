@@ -4,14 +4,14 @@ import TSCBasic
 public struct Scheme: Equatable {
     // MARK: - Attributes
 
-    public let name: String
-    public let shared: Bool
-    public let buildAction: BuildAction?
-    public let testAction: TestAction?
-    public let runAction: RunAction?
-    public let archiveAction: ArchiveAction?
-    public let profileAction: ProfileAction?
-    public let analyzeAction: AnalyzeAction?
+    public var name: String
+    public var shared: Bool
+    public var buildAction: BuildAction?
+    public var testAction: TestAction?
+    public var runAction: RunAction?
+    public var archiveAction: ArchiveAction?
+    public var profileAction: ProfileAction?
+    public var analyzeAction: AnalyzeAction?
 
     // MARK: - Init
 
@@ -22,7 +22,8 @@ public struct Scheme: Equatable {
                 runAction: RunAction? = nil,
                 archiveAction: ArchiveAction? = nil,
                 profileAction: ProfileAction? = nil,
-                analyzeAction: AnalyzeAction? = nil) {
+                analyzeAction: AnalyzeAction? = nil)
+    {
         self.name = name
         self.shared = shared
         self.buildAction = buildAction

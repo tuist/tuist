@@ -18,7 +18,7 @@ enum CloudSessionServiceError: FatalError, Equatable {
     var description: String {
         switch self {
         case .missingCloudURL:
-            return "The cloudURL attribute is missing in your project's configuration."
+            return "The cloud URL attribute is missing in your project's configuration."
         }
     }
 
@@ -50,7 +50,8 @@ final class CloudSessionService: CloudSessionServicing {
     }
 
     init(cloudSessionController: CloudSessionControlling,
-         generatorModelLoader: GeneratorModelLoading) {
+         generatorModelLoader: GeneratorModelLoading)
+    {
         self.cloudSessionController = cloudSessionController
         self.generatorModelLoader = generatorModelLoader
     }

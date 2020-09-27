@@ -8,6 +8,7 @@ on:
       - Sources/**/*
       - Tests/**/*
       - fixtures/**/*
+      - Templates/**/*
       - .github/workflows/tuist.yml
       - Package.swift
       - Package.resolved
@@ -16,6 +17,7 @@ on:
       - Sources/**/*
       - Tests/**/*
       - fixtures/**/*
+      - Templates/**/*
       - .github/workflows/tuist.yml
       - Package.swift
       - Package.resolved
@@ -26,7 +28,7 @@ jobs:
     runs-on: macOS-latest
     strategy:
       matrix:
-        xcode: ['11.3.1', '11.5']
+        xcode: ['11.5', '12_beta']
     steps:
       - uses: actions/checkout@v1
       - name: Select Xcode
@@ -41,7 +43,7 @@ jobs:
     runs-on: macOS-latest
     strategy:
       matrix:
-        xcode: ['11.3.1', '11.4']
+        xcode: ['11.5']
     steps:
       - uses: actions/checkout@v1
       - name: Select Xcode
@@ -65,7 +67,8 @@ jobs:
             'generate-5',
             'generate-6',
             'init',
-            'lint',
+            'lint-project',
+            'lint-code',
             'scaffold',
             'up',
             'build',
@@ -77,12 +80,33 @@ jobs:
       - uses: actions/setup-ruby@v1
         with:
           ruby-version: '2.x'
-      - name: Install Bundler 2.0.2
-        run: gem install bundler --version 2.0.2
+      - name: Install Bundler 2.1.4
+        run: gem install bundler --version 2.1.4
       - name: Install Bundler dependencies
         run: bundle install
       - name: Run tests
         run: FEATURE=features/${{ matrix.feature }}.feature bundle exec rake features
+  cache_acceptance_tests:
+    name: Cache Acceptance tests (${{ matrix.feature }})
+    runs-on: macOS-latest
+    strategy:
+      matrix:
+        xcode: ['12_beta']
+        feature: ['cache']
+    steps:
+      - uses: actions/checkout@v1
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_${{ matrix.xcode }}.app
+      - uses: actions/setup-ruby@v1
+        with:
+          ruby-version: '2.x'
+      - name: Install Bundler 2.1.4
+        run: gem install bundler --version 2.1.4
+      - name: Install Bundler dependencies
+        run: bundle install
+      - name: Run tests
+        run: FEATURE=features/${{ matrix.feature }}.feature bundle exec rake features
+
   upload:
     if: github.ref == 'refs/heads/master'
     name: Upload
@@ -94,8 +118,8 @@ jobs:
       - uses: actions/setup-ruby@v1
         with:
           ruby-version: '2.x'
-      - name: Install Bundler 2.0.2
-        run: gem install bundler --version 2.0.2
+      - name: Install Bundler 2.1.4
+        run: gem install bundler --version 2.1.4
       - name: Install Bundler dependencies
         run: bundle install
       - name: Package build and upload it to GCS

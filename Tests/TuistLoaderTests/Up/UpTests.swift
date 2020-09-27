@@ -43,6 +43,17 @@ final class UpTests: TuistUnitTestCase {
         XCTAssertEqual(got?.repositories, ["repository"])
     }
 
+    func test_with_when_homebrewCask() throws {
+        let temporaryPath = try self.temporaryPath()
+        let dictionary = JSON([
+            "type": "homebrew-cask",
+            "projects": JSON.array([JSON.string("project")]),
+        ])
+        let got = try Up.with(dictionary: dictionary, projectPath: temporaryPath) as? UpHomebrewCask
+        XCTAssertEqual(got?.name, "Homebrew cask")
+        XCTAssertEqual(got?.projects, ["project"])
+    }
+
     func test_with_when_carthage() throws {
         let temporaryPath = try self.temporaryPath()
         let dictionary = JSON([
@@ -50,7 +61,7 @@ final class UpTests: TuistUnitTestCase {
             "platforms": JSON.array([JSON.string("macos")]),
         ])
         let got = try Up.with(dictionary: dictionary, projectPath: temporaryPath) as? UpCarthage
-        XCTAssertEqual(got?.name, "Carthage update")
+        XCTAssertEqual(got?.name, "Carthage bootstrap")
         XCTAssertEqual(got?.platforms, [.macOS])
     }
 

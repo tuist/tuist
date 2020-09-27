@@ -15,6 +15,8 @@ let project = Project(
                 "Resources/*.xcassets",
                 "Resources/**/*.txt",
                 "Resources/**/*.strings",
+                "Resources/**/*.plist",
+                "Resources/**/*.otf",
                 "Resources/resource_without_extension",
                 .folderReference(path: "Examples")
             ],
@@ -22,6 +24,10 @@ let project = Project(
                 .project(target: "Framework1", path: "../Framework1"),
                 .project(target: "StaticFramework", path: "../StaticFramework"),
                 .project(target: "StaticFrameworkResources", path: "../StaticFramework"),
+                .project(target: "StaticFramework2", path: "../StaticFramework2"),
+                .project(target: "StaticFramework3", path: "../StaticFramework3"),
+                .project(target: "StaticFramework4", path: "../StaticFramework4"),
+                .project(target: "StaticFramework5", path: "../StaticFramework5"),
             ]
         ),
         Target(

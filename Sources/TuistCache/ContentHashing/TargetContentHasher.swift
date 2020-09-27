@@ -96,7 +96,7 @@ public final class TargetContentHasher: TargetContentHashing {
             stringsToHash.append(infoPlistHash)
         }
         if let entitlements = target.entitlements {
-            let entitlementsHash = try contentHasher.hash(fileAtPath: entitlements)
+            let entitlementsHash = try contentHasher.hash(path: entitlements)
             stringsToHash.append(entitlementsHash)
         }
         if let settings = target.settings {

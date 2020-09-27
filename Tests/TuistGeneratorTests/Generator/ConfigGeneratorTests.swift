@@ -104,7 +104,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
 
     func test_generateTestTargetConfiguration() throws {
         // Given / When
-        try generateTestTargetConfig()
+        try generateTestTargetConfig(appName: "App")
 
         let configurationList = pbxTarget.buildConfigurationList
         let debugConfig = configurationList?.configuration(name: "Debug")
@@ -119,9 +119,27 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         assert(config: releaseConfig, contains: testHostSettings)
     }
 
+    func test_generateTestTargetConfiguration_usesProductName() throws {
+        // Given / When
+        try generateTestTargetConfig(appName: "App-dash",
+                                     productName: "App_dash")
+
+        let configurationList = pbxTarget.buildConfigurationList
+        let debugConfig = configurationList?.configuration(name: "Debug")
+        let releaseConfig = configurationList?.configuration(name: "Release")
+
+        let testHostSettings = [
+            "TEST_HOST": "$(BUILT_PRODUCTS_DIR)/App_dash.app/App_dash",
+            "BUNDLE_LOADER": "$(TEST_HOST)",
+        ]
+
+        assert(config: debugConfig, contains: testHostSettings)
+        assert(config: releaseConfig, contains: testHostSettings)
+    }
+
     func test_generateUITestTargetConfiguration() throws {
         // Given / When
-        try generateTestTargetConfig(uiTest: true)
+        try generateTestTargetConfig(appName: "App", uiTest: true)
 
         let configurationList = pbxTarget.buildConfigurationList
         let debugConfig = configurationList?.configuration(name: "Debug")
@@ -135,10 +153,30 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         assert(config: releaseConfig, contains: testHostSettings)
     }
 
+    func test_generateUITestTargetConfiguration_usesTargetName() throws {
+        // Given / When
+        try generateTestTargetConfig(appName: "App-dash",
+                                     productName: "App_dash",
+                                     uiTest: true)
+
+        let configurationList = pbxTarget.buildConfigurationList
+        let debugConfig = configurationList?.configuration(name: "Debug")
+        let releaseConfig = configurationList?.configuration(name: "Release")
+
+        let testHostSettings = [
+            "TEST_TARGET_NAME": "App-dash", // `TEST_TARGET_NAME` should reference the target name as opposed to `productName`
+        ]
+
+        assert(config: debugConfig, contains: testHostSettings)
+        assert(config: releaseConfig, contains: testHostSettings)
+    }
+
     func test_generateTargetWithDeploymentTarget_whenIOS() throws {
         // Given
         let project = Project.test()
         let target = Target.test(deploymentTarget: .iOS("12.0", [.iphone, .ipad]))
+        let graph = ValueGraph.test(path: project.path)
+        let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
         try subject.generateTargetConfig(target,
@@ -147,7 +185,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
                                          pbxproj: pbxproj,
                                          projectSettings: .default,
                                          fileElements: ProjectFileElements(),
-                                         graph: Graph.test(),
+                                         graphTraverser: graphTraverser,
                                          sourceRootPath: AbsolutePath("/project"))
 
         // Then
@@ -168,6 +206,8 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         // Given
         let project = Project.test()
         let target = Target.test(deploymentTarget: .macOS("10.14.1"))
+        let graph = ValueGraph.test(path: project.path)
+        let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
         try subject.generateTargetConfig(target,
@@ -176,7 +216,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
                                          pbxproj: pbxproj,
                                          projectSettings: .default,
                                          fileElements: ProjectFileElements(),
-                                         graph: Graph.test(),
+                                         graphTraverser: graphTraverser,
                                          sourceRootPath: AbsolutePath("/project"))
 
         // Then
@@ -196,6 +236,8 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         // Given
         let project = Project.test()
         let target = Target.test(deploymentTarget: .iOS("13.1", [.iphone, .ipad, .mac]))
+        let graph = ValueGraph.test(path: project.path)
+        let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
         try subject.generateTargetConfig(target,
@@ -204,7 +246,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
                                          pbxproj: pbxproj,
                                          projectSettings: .default,
                                          fileElements: ProjectFileElements(),
-                                         graph: Graph.test(),
+                                         graphTraverser: graphTraverser,
                                          sourceRootPath: AbsolutePath("/project"))
 
         // Then
@@ -267,6 +309,8 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         ])
         let project = Project.test()
         let target = Target.test()
+        let graph = ValueGraph.test(path: project.path)
+        let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
         try subject.generateTargetConfig(target,
@@ -275,7 +319,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
                                          pbxproj: pbxproj,
                                          projectSettings: projectSettings,
                                          fileElements: ProjectFileElements(),
-                                         graph: Graph.test(),
+                                         graphTraverser: graphTraverser,
                                          sourceRootPath: AbsolutePath("/project"))
 
         // Then
@@ -291,6 +335,8 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         ])
         let project = Project.test()
         let target = Target.test()
+        let graph = ValueGraph.test(path: project.path)
+        let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
         try subject.generateTargetConfig(target,
@@ -299,7 +345,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
                                          pbxproj: pbxproj,
                                          projectSettings: projectSettings,
                                          fileElements: ProjectFileElements(),
-                                         graph: Graph.test(),
+                                         graphTraverser: graphTraverser,
                                          sourceRootPath: AbsolutePath("/project"))
 
         // Then
@@ -354,42 +400,51 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
                                  entitlements: AbsolutePath("/Test.entitlements"),
                                  settings: Settings(base: ["Base": "Base"], configurations: configurations))
         let project = Project.test(path: dir,
+                                   sourceRootPath: dir,
+                                   xcodeProjPath: dir.appending(component: "Project.xcodeproj"),
                                    name: "Test",
                                    settings: .default,
                                    targets: [target])
-        let fileElements = ProjectFileElements()
-        let groups = ProjectGroups.generate(project: project,
-                                            pbxproj: pbxproj,
-                                            xcodeprojPath: project.path.appending(component: "\(project.fileName).xcodeproj"),
-                                            sourceRootPath: dir)
         let graph = Graph.test()
+        let valueGraph = ValueGraph.test(path: project.path)
+        let graphTraverser = ValueGraphTraverser(graph: valueGraph)
+
+        let fileElements = ProjectFileElements()
+        let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj)
         try fileElements.generateProjectFiles(project: project,
                                               graph: graph,
                                               groups: groups,
-                                              pbxproj: pbxproj,
-                                              sourceRootPath: project.path)
+                                              pbxproj: pbxproj)
         _ = try subject.generateTargetConfig(target,
                                              project: project,
                                              pbxTarget: pbxTarget,
                                              pbxproj: pbxproj,
                                              projectSettings: project.settings,
                                              fileElements: fileElements,
-                                             graph: graph,
+                                             graphTraverser: graphTraverser,
                                              sourceRootPath: AbsolutePath("/"))
     }
 
-    private func generateTestTargetConfig(uiTest: Bool = false) throws {
+    private func generateTestTargetConfig(appName: String = "App",
+                                          productName: String? = nil,
+                                          uiTest: Bool = false) throws
+    {
         let dir = try temporaryPath()
 
-        let appTarget = Target.test(name: "App", platform: .iOS, product: .app)
+        let appTarget = Target.test(name: appName,
+                                    platform: .iOS,
+                                    product: .app,
+                                    productName: productName)
 
         let target = Target.test(name: "Test", product: uiTest ? .uiTests : .unitTests)
         let project = Project.test(path: dir, name: "Project", targets: [target])
 
-        let appTargetNode = TargetNode(project: project, target: appTarget, dependencies: [])
-        let testTargetNode = TargetNode(project: project, target: target, dependencies: [appTargetNode])
-
-        let graph = Graph.test(entryNodes: [appTargetNode, testTargetNode])
+        let graph = ValueGraph.test(name: project.name,
+                                    path: project.path,
+                                    projects: [project.path: project],
+                                    targets: [project.path: [appTarget.name: appTarget, target.name: target]],
+                                    dependencies: [ValueGraphDependency.target(name: target.name, path: project.path): Set([.target(name: appTarget.name, path: project.path)])])
+        let graphTraverser = ValueGraphTraverser(graph: graph)
 
         _ = try subject.generateTargetConfig(target,
                                              project: project,
@@ -397,14 +452,15 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
                                              pbxproj: pbxproj,
                                              projectSettings: project.settings,
                                              fileElements: .init(),
-                                             graph: graph,
+                                             graphTraverser: graphTraverser,
                                              sourceRootPath: dir)
     }
 
     func assert(config: XCBuildConfiguration?,
                 contains settings: [String: String],
                 file: StaticString = #file,
-                line: UInt = #line) {
+                line: UInt = #line)
+    {
         let matches = settings.filter {
             config?.buildSettings[$0.key] as? String == $0.value
         }
@@ -419,7 +475,8 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
     func assert(config: XCBuildConfiguration?,
                 hasXcconfig xconfigPath: String,
                 file: StaticString = #file,
-                line: UInt = #line) {
+                line: UInt = #line)
+    {
         let xcconfig: PBXFileReference? = config?.baseConfiguration
         XCTAssertEqual(xcconfig?.path,
                        xconfigPath,

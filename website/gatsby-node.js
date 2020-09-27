@@ -4,10 +4,20 @@ const path = require(`path`)
 exports.onCreateNode = ({ node, getNode, actions }) => {
   const { createNodeField, createRedirect } = actions
 
-  // Redirect
+  // Redirects
   createRedirect({
     fromPath: '/docs',
     toPath: '/docs/usage/getting-started/',
+    isPermanent: true,
+  })
+  createRedirect({
+    fromPath: '/docs/usage/projectswift/',
+    toPath: '/docs/usage/project-description/',
+    isPermanent: true,
+  })
+  createRedirect({
+    fromPath: '/docs/architectures/microfeatures/',
+    toPath: '/docs/usage/microfeatures/',
     isPermanent: true,
   })
 

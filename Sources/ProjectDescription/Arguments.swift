@@ -2,11 +2,12 @@ import Foundation
 
 public struct Arguments: Equatable, Codable {
     public let environment: [String: String]
-    public let launch: [String: Bool]
+    public let launchArguments: [String: Bool]
 
     public init(environment: [String: String] = [:],
-                launch: [String: Bool] = [:]) {
+                launchArguments: [String: Bool] = [:])
+    {
         self.environment = environment
-        self.launch = launch
+        self.launchArguments = launchArguments
     }
 }

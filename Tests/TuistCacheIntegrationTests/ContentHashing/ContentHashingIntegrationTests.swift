@@ -66,7 +66,7 @@ final class ContentHashingIntegrationTests: TuistTestCase {
         // Given
         let temporaryDirectoryPath = try temporaryPath()
         let framework1 = makeFramework(named: "f1", sources: [source1, source2])
-        let framework2 = makeFramework(named: "f2", sources: [source1, source2])
+        let framework2 = makeFramework(named: "f2", sources: [source2, source1])
         let graph = Graph.test(targets: [
             temporaryDirectoryPath: [framework1, framework2],
         ])
@@ -107,8 +107,8 @@ final class ContentHashingIntegrationTests: TuistTestCase {
         let contentHash = try subject.contentHashes(for: graph)
 
         // Then
-        XCTAssertEqual(contentHash[framework1], "fceaf5e214a39983e22493500cf6794d")
-        XCTAssertEqual(contentHash[framework2], "31f46fc5bff3dfad3d9c721337a9a4e8")
+        XCTAssertEqual(contentHash[framework1], "959a33d298f7d1815d8f747e557240f7")
+        XCTAssertEqual(contentHash[framework2], "95d3a5a751b713a854957b4b30d996eb")
     }
 
     // MARK: - Resources
@@ -261,7 +261,8 @@ final class ContentHashingIntegrationTests: TuistTestCase {
                                sources: [Target.SourceFile] = [],
                                resources: [FileElement] = [],
                                coreDataModels: [CoreDataModel] = [],
-                               targetActions: [TargetAction] = []) -> TargetNode {
+                               targetActions: [TargetAction] = []) -> TargetNode
+    {
         TargetNode.test(
             project: .test(path: AbsolutePath("/test/\(named)")),
             target: .test(platform: platform,

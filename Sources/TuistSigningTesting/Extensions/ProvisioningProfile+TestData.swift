@@ -4,7 +4,7 @@ import XCTest
 
 extension ProvisioningProfile {
     public static func test(
-        path: AbsolutePath? = nil,
+        path: AbsolutePath = AbsolutePath("/targetName.configurationName.mobileprovision"),
         name: String = "name",
         targetName: String = "targetName",
         configurationName: String = "configurationName",

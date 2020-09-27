@@ -1,6 +1,5 @@
 ---
 name: Best practices
-order: 8
 excerpt: Xcode being weakly opinionated in regards to the project structure might result in complex and hard to manage project. To prevent that, this document describes best practices that users of Tuist can follow to have projects that are optimal and easy to reason about.
 ---
 
@@ -18,6 +17,7 @@ This document contains a list of recommendations for conventions that we'd follo
 ## Dependencies
 
 - **Explicit definition:** Dependencies can be defined implicitly through build settings. Xcode is smart enough to detect them and determine the order in which targets should be built. Although implicitness might work fine in small projects, as they get larger, it might turn into a source of issues and slowness. Default to explicit definition of dependencies using the [dependencies API](/docs/usage/dependencies/) that Tuist provides. Tuist has handy built-in features such as [tuist graph](/docs/commands/graph/) or detection of circular dependencies that rely on dependencies being explicitly defined.
+- **XCTest dependency:** If a target that is not a test target depends on `XCTest`, declare the dependency explicitly with `.xctest`.
 
 ## File structure
 
@@ -39,3 +39,12 @@ Adding `tuist` to your project will require you to have installed it in your CI 
 - Bundle it: `tuist bundle`
 - Commit the added files into git
 - Run `tuist` using `.tuist-bin/tuist generate` in your CI
+
+## Workspace.swift vs Project.swift
+
+Even though we support aggregating multiple projects into a workspace using the `Workspace.swift` manifest.
+We recommend **one project with multiple targets** over one workspace with multiple projects.
+Having an Xcode workspace is useful when projects are part of the Git repository because it helps reduce the likelihood of conflicts.
+However, that's not an issue in Tuist because projects don't need to be part of the repository.
+
+Moreover, having a single project allows using the [focus](/docs/commands/focus/) feature to generate optimized projects with dependencies from the cache.

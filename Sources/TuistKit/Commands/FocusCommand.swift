@@ -9,6 +9,24 @@ import TuistGenerator
 import TuistLoader
 import TuistSupport
 
+enum FocusCommandError: FatalError {
+    case noSources
+
+    var description: String {
+        switch self {
+        case .noSources:
+            return "A list of targets is required: tuist focus MyTarget."
+        }
+    }
+
+    var type: ErrorType {
+        switch self {
+        case .noSources:
+            return .abort
+        }
+    }
+}
+
 /// The focus command generates the Xcode workspace and launches it on Xcode.
 struct FocusCommand: ParsableCommand {
     static var configuration: CommandConfiguration {
@@ -16,7 +34,28 @@ struct FocusCommand: ParsableCommand {
                              abstract: "Opens Xcode ready to focus on the project in the current directory")
     }
 
+    @Option(
+        name: .shortAndLong,
+        help: "The path to the directory containing the project you plan to focus on.",
+        completion: .directory
+    )
+    var path: String?
+
+    @Argument(help: "A list of targets in which you'd like to focus. Those and their dependant targets will be generated as sources.")
+    var sources: [String] = []
+
+    @Flag(
+        name: .shortAndLong,
+        help: "Don't open the project after generating it."
+    )
+    var noOpen: Bool = false
+
     func run() throws {
-        try FocusService().run(cache: true)
+        if sources.isEmpty {
+            throw FocusCommandError.noSources
+        }
+        try FocusService().run(path: path,
+                               sources: Set(sources),
+                               noOpen: noOpen)
     }
 }

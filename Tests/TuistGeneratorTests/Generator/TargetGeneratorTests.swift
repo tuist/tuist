@@ -51,18 +51,18 @@ final class TargetGeneratorTests: XCTestCase {
                                                   inputFileListPaths: ["/tmp/b"],
                                                   outputFileListPaths: ["/tmp/d"]),
                                  ])
-        let project = Project.test(path: path, targets: [target])
+        let project = Project.test(path: path,
+                                   sourceRootPath: path,
+                                   xcodeProjPath: path.appending(component: "Test.xcodeproj"),
+                                   targets: [target])
         let graph = Graph.test()
         let groups = ProjectGroups.generate(project: project,
                                             pbxproj: pbxproj,
-                                            xcodeprojPath: project.path.appending(component: "\(project.fileName).xcodeproj"),
-                                            sourceRootPath: path,
                                             playgrounds: MockPlaygrounds())
         try fileElements.generateProjectFiles(project: project,
                                               graph: graph,
                                               groups: groups,
-                                              pbxproj: pbxproj,
-                                              sourceRootPath: path)
+                                              pbxproj: pbxproj)
 
         // When
         let generatedTarget = try subject.generateTarget(target: target,
@@ -72,7 +72,6 @@ final class TargetGeneratorTests: XCTestCase {
                                                          projectSettings: Settings.test(),
                                                          fileElements: fileElements,
                                                          path: path,
-                                                         sourceRootPath: path,
                                                          graph: graph)
 
         // Then
@@ -82,7 +81,8 @@ final class TargetGeneratorTests: XCTestCase {
 
         guard
             let preBuildPhase = generatedTarget.buildPhases.first(where: { $0.name() == "pre" }),
-            let postBuildPhase = generatedTarget.buildPhases.first(where: { $0.name() == "post" }) else {
+            let postBuildPhase = generatedTarget.buildPhases.first(where: { $0.name() == "post" })
+        else {
             XCTFail("Failed to generate target with build phases pre and post")
             return
         }
@@ -130,17 +130,14 @@ final class TargetGeneratorTests: XCTestCase {
                                      TargetAction(name: "post", order: .post, path: path.appending(component: "script.sh"), arguments: ["arg"]),
                                      TargetAction(name: "pre", order: .pre, path: path.appending(component: "script.sh"), arguments: ["arg"]),
                                  ])
-        let project = Project.test(path: path, targets: [target])
+        let project = Project.test(path: path, sourceRootPath: path, xcodeProjPath: path.appending(component: "Project.xcodeproj"), targets: [target])
         let groups = ProjectGroups.generate(project: project,
                                             pbxproj: pbxproj,
-                                            xcodeprojPath: project.path.appending(component: "\(project.fileName).xcodeproj"),
-                                            sourceRootPath: path,
                                             playgrounds: MockPlaygrounds())
         try fileElements.generateProjectFiles(project: project,
                                               graph: graph,
                                               groups: groups,
-                                              pbxproj: pbxproj,
-                                              sourceRootPath: path)
+                                              pbxproj: pbxproj)
 
         // When
         let pbxTarget = try subject.generateTarget(target: target,
@@ -150,7 +147,6 @@ final class TargetGeneratorTests: XCTestCase {
                                                    projectSettings: Settings.test(),
                                                    fileElements: fileElements,
                                                    path: path,
-                                                   sourceRootPath: path,
                                                    graph: graph)
 
         // Then
@@ -168,7 +164,8 @@ final class TargetGeneratorTests: XCTestCase {
     // MARK: - Helpers
 
     private func createTargetNodes(project: Project,
-                                   dependencies: [(target: Target, dependencies: [Target])]) -> [TargetNode] {
+                                   dependencies: [(target: Target, dependencies: [Target])]) -> [TargetNode]
+    {
         let nodesCache = Dictionary(uniqueKeysWithValues: dependencies.map {
             ($0.target.name, TargetNode(project: project,
                                         target: $0.target,
@@ -184,7 +181,8 @@ final class TargetGeneratorTests: XCTestCase {
     }
 
     private func createGraph(project: Project,
-                             dependencies: [(target: Target, dependencies: [Target])]) -> Graph {
+                             dependencies: [(target: Target, dependencies: [Target])]) -> Graph
+    {
         let targetNodes = createTargetNodes(project: project, dependencies: dependencies)
         let graph = Graph.test(entryNodes: targetNodes,
                                projects: [project],

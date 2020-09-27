@@ -40,6 +40,9 @@ public struct TargetAction: Equatable {
     /// List of output filelist paths
     public let outputFileListPaths: [AbsolutePath]
 
+    /// Show environment variables in the logs
+    public var showEnvVarsInLog: Bool
+
     /// Initializes a new target action with its attributes.
     ///
     /// - Parameters:
@@ -60,7 +63,9 @@ public struct TargetAction: Equatable {
                 inputPaths: [AbsolutePath] = [],
                 inputFileListPaths: [AbsolutePath] = [],
                 outputPaths: [AbsolutePath] = [],
-                outputFileListPaths: [AbsolutePath] = []) {
+                outputFileListPaths: [AbsolutePath] = [],
+                showEnvVarsInLog: Bool = true)
+    {
         self.name = name
         self.order = order
         self.tool = tool
@@ -70,6 +75,7 @@ public struct TargetAction: Equatable {
         self.inputFileListPaths = inputFileListPaths
         self.outputPaths = outputPaths
         self.outputFileListPaths = outputFileListPaths
+        self.showEnvVarsInLog = showEnvVarsInLog
     }
 
     /// Returns the shell script that should be used in the target build phase.

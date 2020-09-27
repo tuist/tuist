@@ -3,24 +3,46 @@ import TuistGenerator
 import TuistLoader
 import TuistSupport
 
+protocol GenerateServiceProjectGeneratorFactorying {
+    func generator() -> ProjectGenerating
+}
+
+final class GenerateServiceProjectGeneratorFactory: GenerateServiceProjectGeneratorFactorying {
+    func generator() -> ProjectGenerating {
+        ProjectGenerator(graphMapperProvider: GraphMapperProvider(cache: false, sources: Set()))
+    }
+}
+
 final class GenerateService {
     // MARK: - Attributes
 
+    private let opener: Opening
     private let clock: Clock
-    private let generator: ProjectGenerating
+    private let projectGeneratorFactory: GenerateServiceProjectGeneratorFactorying
 
-    init(generator: ProjectGenerating = ProjectGenerator(),
-         clock: Clock = WallClock()) {
-        self.generator = generator
+    // MARK: - Init
+
+    init(clock: Clock = WallClock(),
+         opener: Opening = Opener(),
+         projectGeneratorFactory: GenerateServiceProjectGeneratorFactorying = GenerateServiceProjectGeneratorFactory())
+    {
         self.clock = clock
+        self.opener = opener
+        self.projectGeneratorFactory = projectGeneratorFactory
     }
 
     func run(path: String?,
-             projectOnly: Bool) throws {
+             projectOnly: Bool,
+             open: Bool) throws
+    {
         let timer = clock.startTimer()
         let path = self.path(path)
+        let generator = projectGeneratorFactory.generator()
 
-        _ = try generator.generate(path: path, projectOnly: projectOnly)
+        let generatedProjectPath = try generator.generate(path: path, projectOnly: projectOnly)
+        if open {
+            try opener.open(path: generatedProjectPath, wait: false)
+        }
 
         let time = String(format: "%.3f", timer.stop())
 

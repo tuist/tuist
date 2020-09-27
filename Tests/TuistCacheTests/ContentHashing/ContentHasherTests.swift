@@ -59,7 +59,7 @@ final class ContentHasherTests: TuistUnitTestCase {
         let path = try writeToTemporaryPath(content: "foo")
 
         // When
-        let hash = try subject.hash(fileAtPath: path)
+        let hash = try subject.hash(path: path)
 
         // Then
         XCTAssertEqual(hash, "acbd18db4cc2f85cedef654fccc4a4d8") // This is the md5 of "foo"
@@ -70,7 +70,7 @@ final class ContentHasherTests: TuistUnitTestCase {
         let path = try writeToTemporaryPath(content: "bar")
 
         // When
-        let hash = try subject.hash(fileAtPath: path)
+        let hash = try subject.hash(path: path)
 
         // Then
         XCTAssertEqual(hash, "37b51d194a7513e45b56f6524f2d51f2") // This is the md5 of "bar"
@@ -81,7 +81,7 @@ final class ContentHasherTests: TuistUnitTestCase {
         let wrongPath = AbsolutePath("/shakirashakira")
 
         // Then
-        XCTAssertThrowsError(try subject.hash(fileAtPath: wrongPath)) { error in
+        XCTAssertThrowsError(try subject.hash(path: wrongPath)) { error in
             XCTAssertEqual(error as? FileHandlerError, FileHandlerError.fileNotFound(wrongPath))
         }
     }

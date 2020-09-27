@@ -1,10 +1,9 @@
 import Foundation
 
-/// Cloud reprensets the configuration to connect to the cloud.
+/// Cloud represents the configuration to connect to the server.
 public struct Cloud: Equatable, Hashable {
     /// Cloud option.
     public enum Option: String, Codable, Equatable {
-        /// Enable collecting insights from your projects.
         case insights
     }
 

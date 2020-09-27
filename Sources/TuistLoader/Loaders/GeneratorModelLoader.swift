@@ -10,7 +10,8 @@ public class GeneratorModelLoader {
     private let rootDirectoryLocator: RootDirectoryLocating
 
     public convenience init(manifestLoader: ManifestLoading,
-                            manifestLinter: ManifestLinting) {
+                            manifestLinter: ManifestLinting)
+    {
         self.init(manifestLoader: manifestLoader,
                   manifestLinter: manifestLinter,
                   rootDirectoryLocator: RootDirectoryLocator())
@@ -18,7 +19,8 @@ public class GeneratorModelLoader {
 
     init(manifestLoader: ManifestLoading,
          manifestLinter: ManifestLinting,
-         rootDirectoryLocator: RootDirectoryLocating) {
+         rootDirectoryLocator: RootDirectoryLocating)
+    {
         self.manifestLoader = manifestLoader
         self.manifestLinter = manifestLinter
         self.rootDirectoryLocator = rootDirectoryLocator
@@ -46,7 +48,7 @@ extension GeneratorModelLoader: GeneratorModelLoading {
     public func loadConfig(at path: AbsolutePath) throws -> TuistCore.Config {
         // If the Config.swift file exists in the root Tuist/ directory, we load it from there
         if let rootDirectoryPath = rootDirectoryLocator.locate(from: path) {
-            let configPath = rootDirectoryPath.appending(RelativePath("\(Constants.tuistDirectoryName)/\(Manifest.config.fileName)"))
+            let configPath = rootDirectoryPath.appending(RelativePath("\(Constants.tuistDirectoryName)/\(Manifest.config.fileName(path))"))
 
             if FileHandler.shared.exists(configPath) {
                 let manifest = try manifestLoader.loadConfig(at: configPath.parentDirectory)
@@ -56,7 +58,7 @@ extension GeneratorModelLoader: GeneratorModelLoading {
 
         // We first try to load the deprecated file. If it doesn't exist, we load the new file name.
         let fileNames = [Manifest.config]
-            .flatMap { [$0.deprecatedFileName, $0.fileName] }
+            .flatMap { [$0.deprecatedFileName, $0.fileName(path)] }
             .compactMap { $0 }
 
         for fileName in fileNames {
@@ -73,10 +75,8 @@ extension GeneratorModelLoader: GeneratorModelLoading {
 
 extension GeneratorModelLoader: ManifestModelConverting {
     public func convert(manifest: ProjectDescription.Project, path: AbsolutePath) throws -> TuistCore.Project {
-        let config = try loadConfig(at: path)
         let generatorPaths = GeneratorPaths(manifestDirectory: path)
-        let project = try TuistCore.Project.from(manifest: manifest, generatorPaths: generatorPaths)
-        return try enriched(model: project, with: config)
+        return try TuistCore.Project.from(manifest: manifest, generatorPaths: generatorPaths)
     }
 
     public func convert(manifest: ProjectDescription.Workspace, path: AbsolutePath) throws -> TuistCore.Workspace {
@@ -86,50 +86,5 @@ extension GeneratorModelLoader: ManifestModelConverting {
                                                      generatorPaths: generatorPaths,
                                                      manifestLoader: manifestLoader)
         return workspace
-    }
-}
-
-extension GeneratorModelLoader {
-    private func enriched(model: TuistCore.Project, with config: TuistCore.Config) throws -> TuistCore.Project {
-        var enrichedModel = model
-
-        // Xcode project file name
-        let xcodeFileName = xcodeFileNameOverride(from: config, for: model)
-        enrichedModel = enrichedModel.replacing(fileName: xcodeFileName)
-
-        // Xcode project organization name
-        if let organizationName = organizationNameOverride(from: config) {
-            enrichedModel = enrichedModel.replacing(organizationName: organizationName)
-        }
-
-        return enrichedModel
-    }
-
-    private func xcodeFileNameOverride(from config: TuistCore.Config, for model: TuistCore.Project) -> String? {
-        var xcodeFileName = config.generationOptions.compactMap { item -> String? in
-            switch item {
-            case let .xcodeProjectName(projectName):
-                return projectName.description
-            default:
-                return nil
-            }
-        }.first
-
-        let projectNameTemplate = TemplateString.Token.projectName.rawValue
-        xcodeFileName = xcodeFileName?.replacingOccurrences(of: projectNameTemplate,
-                                                            with: model.name)
-
-        return xcodeFileName
-    }
-
-    private func organizationNameOverride(from config: TuistCore.Config) -> String? {
-        config.generationOptions.compactMap { item -> String? in
-            switch item {
-            case let .organizationName(name):
-                return name
-            default:
-                return nil
-            }
-        }.first
     }
 }

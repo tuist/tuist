@@ -224,7 +224,8 @@ final class RecursiveManifestLoaderTests: TuistUnitTestCase {
     // MARK: - Helpers
 
     private func createProject(name: String,
-                               targets: [String: [TargetDependency]] = [:]) -> Project {
+                               targets: [String: [TargetDependency]] = [:]) -> Project
+    {
         let targets: [Target] = targets.map {
             Target.test(name: $0.key, dependencies: $0.value)
         }
@@ -238,29 +239,33 @@ final class RecursiveManifestLoaderTests: TuistUnitTestCase {
     }
 
     private func stub(manifest: Project,
-                      at path: AbsolutePath) {
+                      at path: AbsolutePath)
+    {
         projectManifests[path] = manifest
     }
 
     private func stub(manifest: Workspace,
-                      at path: AbsolutePath) {
+                      at path: AbsolutePath)
+    {
         workspaceManifests[path] = manifest
     }
 
     private func stub(manifest: Project,
-                      at relativePath: RelativePath) throws {
+                      at relativePath: RelativePath) throws
+    {
         let manifestPath = path
             .appending(relativePath)
-            .appending(component: Manifest.project.fileName)
+            .appending(component: Manifest.project.fileName(path.appending(relativePath)))
         try fileHandler.touch(manifestPath)
         projectManifests[manifestPath.parentDirectory] = manifest
     }
 
     private func stub(manifest: Workspace,
-                      at relativePath: RelativePath) throws {
+                      at relativePath: RelativePath) throws
+    {
         let manifestPath = path
             .appending(relativePath)
-            .appending(component: Manifest.workspace.fileName)
+            .appending(component: Manifest.workspace.fileName(path.appending(relativePath)))
         try fileHandler.touch(manifestPath)
         workspaceManifests[manifestPath.parentDirectory] = manifest
     }

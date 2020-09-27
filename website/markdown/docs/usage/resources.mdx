@@ -1,0 +1,94 @@
+---
+name: Accessing resources
+excerpt: 'In this page documents how Tuist synthesizes accessors for resources to provide an interface that is consistent across all target products (e.g. framework. library).'
+---
+
+# Accessing resources
+
+Depending on the target product (e.g. app, framework), resources are accessed differently.
+For example, if we are trying to get an image that is part of an app target, we get the image from the `Bundle.main`.
+Conversely, if the image is part of a framework, we access it from the `Bundle` that represents the framework, `Bundle(for: FrameworkClass.self).resourceURL`.
+Having an **inconsistent interface** for accessing resources complicates moving code and resources around.
+
+Moreover,
+as you might know,
+libraries can't contain resources - only frameworks can.
+On iOS,
+this often leads projects to use dynamic frameworks instead of static libraries,
+and in some cases,
+add custom build phases that copy resources from dependencies into the final product (app).
+Resorting to this setup is not ideal because it introduces side effects, complicates the maintenance of the project, and makes the setup hard to reason about.
+
+## A consistent way for accessing resources
+
+Tuist solves this by generating a `Bundle` extension for accessing the right bundle depending on the type of target.
+For example, given a target framework `MyFeature`, you'll be able to get the right bundle with:
+
+```swift
+let bundle = Bundle.module
+```
+
+Furthermore, we support defining resources in products that don't support it (e.g. libraries). For those, we generate an associated bundle target (e.g. `MyFeatureResources.bundle`) that contains all the resources. The bundle ends up being copied into the final product bundle that contains compiled target.
+
+<Message
+  info
+  title="Strongly recommended"
+  description={`Accessing the resources this way is not mandatory, yet we recommend it strongly. It'll ease making changes in your project like turning a library into a framework.`}
+/>
+
+### Objective-C
+
+Tuist also synthesizes accessors for Objective-C.
+In this case, the Bundle needs to be accessed using the target name to avoid name conflicts:
+
+```objectivec
+NSBundle *bundle = [MyFeatureResources bundle];
+```
+
+## Synthesized Resource Interface Accessors
+
+Accessing images, strings and other resources with String-based APIs gets messy real fast, which is why lots of teams
+have opted to use [SwiftGen](https://github.com/SwiftGen/SwiftGen) or some other code generator.
+
+This is why we think it is a great opportunity to integrate [SwiftGen](https://github.com/SwiftGen/SwiftGen) into tuist,
+so teams can use it out of the box without having to set it up themselves!
+
+So, how does one synthesize the resource interface accessors? It's simple, you just add `resources` to your `Target`
+and the rest is done for you.
+
+It generates code that uses tuist's aforementioned bundle accessor, so you can use it safely in your libraries, too.
+
+Currently, we support these types of resources with the following interface names and files:
+
+- Assets (images and colors) {TargetName}Assets `Assets+{TargetName}.swift`
+- Strings {TargetName}Assets `Strings+{TargetName}.swift`
+- Plists {NameOfPlist} `{NameOfPlist}.swift`
+- Fonts `Fonts+{TargetName}.swift`
+
+So, for example if you have a target `MyFramework` with the following resources:
+
+- Assets.xcassets
+  - image1
+  - image2
+- Environment.plist
+  - myKey
+- Fonts
+  - SF-Pro-Display-Bold.otf
+  - SF-Pro-Display-Heavy.otf
+
+```swift
+// Accessing Asset Catalog Images
+let image1 = MyFrameworkAssets.myImage1
+let image2 = MyFrameworkAssets.myImage2
+
+// Accessing Plist Key values
+let myKeyValue = Environment.myKey
+
+// Accessing Fonts
+let sfProBoldFont = MyFrameworkFontFamily.SFProDisplay.bold
+let sfProHeavyFont = MyFrameworkFontFamily.SFProDisplay.heavy
+```
+
+To ensure that it works well with our cache feature, it's not possible to run it from a build path.
+
+You can also opt out of this feature by adding `disableSynthesizedResourceAccessors` to `generationOptions` in `Config.swift`

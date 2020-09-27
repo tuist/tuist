@@ -12,14 +12,14 @@ struct CarthageVersionFile: Codable {
 
 /// Protocol that defines an interface to interact with a local Carthage setup.
 protocol Carthaging {
-    /// Updates the dependencies in the given directory.
+    /// Bootstraps the dependencies in the given directory.
     ///
     /// - Parameters:
     ///   - path: Directory where the Carthage dependencies are defined.
-    ///   - platforms: Platforms the dependencies will be updated for.
-    ///   - dependencies: Dependencies to update
-    /// - Throws: An error if the dependencies update fails.
-    func update(path: AbsolutePath, platforms: [Platform], dependencies: [String]) throws
+    ///   - platforms: Platforms the dependencies will be bootstraped for.
+    ///   - dependencies: Dependencies to bootstrap
+    /// - Throws: An error if the dependencies bootstrap fails.
+    func bootstrap(path: AbsolutePath, platforms: [Platform], dependencies: [String]) throws
 
     /// Returns the list of outdated dependencies in the given directory.
     ///
@@ -33,18 +33,18 @@ final class Carthage: Carthaging {
     // swiftlint:disable:next force_try
     static let resolvedLineRegex = try! NSRegularExpression(pattern: "(github|git|binary) \"([^\"]+)\" \"([^\"]+)\"", options: [])
 
-    /// Updates the dependencies in the given directory.
+    /// Bootstraps the dependencies in the given directory.
     ///
     /// - Parameters:
     ///   - path: Directory where the Carthage dependencies are defined.
-    ///   - platforms: Platforms the dependencies will be updated for.
-    ///   - dependencies: Dependencies to update
-    /// - Throws: An error if the dependencies update fails.
-    func update(path: AbsolutePath, platforms: [Platform], dependencies: [String]) throws {
+    ///   - platforms: Platforms the dependencies will be bootstraped for.
+    ///   - dependencies: Dependencies to bootstrap
+    /// - Throws: An error if the dependencies bootstrap fails.
+    func bootstrap(path: AbsolutePath, platforms: [Platform], dependencies: [String]) throws {
         let carthagePath = try System.shared.which("carthage")
 
         var command: [String] = [carthagePath]
-        command.append("update")
+        command.append("bootstrap")
         command.append("--project-directory")
         command.append(path.pathString)
 
@@ -80,7 +80,13 @@ final class Carthage: Carthaging {
                                                range: NSRange(location: 0,
                                                               length: carfileResolved.count)).forEach { match in
             let dependencyNameRange = match.range(at: 2)
-            let dependencyName = String(carfileResolvedNSString.substring(with: dependencyNameRange).split(separator: "/").last!)
+            var dependencyName = String(carfileResolvedNSString.substring(with: dependencyNameRange).split(separator: "/").last!)
+
+            let dependencyTypeRange = match.range(at: 1)
+            let dependencyType = DependencyType(rawValue: carfileResolvedNSString.substring(with: dependencyTypeRange))
+            if dependencyType == .binary {
+                dependencyName = (dependencyName as NSString).deletingPathExtension
+            }
 
             let dependencyRevisionRange = match.range(at: 3)
             let dependencyRevision = carfileResolvedNSString.substring(with: dependencyRevisionRange)
@@ -102,5 +108,11 @@ final class Carthage: Carthaging {
         }
 
         return outdated
+    }
+}
+
+extension Carthage {
+    private enum DependencyType: String {
+        case github, git, binary
     }
 }

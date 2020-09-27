@@ -128,7 +128,7 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
         let path = try temporaryPath().appending(component: "App")
         let project = Project.test(name: "App")
         try stub(manifest: project, at: path)
-        environment.tuistVariables = ["NAME": "A"]
+        environment.manifestLoadingVariables = ["NAME": "A"]
 
         // When
         _ = try subject.loadProject(at: path)
@@ -146,11 +146,11 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
         let path = try temporaryPath().appending(component: "App")
         let project = Project.test(name: "App")
         try stub(manifest: project, at: path)
-        environment.tuistVariables = ["NAME": "A"]
+        environment.manifestLoadingVariables = ["NAME": "A"]
         _ = try subject.loadProject(at: path)
 
         // When
-        environment.tuistVariables = ["NAME": "B"]
+        environment.manifestLoadingVariables = ["NAME": "B"]
         _ = try subject.loadProject(at: path)
 
         // Then
@@ -243,8 +243,9 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
     }
 
     private func stub(manifest: Project,
-                      at path: AbsolutePath) throws {
-        let manifestPath = path.appending(component: Manifest.project.fileName)
+                      at path: AbsolutePath) throws
+    {
+        let manifestPath = path.appending(component: Manifest.project.fileName(path))
         try fileHandler.touch(manifestPath)
         let manifestData = try JSONEncoder().encode(manifest)
         try fileHandler.write(String(data: manifestData, encoding: .utf8)!, path: manifestPath, atomically: true)
@@ -252,8 +253,9 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
     }
 
     private func stub(deprecatedManifest manifest: Config,
-                      at path: AbsolutePath) throws {
-        let manifestPath = path.appending(component: Manifest.config.deprecatedFileName ?? Manifest.config.fileName)
+                      at path: AbsolutePath) throws
+    {
+        let manifestPath = path.appending(component: Manifest.config.deprecatedFileName ?? Manifest.config.fileName(path))
         try fileHandler.touch(manifestPath)
         let manifestData = try JSONEncoder().encode(manifest)
         try fileHandler.write(String(data: manifestData, encoding: .utf8)!, path: manifestPath, atomically: true)

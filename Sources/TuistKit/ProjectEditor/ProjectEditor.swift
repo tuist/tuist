@@ -91,7 +91,9 @@ final class ProjectEditor: ProjectEditing {
         let xcodeprojPath = dstDirectory.appending(component: "Manifests.xcodeproj")
 
         let projectDesciptionPath = try resourceLocator.projectDescription()
-        let manifests = manifestFilesLocator.locateAll(at: at)
+        let manifests = manifestFilesLocator.locateAllProjectManifests(at: at)
+        let configPath = manifestFilesLocator.locateConfig(at: at)
+        let setupPath = manifestFilesLocator.locateSetup(at: at)
         var helpers: [AbsolutePath] = []
         if let helpersDirectory = helpersDirectoryLocator.locate(at: at) {
             helpers = FileHandler.shared.glob(helpersDirectory, glob: "**/*.swift")
@@ -112,6 +114,9 @@ final class ProjectEditor: ProjectEditing {
 
         let (project, graph) = try projectEditorMapper.map(tuistPath: tuistPath,
                                                            sourceRootPath: at,
+                                                           xcodeProjPath: xcodeprojPath,
+                                                           setupPath: setupPath,
+                                                           configPath: configPath,
                                                            manifests: manifests.map { $0.1 },
                                                            helpers: helpers,
                                                            templates: templates,
@@ -119,12 +124,7 @@ final class ProjectEditor: ProjectEditing {
 
         let (mappedProject, sideEffects) = try projectMapper.map(project: project)
         try sideEffectDescriptorExecutor.execute(sideEffects: sideEffects)
-
-        let config = ProjectGenerationConfig(sourceRootPath: project.path,
-                                             xcodeprojPath: xcodeprojPath)
-        let descriptor = try generator.generateProject(project: mappedProject,
-                                                       graph: graph,
-                                                       config: config)
+        let descriptor = try generator.generateProject(project: mappedProject, graph: graph)
         try writer.write(project: descriptor)
         return descriptor.xcodeprojPath
     }

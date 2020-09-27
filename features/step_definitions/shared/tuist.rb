@@ -24,9 +24,22 @@ Then(/^tuist generates the project at (.+)$/) do |path|
   @xcodeproj_path = Dir.glob(File.join(@dir, path, "*.xcodeproj")).first
 end
 
-Then(/tuist lints the project and fails/) do
-  _, _, status = Open3.capture3("swift", "run", "tuist", "lint", "--path", @dir)
-  refute(status.success?, "Expected 'tuist lint' to fail but it didn't")
+Then(/^tuist focuses the target ([a-zA-Z]+)$/) do |target|
+  system("swift", "run", "tuist", "focus", "--no-open", "--path", @dir, target)
+  @workspace_path = Dir.glob(File.join(@dir, "*.xcworkspace")).first
+  @xcodeproj_path = Dir.glob(File.join(@dir, "*.xcodeproj")).first
+end
+
+Then(/^tuist focuses the target ([a-zA-Z]+) at (.+)$/) do |target, path|
+  system("swift", "run", "tuist", "focus", "--no-open", "--path", File.join(@dir, path), target)
+  @workspace_path = Dir.glob(File.join(@dir, path, "*.xcworkspace")).first
+  @xcodeproj_path = Dir.glob(File.join(@dir, path, "*.xcodeproj")).first
+end
+
+Then(/^tuist focuses the targets ([a-zA-Z,]+) at (.+)$/) do |targets, path|
+  system("swift", "run", "tuist", "focus", "--no-open", "--path", File.join(@dir, path), *targets.split(","))
+  @workspace_path = Dir.glob(File.join(@dir, path, "*.xcworkspace")).first
+  @xcodeproj_path = Dir.glob(File.join(@dir, path, "*.xcodeproj")).first
 end
 
 Then(/tuist edits the project/) do

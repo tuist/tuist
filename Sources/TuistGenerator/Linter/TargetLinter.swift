@@ -15,7 +15,8 @@ class TargetLinter: TargetLinting {
     // MARK: - Init
 
     init(settingsLinter: SettingsLinting = SettingsLinter(),
-         targetActionLinter: TargetActionLinting = TargetActionLinter()) {
+         targetActionLinter: TargetActionLinting = TargetActionLinter())
+    {
         self.settingsLinter = settingsLinter
         self.targetActionLinter = targetActionLinter
     }
@@ -140,7 +141,8 @@ class TargetLinter: TargetLinting {
         var issues: [LintingIssue] = []
         if let infoPlist = target.infoPlist,
             case let InfoPlist.file(path: path) = infoPlist,
-            !FileHandler.shared.exists(path) {
+            !FileHandler.shared.exists(path)
+        {
             issues.append(LintingIssue(reason: "Info.plist file not found at path \(infoPlist.path!.pathString)", severity: .error))
         }
         return issues
@@ -155,18 +157,15 @@ class TargetLinter: TargetLinting {
     }
 
     private func lintLibraryHasNoResources(target: Target) -> [LintingIssue] {
-        let productsNotAllowingResources: [Product] = [
-            .dynamicLibrary,
-            .staticLibrary,
-            .staticFramework,
-        ]
-
-        if productsNotAllowingResources.contains(target.product) == false {
+        if target.supportsResources {
             return []
         }
 
         if target.resources.isEmpty == false {
-            return [LintingIssue(reason: "Target \(target.name) cannot contain resources. Libraries don't support resources", severity: .error)]
+            return [
+                LintingIssue(reason: "Target \(target.name) cannot contain resources. \(target.product) targets do not support resources",
+                             severity: .error),
+            ]
         }
 
         return []
@@ -190,7 +189,8 @@ class TargetLinter: TargetLinting {
         ]
 
         if let invalidProducts = invalidProductsForPlatforms[target.platform],
-            invalidProducts.contains(target.product) {
+            invalidProducts.contains(target.product)
+        {
             return [
                 LintingIssue(reason: "'\(target.name)' for platform '\(target.platform)' can't have a product type '\(target.product)'",
                              severity: .error),
@@ -206,7 +206,7 @@ class TargetLinter: TargetLinting {
         target.dependencies.forEach { seen[$0, default: 0] += 1 }
         let duplicates = seen.enumerated().filter { $0.element.value > 1 }
         return duplicates.map {
-            .init(reason: "Target has duplicate '\($0.element.key)' dependency specified", severity: .warning)
+            .init(reason: "Target \(target.name) has duplicate '\($0.element.key)' dependency specified", severity: .warning)
         }
     }
 }

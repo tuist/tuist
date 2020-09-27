@@ -40,6 +40,9 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-tools-support-core", .upToNextMinor(from: "0.1.1")),
         .package(url: "https://github.com/apple/swift-argument-parser", .upToNextMajor(from: "0.0.6")),
         .package(url: "https://github.com/marmelroy/Zip.git", .upToNextMinor(from: "2.0.0")),
+        .package(url: "https://github.com/tuist/GraphViz.git", .branch("tuist")),
+        .package(url: "https://github.com/fortmarek/SwiftGen", .branch("stable")),
+        .package(url: "https://github.com/fortmarek/StencilSwiftKit.git", .branch("stable")),
     ],
     targets: [
         .target(
@@ -59,12 +62,24 @@ let package = Package(
             dependencies: ["TuistCore", "TuistSupportTesting"]
         ),
         .target(
+            name: "TuistDoc",
+            dependencies: ["SwiftToolsSupport-auto", "TuistCore", "TuistSupport", "Signals", "RxBlocking"]
+        ),
+        .target(
+            name: "TuistDocTesting",
+            dependencies: ["TuistDoc", "SwiftToolsSupport-auto", "TuistCore", "TuistCoreTesting", "TuistSupportTesting"]
+        ),
+        .testTarget(
+            name: "TuistDocTests",
+            dependencies: ["TuistDoc", "TuistDocTesting", "SwiftToolsSupport-auto", "TuistSupportTesting", "TuistCore", "TuistCoreTesting", "TuistSupport"]
+        ),
+        .target(
             name: "TuistKit",
-            dependencies: ["XcodeProj", "SwiftToolsSupport-auto", "ArgumentParser", "TuistSupport", "TuistGenerator", "TuistCache", "TuistAutomation", "ProjectDescription", "Signals", "RxSwift", "RxBlocking", "Checksum", "TuistLoader", "TuistInsights", "TuistScaffold", "TuistSigning", "TuistCloud"]
+            dependencies: ["XcodeProj", "SwiftToolsSupport-auto", "ArgumentParser", "TuistSupport", "TuistGenerator", "TuistCache", "TuistAutomation", "ProjectDescription", "Signals", "RxSwift", "RxBlocking", "Checksum", "TuistLoader", "TuistInsights", "TuistScaffold", "TuistSigning", "TuistCloud", "TuistDoc", "GraphViz", "TuistMigration"]
         ),
         .testTarget(
             name: "TuistKitTests",
-            dependencies: ["TuistKit", "TuistAutomation", "TuistSupportTesting", "TuistCoreTesting", "ProjectDescription", "RxBlocking", "TuistLoaderTesting", "TuistCacheTesting", "TuistGeneratorTesting", "TuistScaffoldTesting", "TuistCloudTesting", "TuistAutomationTesting", "TuistSigningTesting"]
+            dependencies: ["TuistKit", "TuistAutomation", "TuistSupportTesting", "TuistCoreTesting", "ProjectDescription", "RxBlocking", "TuistLoaderTesting", "TuistCacheTesting", "TuistGeneratorTesting", "TuistScaffoldTesting", "TuistCloudTesting", "TuistAutomationTesting", "TuistSigningTesting", "TuistMigrationTesting", "TuistDocTesting"]
         ),
         .testTarget(
             name: "TuistKitIntegrationTests",
@@ -112,7 +127,7 @@ let package = Package(
         ),
         .target(
             name: "TuistGenerator",
-            dependencies: ["XcodeProj", "SwiftToolsSupport-auto", "TuistCore", "TuistSupport", "RxBlocking"]
+            dependencies: ["XcodeProj", "SwiftToolsSupport-auto", "TuistCore", "TuistSupport", "RxBlocking", "GraphViz", "SwiftGenKit", "StencilSwiftKit"]
         ),
         .target(
             name: "TuistGeneratorTesting",
@@ -156,7 +171,7 @@ let package = Package(
         ),
         .target(
             name: "TuistScaffold",
-            dependencies: ["SwiftToolsSupport-auto", "TuistCore", "TuistSupport", "Stencil"]
+            dependencies: ["SwiftToolsSupport-auto", "TuistCore", "TuistSupport", "StencilSwiftKit", "Stencil"]
         ),
         .target(
             name: "TuistScaffoldTesting",
@@ -176,7 +191,7 @@ let package = Package(
         ),
         .testTarget(
             name: "TuistAutomationTests",
-            dependencies: ["TuistAutomation", "TuistSupportTesting", "TuistCoreTesting"]
+            dependencies: ["TuistAutomation", "TuistSupportTesting", "TuistCoreTesting", "RxBlocking"]
         ),
         .target(
             name: "TuistAutomationTesting",
@@ -184,7 +199,7 @@ let package = Package(
         ),
         .testTarget(
             name: "TuistAutomationIntegrationTests",
-            dependencies: ["TuistAutomation", "TuistSupportTesting"]
+            dependencies: ["TuistAutomation", "TuistSupportTesting", "RxBlocking"]
         ),
         .target(
             name: "TuistInsights",
@@ -215,6 +230,22 @@ let package = Package(
             dependencies: ["TuistSigning", "TuistSupportTesting", "TuistCoreTesting", "TuistSigningTesting"]
         ),
         .target(
+            name: "TuistMigration",
+            dependencies: ["TuistCore", "TuistSupport", "XcodeProj", "SwiftToolsSupport-auto"]
+        ),
+        .target(
+            name: "TuistMigrationTesting",
+            dependencies: ["TuistMigration"]
+        ),
+        .testTarget(
+            name: "TuistMigrationTests",
+            dependencies: ["TuistMigration", "TuistSupportTesting", "TuistCoreTesting", "TuistMigrationTesting"]
+        ),
+        .testTarget(
+            name: "TuistMigrationIntegrationTests",
+            dependencies: ["TuistMigration", "TuistSupportTesting", "TuistCoreTesting", "TuistMigrationTesting"]
+        ),
+        .target(
             name: "TuistLoader",
             dependencies: ["XcodeProj", "SwiftToolsSupport-auto", "TuistCore", "TuistSupport", "ProjectDescription"]
         ),
@@ -224,11 +255,11 @@ let package = Package(
         ),
         .testTarget(
             name: "TuistLoaderTests",
-            dependencies: ["TuistLoader", "TuistSupportTesting", "TuistLoaderTesting", "TuistCoreTesting"]
+            dependencies: ["TuistLoader", "TuistSupportTesting", "TuistLoaderTesting", "TuistCoreTesting", "RxBlocking"]
         ),
         .testTarget(
             name: "TuistLoaderIntegrationTests",
-            dependencies: ["TuistLoader", "TuistSupportTesting", "ProjectDescription"]
+            dependencies: ["TuistLoader", "TuistSupportTesting", "ProjectDescription", "RxBlocking"]
         ),
         .testTarget(
             name: "TuistIntegrationTests",

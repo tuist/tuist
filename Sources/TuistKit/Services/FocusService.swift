@@ -8,30 +8,70 @@ import TuistGenerator
 import TuistLoader
 import TuistSupport
 
-protocol FocusServiceProjectGeneratorProviding {
-    func generator(cache: Bool) -> ProjectGenerating
+protocol FocusServiceProjectGeneratorFactorying {
+    func generator(sources: Set<String>) -> ProjectGenerating
 }
 
-final class FocusServiceProjectGeneratorProvider: FocusServiceProjectGeneratorProviding {
-    func generator(cache: Bool) -> ProjectGenerating {
-        ProjectGenerator(graphMapperProvider: GraphMapperProvider(cache: cache))
+final class FocusServiceProjectGeneratorFactory: FocusServiceProjectGeneratorFactorying {
+    func generator(sources: Set<String>) -> ProjectGenerating {
+        ProjectGenerator(graphMapperProvider: GraphMapperProvider(cache: true, sources: sources))
+    }
+}
+
+enum FocusServiceError: FatalError {
+    case cacheWorkspaceNonSupported
+    var description: String {
+        switch self {
+        case .cacheWorkspaceNonSupported:
+            return "Caching is only supported when focusing on a project. Please, run the command in a directory that contains a Project.swift file."
+        }
+    }
+
+    var type: ErrorType {
+        switch self {
+        case .cacheWorkspaceNonSupported:
+            return .abort
+        }
     }
 }
 
 final class FocusService {
     private let opener: Opening
-    private let generatorProvider: FocusServiceProjectGeneratorProviding
+    private let projectGeneratorFactory: FocusServiceProjectGeneratorFactorying
+    private let manifestLoader: ManifestLoading
 
-    init(opener: Opening = Opener(),
-         generatorProvider: FocusServiceProjectGeneratorProviding = FocusServiceProjectGeneratorProvider()) {
+    init(manifestLoader: ManifestLoading = ManifestLoader(),
+         opener: Opening = Opener(),
+         projectGeneratorFactory: FocusServiceProjectGeneratorFactorying = FocusServiceProjectGeneratorFactory())
+    {
+        self.manifestLoader = manifestLoader
         self.opener = opener
-        self.generatorProvider = generatorProvider
+        self.projectGeneratorFactory = projectGeneratorFactory
     }
 
-    func run(cache: Bool) throws {
-        let generator = generatorProvider.generator(cache: cache)
-        let path = FileHandler.shared.currentPath
-        let (workspacePath, _) = try generator.generateProjectWorkspace(path: path)
-        try opener.open(path: workspacePath)
+    func run(path: String?, sources: Set<String>, noOpen: Bool) throws {
+        let path = self.path(path)
+        if isWorkspace(path: path) {
+            throw FocusServiceError.cacheWorkspaceNonSupported
+        }
+        let generator = projectGeneratorFactory.generator(sources: sources)
+        let workspacePath = try generator.generate(path: path, projectOnly: false)
+        if !noOpen {
+            try opener.open(path: workspacePath)
+        }
+    }
+
+    // MARK: - Helpers
+
+    private func path(_ path: String?) -> AbsolutePath {
+        if let path = path {
+            return AbsolutePath(path, relativeTo: FileHandler.shared.currentPath)
+        } else {
+            return FileHandler.shared.currentPath
+        }
+    }
+
+    private func isWorkspace(path: AbsolutePath) -> Bool {
+        manifestLoader.manifests(at: path).contains(.workspace)
     }
 }

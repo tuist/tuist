@@ -3,24 +3,6 @@ import TSCBasic
 import TuistCore
 import TuistSupport
 
-/// Project Generation Configuration
-///
-/// Allow specifying additional generation options
-/// for an individual project.
-public struct ProjectGenerationConfig {
-    /// The source root path of the generated Xcode project
-    public var sourceRootPath: AbsolutePath?
-
-    /// The xcodeproj file path
-    public var xcodeprojPath: AbsolutePath?
-
-    public init(sourceRootPath: AbsolutePath? = nil,
-                xcodeprojPath: AbsolutePath? = nil) {
-        self.sourceRootPath = sourceRootPath
-        self.xcodeprojPath = xcodeprojPath
-    }
-}
-
 /// Descriptor Generator
 ///
 /// This component genertes`XcodeProj` representations of a given graph model.
@@ -39,16 +21,6 @@ public protocol DescriptorGenerating {
     ///
     /// - Seealso: `GraphLoader`
     func generateProject(project: Project, graph: Graph) throws -> ProjectDescriptor
-
-    /// Generate an individual project descriptor with some additional configuration
-    ///
-    /// - Parameters:
-    ///   - project: Project model
-    ///   - graph: Graph model
-    ///   - config: The project generation configuration
-    ///
-    /// - Seealso: `GraphLoader`
-    func generateProject(project: Project, graph: Graph, config: ProjectGenerationConfig) throws -> ProjectDescriptor
 
     /// Generate a workspace descriptor
     ///
@@ -83,23 +55,14 @@ public final class DescriptorGenerator: DescriptorGenerating {
     }
 
     init(workspaceGenerator: WorkspaceGenerating,
-         projectGenerator: ProjectGenerating) {
+         projectGenerator: ProjectGenerating)
+    {
         self.workspaceGenerator = workspaceGenerator
         self.projectGenerator = projectGenerator
     }
 
     public func generateProject(project: Project, graph: Graph) throws -> ProjectDescriptor {
-        try projectGenerator.generate(project: project,
-                                      graph: graph,
-                                      sourceRootPath: nil,
-                                      xcodeprojPath: nil)
-    }
-
-    public func generateProject(project: Project, graph: Graph, config: ProjectGenerationConfig) throws -> ProjectDescriptor {
-        try projectGenerator.generate(project: project,
-                                      graph: graph,
-                                      sourceRootPath: config.sourceRootPath,
-                                      xcodeprojPath: config.xcodeprojPath)
+        try projectGenerator.generate(project: project, graph: graph)
     }
 
     public func generateWorkspace(workspace: Workspace, graph: Graph) throws -> WorkspaceDescriptor {

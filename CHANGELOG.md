@@ -4,11 +4,175 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+## 1.19.0 - Milano
+
+### Fixed
+
+- Ensure `DEVELOPER_DIR` is used in all `swiftc` calls [#1819](https://github.com/tuist/tuist/pull/1819) by [@kwridan](https://github.com/kwridan)
+- Fixed decoding bug on DefaultSettings [#1817](https://github.com/tuist/tuist/issues/1817) by [@jakeatoms](https://github.com/jakeatoms)
+
+### Added
+
+- Add Workspace Mappers [#1767](https://github.com/tuist/tuist/pull/1767) by [@kwridan](https://github.com/kwridan)
+- Extended `Config`'s generationOptions with `.disableShowEnvironmentVarsInScriptPhases`. It does what you'd think. [#1782](https://github.com/tuist/tuist/pull/1782) by [@kalkwarf](https://github.com/kalkwarf)
+
+### Changed
+
+- The `tuist edit` command adds `Setup.swift` and `Config.swift` to the generated project if they exist.
+
+## 1.18.1 - Manaslu
+
+### Fixed
+
+- Added `tuist lint code` support for custom .swiftlint.yml files. [1764](https://github.com/tuist/tuist/pull/1764) by [@facumenzella](https://github.com/facumenzella)
+- Fix GenerationOptions decoding [#1781](https://github.com/tuist/tuist/pull/1781) by [@alvarhansen](https://github.com/alvarhansen)
+
+## 1.18.0 - Himalaya
+
+### Fixed
+
+- Support initializing projects with dashes [#1766](https://github.com/tuist/tuist/pull/1766) by [@fortmarek](https://github.com/fortmarek)
+
+### Added
+
+- Possibility to build schemes that are not part of any entry node [#1761](https://github.com/tuist/tuist/pull/1761) by [@fortmarek](htttps://github.com/fortmarek)
+- `tuist lint code` - command to lint the Swift code using Swiftlint [#1682](https://github.com/tuist/tuist/pull/1682) by [@laxmorek](https://github.com/laxmorek)
+- `tuist doc` - command to generate documentation for your modules using SwiftDoc [#1683](https://github.com/tuist/tuist/pull/1683) by [@facumenzella](https://github.com/facumenzella)
+
+### Changed
+
+- **Breaking** Command for linting a workspace or a project has been renamed from `tuist lint` to `tuist lint project` [#1682](https://github.com/tuist/tuist/pull/1682) by [@laxmorek](https://github.com/laxmorek)
+- **Breaking** UpCarthage should perform bootstrap instead of update [#1744](https://github.com/tuist/tuist/pull/1744) by [@softmaxsg](https://github.com/softmaxsg)
+- Add excluding argument to `recommended`/`essential` `DefaultSettings` [#1746](https://github.com/tuist/tuist/pull/1739) by [@rist](https://github.com/rist).
+- Synthesize resource interface accessors [#1635](https://github.com/tuist/tuist/pull/1635) by [@fortmarek](https://github.com/fortmarek)
+- Graph command now adds different colors and shapes for different types of targets and dependencies [#1763](https://github.com/tuist/tuist/pull/1763) by [@natanrolnik](https://github.com/natanrolnik)
+
+## 1.17.0 - Luft
+
+### Changed
+
+- **Breaking** `tuist focus` only works with `Project.swift` [#1739](https://github.com/tuist/tuist/pull/1739) by [@pepibumur](https://github.com/pepibumur).
+- **Breaking** a target or a list of targets is required for `tuist focus` [#1739](https://github.com/tuist/tuist/pull/1739) by [@pepibumur](https://github.com/pepibumur).
+- **Breaking** cache is enabled by default in `tuist focus` [#1739](https://github.com/tuist/tuist/pull/1739) by [@pepibumur](https://github.com/pepibumur).
+
+### Fixed
+
+- Use relative paths for Local Swift Packages [#1706](https://github.com/tuist/tuist/pull/1706) by [@kwridan](https://github.com/kwridan)
+
+## 1.16.0 - Alhambra
+
+### Removed
+
+- **Breaking** Support for Xcode 11.3.x and Xcode 11.4.x [#1604](https://github.com/tuist/tuist/pull/1604) by [@fortmarek](https://github.com/fortmarek)
+- **Breaking** `--cache` & `--include-sources` arguments from `tuist generate` [#1712](https://github.com/tuist/tuist/pull/1712) by [@pepibumur](https://github.com/pepibumur).
+
+### Added
+
+- `--open` argument to the `tuist generate` command [#1712](https://github.com/tuist/tuist/pull/1712) by [@pepibumur](https://github.com/pepibumur).
+- `--no-open` argument to the `tuist focus` command to support disabling opening the project [#1712](https://github.com/tuist/tuist/pull/1712) by [@pepibumur](https://github.com/pepibumur).
+- Support for running Tuist through `swift project` [#1713](https://github.com/tuist/tuist/pull/1713) by [@pepibumur](https://github.com/pepibumur).
+
+### Fixed
+
+- Generate the default `Info.plist` file for static frameworks that only contain resources [#1661](https://github.com/tuist/tuist/pull/1661) by [@Juanpe](https://github.com/juanpe)
+- Fix Carthage support for binary dependencies [#1675](https://github.com/tuist/tuist/pull/1675) by [@softmaxsg](https://github.com/softmaxsg)
+- Use profile filename to match targets and configs [#1690](https://github.com/tuist/tuist/pull/1690) by [@rist](https://github.com/rist)
+
+### Changed
+
+- `Target.dependsOnXCTest` returns true if the target is a test bundle [#1679](https://github.com/tuist/tuist/pull/1679) by [@pepibumur](https://github.com/pepibumur)
+- Support multiple rendering algorithms in Tuist Graph [#1655](<[1655](https://github.com/tuist/tuist/pull/1655/)>) by [@andreacipriani][https://github.com/andreacipriani]
+
+## 1.15.0 - Riga
+
+### Changed
+
+- Renamed Scale to Cloud [#1633](https://github.com/tuist/tuist/pull/1633) by [@pepibumur](https://github.com/pepibumur)
+
+### Fixed
+
+- Fix name collision when having multiple templates [#1600](https://github.com/tuist/tuist/pull/1600) by [@fortmarek](https://github.com/fortmarek)
+- Allow to cache and warm static frameworks too (only dynamic frameworks were cached before) [#1590](https://github.com/tuist/tuist/pull/1590) by [@RomainBoulay](https://github.com/RomainBoulay)
+- Add graph visualization in Tuist graph command: "tuist graph --format=png" [#1624](https://github.com/tuist/tuist/pull/1591) by [@AndreaCipriani](https://github.com/andreacipriani)
+- Add support for `.xctest` dependency for tvOS targets [#1597](https://github.com/tuist/tuist/pull/1597) by [@kwridan](https://github.com/kwridan).
+- Fix missing ui test host applications for apps with "-" characters in their name [#1630](https://github.com/tuist/tuist/pull/1630) by [@kwridan](https://github.com/kwridan).
+- Added @Flag in TuistKit.TuistCommand to improve --help-env discoverability by [@facumenzella](https://github.com/facumenzella).
+
+### Added
+
+- Autocompletions support [#1604](https://github.com/tuist/tuist/issues/1592) by [@fortmarek](https://github.com/fortmarek)
+- Add an acceptance test suite to cover a `test cache warm` command on a micro-feature architecture kind of application that is fully statically linked [#1594](https://github.com/tuist/tuist/pull/1594) by [@RomainBoulay](https://github.com/RomainBoulay)
+- Add support for setting launch arguments at the target level. [#1596](https://github.com/tuist/tuist/pull/1596) by [@jeroenleenarts](https://github.com/jeroenleenarts)
+- Add Homebrew cask up [#1601](https://github.com/tuist/tuist/pull/1601) by [@leszko11](https://github.com/leszko11)
+
+## 1.14.0 - Spezi
+
+### Fixed
+
+- Disable SwiftLint in the generated synthesized interface for resources [#1574](https://github.com/tuist/tuist/pull/1574) by [@pepibumur](https://github.com/pepibumur).
+- Synthesized accessors for framework targets not resolving the path [#1575](https://github.com/tuist/tuist/pull/1575) by [@pepibumur](https://github.com/pepibumur).
+- Read coredata version from /.xccurrentversion file [#1572](https://github.com/tuist/tuist/pull/1572) by [@matiasvillaverde](https://github.com/matiasvillaverde).
+
+### Added
+
+- Support for `--cache` to the `tuist generate` command [#1576](https://github.com/tuist/tuist/pull/1576) by [@pepibumur](https://github.com/pepibumur).
+- Included that importing target name in the duplicate dependency warning message [#1573](https://github.com/tuist/tuist/pull/1573) by[ @thedavidharris](https://github.com/thedavidharris)
+- Support to build and run the project on Xcode 12 by fixing namespace collisions on Logger [#1579](https://github.com/tuist/tuist/pull/1579) by[ @thedavidharris](https://github.com/thedavidharris)
+
+### Changed
+
+- Change the project name and organization from a mapper [#1577](https://github.com/tuist/tuist/pull/1577) by [@pepibumur](https://github.com/pepibumur).
+- Update `ConfigGenerator` to use `ValueGraph` instead [#1583](https://github.com/tuist/tuist/pull/1583) by [@pepibumur](https://github.com/pepibumur).
+
+## 1.13.1 - More Bella Vita
+
+### Fixed
+
+- Camelize the name of the Objective-C synthesized object by [@pepibumur](https://github.com/pepibumur).
+
+## 1.13.0 - Bella Vita
+
+### Fixed
+
+- `tuist focus` creating new `.package.resolved` [#1569](https://github.com/tuist/tuist/pull/1569) by [@fortmarek](https://github.com/fortmarek)
+- Delete schemes whose targets have been replaced by .xcframeworks [#1571](https://github.com/tuist/tuist/pull/1571) by [@pepibumur](https://github.com/pepibumur).
+
+### Changed
+
+- Rename cloud to scale [#1571](https://github.com/tuist/tuist/pull/1571) by [@pepibumur](https://github.com/pepibumur).
+
+### Added
+
+- Analytics to the website to better understand the usage of the website in order to optimize it and improve the discoverability of the content [#1571](https://github.com/tuist/tuist/pull/1571) by [@pepibumur](https://github.com/pepibumur).
+
+## 1.12.2 - Waka Waka
+
+### Fixed
+
+- Fix a bug introduced in [#1523](https://github.com/tuist/tuist/pull/1523), when a valid source file would result in throwing an invalid glob error [#1566](https://github.com/tuist/tuist/pull/1566) by [@natanrolnik](https://github.com/natanrolnik)
+
+## 1.12.1 - Waka
+
+### Added
+
+- Add benchmark rake task [#1561](https://github.com/tuist/tuist/pull/1561) by [@kwridan](https://github.com/kwridan).
+- Add `--json` flag to `tuist scaffold list` command [#1589](https://github.com/tuist/tuist/issues/1589) by [@mollyIV](https://github.com/mollyIV).
+
 ### Fixed
 
 - `UpHomebrew` (`Up.homebrew(packages:)`) in `Setup.swift` correctly checks package installation if the executable doesn't match the package name [#1544](https://github.com/tuist/tuist/pull/1544) by [@MatyasKriz](https://github.com/MatyasKriz).
 - Update Package.swift to correctly encode revision kind as "revision" [#1558](https://github.com/tuist/tuist/pull/1558) by [@ollieatkinson](https://github.com/ollieatkinson).
 - Treat SceneKit catalog the same way as asset catalog [#1546], by [@natanrolnik](https://github.com/natanrolnik)
+- Add core data models to the sources build phase [#1542](https://github.com/tuist/tuist/pull/1542) by [@kwridan](https://github.com/kwridan).
+- Improve app extensions autogenerated schemes [#1545](https://github.com/tuist/tuist/pull/1545) by [@kwridan](https://github.com/kwridan).
+- Ensure the latest semantic version is used when running via tuistenv [#1562](https://github.com/tuist/tuist/pull/1562) by [@kwridan](https://github.com/kwridan).
+- `tuist focus` not working for workspaces [#1565](https://github.com/tuist/tuist/pull/1565) by [@pepibumur](https://github.com/pepibumur).
+
+### Changed
+
+- Add a `sourceRootPath` attribute to `TuistCore.Project` to control where Xcode projects are generated [#1559](https://github.com/tuist/tuist/pull/1559) by [@pepibumur](https://github.com/pepibumur).
+- **Breaking** Fail generation if a Source has a non-existent directory in a glob [#1523](https://github.com/tuist/tuist/pull/1523) by [@natanrolnik](https://github.com/natanrolnik).
+- Change `tuist scaffold list` output to be readable by grep [#1147](https://github.com/tuist/tuist/issues/1147) by [@mollyIV](https://github.com/mollyIV).
 
 ## 1.12.0 - Arabesque
 

@@ -26,13 +26,8 @@ protocol ProjectGenerating: AnyObject {
     /// - Parameters:
     ///   - project: Project to be generated.
     ///   - graph: Dependencies graph.
-    ///   - sourceRootPath: Directory where the files are relative to.
-    ///   - xcodeprojPath: Path to the Xcode project. When not given, the xcodeproj is generated at sourceRootPath.
     /// - Returns: Generated project descriptor
-    func generate(project: Project,
-                  graph: Graph,
-                  sourceRootPath: AbsolutePath?,
-                  xcodeprojPath: AbsolutePath?) throws -> ProjectDescriptor
+    func generate(project: Project, graph: Graph) throws -> ProjectDescriptor
 }
 
 final class ProjectGenerator: ProjectGenerating {
@@ -57,7 +52,8 @@ final class ProjectGenerator: ProjectGenerating {
     ///   - schemesGenerator: Generator for the project schemes.
     init(targetGenerator: TargetGenerating = TargetGenerator(),
          configGenerator: ConfigGenerating = ConfigGenerator(),
-         schemesGenerator: SchemesGenerating = SchemesGenerator()) {
+         schemesGenerator: SchemesGenerating = SchemesGenerator())
+    {
         self.targetGenerator = targetGenerator
         self.configGenerator = configGenerator
         self.schemesGenerator = schemesGenerator
@@ -67,16 +63,9 @@ final class ProjectGenerator: ProjectGenerating {
 
     // swiftlint:disable:next function_body_length
     func generate(project: Project,
-                  graph: Graph,
-                  sourceRootPath: AbsolutePath? = nil,
-                  xcodeprojPath: AbsolutePath? = nil) throws -> ProjectDescriptor {
+                  graph: Graph) throws -> ProjectDescriptor
+    {
         logger.notice("Generating project \(project.name)")
-
-        // Getting the path.
-        let sourceRootPath = sourceRootPath ?? project.path
-
-        // If the xcodeproj path is not given, we generate it under the source root path.
-        let xcodeprojPath = xcodeprojPath ?? sourceRootPath.appending(component: "\(project.fileName).xcodeproj")
 
         let workspaceData = XCWorkspaceData(children: [])
         let workspace = XCWorkspace(data: workspaceData)
@@ -84,13 +73,12 @@ final class ProjectGenerator: ProjectGenerating {
         let pbxproj = PBXProj(objectVersion: projectConstants.objectVersion,
                               archiveVersion: projectConstants.archiveVersion,
                               classes: [:])
-        let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj, xcodeprojPath: xcodeprojPath, sourceRootPath: sourceRootPath)
+        let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj)
         let fileElements = ProjectFileElements()
         try fileElements.generateProjectFiles(project: project,
                                               graph: graph,
                                               groups: groups,
-                                              pbxproj: pbxproj,
-                                              sourceRootPath: sourceRootPath)
+                                              pbxproj: pbxproj)
         let configurationList = try configGenerator.generateProjectConfig(project: project, pbxproj: pbxproj, fileElements: fileElements)
         let pbxProject = try generatePbxproject(project: project,
                                                 projectFileElements: fileElements,
@@ -102,7 +90,6 @@ final class ProjectGenerator: ProjectGenerating {
                                                 pbxproj: pbxproj,
                                                 pbxProject: pbxProject,
                                                 fileElements: fileElements,
-                                                sourceRootPath: sourceRootPath,
                                                 graph: graph)
 
         generateTestTargetIdentity(project: project,
@@ -114,9 +101,9 @@ final class ProjectGenerator: ProjectGenerating {
                                            pbxProject: pbxProject)
 
         let generatedProject = GeneratedProject(pbxproj: pbxproj,
-                                                path: xcodeprojPath,
+                                                path: project.xcodeProjPath,
                                                 targets: nativeTargets,
-                                                name: xcodeprojPath.basename)
+                                                name: project.xcodeProjPath.basename)
 
         let schemes = try schemesGenerator.generateProjectSchemes(project: project,
                                                                   generatedProject: generatedProject,
@@ -124,7 +111,7 @@ final class ProjectGenerator: ProjectGenerating {
 
         let xcodeProj = XcodeProj(workspace: workspace, pbxproj: pbxproj)
         return ProjectDescriptor(path: project.path,
-                                 xcodeprojPath: xcodeprojPath,
+                                 xcodeprojPath: project.xcodeProjPath,
                                  xcodeProj: xcodeProj,
                                  schemeDescriptors: schemes,
                                  sideEffectDescriptors: [])
@@ -136,7 +123,8 @@ final class ProjectGenerator: ProjectGenerating {
                                     projectFileElements: ProjectFileElements,
                                     configurationList: XCConfigurationList,
                                     groups: ProjectGroups,
-                                    pbxproj: PBXProj) throws -> PBXProject {
+                                    pbxproj: PBXProj) throws -> PBXProject
+    {
         let defaultRegions = ["en", "Base"]
         let knownRegions = Set(defaultRegions + projectFileElements.knownRegions).sorted()
         let attributes = project.organizationName.map { ["ORGANIZATIONNAME": $0] } ?? [:]
@@ -162,8 +150,8 @@ final class ProjectGenerator: ProjectGenerating {
                                  pbxproj: PBXProj,
                                  pbxProject: PBXProject,
                                  fileElements: ProjectFileElements,
-                                 sourceRootPath: AbsolutePath,
-                                 graph: Graph) throws -> [String: PBXNativeTarget] {
+                                 graph: Graph) throws -> [String: PBXNativeTarget]
+    {
         var nativeTargets: [String: PBXNativeTarget] = [:]
         try project.targets.forEach { target in
             let nativeTarget = try targetGenerator.generateTarget(target: target,
@@ -173,7 +161,6 @@ final class ProjectGenerator: ProjectGenerating {
                                                                   projectSettings: project.settings,
                                                                   fileElements: fileElements,
                                                                   path: project.path,
-                                                                  sourceRootPath: sourceRootPath,
                                                                   graph: graph)
             nativeTargets[target.name] = nativeTarget
         }
@@ -188,7 +175,8 @@ final class ProjectGenerator: ProjectGenerating {
 
     private func generateTestTargetIdentity(project _: Project,
                                             pbxproj: PBXProj,
-                                            pbxProject: PBXProject) {
+                                            pbxProject: PBXProject)
+    {
         func testTargetName(_ target: PBXTarget) -> String? {
             guard let buildConfigurations = target.buildConfigurationList?.buildConfigurations else {
                 return nil
@@ -229,7 +217,7 @@ final class ProjectGenerator: ProjectGenerating {
                     sourceTree: .group,
                     name: path.components.last,
                     lastKnownFileType: "folder",
-                    path: path.pathString
+                    path: path.relative(to: project.sourceRootPath).pathString
                 )
 
                 pbxproj.add(object: reference)

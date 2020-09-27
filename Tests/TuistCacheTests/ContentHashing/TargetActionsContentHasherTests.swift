@@ -40,7 +40,8 @@ final class TargetActionsContentHasherTests: TuistUnitTestCase {
                                   inputPaths: [AbsolutePath] = [AbsolutePath("/inputPaths1")],
                                   inputFileListPaths: [AbsolutePath] = [AbsolutePath("/inputFileListPaths1")],
                                   outputPaths: [AbsolutePath] = [AbsolutePath("/outputPaths1")],
-                                  outputFileListPaths: [AbsolutePath] = [AbsolutePath("/outputFileListPaths1")]) -> TargetAction {
+                                  outputFileListPaths: [AbsolutePath] = [AbsolutePath("/outputFileListPaths1")]) -> TargetAction
+    {
         TargetAction(name: name,
                      order: order,
                      tool: tool,

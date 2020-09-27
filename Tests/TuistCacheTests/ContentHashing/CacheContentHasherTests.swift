@@ -41,30 +41,30 @@ final class CacheContentHasherTests: TuistUnitTestCase {
         XCTAssertEqual(mockContentHashing.hashStringsSpy, ["foo", "bar"])
     }
 
-    func test_hashFileAtPath_callsContentHasherWithExpectedPath() throws {
+    func test_hashpath_callsContentHasherWithExpectedPath() throws {
         // Given
         let path = AbsolutePath("/foo")
         mockContentHashing.stubHashForPath[path] = "foo-hash"
 
         // When
-        _ = try subject.hash(fileAtPath: path)
+        _ = try subject.hash(path: path)
 
         // Then
-        XCTAssertEqual(mockContentHashing.hashFileAtPathCallCount, 1)
+        XCTAssertEqual(mockContentHashing.hashPathCallCount, 1)
         XCTAssertEqual(mockContentHashing.stubHashForPath[path], "foo-hash")
     }
 
-    func test_hashFileAtPath_secondTime_doesntCallContentHasher() throws {
+    func test_hashpath_secondTime_doesntCallContentHasher() throws {
         // Given
         let path = AbsolutePath("/foo")
         mockContentHashing.stubHashForPath[path] = "foo-hash"
 
         // When
-        let hash = try subject.hash(fileAtPath: path)
-        let cachedHash = try subject.hash(fileAtPath: path)
+        let hash = try subject.hash(path: path)
+        let cachedHash = try subject.hash(path: path)
 
         // Then
-        XCTAssertEqual(mockContentHashing.hashFileAtPathCallCount, 1)
+        XCTAssertEqual(mockContentHashing.hashPathCallCount, 1)
         XCTAssertEqual(mockContentHashing.stubHashForPath[path], "foo-hash")
         XCTAssertEqual(hash, cachedHash)
     }

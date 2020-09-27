@@ -125,10 +125,10 @@ final class TargetLinterTests: TuistUnitTestCase {
         let dynamicLibrary = Target.test(product: .dynamicLibrary, resources: [element])
 
         let staticResult = subject.lint(target: staticLibrary)
-        XCTContainsLintingIssue(staticResult, LintingIssue(reason: "Target \(staticLibrary.name) cannot contain resources. Libraries don't support resources", severity: .error))
+        XCTContainsLintingIssue(staticResult, LintingIssue(reason: "Target \(staticLibrary.name) cannot contain resources. static library targets do not support resources", severity: .error))
 
         let dynamicResult = subject.lint(target: dynamicLibrary)
-        XCTContainsLintingIssue(dynamicResult, LintingIssue(reason: "Target \(dynamicLibrary.name) cannot contain resources. Libraries don't support resources", severity: .error))
+        XCTContainsLintingIssue(dynamicResult, LintingIssue(reason: "Target \(dynamicLibrary.name) cannot contain resources. dynamic library targets do not support resources", severity: .error))
     }
 
     func test_lint_when_ios_bundle_has_sources() {
@@ -220,7 +220,7 @@ final class TargetLinterTests: TuistUnitTestCase {
 
         // Then
         XCTContainsLintingIssue(got, .init(
-            reason: "Target has duplicate '\(testDependency)' dependency specified",
+            reason: "Target \(target.name) has duplicate '\(testDependency)' dependency specified",
             severity: .warning
         ))
     }

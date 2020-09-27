@@ -18,34 +18,39 @@ struct BuildCommand: ParsableCommand {
     @Flag(
         help: "Force the generation of the project before building."
     )
-    var generate: Bool
+    var generate: Bool = false
 
     @Flag(
         help: "When passed, it cleans the project before building it"
     )
-    var clean: Bool
+    var clean: Bool = false
 
     @Option(
         name: .shortAndLong,
-        help: "The path to the directory that contains the project to be built."
+        help: "The path to the directory that contains the project to be built.",
+        completion: .directory
     )
     var path: String?
 
-    @Option(name: [.long, .customShort("C")],
-            help: "The configuration to be used when building the scheme.")
+    @Option(
+        name: [.long, .customShort("C")],
+        help: "The configuration to be used when building the scheme."
+    )
     var configuration: String?
 
     func run() throws {
         let absolutePath: AbsolutePath
         if let path = path {
-            absolutePath = AbsolutePath(path)
+            absolutePath = AbsolutePath(path, relativeTo: FileHandler.shared.currentPath)
         } else {
             absolutePath = FileHandler.shared.currentPath
         }
-        try BuildService().run(schemeName: scheme,
-                               generate: generate,
-                               clean: clean,
-                               configuration: configuration,
-                               path: absolutePath)
+        try BuildService().run(
+            schemeName: scheme,
+            generate: generate,
+            clean: clean,
+            configuration: configuration,
+            path: absolutePath
+        )
     }
 }

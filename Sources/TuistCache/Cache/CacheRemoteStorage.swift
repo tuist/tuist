@@ -22,9 +22,10 @@ enum CacheRemoteStorageError: FatalError, Equatable {
 }
 
 // TODO: Later, add a warmup function to check if it's correctly authenticated ONCE
-final class CacheRemoteStorage: CacheStoring {
+public final class CacheRemoteStorage: CacheStoring {
     // MARK: - Attributes
 
+    private let cloudConfig: Cloud
     private let cloudClient: CloudClienting
     private let fileClient: FileClienting
     private let fileArchiverFactory: FileArchiverManufacturing
@@ -32,9 +33,19 @@ final class CacheRemoteStorage: CacheStoring {
 
     // MARK: - Init
 
-    init(cloudClient: CloudClienting,
-         fileArchiverFactory: FileArchiverManufacturing = FileArchiverFactory(),
-         fileClient: FileClienting = FileClient()) {
+    public convenience init(cloudConfig: Cloud, cloudClient: CloudClienting) {
+        self.init(cloudConfig: cloudConfig,
+                  cloudClient: cloudClient,
+                  fileArchiverFactory: FileArchiverFactory(),
+                  fileClient: FileClient())
+    }
+
+    init(cloudConfig: Cloud,
+         cloudClient: CloudClienting,
+         fileArchiverFactory: FileArchiverManufacturing,
+         fileClient: FileClienting)
+    {
+        self.cloudConfig = cloudConfig
         self.cloudClient = cloudClient
         self.fileArchiverFactory = fileArchiverFactory
         self.fileClient = fileClient
@@ -42,10 +53,10 @@ final class CacheRemoteStorage: CacheStoring {
 
     // MARK: - CacheStoring
 
-    func exists(hash: String, config: Config) -> Single<Bool> {
+    public func exists(hash: String) -> Single<Bool> {
         do {
             let successRange = 200 ..< 300
-            let resource = try CloudHEADResponse.existsResource(hash: hash, config: config)
+            let resource = try CloudHEADResponse.existsResource(hash: hash, cloud: cloudConfig)
             return cloudClient.request(resource)
                 .flatMap { _, response in
                     .just(successRange.contains(response.statusCode))
@@ -62,9 +73,9 @@ final class CacheRemoteStorage: CacheStoring {
         }
     }
 
-    func fetch(hash: String, config: Config) -> Single<AbsolutePath> {
+    public func fetch(hash: String) -> Single<AbsolutePath> {
         do {
-            let resource = try CloudCacheResponse.fetchResource(hash: hash, config: config)
+            let resource = try CloudCacheResponse.fetchResource(hash: hash, cloud: cloudConfig)
             return cloudClient
                 .request(resource)
                 .map { $0.object.data.url }
@@ -82,13 +93,13 @@ final class CacheRemoteStorage: CacheStoring {
         }
     }
 
-    func store(hash: String, config: Config, xcframeworkPath: AbsolutePath) -> Completable {
+    public func store(hash: String, xcframeworkPath: AbsolutePath) -> Completable {
         do {
             let archiver = fileArchiver(for: xcframeworkPath)
             let destinationZipPath = try archiver.zip()
             let resource = try CloudCacheResponse.storeResource(
                 hash: hash,
-                config: config,
+                cloud: cloudConfig,
                 contentMD5: try FileHandler.shared.base64MD5(path: destinationZipPath)
             )
 

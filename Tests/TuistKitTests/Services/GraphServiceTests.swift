@@ -1,4 +1,6 @@
+import DOT
 import Foundation
+import GraphViz
 import TSCBasic
 import TuistSupport
 import XcodeProj
@@ -10,25 +12,25 @@ import XCTest
 
 final class GraphServiceTests: TuistUnitTestCase {
     var subject: GraphService!
-    var dotGraphGenerator: MockDotGraphGenerator!
+    var graphVizGenerator: MockGraphVizGenerator!
     var manifestLoader: MockManifestLoader!
 
     override func setUp() {
         super.setUp()
-        dotGraphGenerator = MockDotGraphGenerator()
+        graphVizGenerator = MockGraphVizGenerator()
         manifestLoader = MockManifestLoader()
-        subject = GraphService(dotGraphGenerator: dotGraphGenerator,
+        subject = GraphService(graphVizGenerator: graphVizGenerator,
                                manifestLoader: manifestLoader)
     }
 
     override func tearDown() {
-        dotGraphGenerator = nil
+        graphVizGenerator = nil
         manifestLoader = nil
         subject = nil
         super.tearDown()
     }
 
-    func test_run() throws {
+    func test_run_whenDot() throws {
         // Given
         let temporaryPath = try self.temporaryPath()
         let graphPath = temporaryPath.appending(component: "graph.dot")
@@ -42,14 +44,19 @@ final class GraphServiceTests: TuistUnitTestCase {
             else { return Set([]) }
         }
 
-        let graph = "graph {}"
-        dotGraphGenerator.generateProjectStub = graph
+        let graph = GraphViz.Graph()
+        graphVizGenerator.generateProjectStub = graph
 
         // When
-        try subject.run(skipTestTargets: false, skipExternalDependencies: false)
-
+        try subject.run(format: .dot,
+                        layoutAlgorithm: .dot,
+                        skipTestTargets: false,
+                        skipExternalDependencies: false,
+                        path: nil)
+        let got = try FileHandler.shared.readTextFile(graphPath)
+        let expected = "graph { }"
         // Then
-        XCTAssertEqual(try FileHandler.shared.readTextFile(graphPath), graph)
+        XCTAssertEqual(got, expected)
         XCTAssertPrinterOutputContains("""
         Deleting existing graph at \(graphPath.pathString)
         Graph exported to \(graphPath.pathString)

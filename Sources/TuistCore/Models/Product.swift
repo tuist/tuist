@@ -134,7 +134,8 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Encodable {
 
         if platform == .macOS ||
             platform == .tvOS ||
-            platform == .iOS {
+            platform == .iOS
+        {
             base.append(.unitTests)
             base.append(.uiTests)
         }
@@ -152,6 +153,10 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Encodable {
 
     public var isStatic: Bool {
         [.staticLibrary, .staticFramework].contains(self)
+    }
+
+    public var isFramework: Bool {
+        [.framework, .staticFramework].contains(self)
     }
 
     public var xcodeValue: PBXProductType {

@@ -6,6 +6,9 @@ import TuistSupport
 protocol ProjectEditorMapping: AnyObject {
     func map(tuistPath: AbsolutePath,
              sourceRootPath: AbsolutePath,
+             xcodeProjPath: AbsolutePath,
+             setupPath: AbsolutePath?,
+             configPath: AbsolutePath?,
              manifests: [AbsolutePath],
              helpers: [AbsolutePath],
              templates: [AbsolutePath],
@@ -16,10 +19,14 @@ final class ProjectEditorMapper: ProjectEditorMapping {
     // swiftlint:disable:next function_body_length
     func map(tuistPath: AbsolutePath,
              sourceRootPath: AbsolutePath,
+             xcodeProjPath: AbsolutePath,
+             setupPath: AbsolutePath?,
+             configPath: AbsolutePath?,
              manifests: [AbsolutePath],
              helpers: [AbsolutePath],
              templates: [AbsolutePath],
-             projectDescriptionPath: AbsolutePath) throws -> (Project, Graph) {
+             projectDescriptionPath: AbsolutePath) throws -> (Project, Graph)
+    {
         // Settings
         let projectSettings = Settings(base: [:],
                                        configurations: Settings.default.configurations,
@@ -34,9 +41,6 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         var manifestsDependencies: [Dependency] = []
         if !helpers.isEmpty {
             manifestsDependencies = [.target(name: "ProjectDescriptionHelpers")]
-        }
-        if !templates.isEmpty {
-            manifestsDependencies.append(.target(name: "Templates"))
         }
 
         let manifestsTargets = named(manifests: manifests).map { name, manifest in
@@ -63,23 +67,38 @@ final class ProjectEditorMapper: ProjectEditorMapping {
                                                         targetSettings: targetSettings,
                                                         sourcePaths: templates)
         }
+        var setupTarget: Target?
+        if let setupPath = setupPath {
+            setupTarget = Target.editorHelperTarget(name: "Setup",
+                                                    targetSettings: targetSettings,
+                                                    sourcePaths: [setupPath])
+        }
+        var configTarget: Target?
+        if let configPath = configPath {
+            configTarget = Target.editorHelperTarget(name: "Config",
+                                                     targetSettings: targetSettings,
+                                                     sourcePaths: [configPath])
+        }
 
         var targets: [Target] = []
         targets.append(contentsOf: manifestsTargets)
         if let helpersTarget = helpersTarget { targets.append(helpersTarget) }
         if let templatesTarget = templatesTarget { targets.append(templatesTarget) }
+        if let setupTarget = setupTarget { targets.append(setupTarget) }
+        if let configTarget = configTarget { targets.append(configTarget) }
 
         // Run Scheme
         let buildAction = BuildAction(targets: targets.map { TargetReference(projectPath: sourceRootPath, name: $0.name) })
-        let arguments = Arguments(launch: ["generate --path \(sourceRootPath)": true])
+        let arguments = Arguments(launchArguments: ["generate --path \(sourceRootPath)": true])
         let runAction = RunAction(configurationName: "Debug", executable: nil, filePath: tuistPath, arguments: arguments, diagnosticsOptions: Set())
         let scheme = Scheme(name: "Manifests", shared: true, buildAction: buildAction, runAction: runAction)
 
         // Project
         let project = Project(path: sourceRootPath,
+                              sourceRootPath: sourceRootPath,
+                              xcodeProjPath: xcodeProjPath,
                               name: "Manifests",
                               organizationName: nil,
-                              fileName: nil,
                               settings: projectSettings,
                               filesGroup: .group(name: "Manifests"),
                               targets: targets,
@@ -97,6 +116,14 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         if let templatesTarget = templatesTarget {
             let templatesNode = TargetNode(project: project, target: templatesTarget, dependencies: [])
             dependencies.append(templatesNode)
+        }
+        if let setupTarget = setupTarget {
+            let setupNode = TargetNode(project: project, target: setupTarget, dependencies: [])
+            dependencies.append(setupNode)
+        }
+        if let configTarget = configTarget {
+            let configNode = TargetNode(project: project, target: configTarget, dependencies: [])
+            dependencies.append(configNode)
         }
 
         let manifestTargetNodes = manifestsTargets.map { TargetNode(project: project, target: $0, dependencies: dependencies) }
@@ -145,7 +172,8 @@ private extension Target {
     /// Target for edit project
     static func editorHelperTarget(name: String,
                                    targetSettings: Settings,
-                                   sourcePaths: [AbsolutePath]) -> Target {
+                                   sourcePaths: [AbsolutePath]) -> Target
+    {
         Target(name: name,
                platform: .macOS,
                product: .staticFramework,

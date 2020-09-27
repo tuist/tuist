@@ -2,7 +2,20 @@ import Foundation
 import TSCBasic
 import TuistSupport
 
-public struct Target: Equatable, Hashable {
+public enum TargetError: FatalError, Equatable {
+    case invalidSourcesGlob(targetName: String, invalidGlobs: [InvalidGlob])
+
+    public var type: ErrorType { .abort }
+
+    public var description: String {
+        switch self {
+        case let .invalidSourcesGlob(targetName: targetName, invalidGlobs: invalidGlobs):
+            return "The target \(targetName) has the following invalid source files globs:\n" + invalidGlobs.invalidGlobsDescription
+        }
+    }
+}
+
+public struct Target: Equatable, Hashable, Comparable {
     public typealias SourceFile = (path: AbsolutePath, compilerFlags: String?)
     public typealias SourceFileGlob = (glob: String, excluding: [String], compilerFlags: String?)
 
@@ -32,6 +45,7 @@ public struct Target: Equatable, Hashable {
     public var coreDataModels: [CoreDataModel]
     public var actions: [TargetAction]
     public var environment: [String: String]
+    public var launchArguments: [String: Bool]
     public var filesGroup: ProjectGroup
 
     // MARK: - Init
@@ -51,8 +65,10 @@ public struct Target: Equatable, Hashable {
                 coreDataModels: [CoreDataModel] = [],
                 actions: [TargetAction] = [],
                 environment: [String: String] = [:],
+                launchArguments: [String: Bool] = [:],
                 filesGroup: ProjectGroup,
-                dependencies: [Dependency] = []) {
+                dependencies: [Dependency] = [])
+    {
         self.name = name
         self.product = product
         self.platform = platform
@@ -68,6 +84,7 @@ public struct Target: Equatable, Hashable {
         self.coreDataModels = coreDataModels
         self.actions = actions
         self.environment = environment
+        self.launchArguments = launchArguments
         self.filesGroup = filesGroup
         self.dependencies = dependencies
     }
@@ -119,6 +136,16 @@ public struct Target: Equatable, Hashable {
         }
     }
 
+    /// Returns true if the target supports hosting resources
+    public var supportsResources: Bool {
+        switch product {
+        case .dynamicLibrary, .staticLibrary, .staticFramework:
+            return false
+        default:
+            return true
+        }
+    }
+
     /// Returns true if the file at the given path is a resource.
     /// - Parameter path: Path to the file to be checked.
     public static func isResource(path: AbsolutePath) -> Bool {
@@ -135,9 +162,11 @@ public struct Target: Equatable, Hashable {
     /// This method unfolds the source file globs subtracting the paths that are excluded and ignoring
     /// the files that don't have a supported source extension.
     /// - Parameter sources: List of source file glob to be unfolded.
-    public static func sources(sources: [SourceFileGlob]) throws -> [TuistCore.Target.SourceFile] {
+    public static func sources(targetName: String, sources: [SourceFileGlob]) throws -> [TuistCore.Target.SourceFile] {
         var sourceFiles: [AbsolutePath: TuistCore.Target.SourceFile] = [:]
-        sources.forEach { source in
+        var invalidGlobs: [InvalidGlob] = []
+
+        try sources.forEach { source in
             let sourcePath = AbsolutePath(source.glob)
             let base = AbsolutePath(sourcePath.dirname)
 
@@ -149,7 +178,16 @@ public struct Target: Equatable, Hashable {
                 excluded.append(contentsOf: globs)
             }
 
-            Set(base.glob(sourcePath.basename))
+            let paths: [AbsolutePath]
+
+            do {
+                paths = try base.throwingGlob(sourcePath.basename)
+            } catch let GlobError.nonExistentDirectory(invalidGlob) {
+                paths = []
+                invalidGlobs.append(invalidGlob)
+            }
+
+            Set(paths)
                 .subtracting(excluded)
                 .filter { path in
                     if let `extension` = path.extension, Target.validSourceExtensions.contains(`extension`) {
@@ -158,6 +196,11 @@ public struct Target: Equatable, Hashable {
                     return false
                 }.forEach { sourceFiles[$0] = (path: $0, compilerFlags: source.compilerFlags) }
         }
+
+        if !invalidGlobs.isEmpty {
+            throw TargetError.invalidSourcesGlob(targetName: targetName, invalidGlobs: invalidGlobs)
+        }
+
         return Array(sourceFiles.values)
     }
 
@@ -176,6 +219,7 @@ public struct Target: Equatable, Hashable {
             lhs.resources == rhs.resources &&
             lhs.headers == rhs.headers &&
             lhs.coreDataModels == rhs.coreDataModels &&
+            lhs.actions == rhs.actions &&
             lhs.dependencies == rhs.dependencies &&
             lhs.environment == rhs.environment
     }
@@ -204,6 +248,12 @@ public struct Target: Equatable, Hashable {
         var copy = self
         copy.actions = actions
         return copy
+    }
+
+    // MARK: - Comparable
+
+    public static func < (lhs: Target, rhs: Target) -> Bool {
+        lhs.name < rhs.name
     }
 }
 

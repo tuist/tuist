@@ -1,4 +1,5 @@
 import Foundation
+import TSCBasic
 
 public enum Manifest: CaseIterable {
     case project
@@ -13,12 +14,17 @@ public enum Manifest: CaseIterable {
         switch self {
         case .config:
             return "TuistConfig.swift"
+        case .template:
+            return "Template.swift"
         default:
             return nil
         }
     }
 
-    public var fileName: String {
+    /// - Parameters:
+    ///     - path: Path to the folder that contains the manifest
+    /// - Returns: File name of the `Manifest`
+    public func fileName(_ path: AbsolutePath) -> String {
         switch self {
         case .project:
             return "Project.swift"
@@ -29,7 +35,7 @@ public enum Manifest: CaseIterable {
         case .setup:
             return "Setup.swift"
         case .template:
-            return "Template.swift"
+            return "\(path.basenameWithoutExt).swift"
         case .galaxy:
             return "Galaxy.swift"
         }

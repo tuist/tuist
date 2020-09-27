@@ -13,7 +13,8 @@ struct DecryptCommand: ParsableCommand {
 
     @Option(
         name: .shortAndLong,
-        help: "The path to the folder containing the encrypted certificates"
+        help: "The path to the folder containing the encrypted certificates",
+        completion: .directory
     )
     var path: String?
 

@@ -12,9 +12,12 @@ extension TuistCore.FileElement {
     ///   - generatorPaths: Generator paths.
     static func from(manifest: ProjectDescription.FileElement,
                      generatorPaths: GeneratorPaths,
-                     includeFiles: @escaping (AbsolutePath) -> Bool = { _ in true }) throws -> [TuistCore.FileElement] {
-        func globFiles(_ path: AbsolutePath) -> [AbsolutePath] {
-            let files = FileHandler.shared.glob(AbsolutePath.root, glob: String(path.pathString.dropFirst()))
+                     includeFiles: @escaping (AbsolutePath) -> Bool = { _ in true }) throws -> [TuistCore.FileElement]
+    {
+        func globFiles(_ path: AbsolutePath) throws -> [AbsolutePath] {
+            if FileHandler.shared.exists(path), !FileHandler.shared.isFolder(path) { return [path] }
+
+            let files = try FileHandler.shared.throwingGlob(AbsolutePath.root, glob: String(path.pathString.dropFirst()))
                 .filter(includeFiles)
 
             if files.isEmpty {
@@ -48,7 +51,7 @@ extension TuistCore.FileElement {
         switch manifest {
         case let .glob(pattern: pattern):
             let resolvedPath = try generatorPaths.resolve(path: pattern)
-            return globFiles(resolvedPath).map(FileElement.file)
+            return try globFiles(resolvedPath).map(FileElement.file)
         case let .folderReference(path: folderReferencePath):
             let resolvedPath = try generatorPaths.resolve(path: folderReferencePath)
             return folderReferences(resolvedPath).map(FileElement.folderReference)

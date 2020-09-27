@@ -1,4 +1,7 @@
 import Foundation
-import {{ name }}Support
 
-public final class {{ name }}Kit {}
+public final class {{ name }}Kit {
+    public static func hello() {
+        print("Hello, from your Kit framework")
+    }
+}

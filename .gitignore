@@ -66,6 +66,7 @@ playground.xcworkspace
 # Packages/
 # Package.pins
 .build/
+.swiftpm
 
 # CocoaPods - Refactored to standalone file
 
@@ -88,3 +89,5 @@ TODO
 TODO.md
 mkmf.log
 .rubocop-http---shopify-github-io-ruby-style-guide-rubocop-yml
+generated_fixtures
+.fixtures.generated.json

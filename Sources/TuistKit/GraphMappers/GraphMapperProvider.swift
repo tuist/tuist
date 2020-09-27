@@ -14,9 +14,11 @@ protocol GraphMapperProviding {
 
 final class GraphMapperProvider: GraphMapperProviding {
     fileprivate let cache: Bool
+    fileprivate let sources: Set<String>
 
-    init(cache: Bool = false) {
+    init(cache: Bool = false, sources: Set<String> = Set()) {
         self.cache = cache
+        self.sources = sources
     }
 
     func mapper(config: Config) -> GraphMapping {
@@ -28,12 +30,10 @@ final class GraphMapperProvider: GraphMapperProviding {
 
         // Cache
         if cache {
-            mappers.append(CacheMapper(config: config, cloudClient: CloudClient()))
-        }
-
-        // Cloud
-        if let cloud = config.cloud, cloud.options.contains(.insights) {
-            mappers.append(CloudInsightsGraphMapper())
+            let cacheMapper = CacheMapper(config: config,
+                                          cacheStorageProvider: CacheStorageProvider(config: config),
+                                          sources: sources)
+            mappers.append(cacheMapper)
         }
 
         return mappers

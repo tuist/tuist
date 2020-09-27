@@ -100,3 +100,8 @@ Then("the product {string} with destination {string} does not contain headers") 
 
   assert_empty(headers_paths)
 end
+
+Then(/^a file (.+) exists$/) do |file|
+  file_path = File.join(@dir, file)
+  assert(File.exist?(file_path), "#{file_path} does not exist")
+end

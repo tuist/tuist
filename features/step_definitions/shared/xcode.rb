@@ -21,7 +21,13 @@ Then(/I should be able to (.+) for (iOS|macOS|tvOS|watchOS) the scheme (.+)/) do
   end
 
   if action == "build" && platform == "iOS"
-    args << "-sdk\ iphoneos"
+    args << "-sdk\ iphonesimulator"
+  end
+  if action == "build" && platform == "watchOS"
+    args << "-sdk\ watchsimulator"
+  end
+  if action == "build" && platform == "tvOS"
+    args << "-sdk\ appletvsimulator"
   end
 
   args << "clean"
@@ -32,6 +38,7 @@ Then(/I should be able to (.+) for (iOS|macOS|tvOS|watchOS) the scheme (.+)/) do
   args << "CODE_SIGN_ENTITLEMENTS=\"\""
 
   xcodebuild(*args)
+  
 end
 
 Then(/the scheme (.+) has a build setting (.+) with value (.+) for the configuration (.+)/) do |scheme, key, value, config| # rubocop:disable Metrics/LineLength
