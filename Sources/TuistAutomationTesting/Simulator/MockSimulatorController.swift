@@ -1,6 +1,8 @@
 import Foundation
 import RxSwift
 import TuistSupport
+import TuistCore
+import struct TSCUtility.Version
 
 @testable import TuistAutomation
 @testable import TuistSupportTesting
@@ -42,5 +44,9 @@ public final class MockSimulatorController: SimulatorControlling {
         } else {
             return .error(TestError("call to non-stubbed method runtimesAndDevices"))
         }
+    }
+    
+    public func findAvailableDevice(platform: Platform?, version: Version?, deviceName: String?) -> Single<SimulatorDevice?> {
+        fatalError()
     }
 }

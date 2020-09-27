@@ -2,7 +2,7 @@ import Foundation
 import TSCBasic
 
 /// It represents a simulator device. Devices are obtained using Xcode's CLI simctl
-struct SimulatorDevice: Decodable, Hashable, CustomStringConvertible {
+public struct SimulatorDevice: Decodable, Hashable, CustomStringConvertible {
     /// Device data path.
     let dataPath: AbsolutePath
 
@@ -10,13 +10,13 @@ struct SimulatorDevice: Decodable, Hashable, CustomStringConvertible {
     let logPath: AbsolutePath
 
     /// Device unique identifier (3A8C9673-C1FD-4E33-8EFA-AEEBF43161CC)
-    let udid: String
+    public let udid: String
 
     /// Whether the device is available or not.
     let isAvailable: Bool
 
     /// Device type identifier (e.g. com.apple.CoreSimulator.SimDeviceType.iPad-Air--3rd-generation-)
-    let deviceTypeIdentifier: String?
+    public let deviceTypeIdentifier: String?
 
     /// Device state (e.g. Shutdown)
     let state: String
@@ -35,20 +35,21 @@ struct SimulatorDevice: Decodable, Hashable, CustomStringConvertible {
     /// Device runtime identifier (e.g. com.apple.CoreSimulator.SimRuntime.iOS-13-5)
     let runtimeIdentifier: String
 
-    var description: String {
+    public var description: String {
         name
     }
 
-    public init(dataPath: AbsolutePath,
-                logPath: AbsolutePath,
-                udid: String,
-                isAvailable: Bool,
-                deviceTypeIdentifier: String,
-                state: String,
-                name: String,
-                availabilityError: String?,
-                runtimeIdentifier: String)
-    {
+    public init(
+        dataPath: AbsolutePath,
+        logPath: AbsolutePath,
+        udid: String,
+        isAvailable: Bool,
+        deviceTypeIdentifier: String,
+        state: String,
+        name: String,
+        availabilityError: String?,
+        runtimeIdentifier: String
+    ) {
         self.dataPath = dataPath
         self.logPath = logPath
         self.udid = udid

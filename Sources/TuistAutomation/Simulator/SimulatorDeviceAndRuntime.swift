@@ -1,9 +1,9 @@
 import Foundation
 
-struct SimulatorDeviceAndRuntime: Hashable {
+public struct SimulatorDeviceAndRuntime: Hashable {
     /// Device
-    let device: SimulatorDevice
+    public let device: SimulatorDevice
 
     /// Device's runtime.
-    let runtime: SimulatorRuntime
+    public let runtime: SimulatorRuntime
 }

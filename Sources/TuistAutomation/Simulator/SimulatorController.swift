@@ -1,16 +1,27 @@
 import Foundation
 import RxSwift
 import TuistSupport
+import TuistCore
+import struct TSCUtility.Version
 
-protocol SimulatorControlling {
+public protocol SimulatorControlling {
     /// Returns the list of simulator devices that are available in the system.
     func devices() -> Single<[SimulatorDevice]>
 
     /// Returns the list of simulator runtimes that are available in the system.
     func runtimes() -> Single<[SimulatorRuntime]>
 
-    /// Returns the list of simulator devices and runtimes.
+    /// - Parameters:
+    ///     - platform: Optionally filter by platform
+    ///     - deviceName: Optionally filter by device name
+    /// - Returns: the list of simulator devices and runtimes.
     func devicesAndRuntimes() -> Single<[SimulatorDeviceAndRuntime]>
+    
+    func findAvailableDevice(
+        platform: Platform?,
+        version: Version?,
+        deviceName: String?
+    ) -> Single<SimulatorDevice?>
 }
 
 enum SimulatorControllerError: FatalError {
@@ -29,10 +40,12 @@ enum SimulatorControllerError: FatalError {
     }
 }
 
-final class SimulatorController: SimulatorControlling {
+public final class SimulatorController: SimulatorControlling {
+    public init() {}
+    
     private let jsonDecoder: JSONDecoder = JSONDecoder()
 
-    func devices() -> Single<[SimulatorDevice]> {
+    public func devices() -> Single<[SimulatorDevice]> {
         System.shared.observable(["/usr/bin/xcrun", "simctl", "list", "devices", "--json"])
             .mapToString()
             .collectOutput()
@@ -63,7 +76,7 @@ final class SimulatorController: SimulatorControlling {
             }
     }
 
-    func runtimes() -> Single<[SimulatorRuntime]> {
+    public func runtimes() -> Single<[SimulatorRuntime]> {
         System.shared.observable(["/usr/bin/xcrun", "simctl", "list", "runtimes", "--json"])
             .debug()
             .mapToString()
@@ -88,7 +101,7 @@ final class SimulatorController: SimulatorControlling {
             }
     }
 
-    func devicesAndRuntimes() -> Single<[SimulatorDeviceAndRuntime]> {
+    public func devicesAndRuntimes() -> Single<[SimulatorDeviceAndRuntime]> {
         runtimes()
             .flatMap { (runtimes) -> Single<([SimulatorDevice], [SimulatorRuntime])> in
                 self.devices().map { ($0, runtimes) }
@@ -99,5 +112,29 @@ final class SimulatorController: SimulatorControlling {
                     return SimulatorDeviceAndRuntime(device: device, runtime: runtime)
                 }
             }
+    }
+    
+    public func findAvailableDevice(
+        platform: Platform?,
+        version: Version?,
+        deviceName: String?
+    ) -> Single<SimulatorDevice?> {
+        devicesAndRuntimes()
+            .map {
+                $0.filter { simulatorDeviceAndRuntime in
+                    let nameComponents = simulatorDeviceAndRuntime.runtime.name.components(separatedBy: " ")
+                    if let platform = platform {
+                        guard nameComponents.first == platform.caseValue else { return false }
+                    }
+                    if let version = version {
+                        guard nameComponents.last?.version() == version else { return false }
+                    }
+                    if let deviceName = deviceName {
+                        guard simulatorDeviceAndRuntime.device.name == deviceName else { return false }
+                    }
+                    return true
+                }
+                .first?.device
+        }
     }
 }

@@ -53,10 +53,13 @@ public final class XcodeBuildController: XcodeBuildControlling {
         return run(command: command)
     }
 
-    public func test(_ target: XcodeBuildTarget,
-                     scheme: String,
-                     clean: Bool = false,
-                     arguments: [XcodeBuildArgument]) -> Observable<SystemEvent<XcodeBuildOutput>> {
+    public func test(
+        _ target: XcodeBuildTarget,
+        scheme: String,
+        clean: Bool = false,
+        destination: XcodeBuildDestination,
+        arguments: [XcodeBuildArgument]
+    ) -> Observable<SystemEvent<XcodeBuildOutput>> {
         var command = ["/usr/bin/xcrun", "xcodebuild"]
 
         // Action
@@ -73,6 +76,11 @@ public final class XcodeBuildController: XcodeBuildControlling {
 
         // Arguments
         command.append(contentsOf: arguments.flatMap { $0.arguments })
+        
+        switch destination {
+        case let .device(udid):
+            command.append(contentsOf: ["-destination", "id=\(udid)"])
+        }
 
         return run(command: command)
     }

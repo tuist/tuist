@@ -30,9 +30,21 @@ struct TestCommand: ParsableCommand {
         help: "The path to the directory that contains the project to be tested."
     )
     var path: String?
+    
+    @Option(
+        help: "Test on iPhone with a specified device name."
+    )
+    var iphone: String?
+    
+    @Option(
+        help: "Test iOS with a specific version."
+    )
+    var ios: String?
 
-    @Option(name: [.long, .customShort("C")],
-            help: "The configuration to be used when building the scheme.")
+    @Option(
+        name: [.long, .customShort("C")],
+        help: "The configuration to be used when building the scheme."
+    )
     var configuration: String?
 
     func run() throws {
@@ -42,10 +54,14 @@ struct TestCommand: ParsableCommand {
         } else {
             absolutePath = FileHandler.shared.currentPath
         }
-        try TestService().run(schemeName: scheme,
-                              generate: generate,
-                              clean: clean,
-                              configuration: configuration,
-                              path: absolutePath)
+        try TestService().run(
+            schemeName: scheme,
+            generate: generate,
+            clean: clean,
+            configuration: configuration,
+            path: absolutePath,
+            iphone: iphone,
+            ios: ios
+        )
     }
 }
