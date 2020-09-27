@@ -201,7 +201,7 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping {
         if FileHandler.shared.isFolder(path) {
             if try !FileHandler.shared.contentsOfDirectory(path).isEmpty { return true }
         } else {
-            if try !FileHandler.shared.readTextFile(path).isEmpty { return true }
+            if try !FileHandler.shared.readFile(path).isEmpty { return true }
         }
         logger.log(
             level: .warning,
