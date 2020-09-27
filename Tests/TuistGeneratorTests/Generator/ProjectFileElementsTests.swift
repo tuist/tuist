@@ -651,7 +651,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         let groups = ProjectGroups.generate(project: .test(path: .root, sourceRootPath: .root, xcodeProjPath: AbsolutePath.root.appending(component: "Project.xcodeproj")),
                                             pbxproj: pbxproj)
 
-        let package = PackageProductNode(product: "A", path: "/packages/url")
+        let package = PackageProductNode(product: "A", type: .staticLibrary, path: "/packages/url")
 
         let graph = createGraph(project: project, target: target, dependencies: [package])
 

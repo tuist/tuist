@@ -49,7 +49,7 @@ final class ValueGraphTests: TuistUnitTestCase {
         // Given: Package
         let package = Package.remote(url: "https://github.com/tuist/tuist", requirement: .exact("1.0.0"))
         let packageNode = PackageNode(package: package, path: project.path)
-        let packageProduct = PackageProductNode(product: "Tuist", path: project.path)
+        let packageProduct = PackageProductNode(product: "Tuist", type: .staticLibrary, path: project.path)
 
         // Given: A
         let aTarget = Target.test(name: "A", platform: .iOS, product: .framework)

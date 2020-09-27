@@ -163,8 +163,8 @@ final class LinkGenerator: LinkGenerating {
     {
         for dependency in target.dependencies {
             switch dependency {
-            case let .package(product: product):
-                try pbxTarget.addSwiftPackageProduct(productName: product, pbxproj: pbxproj)
+            case let .package(product: product, type: type):
+                try pbxTarget.addSwiftPackageProduct(productName: product, type: type, pbxproj: pbxproj)
             default:
                 break
             }
@@ -450,13 +450,16 @@ private extension XCBuildConfiguration {
 }
 
 extension PBXTarget {
-    func addSwiftPackageProduct(productName: String, pbxproj: PBXProj) throws {
+    func addSwiftPackageProduct(productName: String, type: PackageProductType, pbxproj: PBXProj) throws {
         let productDependency = XCSwiftPackageProductDependency(productName: productName)
         pbxproj.add(object: productDependency)
         packageProductDependencies.append(productDependency)
-
+        
         // Build file
         let buildFile = PBXBuildFile(product: productDependency)
+        
+        
+        
         pbxproj.add(object: buildFile)
 
         // Link the product
@@ -465,5 +468,19 @@ extension PBXTarget {
         }
 
         frameworksBuildPhase.files?.append(buildFile)
+        
+        // Embed the product
+        switch type {
+        case .dynamicLibrary:
+            guard let embedPhase = embedFrameworksBuildPhases().first else {
+                throw "No frameworks embed phase"
+            }
+
+            buildFile.settings = ["ATTRIBUTES": ["CodeSignOnCopy"]]
+            embedPhase.files?.append(buildFile)
+
+        case .staticLibrary:
+            break
+        }
     }
 }

@@ -12,6 +12,7 @@ let package = Package(
             targets: ["LibraryA"]),
         .library(
             name: "LibraryB",
+            type: .dynamic,
             targets: ["LibraryB"]),
     ],
     dependencies: [

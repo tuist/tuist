@@ -37,8 +37,8 @@ public final class DependenciesContentHasher: DependenciesContentHashing {
             return try contentHasher.hash("xcframework-\(path.pathString)")
         case let .library(path, publicHeaders, swiftModuleMap):
             return try contentHasher.hash(["library", path.pathString, publicHeaders.pathString, swiftModuleMap?.pathString].compactMap { $0 })
-        case let .package(product):
-            return try contentHasher.hash("package-\(product)")
+        case let .package(product, type: type):
+            return try contentHasher.hash("package-\(product)-\(type)")
         case let .sdk(name, status):
             return try contentHasher.hash("sdk-\(name)-\(status)")
         case let .cocoapods(path):

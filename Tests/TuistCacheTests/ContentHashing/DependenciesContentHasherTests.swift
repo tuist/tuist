@@ -91,13 +91,13 @@ final class DependenciesContentHasherTests: TuistUnitTestCase {
 
     func test_hash_whenDependencyIsPackage_callsContentHasherAsExpected() throws {
         // Given
-        let dependency = Dependency.package(product: "foo")
+        let dependency = Dependency.package(product: "foo", type: .staticLibrary)
 
         // When
         let hash = try subject.hash(dependencies: [dependency])
 
         // Then
-        XCTAssertEqual(hash, "package-foo-hash")
+        XCTAssertEqual(hash, "package-foo-staticLibrary-hash")
         XCTAssertEqual(mockContentHasher.hashStringCallCount, 1)
     }
 

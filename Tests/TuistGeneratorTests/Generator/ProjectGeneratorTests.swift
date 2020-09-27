@@ -73,13 +73,13 @@ final class ProjectGeneratorTests: TuistUnitTestCase {
         let temporaryPath = try self.temporaryPath()
         let project = Project.test(path: temporaryPath,
                                    name: "Project",
-                                   targets: [.test(dependencies: [.package(product: "A")])],
+                                   targets: [.test(dependencies: [.package(product: "A", type: .staticLibrary)])],
                                    packages: [.remote(url: "A", requirement: .exact("0.1"))])
 
         let target = Target.test()
         let packageNode = PackageNode(package: .remote(url: "A", requirement: .exact("0.1")),
                                       path: temporaryPath)
-        let packageProductNode = PackageProductNode(product: "A", path: project.path)
+        let packageProductNode = PackageProductNode(product: "A", type: .staticLibrary, path: project.path)
         let graph = Graph.test(entryPath: temporaryPath,
                                entryNodes: [TargetNode(project: project,
                                                        target: target,
@@ -209,13 +209,13 @@ final class ProjectGeneratorTests: TuistUnitTestCase {
         let project = Project.test(path: projectPath,
                                    sourceRootPath: projectPath,
                                    name: "Project",
-                                   targets: [.test(dependencies: [.package(product: "A")])],
+                                   targets: [.test(dependencies: [.package(product: "A", type: .staticLibrary)])],
                                    packages: [.local(path: localPackagePath)])
 
         let target = Target.test()
         let packageNode = PackageNode(package: .local(path: localPackagePath),
                                       path: localPackagePath)
-        let packageProductNode = PackageProductNode(product: "A", path: localPackagePath)
+        let packageProductNode = PackageProductNode(product: "A", type: .staticLibrary, path: localPackagePath)
         let graph = Graph.test(entryPath: projectPath,
                                entryNodes: [TargetNode(project: project,
                                                        target: target,

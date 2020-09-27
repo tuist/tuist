@@ -30,7 +30,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         // Given
         let temporaryPath = try self.temporaryPath()
         let target = anyTarget(dependencies: [
-            .package(product: "Example"),
+            .package(product: "Example", type: .staticLibrary),
         ])
         let package = Package.remote(url: "http://some.remote/repo.git", requirement: .exact("branch"))
         let project = Project.test(path: temporaryPath,
@@ -60,7 +60,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         // Given
         let temporaryPath = try self.temporaryPath()
         let target = anyTarget(dependencies: [
-            .package(product: "Example"),
+            .package(product: "Example", type: .staticLibrary),
         ])
         let package = Package.remote(url: "http://some.remote/repo.git", requirement: .exact("branch"))
         let project = Project.test(path: temporaryPath,

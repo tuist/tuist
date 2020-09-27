@@ -18,7 +18,7 @@ let project = Project(name: "App",
                                dependencies: [
                                     .project(target: "FrameworkA", path: "Frameworks/FrameworkA"),
                                     .package(product: "LibraryA"),
-                                    .package(product: "LibraryB"),
+                                    .package(product: "LibraryB", type: .dynamicLibrary),
                                 ]),
                         Target(name: "AppTests",
                                platform: .iOS,

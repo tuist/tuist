@@ -35,11 +35,12 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
 
         // Then
         guard
-            case let .package(product) = got
+            case let .package(product, type: productType) = got
         else {
             XCTFail("Dependency should be package")
             return
         }
         XCTAssertEqual(product, "library")
+        XCTAssertEqual(productType, .staticLibrary)
     }
 }

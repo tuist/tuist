@@ -5,8 +5,10 @@ import TuistSupport
 /// Node specifying a product dependency on a swift package
 public class PackageProductNode: GraphNode {
     public let product: String
-    public init(product: String, path: AbsolutePath) {
+    public let productType: PackageProductType
+    public init(product: String, type: PackageProductType, path: AbsolutePath) {
         self.product = product
+        self.productType = type
         super.init(path: path, name: product)
     }
 }

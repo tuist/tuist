@@ -12,7 +12,7 @@ public enum Dependency: Equatable, Hashable {
     case framework(path: AbsolutePath)
     case xcFramework(path: AbsolutePath)
     case library(path: AbsolutePath, publicHeaders: AbsolutePath, swiftModuleMap: AbsolutePath?)
-    case package(product: String)
+    case package(product: String, type: PackageProductType)
     case sdk(name: String, status: SDKStatus)
     case cocoapods(path: AbsolutePath)
     case xctest

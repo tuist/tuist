@@ -231,8 +231,8 @@ public class GraphLoader: GraphLoading {
             return loadCocoaPodsNode(path: podsPath, graphLoaderCache: graphLoaderCache)
 
         // Swift Package
-        case let .package(product):
-            return PackageProductNode(product: product, path: path)
+        case let .package(product, type: type):
+            return PackageProductNode(product: product, type: type, path: path)
 
         // XCTest
         case .xctest:

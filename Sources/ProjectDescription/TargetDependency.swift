@@ -45,7 +45,8 @@ public enum TargetDependency: Codable, Equatable {
     /// - Parameters:
     ///   - product: The name of the output product. ${PRODUCT_NAME} inside Xcode.
     ///              e.g. RxSwift
-    case package(product: String)
+    ///   - type: The type of the product in the package manifest
+    case package(product: String, type: PackageProductType)
 
     /// Dependency on system library or framework
     ///
@@ -80,6 +81,10 @@ public enum TargetDependency: Codable, Equatable {
     /// Note: Defaults to using a `required` dependency status
     public static func sdk(name: String) -> TargetDependency {
         .sdk(name: name, status: .required)
+    }
+    
+    public static func package(product: String) -> TargetDependency {
+        .package(product: product, type: .staticLibrary)
     }
 
     public var typeName: String {
@@ -129,6 +134,7 @@ extension TargetDependency {
         case swiftModuleMap = "swift_module_map"
         case status
         case package
+        case productType
     }
 
     public init(from decoder: Decoder) throws {
@@ -161,7 +167,8 @@ extension TargetDependency {
 
         case "package":
             let package = try container.decode(String.self, forKey: .package)
-            self = .package(product: package)
+            let type = try container.decodeIfPresent(PackageProductType.self, forKey: .productType)
+            self = .package(product: package, type: type ?? .staticLibrary)
         case "sdk":
             self = .sdk(name: try container.decode(String.self, forKey: .name),
                         status: try container.decode(SDKStatus.self, forKey: .status))
@@ -194,8 +201,9 @@ extension TargetDependency {
             try container.encode(path, forKey: .path)
             try container.encode(publicHeaders, forKey: .publicHeaders)
             try container.encodeIfPresent(swiftModuleMap, forKey: .swiftModuleMap)
-        case let .package(packageType):
-            try container.encode(packageType, forKey: .package)
+        case let .package(product, type: type):
+            try container.encode(product, forKey: .package)
+            try container.encode(type, forKey: .productType)
         case let .sdk(name, status):
             try container.encode(name, forKey: .name)
             try container.encode(status, forKey: .status)

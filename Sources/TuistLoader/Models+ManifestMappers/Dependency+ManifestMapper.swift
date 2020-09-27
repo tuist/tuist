@@ -20,8 +20,8 @@ extension TuistCore.Dependency {
             return .library(path: try generatorPaths.resolve(path: libraryPath),
                             publicHeaders: try generatorPaths.resolve(path: publicHeaders),
                             swiftModuleMap: try swiftModuleMap.map { try generatorPaths.resolve(path: $0) })
-        case let .package(product):
-            return .package(product: product)
+        case let .package(product, type: productType):
+            return .package(product: product, type: .init(from: productType))
 
         case let .sdk(name, status):
             return .sdk(name: name,
