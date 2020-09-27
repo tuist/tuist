@@ -36,20 +36,26 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
         let projectPath = try temporaryPath()
         let targetAPath = projectPath.appending(component: "TargetA")
         let aAssets = targetAPath.appending(component: "a.xcassets")
+        let aAsset = aAssets.appending(component: "asset")
         let frenchStrings = targetAPath.appending(components: "fr.lproj", "aStrings.strings")
         let englishStrings = targetAPath.appending(components: "en.lproj", "aStrings.strings")
         let environmentPlist = targetAPath.appending(component: "Environment.plist")
+        let emptyPlist = targetAPath.appending(component: "Empty.plist")
         let ttfFont = targetAPath.appending(component: "ttfFont.ttf")
         let otfFont = targetAPath.appending(component: "otfFont.otf")
         let ttcFont = targetAPath.appending(component: "ttcFont.ttc")
 
         try fileHandler.createFolder(aAssets)
+        try fileHandler.touch(aAsset)
         try fileHandler.touch(frenchStrings)
         try fileHandler.touch(englishStrings)
-        try fileHandler.touch(environmentPlist)
-        try fileHandler.touch(ttfFont)
-        try fileHandler.touch(otfFont)
-        try fileHandler.touch(ttcFont)
+        try fileHandler.write("a", path: frenchStrings, atomically: true)
+        try fileHandler.write("a", path: englishStrings, atomically: true)
+        try fileHandler.touch(emptyPlist)
+        try fileHandler.write("a", path: environmentPlist, atomically: true)
+        try fileHandler.write("a", path: ttfFont, atomically: true)
+        try fileHandler.write("a", path: otfFont, atomically: true)
+        try fileHandler.write("a", path: ttcFont, atomically: true)
 
         let targetA = Target.test(
             name: "TargetA",
@@ -57,6 +63,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
                 .folderReference(path: aAssets),
                 .file(path: frenchStrings),
                 .file(path: englishStrings),
+                .file(path: emptyPlist),
                 .file(path: environmentPlist),
                 .file(path: ttfFont),
                 .file(path: otfFont),
@@ -134,6 +141,12 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
                     ),
                 ]
             )
+        )
+        
+        XCTAssertPrinterContains(
+            "Skipping synthesizing accessors for \(emptyPlist.pathString) because it's contents are empty.",
+            at: .notice,
+            ==
         )
     }
 }
