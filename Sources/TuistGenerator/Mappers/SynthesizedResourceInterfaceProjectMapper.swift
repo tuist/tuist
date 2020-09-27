@@ -90,7 +90,8 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping {
             .appending(component: Constants.DerivedDirectory.name)
             .appending(component: Constants.DerivedDirectory.sources)
 
-        let paths = self.paths(for: synthesizedResourceInterfaceType, target: target)
+        let paths = try self.paths(for: synthesizedResourceInterfaceType, target: target)
+            .filter(isResourceEmpty)
 
         let renderedInterfaces: [(String, String)]
 
@@ -194,5 +195,18 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping {
             return resourcesPaths
                 .filter { $0.extension.map(fontExtensions.contains) ?? false }
         }
+    }
+
+    private func isResourceEmpty(_ path: AbsolutePath) throws -> Bool {
+        if FileHandler.shared.isFolder(path) {
+            if try !FileHandler.shared.contentsOfDirectory(path).isEmpty { return true }
+        } else {
+            if try !FileHandler.shared.readFile(path).isEmpty { return true }
+        }
+        logger.log(
+            level: .warning,
+            "Skipping synthesizing accessors for \(path.pathString) because it's contents are empty."
+        )
+        return false
     }
 }
