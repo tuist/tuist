@@ -204,7 +204,7 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping {
             if try !FileHandler.shared.readTextFile(path).isEmpty { return true }
         }
         logger.log(
-            level: .notice,
+            level: .warning,
             "Skipping synthesizing accessors for \(path.pathString) because it's contents are empty."
         )
         return false
