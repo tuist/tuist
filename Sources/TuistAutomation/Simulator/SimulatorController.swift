@@ -121,20 +121,22 @@ public final class SimulatorController: SimulatorControlling {
     ) -> Single<SimulatorDevice?> {
         devicesAndRuntimes()
             .map {
-                $0.filter { simulatorDeviceAndRuntime in
-                    let nameComponents = simulatorDeviceAndRuntime.runtime.name.components(separatedBy: " ")
-                    if let platform = platform {
-                        guard nameComponents.first == platform.caseValue else { return false }
-                    }
-                    if let version = version {
-                        guard nameComponents.last?.version() == version else { return false }
-                    }
-                    if let deviceName = deviceName {
-                        guard simulatorDeviceAndRuntime.device.name == deviceName else { return false }
-                    }
-                    return true
+                let availableDevices = $0
+                    .filter { simulatorDeviceAndRuntime in
+                        let nameComponents = simulatorDeviceAndRuntime.runtime.name.components(separatedBy: " ")
+                        if let platform = platform {
+                            guard nameComponents.first == platform.caseValue else { return false }
+                        }
+                        if let version = version {
+                            guard nameComponents.last?.version() == version else { return false }
+                        }
+                        if let deviceName = deviceName {
+                            guard simulatorDeviceAndRuntime.device.name == deviceName else { return false }
+                        }
+                        return true
                 }
-                .first?.device
+                .map(\.device)
+                return availableDevices.first(where: { !$0.isShutdown }) ?? availableDevices.first
         }
     }
 }
