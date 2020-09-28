@@ -8,6 +8,7 @@ let project = Project(
             platform: .iOS,
             product: .framework,
             bundleId: "io.tuist.AppCore",
+            deploymentTarget: .iOS(targetVersion: "12.0", devices: .iphone),
             infoPlist: .default,
             sources: .paths([.relativeToManifest("AppCore/Sources/**")])
         ),
@@ -16,6 +17,7 @@ let project = Project(
             platform: .iOS,
             product: .unitTests,
             bundleId: "io.tuist.AppCoreTests",
+            deploymentTarget: .iOS(targetVersion: "12.0", devices: .iphone),
             infoPlist: "Tests.plist",
             sources: "AppCore/Tests/**",
             dependencies: [
@@ -44,6 +46,29 @@ let project = Project(
             sources: "App/Tests/**",
             dependencies: [
                 .target(name: "App"),
+            ],
+            settings: Settings(base: ["CODE_SIGN_IDENTITY": "",
+                                      "CODE_SIGNING_REQUIRED": "NO"])
+        ),
+        Target(
+            name: "MacFramework",
+            platform: .macOS,
+            product: .framework,
+            bundleId: "io.tuist.MacFramework",
+            infoPlist: .file(path: .relativeToManifest("Info.plist")),
+            sources: .paths([.relativeToManifest("MacFramework/Sources/**")]),
+            settings: Settings(base: ["CODE_SIGN_IDENTITY": "",
+                                      "CODE_SIGNING_REQUIRED": "NO"])
+        ),
+        Target(
+            name: "MacFrameworkTests",
+            platform: .macOS,
+            product: .unitTests,
+            bundleId: "io.tuist.MacFrameworkTests",
+            infoPlist: "Tests.plist",
+            sources: "MacFramework/Tests/**",
+            dependencies: [
+                .target(name: "MacFramework"),
             ],
             settings: Settings(base: ["CODE_SIGN_IDENTITY": "",
                                       "CODE_SIGNING_REQUIRED": "NO"])

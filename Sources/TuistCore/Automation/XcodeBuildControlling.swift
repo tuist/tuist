@@ -5,6 +5,7 @@ import TuistSupport
 
 public enum XcodeBuildDestination {
     case device(String)
+    case mac
 }
 
 public protocol XcodeBuildControlling {

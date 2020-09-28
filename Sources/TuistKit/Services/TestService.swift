@@ -143,22 +143,20 @@ final class TestService {
             throw TestServiceError.schemeWithoutTestableTargets(scheme: scheme.name)
         }
         
+        let platform = platform ?? buildableTarget.platform
         let destination: XcodeBuildDestination
-        
-        if graph.findTargetNode(path: path, name: scheme.name).map(graph.hostApplication) != nil {
-            guard
-                let device = try simulatorController.findAvailableDevice(
-                    platform: platform,
-                    version: version,
-                    deviceName: deviceName
-                )
-                    .toBlocking()
-                    .last(),
-                let unwrappedDevice = device
-                else { fatalError() }
-            destination = .device(unwrappedDevice.udid)
-        } else {
-            destination = .
+        switch platform {
+        case .iOS, .tvOS, .watchOS:
+            let device = try simulatorController.findAvailableDevice(
+                platform: platform,
+                version: version,
+                deviceName: deviceName
+            )
+                .toBlocking()
+                .single()
+            destination = .device(device.udid)
+        case .macOS:
+            destination = .mac
         }
         
         let workspacePath = try buildGraphInspector.workspacePath(directory: path)!
@@ -166,7 +164,7 @@ final class TestService {
             .workspace(workspacePath),
             scheme: scheme.name,
             clean: clean,
-            destination: .device(device!!.udid),
+            destination: destination,
             arguments: buildGraphInspector.buildArguments(target: buildableTarget, configuration: configuration)
         )
             .printFormattedOutput()

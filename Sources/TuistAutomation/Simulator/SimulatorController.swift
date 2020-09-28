@@ -18,24 +18,29 @@ public protocol SimulatorControlling {
     func devicesAndRuntimes() -> Single<[SimulatorDeviceAndRuntime]>
     
     func findAvailableDevice(
-        platform: Platform?,
+        platform: Platform,
         version: Version?,
         deviceName: String?
-    ) -> Single<SimulatorDevice?>
+    ) -> Single<SimulatorDevice>
 }
 
 enum SimulatorControllerError: FatalError {
     case simctlError(String)
+    case deviceNotFound(Platform, Version?, String?, [SimulatorDeviceAndRuntime])
 
     var type: ErrorType {
         switch self {
-        case .simctlError: return .abort
+        case .simctlError, .deviceNotFound:
+            return .abort
         }
     }
 
     var description: String {
         switch self {
-        case let .simctlError(output): return output
+        case let .simctlError(output):
+            return output
+        case let .deviceNotFound(platform, version, deviceName, devices):
+            return "Could not find a suitable device for \(platform.caseValue)\(version.map { " \($0)" } ?? "")\(deviceName.map { ", device name \($0)" } ?? ""). Did find \(devices.map { "\($0.device.name) (\($0.runtime.description))"}.joined(separator: ", "))"
         }
     }
 }
@@ -78,7 +83,6 @@ public final class SimulatorController: SimulatorControlling {
 
     public func runtimes() -> Single<[SimulatorRuntime]> {
         System.shared.observable(["/usr/bin/xcrun", "simctl", "list", "runtimes", "--json"])
-            .debug()
             .mapToString()
             .collectOutput()
             .asSingle()
@@ -115,18 +119,16 @@ public final class SimulatorController: SimulatorControlling {
     }
     
     public func findAvailableDevice(
-        platform: Platform?,
+        platform: Platform,
         version: Version?,
         deviceName: String?
-    ) -> Single<SimulatorDevice?> {
+    ) -> Single<SimulatorDevice> {
         devicesAndRuntimes()
-            .map {
-                let availableDevices = $0
+            .flatMap { devicesAndRuntimes in
+                let availableDevices = devicesAndRuntimes
                     .filter { simulatorDeviceAndRuntime in
                         let nameComponents = simulatorDeviceAndRuntime.runtime.name.components(separatedBy: " ")
-                        if let platform = platform {
-                            guard nameComponents.first == platform.caseValue else { return false }
-                        }
+                        guard nameComponents.first == platform.caseValue else { return false }
                         if let version = version {
                             guard nameComponents.last?.version() == version else { return false }
                         }
@@ -136,7 +138,11 @@ public final class SimulatorController: SimulatorControlling {
                         return true
                 }
                 .map(\.device)
-                return availableDevices.first(where: { !$0.isShutdown }) ?? availableDevices.first
+                guard
+                    let device = availableDevices.first(where: { !$0.isShutdown }) ?? availableDevices.first
+                    else { return .error(SimulatorControllerError.deviceNotFound(platform, version, deviceName, devicesAndRuntimes)) }
+                
+                return .just(device)
         }
     }
 }
