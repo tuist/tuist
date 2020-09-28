@@ -7,6 +7,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Fixed
 
 - Skip synthesizing resource accessors when the file/folder is empty [#1829](https://github.com/tuist/tuist/pull/1829) by [@fortmarek](https://github.com/fortmarek)
+- The redirect after the cloud authentication is not being captured from the CLI [#1846](https://github.com/tuist/tuist/pull/1846) by [@pepibumur](https://github.com/pepibumur).
 
 ## 1.19.0 - Milano
 
