@@ -7,8 +7,8 @@ struct LintCommand: ParsableCommand {
         CommandConfiguration(commandName: "lint",
                              abstract: "A set of tools for linting projects and code.",
                              subcommands: [
-                                LintProjectCommand.self,
-                                LintCodeCommand.self,
+                                 LintProjectCommand.self,
+                                 LintCodeCommand.self,
                              ])
     }
 }
