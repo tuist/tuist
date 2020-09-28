@@ -23,7 +23,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Changed
 
-- The `tuist edit` command adds `Setup.swift` and `Config.swift` to the generated project if they exist.
+- The `tuist edit` command adds `Setup.swift` and `Config.swift` to the generated project if they exist. [#1745](https://github.com/tuist/tuist/pull/1745) by [@laxmorek](https://github.com/laxmorek)
 
 ## 1.18.1 - Manaslu
 
