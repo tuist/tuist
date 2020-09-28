@@ -32,14 +32,16 @@ struct TestCommand: ParsableCommand {
     var path: String?
     
     @Option(
-        help: "Test on iPhone with a specified device name."
+        name: .shortAndLong,
+        help: "Test on a specific device."
     )
-    var iphone: String?
+    var device: String?
     
     @Option(
-        help: "Test iOS with a specific version."
+        name: .shortAndLong,
+        help: "Test with a specific version of the OS."
     )
-    var ios: String?
+    var osVersion: String?
 
     @Option(
         name: [.long, .customShort("C")],
@@ -60,8 +62,8 @@ struct TestCommand: ParsableCommand {
             clean: clean,
             configuration: configuration,
             path: absolutePath,
-            iphone: iphone,
-            ios: ios
+            deviceName: device,
+            osVersion: osVersion
         )
     }
 }

@@ -62,8 +62,8 @@ final class TestService {
         clean: Bool,
         configuration: String?,
         path: AbsolutePath,
-        iphone: String?,
-        ios: String?
+        deviceName: String?,
+        osVersion: String?
     ) throws {
         let graph: Graph
         if try (generate || buildGraphInspector.workspacePath(directory: path) == nil) {
@@ -72,22 +72,7 @@ final class TestService {
             graph = try projectGenerator.load(path: path)
         }
         
-        let platform: Platform?
-        let version: Version?
-        if let ios = ios {
-            platform = .iOS
-            version = ios.version()
-        } else {
-            platform = nil
-            version = nil
-        }
-        
-        let deviceName: String?
-        if let iphone = iphone {
-            deviceName = "iPhone \(iphone)"
-        } else {
-            deviceName = nil
-        }
+        let version = osVersion?.version()
         
         let testableSchemes = buildGraphInspector.testableSchemes(graph: graph)
         logger.log(level: .notice, "Found the following testable schemes: \(testableSchemes.map(\.name).joined(separator: ", "))")
@@ -102,7 +87,6 @@ final class TestService {
                 path: path,
                 clean: clean,
                 configuration: configuration,
-                platform: platform,
                 version: version,
                 deviceName: deviceName
             )
@@ -115,7 +99,6 @@ final class TestService {
                     path: path,
                     clean: !cleaned && clean,
                     configuration: configuration,
-                    platform: platform,
                     version: version,
                     deviceName: deviceName
                 )
@@ -134,7 +117,6 @@ final class TestService {
         path: AbsolutePath,
         clean: Bool,
         configuration: String?,
-        platform: Platform?,
         version: Version?,
         deviceName: String?
     ) throws {
@@ -143,12 +125,11 @@ final class TestService {
             throw TestServiceError.schemeWithoutTestableTargets(scheme: scheme.name)
         }
         
-        let platform = platform ?? buildableTarget.platform
         let destination: XcodeBuildDestination
-        switch platform {
+        switch buildableTarget.platform {
         case .iOS, .tvOS, .watchOS:
             let device = try simulatorController.findAvailableDevice(
-                platform: platform,
+                platform: buildableTarget.platform,
                 version: version,
                 deviceName: deviceName
             )
