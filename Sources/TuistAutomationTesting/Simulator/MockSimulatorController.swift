@@ -46,7 +46,8 @@ public final class MockSimulatorController: SimulatorControlling {
         }
     }
     
+    public var findAvailableDeviceStub: ((Platform, Version?, String?) -> Single<SimulatorDevice>)?
     public func findAvailableDevice(platform: Platform, version: Version?, deviceName: String?) -> Single<SimulatorDevice> {
-        fatalError()
+        findAvailableDeviceStub?(platform, version, deviceName) ?? .just(SimulatorDevice.test())
     }
 }

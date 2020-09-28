@@ -3,7 +3,7 @@ import RxSwift
 import TSCBasic
 import TuistSupport
 
-public enum XcodeBuildDestination {
+public enum XcodeBuildDestination: Equatable {
     case device(String)
     case mac
 }

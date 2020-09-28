@@ -260,8 +260,7 @@ final class BuildServiceTests: TuistUnitTestCase {
 
         // When
         try subject.testRun(
-            path: path,
-            listSchemes: true
+            path: path
         )
 
         // Then
@@ -277,8 +276,7 @@ private extension BuildService {
         generate: Bool = false,
         clean: Bool = true,
         configuration: String? = nil,
-        path: AbsolutePath,
-        listSchemes _: Bool = true
+        path: AbsolutePath
     ) throws {
         try run(
             schemeName: schemeName,

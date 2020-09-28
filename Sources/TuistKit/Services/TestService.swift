@@ -75,7 +75,10 @@ final class TestService {
         let version = osVersion?.version()
         
         let testableSchemes = buildGraphInspector.testableSchemes(graph: graph)
-        logger.log(level: .notice, "Found the following testable schemes: \(testableSchemes.map(\.name).joined(separator: ", "))")
+        logger.log(
+            level: .debug,
+            "Found the following testable schemes: \(testableSchemes.map(\.name).joined(separator: ", "))"
+        )
         
         if let schemeName = schemeName {
             guard let scheme = testableSchemes.first(where: { $0.name == schemeName }) else {
