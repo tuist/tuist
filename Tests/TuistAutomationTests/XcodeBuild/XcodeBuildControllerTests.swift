@@ -68,4 +68,105 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
             XCTFail("The command was not expected to fail")
         }
     }
+    
+    func test_test_when_device() throws {
+        // Given
+        let path = try temporaryPath()
+        let xcworkspacePath = path.appending(component: "Project.xcworkspace")
+        let target = XcodeBuildTarget.workspace(xcworkspacePath)
+        let scheme = "Scheme"
+        let shouldOutputBeColoured = true
+        environment.shouldOutputBeColoured = shouldOutputBeColoured
+        
+        var command = [
+            "/usr/bin/xcrun",
+            "xcodebuild",
+            "clean",
+            "test",
+            "-scheme",
+            scheme,
+        ]
+        command.append(contentsOf: target.xcodebuildArguments)
+        command.append(contentsOf: ["-destination", "id=device-id"])
+
+        system.succeedCommand(command, output: "output")
+        var parseCalls: [(String, Bool)] = []
+        parser.parseStub = { output, colored in
+            parseCalls.append((output, colored))
+            return "formated-output"
+        }
+
+        // When
+        let events = subject.test(
+            target,
+            scheme: scheme,
+            clean: true,
+            destination: .device("device-id"),
+            arguments: []
+        )
+            .toBlocking()
+            .materialize()
+
+        // Then
+        XCTAssertEqual(parseCalls.count, 1)
+        XCTAssertEqual(parseCalls.first?.0, "output")
+        XCTAssertEqual(parseCalls.first?.1, shouldOutputBeColoured)
+
+        switch events {
+        case let .completed(output):
+            XCTAssertEqual(output, [.standardOutput(XcodeBuildOutput(raw: "output\n", formatted: "formated-output\n"))])
+        case .failed:
+            XCTFail("The command was not expected to fail")
+        }
+    }
+    
+    func test_test_when_mac() throws {
+        // Given
+        let path = try temporaryPath()
+        let xcworkspacePath = path.appending(component: "Project.xcworkspace")
+        let target = XcodeBuildTarget.workspace(xcworkspacePath)
+        let scheme = "Scheme"
+        let shouldOutputBeColoured = true
+        environment.shouldOutputBeColoured = shouldOutputBeColoured
+        
+        var command = [
+            "/usr/bin/xcrun",
+            "xcodebuild",
+            "clean",
+            "test",
+            "-scheme",
+            scheme,
+        ]
+        command.append(contentsOf: target.xcodebuildArguments)
+
+        system.succeedCommand(command, output: "output")
+        var parseCalls: [(String, Bool)] = []
+        parser.parseStub = { output, colored in
+            parseCalls.append((output, colored))
+            return "formated-output"
+        }
+
+        // When
+        let events = subject.test(
+            target,
+            scheme: scheme,
+            clean: true,
+            destination: .mac,
+            arguments: []
+        )
+            .toBlocking()
+            .materialize()
+
+        // Then
+        XCTAssertEqual(parseCalls.count, 1)
+        XCTAssertEqual(parseCalls.first?.0, "output")
+        XCTAssertEqual(parseCalls.first?.1, shouldOutputBeColoured)
+
+        switch events {
+        case let .completed(output):
+            XCTAssertEqual(output, [.standardOutput(XcodeBuildOutput(raw: "output\n", formatted: "formated-output\n"))])
+        case .failed:
+            XCTFail("The command was not expected to fail")
+        }
+    }
 }
