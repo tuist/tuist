@@ -1,60 +1,88 @@
 import ProjectDescription
 
-let project = Project(name: "App",
-                      targets: [
-                          Target(name: "App",
-                                 platform: .iOS,
-                                 product: .app,
-                                 bundleId: "io.tuist.App",
-                                 infoPlist: .file(path: .relativeToManifest("Info.plist")),
-                                 sources: .paths([.relativeToManifest("Sources/**")]),
-                                 dependencies: [
-                                     /* Target dependencies can be defined here */
-                                     /* .framework(path: "framework") */
-                                 ],
-                                 settings: Settings(base: ["CODE_SIGN_IDENTITY": "",
-                                                           "CODE_SIGNING_REQUIRED": "NO"])),
-                          Target(name: "AppTests",
-                                 platform: .iOS,
-                                 product: .unitTests,
-                                 bundleId: "io.tuist.AppTests",
-                                 infoPlist: "Tests.plist",
-                                 sources: "Tests/**",
-                                 dependencies: [
-                                     .target(name: "App"),
-                                 ],
-                                 settings: Settings(base: ["CODE_SIGN_IDENTITY": "",
-                                                           "CODE_SIGNING_REQUIRED": "NO"])),
-                          Target(name: "AppUITests",
-                                 platform: .iOS,
-                                 product: .uiTests,
-                                 bundleId: "io.tuist.AppUITests",
-                                 infoPlist: "Tests.plist",
-                                 sources: "UITests/**",
-                                 dependencies: [
-                                    .target(name: "App"),
-                                    ]),
-
-
-                         Target(name: "App-dash",
-                                 platform: .iOS,
-                                 product: .app,
-                                 bundleId: "io.tuist.AppDash",
-                                 infoPlist: "Info.plist",
-                                 sources: .paths([.relativeToManifest("Sources/**")]),
-                                 dependencies: [
-                                     /* Target dependencies can be defined here */
-                                     /* .framework(path: "framework") */
-                                 ],
-                                 settings: Settings(base: ["CODE_SIGN_IDENTITY": "",
-                                                           "CODE_SIGNING_REQUIRED": "NO"])),
-                        Target(name: "App-dashUITests",
-                                 platform: .iOS,
-                                 product: .uiTests,
-                                 bundleId: "io.tuist.AppDashUITests",
-                                 infoPlist: "Tests.plist",
-                                 sources: "UITests/**",
-                                 dependencies: [
-                                    .target(name: "App-dash"),
-                                    ]),
-])
+let project = Project(
+    name: "App",
+    targets: [
+        Target(
+            name: "AppCore",
+            platform: .iOS,
+            product: .framework,
+            bundleId: "io.tuist.AppCore",
+            infoPlist: .default,
+            sources: .paths([.relativeToManifest("AppCore/Sources/**")])
+        ),
+        Target(
+            name: "AppCoreTests",
+            platform: .iOS,
+            product: .unitTests,
+            bundleId: "io.tuist.AppCoreTests",
+            infoPlist: "Tests.plist",
+            sources: "AppCore/Tests/**",
+            dependencies: [
+                .target(name: "AppCore"),
+            ]
+        ),
+        Target(
+            name: "App",
+            platform: .iOS,
+            product: .app,
+            bundleId: "io.tuist.App",
+            infoPlist: .file(path: .relativeToManifest("Info.plist")),
+            sources: .paths([.relativeToManifest("App/Sources/**")]),
+            dependencies: [
+                .target(name: "AppCore")
+            ],
+            settings: Settings(base: ["CODE_SIGN_IDENTITY": "",
+                                      "CODE_SIGNING_REQUIRED": "NO"])
+        ),
+        Target(
+            name: "AppTests",
+            platform: .iOS,
+            product: .unitTests,
+            bundleId: "io.tuist.AppTests",
+            infoPlist: "Tests.plist",
+            sources: "App/Tests/**",
+            dependencies: [
+                .target(name: "App"),
+            ],
+            settings: Settings(base: ["CODE_SIGN_IDENTITY": "",
+                                      "CODE_SIGNING_REQUIRED": "NO"])
+        ),
+        Target(
+            name: "AppUITests",
+            platform: .iOS,
+            product: .uiTests,
+            bundleId: "io.tuist.AppUITests",
+            infoPlist: "Tests.plist",
+            sources: "App/UITests/**",
+            dependencies: [
+                .target(name: "App"),
+            ]
+        ),
+        Target(
+            name: "App-dash",
+            platform: .iOS,
+            product: .app,
+            bundleId: "io.tuist.AppDash",
+            infoPlist: "Info.plist",
+            sources: .paths([.relativeToManifest("App/Sources/**")]),
+            dependencies: [
+                /* Target dependencies can be defined here */
+                /* .framework(path: "framework") */
+            ],
+            settings: Settings(base: ["CODE_SIGN_IDENTITY": "",
+                                      "CODE_SIGNING_REQUIRED": "NO"])
+        ),
+        Target(
+            name: "App-dashUITests",
+            platform: .iOS,
+            product: .uiTests,
+            bundleId: "io.tuist.AppDashUITests",
+            infoPlist: "Tests.plist",
+            sources: "App/UITests/**",
+            dependencies: [
+                .target(name: "App-dash"),
+            ]
+        ),
+    ]
+)
