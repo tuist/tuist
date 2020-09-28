@@ -56,6 +56,9 @@ public struct Target: Codable, Equatable {
     /// Launch argument to be exposed to the target.
     public let launchArguments: [String: Bool]
 
+    /// Target generation actions.
+    public let targetGenerationActions: [TargetGenerationAction]
+
     public enum CodingKeys: String, CodingKey {
         case name
         case platform
@@ -74,6 +77,7 @@ public struct Target: Codable, Equatable {
         case environment
         case launchArguments
         case deploymentTarget
+        case targetGenerationActions = "target_generation_action"
     }
 
     /// Initializes the target.
@@ -109,7 +113,8 @@ public struct Target: Codable, Equatable {
                 settings: Settings? = nil,
                 coreDataModels: [CoreDataModel] = [],
                 environment: [String: String] = [:],
-                launchArguments: [String: Bool] = [:])
+                launchArguments: [String: Bool] = [:],
+                targetGenerationActions: [TargetGenerationAction] = [])
     {
         self.name = name
         self.platform = platform
@@ -128,5 +133,6 @@ public struct Target: Codable, Equatable {
         self.environment = environment
         self.launchArguments = launchArguments
         self.deploymentTarget = deploymentTarget
+        self.targetGenerationActions = targetGenerationActions
     }
 }

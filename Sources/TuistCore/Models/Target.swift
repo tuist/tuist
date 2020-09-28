@@ -47,6 +47,7 @@ public struct Target: Equatable, Hashable, Comparable {
     public var environment: [String: String]
     public var launchArguments: [String: Bool]
     public var filesGroup: ProjectGroup
+    public var targetGenerationActions: [TargetGenerationAction]
 
     // MARK: - Init
 
@@ -67,7 +68,8 @@ public struct Target: Equatable, Hashable, Comparable {
                 environment: [String: String] = [:],
                 launchArguments: [String: Bool] = [:],
                 filesGroup: ProjectGroup,
-                dependencies: [Dependency] = [])
+                dependencies: [Dependency] = [],
+                targetGenerationActions: [TargetGenerationAction] = [])
     {
         self.name = name
         self.product = product
@@ -87,6 +89,7 @@ public struct Target: Equatable, Hashable, Comparable {
         self.launchArguments = launchArguments
         self.filesGroup = filesGroup
         self.dependencies = dependencies
+        self.targetGenerationActions = targetGenerationActions
     }
 
     /// Target can be included in the link phase of other targets
@@ -102,6 +105,16 @@ public struct Target: Equatable, Hashable, Comparable {
     /// Returns target's post actions.
     public var postActions: [TargetAction] {
         actions.filter { $0.order == .post }
+    }
+
+    /// Returns pre generation actions.
+    public var preGenerationActions: [TargetGenerationAction] {
+        targetGenerationActions.filter { $0.order == .pre }
+    }
+
+    /// Returns post generation actions.
+    public var postGenerationActions: [TargetGenerationAction] {
+        targetGenerationActions.filter { $0.order == .post }
     }
 
     /// Target can link static products (e.g. an app can link a staticLibrary)

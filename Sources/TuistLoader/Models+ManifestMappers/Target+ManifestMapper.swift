@@ -75,6 +75,10 @@ extension TuistCore.Target {
             try TuistCore.TargetAction.from(manifest: $0, generatorPaths: generatorPaths)
         }
 
+        let targetGenerationActions = try manifest.targetGenerationActions.map {
+            try TuistCore.TargetGenerationAction.from(manifest: $0, generatorPaths: generatorPaths)
+        }
+
         let environment = manifest.environment
         let launchArguments = manifest.launchArguments
 
@@ -95,6 +99,7 @@ extension TuistCore.Target {
                                 environment: environment,
                                 launchArguments: launchArguments,
                                 filesGroup: .group(name: "Project"),
-                                dependencies: dependencies)
+                                dependencies: dependencies,
+                                targetGenerationActions: targetGenerationActions)
     }
 }
