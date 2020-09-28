@@ -98,11 +98,11 @@ public class BuildGraphInspector: BuildGraphInspecting {
     }
 
     public func testableSchemes(graph: Graph) -> [Scheme] {
-        let projects = Set(graph.entryNodes.compactMap { ($0 as? TargetNode)?.project })
-        return projects
-            .flatMap { $0.schemes }
-            .filter { $0.testAction?.targets.count != 0 }
-            .sorted(by: { $0.name < $1.name })
+        graph.targets.values.flatMap {
+            $0.flatMap { $0.project.schemes }
+        }
+        .filter { $0.testAction?.targets.isEmpty == false }
+        .sorted(by: { $0.name < $1.name })
     }
 
     public func workspacePath(directory: AbsolutePath) throws -> AbsolutePath? {
