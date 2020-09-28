@@ -143,13 +143,23 @@ final class TestService {
             throw TestServiceError.schemeWithoutTestableTargets(scheme: scheme.name)
         }
         
-        let device = try simulatorController.findAvailableDevice(
-            platform: platform,
-            version: version,
-            deviceName: deviceName
-        )
-            .toBlocking()
-            .last()
+        let destination: XcodeBuildDestination
+        
+        if graph.findTargetNode(path: path, name: scheme.name).map(graph.hostApplication) != nil {
+            guard
+                let device = try simulatorController.findAvailableDevice(
+                    platform: platform,
+                    version: version,
+                    deviceName: deviceName
+                )
+                    .toBlocking()
+                    .last(),
+                let unwrappedDevice = device
+                else { fatalError() }
+            destination = .device(unwrappedDevice.udid)
+        } else {
+            destination = .
+        }
         
         let workspacePath = try buildGraphInspector.workspacePath(directory: path)!
         _ = try xcodebuildController.test(
