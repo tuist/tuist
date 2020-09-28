@@ -386,7 +386,7 @@ public class Graph: Encodable, Equatable {
     /// This method is useful to know which references should be added to the products directory in the generated project.
     /// - Parameter project: Project whose dependency references will be returned.
     public func allDependencyReferences(for project: Project) throws -> [GraphDependencyReference] {
-        let linkableDependencies = try project.targets.flatMap {
+        let linkableDependencies = project.targets.flatMap {
             self.linkableDependencies(path: project.path, name: $0.name)
         }
 

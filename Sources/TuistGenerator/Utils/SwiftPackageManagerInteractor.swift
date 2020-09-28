@@ -28,13 +28,8 @@ public protocol SwiftPackageManagerInteracting {
 
 public class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting {
     private let fileHandler: FileHandling
-    private let rootDirectoryLocator: RootDirectoryLocating
-    public init(
-        fileHandler: FileHandling = FileHandler.shared,
-        rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator()
-    ) {
+    public init(fileHandler: FileHandling = FileHandler.shared) {
         self.fileHandler = fileHandler
-        self.rootDirectoryLocator = rootDirectoryLocator
     }
 
     public func install(graph: Graph, workspaceName: String) throws {
@@ -53,8 +48,7 @@ public class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting {
             return
         }
 
-        let rootDirectory = rootDirectoryLocator.locate(from: path) ?? path
-        let rootPackageResolvedPath = rootDirectory.appending(component: ".package.resolved")
+        let rootPackageResolvedPath = path.appending(component: ".package.resolved")
         let workspacePackageResolvedFolderPath = path.appending(RelativePath("\(workspaceName)/xcshareddata/swiftpm"))
         let workspacePackageResolvedPath = workspacePackageResolvedFolderPath.appending(component: "Package.resolved")
 
