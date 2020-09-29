@@ -25,7 +25,7 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
 
     func testGenerateThrowsLintingErrorWhenConfigurationsAreEmpty() throws {
         // Given
-        let projectSettings: Settings = Settings(configurations: [:])
+        let projectSettings = Settings(configurations: [:])
         let targetSettings: Settings? = nil
 
         // When / Then

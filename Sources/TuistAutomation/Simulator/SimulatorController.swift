@@ -30,7 +30,7 @@ enum SimulatorControllerError: FatalError {
 }
 
 final class SimulatorController: SimulatorControlling {
-    private let jsonDecoder: JSONDecoder = JSONDecoder()
+    private let jsonDecoder = JSONDecoder()
 
     func devices() -> Single<[SimulatorDevice]> {
         System.shared.observable(["/usr/bin/xcrun", "simctl", "list", "devices", "--json"])

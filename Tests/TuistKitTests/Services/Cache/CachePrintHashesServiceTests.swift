@@ -54,7 +54,7 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
         subject = CachePrintHashesService(projectGenerator: projectGenerator,
                                           graphContentHasher: graphContentHasher,
                                           clock: clock)
-        let graph: Graph = Graph.test()
+        let graph = Graph.test()
         projectGenerator.loadStub = { _ in graph }
 
         // When

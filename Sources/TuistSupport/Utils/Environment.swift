@@ -38,7 +38,7 @@ public class Environment: Environmenting {
     public static var shared: Environmenting = Environment()
 
     /// Returns the default local directory.
-    static let defaultDirectory: AbsolutePath = AbsolutePath(URL(fileURLWithPath: NSHomeDirectory()).path).appending(component: ".tuist")
+    static let defaultDirectory = AbsolutePath(URL(fileURLWithPath: NSHomeDirectory()).path).appending(component: ".tuist")
 
     // MARK: - Attributes
 

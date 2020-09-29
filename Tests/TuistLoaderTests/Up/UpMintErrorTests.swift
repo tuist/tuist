@@ -10,7 +10,7 @@ import XCTest
 final class UpMintErrorTests: TuistUnitTestCase {
     func test_type_when_mintFileNotFound() throws {
         // Given
-        let upHomebrew: MockUp = MockUp()
+        let upHomebrew = MockUp()
         let subject = UpMint(linkPackagesGlobally: false, upHomebrew: upHomebrew)
         let temporaryPath = try self.temporaryPath()
 

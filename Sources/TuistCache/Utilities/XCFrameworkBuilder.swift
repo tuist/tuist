@@ -111,7 +111,7 @@ public final class XCFrameworkBuilder: ArtifactBuilding {
             )
 
             // Build the xcframework
-            var frameworkpaths: [AbsolutePath] = [AbsolutePath]()
+            var frameworkpaths = [AbsolutePath]()
             if let simulatorArchivePath = simulatorArchivePath {
                 frameworkpaths.append(frameworkPath(fromArchivePath: simulatorArchivePath, productName: target.productName))
             }

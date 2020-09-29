@@ -249,7 +249,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         typealias ErrorType = CloudResponseError
 
         let httpResponse: HTTPURLResponse = .test()
-        let url: URL = URL(string: "https://shaki.ra/acho/tio")!
+        let url = URL(string: "https://shaki.ra/acho/tio")!
         let config = Cloud.test()
         let cacheResponse = CloudCacheResponse(url: url, expiresAt: 123)
         let cloudResponse = CloudResponse<CloudCacheResponse>(status: "shaki", data: cacheResponse)
@@ -324,7 +324,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         typealias ResponseType = CloudResponse<CloudCacheResponse>
         typealias ErrorType = CloudResponseError
 
-        let url: URL = URL(string: "https://shaki.ra/acho/tio")!
+        let url = URL(string: "https://shaki.ra/acho/tio")!
         let config = Cloud.test()
         let cacheResponse = CloudCacheResponse(url: url, expiresAt: 123)
         let cloudResponse = CloudResponse<CloudCacheResponse>(status: "shaki", data: cacheResponse)
