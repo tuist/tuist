@@ -9,7 +9,7 @@ public extension FrameworkNode {
                      bcsymbolmapPaths: [AbsolutePath] = [],
                      linking: BinaryLinking = .dynamic,
                      architectures: [BinaryArchitecture] = [],
-                     dependencies: [FrameworkNode] = []) -> FrameworkNode
+                     dependencies: [PrecompiledNode.Dependency] = []) -> FrameworkNode
     {
         FrameworkNode(path: path,
                       dsymPath: dsymPath,
