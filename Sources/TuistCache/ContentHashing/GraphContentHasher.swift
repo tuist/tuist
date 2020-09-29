@@ -5,7 +5,7 @@ import TuistCore
 import TuistSupport
 
 public protocol GraphContentHashing {
-    func contentHashes(for graph: TuistCore.Graph) throws -> [TargetNode: String]
+    func contentHashes(for graph: TuistCore.Graph, artifactType: ArtifactType) throws -> [TargetNode: String]
 }
 
 /// `GraphContentHasher`
@@ -24,7 +24,7 @@ public final class GraphContentHasher: GraphContentHashing {
 
     // MARK: - GraphContentHashing
 
-    public func contentHashes(for graph: TuistCore.Graph) throws -> [TargetNode: String] {
+    public func contentHashes(for graph: TuistCore.Graph, artifactType: ArtifactType) throws -> [TargetNode: String] {
         var visitedNodes: [TargetNode: Bool] = [:]
         let hashableTargets = graph.targets.values.flatMap { (targets: [TargetNode]) -> [TargetNode] in
             targets.compactMap { target in
@@ -35,7 +35,8 @@ public final class GraphContentHasher: GraphContentHashing {
             }
         }
         let hashes = try hashableTargets.map {
-            try targetContentHasher.contentHash(for: $0)
+            try targetContentHasher.contentHash(for: $0,
+                                                artifactType: artifactType)
         }
         return Dictionary(uniqueKeysWithValues: zip(hashableTargets, hashes))
     }

@@ -9,7 +9,7 @@ protocol GenerateServiceProjectGeneratorFactorying {
 
 final class GenerateServiceProjectGeneratorFactory: GenerateServiceProjectGeneratorFactorying {
     func generator() -> ProjectGenerating {
-        ProjectGenerator(graphMapperProvider: GraphMapperProvider(cache: false, sources: Set()))
+        ProjectGenerator(graphMapperProvider: GraphMapperProvider())
     }
 }
 

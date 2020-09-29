@@ -13,11 +13,11 @@ protocol GraphMapperProviding {
 }
 
 final class GraphMapperProvider: GraphMapperProviding {
-    fileprivate let cache: Bool
     fileprivate let sources: Set<String>
+    fileprivate let cacheConfig: CacheConfig
 
-    init(cache: Bool = false, sources: Set<String> = Set()) {
-        self.cache = cache
+    init(cacheConfig: CacheConfig = CacheConfig.withoutCaching(), sources: Set<String> = Set()) {
+        self.cacheConfig = cacheConfig
         self.sources = sources
     }
 
@@ -29,10 +29,11 @@ final class GraphMapperProvider: GraphMapperProviding {
         var mappers: [GraphMapping] = []
 
         // Cache
-        if cache {
+        if cacheConfig.cache {
             let cacheMapper = CacheMapper(config: config,
                                           cacheStorageProvider: CacheStorageProvider(config: config),
-                                          sources: sources)
+                                          sources: sources,
+                                          artifactType: cacheConfig.artifactType)
             mappers.append(cacheMapper)
         }
 

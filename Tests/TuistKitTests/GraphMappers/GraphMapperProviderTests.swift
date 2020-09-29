@@ -16,7 +16,7 @@ final class GraphMapperProviderTests: TuistUnitTestCase {
 
     override func setUp() {
         super.setUp()
-        subject = GraphMapperProvider(cache: false)
+        subject = GraphMapperProvider()
     }
 
     override func tearDown() {
@@ -26,7 +26,7 @@ final class GraphMapperProviderTests: TuistUnitTestCase {
 
     func test_mappers_returns_theCacheMapper_when_useCache_is_true() {
         // Given
-        subject = GraphMapperProvider(cache: true)
+        subject = GraphMapperProvider(cacheConfig: CacheConfig.withCaching(artifactType: .framework))
 
         // when
         let got = subject.mappers(config: Config.test())
@@ -37,7 +37,7 @@ final class GraphMapperProviderTests: TuistUnitTestCase {
 
     func test_mappers_doesnt_return_theCacheMapper_when_useCache_is_false() {
         // Given
-        subject = GraphMapperProvider(cache: false)
+        subject = GraphMapperProvider()
 
         // when
         let got = subject.mappers(config: Config.test())
