@@ -43,7 +43,7 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
                                           clock: clock)
 
         // When
-        _ = try subject.run(path: path)
+        _ = try subject.run(path: path, xcframeworks: false)
 
         // Then
         XCTAssertEqual(projectGenerator.invokedLoadParameterPath, path)
@@ -58,7 +58,7 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
         projectGenerator.loadStub = { _ in graph }
 
         // When
-        _ = try subject.run(path: path)
+        _ = try subject.run(path: path, xcframeworks: false)
 
         // Then
         XCTAssertEqual(graphContentHasher.invokedContentHashesParameters?.graph, graph)
@@ -75,10 +75,24 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
                                           clock: clock)
 
         // When
-        _ = try subject.run(path: path)
+        _ = try subject.run(path: path, xcframeworks: false)
 
         // Then
         XCTAssertPrinterOutputContains("ShakiOne - hash1")
         XCTAssertPrinterOutputContains("ShakiTwo - hash2")
+    }
+    
+    func test_run_gives_correct_artifact_type_to_hasher() throws {
+        // When
+        _ = try subject.run(path: path, xcframeworks: true)
+
+        // Then
+        XCTAssertEqual(graphContentHasher.invokedContentHashesParameters?.artifactType, .xcframework)
+        
+        // When
+        _ = try subject.run(path: path, xcframeworks: false)
+
+        // Then
+        XCTAssertEqual(graphContentHasher.invokedContentHashesParameters?.artifactType, .framework)
     }
 }

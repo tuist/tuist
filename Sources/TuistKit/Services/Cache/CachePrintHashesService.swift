@@ -21,11 +21,12 @@ final class CachePrintHashesService {
         self.clock = clock
     }
 
-    func run(path: AbsolutePath) throws {
+    func run(path: AbsolutePath, xcframeworks: Bool) throws {
         let timer = clock.startTimer()
 
         let graph = try projectGenerator.load(path: path)
-        let hashes = try graphContentHasher.contentHashes(for: graph)
+        let artifactType: ArtifactType = xcframeworks ? .xcframework : .framework
+        let hashes = try graphContentHasher.contentHashes(for: graph, artifactType: artifactType)
         let duration = timer.stop()
         let time = String(format: "%.3f", duration)
         guard hashes.count > 0 else {
