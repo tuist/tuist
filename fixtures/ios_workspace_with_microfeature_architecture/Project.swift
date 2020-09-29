@@ -6,8 +6,8 @@ let project = Project(name: "App",
                                platform: .iOS,
                                product: .app,
                                bundleId: "io.tuist.App",
-                               infoPlist: "Info.plist",
-                               sources: ["Sources/**"],
+                               infoPlist: "App/Info.plist",
+                               sources: ["App/Sources/**"],
                                resources: [
                                        /* Path to resources can be defined here */
                                        // "Resources/**"
@@ -15,14 +15,14 @@ let project = Project(name: "App",
                                dependencies: [
                                     /* Target dependencies can be defined here */
                                     // .framework(path: "Frameworks/MyFramework.framework")
-                                    .project(target: "FrameworkA", path: "../Frameworks/FeatureAFramework")
+                                    .project(target: "FrameworkA", path: "Frameworks/FeatureAFramework")
                                 ]),
                         Target(name: "AppTests",
                                platform: .iOS,
                                product: .unitTests,
                                bundleId: "io.tuist.AppTests",
-                               infoPlist: "Tests.plist",
-                               sources: "Tests/**",
+                               infoPlist: "App/Tests.plist",
+                               sources: "App/Tests/**",
                                dependencies: [
                                     .target(name: "App")
                                ])
