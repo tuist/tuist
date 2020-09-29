@@ -119,11 +119,11 @@ final class LinkGenerator: LinkGenerating {
         }
 
         try generateCopyProductsBuildPhase(path: path,
-                                            target: target,
-                                            graph: graph,
-                                            pbxTarget: pbxTarget,
-                                            pbxproj: pbxproj,
-                                            fileElements: fileElements)
+                                           target: target,
+                                           graph: graph,
+                                           pbxTarget: pbxTarget,
+                                           pbxproj: pbxproj,
+                                           fileElements: fileElements)
 
         try generateCopyProductsBuildPhase(path: path,
                                            target: target,
