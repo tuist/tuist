@@ -92,10 +92,10 @@ final class CacheController: CacheControlling {
         // Note: Since building (xc)frameworks involves calling xcodebuild, we run the building process sequentially.
         if path.extension == "xcworkspace" {
             frameworkPath = try artifactBuilder.build(workspacePath: path,
-                                                       target: target.target).toBlocking().single()
+                                                      target: target.target).toBlocking().single()
         } else {
             frameworkPath = try artifactBuilder.build(projectPath: path,
-                                                       target: target.target).toBlocking().single()
+                                                      target: target.target).toBlocking().single()
         }
 
         // Create tasks to cache and delete the built frameworks asynchronously

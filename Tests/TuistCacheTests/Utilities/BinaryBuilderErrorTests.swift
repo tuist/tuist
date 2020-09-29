@@ -24,26 +24,26 @@ final class BinaryBuilderErrorTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(got, "Can't generate an .xcframework from the target 'App' because it's not a framework target")
     }
-    
+
     func test_type_when_nonFrameworkTargetForFramework() {
-         // Given
-         let subject = BinaryBuilderError.nonFrameworkTargetForFramework("App")
+        // Given
+        let subject = BinaryBuilderError.nonFrameworkTargetForFramework("App")
 
-         // When
-         let got = subject.type
+        // When
+        let got = subject.type
 
-         // Then
-         XCTAssertEqual(got, .abort)
-     }
+        // Then
+        XCTAssertEqual(got, .abort)
+    }
 
-     func test_description_when_nonFrameworkTargetForFramework() {
-         // Given
-         let subject = BinaryBuilderError.nonFrameworkTargetForFramework("App")
+    func test_description_when_nonFrameworkTargetForFramework() {
+        // Given
+        let subject = BinaryBuilderError.nonFrameworkTargetForFramework("App")
 
-         // When
-         let got = subject.description
+        // When
+        let got = subject.description
 
-         // Then
-         XCTAssertEqual(got, "Can't generate a .framework from the target 'App' because it's not a framework target")
-     }
+        // Then
+        XCTAssertEqual(got, "Can't generate a .framework from the target 'App' because it's not a framework target")
+    }
 }

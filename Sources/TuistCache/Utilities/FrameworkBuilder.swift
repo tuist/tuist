@@ -5,7 +5,6 @@ import TuistCore
 import TuistSupport
 
 public final class FrameworkBuilder: ArtifactBuilding {
-
     // MARK: - Attributes
 
     /// Xcode build controller instance to run xcodebuild commands.

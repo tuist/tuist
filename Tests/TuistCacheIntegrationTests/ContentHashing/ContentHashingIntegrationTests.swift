@@ -122,7 +122,7 @@ final class ContentHashingIntegrationTests: TuistTestCase {
 
         // When
         let contentFrameworkHash = try subject.contentHashes(for: graph, artifactType: .framework)
-        let contentXCFrameworkHash = try subject.contentHashes(for: graph, artifactType:.xcframework)
+        let contentXCFrameworkHash = try subject.contentHashes(for: graph, artifactType: .xcframework)
 
         // Then
         XCTAssertNotEqual(contentFrameworkHash[framework1], contentXCFrameworkHash[framework1])

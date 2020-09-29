@@ -3,7 +3,6 @@ import TSCBasic
 import TuistCore
 
 public protocol ArtifactBuilding {
-    
     /// Returns the type of artifact that the concrete builder processes.
     var artifactType: ArtifactType { get }
 

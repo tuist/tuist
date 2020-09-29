@@ -4,8 +4,8 @@ import TuistAutomation
 import TuistSupport
 import XCTest
 
-@testable import TuistCore
 @testable import TuistCache
+@testable import TuistCore
 @testable import TuistCoreTesting
 @testable import TuistSupportTesting
 
@@ -33,21 +33,21 @@ final class FrameworkBuilderIntegrationTests: TuistTestCase {
 
         // When
         let frameworkPath = try subject.build(projectPath: projectPath,
-                                                target: target).toBlocking().single()
+                                              target: target).toBlocking().single()
 
         // Then
         XCTAssertEqual(try binaryLinking(path: frameworkPath), .dynamic)
         XCTAssertTrue(try architectures(path: frameworkPath).contains(.x8664))
         XCTAssertEqual(try architectures(path: frameworkPath).count, 1)
-                
+
         try FileHandler.shared.delete(frameworkPath)
     }
-    
+
     fileprivate func binaryLinking(path: AbsolutePath) throws -> BinaryLinking {
         let binaryPath = FrameworkNode.binaryPath(frameworkPath: path)
         return try frameworkMetadataProvider.linking(binaryPath: binaryPath)
     }
-    
+
     fileprivate func architectures(path: AbsolutePath) throws -> [BinaryArchitecture] {
         let binaryPath = FrameworkNode.binaryPath(frameworkPath: path)
         return try frameworkMetadataProvider.architectures(binaryPath: binaryPath)

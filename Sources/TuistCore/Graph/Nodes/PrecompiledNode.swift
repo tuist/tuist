@@ -61,9 +61,9 @@ public class PrecompiledNode: GraphNode {
     public func add(dependency: Dependency) {
         dependencies.append(dependency)
     }
-    
-    // MARK:  - CustomDebugStringConvertible
-    
+
+    // MARK: - CustomDebugStringConvertible
+
     override public var debugDescription: String {
         if dependencies.isEmpty {
             return name

@@ -132,7 +132,7 @@ final class CacheMapperTests: TuistUnitTestCase {
         // Then
         XCTAssertThrowsSpecific(try subject.map(graph: inputGraph), error)
     }
-    
+
     func test_map_forwards_correct_artifactType_to_hasher() throws {
         // Given
         subject = CacheMapper(config: config,
@@ -142,7 +142,7 @@ final class CacheMapperTests: TuistUnitTestCase {
                               artifactType: .xcframework,
                               cacheGraphMutator: cacheGraphMutator,
                               queue: DispatchQueue.main)
-        
+
         let cFramework = Target.test(name: "C", platform: .iOS, product: .framework)
         let cNode = TargetNode.test(target: cFramework, dependencies: [])
 
@@ -158,9 +158,8 @@ final class CacheMapperTests: TuistUnitTestCase {
 
         // When
         _ = try subject.map(graph: inputGraph)
-        
+
         // Then
         XCTAssertEqual(graphContentHasher.invokedContentHashesParameters?.artifactType, .xcframework)
     }
-
 }

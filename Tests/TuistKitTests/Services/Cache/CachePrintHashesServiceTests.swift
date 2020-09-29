@@ -81,14 +81,14 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
         XCTAssertPrinterOutputContains("ShakiOne - hash1")
         XCTAssertPrinterOutputContains("ShakiTwo - hash2")
     }
-    
+
     func test_run_gives_correct_artifact_type_to_hasher() throws {
         // When
         _ = try subject.run(path: path, xcframeworks: true)
 
         // Then
         XCTAssertEqual(graphContentHasher.invokedContentHashesParameters?.artifactType, .xcframework)
-        
+
         // When
         _ = try subject.run(path: path, xcframeworks: false)
 
