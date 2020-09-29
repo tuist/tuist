@@ -10,11 +10,11 @@ final class CacheControllerFactory {
 
     func makeForSimulatorFramework() -> CacheControlling {
         let frameworkBuilder = FrameworkBuilder(xcodeBuildController: XcodeBuildController())
-        return CacheController(cache: cache, frameworkBuilder: frameworkBuilder)
+        return CacheController(cache: cache, artifactBuilder: frameworkBuilder)
     }
 
     func makeForXCFramework() -> CacheControlling {
         let frameworkBuilder = XCFrameworkBuilder(xcodeBuildController: XcodeBuildController())
-        return CacheController(cache: cache, frameworkBuilder: frameworkBuilder)
+        return CacheController(cache: cache, artifactBuilder: frameworkBuilder)
     }
 }
