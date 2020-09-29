@@ -183,6 +183,7 @@ GEM
       parser (>= 2.7.1.4)
     ruby-macho (1.4.0)
     ruby-progressbar (1.10.1)
+    rubyzip (2.3.0)
     signet (0.14.0)
       addressable (~> 2.3)
       faraday (>= 0.17.3, < 2.0)
@@ -207,7 +208,6 @@ GEM
       claide (>= 1.0.2, < 2.0)
       colored2 (~> 3.1)
       nanaimo (~> 0.3.0)
-    zip (2.0.2)
 
 PLATFORMS
   ruby
@@ -223,9 +223,9 @@ DEPENDENCIES
   minitest (~> 5.14)
   rake (~> 13.0)
   rubocop (~> 0.91.0)
+  rubyzip (~> 2.3.0)
   simctl (~> 1.6)
   xcodeproj (~> 1.18)
-  zip (~> 2.0.2)
 
 BUNDLED WITH
-   2.1.2
+   2.1.4
