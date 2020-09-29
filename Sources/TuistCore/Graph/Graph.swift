@@ -644,7 +644,7 @@ public class Graph: Encodable, Equatable {
         targetNode.target.product == .framework
     }
     
-    fileprivate isDynamicLibrary(productNode: PackageProductNode) -> Bool {
+    fileprivate func isDynamicLibrary(productNode: PackageProductNode) -> Bool {
         switch productNode.productType {
         case .dynamicLibrary: return true
         case .staticLibrary: return false
