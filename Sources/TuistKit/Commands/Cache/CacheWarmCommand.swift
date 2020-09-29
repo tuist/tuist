@@ -3,7 +3,7 @@ import Foundation
 import TSCBasic
 import TuistSupport
 
-/// Command to cache frameworks as .xcframeworks and speed up your and others' build times.
+/// Command to cache targets as `.(xc)framework`s and speed up your and your peers' build times.
 struct CacheWarmCommand: ParsableCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(commandName: "warm",
@@ -19,7 +19,7 @@ struct CacheWarmCommand: ParsableCommand {
 
     @Flag(
         name: [.customShort("x"), .long],
-        help: "When passed it caches the targets also for simulator and device in a .xcframework"
+        help: "When passed it caches the targets for simulator and device in a .xcframework"
     )
     var xcframeworks: Bool = false
 
