@@ -77,6 +77,7 @@ class CacheGraphMutator: CacheGraphMutating {
                                                       loadedPrecompiledFrameworks: &loadedPrecompiledNodes)
     }
 
+    // swiftlint:disable line_length
     fileprivate func mapDependencies(_ dependencies: [GraphNode],
                                      precompiledFrameworks: [TargetNode: AbsolutePath],
                                      sources: Set<String>,
