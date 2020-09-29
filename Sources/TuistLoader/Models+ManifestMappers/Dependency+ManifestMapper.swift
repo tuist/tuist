@@ -21,7 +21,7 @@ extension TuistCore.Dependency {
                             publicHeaders: try generatorPaths.resolve(path: publicHeaders),
                             swiftModuleMap: try swiftModuleMap.map { try generatorPaths.resolve(path: $0) })
         case let .package(product, type: productType):
-            return .package(product: product, type: .init(from: productType))
+            return .package(product: product, type: .from(manifest: productType))
 
         case let .sdk(name, status):
             return .sdk(name: name,
@@ -34,4 +34,17 @@ extension TuistCore.Dependency {
             return .xctest
         }
     }
+}
+
+extension TuistCore.PackageProductType {
+        
+    static func from(manifest: ProjectDescription.PackageProductType) -> TuistCore.PackageProductType {
+            switch manifest {
+            case .dynamicLibrary:
+                return .dynamicLibrary
+            case .staticLibrary:
+                return .staticLibrary
+            }
+        }
+    
 }
