@@ -18,12 +18,12 @@ struct CacheWarmCommand: ParsableCommand {
     var path: String?
 
     @Flag(
-        name: [.customShort("d"), .long],
-        help: "When passed it caches the targets also for device (only targets built for simulator are cached by default)"
+        name: [.customShort("x"), .long],
+        help: "When passed it caches the targets also for simulator and device in a .xcframework"
     )
-    var includeDeviceArch: Bool = false
+    var xcframeworks: Bool = false
 
     func run() throws {
-        try CacheWarmService().run(path: path, includeDeviceArch: includeDeviceArch)
+        try CacheWarmService().run(path: path, xcframeworks: xcframeworks)
     }
 }
