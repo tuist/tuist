@@ -366,6 +366,7 @@ public class Graph: Encodable, Equatable {
         /// Other targets' packages.
         let otherTargetsPackages = otherTargets
             .flatMap(\.packages)
+            .filter(isDynamicLibrary)
             .map(packageProductDependencyReference)
         
         references.formUnion(otherTargetsPackages)
@@ -641,6 +642,13 @@ public class Graph: Encodable, Equatable {
 
     fileprivate func isFramework(targetNode: TargetNode) -> Bool {
         targetNode.target.product == .framework
+    }
+    
+    fileprivate isDynamicLibrary(productNode: PackageProductNode) -> Bool {
+        switch productNode.productType {
+        case .dynamicLibrary: return true
+        case .staticLibrary: return false
+        }
     }
 
     fileprivate func canLinkStaticProducts(targetNode: TargetNode) -> Bool {
