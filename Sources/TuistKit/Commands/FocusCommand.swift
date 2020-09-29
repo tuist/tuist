@@ -50,12 +50,19 @@ struct FocusCommand: ParsableCommand {
     )
     var noOpen: Bool = false
 
+    @Flag(
+        name: [.customShort("x"), .long],
+        help: "When passed it caches the targets for simulator and device in a .xcframework"
+    )
+    var xcframeworks: Bool = false
+
     func run() throws {
         if sources.isEmpty {
             throw FocusCommandError.noSources
         }
         try FocusService().run(path: path,
                                sources: Set(sources),
-                               noOpen: noOpen)
+                               noOpen: noOpen,
+                               xcframeworks: xcframeworks)
     }
 }
