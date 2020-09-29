@@ -249,6 +249,15 @@ public class Graph: Encodable, Equatable {
             .map(productDependencyReference)
 
         references = references.union(dynamicLibrariesAndFrameworks)
+        
+        // Link dynamic package products
+        
+        let dynamicPackageProducts = targetNode.packages
+            .filter { $0.productType == .dynamicLibrary }
+            .map(packageProductDependencyReference)
+        
+        references = references.union(dynamicPackageProducts)
+        
         return Array(references).sorted()
     }
 
@@ -346,11 +355,20 @@ public class Graph: Encodable, Equatable {
 
         references.formUnion(precompiledFrameworks)
 
+        /// Other targets
+        let otherTargets = findAll(targetNode: targetNode, test: isFramework, skip: canEmbedProducts)
+            
         /// Other targets' frameworks.
-        let otherTargetFrameworks = findAll(targetNode: targetNode, test: isFramework, skip: canEmbedProducts)
-            .map(productDependencyReference)
-
+        let otherTargetFrameworks = otherTargets.map(productDependencyReference)
+        
         references.formUnion(otherTargetFrameworks)
+        
+        /// Other targets' packages.
+        let otherTargetsPackages = otherTargets
+            .flatMap(\.packages)
+            .map(packageProductDependencyReference)
+        
+        references.formUnion(otherTargetsPackages)
 
         // Exclude any products embed in unit test host apps
         if targetNode.target.product == .unitTests {
@@ -598,6 +616,14 @@ public class Graph: Encodable, Equatable {
 
     fileprivate func productDependencyReference(for targetNode: TargetNode) -> GraphDependencyReference {
         .product(target: targetNode.target.name, productName: targetNode.target.productNameWithExtension)
+    }
+    
+    fileprivate func packageProductDependencyReference(for productNode: PackageProductNode) -> GraphDependencyReference {
+        .package(
+            product: productNode.product,
+            type: productNode.productType,
+            path: productNode.path
+        )
     }
 
     fileprivate func hostApplication(for targetNode: TargetNode) -> TargetNode? {

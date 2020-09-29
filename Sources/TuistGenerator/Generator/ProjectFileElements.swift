@@ -209,6 +209,8 @@ class ProjectFileElements {
                                 productName: productName,
                                 groups: groups,
                                 pbxproj: pbxproj)
+            case let .package(product: productName, type: type, path: path):
+                #error("Something needs to be done here")
             }
         }
     }
