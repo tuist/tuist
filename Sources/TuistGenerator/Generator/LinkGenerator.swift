@@ -118,7 +118,7 @@ final class LinkGenerator: LinkGenerating {
                                      fileElements: fileElements)
         }
 
-        try generateCopyProductsdBuildPhase(path: path,
+        try generateCopyProductsBuildPhase(path: path,
                                             target: target,
                                             graph: graph,
                                             pbxTarget: pbxTarget,
