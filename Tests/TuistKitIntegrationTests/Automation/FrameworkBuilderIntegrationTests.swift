@@ -25,15 +25,73 @@ final class FrameworkBuilderIntegrationTests: TuistTestCase {
         super.tearDown()
     }
 
-    func test_build() throws {
+    func test_build_ios() throws {
         // Given
         let frameworksPath = try temporaryFixture("Frameworks")
         let projectPath = frameworksPath.appending(component: "Frameworks.xcodeproj")
         let target = Target.test(name: "iOS", platform: .iOS, product: .framework, productName: "iOS")
 
         // When
-        let frameworkPath = try subject.build(projectPath: projectPath,
-                                              target: target).toBlocking().single()
+        let paths = try subject.build(projectPath: projectPath, target: target).toBlocking().single()
+        XCTAssertEqual(paths.count, 1)
+        let frameworkPath = try XCTUnwrap(paths.first)
+
+        // Then
+        XCTAssertEqual(try binaryLinking(path: frameworkPath), .dynamic)
+        XCTAssertTrue(try architectures(path: frameworkPath).contains(.x8664))
+        XCTAssertEqual(try architectures(path: frameworkPath).count, 1)
+
+        try FileHandler.shared.delete(frameworkPath)
+    }
+
+    func test_build_macos() throws {
+        // Given
+        let frameworksPath = try temporaryFixture("Frameworks")
+        let projectPath = frameworksPath.appending(component: "Frameworks.xcodeproj")
+        let target = Target.test(name: "macOS", platform: .macOS, product: .framework, productName: "macOS")
+
+        // When
+        let paths = try subject.build(projectPath: projectPath, target: target).toBlocking().single()
+        XCTAssertEqual(paths.count, 1)
+        let frameworkPath = try XCTUnwrap(paths.first)
+
+        // Then
+        XCTAssertEqual(try binaryLinking(path: frameworkPath), .dynamic)
+        XCTAssertTrue(try architectures(path: frameworkPath).contains(.x8664))
+        XCTAssertEqual(try architectures(path: frameworkPath).count, 1)
+
+        try FileHandler.shared.delete(frameworkPath)
+    }
+
+    func test_build_tvOS() throws {
+        // Given
+        let frameworksPath = try temporaryFixture("Frameworks")
+        let projectPath = frameworksPath.appending(component: "Frameworks.xcodeproj")
+        let target = Target.test(name: "tvOS", platform: .tvOS, product: .framework, productName: "tvOS")
+
+        // When
+        let paths = try subject.build(projectPath: projectPath, target: target).toBlocking().single()
+        XCTAssertEqual(paths.count, 1)
+        let frameworkPath = try XCTUnwrap(paths.first)
+
+        // Then
+        XCTAssertEqual(try binaryLinking(path: frameworkPath), .dynamic)
+        XCTAssertTrue(try architectures(path: frameworkPath).contains(.x8664))
+        XCTAssertEqual(try architectures(path: frameworkPath).count, 1)
+
+        try FileHandler.shared.delete(frameworkPath)
+    }
+
+    func test_build_watchOS() throws {
+        // Given
+        let frameworksPath = try temporaryFixture("Frameworks")
+        let projectPath = frameworksPath.appending(component: "Frameworks.xcodeproj")
+        let target = Target.test(name: "watchOS", platform: .watchOS, product: .framework, productName: "watchOS")
+
+        // When
+        let paths = try subject.build(projectPath: projectPath, target: target).toBlocking().single()
+        XCTAssertEqual(paths.count, 1)
+        let frameworkPath = try XCTUnwrap(paths.first)
 
         // Then
         XCTAssertEqual(try binaryLinking(path: frameworkPath), .dynamic)

@@ -1,6 +1,6 @@
 import Foundation
 import TSCBasic
-@testable import TuistAutomation
+@testable import TuistCore
 
 extension SimulatorRuntime {
     // swiftlint:disable:next line_length

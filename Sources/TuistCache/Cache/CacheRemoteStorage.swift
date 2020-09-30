@@ -5,7 +5,7 @@ import TuistCore
 import TuistSupport
 
 enum CacheRemoteStorageError: FatalError, Equatable {
-    case frameworkNotFound(AbsolutePath)
+    case frameworkNotFound(hash: String)
 
     var type: ErrorType {
         switch self {
@@ -15,8 +15,8 @@ enum CacheRemoteStorageError: FatalError, Equatable {
 
     var description: String {
         switch self {
-        case let .frameworkNotFound(path):
-            return "Unzipped archive at path \(path.pathString) does not contain any xcframework or framework."
+        case let .frameworkNotFound(hash):
+            return "The downloaded artifact with hash '\(hash)' has an incorrect format and doesn't contain a xcframework nor a framework."
         }
     }
 }
@@ -135,11 +135,14 @@ public final class CacheRemoteStorage: CacheStoring {
         defer {
             try? fileUnarchiver.delete()
         }
-        try FileHandler.shared.move(from: unarchivedDirectory, to: archiveDestination)
-        guard let frameworkPath = frameworkPath(in: archiveDestination) else {
-            throw CacheRemoteStorageError.frameworkNotFound(archiveDestination)
+        if frameworkPath(in: unarchivedDirectory) == nil {
+            throw CacheRemoteStorageError.frameworkNotFound(hash: hash)
         }
-        return frameworkPath
+        if !FileHandler.shared.exists(archiveDestination.parentDirectory) {
+            try FileHandler.shared.createFolder(archiveDestination.parentDirectory)
+        }
+        try FileHandler.shared.move(from: unarchivedDirectory, to: archiveDestination)
+        return frameworkPath(in: archiveDestination)!
     }
 
     private func deleteZipArchiveCompletable(archiver: FileArchiving) -> Completable {

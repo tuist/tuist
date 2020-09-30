@@ -2,7 +2,7 @@ import Foundation
 import RxSwift
 import TuistSupport
 
-@testable import TuistAutomation
+@testable import TuistCore
 @testable import TuistSupportTesting
 
 public final class MockSimulatorController: SimulatorControlling {

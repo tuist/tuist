@@ -151,7 +151,7 @@ let package = Package(
         ),
         .target(
             name: "TuistCacheTesting",
-            dependencies: ["TuistCache", "SwiftToolsSupport-auto", "TuistCore", "RxTest", "RxSwift"]
+            dependencies: ["TuistCache", "SwiftToolsSupport-auto", "TuistCore", "RxTest", "RxSwift", "TuistSupportTesting"]
         ),
         .target(
             name: "TuistCloud",

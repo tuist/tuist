@@ -66,8 +66,7 @@ final class CacheController: CacheControlling {
     /// Returns all the targets that are cacheable and their hashes.
     /// - Parameter graph: Graph that contains all the dependency graph nodes.
     fileprivate func cacheableTargets(graph: Graph) throws -> [TargetNode: String] {
-        try graphContentHasher.contentHashes(for: graph,
-                                             cacheOutputType: artifactBuilder.cacheOutputType)
+        try graphContentHasher.contentHashes(for: graph, cacheOutputType: artifactBuilder.cacheOutputType)
             .filter { target, hash in
                 if let exists = try self.cache.exists(hash: hash).toBlocking().first(), exists {
                     logger.pretty("The target \(.bold(.raw(target.name))) with hash \(.bold(.raw(hash))) and type \(artifactBuilder.cacheOutputType.description) is already in the cache. Skipping...")
@@ -99,17 +98,17 @@ final class CacheController: CacheControlling {
         }
 
         // Create tasks to cache and delete the built frameworks asynchronously
-        let deleteXCFrameworkCompletable = Completable.create(subscribe: { completed in
+        let deleteFrameworks = Completable.create(subscribe: { completed in
             frameworkPaths.forEach { try? FileHandler.shared.delete($0) }
             completed(.completed)
             return Disposables.create()
         })
         return cache
             .store(hash: hash, paths: frameworkPaths)
-            .concat(deleteXCFrameworkCompletable)
+            .concat(deleteFrameworks)
             .catchError { error in
                 // We propagate the error downstream
-                deleteXCFrameworkCompletable.concat(Completable.error(error))
+                deleteFrameworks.concat(Completable.error(error))
             }
     }
 }

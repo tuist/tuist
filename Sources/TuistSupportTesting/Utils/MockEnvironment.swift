@@ -43,6 +43,10 @@ public class MockEnvironment: Environmenting {
         cacheDirectory.appending(component: "BuildCache")
     }
 
+    public var derivedDataDirectory: AbsolutePath {
+        cacheDirectory.appending(component: "DerivedData")
+    }
+
     func path(version: String) -> AbsolutePath {
         versionsDirectory.appending(component: version)
     }

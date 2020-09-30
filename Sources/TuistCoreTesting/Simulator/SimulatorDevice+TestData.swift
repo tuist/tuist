@@ -1,6 +1,6 @@
 import Foundation
 import TSCBasic
-@testable import TuistAutomation
+@testable import TuistCore
 
 extension SimulatorDevice {
     static func test(dataPath: AbsolutePath = "/Library/Developer/CoreSimulator/Devices/3A8C9673-C1FD-4E33-8EFA-AEEBF43161CC/data",

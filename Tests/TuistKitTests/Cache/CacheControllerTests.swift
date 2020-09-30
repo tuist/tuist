@@ -75,20 +75,22 @@ final class CacheControllerTests: TuistUnitTestCase {
         }
         graphContentHasher.stubbedContentHashesResult = nodeWithHashes
 
-        frameworkBuilder.buildWorkspaceStub = { _xcworkspacePath, target in
+        frameworkBuilder.stubbedBuildWorkspacePathResult = { _xcworkspacePath, target in
             switch (_xcworkspacePath, target) {
-            case (xcworkspacePath, aTarget): return .success(aFrameworkPath)
-            case (xcworkspacePath, bTarget): return .success(bFrameworkPath)
+            case (xcworkspacePath, aTarget): return .success([aFrameworkPath])
+            case (xcworkspacePath, bTarget): return .success([bFrameworkPath])
             default: return .failure(TestError("Received invalid Xcode project path or target"))
             }
         }
+        frameworkBuilder.stubbedCacheOutputType = .xcframework
 
         try subject.cache(path: path)
 
         // Then
         XCTAssertPrinterOutputContains("""
         Hashing cacheable frameworks
-        All cacheable frameworks have been cached successfully
+        Building cacheable frameworks as xcframeworks
+        All cacheable frameworks have been cached successfully as xcframeworks
         """)
         XCTAssertFalse(FileHandler.shared.exists(aFrameworkPath))
         XCTAssertFalse(FileHandler.shared.exists(bFrameworkPath))

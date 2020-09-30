@@ -3,6 +3,7 @@ import RxSwift
 import TSCBasic
 import TuistCache
 import TuistCore
+import TuistSupportTesting
 
 public final class MockFrameworkBuilder: ArtifactBuilding {
     public init() {}
@@ -22,7 +23,7 @@ public final class MockFrameworkBuilder: ArtifactBuilding {
     public var invokedBuildWorkspacePathParameters: (workspacePath: AbsolutePath, target: Target)?
     public var invokedBuildWorkspacePathParametersList = [(workspacePath: AbsolutePath, target: Target)]()
     public var stubbedBuildWorkspacePathError: Error?
-    public var stubbedBuildWorkspacePathResult: Observable<[AbsolutePath]>!
+    public var stubbedBuildWorkspacePathResult: ((AbsolutePath, Target) -> Result<[AbsolutePath], Error>)?
 
     public func build(workspacePath: AbsolutePath, target: Target) throws -> Observable<[AbsolutePath]> {
         invokedBuildWorkspacePath = true
@@ -32,7 +33,14 @@ public final class MockFrameworkBuilder: ArtifactBuilding {
         if let error = stubbedBuildWorkspacePathError {
             throw error
         }
-        return stubbedBuildWorkspacePathResult
+        if let stubbedBuildWorkspacePathResult = stubbedBuildWorkspacePathResult {
+            switch stubbedBuildWorkspacePathResult(workspacePath, target) {
+            case let .success(paths): return .just(paths)
+            case let .failure(error): return .error(error)
+            }
+        } else {
+            return .error(TestError("Call to non-stubbed method build"))
+        }
     }
 
     public var invokedBuildProjectPath = false

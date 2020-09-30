@@ -1,6 +1,6 @@
 import Foundation
 import TSCBasic
-@testable import TuistAutomation
+@testable import TuistCore
 
 extension SimulatorDeviceAndRuntime {
     static func test(device: SimulatorDevice = .test(),

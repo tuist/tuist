@@ -312,6 +312,14 @@ class WorkspaceStructureGeneratorTests: XCTestCase {
         }
 
         func inTemporaryDirectory(_: (AbsolutePath) throws -> Void) throws {}
+        func inTemporaryDirectory(removeOnCompletion _: Bool, _: (AbsolutePath) throws -> Void) throws {}
+        func inTemporaryDirectory<Result>(_ closure: (AbsolutePath) throws -> Result) throws -> Result {
+            try closure(currentPath)
+        }
+
+        func inTemporaryDirectory<Result>(removeOnCompletion _: Bool, _ closure: (AbsolutePath) throws -> Result) throws -> Result {
+            try closure(currentPath)
+        }
 
         func glob(_: AbsolutePath, glob _: String) -> [AbsolutePath] {
             []
