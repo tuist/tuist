@@ -4,11 +4,23 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Changed
+
+- Revert using root `.package.resolved` [#1830](https://github.com/tuist/tuist/pull/1830) by [@fortmarek](https://github.com/fortmarek)
+
+### Fixed
+
+- Skip synthesizing resource accessors when the file/folder is empty [#1829](https://github.com/tuist/tuist/pull/1829) by [@fortmarek](https://github.com/fortmarek)
+- The redirect after the cloud authentication is not being captured from the CLI [#1846](https://github.com/tuist/tuist/pull/1846) by [@pepibumur](https://github.com/pepibumur).
+- Stopped generating empty copy phases [#1181](https://github.com/tuist/tuist/issues/1181) by [@kalkwarf](https://github.com/kalkwarf)  [#1822](https://github.com/tuist/tuist/pull/1822) by [@kalkwarf](https://github.com/kalkwarf)
+
+## 1.19.0 - Milano
+
 ### Fixed
 
 - Ensure `DEVELOPER_DIR` is used in all `swiftc` calls [#1819](https://github.com/tuist/tuist/pull/1819) by [@kwridan](https://github.com/kwridan)
 - Fixed decoding bug on DefaultSettings [#1817](https://github.com/tuist/tuist/issues/1817) by [@jakeatoms](https://github.com/jakeatoms)
-- Stopped generating empty copy phases [#1181](https://github.com/tuist/tuist/issues/1181) by [@kalkwarf](https://github.com/kalkwarf)  [#1822](https://github.com/tuist/tuist/pull/1822) by [@kalkwarf](https://github.com/kalkwarf)
+- Bool compiler error when generating accessor for plists [#1827](https://github.com/tuist/tuist/pull/1827) by [@fortmarek](https://github.com/fortmarek)
 
 ### Added
 
@@ -17,7 +29,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Changed
 
-- The `tuist edit` command adds `Setup.swift` and `Config.swift` to the generated project if they exist.
+- The `tuist edit` command adds `Setup.swift` and `Config.swift` to the generated project if they exist. [#1745](https://github.com/tuist/tuist/pull/1745) by [@laxmorek](https://github.com/laxmorek)
 
 ## 1.18.1 - Manaslu
 
