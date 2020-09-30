@@ -68,7 +68,7 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
         // Given
         let target1 = TargetNode.test(target: .test(name: "ShakiOne"))
         let target2 = TargetNode.test(target: .test(name: "ShakiTwo"))
-        graphContentHasher.contentHashesStub = [target1: "hash1", target2: "hash2"]
+        graphContentHasher.stubbedContentHashesResult = [target1: "hash1", target2: "hash2"]
 
         subject = CachePrintHashesService(projectGenerator: projectGenerator,
                                           graphContentHasher: graphContentHasher,
@@ -87,12 +87,12 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
         _ = try subject.run(path: path, xcframeworks: true)
 
         // Then
-        XCTAssertEqual(graphContentHasher.invokedContentHashesParameters?.artifactType, .xcframework)
+        XCTAssertEqual(graphContentHasher.invokedContentHashesParameters?.cacheOutputType, .xcframework)
 
         // When
         _ = try subject.run(path: path, xcframeworks: false)
 
         // Then
-        XCTAssertEqual(graphContentHasher.invokedContentHashesParameters?.artifactType, .framework)
+        XCTAssertEqual(graphContentHasher.invokedContentHashesParameters?.cacheOutputType, .framework)
     }
 }

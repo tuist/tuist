@@ -25,7 +25,7 @@ final class CacheMapperTests: TuistUnitTestCase {
                               cache: cache,
                               graphContentHasher: graphContentHasher,
                               sources: [],
-                              artifactType: .framework,
+                              cacheOutputType: .framework,
                               cacheGraphMutator: cacheGraphMutator,
                               queue: DispatchQueue.main)
         super.setUp()
@@ -66,7 +66,7 @@ final class CacheMapperTests: TuistUnitTestCase {
             bNode: bHash,
             appNode: appHash,
         ]
-        graphContentHasher.contentHashesStub = contentHashes
+        graphContentHasher.stubbedContentHashesResult = contentHashes
 
         cache.existsStub = { hash in
             if hash == bHash { return true }
@@ -114,7 +114,7 @@ final class CacheMapperTests: TuistUnitTestCase {
             appNode: appHash,
         ]
         let error = TestError("error downloading C")
-        graphContentHasher.contentHashesStub = contentHashes
+        graphContentHasher.stubbedContentHashesResult = contentHashes
 
         cache.existsStub = { hash in
             if hash == bHash { return true }
@@ -139,7 +139,7 @@ final class CacheMapperTests: TuistUnitTestCase {
                               cache: cache,
                               graphContentHasher: graphContentHasher,
                               sources: [],
-                              artifactType: .xcframework,
+                              cacheOutputType: .xcframework,
                               cacheGraphMutator: cacheGraphMutator,
                               queue: DispatchQueue.main)
 
@@ -160,6 +160,6 @@ final class CacheMapperTests: TuistUnitTestCase {
         _ = try subject.map(graph: inputGraph)
 
         // Then
-        XCTAssertEqual(graphContentHasher.invokedContentHashesParameters?.artifactType, .xcframework)
+        XCTAssertEqual(graphContentHasher.invokedContentHashesParameters?.cacheOutputType, .xcframework)
     }
 }

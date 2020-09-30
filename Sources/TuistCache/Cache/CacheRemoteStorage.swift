@@ -5,18 +5,18 @@ import TuistCore
 import TuistSupport
 
 enum CacheRemoteStorageError: FatalError, Equatable {
-    case archiveDoesNotContainXCFramework(AbsolutePath)
+    case frameworkNotFound(AbsolutePath)
 
     var type: ErrorType {
         switch self {
-        case .archiveDoesNotContainXCFramework: return .abort
+        case .frameworkNotFound: return .abort
         }
     }
 
     var description: String {
         switch self {
-        case let .archiveDoesNotContainXCFramework(path):
-            return "Unzipped archive at path \(path.pathString) does not contain any xcframework."
+        case let .frameworkNotFound(path):
+            return "Unzipped archive at path \(path.pathString) does not contain any xcframework or framework."
         }
     }
 }
@@ -28,21 +28,20 @@ public final class CacheRemoteStorage: CacheStoring {
     private let cloudConfig: Cloud
     private let cloudClient: CloudClienting
     private let fileClient: FileClienting
-    private let fileArchiverFactory: FileArchiverManufacturing
-    private var fileArchiverMap: [AbsolutePath: FileArchiving] = [:]
+    private let fileArchiverFactory: FileArchivingFactorying
 
     // MARK: - Init
 
     public convenience init(cloudConfig: Cloud, cloudClient: CloudClienting) {
         self.init(cloudConfig: cloudConfig,
                   cloudClient: cloudClient,
-                  fileArchiverFactory: FileArchiverFactory(),
+                  fileArchiverFactory: FileArchivingFactory(),
                   fileClient: FileClient())
     }
 
     init(cloudConfig: Cloud,
          cloudClient: CloudClienting,
-         fileArchiverFactory: FileArchiverManufacturing,
+         fileArchiverFactory: FileArchivingFactorying,
          fileClient: FileClienting)
     {
         self.cloudConfig = cloudConfig
@@ -93,10 +92,10 @@ public final class CacheRemoteStorage: CacheStoring {
         }
     }
 
-    public func store(hash: String, xcframeworkPath: AbsolutePath) -> Completable {
+    public func store(hash: String, paths: [AbsolutePath]) -> Completable {
         do {
-            let archiver = fileArchiver(for: xcframeworkPath)
-            let destinationZipPath = try archiver.zip()
+            let archiver = try fileArchiverFactory.makeFileArchiver(for: paths)
+            let destinationZipPath = try archiver.zip(name: hash)
             let resource = try CloudCacheResponse.storeResource(
                 hash: hash,
                 cloud: cloudConfig,
@@ -119,26 +118,28 @@ public final class CacheRemoteStorage: CacheStoring {
 
     // MARK: - Private
 
-    private func xcframeworkPath(in archive: AbsolutePath) throws -> AbsolutePath? {
-        let folderContent = try FileHandler.shared.contentsOfDirectory(archive)
-        return folderContent.filter { FileHandler.shared.isFolder($0) && $0.extension == "xcframework" }.first
+    private func frameworkPath(in archive: AbsolutePath) -> AbsolutePath? {
+        if let xcframeworkPath = FileHandler.shared.glob(archive, glob: "*.xcframework").first {
+            return xcframeworkPath
+        } else if let frameworkPath = FileHandler.shared.glob(archive, glob: "*.framework").first {
+            return frameworkPath
+        }
+        return nil
     }
 
     private func unzip(downloadedArchive: AbsolutePath, hash: String) throws -> AbsolutePath {
         let zipPath = try FileHandler.shared.changeExtension(path: downloadedArchive, to: "zip")
-        let archiveDestination = Environment.shared.xcframeworksCacheDirectory.appending(component: hash)
-        try fileArchiver(for: zipPath).unzip(to: archiveDestination)
-        guard let xcframework = try xcframeworkPath(in: archiveDestination) else {
-            try FileHandler.shared.delete(archiveDestination)
-            throw CacheRemoteStorageError.archiveDoesNotContainXCFramework(archiveDestination)
+        let archiveDestination = Environment.shared.buildCacheDirectory.appending(component: hash)
+        let fileUnarchiver = try fileArchiverFactory.makeFileUnarchiver(for: zipPath)
+        let unarchivedDirectory = try fileUnarchiver.unzip()
+        defer {
+            try? fileUnarchiver.delete()
         }
-        return xcframework
-    }
-
-    private func fileArchiver(for path: AbsolutePath) -> FileArchiving {
-        let fileArchiver = fileArchiverMap[path] ?? fileArchiverFactory.makeFileArchiver(for: path)
-        fileArchiverMap[path] = fileArchiver
-        return fileArchiver
+        try FileHandler.shared.move(from: unarchivedDirectory, to: archiveDestination)
+        guard let frameworkPath = frameworkPath(in: archiveDestination) else {
+            throw CacheRemoteStorageError.frameworkNotFound(archiveDestination)
+        }
+        return frameworkPath
     }
 
     private func deleteZipArchiveCompletable(archiver: FileArchiving) -> Completable {
@@ -151,13 +152,5 @@ public final class CacheRemoteStorage: CacheStoring {
             }
             return Disposables.create {}
         })
-    }
-
-    // MARK: - Deinit
-
-    deinit {
-        do {
-            try fileArchiverMap.values.forEach { fileArchiver in try fileArchiver.delete() }
-        } catch {}
     }
 }

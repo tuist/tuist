@@ -26,7 +26,7 @@ final class GraphMapperProviderTests: TuistUnitTestCase {
 
     func test_mappers_returns_theCacheMapper_when_useCache_is_true() {
         // Given
-        subject = GraphMapperProvider(cacheConfig: CacheConfig.withCaching(artifactType: .framework))
+        subject = GraphMapperProvider(cacheConfig: CacheConfig.withCaching(cacheOutputType: .framework))
 
         // when
         let got = subject.mappers(config: Config.test())

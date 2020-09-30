@@ -3,23 +3,23 @@ import TuistCore
 @testable import TuistCache
 
 public final class MockGraphContentHasher: GraphContentHashing {
-    public init() {}
-
     public var invokedContentHashes = false
     public var invokedContentHashesCount = 0
-    public var invokedContentHashesParameters: (graph: TuistCore.Graph, artifactType: ArtifactType)?
-    public var invokedContentHashesParametersList = [(graph: TuistCore.Graph, artifactType: ArtifactType)]()
+    public var invokedContentHashesParameters: (graph: TuistCore.Graph, cacheOutputType: CacheOutputType)?
+    public var invokedContentHashesParametersList = [(graph: TuistCore.Graph, cacheOutputType: CacheOutputType)]()
     public var stubbedContentHashesError: Error?
-    public var contentHashesStub: [TargetNode: String]! = [:]
+    public var stubbedContentHashesResult: [TargetNode: String]! = [:]
 
-    public func contentHashes(for graph: TuistCore.Graph, artifactType: ArtifactType) throws -> [TargetNode: String] {
+    public init() {}
+
+    public func contentHashes(for graph: TuistCore.Graph, cacheOutputType: CacheOutputType) throws -> [TargetNode: String] {
         invokedContentHashes = true
         invokedContentHashesCount += 1
-        invokedContentHashesParameters = (graph, artifactType)
-        invokedContentHashesParametersList.append((graph, artifactType))
+        invokedContentHashesParameters = (graph, cacheOutputType)
+        invokedContentHashesParametersList.append((graph, cacheOutputType))
         if let error = stubbedContentHashesError {
             throw error
         }
-        return contentHashesStub
+        return stubbedContentHashesResult
     }
 }

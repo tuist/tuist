@@ -55,9 +55,6 @@ class CacheGraphMutator: CacheGraphMutating {
                                  loadedPrecompiledNodes: &loadedPrecompiledNodes) }
 
         let newGraph = treeShake(graph: graph, sourceTargets: sourceTargets)
-        newGraph.forEach { node in
-            print("Node \(node.debugDescription)")
-        }
         return newGraph
     }
 

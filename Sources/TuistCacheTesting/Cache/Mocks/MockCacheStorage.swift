@@ -5,36 +5,47 @@ import TuistCache
 import TuistCore
 
 public final class MockCacheStorage: CacheStoring {
-    var existsStub: ((String) -> Bool)?
-
     public init() {}
 
+    public var invokedExists = false
+    public var invokedExistsCount = 0
+    public var invokedExistsParameters: (hash: String, Void)?
+    public var invokedExistsParametersList = [(hash: String, Void)]()
+    public var stubbedExistsResult: Single<Bool>!
+
     public func exists(hash: String) -> Single<Bool> {
-        if let existsStub = existsStub {
-            return Single.just(existsStub(hash))
-        } else {
-            return Single.just(false)
-        }
+        invokedExists = true
+        invokedExistsCount += 1
+        invokedExistsParameters = (hash, ())
+        invokedExistsParametersList.append((hash, ()))
+        return stubbedExistsResult
     }
 
-    var fetchStub: ((String) throws -> AbsolutePath)?
+    public var invokedFetch = false
+    public var invokedFetchCount = 0
+    public var invokedFetchParameters: (hash: String, Void)?
+    public var invokedFetchParametersList = [(hash: String, Void)]()
+    public var stubbedFetchResult: Single<AbsolutePath>!
+
     public func fetch(hash: String) -> Single<AbsolutePath> {
-        if let fetchStub = fetchStub {
-            do {
-                return Single.just(try fetchStub(hash))
-            } catch {
-                return Single.error(error)
-            }
-        } else {
-            return Single.just(AbsolutePath.root)
-        }
+        invokedFetch = true
+        invokedFetchCount += 1
+        invokedFetchParameters = (hash, ())
+        invokedFetchParametersList.append((hash, ()))
+        return stubbedFetchResult
     }
 
-    var storeStub: ((_ hash: String, _ xcframeworkPath: AbsolutePath) -> Void)?
-    public func store(hash: String, xcframeworkPath: AbsolutePath) -> Completable {
-        if let storeStub = storeStub {
-            storeStub(hash, xcframeworkPath)
-        }
-        return Completable.empty()
+    public var invokedStore = false
+    public var invokedStoreCount = 0
+    public var invokedStoreParameters: (hash: String, paths: [AbsolutePath])?
+    public var invokedStoreParametersList = [(hash: String, paths: [AbsolutePath])]()
+    public var stubbedStoreResult: Completable!
+
+    public func store(hash: String, paths: [AbsolutePath]) -> Completable {
+        invokedStore = true
+        invokedStoreCount += 1
+        invokedStoreParameters = (hash, paths)
+        invokedStoreParametersList.append((hash, paths))
+        return stubbedStoreResult
     }
 }

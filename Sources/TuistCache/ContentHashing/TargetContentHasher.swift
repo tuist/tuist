@@ -4,7 +4,7 @@ import TuistCore
 import TuistSupport
 
 public protocol TargetContentHashing {
-    func contentHash(for target: TargetNode, artifactType: ArtifactType) throws -> String
+    func contentHash(for target: TargetNode, cacheOutputType: CacheOutputType) throws -> String
 }
 
 /// `TargetContentHasher`
@@ -64,7 +64,7 @@ public final class TargetContentHasher: TargetContentHashing {
 
     // MARK: - TargetContentHashing
 
-    public func contentHash(for targetNode: TargetNode, artifactType: ArtifactType) throws -> String {
+    public func contentHash(for targetNode: TargetNode, cacheOutputType: CacheOutputType) throws -> String {
         let target = targetNode.target
         let sourcesHash = try sourceFilesContentHasher.hash(sources: target.sources)
         let resourcesHash = try resourcesContentHasher.hash(resources: target.resources)
@@ -104,7 +104,7 @@ public final class TargetContentHasher: TargetContentHashing {
             stringsToHash.append(settingsHash)
         }
 
-        stringsToHash.append(artifactType.description)
+        stringsToHash.append(cacheOutputType.description)
         return try contentHasher.hash(stringsToHash)
     }
 }

@@ -73,7 +73,7 @@ final class CacheControllerTests: TuistUnitTestCase {
             XCTAssertEqual(loadPath, path)
             return (xcworkspacePath, graph)
         }
-        graphContentHasher.contentHashesStub = nodeWithHashes
+        graphContentHasher.stubbedContentHashesResult = nodeWithHashes
 
         frameworkBuilder.buildWorkspaceStub = { _xcworkspacePath, target in
             switch (_xcworkspacePath, target) {

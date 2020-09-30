@@ -14,7 +14,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
     var subject: CacheRemoteStorage!
     var cloudClient: CloudClienting!
     var config: Config!
-    var fileArchiverFactory: MockFileArchiverFactory!
+    var fileArchiverFactory: MockFileArchivingFactory!
     var fileArchiver: MockFileArchiver!
     var fileClient: MockFileClient!
     var zipPath: AbsolutePath!
@@ -25,7 +25,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         config = TuistCore.Config.test()
         zipPath = fixturePath(path: RelativePath("uUI.xcframework.zip"))
 
-        fileArchiverFactory = MockFileArchiverFactory()
+        fileArchiverFactory = MockFileArchivingFactory()
         fileArchiver = MockFileArchiver()
         fileArchiver.stubbedZipResult = zipPath
         fileArchiverFactory.stubbedMakeFileArchiverResult = fileArchiver
@@ -213,7 +213,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         case .completed:
             XCTFail("Expected result to complete with error, but result was successful.")
         case let .failed(_, error) where error is CacheRemoteStorageError:
-            XCTAssertEqual(error as! CacheRemoteStorageError, CacheRemoteStorageError.archiveDoesNotContainXCFramework(expectedPath))
+            XCTAssertEqual(error as! CacheRemoteStorageError, CacheRemoteStorageError.frameworkNotFound(expectedPath))
         default:
             XCTFail("Expected result to complete with error, but result error wasn't the expected type.")
         }
@@ -304,7 +304,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         subject = CacheRemoteStorage(cloudConfig: config, cloudClient: cloudClient, fileArchiverFactory: fileArchiverFactory, fileClient: fileClient)
 
         // When
-        let result = subject.store(hash: "acho tio", xcframeworkPath: .root)
+        let result = subject.store(hash: "acho tio", paths: [.root])
             .toBlocking()
             .materialize()
 
@@ -335,7 +335,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         subject = CacheRemoteStorage(cloudConfig: config, cloudClient: cloudClient, fileArchiverFactory: fileArchiverFactory, fileClient: fileClient)
 
         // When
-        _ = subject.store(hash: "acho tio", xcframeworkPath: .root)
+        _ = subject.store(hash: "acho tio", paths: [.root])
             .toBlocking()
             .materialize()
 
@@ -363,7 +363,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         subject = CacheRemoteStorage(cloudConfig: config, cloudClient: cloudClient, fileArchiverFactory: fileArchiverFactory, fileClient: fileClient)
 
         // When
-        _ = subject.store(hash: hash, xcframeworkPath: .root)
+        _ = subject.store(hash: hash, paths: [.root])
             .toBlocking()
             .materialize()
 
@@ -393,7 +393,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         subject = CacheRemoteStorage(cloudConfig: config, cloudClient: cloudClient, fileArchiverFactory: fileArchiverFactory, fileClient: fileClient)
 
         // When
-        _ = subject.store(hash: hash, xcframeworkPath: .root)
+        _ = subject.store(hash: hash, paths: [.root])
             .toBlocking()
             .materialize()
 

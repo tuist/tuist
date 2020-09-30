@@ -25,8 +25,8 @@ final class CachePrintHashesService {
         let timer = clock.startTimer()
 
         let graph = try projectGenerator.load(path: path)
-        let artifactType: ArtifactType = xcframeworks ? .xcframework : .framework
-        let hashes = try graphContentHasher.contentHashes(for: graph, artifactType: artifactType)
+        let cacheOutputType: CacheOutputType = xcframeworks ? .xcframework : .framework
+        let hashes = try graphContentHasher.contentHashes(for: graph, cacheOutputType: cacheOutputType)
         let duration = timer.stop()
         let time = String(format: "%.3f", duration)
         guard hashes.count > 0 else {

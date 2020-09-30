@@ -14,8 +14,8 @@ protocol FocusServiceProjectGeneratorFactorying {
 
 final class FocusServiceProjectGeneratorFactory: FocusServiceProjectGeneratorFactorying {
     func generator(sources: Set<String>, xcframeworks: Bool) -> ProjectGenerating {
-        let artifactType: ArtifactType = xcframeworks ? .xcframework : .framework
-        let cacheConfig = CacheConfig.withCaching(artifactType: artifactType)
+        let cacheOutputType: CacheOutputType = xcframeworks ? .xcframework : .framework
+        let cacheConfig = CacheConfig.withCaching(cacheOutputType: cacheOutputType)
         return ProjectGenerator(graphMapperProvider: GraphMapperProvider(cacheConfig: cacheConfig, sources: sources))
     }
 }

@@ -5,40 +5,51 @@ import TuistCache
 import TuistCore
 
 public final class MockFrameworkBuilder: ArtifactBuilding {
-    public var buildProjectArgs: [(projectPath: AbsolutePath, target: Target)] = []
-    public var buildWorkspaceArgs: [(workspacePath: AbsolutePath, target: Target)] = []
-    public var buildProjectStub: ((AbsolutePath, Target) -> Result<AbsolutePath, Error>)?
-    public var buildWorkspaceStub: ((AbsolutePath, Target) -> Result<AbsolutePath, Error>)?
-
     public init() {}
 
-    public var artifactType: ArtifactType = .framework
+    public var invokedCacheOutputTypeGetter = false
+    public var invokedCacheOutputTypeGetterCount = 0
+    public var stubbedCacheOutputType: CacheOutputType!
 
-    public func build(projectPath: AbsolutePath, target: Target) throws -> Observable<AbsolutePath> {
-        buildProjectArgs.append((projectPath: projectPath, target: target))
-        if let buildProjectStub = buildProjectStub {
-            switch buildProjectStub(projectPath, target) {
-            case let .failure(error):
-                return Observable.error(error)
-            case let .success(path):
-                return Observable.just(path)
-            }
-        } else {
-            return Observable.just(AbsolutePath.root)
-        }
+    public var cacheOutputType: CacheOutputType {
+        invokedCacheOutputTypeGetter = true
+        invokedCacheOutputTypeGetterCount += 1
+        return stubbedCacheOutputType
     }
 
-    public func build(workspacePath: AbsolutePath, target: Target) throws -> Observable<AbsolutePath> {
-        buildWorkspaceArgs.append((workspacePath: workspacePath, target: target))
-        if let buildWorkspaceStub = buildWorkspaceStub {
-            switch buildWorkspaceStub(workspacePath, target) {
-            case let .failure(error):
-                return Observable.error(error)
-            case let .success(path):
-                return Observable.just(path)
-            }
-        } else {
-            return Observable.just(AbsolutePath.root)
+    public var invokedBuildWorkspacePath = false
+    public var invokedBuildWorkspacePathCount = 0
+    public var invokedBuildWorkspacePathParameters: (workspacePath: AbsolutePath, target: Target)?
+    public var invokedBuildWorkspacePathParametersList = [(workspacePath: AbsolutePath, target: Target)]()
+    public var stubbedBuildWorkspacePathError: Error?
+    public var stubbedBuildWorkspacePathResult: Observable<[AbsolutePath]>!
+
+    public func build(workspacePath: AbsolutePath, target: Target) throws -> Observable<[AbsolutePath]> {
+        invokedBuildWorkspacePath = true
+        invokedBuildWorkspacePathCount += 1
+        invokedBuildWorkspacePathParameters = (workspacePath, target)
+        invokedBuildWorkspacePathParametersList.append((workspacePath, target))
+        if let error = stubbedBuildWorkspacePathError {
+            throw error
         }
+        return stubbedBuildWorkspacePathResult
+    }
+
+    public var invokedBuildProjectPath = false
+    public var invokedBuildProjectPathCount = 0
+    public var invokedBuildProjectPathParameters: (projectPath: AbsolutePath, target: Target)?
+    public var invokedBuildProjectPathParametersList = [(projectPath: AbsolutePath, target: Target)]()
+    public var stubbedBuildProjectPathError: Error?
+    public var stubbedBuildProjectPathResult: Observable<[AbsolutePath]>!
+
+    public func build(projectPath: AbsolutePath, target: Target) throws -> Observable<[AbsolutePath]> {
+        invokedBuildProjectPath = true
+        invokedBuildProjectPathCount += 1
+        invokedBuildProjectPathParameters = (projectPath, target)
+        invokedBuildProjectPathParametersList.append((projectPath, target))
+        if let error = stubbedBuildProjectPathError {
+            throw error
+        }
+        return stubbedBuildProjectPathResult
     }
 }

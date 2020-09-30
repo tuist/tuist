@@ -39,8 +39,8 @@ public class MockEnvironment: Environmenting {
         cacheDirectory.appending(component: "ProjectDescriptionHelpers")
     }
 
-    public var xcframeworksCacheDirectory: AbsolutePath {
-        cacheDirectory.appending(component: "xcframeworks")
+    public var buildCacheDirectory: AbsolutePath {
+        cacheDirectory.appending(component: "BuildCache")
     }
 
     func path(version: String) -> AbsolutePath {

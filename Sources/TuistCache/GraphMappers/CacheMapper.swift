@@ -27,27 +27,27 @@ public class CacheMapper: GraphMapping {
     private let queue: DispatchQueue
 
     /// The type of artifact that the hasher is configured with.
-    private let artifactType: ArtifactType
+    private let cacheOutputType: CacheOutputType
 
     // MARK: - Init
 
     public convenience init(config: Config,
                             cacheStorageProvider: CacheStorageProviding,
                             sources: Set<String>,
-                            artifactType: ArtifactType)
+                            cacheOutputType: CacheOutputType)
     {
         self.init(config: config,
                   cache: Cache(storageProvider: cacheStorageProvider),
                   graphContentHasher: GraphContentHasher(),
                   sources: sources,
-                  artifactType: artifactType)
+                  cacheOutputType: cacheOutputType)
     }
 
     init(config: Config,
          cache: CacheStoring,
          graphContentHasher: GraphContentHashing,
          sources: Set<String>,
-         artifactType: ArtifactType,
+         cacheOutputType: CacheOutputType,
          cacheGraphMutator: CacheGraphMutating = CacheGraphMutator(),
          queue: DispatchQueue = CacheMapper.dispatchQueue())
     {
@@ -57,7 +57,7 @@ public class CacheMapper: GraphMapping {
         self.queue = queue
         self.cacheGraphMutator = cacheGraphMutator
         self.sources = sources
-        self.artifactType = artifactType
+        self.cacheOutputType = cacheOutputType
     }
 
     // MARK: - GraphMapping
@@ -78,7 +78,7 @@ public class CacheMapper: GraphMapping {
         Single.create { (observer) -> Disposable in
             do {
                 let hashes = try self.graphContentHasher.contentHashes(for: graph,
-                                                                       artifactType: self.artifactType)
+                                                                       cacheOutputType: self.cacheOutputType)
                 observer(.success(hashes))
             } catch {
                 observer(.error(error))

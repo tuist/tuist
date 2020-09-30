@@ -21,13 +21,13 @@ public final class FrameworkBuilder: ArtifactBuilding {
     // MARK: - ArtifactBuilding
 
     /// Returns the type of artifact that the concrete builder processes
-    public var artifactType: ArtifactType = .framework
+    public var cacheOutputType: CacheOutputType = .framework
 
-    public func build(workspacePath: AbsolutePath, target: Target) throws -> Observable<AbsolutePath> {
+    public func build(workspacePath: AbsolutePath, target: Target) throws -> Observable<[AbsolutePath]> {
         try build(.workspace(workspacePath), target: target)
     }
 
-    public func build(projectPath: AbsolutePath, target: Target) throws -> Observable<AbsolutePath> {
+    public func build(projectPath: AbsolutePath, target: Target) throws -> Observable<[AbsolutePath]> {
         try build(.project(projectPath), target: target)
     }
 
@@ -51,7 +51,7 @@ public final class FrameworkBuilder: ArtifactBuilding {
             })
     }
 
-    fileprivate func build(_ projectTarget: XcodeBuildTarget, target: Target) throws -> Observable<AbsolutePath> {
+    fileprivate func build(_ projectTarget: XcodeBuildTarget, target: Target) throws -> Observable<[AbsolutePath]> {
         guard target.product.isFramework else {
             throw BinaryBuilderError.nonFrameworkTargetForFramework(target.name)
         }
@@ -77,14 +77,9 @@ public final class FrameworkBuilder: ArtifactBuilding {
             }
 
             return simulatorArchiveObservable
-                .filter { event -> Bool in
-                    print("event: \(event)")
-                    print("path: \(simulatorArchivePath!)")
-                    return true
-                }
                 .ignoreElements()
-                .andThen(Observable.just(self.frameworkPath(fromArchivePath: simulatorArchivePath!,
-                                                            productName: target.productName)))
+                .andThen(Observable.just([self.frameworkPath(fromArchivePath: simulatorArchivePath!,
+                                                             productName: target.productName)]))
                 .do(afterCompleted: {
 //                    try FileHandler.shared.delete(temporaryPath)
                 })

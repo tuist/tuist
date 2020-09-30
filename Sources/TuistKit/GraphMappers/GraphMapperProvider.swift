@@ -33,7 +33,7 @@ final class GraphMapperProvider: GraphMapperProviding {
             let cacheMapper = CacheMapper(config: config,
                                           cacheStorageProvider: CacheStorageProvider(config: config),
                                           sources: sources,
-                                          artifactType: cacheConfig.artifactType)
+                                          cacheOutputType: cacheConfig.cacheOutputType)
             mappers.append(cacheMapper)
         }
 

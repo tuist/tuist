@@ -52,7 +52,7 @@ struct FocusCommand: ParsableCommand {
 
     @Flag(
         name: [.customShort("x"), .long],
-        help: "When passed it caches the targets for simulator and device in a .xcframework"
+        help: "When passed it uses xcframeworks (simulator and device) from the cache instead of frameworks (only simulator)."
     )
     var xcframeworks: Bool = false
 

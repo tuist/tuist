@@ -54,23 +54,23 @@ final class CacheController: CacheControlling {
         logger.notice("Hashing cacheable frameworks")
         let cacheableTargets = try self.cacheableTargets(graph: graph)
 
-        logger.notice("Building cacheable frameworks as \(artifactBuilder.artifactType.description)s")
+        logger.notice("Building cacheable frameworks as \(artifactBuilder.cacheOutputType.description)s")
         let completables = try cacheableTargets.map { try buildAndCacheFramework(path: path,
                                                                                  target: $0.key,
                                                                                  hash: $0.value) }
         _ = try Completable.zip(completables).toBlocking().last()
 
-        logger.notice("All cacheable frameworks have been cached successfully as \(artifactBuilder.artifactType.description)s", metadata: .success)
+        logger.notice("All cacheable frameworks have been cached successfully as \(artifactBuilder.cacheOutputType.description)s", metadata: .success)
     }
 
     /// Returns all the targets that are cacheable and their hashes.
     /// - Parameter graph: Graph that contains all the dependency graph nodes.
     fileprivate func cacheableTargets(graph: Graph) throws -> [TargetNode: String] {
         try graphContentHasher.contentHashes(for: graph,
-                                             artifactType: artifactBuilder.artifactType)
+                                             cacheOutputType: artifactBuilder.cacheOutputType)
             .filter { target, hash in
                 if let exists = try self.cache.exists(hash: hash).toBlocking().first(), exists {
-                    logger.pretty("The target \(.bold(.raw(target.name))) with hash \(.bold(.raw(hash))) and type \(artifactBuilder.artifactType.description) is already in the cache. Skipping...")
+                    logger.pretty("The target \(.bold(.raw(target.name))) with hash \(.bold(.raw(hash))) and type \(artifactBuilder.cacheOutputType.description) is already in the cache. Skipping...")
                     return false
                 }
                 return true
@@ -87,25 +87,25 @@ final class CacheController: CacheControlling {
                                             hash: String) throws -> Completable
     {
         // Build targets sequentially
-        let frameworkPath: AbsolutePath!
+        let frameworkPaths: [AbsolutePath]
 
         // Note: Since building (xc)frameworks involves calling xcodebuild, we run the building process sequentially.
         if path.extension == "xcworkspace" {
-            frameworkPath = try artifactBuilder.build(workspacePath: path,
-                                                      target: target.target).toBlocking().single()
+            frameworkPaths = try artifactBuilder.build(workspacePath: path,
+                                                       target: target.target).toBlocking().single()
         } else {
-            frameworkPath = try artifactBuilder.build(projectPath: path,
-                                                      target: target.target).toBlocking().single()
+            frameworkPaths = try artifactBuilder.build(projectPath: path,
+                                                       target: target.target).toBlocking().single()
         }
 
         // Create tasks to cache and delete the built frameworks asynchronously
         let deleteXCFrameworkCompletable = Completable.create(subscribe: { completed in
-            try? FileHandler.shared.delete(frameworkPath)
+            frameworkPaths.forEach { try? FileHandler.shared.delete($0) }
             completed(.completed)
             return Disposables.create()
         })
         return cache
-            .store(hash: hash, xcframeworkPath: frameworkPath)
+            .store(hash: hash, paths: frameworkPaths)
             .concat(deleteXCFrameworkCompletable)
             .catchError { error in
                 // We propagate the error downstream

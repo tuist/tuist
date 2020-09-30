@@ -21,13 +21,13 @@ public final class XCFrameworkBuilder: ArtifactBuilding {
     // MARK: - ArtifactBuilding
 
     /// Returns the type of artifact that the concrete builder processes
-    public var artifactType: ArtifactType = .xcframework
+    public var cacheOutputType: CacheOutputType = .xcframework
 
-    public func build(workspacePath: AbsolutePath, target: Target) throws -> Observable<AbsolutePath> {
+    public func build(workspacePath: AbsolutePath, target: Target) throws -> Observable<[AbsolutePath]> {
         try build(.workspace(workspacePath), target: target)
     }
 
-    public func build(projectPath: AbsolutePath, target: Target) throws -> Observable<AbsolutePath> {
+    public func build(projectPath: AbsolutePath, target: Target) throws -> Observable<[AbsolutePath]> {
         try build(.project(projectPath), target: target)
     }
 
@@ -76,7 +76,7 @@ public final class XCFrameworkBuilder: ArtifactBuilding {
     }
 
     // swiftlint:disable:next function_body_length
-    fileprivate func build(_ projectTarget: XcodeBuildTarget, target: Target) throws -> Observable<AbsolutePath> {
+    fileprivate func build(_ projectTarget: XcodeBuildTarget, target: Target) throws -> Observable<[AbsolutePath]> {
         guard target.product.isFramework else {
             throw BinaryBuilderError.nonFrameworkTargetForXCFramework(target.name)
         }
@@ -127,7 +127,7 @@ public final class XCFrameworkBuilder: ArtifactBuilding {
                 .concat(simulatorArchiveObservable)
                 .concat(xcframeworkObservable)
                 .ignoreElements()
-                .andThen(Observable.just(xcframeworkPath))
+                .andThen(Observable.just([xcframeworkPath]))
                 .do(afterCompleted: {
                     try FileHandler.shared.delete(temporaryPath)
                 })
