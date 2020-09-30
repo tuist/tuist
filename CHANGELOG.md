@@ -25,6 +25,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Add Workspace Mappers [#1767](https://github.com/tuist/tuist/pull/1767) by [@kwridan](https://github.com/kwridan)
 - Extended `Config`'s generationOptions with `.disableShowEnvironmentVarsInScriptPhases`. It does what you'd think. [#1782](https://github.com/tuist/tuist/pull/1782) by [@kalkwarf](https://github.com/kalkwarf)
+- Generate `xxx-Project` scheme to build and test all available targets by [#1765](https://github.com/tuist/tuist/pull/1765) by [@fortmarek](https://github.com/fortmarek)
 
 ### Changed
 

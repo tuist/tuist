@@ -742,10 +742,13 @@ final class GraphTests: TuistUnitTestCase {
         cache.add(precompiledNode: precompiledNode)
         cache.add(targetNode: unitTestsNode)
 
-        let graph = Graph(name: "Graph",
-                          entryPath: project.path,
-                          cache: cache,
-                          entryNodes: [unitTestsNode])
+        let graph = Graph(
+            name: "Graph",
+            entryPath: project.path,
+            cache: cache,
+            entryNodes: [unitTestsNode],
+            workspace: nil
+        )
 
         // When
         let result = try graph.embeddableFrameworks(path: project.path, name: unitTests.name)
@@ -797,10 +800,13 @@ final class GraphTests: TuistUnitTestCase {
         cache.add(targetNode: appNode)
         cache.add(targetNode: uiTestsNode)
 
-        let graph = Graph(name: "Graph",
-                          entryPath: project.path,
-                          cache: cache,
-                          entryNodes: [appNode, uiTestsNode])
+        let graph = Graph(
+            name: "Graph",
+            entryPath: project.path,
+            cache: cache,
+            entryNodes: [appNode, uiTestsNode],
+            workspace: nil
+        )
 
         // When
         let result = try graph.embeddableFrameworks(path: project.path, name: uiTests.name)
@@ -824,10 +830,13 @@ final class GraphTests: TuistUnitTestCase {
         cache.add(precompiledNode: precompiledNodeB)
         cache.add(targetNode: unitTestsNode)
 
-        let graph = Graph(name: "Graph",
-                          entryPath: project.path,
-                          cache: cache,
-                          entryNodes: [unitTestsNode])
+        let graph = Graph(
+            name: "Graph",
+            entryPath: project.path,
+            cache: cache,
+            entryNodes: [unitTestsNode],
+            workspace: nil
+        )
 
         // When
         let got = graph.runPathSearchPaths(path: project.path, name: unitTests.name)
@@ -855,10 +864,13 @@ final class GraphTests: TuistUnitTestCase {
         cache.add(precompiledNode: precompiledNode)
         cache.add(targetNode: unitTestsNode)
 
-        let graph = Graph(name: "Graph",
-                          entryPath: project.path,
-                          cache: cache,
-                          entryNodes: [unitTestsNode])
+        let graph = Graph(
+            name: "Graph",
+            entryPath: project.path,
+            cache: cache,
+            entryNodes: [unitTestsNode],
+            workspace: nil
+        )
 
         // When
         let got = graph.runPathSearchPaths(path: project.path, name: unitTests.name)

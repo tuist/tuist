@@ -33,7 +33,10 @@ public class Graph: Encodable, Equatable {
     /// The entry nodes of the graph.
     public let entryNodes: [GraphNode]
 
-    /// Dictionary whose keys are paths to directories where projects are defined, and the values are the representation of the projects.
+    /// Workspace of the graph
+    public let workspace: Workspace?
+
+    /// Projects of the graph
     public let projects: [Project]
 
     /// Dictionary whose keys are paths to directories where projects are defined, and the values are the CocoaPods nodes define in them.
@@ -54,31 +57,48 @@ public class Graph: Encodable, Equatable {
     /// Dictionary whose keys are path to directories where projects are defined, and the values are target nodes defined in them.
     public let targets: [AbsolutePath: [TargetNode]]
 
-    // MARK: - Init
-
-    convenience init(name: String, entryPath: AbsolutePath, cache: GraphLoaderCaching, entryNodes: [GraphNode]) {
-        self.init(name: name,
-                  entryPath: entryPath,
-                  entryNodes: entryNodes,
-                  projects: Array(cache.projects.values),
-                  cocoapods: Array(cache.cocoapodsNodes.values),
-                  packages: Array(cache.packages.flatMap { $0.value }),
-                  precompiled: Array(cache.precompiledNodes.values),
-                  targets: cache.targetNodes.mapValues { Array($0.values) })
+    /// Schemes of the graph
+    public var schemes: [Scheme] {
+        projects.flatMap(\.schemes) + (workspace?.schemes ?? [])
     }
 
-    public init(name: String,
-                entryPath: AbsolutePath,
-                entryNodes: [GraphNode],
-                projects: [Project],
-                cocoapods: [CocoaPodsNode],
-                packages: [PackageNode],
-                precompiled: [PrecompiledNode],
-                targets: [AbsolutePath: [TargetNode]])
-    {
+    // MARK: - Init
+
+    convenience init(
+        name: String,
+        entryPath: AbsolutePath,
+        cache: GraphLoaderCaching,
+        entryNodes: [GraphNode],
+        workspace: Workspace?
+    ) {
+        self.init(
+            name: name,
+            entryPath: entryPath,
+            entryNodes: entryNodes,
+            workspace: workspace,
+            projects: Array(cache.projects.values),
+            cocoapods: Array(cache.cocoapodsNodes.values),
+            packages: Array(cache.packages.flatMap { $0.value }),
+            precompiled: Array(cache.precompiledNodes.values),
+            targets: cache.targetNodes.mapValues { Array($0.values) }
+        )
+    }
+
+    public init(
+        name: String,
+        entryPath: AbsolutePath,
+        entryNodes: [GraphNode],
+        workspace: Workspace?,
+        projects: [Project],
+        cocoapods: [CocoaPodsNode],
+        packages: [PackageNode],
+        precompiled: [PrecompiledNode],
+        targets: [AbsolutePath: [TargetNode]]
+    ) {
         self.name = name
         self.entryPath = entryPath
         self.entryNodes = entryNodes
+        self.workspace = workspace
         self.projects = projects
         self.cocoapods = cocoapods
         self.packages = packages
@@ -534,28 +554,51 @@ public class Graph: Encodable, Equatable {
     /// Returns a copy of the graph with the given projects set.
     /// - Parameter projects: Projects to be set to the copy.
     public func with(projects: [Project]) -> Graph {
-        Graph(name: name,
-              entryPath: entryPath,
-              entryNodes: entryNodes,
-              projects: projects,
-              cocoapods: cocoapods,
-              packages: packages,
-              precompiled: precompiled,
-              targets: targets)
+        Graph(
+            name: name,
+            entryPath: entryPath,
+            entryNodes: entryNodes,
+            workspace: workspace,
+            projects: projects,
+            cocoapods: cocoapods,
+            packages: packages,
+            precompiled: precompiled,
+            targets: targets
+        )
     }
 
     /// Returns a copy of the graph with the given targets.
     /// - Parameter targets: Targets to be set to the copy.
     /// - Returns: New graph with the given targets.
     public func with(targets: [AbsolutePath: [TargetNode]]) -> Graph {
-        Graph(name: name,
-              entryPath: entryPath,
-              entryNodes: entryNodes,
-              projects: projects,
-              cocoapods: cocoapods,
-              packages: packages,
-              precompiled: precompiled,
-              targets: targets)
+        Graph(
+            name: name,
+            entryPath: entryPath,
+            entryNodes: entryNodes,
+            workspace: workspace,
+            projects: projects,
+            cocoapods: cocoapods,
+            packages: packages,
+            precompiled: precompiled,
+            targets: targets
+        )
+    }
+
+    /// Returns a copy of the graph with a given workspace.
+    /// - Parameter workspace: Workspace to be set to the copy.
+    /// - Returns: New graph with a given workspace.
+    public func with(workspace: Workspace?) -> Graph {
+        Graph(
+            name: name,
+            entryPath: entryPath,
+            entryNodes: entryNodes,
+            workspace: workspace,
+            projects: projects,
+            cocoapods: cocoapods,
+            packages: packages,
+            precompiled: precompiled,
+            targets: targets
+        )
     }
 
     public func forEach(closure: (GraphNode) -> Void) {

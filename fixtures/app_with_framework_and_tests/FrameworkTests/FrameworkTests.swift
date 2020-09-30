@@ -4,4 +4,8 @@ import XCTest
 
 final class FrameworkTests: XCTestCase {
     var subject: FrameworkClass = FrameworkClass()
+    
+    func testExample() {
+        print("Framework tests example")
+    }
 }

@@ -86,14 +86,12 @@ final class EmbedScriptGenerator: EmbedScriptGenerating {
             if let dsymPath = dsymPath {
                 let relativeDsymPath = dsymPath.relative(to: sourceRootPath)
                 script.append("install_dsym \"\(relativeDsymPath.pathString)\"\n")
-                addSymbolsIfRequired(inputPath: relativeDsymPath, outputPath: "${DWARF_DSYM_FOLDER_PATH}/\(dsymPath.basename)")
             }
 
             // .bcsymbolmap
             for bcsymbolmapPath in bcsymbolmapPaths {
                 let relativeDsymPath = bcsymbolmapPath.relative(to: sourceRootPath)
                 script.append("install_bcsymbolmap \"\(relativeDsymPath.pathString)\"\n")
-                addSymbolsIfRequired(inputPath: relativeDsymPath, outputPath: "${BUILT_PRODUCTS_DIR}/\(relativeDsymPath.basename)")
             }
         }
         return (script: script, inputPaths: inputPaths, outputPaths: outputPaths)

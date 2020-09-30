@@ -64,14 +64,17 @@ final class ValueGraphTests: TuistUnitTestCase {
         let appNode = TargetNode.test(project: project, target: appTarget, dependencies: [aNode, bNode, xcframeworkNode])
 
         // Given: Graph
-        let graph = Graph(name: "Graph",
-                          entryPath: project.path,
-                          entryNodes: [appNode],
-                          projects: [project],
-                          cocoapods: [],
-                          packages: [packageNode],
-                          precompiled: [xcframeworkNode, libraryNode],
-                          targets: [project.path: [appNode, aNode, bNode]])
+        let graph = Graph(
+            name: "Graph",
+            entryPath: project.path,
+            entryNodes: [appNode],
+            workspace: nil,
+            projects: [project],
+            cocoapods: [],
+            packages: [packageNode],
+            precompiled: [xcframeworkNode, libraryNode],
+            targets: [project.path: [appNode, aNode, bNode]]
+        )
 
         // When
         let valueGraph = ValueGraph(graph: graph)
