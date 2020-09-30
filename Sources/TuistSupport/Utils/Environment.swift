@@ -138,7 +138,7 @@ public class Environment: Environmenting {
             location = AbsolutePath(customLocation.chomp())
         } else {
             // Default location
-            location = FileHandler.shared.homeDirectory.appending(RelativePath("/Library/Developer/Xcode/DerivedData/"))
+            location = FileHandler.shared.homeDirectory.appending(RelativePath("Library/Developer/Xcode/DerivedData/"))
         }
         _derivedDataDirectory = location
         return location
