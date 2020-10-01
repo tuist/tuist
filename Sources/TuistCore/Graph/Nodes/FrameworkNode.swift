@@ -15,9 +15,6 @@ public class FrameworkNode: PrecompiledNode {
     /// The architectures supported by the binary.
     public let architectures: [BinaryArchitecture]
 
-    /// Framework dependencies.
-    public let dependencies: [FrameworkNode]
-
     /// Returns the type of product.
     public var product: Product {
         if linking == .static {
@@ -42,14 +39,13 @@ public class FrameworkNode: PrecompiledNode {
          bcsymbolmapPaths: [AbsolutePath],
          linking: BinaryLinking,
          architectures: [BinaryArchitecture] = [],
-         dependencies: [FrameworkNode] = [])
+         dependencies: [Dependency] = [])
     {
         self.dsymPath = dsymPath
         self.bcsymbolmapPaths = bcsymbolmapPaths
         self.linking = linking
         self.architectures = architectures
-        self.dependencies = dependencies
-        super.init(path: path)
+        super.init(path: path, dependencies: dependencies)
     }
 
     override public func encode(to encoder: Encoder) throws {

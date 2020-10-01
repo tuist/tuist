@@ -2,7 +2,7 @@ import Foundation
 import TSCBasic
 import TuistSupport
 
-protocol FrameworkMetadataProviding: PrecompiledMetadataProviding {
+public protocol FrameworkMetadataProviding: PrecompiledMetadataProviding {
     /// Given the path to a framework, it returns the path to its dSYMs if they exist
     /// in the same framework directory.
     /// - Parameter frameworkPath: Path to the .framework directory.
@@ -18,14 +18,14 @@ protocol FrameworkMetadataProviding: PrecompiledMetadataProviding {
     func product(frameworkPath: AbsolutePath) throws -> Product
 }
 
-final class FrameworkMetadataProvider: PrecompiledMetadataProvider, FrameworkMetadataProviding {
-    func dsymPath(frameworkPath: AbsolutePath) -> AbsolutePath? {
+public final class FrameworkMetadataProvider: PrecompiledMetadataProvider, FrameworkMetadataProviding {
+    public func dsymPath(frameworkPath: AbsolutePath) -> AbsolutePath? {
         let path = AbsolutePath("\(frameworkPath.pathString).dSYM")
         if FileHandler.shared.exists(path) { return path }
         return nil
     }
 
-    func bcsymbolmapPaths(frameworkPath: AbsolutePath) throws -> [AbsolutePath] {
+    public func bcsymbolmapPaths(frameworkPath: AbsolutePath) throws -> [AbsolutePath] {
         let binaryPath = FrameworkNode.binaryPath(frameworkPath: frameworkPath)
         let uuids = try self.uuids(binaryPath: binaryPath)
         return uuids
@@ -34,7 +34,7 @@ final class FrameworkMetadataProvider: PrecompiledMetadataProvider, FrameworkMet
             .sorted()
     }
 
-    func product(frameworkPath: AbsolutePath) throws -> Product {
+    public func product(frameworkPath: AbsolutePath) throws -> Product {
         let binaryPath = FrameworkNode.binaryPath(frameworkPath: frameworkPath)
         switch try linking(binaryPath: binaryPath) {
         case .dynamic:

@@ -1,11 +1,11 @@
 import Foundation
 
-struct SimulatorRuntimeVersion: CustomStringConvertible, Hashable, ExpressibleByStringLiteral, Comparable, Decodable {
+public struct SimulatorRuntimeVersion: CustomStringConvertible, Hashable, ExpressibleByStringLiteral, Comparable, Decodable {
     // MARK: - Attributes
 
-    let major: Int
-    let minor: Int?
-    let patch: Int?
+    public let major: Int
+    public let minor: Int?
+    public let patch: Int?
 
     // MARK: - Constructors
 
@@ -15,7 +15,7 @@ struct SimulatorRuntimeVersion: CustomStringConvertible, Hashable, ExpressibleBy
         self.patch = patch
     }
 
-    init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
         self.init(stringLiteral: try container.decode(String.self))
     }
@@ -30,7 +30,7 @@ struct SimulatorRuntimeVersion: CustomStringConvertible, Hashable, ExpressibleBy
 
     // MARK: - CustomStringConvertible
 
-    var description: String {
+    public var description: String {
         var version = "\(major)"
         if let minor = minor {
             version.append(".\(minor)")
@@ -47,7 +47,7 @@ struct SimulatorRuntimeVersion: CustomStringConvertible, Hashable, ExpressibleBy
 
     // MARK: - Equatable
 
-    static func == (lhs: SimulatorRuntimeVersion, rhs: SimulatorRuntimeVersion) -> Bool {
+    public static func == (lhs: SimulatorRuntimeVersion, rhs: SimulatorRuntimeVersion) -> Bool {
         lhs.major == rhs.major &&
             lhs.minor == rhs.minor &&
             lhs.patch == rhs.patch
@@ -55,7 +55,7 @@ struct SimulatorRuntimeVersion: CustomStringConvertible, Hashable, ExpressibleBy
 
     // MARK: - Comparable
 
-    static func < (lhs: SimulatorRuntimeVersion, rhs: SimulatorRuntimeVersion) -> Bool {
+    public static func < (lhs: SimulatorRuntimeVersion, rhs: SimulatorRuntimeVersion) -> Bool {
         let lhs = lhs.flattened()
         let rhs = rhs.flattened()
 
@@ -76,7 +76,7 @@ struct SimulatorRuntimeVersion: CustomStringConvertible, Hashable, ExpressibleBy
 
     // MARK: - ExpressibleByStringLiteral
 
-    init(stringLiteral value: String) {
+    public init(stringLiteral value: String) {
         let components = value.split(separator: ".")
 
         // Major

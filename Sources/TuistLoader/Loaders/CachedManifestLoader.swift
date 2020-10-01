@@ -17,8 +17,8 @@ public class CachedManifestLoader: ManifestLoading {
     private let fileHandler: FileHandling
     private let environment: Environmenting
     private let tuistVersion: String
-    private let decoder: JSONDecoder = JSONDecoder()
-    private let encoder: JSONEncoder = JSONEncoder()
+    private let decoder = JSONDecoder()
+    private let encoder = JSONEncoder()
     private var helpersCache: [AbsolutePath: String?] = [:]
 
     public convenience init(manifestLoader: ManifestLoading = ManifestLoader()) {

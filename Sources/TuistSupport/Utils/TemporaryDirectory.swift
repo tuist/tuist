@@ -49,8 +49,6 @@ public final class TemporaryDirectory {
     deinit {
         if shouldRemoveTreeOnDeinit {
             _ = try? FileManager.default.removeItem(atPath: path.pathString)
-        } else {
-            rmdir(path.pathString)
         }
     }
 }

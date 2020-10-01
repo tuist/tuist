@@ -495,7 +495,7 @@ public class Graph: Encodable, Equatable {
                     stack.push(child)
                 }
             } else if let frameworkNode = node as? FrameworkNode {
-                for child in frameworkNode.dependencies where !visited.contains(child) {
+                for child in frameworkNode.dependencies.map(\.node) where !visited.contains(child) {
                     stack.push(child)
                 }
             }
@@ -630,8 +630,8 @@ public class Graph: Encodable, Equatable {
                     stack.push(child)
                 }
             } else if let frameworkNode = node as? FrameworkNode {
-                for child in frameworkNode.dependencies where !visited.contains(child) {
-                    stack.push(child)
+                for child in frameworkNode.dependencies where !visited.contains(child.node) {
+                    stack.push(child.node)
                 }
             }
         }

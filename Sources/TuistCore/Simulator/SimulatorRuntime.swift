@@ -3,27 +3,27 @@ import TSCBasic
 
 /// It represents a runtime that is available in the system. The list of available runtimes is obtained
 /// using Xcode's simctl cli tool.
-struct SimulatorRuntime: Decodable, Hashable, CustomStringConvertible {
+public struct SimulatorRuntime: Decodable, Hashable, CustomStringConvertible {
     /// Runtime bundle path (e.g. /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS.simruntime)
-    let bundlePath: AbsolutePath
+    public let bundlePath: AbsolutePath
 
     /// Runtime build version (e.g. 17F61)
-    let buildVersion: String
+    public let buildVersion: String
 
     /// Runtime root (e.g. /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Library/Developer/CoreSimulator/Profiles/Runtimes\/iOS.simruntime\Contents/Resources/RuntimeRoot)
-    let runtimeRoot: AbsolutePath
+    public let runtimeRoot: AbsolutePath
 
     /// Runtime identifier (e.g. com.apple.CoreSimulator.SimRuntime.iOS-13-5)
-    let identifier: String
+    public let identifier: String
 
     /// Runtime version (e.g. 13.5)
-    let version: SimulatorRuntimeVersion
+    public let version: SimulatorRuntimeVersion
 
     // True if the runtime is available.
-    let isAvailable: Bool
+    public let isAvailable: Bool
 
     // Name of the runtime (e.g. iOS 13.5)
-    let name: String
+    public let name: String
 
     init(bundlePath: AbsolutePath,
          buildVersion: String,
@@ -52,7 +52,7 @@ struct SimulatorRuntime: Decodable, Hashable, CustomStringConvertible {
         case name
     }
 
-    var description: String {
+    public var description: String {
         name
     }
 }

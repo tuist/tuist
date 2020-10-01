@@ -23,7 +23,7 @@ final class ValueGraphTests: TuistUnitTestCase {
         let bFrameworkNode = FrameworkNode.test(path: bFrameworkPath,
                                                 linking: .dynamic,
                                                 architectures: [.armv7],
-                                                dependencies: [aFrameworkNode])
+                                                dependencies: [.framework(aFrameworkNode)])
 
         // Given: SDK
         let xctestNode = SDKNode.xctest(platform: .iOS, status: .required)

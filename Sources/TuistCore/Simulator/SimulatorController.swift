@@ -2,7 +2,7 @@ import Foundation
 import RxSwift
 import TuistSupport
 
-protocol SimulatorControlling {
+public protocol SimulatorControlling {
     /// Returns the list of simulator devices that are available in the system.
     func devices() -> Single<[SimulatorDevice]>
 
@@ -13,26 +13,28 @@ protocol SimulatorControlling {
     func devicesAndRuntimes() -> Single<[SimulatorDeviceAndRuntime]>
 }
 
-enum SimulatorControllerError: FatalError {
+public enum SimulatorControllerError: FatalError {
     case simctlError(String)
 
-    var type: ErrorType {
+    public var type: ErrorType {
         switch self {
         case .simctlError: return .abort
         }
     }
 
-    var description: String {
+    public var description: String {
         switch self {
         case let .simctlError(output): return output
         }
     }
 }
 
-final class SimulatorController: SimulatorControlling {
-    private let jsonDecoder: JSONDecoder = JSONDecoder()
+public final class SimulatorController: SimulatorControlling {
+    private let jsonDecoder = JSONDecoder()
 
-    func devices() -> Single<[SimulatorDevice]> {
+    public init() {}
+
+    public func devices() -> Single<[SimulatorDevice]> {
         System.shared.observable(["/usr/bin/xcrun", "simctl", "list", "devices", "--json"])
             .mapToString()
             .collectOutput()
@@ -63,9 +65,8 @@ final class SimulatorController: SimulatorControlling {
             }
     }
 
-    func runtimes() -> Single<[SimulatorRuntime]> {
+    public func runtimes() -> Single<[SimulatorRuntime]> {
         System.shared.observable(["/usr/bin/xcrun", "simctl", "list", "runtimes", "--json"])
-            .debug()
             .mapToString()
             .collectOutput()
             .asSingle()
@@ -88,7 +89,7 @@ final class SimulatorController: SimulatorControlling {
             }
     }
 
-    func devicesAndRuntimes() -> Single<[SimulatorDeviceAndRuntime]> {
+    public func devicesAndRuntimes() -> Single<[SimulatorDeviceAndRuntime]> {
         runtimes()
             .flatMap { (runtimes) -> Single<([SimulatorDevice], [SimulatorRuntime])> in
                 self.devices().map { ($0, runtimes) }
