@@ -42,6 +42,24 @@ Then(/^tuist focuses the targets ([a-zA-Z,]+) at (.+)$/) do |targets, path|
   @xcodeproj_path = Dir.glob(File.join(@dir, path, "*.xcodeproj")).first
 end
 
+Then(/^tuist focuses the target ([a-zA-Z]+) using xcframeworks$/) do |target|
+  system("swift", "run", "tuist", "focus", "--no-open", "--path", @dir, target, "--xcframeworks")
+  @workspace_path = Dir.glob(File.join(@dir, "*.xcworkspace")).first
+  @xcodeproj_path = Dir.glob(File.join(@dir, "*.xcodeproj")).first
+end
+
+Then(/^tuist focuses the target ([a-zA-Z]+) at (.+) using xcframeworks$/) do |target, path|
+  system("swift", "run", "tuist", "focus", "--no-open", "--path", File.join(@dir, path), target, "--xcframeworks")
+  @workspace_path = Dir.glob(File.join(@dir, path, "*.xcworkspace")).first
+  @xcodeproj_path = Dir.glob(File.join(@dir, path, "*.xcodeproj")).first
+end
+
+Then(/^tuist focuses the targets ([a-zA-Z,]+) at (.+) using xcframeworks$/) do |targets, path|
+  system("swift", "run", "tuist", "focus", "--no-open", "--path", File.join(@dir, path), *targets.split(","), "--xcframeworks")
+  @workspace_path = Dir.glob(File.join(@dir, path, "*.xcworkspace")).first
+  @xcodeproj_path = Dir.glob(File.join(@dir, path, "*.xcodeproj")).first
+end
+
 Then(/tuist edits the project/) do
   system("swift", "run", "tuist", "edit", "--path", @dir, "--permanent")
   @xcodeproj_path = Dir.glob(File.join(@dir, "*.xcodeproj")).first

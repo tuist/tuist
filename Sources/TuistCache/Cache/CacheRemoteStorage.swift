@@ -78,7 +78,10 @@ public final class CacheRemoteStorage: CacheStoring {
             return cloudClient
                 .request(resource)
                 .map { $0.object.data.url }
-                .flatMap { (url: URL) in self.fileClient.download(url: url) }
+                .flatMap { (url: URL) in
+                    self.fileClient.download(url: url)
+                        .do(onSubscribed: { logger.info("Downloading cache artifact with hash \(hash).") })
+                }
                 .flatMap { (filePath: AbsolutePath) in
                     do {
                         let archiveContentPath = try self.unzip(downloadedArchive: filePath, hash: hash)

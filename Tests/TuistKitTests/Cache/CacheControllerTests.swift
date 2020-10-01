@@ -86,7 +86,5 @@ final class CacheControllerTests: TuistUnitTestCase {
         """)
         XCTAssertEqual(artifactBuilder.invokedBuildWorkspacePathParametersList.first?.target, aTarget)
         XCTAssertEqual(artifactBuilder.invokedBuildWorkspacePathParametersList.last?.target, bTarget)
-        XCTAssertFalse(FileHandler.shared.exists(aFrameworkPath))
-        XCTAssertFalse(FileHandler.shared.exists(bFrameworkPath))
     }
 }

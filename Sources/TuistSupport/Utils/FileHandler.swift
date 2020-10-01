@@ -117,7 +117,6 @@ public class FileHandler: FileHandling {
 
     public func temporaryDirectory() throws -> AbsolutePath {
         let directory = try TemporaryDirectory(removeTreeOnDeinit: false)
-
         return directory.path
     }
 

@@ -56,7 +56,7 @@ final class CacheController: CacheControlling {
 
         logger.notice("Building cacheable frameworks as \(artifactBuilder.cacheOutputType.description)s")
 
-        try cacheableTargets.forEach { target, hash in
+        try cacheableTargets.sorted(by: { $0.key.target.name < $1.key.target.name }).forEach { target, hash in
             try self.buildAndCacheFramework(path: path, target: target, hash: hash)
         }
 
