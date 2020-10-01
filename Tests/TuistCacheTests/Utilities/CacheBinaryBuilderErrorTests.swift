@@ -2,10 +2,10 @@ import XCTest
 @testable import TuistCache
 @testable import TuistSupportTesting
 
-final class BinaryBuilderErrorTests: TuistUnitTestCase {
+final class CacheBinaryBuilderErrorTests: TuistUnitTestCase {
     func test_type_when_nonFrameworkTargetForXCFramework() {
         // Given
-        let subject = BinaryBuilderError.nonFrameworkTargetForXCFramework("App")
+        let subject = CacheBinaryBuilderError.nonFrameworkTargetForXCFramework("App")
 
         // When
         let got = subject.type
@@ -16,7 +16,7 @@ final class BinaryBuilderErrorTests: TuistUnitTestCase {
 
     func test_description_when_nonFrameworkTargetForXCFramework() {
         // Given
-        let subject = BinaryBuilderError.nonFrameworkTargetForXCFramework("App")
+        let subject = CacheBinaryBuilderError.nonFrameworkTargetForXCFramework("App")
 
         // When
         let got = subject.description
@@ -27,7 +27,7 @@ final class BinaryBuilderErrorTests: TuistUnitTestCase {
 
     func test_type_when_nonFrameworkTargetForFramework() {
         // Given
-        let subject = BinaryBuilderError.nonFrameworkTargetForFramework("App")
+        let subject = CacheBinaryBuilderError.nonFrameworkTargetForFramework("App")
 
         // When
         let got = subject.type
@@ -38,7 +38,7 @@ final class BinaryBuilderErrorTests: TuistUnitTestCase {
 
     func test_description_when_nonFrameworkTargetForFramework() {
         // Given
-        let subject = BinaryBuilderError.nonFrameworkTargetForFramework("App")
+        let subject = CacheBinaryBuilderError.nonFrameworkTargetForFramework("App")
 
         // When
         let got = subject.description

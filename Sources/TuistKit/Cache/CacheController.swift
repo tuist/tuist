@@ -22,7 +22,7 @@ final class CacheController: CacheControlling {
     private let generator: ProjectGenerating
 
     /// Utility to build the (xc)frameworks.
-    private let artifactBuilder: ArtifactBuilding
+    private let artifactBuilder: CacheArtifactBuilding
 
     /// Graph content hasher.
     private let graphContentHasher: GraphContentHashing
@@ -30,7 +30,7 @@ final class CacheController: CacheControlling {
     /// Cache.
     private let cache: CacheStoring
 
-    convenience init(cache: CacheStoring, artifactBuilder: ArtifactBuilding) {
+    convenience init(cache: CacheStoring, artifactBuilder: CacheArtifactBuilding) {
         self.init(cache: cache,
                   artifactBuilder: artifactBuilder,
                   generator: ProjectGenerator(),
@@ -38,7 +38,7 @@ final class CacheController: CacheControlling {
     }
 
     init(cache: CacheStoring,
-         artifactBuilder: ArtifactBuilding,
+         artifactBuilder: CacheArtifactBuilding,
          generator: ProjectGenerating,
          graphContentHasher: GraphContentHashing)
     {
@@ -55,10 +55,10 @@ final class CacheController: CacheControlling {
         let cacheableTargets = try self.cacheableTargets(graph: graph)
 
         logger.notice("Building cacheable frameworks as \(artifactBuilder.cacheOutputType.description)s")
-        let completables = try cacheableTargets.map { try buildAndCacheFramework(path: path,
-                                                                                 target: $0.key,
-                                                                                 hash: $0.value) }
-        _ = try Completable.zip(completables).toBlocking().last()
+
+        try cacheableTargets.forEach { target, hash in
+            try self.buildAndCacheFramework(path: path, target: target, hash: hash)
+        }
 
         logger.notice("All cacheable frameworks have been cached successfully as \(artifactBuilder.cacheOutputType.description)s", metadata: .success)
     }
@@ -83,32 +83,23 @@ final class CacheController: CacheControlling {
     ///   - hash: Hash of the target.
     fileprivate func buildAndCacheFramework(path: AbsolutePath,
                                             target: TargetNode,
-                                            hash: String) throws -> Completable
+                                            hash: String) throws
     {
-        // Build targets sequentially
-        let frameworkPaths: [AbsolutePath]
-
-        // Note: Since building (xc)frameworks involves calling xcodebuild, we run the building process sequentially.
-        if path.extension == "xcworkspace" {
-            frameworkPaths = try artifactBuilder.build(workspacePath: path,
-                                                       target: target.target).toBlocking().single()
-        } else {
-            frameworkPaths = try artifactBuilder.build(projectPath: path,
-                                                       target: target.target).toBlocking().single()
+        let outputDirectory = try FileHandler.shared.temporaryDirectory()
+        defer {
+            try? FileHandler.shared.delete(outputDirectory)
         }
 
-        // Create tasks to cache and delete the built frameworks asynchronously
-        let deleteFrameworks = Completable.create(subscribe: { completed in
-            frameworkPaths.forEach { try? FileHandler.shared.delete($0) }
-            completed(.completed)
-            return Disposables.create()
-        })
-        return cache
-            .store(hash: hash, paths: frameworkPaths)
-            .concat(deleteFrameworks)
-            .catchError { error in
-                // We propagate the error downstream
-                deleteFrameworks.concat(Completable.error(error))
-            }
+        if path.extension == "xcworkspace" {
+            try artifactBuilder.build(workspacePath: path,
+                                      target: target.target,
+                                      into: outputDirectory)
+        } else {
+            try artifactBuilder.build(projectPath: path,
+                                      target: target.target,
+                                      into: outputDirectory)
+        }
+
+        _ = try cache.store(hash: hash, paths: FileHandler.shared.glob(outputDirectory, glob: "*")).toBlocking().last()
     }
 }

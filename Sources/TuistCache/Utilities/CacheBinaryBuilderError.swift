@@ -1,6 +1,6 @@
 import TuistSupport
 
-enum BinaryBuilderError: FatalError {
+enum CacheBinaryBuilderError: FatalError {
     case nonFrameworkTargetForXCFramework(String)
     case nonFrameworkTargetForFramework(String)
 

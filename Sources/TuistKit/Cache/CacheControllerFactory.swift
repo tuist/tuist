@@ -15,14 +15,14 @@ final class CacheControllerFactory {
     /// Returns a cache controller that uses frameworks built for the simulator architecture.
     /// - Returns: A cache controller instance.
     func makeForSimulatorFramework() -> CacheControlling {
-        let frameworkBuilder = FrameworkBuilder(xcodeBuildController: XcodeBuildController())
+        let frameworkBuilder = CacheFrameworkBuilder(xcodeBuildController: XcodeBuildController())
         return CacheController(cache: cache, artifactBuilder: frameworkBuilder)
     }
 
     /// Returns a cache controller that uses xcframeworks built for the simulator and device architectures.
     /// - Returns: A cache controller instance.
     func makeForXCFramework() -> CacheControlling {
-        let frameworkBuilder = XCFrameworkBuilder(xcodeBuildController: XcodeBuildController())
+        let frameworkBuilder = CacheXCFrameworkBuilder(xcodeBuildController: XcodeBuildController())
         return CacheController(cache: cache, artifactBuilder: frameworkBuilder)
     }
 }

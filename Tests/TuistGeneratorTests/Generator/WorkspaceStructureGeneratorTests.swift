@@ -279,6 +279,10 @@ class WorkspaceStructureGeneratorTests: XCTestCase {
     }
 
     fileprivate class InMemoryFileHandler: FileHandling {
+        func temporaryDirectory() throws -> AbsolutePath {
+            currentPath
+        }
+
         private enum Node {
             case file
             case folder

@@ -4,9 +4,9 @@ import TuistSupport
 import XCTest
 
 public class MockEnvironment: Environmenting {
-    let directory: TemporaryDirectory
-    var setupCallCount: UInt = 0
-    var setupErrorStub: Error?
+    fileprivate let directory: TemporaryDirectory
+    fileprivate var setupCallCount: UInt = 0
+    fileprivate var setupErrorStub: Error?
 
     init() throws {
         directory = try TemporaryDirectory(removeTreeOnDeinit: true)
@@ -41,10 +41,6 @@ public class MockEnvironment: Environmenting {
 
     public var buildCacheDirectory: AbsolutePath {
         cacheDirectory.appending(component: "BuildCache")
-    }
-
-    public var derivedDataDirectory: AbsolutePath {
-        cacheDirectory.appending(component: "DerivedData")
     }
 
     func path(version: String) -> AbsolutePath {

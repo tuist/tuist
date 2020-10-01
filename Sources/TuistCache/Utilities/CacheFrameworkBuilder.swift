@@ -1,10 +1,11 @@
 import Foundation
+import RxBlocking
 import RxSwift
 import TSCBasic
 import TuistCore
 import TuistSupport
 
-public enum FrameworkBuilderError: FatalError {
+public enum CacheFrameworkBuilderError: FatalError {
     case frameworkNotFound(name: String, derivedDataPath: AbsolutePath)
     case deviceNotFound(platform: String)
 
@@ -25,7 +26,7 @@ public enum FrameworkBuilderError: FatalError {
     }
 }
 
-public final class FrameworkBuilder: ArtifactBuilding {
+public final class CacheFrameworkBuilder: CacheArtifactBuilding {
     // MARK: - Attributes
 
     /// Xcode build controller instance to run xcodebuild commands.
@@ -34,15 +35,23 @@ public final class FrameworkBuilder: ArtifactBuilding {
     /// Simulator controller.
     private let simulatorController: SimulatorControlling
 
+    /// Developer's environment.
+    private let developerEnvironment: DeveloperEnvironmenting
+
     // MARK: - Init
 
-    /// Initializes the builder.
-    /// - Parameter xcodeBuildController: Xcode build controller instance to run xcodebuild commands.
+    /// Initialzies the builder.
+    /// - Parameters:
+    ///   - xcodeBuildController: Xcode build controller.
+    ///   - simulatorController: Simulator controller.
+    ///   - developerEnvironment: Developer environment.
     public init(xcodeBuildController: XcodeBuildControlling,
-                simulatorController: SimulatorControlling = SimulatorController())
+                simulatorController: SimulatorControlling = SimulatorController(),
+                developerEnvironment: DeveloperEnvironmenting = DeveloperEnvironment.shared)
     {
         self.xcodeBuildController = xcodeBuildController
         self.simulatorController = simulatorController
+        self.developerEnvironment = developerEnvironment
     }
 
     // MARK: - ArtifactBuilding
@@ -50,57 +59,69 @@ public final class FrameworkBuilder: ArtifactBuilding {
     /// Returns the type of artifact that the concrete builder processes
     public var cacheOutputType: CacheOutputType = .framework
 
-    public func build(workspacePath: AbsolutePath, target: Target) throws -> Observable<[AbsolutePath]> {
-        try build(.workspace(workspacePath), target: target)
+    public func build(workspacePath: AbsolutePath,
+                      target: Target,
+                      into outputDirectory: AbsolutePath) throws
+    {
+        try build(.workspace(workspacePath),
+                  target: target,
+                  into: outputDirectory)
     }
 
-    public func build(projectPath: AbsolutePath, target: Target) throws -> Observable<[AbsolutePath]> {
-        try build(.project(projectPath), target: target)
+    public func build(projectPath: AbsolutePath,
+                      target: Target,
+                      into outputDirectory: AbsolutePath) throws
+    {
+        try build(.project(projectPath),
+                  target: target,
+                  into: outputDirectory)
     }
 
     // MARK: - Fileprivate
 
-    fileprivate func build(_ projectTarget: XcodeBuildTarget, target: Target) throws -> Observable<[AbsolutePath]> {
+    fileprivate func build(_ projectTarget: XcodeBuildTarget,
+                           target: Target,
+                           into outputDirectory: AbsolutePath) throws
+    {
         guard target.product.isFramework else {
-            throw BinaryBuilderError.nonFrameworkTargetForFramework(target.name)
+            throw CacheBinaryBuilderError.nonFrameworkTargetForFramework(target.name)
         }
         let scheme = target.name.spm_shellEscaped()
 
         // Create temporary directories
-        return try FileHandler.shared.inTemporaryDirectory(removeOnCompletion: false) { _ in
+        return try FileHandler.shared.inTemporaryDirectory(removeOnCompletion: true) { _ in
             logger.notice("Building .framework for \(target.name)...", metadata: .section)
 
             let sdk = self.sdk(target: target)
             let configuration = "Debug" // TODO: Is it available?
 
-            let argumentsObservable = self.arguments(target: target, sdk: sdk, configuration: configuration).asObservable()
-
-            return argumentsObservable.flatMap { (arguments: [XcodeBuildArgument]) -> Observable<SystemEvent<XcodeBuildOutput>> in
-                self.xcodebuild(
-                    projectTarget: projectTarget,
-                    scheme: scheme,
-                    target: target,
-                    arguments: arguments
-                )
-            }
-            .ignoreElements()
-            .andThen(derivedDataFramework(target: target, configuration: configuration, sdk: sdk))
-            .map { (path: AbsolutePath) -> [AbsolutePath] in [path] }
-            .asObservable()
+            let arguments = try self.arguments(target: target,
+                                               sdk: sdk,
+                                               configuration: configuration,
+                                               outputDirectory: outputDirectory)
+            try self.xcodebuild(
+                projectTarget: projectTarget,
+                scheme: scheme,
+                target: target,
+                arguments: arguments
+            )
         }
     }
 
-    fileprivate func arguments(target: Target, sdk: String, configuration: String) -> Single<[XcodeBuildArgument]> {
-        destination(target: target)
+    fileprivate func arguments(target: Target, sdk: String, configuration: String, outputDirectory: AbsolutePath) throws -> [XcodeBuildArgument] {
+        try destination(target: target)
             .map { (destination: String) -> [XcodeBuildArgument] in
                 [
-                    .derivedDataPath(Environment.shared.derivedDataDirectory),
                     .sdk(sdk),
                     .configuration(configuration),
-                    .buildSetting("ONLY_ACTIVE_ARCH", "YES"),
+                    .buildSetting("DEBUG_INFORMATION_FORMAT", "dwarf-with-dsym"),
+                    .buildSetting("GCC_GENERATE_DEBUGGING_SYMBOLS", "YES"),
+                    .buildSetting("CONFIGURATION_BUILD_DIR", outputDirectory.pathString),
                     .destination(destination),
                 ]
             }
+            .toBlocking()
+            .single()
     }
 
     /// https://www.mokacoding.com/blog/xcodebuild-destination-options/
@@ -125,7 +146,7 @@ public final class FrameworkBuilder: ArtifactBuilding {
                     let destination = "platform=\(platform.caseValue) Simulator,name=\(device.name),OS=latest"
                     return .just(destination)
                 } else {
-                    return .error(FrameworkBuilderError.deviceNotFound(platform: target.platform.caseValue))
+                    return .error(CacheFrameworkBuilderError.deviceNotFound(platform: target.platform.caseValue))
                 }
             }
     }
@@ -138,37 +159,21 @@ public final class FrameworkBuilder: ArtifactBuilding {
         }
     }
 
-    fileprivate func derivedDataFramework(target: Target, configuration: String, sdk: String) -> Single<AbsolutePath> {
-        Single.create { (observer) -> Disposable in
-            let derivedDataPath = Environment.shared.derivedDataDirectory
-            let frameworkName = "\(target.productName).framework"
-            let glob: String
-            if target.platform == .macOS {
-                glob = "Build/Products/\(configuration)/\(frameworkName)"
-            } else {
-                glob = "Build/Products/\(configuration)-\(sdk)/\(frameworkName)"
-            }
-            if let frameworkPath = FileHandler.shared.glob(derivedDataPath, glob: glob).first {
-                observer(.success(frameworkPath))
-            } else {
-                observer(.error(FrameworkBuilderError.frameworkNotFound(name: frameworkName, derivedDataPath: derivedDataPath)))
-            }
-            return Disposables.create {}
-        }
-    }
-
     fileprivate func xcodebuild(projectTarget: XcodeBuildTarget,
                                 scheme: String,
                                 target: Target,
-                                arguments: [XcodeBuildArgument]) -> Observable<SystemEvent<XcodeBuildOutput>>
+                                arguments: [XcodeBuildArgument]) throws
     {
-        xcodeBuildController.build(projectTarget,
-                                   scheme: scheme,
-                                   clean: false,
-                                   arguments: arguments)
+        _ = try xcodeBuildController.build(projectTarget,
+                                           scheme: scheme,
+                                           clean: false,
+                                           arguments: arguments)
             .printFormattedOutput()
             .do(onSubscribed: {
                 logger.notice("Building \(target.name) as .framework...", metadata: .subsection)
             })
+            .ignoreElements()
+            .toBlocking()
+            .last()
     }
 }

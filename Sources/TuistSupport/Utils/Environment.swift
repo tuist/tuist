@@ -31,9 +31,6 @@ public protocol Environmenting: AnyObject {
 
     /// Returns true if Tuist is running with verbose mode enabled.
     var isVerbose: Bool { get }
-
-    /// Returns the derived data location set in the system.
-    var derivedDataDirectory: AbsolutePath { get }
 }
 
 /// Local environment controller.
@@ -125,23 +122,6 @@ public class Environment: Environmenting {
         } else {
             return directory.appending(component: "Cache")
         }
-    }
-
-    /// https://pewpewthespells.com/blog/xcode_build_locations.html
-    private var _derivedDataDirectory: AbsolutePath?
-    public var derivedDataDirectory: AbsolutePath {
-        if let _derivedDataDirectory = _derivedDataDirectory {
-            return _derivedDataDirectory
-        }
-        let location: AbsolutePath
-        if let customLocation = try? System.shared.capture("/usr/bin/defaults", "read", "com.apple.dt.Xcode IDECustomDerivedDataLocation") {
-            location = AbsolutePath(customLocation.chomp())
-        } else {
-            // Default location
-            location = FileHandler.shared.homeDirectory.appending(RelativePath("Library/Developer/Xcode/DerivedData/"))
-        }
-        _derivedDataDirectory = location
-        return location
     }
 
     /// Returns all the environment variables that are specific to Tuist (prefixed with TUIST_)

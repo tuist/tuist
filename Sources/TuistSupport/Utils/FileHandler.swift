@@ -52,6 +52,7 @@ public protocol FileHandling: AnyObject {
     func readFile(_ at: AbsolutePath) throws -> Data
     func readTextFile(_ at: AbsolutePath) throws -> String
     func readPlistFile<T: Decodable>(_ at: AbsolutePath) throws -> T
+    func temporaryDirectory() throws -> AbsolutePath
     func inTemporaryDirectory(_ closure: (AbsolutePath) throws -> Void) throws
     func inTemporaryDirectory(removeOnCompletion: Bool, _ closure: (AbsolutePath) throws -> Void) throws
     func inTemporaryDirectory<Result>(_ closure: (AbsolutePath) throws -> Result) throws -> Result
@@ -112,6 +113,12 @@ public class FileHandler: FileHandling {
         defer { try? fileManager.removeItem(at: rootTempDir) }
         try fileManager.copyItem(at: with.url, to: tempUrl)
         _ = try fileManager.replaceItemAt(to.url, withItemAt: tempUrl)
+    }
+
+    public func temporaryDirectory() throws -> AbsolutePath {
+        let directory = try TemporaryDirectory(removeTreeOnDeinit: false)
+
+        return directory.path
     }
 
     public func inTemporaryDirectory<Result>(_ closure: (AbsolutePath) throws -> Result) throws -> Result {
