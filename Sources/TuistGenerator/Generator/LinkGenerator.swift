@@ -119,9 +119,12 @@ final class LinkGenerator: LinkGenerating {
                                            pbxproj: pbxproj,
                                            fileElements: fileElements)
 
-//        try generatePackages(target: target,
-//                             pbxTarget: pbxTarget,
-//                             pbxproj: pbxproj)
+        try generatePackages(target: target,
+                             pbxTarget: pbxTarget,
+                             embeddableFrameworks: embeddableFrameworks,
+                             linkableModules: linkableModules,
+                             fileElements: fileElements,
+                             pbxproj: pbxproj)
     }
 
     private func setupSearchAndIncludePaths(target: Target,
@@ -157,19 +160,33 @@ final class LinkGenerator: LinkGenerating {
                                     sourceRootPath: sourceRootPath)
     }
 
-//    func generatePackages(target: Target,
-//                          pbxTarget: PBXTarget,
-//                          pbxproj: PBXProj) throws
-//    {
-//        for dependency in target.dependencies {
-//            switch dependency {
-//            case let .package(product: product, type: type):
-//                try pbxTarget.addSwiftPackageProduct(productName: product, type: type, pbxproj: pbxproj)
-//            default:
-//                break
-//            }
-//        }
-//    }
+    func generatePackages(target: Target,
+                          pbxTarget: PBXTarget,
+                          embeddableFrameworks: [GraphDependencyReference],
+                          linkableModules: [GraphDependencyReference],
+                          fileElements: ProjectFileElements,
+                          pbxproj: PBXProj) throws
+    {
+        let extractPackageProduct: (GraphDependencyReference) -> (name: String, path: AbsolutePath)? = {
+            switch $0 {
+            case let .package(product: productName, type: _, path: path):
+                return (productName, path)
+            default:
+                return nil
+            }
+        }
+        
+        let packageProducts = Set(embeddableFrameworks + linkableModules)
+            .sorted()
+            .compactMap(extractPackageProduct)
+        
+        try packageProducts.forEach { packageProduct in
+            guard let product = fileElements.packageProduct(name: packageProduct.name, path: packageProduct.path) else {
+                throw LinkGeneratorError.missingProduct(name: packageProduct.name)
+            }
+            pbxTarget.packageProductDependencies.append(product)
+        }
+    }
 
     func generateEmbedPhase(dependencies: [GraphDependencyReference],
                             target: Target,
@@ -217,20 +234,15 @@ final class LinkGenerator: LinkGenerating {
                                              settings: ["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]])
                 pbxproj.add(object: buildFile)
                 embedPhase.files?.append(buildFile)
-            case let .package(product: product, type: type, path: path):
-                #error("probably needs revision based on changes in ProjectFileElements")
-                let packageProduct = XCSwiftPackageProductDependency(productName: product)
-                pbxTarget.packageProductDependencies.append(packageProduct)
+            case let .package(product: product, _, path: path):
+                guard let packageProduct = fileElements.packageProduct(name: product, path: path) else {
+                    throw LinkGeneratorError.missingProduct(name: product)
+                }
                 
-                let buildFile = PBXBuildFile(product: packageProduct)
+                let buildFile = PBXBuildFile(product: packageProduct,
+                                             settings: ["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]])
                 pbxproj.add(object: buildFile)
                 embedPhase.files?.append(buildFile)
-                
-                switch type {
-                case .staticLibrary: break
-                case .dynamicLibrary:
-                    buildFile.settings = ["ATTRIBUTES": ["CodeSignOnCopy"]]
-                }
             }
         }
 
@@ -371,8 +383,13 @@ final class LinkGenerator: LinkGenerating {
                     let buildFile = createSDKBuildFile(for: fileRef, status: sdkStatus)
                     pbxproj.add(object: buildFile)
                     buildPhase.files?.append(buildFile)
-                case let .package(product: product, type: type, path: path):
-                    #error("something needs to be done here")
+                case let .package(product: product, _, path: path):
+                    guard let packageProduct = fileElements.packageProduct(name: product, path: path) else {
+                        throw LinkGeneratorError.missingProduct(name: product)
+                    }
+                    let buildFile = PBXBuildFile(product: packageProduct)
+                    pbxproj.add(object: buildFile)
+                    buildPhase.files?.append(buildFile)
                 }
             }
     }
@@ -464,39 +481,3 @@ private extension XCBuildConfiguration {
         buildSettings[name] = [existing, value].joined(separator: " ")
     }
 }
-
-//extension PBXTarget {
-//    func addSwiftPackageProduct(productName: String, type: PackageProductType, pbxproj: PBXProj) throws {
-//        let productDependency = XCSwiftPackageProductDependency(productName: productName)
-//        pbxproj.add(object: productDependency)
-//        packageProductDependencies.append(productDependency)
-//
-//        // Build file
-//        let buildFile = PBXBuildFile(product: productDependency)
-//
-//
-//
-//        pbxproj.add(object: buildFile)
-//
-//        // Link the product
-//        guard let frameworksBuildPhase = try frameworksBuildPhase() else {
-//            throw "No frameworks build phase"
-//        }
-//
-//        frameworksBuildPhase.files?.append(buildFile)
-//
-//        // Embed the product
-//        switch type {
-//        case .dynamicLibrary:
-//            guard let embedPhase = embedFrameworksBuildPhases().first else {
-//                throw "No frameworks embed phase"
-//            }
-//
-//            buildFile.settings = ["ATTRIBUTES": ["CodeSignOnCopy"]]
-//            embedPhase.files?.append(buildFile)
-//
-//        case .staticLibrary:
-//            break
-//        }
-//    }
-//}

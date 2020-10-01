@@ -223,11 +223,16 @@ public class Graph: Encodable, Equatable {
 
         if targetNode.target.canLinkStaticProducts() {
             var staticLibraryTargetNodes = transitiveStaticTargetNodes(for: targetNode)
-
+            var transitivePackageNodes = Set(targetNode.packages + staticLibraryTargetNodes.flatMap(\.packages))
+            
             // Exclude any static products linked in a host application
             if targetNode.target.product == .unitTests {
                 if let hostApp = hostApplication(for: targetNode) {
-                    staticLibraryTargetNodes.subtract(transitiveStaticTargetNodes(for: hostApp))
+                    let hostAppTransitiveStaticTargetNodes = transitiveStaticTargetNodes(for: hostApp)
+                    staticLibraryTargetNodes.subtract(hostAppTransitiveStaticTargetNodes)
+                    
+                    let hostAppTransitivePackages = Set(hostAppTransitiveStaticTargetNodes.flatMap(\.packages))
+                    transitivePackageNodes.subtract(hostAppTransitivePackages)
                 }
             }
 
@@ -238,8 +243,10 @@ public class Graph: Encodable, Equatable {
                     .filter(or(isFramework, isDynamicLibrary))
                     .map(productDependencyReference)
             }
+            
+            let packageLibraries = transitivePackageNodes.map(packageProductDependencyReference)
 
-            references = references.union(staticLibraries + staticDependenciesDynamicLibraries)
+            references = references.union(staticLibraries + staticDependenciesDynamicLibraries + packageLibraries)
         }
 
         // Link dynamic libraries and frameworks
@@ -364,12 +371,12 @@ public class Graph: Encodable, Equatable {
         references.formUnion(otherTargetFrameworks)
         
         /// Other targets' packages.
-        let otherTargetsPackages = otherTargets
+        let dynamicSwiftPackageLibraries = ([targetNode] + otherTargets)
             .flatMap(\.packages)
             .filter(isDynamicLibrary)
             .map(packageProductDependencyReference)
         
-        references.formUnion(otherTargetsPackages)
+        references.formUnion(dynamicSwiftPackageLibraries)
 
         // Exclude any products embed in unit test host apps
         if targetNode.target.product == .unitTests {
