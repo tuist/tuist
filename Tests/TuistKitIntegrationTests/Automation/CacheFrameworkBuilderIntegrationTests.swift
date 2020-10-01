@@ -40,7 +40,7 @@ final class CacheFrameworkBuilderIntegrationTests: TuistTestCase {
         XCTAssertEqual(FileHandler.shared.glob(temporaryPath, glob: "*.dSYM").count, 1)
         let frameworkPath = try XCTUnwrap(FileHandler.shared.glob(temporaryPath, glob: "*.framework").first)
         XCTAssertEqual(try binaryLinking(path: frameworkPath), .dynamic)
-        XCTAssertTrue(try architectures(path: frameworkPath).contains(.x8664))
+        XCTAssertTrue((try architectures(path: frameworkPath)).onlySimulator)
         XCTAssertEqual(try architectures(path: frameworkPath).count, 1)
     }
 
@@ -78,7 +78,7 @@ final class CacheFrameworkBuilderIntegrationTests: TuistTestCase {
         XCTAssertEqual(FileHandler.shared.glob(temporaryPath, glob: "*.dSYM").count, 1)
         let frameworkPath = try XCTUnwrap(FileHandler.shared.glob(temporaryPath, glob: "*.framework").first)
         XCTAssertEqual(try binaryLinking(path: frameworkPath), .dynamic)
-        XCTAssertTrue(try architectures(path: frameworkPath).contains(.x8664))
+        XCTAssertTrue((try architectures(path: frameworkPath)).onlySimulator)
         XCTAssertEqual(try architectures(path: frameworkPath).count, 1)
     }
 
@@ -97,7 +97,7 @@ final class CacheFrameworkBuilderIntegrationTests: TuistTestCase {
         XCTAssertEqual(FileHandler.shared.glob(temporaryPath, glob: "*.dSYM").count, 1)
         let frameworkPath = try XCTUnwrap(FileHandler.shared.glob(temporaryPath, glob: "*.framework").first)
         XCTAssertEqual(try binaryLinking(path: frameworkPath), .dynamic)
-        XCTAssertTrue(try architectures(path: frameworkPath).contains(.x8664))
+        XCTAssertTrue((try architectures(path: frameworkPath)).onlySimulator)
         XCTAssertEqual(try architectures(path: frameworkPath).count, 1)
     }
 

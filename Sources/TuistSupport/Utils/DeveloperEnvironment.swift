@@ -20,6 +20,7 @@ public final class DeveloperEnvironment: DeveloperEnvironmenting {
     }
 
     /// https://pewpewthespells.com/blog/xcode_build_locations.html/// https://pewpewthespells.com/blog/xcode_build_locations.html
+    // swiftlint:disable identifier_name
     private var _derivedDataDirectory: AbsolutePath?
     public var derivedDataDirectory: AbsolutePath {
         if let _derivedDataDirectory = _derivedDataDirectory {
@@ -35,4 +36,6 @@ public final class DeveloperEnvironment: DeveloperEnvironmenting {
         _derivedDataDirectory = location
         return location
     }
+
+    // swiftlint:enable identifier_name
 }
