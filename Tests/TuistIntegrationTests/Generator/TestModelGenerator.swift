@@ -100,6 +100,7 @@ final class TestModelGenerator {
                 xcodeProjPath: path.appending(component: "App.xcodeproj"),
                 name: name,
                 organizationName: nil,
+                developmentRegion: nil,
                 settings: settings,
                 filesGroup: .group(name: "Project"),
                 targets: targets,

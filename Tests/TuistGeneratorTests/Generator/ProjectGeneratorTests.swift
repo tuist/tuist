@@ -201,6 +201,37 @@ final class ProjectGeneratorTests: TuistUnitTestCase {
             "ORGANIZATIONNAME": "tuist",
         ])
     }
+    
+    func test_generate_setsDefaultDevelopmentRegion() throws {
+        // Given
+        let path = try temporaryPath()
+        let graph = Graph.test(entryPath: path)
+        let project = Project.test(path: path,
+                                   targets: [])
+        
+        // When
+        let got = try subject.generate(project: project, graph: graph)
+        
+        // Then
+        let pbxProject = try XCTUnwrap(try got.xcodeProj.pbxproj.rootProject())
+        XCTAssertEqual(pbxProject.developmentRegion, "en")
+    }
+    
+    func test_generate_setsDevelopmentRegion() throws {
+        // Given
+        let path = try temporaryPath()
+        let graph = Graph.test(entryPath: path)
+        let project = Project.test(path: path,
+                                   developmentRegion: "de",
+                                   targets: [])
+        
+        // When
+        let got = try subject.generate(project: project, graph: graph)
+        
+        // Then
+        let pbxProject = try XCTUnwrap(try got.xcodeProj.pbxproj.rootProject())
+        XCTAssertEqual(pbxProject.developmentRegion, "de")
+    }
 
     func test_generate_localSwiftPackagePaths() throws {
         // Given
