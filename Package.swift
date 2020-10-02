@@ -230,6 +230,22 @@ let package = Package(
             dependencies: ["TuistSigning", "TuistSupportTesting", "TuistCoreTesting", "TuistSigningTesting"]
         ),
         .target(
+            name: "TuistDependencies",
+            dependencies: ["TuistCore", "TuistSupport"]
+        ),
+        .target(
+            name: "TuistDependenciesTesting",
+            dependencies: ["TuistDependencies"]
+        ),
+        .testTarget(
+            name: "TuistDependenciesTests",
+            dependencies: ["TuistDependencies", "TuistDependenciesTesting", "TuistCoreTesting", "TuistSupportTesting"]
+        ),
+        .testTarget(
+            name: "TuistDependenciesIntegrationTests",
+            dependencies: ["TuistDependencies",  "TuistDependenciesTesting", "TuistCoreTesting", "TuistSupportTesting"]
+        ),
+        .target(
             name: "TuistMigration",
             dependencies: ["TuistCore", "TuistSupport", "XcodeProj", "SwiftToolsSupport-auto"]
         ),
