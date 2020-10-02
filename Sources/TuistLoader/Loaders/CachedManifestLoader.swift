@@ -10,6 +10,7 @@ import TuistSupport
 /// time a load was performed.
 ///
 public class CachedManifestLoader: ManifestLoading {
+
     private let manifestLoader: ManifestLoading
     private let projectDescriptionHelpersHasher: ProjectDescriptionHelpersHashing
     private let helpersDirectoryLocator: HelpersDirectoryLocating
@@ -75,6 +76,10 @@ public class CachedManifestLoader: ManifestLoading {
         try load(manifest: .template, at: path) {
             try manifestLoader.loadTemplate(at: path)
         }
+    }
+
+    public func loadDependencies(at path: AbsolutePath) throws -> Dependencies {
+        try manifestLoader.loadDependencies(at: path)
     }
 
     public func manifests(at path: AbsolutePath) -> Set<Manifest> {
