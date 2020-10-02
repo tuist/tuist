@@ -4,6 +4,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+## 1.20.0 - Heideberg
+
 ### Changed
 
 - Revert using root `.package.resolved` [#1830](https://github.com/tuist/tuist/pull/1830) by [@fortmarek](https://github.com/fortmarek)
