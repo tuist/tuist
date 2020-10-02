@@ -42,7 +42,7 @@ final class ProjectMapperProvider: ProjectMapperProviding {
         // Info Plist
         mappers.append(GenerateInfoPlistProjectMapper())
 
-        // Project name mapper
+        // Project name and organization
         mappers.append(ProjectNameAndOrganizationMapper(config: config))
 
         // Signing
