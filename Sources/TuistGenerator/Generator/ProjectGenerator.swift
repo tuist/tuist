@@ -127,12 +127,13 @@ final class ProjectGenerator: ProjectGenerating {
     {
         let defaultRegions = ["en", "Base"]
         let knownRegions = Set(defaultRegions + projectFileElements.knownRegions).sorted()
+        let developmentRegion = project.developmentRegion ?? Xcode.Default.developmentRegion
         let attributes = project.organizationName.map { ["ORGANIZATIONNAME": $0] } ?? [:]
         let pbxProject = PBXProject(name: project.name,
                                     buildConfigurationList: configurationList,
                                     compatibilityVersion: Xcode.Default.compatibilityVersion,
                                     mainGroup: groups.sortedMain,
-                                    developmentRegion: Xcode.Default.developmentRegion,
+                                    developmentRegion: developmentRegion,
                                     hasScannedForEncodings: 0,
                                     knownRegions: knownRegions,
                                     productsGroup: groups.products,

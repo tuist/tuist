@@ -27,6 +27,11 @@ public class ProjectNameAndOrganizationMapper: ProjectMapping {
         if let organizationName = organizationNameOverride() {
             project.organizationName = organizationName
         }
+        
+        // Xcode project development region
+        if let developmentRegion = developmentRegionOverride() {
+            project.developmentRegion = developmentRegion
+        }
 
         return (project, [])
     }
@@ -60,6 +65,19 @@ public class ProjectNameAndOrganizationMapper: ProjectMapping {
             switch item {
             case let .organizationName(name):
                 return name
+            default:
+                return nil
+            }
+        }.first
+    }
+    
+    /// It returns the development region that should be used for the project.
+    /// - Returns: The development region.
+    private func developmentRegionOverride() -> String? {
+        config.generationOptions.compactMap { item -> String? in
+            switch item {
+            case let .developmentRegion(developmentRegion):
+                return developmentRegion
             default:
                 return nil
             }
