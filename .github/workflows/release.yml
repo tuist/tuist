@@ -1,18 +1,21 @@
-name: Deploy
+name: Release
 
 on:
   push:
     tags:
-    - '*'
+      - '*'
 
 jobs:
-  build:
+  release:
+    name: Release Tuist
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v2
         with:
           ref: master
           fetch-depth: 0
+      - name: Select Xcode 11.5
+        run: sudo xcode-select -switch /Applications/Xcode_11.5.app
       - name: Create a new release
         uses: fortmarek/tapestry-action@0.1.1
         env:
