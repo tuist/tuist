@@ -265,6 +265,7 @@ public class GraphLinter: GraphLinting {
             LintableTarget(platform: .iOS, product: .messagesExtension),
             LintableTarget(platform: .iOS, product: .stickerPackExtension),
             LintableTarget(platform: .watchOS, product: .watch2App),
+            LintableTarget(platform: .iOS, product: .appClips),
 //            LintableTarget(platform: .watchOS, product: .watchApp),
         ],
         LintableTarget(platform: .iOS, product: .staticLibrary): [
