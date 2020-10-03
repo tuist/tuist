@@ -438,13 +438,13 @@ public class Graph: Encodable, Equatable {
         return targetNode.targetDependencies
             .filter { validProducts.contains($0.target.product) }
     }
-    
+
     public func appClipsDependency(path: AbsolutePath, name: String) -> TargetNode? {
         guard let targetNode = findTargetNode(path: path, name: name) else {
             return nil
         }
-        
-        return targetNode.targetDependencies.first { $0.target.product == .appClips } 
+
+        return targetNode.targetDependencies.first { $0.target.product == .appClips }
     }
 
     /// Depth-first search (DFS) is an algorithm for traversing graph data structures. It starts at a source node

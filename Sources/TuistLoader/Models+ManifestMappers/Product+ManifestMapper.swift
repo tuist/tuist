@@ -36,7 +36,7 @@ extension TuistCore.Product {
         case .messagesExtension:
             return .messagesExtension
         case .appClips:
-          return .appClips
+            return .appClips
         }
     }
 }

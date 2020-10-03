@@ -41,7 +41,7 @@ public protocol GraphTraversing {
     ///   - path: Path to the directory where the project that defines the target is located.
     ///   - name: Name of the target.
     func directStaticDependencies(path: AbsolutePath, name: String) -> [GraphDependencyReference]
-    
+
     /// Given a project directory and a target name, it returns an appClips dependency.
     /// - Parameters:
     ///   - path: Path to the directory that contains the project.

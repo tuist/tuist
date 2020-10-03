@@ -70,9 +70,9 @@ public class ValueGraphTraverser: GraphTraversing {
             .filter { validProducts.contains($0.product) }
             .sorted()
     }
-    
+
     public func appClipsDependency(path: AbsolutePath, name: String) -> Target? {
-        return directTargetDependencies(path: path, name: name)
+        directTargetDependencies(path: path, name: name)
             .first { $0.product == .appClips }
     }
 

@@ -383,25 +383,26 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
             embedWatchAppBuildPhase.files?.append(pbxBuildFile)
         }
     }
-  
+
     func generateEmbedAppClipsBuildPhase(path: AbsolutePath,
-                                       target: Target,
-                                       graphTraverser: GraphTraversing,
-                                       pbxTarget: PBXTarget,
-                                       fileElements: ProjectFileElements,
-                                       pbxproj: PBXProj) throws {
+                                         target: Target,
+                                         graphTraverser: GraphTraversing,
+                                         pbxTarget: PBXTarget,
+                                         fileElements: ProjectFileElements,
+                                         pbxproj: PBXProj) throws
+    {
         guard let appClips = graphTraverser.appClipsDependency(path: path, name: target.name) else {
             return
         }
-        
+
         let embedAppClipsBuildPhase = PBXCopyFilesBuildPhase(dstPath: "$(CONTENTS_FOLDER_PATH)/AppClips",
                                                              dstSubfolderSpec: .productsDirectory,
                                                              name: "Embed App Clips")
         pbxproj.add(object: embedAppClipsBuildPhase)
         pbxTarget.buildPhases.append(embedAppClipsBuildPhase)
-        
+
         let refs = fileElements.product(target: appClips.name)
-                
+
         let pbxBuildFile = PBXBuildFile(file: refs, settings: ["ATTRIBUTES": ["RemoveHeadersOnCopy"]])
         pbxproj.add(object: pbxBuildFile)
         embedAppClipsBuildPhase.files?.append(pbxBuildFile)

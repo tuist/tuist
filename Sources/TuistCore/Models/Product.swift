@@ -201,7 +201,7 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Encodable {
         case .stickerPackExtension:
             return .stickerPack
         case .appClips:
-          return .onDemandInstallCapableApplication
+            return .onDemandInstallCapableApplication
         }
     }
 }
