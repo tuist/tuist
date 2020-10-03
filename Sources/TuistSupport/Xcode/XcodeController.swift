@@ -15,6 +15,12 @@ public protocol XcodeControlling {
     /// - Returns: `Version` of selected Xcode
     /// - Throws: An error if it can't be obtained
     func selectedVersion() throws -> Version
+
+    /// Returns the path of the derived data if a custom location is defined
+    ///
+    /// - Returns: `AbsolutePath` of the derived data
+    /// - Throws: An error if it can't be obtained
+    func derivedDataPath() throws -> AbsolutePath
 }
 
 public class XcodeController: XcodeControlling {
@@ -72,5 +78,13 @@ public class XcodeController: XcodeControlling {
         }
 
         return version
+    }
+
+    public func derivedDataPath() throws -> AbsolutePath {
+        guard let path = try? System.shared.capture(["defaults", "read", "com.apple.dt.Xcode", "IDECustomDerivedDataLocation"]).spm_chomp() else {
+            return AbsolutePath("/~/Library/Xcode/DerivedData")
+        }
+
+        return AbsolutePath(path)
     }
 }

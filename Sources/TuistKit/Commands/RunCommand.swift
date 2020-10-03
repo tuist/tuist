@@ -2,6 +2,7 @@ import ArgumentParser
 import Foundation
 import TSCBasic
 
+/// Command that builds and runs a target from the project in the current directory.
 struct RunCommand: ParsableCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(commandName: "run",
@@ -9,17 +10,11 @@ struct RunCommand: ParsableCommand {
     }
 
     @Argument(
-        help: "The scheme to be guild. By default it builds all the buildable schemes of the project in the current directory"
+        help: "The scheme to be run."
     )
-    var schemeName: String
-
-    @Option(
-        name: [.long, .customShort("C")],
-        help: "The configuration to be used when building the scheme."
-    )
-    var configutation: String?
+    var scheme: String
 
     func run() throws {
-        try RunService().run(schemeName: schemeName)
+        try RunService().run(schemeName: scheme)
     }
 }

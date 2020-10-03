@@ -1,4 +1,5 @@
 import Foundation
+import TSCBasic
 import struct TSCUtility.Version
 import TuistSupport
 import XCTest
@@ -21,5 +22,9 @@ public final class MockXcodeController: XcodeControlling {
         case let .failure(error): throw error
         case let .success(version): return version
         }
+    }
+
+    public func derivedDataPath() throws -> AbsolutePath {
+        AbsolutePath(stringLiteral: "")
     }
 }
