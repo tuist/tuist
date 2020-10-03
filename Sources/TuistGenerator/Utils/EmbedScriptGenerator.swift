@@ -79,7 +79,9 @@ final class EmbedScriptGenerator: EmbedScriptGenerating {
             // Framework
             let relativeFrameworkPath = path.relative(to: sourceRootPath)
             script.append("install_framework \"\(relativeFrameworkPath.pathString)\"\n")
-            inputPaths.append(relativeFrameworkPath)
+
+            inputPaths.append(relativeFrameworkPath.appending(component: relativeFrameworkPath.basenameWithoutExt))
+            inputPaths.append(relativeFrameworkPath.appending(component: "Info.plist"))
             outputPaths.append("${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/\(relativeFrameworkPath.basename)")
 
             // .dSYM
@@ -246,4 +248,14 @@ final class EmbedScriptGenerator: EmbedScriptGenerating {
 
     // swiftlint:enable function_body_length
     // swiftlint:enable line_length
+}
+
+private extension RelativePath {
+    /// Returns the basename without the extension.
+    var basenameWithoutExt: String {
+        if let ext = self.extension {
+            return String(basename.dropLast(ext.count + 1))
+        }
+        return basename
+    }
 }
