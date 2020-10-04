@@ -1,6 +1,6 @@
 //
 //  Dependency.swift
-//  
+//
 //
 //  Created by Facundo Menzella on 27/09/2020.
 //
@@ -8,7 +8,6 @@
 import Foundation
 
 public struct Dependency: Codable, Equatable {
-
     let name: String
     let requirement: Dependency.Requirement
 
@@ -34,5 +33,3 @@ public struct Dependencies: Codable, Equatable {
         dumpIfNeeded(self)
     }
 }
-
-

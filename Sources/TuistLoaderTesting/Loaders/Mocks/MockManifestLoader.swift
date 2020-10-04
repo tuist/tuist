@@ -6,7 +6,6 @@ import TuistSupport
 @testable import TuistSupportTesting
 
 public final class MockManifestLoader: ManifestLoading {
-
     public var loadProjectCount: UInt = 0
     public var loadProjectStub: ((AbsolutePath) throws -> ProjectDescription.Project)?
 

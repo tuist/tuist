@@ -1,6 +1,6 @@
 //
 //  DependencyRequirement.swift
-//  
+//
 //
 //  Created by Facundo Menzella on 02/10/2020.
 //
@@ -19,13 +19,13 @@ public extension Dependency {
 
         public init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
-            self = .exact(try container.decode(Version.self, forKey:.exact))
+            self = .exact(try container.decode(Version.self, forKey: .exact))
         }
 
         public func encode(to encoder: Encoder) throws {
             var container = encoder.container(keyedBy: CodingKeys.self)
             if case let .exact(version) = self {
-               try container.encode(version, forKey: .exact)
+                try container.encode(version, forKey: .exact)
             }
         }
 

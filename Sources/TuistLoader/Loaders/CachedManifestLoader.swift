@@ -10,7 +10,6 @@ import TuistSupport
 /// time a load was performed.
 ///
 public class CachedManifestLoader: ManifestLoading {
-
     private let manifestLoader: ManifestLoading
     private let projectDescriptionHelpersHasher: ProjectDescriptionHelpersHashing
     private let helpersDirectoryLocator: HelpersDirectoryLocating
