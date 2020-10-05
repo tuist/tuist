@@ -24,7 +24,7 @@
     "copy-text-to-clipboard": "^2.2.0",
     "focus-visible": "^5.1.0",
     "gatsby": "^2.24.65",
-    "gatsby-image": "^2.4.19",
+    "gatsby-image": "^2.4.20",
     "gatsby-plugin-favicon": "3.1.6",
     "gatsby-plugin-feed": "^2.5.12",
     "gatsby-plugin-google-analytics": "^2.3.14",
