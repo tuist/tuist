@@ -77,7 +77,7 @@ extension TuistCore.Project {
                 schemes: schemes,
                 additionalFiles: additionalFiles)
     }
-    
+
     func replacing(developmentRegion: String?) -> TuistCore.Project {
         Project(path: path,
                 sourceRootPath: sourceRootPath,

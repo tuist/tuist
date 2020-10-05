@@ -34,7 +34,7 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
 
     /// Organization name.
     public var organizationName: String?
-    
+
     /// Development region code e.g. `en`.
     public var developmentRegion: String?
 

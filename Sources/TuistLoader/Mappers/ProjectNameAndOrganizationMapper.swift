@@ -27,7 +27,7 @@ public class ProjectNameAndOrganizationMapper: ProjectMapping {
         if let organizationName = organizationNameOverride() {
             project.organizationName = organizationName
         }
-        
+
         // Xcode project development region
         if let developmentRegion = developmentRegionOverride() {
             project.developmentRegion = developmentRegion
@@ -70,7 +70,7 @@ public class ProjectNameAndOrganizationMapper: ProjectMapping {
             }
         }.first
     }
-    
+
     /// It returns the development region that should be used for the project.
     /// - Returns: The development region.
     private func developmentRegionOverride() -> String? {
