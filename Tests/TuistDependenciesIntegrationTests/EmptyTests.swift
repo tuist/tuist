@@ -7,9 +7,9 @@ import XCTest
 final class EmptyTests: TuistUnitTestCase {
     func test_empty() {
         // Given
-        
+
         // When
-        
+
         // Then
         XCTAssertTrue(true)
     }
