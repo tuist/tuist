@@ -220,7 +220,7 @@ final class TargetLinterTests: TuistUnitTestCase {
 
         // Then
         XCTContainsLintingIssue(got, .init(
-            reason: "Target \(target.name) has duplicate '\(testDependency)' dependency specified",
+            reason: "Target '\(target.name)' has duplicate sdk dependency specified: 'libc++.tbd'",
             severity: .warning
         ))
     }
