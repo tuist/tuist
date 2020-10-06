@@ -475,7 +475,7 @@ final class GraphLinterTests: TuistUnitTestCase {
                          severity: .error),
         ])
     }
-    
+
     func test_lint_valid_appClipsTargetBundleIdentifiers() throws {
         // Given
         let app = Target.test(name: "App",
@@ -488,17 +488,17 @@ final class GraphLinterTests: TuistUnitTestCase {
         let project = Project.test(targets: [app, appClips])
         let graph = Graph.create(project: project,
                                  dependencies: [
-                                    (target: app, dependencies: [appClips]),
-                                    (target: appClips, dependencies: [])
+                                     (target: app, dependencies: [appClips]),
+                                     (target: appClips, dependencies: []),
                                  ])
-        
+
         // When
         let got = subject.lint(graph: graph)
-        
+
         // Then
         XCTAssertTrue(got.isEmpty)
     }
-    
+
     func test_lint_invalid_appClipsTargetBundleIdentifiers() throws {
         // Given
         let app = Target.test(name: "TestApp",
@@ -511,8 +511,8 @@ final class GraphLinterTests: TuistUnitTestCase {
         let project = Project.test(targets: [app, appClips])
         let graph = Graph.create(project: project,
                                  dependencies: [
-                                    (target: app, dependencies: [appClips]),
-                                    (target: appClips, dependencies: [])
+                                     (target: app, dependencies: [appClips]),
+                                     (target: appClips, dependencies: []),
                                  ])
 
         // When

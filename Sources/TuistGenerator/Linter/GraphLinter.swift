@@ -214,7 +214,7 @@ public class GraphLinter: GraphLinting {
 
         return issues
     }
-    
+
     private func lintAppClipsBundleIdentifier(graph: Graph) -> [LintingIssue] {
         let apps = graph
             .targets.values
@@ -224,14 +224,14 @@ public class GraphLinter: GraphLinting {
                     return nil
                 }
             }
-        
+
         let issues = apps.flatMap { app -> [LintingIssue] in
             let appClips = products(ofType: .appClips, for: app, graph: graph)
             return appClips.flatMap { appClips -> [LintingIssue] in
                 lint(appClips: appClips, parentApp: app)
             }
         }
-        
+
         return issues
     }
 
@@ -245,7 +245,7 @@ public class GraphLinter: GraphLinting {
         }
         return []
     }
-    
+
     private func lint(watchExtension: TargetNode, parentWatchApp: TargetNode) -> [LintingIssue] {
         guard watchExtension.target.bundleId.hasPrefix(parentWatchApp.target.bundleId) else {
             return [
@@ -256,7 +256,7 @@ public class GraphLinter: GraphLinting {
         }
         return []
     }
-    
+
     private func products(ofType type: Product, for targetNode: TargetNode, graph: Graph) -> [TargetNode] {
         graph.targetDependencies(path: targetNode.path,
                                  name: targetNode.name)
