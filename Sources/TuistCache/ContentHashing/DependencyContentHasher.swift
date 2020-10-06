@@ -16,7 +16,7 @@ public final class DependenciesContentHasher: DependenciesContentHashing {
         self.contentHasher = contentHasher
     }
 
-    // MARK: - HeadersContentHashing
+    // MARK: - DependenciesContentHashing
 
     public func hash(dependencies: [Dependency]) throws -> String {
         let hashes = dependencies.map { try? hash(dependency: $0) }
