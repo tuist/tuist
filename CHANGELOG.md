@@ -4,6 +4,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Fixed
+
+- Fix calculation of Settings hash related to Cache commands [#1869](Fix calculation of Settings hash related to Cache commands) by [@natanrolnik](https://github.com/natanrolnik)
+
 ## 1.20.0 - Heideberg
 
 ### Changed
