@@ -234,24 +234,24 @@ private extension Dependency {
             return "xctest"
         }
     }
-    
+
     var name: String {
         switch self {
-        case .target(let name):
+        case let .target(name):
             return name
-        case .project(let target, _):
+        case let .project(target, _):
             return target
-        case .framework(let path):
+        case let .framework(path):
             return path.basename
-        case .xcFramework(let path):
+        case let .xcFramework(path):
             return path.basename
-        case .library(let path, _, _):
+        case let .library(path, _, _):
             return path.basename
-        case .package(let product):
+        case let .package(product):
             return product
-        case .sdk(let name, _):
+        case let .sdk(name, _):
             return name
-        case .cocoapods(let path):
+        case let .cocoapods(path):
             return path.basename
         case .xctest:
             return "xctest"
