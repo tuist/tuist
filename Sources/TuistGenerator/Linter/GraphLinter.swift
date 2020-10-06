@@ -40,6 +40,7 @@ public class GraphLinter: GraphLinting {
         issues.append(contentsOf: lintDependencies(graph: graph))
         issues.append(contentsOf: lintMismatchingConfigurations(graph: graph))
         issues.append(contentsOf: lintWatchBundleIndentifiers(graph: graph))
+        issues.append(contentsOf: lintAppClipsBundleIdentifier(graph: graph))
         return issues
     }
 
@@ -200,10 +201,10 @@ public class GraphLinter: GraphLinting {
             }
 
         let issues = apps.flatMap { app -> [LintingIssue] in
-            let watchApps = watchAppsFor(targetNode: app, graph: graph)
+            let watchApps = products(ofType: .watch2App, for: app, graph: graph)
             return watchApps.flatMap { watchApp -> [LintingIssue] in
                 let watchAppIssues = lint(watchApp: watchApp, parentApp: app)
-                let watchExtensions = watchExtensionsFor(targetNode: watchApp, graph: graph)
+                let watchExtensions = products(ofType: .watch2Extension, for: watchApp, graph: graph)
                 let watchExtensionIssues = watchExtensions.flatMap { watchExtension in
                     lint(watchExtension: watchExtension, parentWatchApp: watchApp)
                 }
@@ -211,6 +212,26 @@ public class GraphLinter: GraphLinting {
             }
         }
 
+        return issues
+    }
+    
+    private func lintAppClipsBundleIdentifier(graph: Graph) -> [LintingIssue] {
+        let apps = graph
+            .targets.values
+            .flatMap { targets -> [TargetNode] in
+                targets.compactMap { target in
+                    if target.target.product == .app { return target }
+                    return nil
+                }
+            }
+        
+        let issues = apps.flatMap { app -> [LintingIssue] in
+            let appClips = products(ofType: .appClips, for: app, graph: graph)
+            return appClips.flatMap { appClips -> [LintingIssue] in
+                lint(appClips: appClips, parentApp: app)
+            }
+        }
+        
         return issues
     }
 
@@ -224,7 +245,7 @@ public class GraphLinter: GraphLinting {
         }
         return []
     }
-
+    
     private func lint(watchExtension: TargetNode, parentWatchApp: TargetNode) -> [LintingIssue] {
         guard watchExtension.target.bundleId.hasPrefix(parentWatchApp.target.bundleId) else {
             return [
@@ -235,17 +256,22 @@ public class GraphLinter: GraphLinting {
         }
         return []
     }
-
-    private func watchAppsFor(targetNode: TargetNode, graph: Graph) -> [TargetNode] {
+    
+    private func products(ofType type: Product, for targetNode: TargetNode, graph: Graph) -> [TargetNode] {
         graph.targetDependencies(path: targetNode.path,
                                  name: targetNode.name)
-            .filter { $0.target.product == .watch2App }
+            .filter { $0.target.product == type }
     }
 
-    private func watchExtensionsFor(targetNode: TargetNode, graph: Graph) -> [TargetNode] {
-        graph.targetDependencies(path: targetNode.path,
-                                 name: targetNode.name)
-            .filter { $0.target.product == .watch2Extension }
+    private func lint(appClips: TargetNode, parentApp: TargetNode) -> [LintingIssue] {
+        guard appClips.target.bundleId.hasPrefix(parentApp.target.bundleId) else {
+            return [
+                LintingIssue(reason: """
+                AppClips '\(appClips.name)' bundleId: \(appClips.target.bundleId) isn't prefixed with its parent's app '\(parentApp.name)' bundleId '\(parentApp.target.bundleId)'
+                """, severity: .error),
+            ]
+        }
+        return []
     }
 
     struct LintableTarget: Equatable, Hashable {

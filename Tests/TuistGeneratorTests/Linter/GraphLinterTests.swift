@@ -475,4 +475,53 @@ final class GraphLinterTests: TuistUnitTestCase {
                          severity: .error),
         ])
     }
+    
+    func test_lint_valid_appClipsTargetBundleIdentifiers() throws {
+        // Given
+        let app = Target.test(name: "App",
+                              product: .app,
+                              bundleId: "com.example.app")
+        let appClips = Target.test(name: "AppClips",
+                                   platform: .iOS,
+                                   product: .appClips,
+                                   bundleId: "com.example.app.clips")
+        let project = Project.test(targets: [app, appClips])
+        let graph = Graph.create(project: project,
+                                 dependencies: [
+                                    (target: app, dependencies: [appClips]),
+                                    (target: appClips, dependencies: [])
+                                 ])
+        
+        // When
+        let got = subject.lint(graph: graph)
+        
+        // Then
+        XCTAssertTrue(got.isEmpty)
+    }
+    
+    func test_lint_invalid_appClipsTargetBundleIdentifiers() throws {
+        // Given
+        let app = Target.test(name: "TestApp",
+                              product: .app,
+                              bundleId: "com.example.app")
+        let appClips = Target.test(name: "TestAppClips",
+                                   platform: .iOS,
+                                   product: .appClips,
+                                   bundleId: "com.example1.app.clips")
+        let project = Project.test(targets: [app, appClips])
+        let graph = Graph.create(project: project,
+                                 dependencies: [
+                                    (target: app, dependencies: [appClips]),
+                                    (target: appClips, dependencies: [])
+                                 ])
+
+        // When
+        let got = subject.lint(graph: graph)
+
+        // Then
+        XCTAssertEqual(got, [
+            LintingIssue(reason: "AppClips 'TestAppClips' bundleId: com.example1.app.clips isn't prefixed with its parent's app 'TestApp' bundleId 'com.example.app'",
+                         severity: .error),
+        ])
+    }
 }
