@@ -34,6 +34,7 @@ final class EmbedScriptGeneratorTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(got.inputPaths, [
+            RelativePath("tuist.framework"),
             RelativePath("tuist.framework/tuist"),
             RelativePath("tuist.framework/Info.plist"),
         ])
@@ -60,6 +61,7 @@ final class EmbedScriptGeneratorTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(got.inputPaths, [
+            RelativePath("tuist.framework"),
             RelativePath("tuist.framework/tuist"),
             RelativePath("tuist.framework/Info.plist"),
         ])

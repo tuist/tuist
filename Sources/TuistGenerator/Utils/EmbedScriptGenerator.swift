@@ -80,6 +80,7 @@ final class EmbedScriptGenerator: EmbedScriptGenerating {
             let relativeFrameworkPath = path.relative(to: sourceRootPath)
             script.append("install_framework \"\(relativeFrameworkPath.pathString)\"\n")
 
+            inputPaths.append(relativeFrameworkPath)
             inputPaths.append(relativeFrameworkPath.appending(component: relativeFrameworkPath.basenameWithoutExt))
             inputPaths.append(relativeFrameworkPath.appending(component: "Info.plist"))
             outputPaths.append("${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/\(relativeFrameworkPath.basename)")
