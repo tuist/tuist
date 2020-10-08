@@ -4,6 +4,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Changed
+
+- Improve error message to have more actionable information [#921](https://github.com/tuist/tuist/issues/921) by by [@mollyIV](https://github.com/mollyIV).
+
 ## 1.20.0 - Heideberg
 
 ### Changed
