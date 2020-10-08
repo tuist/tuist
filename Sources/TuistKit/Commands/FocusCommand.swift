@@ -56,6 +56,12 @@ struct FocusCommand: ParsableCommand {
     )
     var xcframeworks: Bool = false
 
+    @Flag(
+        name: [.customLong("no-cache")],
+        help: "Ignore cached targets, and use their sources instead."
+    )
+    var ignoreCache: Bool = false
+
     func run() throws {
         if sources.isEmpty {
             throw FocusCommandError.noSources
@@ -63,6 +69,7 @@ struct FocusCommand: ParsableCommand {
         try FocusService().run(path: path,
                                sources: Set(sources),
                                noOpen: noOpen,
-                               xcframeworks: xcframeworks)
+                               xcframeworks: xcframeworks,
+                               ignoreCache: ignoreCache)
     }
 }
