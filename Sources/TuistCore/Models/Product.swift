@@ -131,6 +131,7 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Encodable {
             base.append(.stickerPackExtension)
             //            base.append(.messagesApplication)
             base.append(.messagesExtension)
+            base.append(.appClips)
         }
 
         if platform == .tvOS {
