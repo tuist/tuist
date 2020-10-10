@@ -73,7 +73,7 @@ public class ValueGraphTraverser: GraphTraversing {
 
     public func appClipsDependency(path: AbsolutePath, name: String) -> Target? {
         directTargetDependencies(path: path, name: name)
-            .first { $0.product == .appClips }
+            .first { $0.product == .appClip }
     }
 
     public func directStaticDependencies(path: AbsolutePath, name: String) -> [GraphDependencyReference] {

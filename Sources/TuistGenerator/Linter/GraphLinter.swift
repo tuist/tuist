@@ -182,7 +182,7 @@ public class GraphLinter: GraphLinting {
             }
 
         let issues = apps.flatMap { app -> [LintingIssue] in
-            let appClips = products(ofType: .appClips, for: app, graph: graph)
+            let appClips = products(ofType: .appClip, for: app, graph: graph)
             return appClips.flatMap { appClips -> [LintingIssue] in
                 lint(appClips: appClips, parentApp: app)
             }
@@ -246,7 +246,7 @@ public class GraphLinter: GraphLinting {
             }
 
         let issues = apps.flatMap { app -> [LintingIssue] in
-            let appClips = products(ofType: .appClips, for: app, graph: graph)
+            let appClips = products(ofType: .appClip, for: app, graph: graph)
             return appClips.flatMap { appClips -> [LintingIssue] in
                 lint(appClips: appClips, parentApp: app)
             }
@@ -321,7 +321,7 @@ public class GraphLinter: GraphLinting {
             LintableTarget(platform: .iOS, product: .messagesExtension),
             LintableTarget(platform: .iOS, product: .stickerPackExtension),
             LintableTarget(platform: .watchOS, product: .watch2App),
-            LintableTarget(platform: .iOS, product: .appClips),
+            LintableTarget(platform: .iOS, product: .appClip),
 //            LintableTarget(platform: .watchOS, product: .watchApp),
         ],
         LintableTarget(platform: .iOS, product: .staticLibrary): [
@@ -353,7 +353,7 @@ public class GraphLinter: GraphLinting {
             LintableTarget(platform: .iOS, product: .framework),
             LintableTarget(platform: .iOS, product: .staticFramework),
             LintableTarget(platform: .iOS, product: .bundle),
-            LintableTarget(platform: .iOS, product: .appClips),
+            LintableTarget(platform: .iOS, product: .appClip),
         ],
         LintableTarget(platform: .iOS, product: .uiTests): [
             LintableTarget(platform: .iOS, product: .app),
@@ -362,7 +362,7 @@ public class GraphLinter: GraphLinting {
             LintableTarget(platform: .iOS, product: .framework),
             LintableTarget(platform: .iOS, product: .staticFramework),
             LintableTarget(platform: .iOS, product: .bundle),
-            LintableTarget(platform: .iOS, product: .appClips),
+            LintableTarget(platform: .iOS, product: .appClip),
         ],
         LintableTarget(platform: .iOS, product: .appExtension): [
             LintableTarget(platform: .iOS, product: .staticLibrary),

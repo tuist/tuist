@@ -19,7 +19,7 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Encodable {
     //    case messagesApplication = "messages_application"
     case messagesExtension = "messages_extension"
     case stickerPackExtension = "sticker_pack_extension"
-    case appClips
+    case appClip
 
     public var caseValue: String {
         switch self {
@@ -57,8 +57,8 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Encodable {
             return "messagesExtension"
         case .stickerPackExtension:
             return "stickerPackExtension"
-        case .appClips:
-            return "appClips"
+        case .appClip:
+            return "appClip"
         }
     }
 
@@ -98,15 +98,15 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Encodable {
             return "iMessage extension"
         case .stickerPackExtension:
             return "sticker pack extension"
-        case .appClips:
-            return "appClips"
+        case .appClip:
+            return "appClip"
         }
     }
 
     /// Returns true if the target can be ran.
     public var runnable: Bool {
         switch self {
-        case .app, .appClips:
+        case .app, .appClip:
             return true
         default:
             return false
@@ -131,7 +131,7 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Encodable {
             base.append(.stickerPackExtension)
             //            base.append(.messagesApplication)
             base.append(.messagesExtension)
-            base.append(.appClips)
+            base.append(.appClip)
         }
 
         if platform == .tvOS {
@@ -201,7 +201,7 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Encodable {
             return .messagesExtension
         case .stickerPackExtension:
             return .stickerPack
-        case .appClips:
+        case .appClip:
             return .onDemandInstallCapableApplication
         }
     }

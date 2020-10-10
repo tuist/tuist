@@ -476,20 +476,20 @@ final class GraphLinterTests: TuistUnitTestCase {
         ])
     }
 
-    func test_lint_valid_appClipsTargetBundleIdentifiers() throws {
+    func test_lint_valid_appClipTargetBundleIdentifiers() throws {
         // Given
         let app = Target.test(name: "App",
                               product: .app,
                               bundleId: "com.example.app")
-        let appClips = Target.test(name: "AppClips",
+        let appClip = Target.test(name: "AppClip",
                                    platform: .iOS,
-                                   product: .appClips,
-                                   bundleId: "com.example.app.clips")
-        let project = Project.test(targets: [app, appClips])
+                                   product: .appClip,
+                                   bundleId: "com.example.app.clip")
+        let project = Project.test(targets: [app, appClip])
         let graph = Graph.create(project: project,
                                  dependencies: [
-                                     (target: app, dependencies: [appClips]),
-                                     (target: appClips, dependencies: []),
+                                     (target: app, dependencies: [appClip]),
+                                     (target: appClip, dependencies: []),
                                  ])
 
         // When
@@ -499,20 +499,20 @@ final class GraphLinterTests: TuistUnitTestCase {
         XCTAssertTrue(got.isEmpty)
     }
 
-    func test_lint_invalid_appClipsTargetBundleIdentifiers() throws {
+    func test_lint_invalid_appClipTargetBundleIdentifiers() throws {
         // Given
         let app = Target.test(name: "TestApp",
                               product: .app,
                               bundleId: "com.example.app")
-        let appClips = Target.test(name: "TestAppClips",
+        let appClip = Target.test(name: "TestAppClip",
                                    platform: .iOS,
-                                   product: .appClips,
-                                   bundleId: "com.example1.app.clips")
-        let project = Project.test(targets: [app, appClips])
+                                   product: .appClip,
+                                   bundleId: "com.example1.app.clip")
+        let project = Project.test(targets: [app, appClip])
         let graph = Graph.create(project: project,
                                  dependencies: [
-                                     (target: app, dependencies: [appClips]),
-                                     (target: appClips, dependencies: []),
+                                     (target: app, dependencies: [appClip]),
+                                     (target: appClip, dependencies: []),
                                  ])
 
         // When
@@ -520,7 +520,7 @@ final class GraphLinterTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(got, [
-            LintingIssue(reason: "AppClips 'TestAppClips' bundleId: com.example1.app.clips isn't prefixed with its parent's app 'TestApp' bundleId 'com.example.app'",
+            LintingIssue(reason: "AppClip 'TestAppClip' bundleId: com.example1.app.clip isn't prefixed with its parent's app 'TestApp' bundleId 'com.example.app'",
                          severity: .error),
         ])
     }

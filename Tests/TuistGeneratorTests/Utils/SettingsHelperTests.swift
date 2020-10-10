@@ -179,7 +179,7 @@ final class SettingsHelpersTests: XCTestCase {
         XCTAssertEqual(subject.settingsProviderProduct(.test(product: .framework)), .framework)
         XCTAssertEqual(subject.settingsProviderProduct(.test(product: .unitTests)), .unitTests)
         XCTAssertEqual(subject.settingsProviderProduct(.test(product: .uiTests)), .uiTests)
-        XCTAssertEqual(subject.settingsProviderProduct(.test(product: .appClips)), .application)
+        XCTAssertEqual(subject.settingsProviderProduct(.test(product: .appClip)), .application)
         XCTAssertNil(subject.settingsProviderProduct(.test(product: .bundle)))
     }
 

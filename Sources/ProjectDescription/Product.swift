@@ -11,7 +11,7 @@ public enum Product: String, Codable, Equatable {
     case unitTests = "unit_tests"
     case uiTests = "ui_tests"
     case bundle
-    case appClips
+    case appClip
 
     // Not supported yet
     case appExtension = "app_extension"

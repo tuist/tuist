@@ -444,7 +444,7 @@ public class Graph: Encodable, Equatable {
             return nil
         }
 
-        return targetNode.targetDependencies.first { $0.target.product == .appClips }
+        return targetNode.targetDependencies.first { $0.target.product == .appClip }
     }
 
     /// Depth-first search (DFS) is an algorithm for traversing graph data structures. It starts at a source node

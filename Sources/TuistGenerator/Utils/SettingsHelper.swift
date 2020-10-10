@@ -30,7 +30,7 @@ final class SettingsHelper {
 
     func settingsProviderProduct(_ target: Target) -> BuildSettingsProvider.Product? {
         switch target.product {
-        case .app, .watch2App, .appClips:
+        case .app, .watch2App, .appClip:
             return .application
         case .dynamicLibrary:
             return .dynamicLibrary
