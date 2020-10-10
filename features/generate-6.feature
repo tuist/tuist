@@ -18,11 +18,11 @@ Scenario: The project is an iOS application with core data models (ios_app_with_
     Then the product 'App.app' with destination 'Debug-iphonesimulator' contains resource 'Users.momd'
     Then the product 'App.app' with destination 'Debug-iphonesimulator' contains resource '1_2.cdm'
 
-Scenario: The project is an iOS application with appclips (ios_app_with_appclips)
+Scenario: The project is an iOS application with appclip (ios_app_with_appclip)
     Given that tuist is available
     And I have a working directory
-    Then I copy the fixture ios_app_with_appclips into the working directory
+    Then I copy the fixture ios_app_with_appclip into the working directory
     Then tuist generates the project
     Then in project App the target App should have the build phase Embed App Clips
     Then I should be able to build for iOS the scheme App
-    Then I should be able to build for iOS the scheme AppClips
+    Then I should be able to build for iOS the scheme AppClip
