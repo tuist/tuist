@@ -1,10 +1,3 @@
-//
-//  Dependency.swift
-//
-//
-//  Created by Facundo Menzella on 27/09/2020.
-//
-
 import Foundation
 
 public struct Dependency: Codable, Equatable {

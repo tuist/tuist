@@ -1,10 +1,3 @@
-//
-//  DependencyRequirement.swift
-//
-//
-//  Created by Facundo Menzella on 02/10/2020.
-//
-
 import Foundation
 
 // The idea of Requirement comes from SPM PackageRequirement
