@@ -478,13 +478,22 @@ final class GraphLinterTests: TuistUnitTestCase {
 
     func test_lint_valid_appClipTargetBundleIdentifiers() throws {
         // Given
+        let temporaryPath = try self.temporaryPath()
+
+        try createFiles([
+            "entitlements/AppClip.entitlements",
+        ])
+
+        let entitlementsPath = temporaryPath.appending(RelativePath("entitlements/AppClip.entitlements"))
+
         let app = Target.test(name: "App",
                               product: .app,
                               bundleId: "com.example.app")
         let appClip = Target.test(name: "AppClip",
-                                   platform: .iOS,
-                                   product: .appClip,
-                                   bundleId: "com.example.app.clip")
+                                  platform: .iOS,
+                                  product: .appClip,
+                                  bundleId: "com.example.app.clip",
+                                  entitlements: entitlementsPath)
         let project = Project.test(targets: [app, appClip])
         let graph = Graph.create(project: project,
                                  dependencies: [
@@ -501,13 +510,22 @@ final class GraphLinterTests: TuistUnitTestCase {
 
     func test_lint_invalid_appClipTargetBundleIdentifiers() throws {
         // Given
+        let temporaryPath = try self.temporaryPath()
+
+        try createFiles([
+            "entitlements/AppClip.entitlements",
+        ])
+
+        let entitlementsPath = temporaryPath.appending(RelativePath("entitlements/AppClip.entitlements"))
+
         let app = Target.test(name: "TestApp",
                               product: .app,
                               bundleId: "com.example.app")
         let appClip = Target.test(name: "TestAppClip",
-                                   platform: .iOS,
-                                   product: .appClip,
-                                   bundleId: "com.example1.app.clip")
+                                  platform: .iOS,
+                                  product: .appClip,
+                                  bundleId: "com.example1.app.clip",
+                                  entitlements: entitlementsPath)
         let project = Project.test(targets: [app, appClip])
         let graph = Graph.create(project: project,
                                  dependencies: [
@@ -521,6 +539,59 @@ final class GraphLinterTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(got, [
             LintingIssue(reason: "AppClip 'TestAppClip' bundleId: com.example1.app.clip isn't prefixed with its parent's app 'TestApp' bundleId 'com.example.app'",
+                         severity: .error),
+        ])
+    }
+
+    func test_lint_when_appclip_is_missing_required_entitlements() throws {
+        // Given
+        let app = Target.test(name: "App",
+                              product: .app,
+                              bundleId: "com.example.app")
+        let appClip = Target.test(name: "AppClip",
+                                  platform: .iOS,
+                                  product: .appClip,
+                                  bundleId: "com.example.app.clip")
+        let project = Project.test(targets: [app, appClip])
+        let graph = Graph.create(project: project,
+                                 dependencies: [
+                                     (target: app, dependencies: [appClip]),
+                                     (target: appClip, dependencies: []),
+                                 ])
+
+        // When
+        let got = subject.lint(graph: graph)
+
+        // Then
+        XCTAssertEqual(got, [
+            LintingIssue(reason: "Parent Application Identifiers Entitlement is missing in an App Clip target",
+                         severity: .error),
+        ])
+    }
+
+    func test_lint_when_appclip_entitlements_does_not_exist() throws {
+        // Given
+        let app = Target.test(name: "App",
+                              product: .app,
+                              bundleId: "com.example.app")
+        let appClip = Target.test(name: "AppClip",
+                                  platform: .iOS,
+                                  product: .appClip,
+                                  bundleId: "com.example.app.clip",
+                                  entitlements: "/entitlements/AppClip.entitlements")
+        let project = Project.test(targets: [app, appClip])
+        let graph = Graph.create(project: project,
+                                 dependencies: [
+                                     (target: app, dependencies: [appClip]),
+                                     (target: appClip, dependencies: []),
+                                 ])
+
+        // When
+        let got = subject.lint(graph: graph)
+
+        // Then
+        XCTAssertEqual(got, [
+            LintingIssue(reason: "The entitlements at path '/entitlements/AppClip.entitlements' referenced by target does not exist",
                          severity: .error),
         ])
     }
