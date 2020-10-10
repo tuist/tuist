@@ -12,6 +12,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Extended `BuildPhaseGenerator` to generate script build phases [#1932](https://github.com/tuist/tuist/pull/1932) by [@pepibumur](https://github.com/pepibumur).
 - Extend the `TargetContentHasher` to account for the `Target.scripts` attribute [#1933](https://github.com/tuist/tuist/pull/1933) by [@pepibumur](https://github.com/pepibumur).
 - Extend the `CacheController` to generate projects with the build phase to locate the targets' built products directory [#1933](https://github.com/tuist/tuist/pull/1933) by [@pepibumur](https://github.com/pepibumur).
+- Add support for appClip [#1854](https://github.com/tuist/tuist/pull/1854) by [@lakpa](https://github.com/lakpa).
 
 ### Fixed
 
@@ -39,11 +40,11 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Added
 
-- Add support for appClip https://github.com/tuist/tuist/pull/1854 by @lakpa
+- Allow ignoring cache when running tuist focus [#1879](https://github.com/tuist/tuist/pull/1879) by [@natanrolnik](https://github.com/natanrolnik).
 
 ### Changed
 
-- Improve error message to have more actionable information [#921](https://github.com/tuist/tuist/issues/921) by by [@mollyIV](https://github.com/mollyIV).
+- Improve error message to have more actionable information [#921](https://github.com/tuist/tuist/issues/921) by [@mollyIV](https://github.com/mollyIV).
 
 ### Fixed
 
