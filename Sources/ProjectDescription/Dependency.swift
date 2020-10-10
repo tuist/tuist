@@ -1,7 +1,12 @@
 import Foundation
 
+/// Dependency contains the description of any kind of dependency of your Xcode project.
 public struct Dependency: Codable, Equatable {
+
+    /// Name of the dependency
     let name: String
+
+    /// Type of requirement for the given dependency
     let requirement: Dependency.Requirement
 
     public init(name: String, requirement: Dependency.Requirement) {
@@ -9,6 +14,10 @@ public struct Dependency: Codable, Equatable {
         self.requirement = requirement
     }
 
+    /// Carthage dependency initailizer
+    /// - Parameter name: Name of the dependency
+    /// - Parameter requirement: Type of requirement for the given dependency
+    /// - Returns Dependency
     public static func carthage(name: String, requirement: Dependency.Requirement) -> Dependency {
         Dependency(name: name, requirement: requirement)
     }

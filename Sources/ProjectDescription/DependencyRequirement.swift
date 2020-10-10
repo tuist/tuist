@@ -4,6 +4,7 @@ import Foundation
 // https://github.com/apple/swift-package-manager/blob/main/Sources/PackageDescription/PackageRequirement.swift
 // This could be further extended for more cases
 
+/// DependencyRequiement describes which dependency the project needs.
 public extension Dependency {
     enum Requirement: Codable, Equatable {
         case exact(Version)
