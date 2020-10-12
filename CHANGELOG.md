@@ -4,6 +4,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+## 1.21.0 - PBWerk
+
 ### Added
 
 - Allow ignoring cache when running tuist focus [#1879](https://github.com/tuist/tuist/pull/1879) by [@natanrolnik](https://github.com/natanrolnik).
