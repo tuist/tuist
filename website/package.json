@@ -22,7 +22,7 @@
     "@theme-ui/sidenav": "^0.3.1",
     "@theme-ui/typography": "^0.3.0",
     "copy-text-to-clipboard": "^2.2.0",
-    "focus-visible": "^5.1.0",
+    "focus-visible": "^5.2.0",
     "gatsby": "^2.24.69",
     "gatsby-image": "^2.4.20",
     "gatsby-plugin-favicon": "3.1.6",
