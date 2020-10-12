@@ -36,7 +36,7 @@ public struct TargetAction: Codable, Equatable {
 
     /// List of output filelist paths
     public let outputFileListPaths: [Path]
-    
+
     /// Whether to skip running this script in incremental builds, if nothing has changed
     public let basedOnDependencyAnalysis: Bool?
 

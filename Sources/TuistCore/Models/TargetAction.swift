@@ -42,7 +42,7 @@ public struct TargetAction: Equatable {
 
     /// Show environment variables in the logs
     public var showEnvVarsInLog: Bool
-    
+
     /// Whether to skip running this script in incremental builds, if nothing has changed
     public let basedOnDependencyAnalysis: Bool?
 
