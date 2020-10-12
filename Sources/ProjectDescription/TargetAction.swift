@@ -36,6 +36,9 @@ public struct TargetAction: Codable, Equatable {
 
     /// List of output filelist paths
     public let outputFileListPaths: [Path]
+    
+    /// Whether to skip running this script in incremental builds, if nothing has changed
+    public let basedOnDependencyAnalysis: Bool?
 
     public enum CodingKeys: String, CodingKey {
         case name
@@ -47,6 +50,7 @@ public struct TargetAction: Codable, Equatable {
         case inputFileListPaths
         case outputPaths
         case outputFileListPaths
+        case basedOnDependencyAnalysis
     }
 
     /// Initializes the target action with its attributes.
@@ -61,6 +65,7 @@ public struct TargetAction: Codable, Equatable {
     ///   - inputFileListPaths: List of input filelist paths.
     ///   - outputPaths: List of output file paths.
     ///   - outputFileListPaths: List of output filelist paths.
+    ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
     init(name: String,
          tool: String?,
          path: Path?,
@@ -69,7 +74,8 @@ public struct TargetAction: Codable, Equatable {
          inputPaths: [Path] = [],
          inputFileListPaths: [Path] = [],
          outputPaths: [Path] = [],
-         outputFileListPaths: [Path] = [])
+         outputFileListPaths: [Path] = [],
+         basedOnDependencyAnalysis: Bool? = nil)
     {
         self.name = name
         self.path = path
@@ -80,6 +86,7 @@ public struct TargetAction: Codable, Equatable {
         self.inputFileListPaths = inputFileListPaths
         self.outputPaths = outputPaths
         self.outputFileListPaths = outputFileListPaths
+        self.basedOnDependencyAnalysis = basedOnDependencyAnalysis
     }
 
     /// Returns a target action that gets executed before the sources and resources build phase.
@@ -92,6 +99,7 @@ public struct TargetAction: Codable, Equatable {
     ///   - inputFileListPaths: List of input filelist paths.
     ///   - outputPaths: List of output file paths.
     ///   - outputFileListPaths: List of output filelist paths.
+    ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
     /// - Returns: Target action.
     public static func pre(tool: String,
                            arguments: String...,
@@ -99,7 +107,8 @@ public struct TargetAction: Codable, Equatable {
                            inputPaths: [Path] = [],
                            inputFileListPaths: [Path] = [],
                            outputPaths: [Path] = [],
-                           outputFileListPaths: [Path] = []) -> TargetAction
+                           outputFileListPaths: [Path] = [],
+                           basedOnDependencyAnalysis: Bool? = nil) -> TargetAction
     {
         TargetAction(name: name,
                      tool: tool,
@@ -109,7 +118,8 @@ public struct TargetAction: Codable, Equatable {
                      inputPaths: inputPaths,
                      inputFileListPaths: inputFileListPaths,
                      outputPaths: outputPaths,
-                     outputFileListPaths: outputFileListPaths)
+                     outputFileListPaths: outputFileListPaths,
+                     basedOnDependencyAnalysis: basedOnDependencyAnalysis)
     }
 
     /// Returns a target action that gets executed before the sources and resources build phase.
@@ -122,6 +132,7 @@ public struct TargetAction: Codable, Equatable {
     ///   - inputFileListPaths: List of input filelist paths.
     ///   - outputPaths: List of output file paths.
     ///   - outputFileListPaths: List of output filelist paths.
+    ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
     /// - Returns: Target action.
     public static func pre(tool: String,
                            arguments: [String],
@@ -129,7 +140,8 @@ public struct TargetAction: Codable, Equatable {
                            inputPaths: [Path] = [],
                            inputFileListPaths: [Path] = [],
                            outputPaths: [Path] = [],
-                           outputFileListPaths: [Path] = []) -> TargetAction
+                           outputFileListPaths: [Path] = [],
+                           basedOnDependencyAnalysis: Bool? = nil) -> TargetAction
     {
         TargetAction(name: name,
                      tool: tool,
@@ -139,7 +151,8 @@ public struct TargetAction: Codable, Equatable {
                      inputPaths: inputPaths,
                      inputFileListPaths: inputFileListPaths,
                      outputPaths: outputPaths,
-                     outputFileListPaths: outputFileListPaths)
+                     outputFileListPaths: outputFileListPaths,
+                     basedOnDependencyAnalysis: basedOnDependencyAnalysis)
     }
 
     /// Returns a target action that gets executed before the sources and resources build phase.
@@ -152,6 +165,7 @@ public struct TargetAction: Codable, Equatable {
     ///   - inputFileListPaths: List of input filelist paths.
     ///   - outputPaths: List of output file paths.
     ///   - outputFileListPaths: List of output filelist paths.
+    ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
     /// - Returns: Target action.
     public static func pre(path: Path,
                            arguments: String...,
@@ -159,7 +173,8 @@ public struct TargetAction: Codable, Equatable {
                            inputPaths: [Path] = [],
                            inputFileListPaths: [Path] = [],
                            outputPaths: [Path] = [],
-                           outputFileListPaths: [Path] = []) -> TargetAction
+                           outputFileListPaths: [Path] = [],
+                           basedOnDependencyAnalysis: Bool? = nil) -> TargetAction
     {
         TargetAction(name: name,
                      tool: nil,
@@ -169,7 +184,8 @@ public struct TargetAction: Codable, Equatable {
                      inputPaths: inputPaths,
                      inputFileListPaths: inputFileListPaths,
                      outputPaths: outputPaths,
-                     outputFileListPaths: outputFileListPaths)
+                     outputFileListPaths: outputFileListPaths,
+                     basedOnDependencyAnalysis: basedOnDependencyAnalysis)
     }
 
     /// Returns a target action that gets executed before the sources and resources build phase.
@@ -182,6 +198,7 @@ public struct TargetAction: Codable, Equatable {
     ///   - inputFileListPaths: List of input filelist paths.
     ///   - outputPaths: List of output file paths.
     ///   - outputFileListPaths: List of output filelist paths.
+    ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
     /// - Returns: Target action.
     public static func pre(path: Path,
                            arguments: [String],
@@ -189,7 +206,8 @@ public struct TargetAction: Codable, Equatable {
                            inputPaths: [Path] = [],
                            inputFileListPaths: [Path] = [],
                            outputPaths: [Path] = [],
-                           outputFileListPaths: [Path] = []) -> TargetAction
+                           outputFileListPaths: [Path] = [],
+                           basedOnDependencyAnalysis: Bool? = nil) -> TargetAction
     {
         TargetAction(name: name,
                      tool: nil,
@@ -199,7 +217,8 @@ public struct TargetAction: Codable, Equatable {
                      inputPaths: inputPaths,
                      inputFileListPaths: inputFileListPaths,
                      outputPaths: outputPaths,
-                     outputFileListPaths: outputFileListPaths)
+                     outputFileListPaths: outputFileListPaths,
+                     basedOnDependencyAnalysis: basedOnDependencyAnalysis)
     }
 
     /// Returns a target action that gets executed after the sources and resources build phase.
@@ -212,6 +231,7 @@ public struct TargetAction: Codable, Equatable {
     ///   - inputFileListPaths: List of input filelist paths.
     ///   - outputPaths: List of output file paths.
     ///   - outputFileListPaths: List of output filelist paths.
+    ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
     /// - Returns: Target action.
     public static func post(tool: String,
                             arguments: String...,
@@ -219,7 +239,8 @@ public struct TargetAction: Codable, Equatable {
                             inputPaths: [Path] = [],
                             inputFileListPaths: [Path] = [],
                             outputPaths: [Path] = [],
-                            outputFileListPaths: [Path] = []) -> TargetAction
+                            outputFileListPaths: [Path] = [],
+                            basedOnDependencyAnalysis: Bool? = nil) -> TargetAction
     {
         TargetAction(name: name,
                      tool: tool,
@@ -229,7 +250,8 @@ public struct TargetAction: Codable, Equatable {
                      inputPaths: inputPaths,
                      inputFileListPaths: inputFileListPaths,
                      outputPaths: outputPaths,
-                     outputFileListPaths: outputFileListPaths)
+                     outputFileListPaths: outputFileListPaths,
+                     basedOnDependencyAnalysis: basedOnDependencyAnalysis)
     }
 
     /// Returns a target action that gets executed after the sources and resources build phase.
@@ -242,6 +264,7 @@ public struct TargetAction: Codable, Equatable {
     ///   - inputFileListPaths: List of input filelist paths.
     ///   - outputPaths: List of output file paths.
     ///   - outputFileListPaths: List of output filelist paths.
+    ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
     /// - Returns: Target action.
     public static func post(tool: String,
                             arguments: [String],
@@ -249,7 +272,8 @@ public struct TargetAction: Codable, Equatable {
                             inputPaths: [Path] = [],
                             inputFileListPaths: [Path] = [],
                             outputPaths: [Path] = [],
-                            outputFileListPaths: [Path] = []) -> TargetAction
+                            outputFileListPaths: [Path] = [],
+                            basedOnDependencyAnalysis: Bool? = nil) -> TargetAction
     {
         TargetAction(name: name,
                      tool: tool,
@@ -259,7 +283,8 @@ public struct TargetAction: Codable, Equatable {
                      inputPaths: inputPaths,
                      inputFileListPaths: inputFileListPaths,
                      outputPaths: outputPaths,
-                     outputFileListPaths: outputFileListPaths)
+                     outputFileListPaths: outputFileListPaths,
+                     basedOnDependencyAnalysis: basedOnDependencyAnalysis)
     }
 
     /// Returns a target action that gets executed after the sources and resources build phase.
@@ -272,6 +297,7 @@ public struct TargetAction: Codable, Equatable {
     ///   - inputFileListPaths: List of input filelist paths.
     ///   - outputPaths: List of output file paths.
     ///   - outputFileListPaths: List of output filelist paths.
+    ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
     /// - Returns: Target action.
     public static func post(path: Path,
                             arguments: String...,
@@ -279,7 +305,8 @@ public struct TargetAction: Codable, Equatable {
                             inputPaths: [Path] = [],
                             inputFileListPaths: [Path] = [],
                             outputPaths: [Path] = [],
-                            outputFileListPaths: [Path] = []) -> TargetAction
+                            outputFileListPaths: [Path] = [],
+                            basedOnDependencyAnalysis: Bool? = nil) -> TargetAction
     {
         TargetAction(name: name,
                      tool: nil,
@@ -289,7 +316,8 @@ public struct TargetAction: Codable, Equatable {
                      inputPaths: inputPaths,
                      inputFileListPaths: inputFileListPaths,
                      outputPaths: outputPaths,
-                     outputFileListPaths: outputFileListPaths)
+                     outputFileListPaths: outputFileListPaths,
+                     basedOnDependencyAnalysis: basedOnDependencyAnalysis)
     }
 
     /// Returns a target action that gets executed after the sources and resources build phase.
@@ -302,6 +330,7 @@ public struct TargetAction: Codable, Equatable {
     ///   - inputFileListPaths: List of input filelist paths.
     ///   - outputPaths: List of output file paths.
     ///   - outputFileListPaths: List of output filelist paths.
+    ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
     /// - Returns: Target action.
     public static func post(path: Path,
                             arguments: [String],
@@ -309,7 +338,8 @@ public struct TargetAction: Codable, Equatable {
                             inputPaths: [Path] = [],
                             inputFileListPaths: [Path] = [],
                             outputPaths: [Path] = [],
-                            outputFileListPaths: [Path] = []) -> TargetAction
+                            outputFileListPaths: [Path] = [],
+                            basedOnDependencyAnalysis: Bool? = nil) -> TargetAction
     {
         TargetAction(name: name,
                      tool: nil,
@@ -319,7 +349,8 @@ public struct TargetAction: Codable, Equatable {
                      inputPaths: inputPaths,
                      inputFileListPaths: inputFileListPaths,
                      outputPaths: outputPaths,
-                     outputFileListPaths: outputFileListPaths)
+                     outputFileListPaths: outputFileListPaths,
+                     basedOnDependencyAnalysis: basedOnDependencyAnalysis)
     }
 
     // MARK: - Codable
@@ -333,6 +364,7 @@ public struct TargetAction: Codable, Equatable {
         inputFileListPaths = try container.decodeIfPresent([Path].self, forKey: .inputFileListPaths) ?? []
         outputPaths = try container.decodeIfPresent([Path].self, forKey: .outputPaths) ?? []
         outputFileListPaths = try container.decodeIfPresent([Path].self, forKey: .outputFileListPaths) ?? []
+        basedOnDependencyAnalysis = try container.decodeIfPresent(Bool.self, forKey: .basedOnDependencyAnalysis)
         if let path = try container.decodeIfPresent(Path.self, forKey: .path) {
             self.path = path
             tool = nil
@@ -352,6 +384,7 @@ public struct TargetAction: Codable, Equatable {
         try container.encode(inputFileListPaths, forKey: .inputFileListPaths)
         try container.encode(outputPaths, forKey: .outputPaths)
         try container.encode(outputFileListPaths, forKey: .outputFileListPaths)
+        try container.encode(basedOnDependencyAnalysis, forKey: .basedOnDependencyAnalysis)
 
         if let tool = tool {
             try container.encode(tool, forKey: .tool)

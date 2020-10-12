@@ -27,7 +27,7 @@ let package = Package(
                  targets: ["TuistGenerator"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/tuist/XcodeProj", .upToNextMajor(from: "7.11.0")),
+        .package(url: "https://github.com/tuist/XcodeProj", .upToNextMajor(from: "7.15.0")),
         .package(url: "https://github.com/IBM-Swift/BlueSignals", .upToNextMajor(from: "1.0.21")),
         .package(url: "https://github.com/ReactiveX/RxSwift.git", .upToNextMajor(from: "5.0.1")),
         .package(url: "https://github.com/rnine/Checksum.git", .upToNextMajor(from: "1.0.2")),
