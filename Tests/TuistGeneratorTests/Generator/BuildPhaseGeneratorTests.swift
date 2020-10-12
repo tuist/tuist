@@ -574,6 +574,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         XCTAssertEqual(preBuildPhase.shellPath, "/bin/sh")
         XCTAssertEqual(preBuildPhase.shellScript, "\"${PROJECT_DIR}\"/script.sh arg")
         XCTAssertTrue(preBuildPhase.showEnvVarsInLog)
+        XCTAssertFalse(preBuildPhase.alwaysOutOfDate)
 
         let postBuildPhase = try XCTUnwrap(pbxTarget.buildPhases.last as? PBXShellScriptBuildPhase)
         XCTAssertEqual(postBuildPhase.name, "post")
