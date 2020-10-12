@@ -205,7 +205,7 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping {
         }
         logger.log(
             level: .warning,
-            "Skipping synthesizing accessors for \(path.pathString) because it's contents are empty."
+            "Skipping synthesizing accessors for \(path.pathString) because its contents are empty."
         )
         return false
     }

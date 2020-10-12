@@ -16,10 +16,10 @@ public final class SettingsContentHasher: SettingsContentHashing {
         self.contentHasher = contentHasher
     }
 
-    // MARK: - InfoPlistContentHashing
+    // MARK: - SettingsContentHashing
 
     public func hash(settings: Settings) throws -> String {
-        let baseSettingsHash = hash(settings.base)
+        let baseSettingsHash = try hash(settings.base)
         let configurationHash = try hash(settings.configurations)
         let defaultSettingsHash = try hash(settings.defaultSettings)
         return try contentHasher.hash([baseSettingsHash, configurationHash, defaultSettingsHash])
@@ -39,12 +39,15 @@ public final class SettingsContentHasher: SettingsContentHashing {
         return try contentHasher.hash(configurationHashes)
     }
 
-    private func hash(_ settingsDictionary: SettingsDictionary) -> String {
-        settingsDictionary.map { "\($0):\($1.normalize())" }.joined(separator: "-")
+    private func hash(_ settingsDictionary: SettingsDictionary) throws -> String {
+        let sortedAndNormalizedSettings = settingsDictionary
+            .sorted(by: { $0.0 < $1.0 })
+            .map { "\($0):\($1.normalize())" }.joined(separator: "-")
+        return try contentHasher.hash(sortedAndNormalizedSettings)
     }
 
     private func hash(_ configuration: Configuration) throws -> String {
-        var configurationHash = hash(configuration.settings)
+        var configurationHash = try hash(configuration.settings)
         if let xcconfigPath = configuration.xcconfig {
             let xcconfigHash = try contentHasher.hash(path: xcconfigPath)
             configurationHash += xcconfigHash
