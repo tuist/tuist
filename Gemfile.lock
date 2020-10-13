@@ -57,7 +57,7 @@ GEM
     colored2 (3.1.2)
     colorize (0.8.1)
     concurrent-ruby (1.1.7)
-    cucumber (5.1.2)
+    cucumber (5.1.3)
       builder (~> 3.2, >= 3.2.4)
       cucumber-core (~> 8.0, >= 8.0.1)
       cucumber-create-meta (~> 2.0, >= 2.0.2)
