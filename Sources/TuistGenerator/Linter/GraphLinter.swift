@@ -40,7 +40,7 @@ public class GraphLinter: GraphLinting {
         issues.append(contentsOf: lintDependencies(graph: graph))
         issues.append(contentsOf: lintMismatchingConfigurations(graph: graph))
         issues.append(contentsOf: lintWatchBundleIndentifiers(graph: graph))
-        issues.append(contentsOf: lintAppClipsBundleIdentifier(graph: graph))
+
         return issues
     }
 
@@ -58,7 +58,7 @@ public class GraphLinter: GraphLinting {
         issues.append(contentsOf: lintCarthageDependencies(graph: graph))
         issues.append(contentsOf: lintCocoaPodsDependencies(graph: graph))
         issues.append(contentsOf: lintPackageDependencies(graph: graph))
-        issues.append(contentsOf: lintAppClipDependencies(graph: graph))
+        issues.append(contentsOf: lintAppClip(graph: graph))
 
         return issues
     }
@@ -172,8 +172,8 @@ public class GraphLinter: GraphLinting {
         }
     }
 
-    fileprivate func appTargets(_ graph: Graph) -> [TargetNode] {
-        graph
+    private func lintAppClip(graph: Graph) -> [LintingIssue] {
+        let apps = graph
             .targets.values
             .flatMap { targets -> [TargetNode] in
                 targets.compactMap { target in
@@ -181,26 +181,14 @@ public class GraphLinter: GraphLinting {
                     return nil
                 }
             }
-    }
 
-    private func appClipTargets(apps: [TargetNode], graph: Graph) -> [TargetNode] {
-        apps.flatMap { products(ofType: .appClip, for: $0, graph: graph) }
-    }
-
-    private func lintAppClipDependencies(graph: Graph) -> [LintingIssue] {
-        let apps = appTargets(graph)
-        let appClips = appClipTargets(apps: apps, graph: graph)
-        let issues = appClips.flatMap { appClip -> [LintingIssue] in
-            var foundIssues = [LintingIssue]()
-            if let entitlements = appClip.target.entitlements {
-                if !FileHandler.shared.exists(entitlements) {
-                    foundIssues.append(LintingIssue(reason: "The entitlements at path '\(entitlements)' referenced by target does not exist", severity: .error))
-                }
-            } else {
-                foundIssues.append(LintingIssue(reason: "Parent Application Identifiers Entitlement is missing in an App Clip target", severity: .error))
+        let issues = apps.flatMap { app -> [LintingIssue] in
+            let appClips = products(ofType: .appClip, for: app, graph: graph)
+            return appClips.flatMap { appClip -> [LintingIssue] in
+                lint(appClip: appClip, parentApp: app)
             }
-            return foundIssues
         }
+
         return issues
     }
 
@@ -248,26 +236,6 @@ public class GraphLinter: GraphLinting {
         return issues
     }
 
-    private func lintAppClipsBundleIdentifier(graph: Graph) -> [LintingIssue] {
-        let apps = graph
-            .targets.values
-            .flatMap { targets -> [TargetNode] in
-                targets.compactMap { target in
-                    if target.target.product == .app { return target }
-                    return nil
-                }
-            }
-
-        let issues = apps.flatMap { app -> [LintingIssue] in
-            let appClips = products(ofType: .appClip, for: app, graph: graph)
-            return appClips.flatMap { appClip -> [LintingIssue] in
-                lint(appClip: appClip, parentApp: app)
-            }
-        }
-
-        return issues
-    }
-
     private func lint(watchApp: TargetNode, parentApp: TargetNode) -> [LintingIssue] {
         guard watchApp.target.bundleId.hasPrefix(parentApp.target.bundleId) else {
             return [
@@ -297,14 +265,24 @@ public class GraphLinter: GraphLinting {
     }
 
     private func lint(appClip: TargetNode, parentApp: TargetNode) -> [LintingIssue] {
-        guard appClip.target.bundleId.hasPrefix(parentApp.target.bundleId) else {
-            return [
+        var foundIssues = [LintingIssue]()
+
+        if !appClip.target.bundleId.hasPrefix(parentApp.target.bundleId) {
+            foundIssues.append(
                 LintingIssue(reason: """
                 AppClip '\(appClip.name)' bundleId: \(appClip.target.bundleId) isn't prefixed with its parent's app '\(parentApp.name)' bundleId '\(parentApp.target.bundleId)'
-                """, severity: .error),
-            ]
+                """, severity: .error))
         }
-        return []
+        
+        if let entitlements = appClip.target.entitlements {
+            if !FileHandler.shared.exists(entitlements) {
+                foundIssues.append(LintingIssue(reason: "The entitlements at path '\(entitlements)' referenced by target does not exist", severity: .error))
+            }
+        } else {
+            foundIssues.append(LintingIssue(reason: "Parent Application Identifiers Entitlement is missing in an App Clip target", severity: .error))
+        }
+        
+        return foundIssues
     }
 
     struct LintableTarget: Equatable, Hashable {
