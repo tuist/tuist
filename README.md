@@ -80,6 +80,9 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
     <td align="center"><a href="https://github.com/svastven"><img src="https://avatars0.githubusercontent.com/u/42235915?v=4" width="100px;" alt=""/><br /><sub><b>svastven</b></sub></a><br /><a href="#ideas-svastven" title="Ideas, Planning, & Feedback">🤔</a></td>
     <td align="center"><a href="http://bhuemer.github.io"><img src="https://avatars2.githubusercontent.com/u/1212480?v=4" width="100px;" alt=""/><br /><sub><b>Bernhard Huemer</b></sub></a><br /><a href="#ideas-bhuemer" title="Ideas, Planning, & Feedback">🤔</a></td>
   </tr>
+  <tr>
+    <td align="center"><a href="https://djankowski.dev"><img src="https://avatars0.githubusercontent.com/u/10795657?v=4" width="100px;" alt=""/><br /><sub><b>Daniel Jankowski</b></sub></a><br /><a href="#ideas-mollyIV" title="Ideas, Planning, & Feedback">🤔</a></td>
+  </tr>
 </table>
 
 <!-- markdownlint-enable -->
