@@ -205,8 +205,8 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Encodable {
             return .onDemandInstallCapableApplication
         }
     }
-    
+
     public func canHostTests() -> Bool {
-        return [.app, .appClip].contains(self)
+        [.app, .appClip].contains(self)
     }
 }

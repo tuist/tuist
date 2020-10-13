@@ -273,7 +273,7 @@ public class GraphLinter: GraphLinting {
                 AppClip '\(appClip.name)' bundleId: \(appClip.target.bundleId) isn't prefixed with its parent's app '\(parentApp.name)' bundleId '\(parentApp.target.bundleId)'
                 """, severity: .error))
         }
-        
+
         if let entitlements = appClip.target.entitlements {
             if !FileHandler.shared.exists(entitlements) {
                 foundIssues.append(LintingIssue(reason: "The entitlements at path '\(entitlements)' referenced by target does not exist", severity: .error))
@@ -281,7 +281,7 @@ public class GraphLinter: GraphLinting {
         } else {
             foundIssues.append(LintingIssue(reason: "Parent Application Identifiers Entitlement is missing in an App Clip target", severity: .error))
         }
-        
+
         return foundIssues
     }
 
