@@ -114,6 +114,13 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                                                           shellPath: "/bin/sh",
                                                           shellScript: action.shellScript(sourceRootPath: sourceRootPath),
                                                           showEnvVarsInLog: action.showEnvVarsInLog)
+            if let basedOnDependencyAnalysis = action.basedOnDependencyAnalysis {
+                // Force the script to run in all incremental builds, if we
+                // are NOT running it based on dependency analysis. Otherwise
+                // leave it at the default value.
+                buildPhase.alwaysOutOfDate = !basedOnDependencyAnalysis
+            }
+
             pbxproj.add(object: buildPhase)
             pbxTarget.buildPhases.append(buildPhase)
         }
