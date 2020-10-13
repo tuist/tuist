@@ -59,6 +59,15 @@
       "contributions": [
         "ideas"
       ]
+    },
+    {
+      "login": "bhuemer",
+      "name": "Bernhard Huemer",
+      "avatar_url": "https://avatars2.githubusercontent.com/u/1212480?v=4",
+      "profile": "http://bhuemer.github.io",
+      "contributions": [
+        "ideas"
+      ]
     }
   ],
   "contributorsPerLine": 7,
