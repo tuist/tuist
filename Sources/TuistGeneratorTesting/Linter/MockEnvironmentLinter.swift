@@ -1,4 +1,5 @@
 import Foundation
+import TSCBasic
 import TuistCore
 @testable import TuistGenerator
 
@@ -8,7 +9,7 @@ public final class MockEnvironmentLinter: EnvironmentLinting {
 
     public init() {}
 
-    public func lint(config: Config) throws -> [LintingIssue] {
+    public func lint(config: Config, at _: AbsolutePath) throws -> [LintingIssue] {
         lintArgs.append(config)
         return lintStub ?? []
     }

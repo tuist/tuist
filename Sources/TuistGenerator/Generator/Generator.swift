@@ -132,7 +132,7 @@ public class Generator: Generating {
 
     public func generateProject(at path: AbsolutePath) throws -> (AbsolutePath, Graph) {
         let config = try graphLoader.loadConfig(path: path)
-        try environmentLinter.lint(config: config).printAndThrowIfNeeded()
+        try environmentLinter.lint(config: config, at: path).printAndThrowIfNeeded()
 
         let (graph, project) = try graphLoader.loadProject(path: path)
         try graphLinter.lint(graph: graph).printAndThrowIfNeeded()
@@ -147,7 +147,7 @@ public class Generator: Generating {
                                          workspaceFiles: [AbsolutePath]) throws -> (AbsolutePath, Graph)
     {
         let config = try graphLoader.loadConfig(path: path)
-        try environmentLinter.lint(config: config).printAndThrowIfNeeded()
+        try environmentLinter.lint(config: config, at: path).printAndThrowIfNeeded()
 
         let (graph, project) = try graphLoader.loadProject(path: path)
         try graphLinter.lint(graph: graph).printAndThrowIfNeeded()
@@ -171,7 +171,7 @@ public class Generator: Generating {
                                   workspaceFiles: [AbsolutePath]) throws -> (AbsolutePath, Graph)
     {
         let config = try graphLoader.loadConfig(path: path)
-        try environmentLinter.lint(config: config).printAndThrowIfNeeded()
+        try environmentLinter.lint(config: config, at: path).printAndThrowIfNeeded()
         let (graph, workspace) = try graphLoader.loadWorkspace(path: path)
         try graphLinter.lint(graph: graph).printAndThrowIfNeeded()
 

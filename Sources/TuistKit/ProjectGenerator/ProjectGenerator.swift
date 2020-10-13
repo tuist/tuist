@@ -186,7 +186,7 @@ class ProjectGenerator: ProjectGenerating {
     private func lint(graph: Graph) throws {
         let config = try graphLoader.loadConfig(path: graph.entryPath)
 
-        try environmentLinter.lint(config: config).printAndThrowIfNeeded()
+        try environmentLinter.lint(config: config, at: graph.entryPath).printAndThrowIfNeeded()
         try graphLinter.lint(graph: graph).printAndThrowIfNeeded()
     }
 
