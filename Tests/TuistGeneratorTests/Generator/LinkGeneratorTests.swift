@@ -604,6 +604,36 @@ final class LinkGeneratorErrorTests: XCTestCase {
         ])
     }
 
+    func test_generateCopyProductsBuildPhase_resourceBundles_skipEmpty() throws {
+        // Given
+        let path = AbsolutePath("/path/")
+        let resourceBundle = Target.test(name: "ResourceBundle", product: .bundle)
+        let graph = Graph.create(project: .test(path: path),
+                                 dependencies: [
+                                     (target: resourceBundle, dependencies: []),
+                                 ])
+        let fileElements = createProjectFileElements(for: [resourceBundle])
+        let xcodeProjElements = createXcodeprojElements()
+
+        // When
+        try subject.generateLinks(
+            target: resourceBundle,
+            pbxTarget: xcodeProjElements.pbxTarget,
+            pbxproj: xcodeProjElements.pbxproj,
+            fileElements: fileElements,
+            path: path,
+            sourceRootPath: path,
+            graph: graph
+        )
+
+        // Then
+        let copyProductsPhase = xcodeProjElements
+            .pbxTarget
+            .buildPhases
+            .compactMap { $0 as? PBXCopyFilesBuildPhase }
+        XCTAssertEmpty(copyProductsPhase)
+    }
+
     // MARK: - Helpers
 
     struct XcodeprojElements {
