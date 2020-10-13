@@ -289,6 +289,6 @@ extension Sequence where Element == Target {
 
     /// Filters and returns only the targets that are apps.
     var apps: [Target] {
-        filter { $0.product == .app }
+        filter { $0.product == .app || $0.product == .appClip }
     }
 }
