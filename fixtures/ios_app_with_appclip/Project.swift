@@ -24,4 +24,22 @@ let project = Project(name: "App",
                                dependencies: [
                                 .sdk(name: "AppClip.framework", status: .required),
                                 ]),
+                        Target(name: "AppClipTests",
+                               platform: .iOS,
+                               product: .unitTests,
+                               bundleId: "io.tuist.AppClipTests",
+                               infoPlist: "AppClipTests/Configs/Info.plist",
+                               sources: ["AppClipTests/Tests/**"],
+                               dependencies: [
+                                .target(name: "AppClip")
+                               ]),
+                        Target(name: "AppClipUITests",
+                               platform: .iOS,
+                               product: .uiTests,
+                               bundleId: "io.tuist.AppClipUITests",
+                               infoPlist: "AppClipUITests/Configs/Info.plist",
+                               sources: ["AppClipUITests/Tests/**"],
+                               dependencies: [
+                                .target(name: "AppClip")
+                               ])
                       ])
