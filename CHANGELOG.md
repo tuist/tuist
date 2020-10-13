@@ -21,6 +21,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Fixed
 
 - Fix calculation of Settings hash related to Cache commands [#1869](Fix calculation of Settings hash related to Cache commands) by [@natanrolnik](https://github.com/natanrolnik)
+- Fixed handling of `.tuist_version` file if the file had a trailing line break [#1900](Allow trailing line break in `.tuist_version`) by [@kalkwarf](https://github.com/kalkwarf)
 
 ## 1.20.0 - Heideberg
 
