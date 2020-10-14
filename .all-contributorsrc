@@ -59,6 +59,33 @@
       "contributions": [
         "ideas"
       ]
+    },
+    {
+      "login": "bhuemer",
+      "name": "Bernhard Huemer",
+      "avatar_url": "https://avatars2.githubusercontent.com/u/1212480?v=4",
+      "profile": "http://bhuemer.github.io",
+      "contributions": [
+        "ideas"
+      ]
+    },
+    {
+      "login": "mollyIV",
+      "name": "Daniel Jankowski",
+      "avatar_url": "https://avatars0.githubusercontent.com/u/10795657?v=4",
+      "profile": "https://djankowski.dev",
+      "contributions": [
+        "ideas"
+      ]
+    },
+    {
+      "login": "facumenzella",
+      "name": "Facundo Menzella",
+      "avatar_url": "https://avatars1.githubusercontent.com/u/1125252?v=4",
+      "profile": "https://github.com/facumenzella",
+      "contributions": [
+        "ideas"
+      ]
     }
   ],
   "contributorsPerLine": 7,

@@ -546,7 +546,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let target = Target.test(sources: [],
                                  resources: [],
                                  actions: [
-                                     TargetAction(name: "post", order: .post, path: path.appending(component: "script.sh"), arguments: ["arg"], showEnvVarsInLog: false),
+                                     TargetAction(name: "post", order: .post, path: path.appending(component: "script.sh"), arguments: ["arg"], showEnvVarsInLog: false, basedOnDependencyAnalysis: false),
                                      TargetAction(name: "pre", order: .pre, path: path.appending(component: "script.sh"), arguments: ["arg"]),
                                  ])
         let project = Project.test(path: path, sourceRootPath: path, xcodeProjPath: path.appending(component: "Project.xcodeproj"), targets: [target])
@@ -574,12 +574,14 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         XCTAssertEqual(preBuildPhase.shellPath, "/bin/sh")
         XCTAssertEqual(preBuildPhase.shellScript, "\"${PROJECT_DIR}\"/script.sh arg")
         XCTAssertTrue(preBuildPhase.showEnvVarsInLog)
+        XCTAssertFalse(preBuildPhase.alwaysOutOfDate)
 
         let postBuildPhase = try XCTUnwrap(pbxTarget.buildPhases.last as? PBXShellScriptBuildPhase)
         XCTAssertEqual(postBuildPhase.name, "post")
         XCTAssertEqual(postBuildPhase.shellPath, "/bin/sh")
         XCTAssertEqual(postBuildPhase.shellScript, "\"${PROJECT_DIR}\"/script.sh arg")
         XCTAssertFalse(postBuildPhase.showEnvVarsInLog)
+        XCTAssertTrue(postBuildPhase.alwaysOutOfDate)
     }
 
     // MARK: - Helpers

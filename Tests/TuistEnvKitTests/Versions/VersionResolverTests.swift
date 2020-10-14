@@ -65,6 +65,19 @@ final class VersionResolverTests: XCTestCase {
         XCTAssertEqual(got, .versionFile(versionPath, "3.2.1"))
     }
 
+    func test_resolve_when_version_contains_trailing_whitespace() throws {
+        let tmp_dir = try TemporaryDirectory(removeTreeOnDeinit: true)
+        let versionPath = tmp_dir.path.appending(component: Constants.versionFileName)
+
+        // /tmp/dir/.tuist-version
+        try "3.2.1 \n".write(to: URL(fileURLWithPath: versionPath.pathString),
+                             atomically: true,
+                             encoding: .utf8)
+
+        let got = try subject.resolve(path: tmp_dir.path)
+        XCTAssertEqual(got, .versionFile(versionPath, "3.2.1"))
+    }
+
     func test_resolve_when_bin() throws {
         let tmp_dir = try TemporaryDirectory(removeTreeOnDeinit: true)
         let binPath = tmp_dir.path.appending(component: Constants.binFolderName)

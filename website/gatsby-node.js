@@ -20,6 +20,36 @@ exports.onCreateNode = ({ node, getNode, actions }) => {
     toPath: '/docs/usage/microfeatures/',
     isPermanent: true,
   })
+  createRedirect({
+    fromPath: '/docs/usage/app-extensions/',
+    toPath: '/docs/examples/app-extensions/',
+    isPermanent: true,
+  })
+  createRedirect({
+    fromPath: '/docs/usage/microfeatures/',
+    toPath: '/docs/building-at-scale/microfeatures/',
+    isPermanent: true,
+  })
+  createRedirect({
+    fromPath: '/docs/usage/caching/',
+    toPath: '/docs/building-at-scale/caching/',
+    isPermanent: true,
+  })
+  createRedirect({
+    fromPath: '/docs/usage/best-practices/',
+    toPath: '/docs/building-at-scale/best-practices/',
+    isPermanent: true,
+  })
+  createRedirect({
+    fromPath: '/docs/usage/dependencies/',
+    toPath: '/docs/dependencies/local/',
+    isPermanent: true,
+  })
+  createRedirect({
+    fromPath: '/docs/usage/third-party-dependencies/',
+    toPath: '/docs/dependencies/third-party/',
+    isPermanent: true,
+  })
 
   // Auto-generated pages
   if (node.internal.type === `Mdx`) {
