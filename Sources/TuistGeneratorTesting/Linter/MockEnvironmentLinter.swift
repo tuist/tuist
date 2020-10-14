@@ -9,7 +9,7 @@ public final class MockEnvironmentLinter: EnvironmentLinting {
 
     public init() {}
 
-    public func lint(config: Config, at _: AbsolutePath) throws -> [LintingIssue] {
+    public func lint(config: Config) throws -> [LintingIssue] {
         lintArgs.append(config)
         return lintStub ?? []
     }

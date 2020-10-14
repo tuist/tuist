@@ -68,7 +68,7 @@ final class LintProjectService {
 
         var issues: [LintingIssue] = []
         logger.notice("Linting the environment")
-        issues.append(contentsOf: try environmentLinter.lint(config: config, at: path))
+        issues.append(contentsOf: try environmentLinter.lint(config: config))
         logger.notice("Linting the loaded dependency graph")
         issues.append(contentsOf: graphLinter.lint(graph: graph))
 

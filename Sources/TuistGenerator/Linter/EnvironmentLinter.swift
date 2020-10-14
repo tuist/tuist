@@ -7,9 +7,8 @@ public protocol EnvironmentLinting {
     /// Lints a given Tuist configuration.
     ///
     /// - Parameter config: Tuist configuration to be linted against the system.
-    /// - Parameter path: The absolute path of the config.
     /// - Returns: A list of linting issues.
-    func lint(config: Config, at path: AbsolutePath) throws -> [LintingIssue]
+    func lint(config: Config) throws -> [LintingIssue]
 }
 
 public class EnvironmentLinter: EnvironmentLinting {
@@ -20,10 +19,10 @@ public class EnvironmentLinter: EnvironmentLinting {
         self.rootDirectoryLocator = rootDirectoryLocator
     }
 
-    public func lint(config: Config, at path: AbsolutePath) throws -> [LintingIssue] {
+    public func lint(config: Config) throws -> [LintingIssue] {
         var issues = [LintingIssue]()
 
-        issues.append(contentsOf: lintConfigPath(path))
+        issues.append(contentsOf: lintConfigPath(config: config))
         issues.append(contentsOf: try lintXcodeVersion(config: config))
 
         return issues
@@ -55,13 +54,16 @@ public class EnvironmentLinter: EnvironmentLinting {
         }
     }
 
-    func lintConfigPath(_ configPath: AbsolutePath) -> [LintingIssue] {
-        guard let rootDirectoryPath = rootDirectoryLocator.locate(from: configPath) else {
+    func lintConfigPath(config: Config) -> [LintingIssue] {
+        guard
+            let configPath = config.path,
+            let rootDirectoryPath = rootDirectoryLocator.locate(from: configPath)
+        else {
             return []
         }
 
         let tuistDirectoryPath = rootDirectoryPath.appending(RelativePath("\(Constants.tuistDirectoryName)"))
-        guard configPath == tuistDirectoryPath else {
+        guard configPath.removingLastComponent() == tuistDirectoryPath else {
             let message = "`Config.swift` manifest file is not located at `Tuist` directory"
             return [LintingIssue(reason: message, severity: .warning)]
         }

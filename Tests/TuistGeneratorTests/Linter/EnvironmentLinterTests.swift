@@ -77,9 +77,11 @@ final class EnvironmentLinterTests: TuistUnitTestCase {
         let fakeRoot = AbsolutePath("/root")
         rootDirectoryLocator.locateStub = fakeRoot
 
+        let configPath = fakeRoot.appending(RelativePath("Config.swift"))
+        let config = Config.test(path: configPath)
+
         // When
-        let configPath = fakeRoot
-        let got = subject.lintConfigPath(configPath)
+        let got = subject.lintConfigPath(config: config)
 
         // Then
         let expectedMessage = "`Config.swift` manifest file is not located at `Tuist` directory"
@@ -91,9 +93,13 @@ final class EnvironmentLinterTests: TuistUnitTestCase {
         let fakeRoot = AbsolutePath("/root")
         rootDirectoryLocator.locateStub = fakeRoot
 
+        let configPath = fakeRoot
+            .appending(RelativePath("\(Constants.tuistDirectoryName)"))
+            .appending(RelativePath("Config.swift"))
+        let config = Config.test(path: configPath)
+
         // When
-        let configPath = fakeRoot.appending(RelativePath("\(Constants.tuistDirectoryName)"))
-        let got = subject.lintConfigPath(configPath)
+        let got = subject.lintConfigPath(config: config)
 
         // Then
         XCTEmpty(got)
