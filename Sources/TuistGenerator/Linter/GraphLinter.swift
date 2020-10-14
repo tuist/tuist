@@ -184,6 +184,14 @@ public class GraphLinter: GraphLinting {
 
         let issues = apps.flatMap { app -> [LintingIssue] in
             let appClips = products(ofType: .appClip, for: app, graph: graph)
+
+            if appClips.count > 1 {
+                return [
+                    LintingIssue(reason: "App '\(app)' cannot depend on more than one app clip -> \(appClips.map(\.name).joined(separator: ", "))",
+                                 severity: .error),
+                ]
+            }
+
             return appClips.flatMap { appClip -> [LintingIssue] in
                 lint(appClip: appClip, parentApp: app)
             }

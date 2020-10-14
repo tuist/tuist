@@ -595,4 +595,47 @@ final class GraphLinterTests: TuistUnitTestCase {
                          severity: .error),
         ])
     }
+
+    func test_lint_when_app_contains_more_than_one_appClip() throws {
+        // Given
+        let temporaryPath = try self.temporaryPath()
+
+        try createFiles([
+            "entitlements/AppClip.entitlements",
+        ])
+
+        let entitlementsPath = temporaryPath.appending(RelativePath("entitlements/AppClip.entitlements"))
+
+        let app = Target.test(name: "App",
+                              product: .app,
+                              bundleId: "com.example.app")
+        let appClip1 = Target.test(name: "AppClip1",
+                                   platform: .iOS,
+                                   product: .appClip,
+                                   bundleId: "com.example.app.clip1",
+                                   entitlements: entitlementsPath)
+
+        let appClip2 = Target.test(name: "AppClip2",
+                                   platform: .iOS,
+                                   product: .appClip,
+                                   bundleId: "com.example.app.clip2",
+                                   entitlements: entitlementsPath)
+
+        let project = Project.test(targets: [app, appClip1, appClip2])
+        let graph = Graph.create(project: project,
+                                 dependencies: [
+                                     (target: app, dependencies: [appClip1, appClip2]),
+                                     (target: appClip1, dependencies: []),
+                                     (target: appClip2, dependencies: []),
+                                 ])
+
+        // When
+        let got = subject.lint(graph: graph)
+
+        // Then
+        XCTAssertEqual(got, [
+            LintingIssue(reason: "App 'App' cannot depend on more than one app clip -> AppClip1, AppClip2",
+                         severity: .error),
+        ])
+    }
 }
