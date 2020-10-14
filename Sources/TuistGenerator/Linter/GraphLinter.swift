@@ -287,7 +287,7 @@ public class GraphLinter: GraphLinting {
                 foundIssues.append(LintingIssue(reason: "The entitlements at path '\(entitlements)' referenced by target does not exist", severity: .error))
             }
         } else {
-            foundIssues.append(LintingIssue(reason: "Parent Application Identifiers Entitlement is missing in an App Clip target", severity: .error))
+            foundIssues.append(LintingIssue(reason: "An AppClip '\(appClip.target.name)' requires its Parent Application Identifiers Entitlement to be set", severity: .error))
         }
 
         return foundIssues

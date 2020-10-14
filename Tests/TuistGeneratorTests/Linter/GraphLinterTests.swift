@@ -564,7 +564,7 @@ final class GraphLinterTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(got, [
-            LintingIssue(reason: "Parent Application Identifiers Entitlement is missing in an App Clip target",
+            LintingIssue(reason: "An AppClip 'AppClip' requires its Parent Application Identifiers Entitlement to be set",
                          severity: .error),
         ])
     }
