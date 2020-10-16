@@ -107,3 +107,17 @@ Then(/^in project (.+) the target (.+) should have the build phase (.+) in the l
   assert_equal phase_name, build_phase.name
 end
 
+Then(/^in project (.+) the target (.+) should contain the build phase (.+)$/) do |project_name, target_name, phase_name|
+  workspace = Xcodeproj::Workspace.new_from_xcworkspace(@workspace_path)
+  project_file_reference = workspace.file_references.detect { |f| File.basename(f.path, ".xcodeproj") == project_name }
+  flunk("Project #{project_name} not found in the workspace") if project_file_reference.nil?
+  project = Xcodeproj::Project.open(File.join(@dir, project_file_reference.path))
+  targets = project.targets
+  target = targets.detect { |t| t.name == target_name }
+  flunk("Target #{target_name} not found in the project") if target.nil?
+  build_phases = target.build_phases
+
+  unless build_phases.include?("#{phase_name}")
+    flunk("The target #{target_name} doesn't have build phase #{phase_name}") if build_phases.include? "#{phase_name}"
+  end
+end

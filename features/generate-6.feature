@@ -23,7 +23,7 @@ Scenario: The project is an iOS application with appclip (ios_app_with_appclip)
     And I have a working directory
     Then I copy the fixture ios_app_with_appclip into the working directory
     Then tuist generates the project
-    Then in project App the target App should have the build phase Embed App Clips
+    Then in project App the target App should contain the build phase Embed App Clips
     Then I should be able to build for iOS the scheme App
     Then I should be able to build for iOS the scheme AppClip
     Then I should be able to test for iOS the scheme AppClipTests
