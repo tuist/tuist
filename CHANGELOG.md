@@ -12,6 +12,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Allow build phase scripts to disable dependency analysis [#1883](https://github.com/tuist/tuist/pull/1883) by [@bhuemer](https://github.com/bhuemer).
 
+- The default generated project does not include a LaunchScreen storyboard [#265](https://github.com/tuist/tuist/issues/265) by [@mollyIV](https://github.com/mollyIV).
+
 ## 1.21.0 - PBWerk
 
 ### Added
