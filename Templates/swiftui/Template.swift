@@ -30,6 +30,8 @@ let template = Template(
               templatePath: "main.stencil"),
         .file(path: appPath + "/Sources/ContentView.swift",
               templatePath: "ContentView.stencil"),
+        .file(path: appPath + "/Resources/LaunchScreen.storyboard",
+              templatePath: templatePath("LaunchScreen.stencil")),
         .file(path: appPath + "/Tests/AppTests.swift",
               templatePath: templatePath("AppTests.stencil")),
         .file(path: kitFrameworkPath + "/Sources/\(nameAttribute)Kit.swift",
@@ -42,7 +44,5 @@ let template = Template(
               templatePath: templatePath("/UITests.stencil")),
         .file(path: ".gitignore",
               templatePath: templatePath("Gitignore.stencil")),
-        .file(path: appPath + "/Resources/LaunchScreen.storyboard",
-              templatePath: "LaunchScreen.stencil"),
     ]
 )
