@@ -1,34 +1,29 @@
 import Foundation
-import RxBlocking
 import TSCBasic
 import TuistCore
-import TuistGenerator
-import TuistLoader
+import TuistDependencies
 import TuistSupport
 
-enum DependenciesFetchServiceError: FatalError {
-    case unimplemented
-    
-    var type: ErrorType {
-        switch self {
-        case .unimplemented:
-            return .abort
-        }
-    }
-    
-    var description: String {
-        switch self {
-        case .unimplemented:
-            return "Pssst! You have found secret and hidden part of project where we are trying to create something new and unexpected. We call it The Chimera Project. Stay alert!"
-        }
-    }
-}
-
 final class DependenciesFetchService {
-    init() { }
+    private let dependenciesController: DependenciesControlling
+    
+    init(dependenciesController: DependenciesControlling = DependenciesController()) {
+        self.dependenciesController = dependenciesController
+    }
     
     func run(path: String?) throws {
-        // TODO: implement me!
-        throw DependenciesFetchServiceError.unimplemented
+        let path = self.path(path)
+        try dependenciesController.fetch(at: path)
+        logger.notice("Successfully fetched dependencies", metadata: .success)
+    }
+    
+    // MARK: - Helpers
+
+    private func path(_ path: String?) -> AbsolutePath {
+        if let path = path {
+            return AbsolutePath(path, relativeTo: FileHandler.shared.currentPath)
+        } else {
+            return FileHandler.shared.currentPath
+        }
     }
 }
