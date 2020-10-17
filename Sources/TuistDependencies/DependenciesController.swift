@@ -5,7 +5,7 @@ import TuistSupport
 
 public enum DependenciesControllerError: FatalError {
     case unimplemented
-    
+
     /// Error type.
     public var type: ErrorType {
         switch self {
@@ -13,7 +13,7 @@ public enum DependenciesControllerError: FatalError {
             return .abort
         }
     }
-    
+
     /// Description.
     public var description: String {
         switch self {
@@ -41,18 +41,18 @@ public protocol DependenciesControlling {
 // MARK: - Dependencies Controller
 
 public final class DependenciesController: DependenciesControlling {
-    public init() { }
-    
-    public func fetch(at path: AbsolutePath) throws {
+    public init() {}
+
+    public func fetch(at _: AbsolutePath) throws {
         logger.notice("Start fetching depednencies.")
-        
+
         // TODO: implement me!
         throw DependenciesControllerError.unimplemented
     }
-    
-    public func update(at path: AbsolutePath) throws {
+
+    public func update(at _: AbsolutePath) throws {
         logger.notice("Start updating depednencies.")
-        
+
         // TODO: implement me!
         throw DependenciesControllerError.unimplemented
     }

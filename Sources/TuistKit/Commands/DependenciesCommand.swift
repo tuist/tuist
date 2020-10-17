@@ -7,8 +7,8 @@ struct DependenciesCommand: ParsableCommand {
         CommandConfiguration(commandName: "dependencies",
                              abstract: "A set of commands for project's dependencies managment.",
                              subcommands: [
-                                DependenciesFetchCommand.self,
-                                DependenciesUpdateCommand.self,
+                                 DependenciesFetchCommand.self,
+                                 DependenciesUpdateCommand.self,
                              ])
     }
 }

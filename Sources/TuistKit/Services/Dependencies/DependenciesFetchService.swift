@@ -6,17 +6,17 @@ import TuistSupport
 
 final class DependenciesFetchService {
     private let dependenciesController: DependenciesControlling
-    
+
     init(dependenciesController: DependenciesControlling = DependenciesController()) {
         self.dependenciesController = dependenciesController
     }
-    
+
     func run(path: String?) throws {
         let path = self.path(path)
         try dependenciesController.fetch(at: path)
         logger.notice("Successfully fetched dependencies", metadata: .success)
     }
-    
+
     // MARK: - Helpers
 
     private func path(_ path: String?) -> AbsolutePath {
