@@ -13,6 +13,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Added
 
 - Allow build phase scripts to disable dependency analysis [#1883](https://github.com/tuist/tuist/pull/1883) by [@bhuemer](https://github.com/bhuemer).
+- Require the Config.swift file to be in the Tuist directory [#693](https://github.com/tuist/tuist/issues/693) by [@mollyIV](https://github.com/mollyIV).
 
 ## 1.21.0 - PBWerk
 

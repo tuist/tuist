@@ -5,10 +5,12 @@ import TSCBasic
 public extension Config {
     static func test(compatibleXcodeVersions: CompatibleXcodeVersions = .all,
                      cloud: Cloud? = Cloud.test(),
-                     generationOptions: [GenerationOption] = []) -> Config
+                     generationOptions: [GenerationOption] = [],
+                     path: AbsolutePath? = nil) -> Config
     {
         Config(compatibleXcodeVersions: compatibleXcodeVersions,
                cloud: cloud,
-               generationOptions: generationOptions)
+               generationOptions: generationOptions,
+               path: path)
     }
 }

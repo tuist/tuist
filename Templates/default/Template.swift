@@ -36,5 +36,7 @@ let template = Template(
               templatePath: templatePath("/UITests.stencil")),
         .file(path: ".gitignore",
               templatePath: templatePath("Gitignore.stencil")),
+        .file(path: "Tuist/Config.swift",
+              templatePath: templatePath("Config.stencil")),
     ]
 )
