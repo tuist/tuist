@@ -135,7 +135,7 @@ public struct Target: Equatable, Hashable, Comparable {
             return true
         }
     }
-    
+
     /// Returns true if the target supports having sources.
     public var supportsSources: Bool {
         switch (platform, product) {
