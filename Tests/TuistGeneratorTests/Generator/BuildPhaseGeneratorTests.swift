@@ -241,8 +241,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let target = Target.test(
             platform: .macOS,
             sources: [(path: "/test/file.swift", compilerFlags: nil)],
-            headers: headers
-        )
+            headers: headers)
 
         let graph = ValueGraph.test(path: tmpDir)
         let graphTraverser = ValueGraphTraverser(graph: graph)
