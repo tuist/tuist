@@ -37,18 +37,17 @@ final class DependenciesUpdateServiceTests: TuistUnitTestCase {
         try subject.run(path: path.pathString)
 
         // Then
-        XCTAssertTrue(dependenciesController.invokedUpdate)
-        XCTAssertEqual(dependenciesController.invokedUpdateCount, 1)
-        XCTAssertEqual(dependenciesController.invokedUpdateParameters, path)
-
-        XCTAssertFalse(dependenciesController.invokedFetch)
+        XCTAssertTrue(dependenciesController.invokedInstall)
+        XCTAssertEqual(dependenciesController.invokedInstallCount, 1)
+        XCTAssertEqual(dependenciesController.invokedInstallParameters?.path, path)
+        XCTAssertEqual(dependenciesController.invokedInstallParameters?.method, .update)
     }
 
     func test_run_thorws_an_error() throws {
         // Given
         let path = try temporaryPath()
         let error = TestError("Failed fetching!")
-        dependenciesController.stubbedUpdateError = error
+        dependenciesController.stubbedInstallError = error
 
         // When/Then
         XCTAssertThrowsSpecific(try subject.run(path: path.pathString), error)

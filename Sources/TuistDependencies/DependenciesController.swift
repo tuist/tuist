@@ -30,12 +30,10 @@ public enum DependenciesControllerError: FatalError {
 ///     2. Compiling fetched/updated depedencies into `.framework.`/`.xcframework.`.
 ///     3. Saving compiled frameworks uder `./Tuist/Dependencies/*`.
 public protocol DependenciesControlling {
-    /// Fetches dependencies.
-    /// - Parameter path: Directory whose project's dependencies will be fetched.
-    func fetch(at path: AbsolutePath) throws
-    /// Updates dependencies.
-    /// - Parameter path: Directory whose project's dependencies will be updated.
-    func update(at path: AbsolutePath) throws
+    /// Installes dependencies.
+    /// - Parameter path: Directory whose project's dependencies will be installed.
+    /// - Parameter method: Installation method.
+    func install(at path: AbsolutePath, method: InstallMethod) throws
 }
 
 // MARK: - Dependencies Controller
@@ -46,17 +44,10 @@ public final class DependenciesController: DependenciesControlling {
     public init(carthageManager: CarthageManaging = CarthageManager()) {
         self.carthageManager = carthageManager
     }
-
-    public func fetch(at _: AbsolutePath) throws {
-        logger.notice("Start fetching depednencies.")
-
-        // TODO: implement me!
-        throw DependenciesControllerError.unimplemented
-    }
-
-    public func update(at _: AbsolutePath) throws {
-        logger.notice("Start updating depednencies.")
-
+    
+    public func install(at path: AbsolutePath, method: InstallMethod) throws {
+        logger.notice("Start installing depednencies.")
+        
         // TODO: implement me!
         throw DependenciesControllerError.unimplemented
     }

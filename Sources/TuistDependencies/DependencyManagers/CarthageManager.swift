@@ -9,6 +9,10 @@ public final class CarthageManager: CarthageManaging {
     
     public init() { }
     
+    public func install(method: InstallMethod) throws {
+        
+    }
+    
     // MARK: - Helpers
     
     /// Returns true if CocoaPods is accessible through Bundler,

@@ -13,7 +13,7 @@ final class DependenciesFetchService {
 
     func run(path: String?) throws {
         let path = self.path(path)
-        try dependenciesController.fetch(at: path)
+        try dependenciesController.install(at: path, method: .fetch)
         logger.notice("Successfully fetched dependencies", metadata: .success)
     }
 

@@ -3,35 +3,19 @@ import TSCBasic
 
 public final class MockDependenciesController: DependenciesControlling {
     public init() {}
+    
+    var invokedInstall = false
+    var invokedInstallCount = 0
+    var invokedInstallParameters: (path: AbsolutePath, method: InstallMethod)?
+    var invokedInstallParametersList = [(path: AbsolutePath, method: InstallMethod)]()
+    var stubbedInstallError: Error?
 
-    var invokedFetch = false
-    var invokedFetchCount = 0
-    var invokedFetchParameters: AbsolutePath?
-    var invokedFetchParametersList = [AbsolutePath]()
-    var stubbedFetchError: Error?
-
-    public func fetch(at path: AbsolutePath) throws {
-        invokedFetch = true
-        invokedFetchCount += 1
-        invokedFetchParameters = path
-        invokedFetchParametersList.append(path)
-        if let error = stubbedFetchError {
-            throw error
-        }
-    }
-
-    var invokedUpdate = false
-    var invokedUpdateCount = 0
-    var invokedUpdateParameters: AbsolutePath?
-    var invokedUpdateParametersList = [AbsolutePath]()
-    var stubbedUpdateError: Error?
-
-    public func update(at path: AbsolutePath) throws {
-        invokedUpdate = true
-        invokedUpdateCount += 1
-        invokedUpdateParameters = path
-        invokedUpdateParametersList.append(path)
-        if let error = stubbedUpdateError {
+    public func install(at path: AbsolutePath, method: InstallMethod) throws {
+        invokedInstall = true
+        invokedInstallCount += 1
+        invokedInstallParameters = (path, method)
+        invokedInstallParametersList.append((path, method))
+        if let error = stubbedInstallError {
             throw error
         }
     }

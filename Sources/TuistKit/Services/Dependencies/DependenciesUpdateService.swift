@@ -13,7 +13,7 @@ final class DependenciesUpdateService {
 
     func run(path: String?) throws {
         let path = self.path(path)
-        try dependenciesController.update(at: path)
+        try dependenciesController.install(at: path, method: .update)
         logger.notice("Successfully updated dependencies", metadata: .success)
     }
 
