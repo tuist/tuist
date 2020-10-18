@@ -202,10 +202,9 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let headerFileReference = PBXFileReference()
         fileElements.elements[headerPath] = headerFileReference
 
-        let target = Target.test(
-            platform: .iOS,
-            sources: [(path: "/test/file.swift", compilerFlags: nil)],
-            headers: headers)
+        let target = Target.test(platform: .iOS,
+                                 sources: [(path: "/test/file.swift", compilerFlags: nil)],
+                                 headers: headers)
 
         let graph = ValueGraph.test(path: tmpDir)
         let graphTraverser = ValueGraphTraverser(graph: graph)
@@ -238,10 +237,9 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let headerFileReference = PBXFileReference()
         fileElements.elements[headerPath] = headerFileReference
 
-        let target = Target.test(
-            platform: .macOS,
-            sources: [(path: "/test/file.swift", compilerFlags: nil)],
-            headers: headers)
+        let target = Target.test(platform: .macOS,
+                                 sources: [(path: "/test/file.swift", compilerFlags: nil)],
+                                 headers: headers)
         let graph = ValueGraph.test(path: tmpDir)
         let graphTraverser = ValueGraphTraverser(graph: graph)
 
