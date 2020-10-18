@@ -33,7 +33,7 @@ public protocol DependenciesControlling {
     /// Installes dependencies.
     /// - Parameter path: Directory whose project's dependencies will be installed.
     /// - Parameter method: Installation method.
-    func install(at path: AbsolutePath, method: InstallMethod) throws
+    func install(at path: AbsolutePath, method: InstallDependenciesMethod) throws
 }
 
 // MARK: - Dependencies Controller
@@ -45,7 +45,7 @@ public final class DependenciesController: DependenciesControlling {
         self.carthageManager = carthageManager
     }
     
-    public func install(at path: AbsolutePath, method: InstallMethod) throws {
+    public func install(at path: AbsolutePath, method: InstallDependenciesMethod) throws {
         logger.notice("Start installing depednencies.")
         
         // TODO: implement me!

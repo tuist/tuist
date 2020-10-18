@@ -6,11 +6,11 @@ public final class MockDependenciesController: DependenciesControlling {
     
     var invokedInstall = false
     var invokedInstallCount = 0
-    var invokedInstallParameters: (path: AbsolutePath, method: InstallMethod)?
-    var invokedInstallParametersList = [(path: AbsolutePath, method: InstallMethod)]()
+    var invokedInstallParameters: (path: AbsolutePath, method: InstallDependenciesMethod)?
+    var invokedInstallParametersList = [(path: AbsolutePath, method: InstallDependenciesMethod)]()
     var stubbedInstallError: Error?
 
-    public func install(at path: AbsolutePath, method: InstallMethod) throws {
+    public func install(at path: AbsolutePath, method: InstallDependenciesMethod) throws {
         invokedInstall = true
         invokedInstallCount += 1
         invokedInstallParameters = (path, method)

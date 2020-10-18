@@ -1,7 +1,7 @@
 import TSCBasic
 import TuistSupport
 
-public enum InstallMethod {
+public enum InstallDependenciesMethod {
     case fetch
     case update
 }

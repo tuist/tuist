@@ -9,7 +9,7 @@ public final class CarthageManager: CarthageManaging {
     
     public init() { }
     
-    public func install(method: InstallMethod) throws {
+    public func install(method: InstallDependenciesMethod) throws {
         
     }
     
