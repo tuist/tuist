@@ -18,7 +18,7 @@ public enum DependenciesControllerError: FatalError {
     public var description: String {
         switch self {
         case .unimplemented:
-            return "Pssst! You have found secret and hidden part of project where we are trying to create something new and unexpected. We call it The Chimera Project. Stay alert!"
+            return "Pssst! You have found secret and hidden part of project where we are trying to create something new and unexpected. Chimera!"
         }
     }
 }
