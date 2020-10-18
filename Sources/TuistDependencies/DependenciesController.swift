@@ -41,7 +41,11 @@ public protocol DependenciesControlling {
 // MARK: - Dependencies Controller
 
 public final class DependenciesController: DependenciesControlling {
-    public init() {}
+    private let carthageManager: CarthageManaging
+    
+    public init(carthageManager: CarthageManaging = CarthageManager()) {
+        self.carthageManager = carthageManager
+    }
 
     public func fetch(at _: AbsolutePath) throws {
         logger.notice("Start fetching depednencies.")
