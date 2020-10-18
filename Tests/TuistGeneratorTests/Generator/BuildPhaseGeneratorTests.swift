@@ -218,7 +218,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
 
         XCTAssertEmpty(pbxTarget.buildPhases.filter { $0 is PBXHeadersBuildPhase })
     }
-    
+
     func test_generateHeadersBuildPhase_before_generateSourceBuildPhase() throws {
         let tmpDir = try temporaryPath()
         let pbxTarget = PBXNativeTarget(name: "Test")
