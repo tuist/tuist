@@ -78,7 +78,6 @@ jobs:
             'generate-3',
             'generate-4',
             'generate-5',
-            'generate-6',
             'init',
             'lint-project',
             'lint-code',
@@ -121,7 +120,8 @@ jobs:
     strategy:
       matrix:
         xcode: ['12.1']
-        feature: ['cache-xcframeworks', 'cache-frameworks', 'precompiled']
+        feature:
+          ['generate-6', 'cache-xcframeworks', 'cache-frameworks', 'precompiled']
     steps:
       - uses: actions/checkout@v1
       - name: Select Xcode
@@ -150,7 +150,6 @@ jobs:
           bundle install --jobs 4 --retry 3
       - name: Run tests
         run: FEATURE=features/${{ matrix.feature }}.feature bundle exec rake features
-
   upload:
     if: github.ref == 'refs/heads/master'
     name: Upload
