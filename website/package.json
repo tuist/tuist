@@ -49,7 +49,7 @@
     "gatsby-remark-smartypants": "^2.3.13",
     "gatsby-source-filesystem": "^2.3.34",
     "gatsby-theme-tailwindcss": "^1.1.0",
-    "gatsby-transformer-yaml": "^2.4.13",
+    "gatsby-transformer-yaml": "^2.4.14",
     "graphviz-react": "^1.1.1",
     "is-absolute-url": "^3.0.3",
     "moment": "^2.29.1",
