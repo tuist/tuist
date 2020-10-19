@@ -10,10 +10,7 @@ public protocol AsyncQueueDispatcher {
     /// - Parameter event: Event to be dispatched.
     func dispatch(event: AsyncQueueEvent) throws
 
-    /// Decodes a given event that has been serialized into disk.
-    /// - Parameters:
-    ///   - id: Event unique identifier.
-    ///   - date: Event date.
-    ///   - data: Event content as a data instance.
-    func decodeEvent(id: String, date: Date, data: Data) -> AsyncQueueEvent
+    /// Dispatch a persisted event.
+    /// - Parameter data: Serialized data of the event.
+    func dispatchPersisted(data: Data) throws
 }

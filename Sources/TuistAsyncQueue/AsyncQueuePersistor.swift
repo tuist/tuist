@@ -52,7 +52,7 @@ final class AsyncQueuePersistor: AsyncQueuePersisting {
     func delete<T: AsyncQueueEvent>(event: T) -> Completable {
         delete(filename: filename(event: event))
     }
-    
+
     func delete(filename: String) -> Completable {
         Completable.create { (observer) -> Disposable in
             let path = self.directory.appending(component: filename)
