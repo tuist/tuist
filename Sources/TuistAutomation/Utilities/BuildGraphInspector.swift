@@ -98,8 +98,13 @@ public class BuildGraphInspector: BuildGraphInspecting {
     }
 
     public func testableSchemes(graph: Graph) -> [Scheme] {
-        graph.targets.values.flatMap {
-            $0.flatMap { $0.project.schemes }
+        graph.targets.values.flatMap { target -> [Scheme] in
+            target
+                .filter { $0.target.product == .unitTests || $0.target.product == .uiTests }
+                .flatMap { target -> [Scheme] in
+                    target.project.schemes
+                        .filter { $0.targetDependencies().map(\.name) == [target.name] }
+                }
         }
         .filter { $0.testAction?.targets.isEmpty == false }
         .sorted(by: { $0.name < $1.name })

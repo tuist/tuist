@@ -162,7 +162,7 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
                 targets: [.init(target: .init(projectPath: projectPath, name: "CoreTests"))]
             )
         )
-        let coreTestsScheme = Scheme.test(
+        let coreTestsScheme = Scheme(
             name: "CoreTests",
             testAction: .test(
                 targets: [.init(target: .init(projectPath: projectPath, name: "CoreTests"))]
@@ -174,7 +174,7 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
                 targets: [.init(target: .init(projectPath: projectPath, name: "KitTests"))]
             )
         )
-        let kitTestsScheme = Scheme.test(
+        let kitTestsScheme = Scheme(
             name: "KitTests",
             testAction: .test(
                 targets: [.init(target: .init(projectPath: projectPath, name: "KitTests"))]
@@ -231,8 +231,8 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         XCTAssertEqual(
             got,
             [
-                coreScheme,
-                kitScheme,
+                coreTestsScheme,
+                kitTestsScheme,
             ]
         )
     }
