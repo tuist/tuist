@@ -272,7 +272,7 @@ let package = Package(
         ),
         .testTarget(
             name: "TuistAsyncQueueTests",
-            dependencies: ["TuistAsyncQueue", "TuistSupportTesting", "TuistCoreTesting", "TuistAsyncQueueTesting"]
+            dependencies: ["TuistAsyncQueue", "TuistSupportTesting", "TuistCoreTesting", "TuistAsyncQueueTesting", "RxBlocking"]
         ),
         .target(
             name: "TuistLoader",
