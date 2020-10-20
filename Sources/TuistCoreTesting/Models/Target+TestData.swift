@@ -21,7 +21,8 @@ public extension Target {
                      actions: [TargetAction] = [],
                      environment: [String: String] = [:],
                      filesGroup: ProjectGroup = .group(name: "Project"),
-                     dependencies: [Dependency] = []) -> Target
+                     dependencies: [Dependency] = [],
+                     scripts: [TargetScript] = []) -> Target
     {
         Target(name: name,
                platform: platform,
@@ -39,7 +40,8 @@ public extension Target {
                actions: actions,
                environment: environment,
                filesGroup: filesGroup,
-               dependencies: dependencies)
+               dependencies: dependencies,
+               scripts: scripts)
     }
 
     /// Creates a bare bones Target with as little data as possible
@@ -59,7 +61,8 @@ public extension Target {
                       actions: [TargetAction] = [],
                       environment: [String: String] = [:],
                       filesGroup: ProjectGroup = .group(name: "Project"),
-                      dependencies: [Dependency] = []) -> Target
+                      dependencies: [Dependency] = [],
+                      scripts: [TargetScript] = []) -> Target
     {
         Target(name: name,
                platform: platform,
@@ -77,6 +80,7 @@ public extension Target {
                actions: actions,
                environment: environment,
                filesGroup: filesGroup,
-               dependencies: dependencies)
+               dependencies: dependencies,
+               scripts: scripts)
     }
 }
