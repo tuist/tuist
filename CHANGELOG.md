@@ -9,6 +9,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Require the `Config.swift` file to be in the Tuist directory [#693](https://github.com/tuist/tuist/issues/693) by [@mollyIV](https://github.com/mollyIV).
 - Mapper for the caching logic to locate the built products directory [#1929](https://github.com/tuist/tuist/pull/1929) by [@pepibumur](https://github.com/pepibumur).
 - Extended `BuildPhaseGenerator` to generate script build phases [#1932](https://github.com/tuist/tuist/pull/1932) by [@pepibumur](https://github.com/pepibumur).
+- Extend the `TargetContentHasher` to account for the `Target.scripts` attribute [#1933](https://github.com/tuist/tuist/pull/1933) by [@pepibumur](https://github.com/pepibumur).
+- Extend the `CacheController` to generate projects with the build phase to locate the targets' built products directory [#1933](https://github.com/tuist/tuist/pull/1933) by [@pepibumur](https://github.com/pepibumur).
 
 ### Fixed
 
