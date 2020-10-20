@@ -11,7 +11,7 @@ struct TestCommand: ParsableCommand {
     }
 
     @Argument(
-        help: "The scheme to be tested. By default it tests all the testable schemes of the project in the current directory."
+        help: "The scheme to be tested. By default it tests all the testable targets of the project in the current directory."
     )
     var scheme: String?
 
@@ -21,7 +21,7 @@ struct TestCommand: ParsableCommand {
     var generate: Bool = false
 
     @Flag(
-        help: "When passed, it cleans the project before testing it"
+        help: "When passed, it cleans the project before testing it."
     )
     var clean: Bool = false
 
@@ -45,7 +45,7 @@ struct TestCommand: ParsableCommand {
 
     @Option(
         name: [.long, .customShort("C")],
-        help: "The configuration to be used when building the scheme."
+        help: "The configuration to be used when testing the scheme."
     )
     var configuration: String?
 
