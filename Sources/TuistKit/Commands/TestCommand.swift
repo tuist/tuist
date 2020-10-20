@@ -30,13 +30,13 @@ struct TestCommand: ParsableCommand {
         help: "The path to the directory that contains the project to be tested."
     )
     var path: String?
-    
+
     @Option(
         name: .shortAndLong,
         help: "Test on a specific device."
     )
     var device: String?
-    
+
     @Option(
         name: .shortAndLong,
         help: "Test with a specific version of the OS."

@@ -48,7 +48,7 @@ final class SimulatorControllerIntegrationTests: TuistTestCase {
         let runtimes = try XCTUnwrap(got)
         XCTAssertNotEmpty(runtimes)
     }
-    
+
     func test_findAvailableDevice() throws {
         // When
         let got = try subject.findAvailableDevice(
@@ -58,7 +58,7 @@ final class SimulatorControllerIntegrationTests: TuistTestCase {
         )
         .toBlocking()
         .single()
-        
+
         // Then
         XCTAssertTrue(got.isAvailable)
     }

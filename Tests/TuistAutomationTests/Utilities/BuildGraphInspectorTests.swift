@@ -155,7 +155,7 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
             ]
         )
     }
-    
+
     func test_testSchemes() throws {
         // Given
         let path = try temporaryPath()
@@ -241,7 +241,7 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
             ]
         )
     }
-    
+
     func test_testableSchemes() throws {
         // Given
         let path = try temporaryPath()
@@ -271,7 +271,7 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         let graph = Graph.test(
             entryNodes: [coreTargetNode],
             projects: [
-                coreProject
+                coreProject,
             ]
         )
 

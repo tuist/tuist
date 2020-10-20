@@ -1,15 +1,15 @@
 import Foundation
 import RxBlocking
 import TSCBasic
+import struct TSCUtility.Version
 import TuistAutomation
 import TuistCore
 import TuistSupport
-import struct TSCUtility.Version
 
 enum TestServiceError: FatalError {
     case schemeNotFound(scheme: String, existing: [String])
     case schemeWithoutTestableTargets(scheme: String)
-    
+
     // Error description
     var description: String {
         switch self {
@@ -19,7 +19,7 @@ enum TestServiceError: FatalError {
             return "The scheme \(scheme) cannot be built because it contains no buildable targets."
         }
     }
-    
+
     // Error type
     var type: ErrorType {
         switch self {
@@ -34,16 +34,16 @@ enum TestServiceError: FatalError {
 final class TestService {
     /// Project generator
     let projectGenerator: ProjectGenerating
-    
+
     /// Xcode build controller.
     let xcodebuildController: XcodeBuildControlling
-    
+
     /// Build graph inspector.
     let buildGraphInspector: BuildGraphInspecting
-    
+
     /// Simulator controller
     let simulatorController: SimulatorControlling
-    
+
     init(
         projectGenerator: ProjectGenerating = ProjectGenerator(),
         xcodebuildController: XcodeBuildControlling = XcodeBuildController(),
@@ -55,7 +55,7 @@ final class TestService {
         self.buildGraphInspector = buildGraphInspector
         self.simulatorController = simulatorController
     }
-    
+
     func run(
         schemeName: String?,
         generate: Bool,
@@ -71,15 +71,15 @@ final class TestService {
         } else {
             graph = try projectGenerator.load(path: path)
         }
-        
+
         let version = osVersion?.version()
-        
+
         let testableSchemes = buildGraphInspector.testableSchemes(graph: graph)
         logger.log(
             level: .debug,
             "Found the following testable schemes: \(testableSchemes.map(\.name).joined(separator: ", "))"
         )
-        
+
         if let schemeName = schemeName {
             guard let scheme = testableSchemes.first(where: { $0.name == schemeName }) else {
                 throw TestServiceError.schemeNotFound(scheme: schemeName, existing: testableSchemes.map(\.name))
@@ -109,12 +109,12 @@ final class TestService {
                 cleaned = true
             }
         }
-        
+
         logger.log(level: .notice, "The project tests ran successfully", metadata: .success)
     }
-    
+
     // MARK: - private
-    
+
     private func testScheme(
         scheme: Scheme,
         graph: Graph,
@@ -128,7 +128,7 @@ final class TestService {
         guard let buildableTarget = buildGraphInspector.testableTarget(scheme: scheme, graph: graph) else {
             throw TestServiceError.schemeWithoutTestableTargets(scheme: scheme.name)
         }
-        
+
         let destination: XcodeBuildDestination
         switch buildableTarget.platform {
         case .iOS, .tvOS, .watchOS:
@@ -137,13 +137,13 @@ final class TestService {
                 version: version,
                 deviceName: deviceName
             )
-                .toBlocking()
-                .single()
+            .toBlocking()
+            .single()
             destination = .device(device.udid)
         case .macOS:
             destination = .mac
         }
-        
+
         let workspacePath = try buildGraphInspector.workspacePath(directory: path)!
         _ = try xcodebuildController.test(
             .workspace(workspacePath),
@@ -152,8 +152,8 @@ final class TestService {
             destination: destination,
             arguments: buildGraphInspector.buildArguments(target: buildableTarget, configuration: configuration)
         )
-            .printFormattedOutput()
-            .toBlocking()
-            .last()
+        .printFormattedOutput()
+        .toBlocking()
+        .last()
     }
 }

@@ -1,8 +1,8 @@
 import Foundation
 import RxSwift
-import TuistSupport
-import TuistCore
 import struct TSCUtility.Version
+import TuistCore
+import TuistSupport
 
 public protocol SimulatorControlling {
     /// Returns the list of simulator devices that are available in the system.
@@ -16,7 +16,7 @@ public protocol SimulatorControlling {
     ///     - deviceName: Optionally filter by device name
     /// - Returns: the list of simulator devices and runtimes.
     func devicesAndRuntimes() -> Single<[SimulatorDeviceAndRuntime]>
-    
+
     func findAvailableDevice(
         platform: Platform,
         version: Version?,
@@ -40,7 +40,7 @@ public enum SimulatorControllerError: FatalError {
         case let .simctlError(output):
             return output
         case let .deviceNotFound(platform, version, deviceName, devices):
-            return "Could not find a suitable device for \(platform.caseValue)\(version.map { " \($0)" } ?? "")\(deviceName.map { ", device name \($0)" } ?? ""). Did find \(devices.map { "\($0.device.name) (\($0.runtime.description))"}.joined(separator: ", "))"
+            return "Could not find a suitable device for \(platform.caseValue)\(version.map { " \($0)" } ?? "")\(deviceName.map { ", device name \($0)" } ?? ""). Did find \(devices.map { "\($0.device.name) (\($0.runtime.description))" }.joined(separator: ", "))"
         }
     }
 }
@@ -117,7 +117,7 @@ public final class SimulatorController: SimulatorControlling {
                 }
             }
     }
-    
+
     public func findAvailableDevice(
         platform: Platform,
         version: Version?,
@@ -136,13 +136,13 @@ public final class SimulatorController: SimulatorControlling {
                             guard simulatorDeviceAndRuntime.device.name == deviceName else { return false }
                         }
                         return true
-                }
-                .map(\.device)
+                    }
+                    .map(\.device)
                 guard
                     let device = availableDevices.first(where: { !$0.isShutdown }) ?? availableDevices.first
-                    else { return .error(SimulatorControllerError.deviceNotFound(platform, version, deviceName, devicesAndRuntimes)) }
-                
+                else { return .error(SimulatorControllerError.deviceNotFound(platform, version, deviceName, devicesAndRuntimes)) }
+
                 return .just(device)
-        }
+            }
     }
 }

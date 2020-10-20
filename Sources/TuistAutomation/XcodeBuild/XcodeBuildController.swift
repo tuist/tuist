@@ -76,7 +76,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
 
         // Arguments
         command.append(contentsOf: arguments.flatMap { $0.arguments })
-        
+
         switch destination {
         case let .device(udid):
             command.append(contentsOf: ["-destination", "id=\(udid)"])

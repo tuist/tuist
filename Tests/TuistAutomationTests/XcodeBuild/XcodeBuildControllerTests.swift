@@ -68,7 +68,7 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
             XCTFail("The command was not expected to fail")
         }
     }
-    
+
     func test_test_when_device() throws {
         // Given
         let path = try temporaryPath()
@@ -77,7 +77,7 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
         let scheme = "Scheme"
         let shouldOutputBeColoured = true
         environment.shouldOutputBeColoured = shouldOutputBeColoured
-        
+
         var command = [
             "/usr/bin/xcrun",
             "xcodebuild",
@@ -104,8 +104,8 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
             destination: .device("device-id"),
             arguments: []
         )
-            .toBlocking()
-            .materialize()
+        .toBlocking()
+        .materialize()
 
         // Then
         XCTAssertEqual(parseCalls.count, 1)
@@ -119,7 +119,7 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
             XCTFail("The command was not expected to fail")
         }
     }
-    
+
     func test_test_when_mac() throws {
         // Given
         let path = try temporaryPath()
@@ -128,7 +128,7 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
         let scheme = "Scheme"
         let shouldOutputBeColoured = true
         environment.shouldOutputBeColoured = shouldOutputBeColoured
-        
+
         var command = [
             "/usr/bin/xcrun",
             "xcodebuild",
@@ -154,8 +154,8 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
             destination: .mac,
             arguments: []
         )
-            .toBlocking()
-            .materialize()
+        .toBlocking()
+        .materialize()
 
         // Then
         XCTAssertEqual(parseCalls.count, 1)

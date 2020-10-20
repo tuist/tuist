@@ -37,7 +37,7 @@ public protocol BuildGraphInspecting {
     /// Given a graph, it returns a list of test schemes (those that include only one test target).
     /// - Parameter graph: Dependency graph.
     func testSchemes(graph: Graph) -> [Scheme]
-    
+
     /// Given a graph, it returns a list of testable schemes.
     /// - Parameter graph: Dependency graph.
     func testableSchemes(graph: Graph) -> [Scheme]
@@ -73,7 +73,7 @@ public class BuildGraphInspector: BuildGraphInspecting {
         else {
             return nil
         }
-        
+
         return graph.target(path: buildTarget.projectPath, name: buildTarget.name)?.target
     }
 
@@ -104,7 +104,7 @@ public class BuildGraphInspector: BuildGraphInspecting {
             .filter { $0.testAction?.targets.isEmpty == false }
             .sorted(by: { $0.name < $1.name })
     }
-    
+
     public func testSchemes(graph: Graph) -> [Scheme] {
         graph.targets.values.flatMap { target -> [Scheme] in
             target

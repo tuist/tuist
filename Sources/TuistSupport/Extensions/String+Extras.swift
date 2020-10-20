@@ -69,7 +69,7 @@ extension String {
         return NSRange(location: utf16.distance(from: utf16.startIndex, to: from),
                        length: utf16.distance(from: from, to: to))
     }
-    
+
     public func version() -> Version? {
         if components(separatedBy: ".").count == 2 {
             return Version(string: self + ".0")

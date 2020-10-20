@@ -1,14 +1,14 @@
 import Foundation
-import TuistCore
-import TuistAutomation
-import TSCBasic
 import RxSwift
+import TSCBasic
+import TuistAutomation
+import TuistCore
 import XCTest
 
 @testable import TuistAutomationTesting
 @testable import TuistCoreTesting
-@testable import TuistSupportTesting
 @testable import TuistKit
+@testable import TuistSupportTesting
 
 final class TestServiceTests: TuistUnitTestCase {
     private var subject: TestService!
@@ -16,14 +16,14 @@ final class TestServiceTests: TuistUnitTestCase {
     private var xcodebuildController: MockXcodeBuildController!
     private var buildGraphInspector: MockBuildGraphInspector!
     private var simulatorController: MockSimulatorController!
-    
+
     override func setUp() {
         super.setUp()
         projectGenerator = .init()
         xcodebuildController = .init()
         buildGraphInspector = .init()
         simulatorController = .init()
-        
+
         subject = TestService(
             projectGenerator: projectGenerator,
             xcodebuildController: xcodebuildController,
@@ -31,7 +31,7 @@ final class TestServiceTests: TuistUnitTestCase {
             simulatorController: simulatorController
         )
     }
-    
+
     override func tearDown() {
         projectGenerator = nil
         xcodebuildController = nil
@@ -40,7 +40,7 @@ final class TestServiceTests: TuistUnitTestCase {
         subject = nil
         super.tearDown()
     }
-    
+
     func test_run_when_the_project_is_already_generated() throws {
         // Given
         let path = try temporaryPath()
@@ -49,7 +49,7 @@ final class TestServiceTests: TuistUnitTestCase {
         let scheme = Scheme.test()
         let target = Target.test()
         let buildArguments: [XcodeBuildArgument] = [.sdk("iphoneos")]
-        
+
         projectGenerator.loadStub = { _path in
             XCTAssertEqual(_path, path)
             return graph
@@ -69,7 +69,7 @@ final class TestServiceTests: TuistUnitTestCase {
             XCTAssertEqual(_target, target)
             return buildArguments
         }
-        
+
         let availableDevice: SimulatorDevice = .test()
         simulatorController.findAvailableDeviceStub = { _, _, _ in
             .just(availableDevice)
@@ -82,7 +82,7 @@ final class TestServiceTests: TuistUnitTestCase {
             XCTAssertEqual(_destination, .device(availableDevice.udid))
             return Observable.just(.standardOutput(.init(raw: "success", formatted: nil)))
         }
-        
+
         // Then
         try subject.testRun(
             schemeName: scheme.name,
@@ -90,7 +90,7 @@ final class TestServiceTests: TuistUnitTestCase {
             path: path
         )
     }
-    
+
     func test_run_only_cleans_the_first_time() throws {
         // Given
         let path = try temporaryPath()
@@ -101,7 +101,7 @@ final class TestServiceTests: TuistUnitTestCase {
         let targetA = Target.test(name: "A")
         let targetB = Target.test(name: "B")
         let buildArguments: [XcodeBuildArgument] = [.sdk("iphoneos")]
-        
+
         projectGenerator.loadStub = { _path in
             XCTAssertEqual(_path, path)
             return graph
@@ -121,10 +121,10 @@ final class TestServiceTests: TuistUnitTestCase {
         buildGraphInspector.buildArgumentsStub = { _, _ in
             buildArguments
         }
-        xcodebuildController.testStub = { _target, _scheme, _clean, _destination, _arguments in
+        xcodebuildController.testStub = { _target, _scheme, _clean, _, _arguments in
             XCTAssertEqual(_target, .workspace(workspacePath))
             XCTAssertEqual(_arguments, buildArguments)
-            
+
             if _scheme == "A" {
                 XCTAssertEqual(_scheme, "A")
                 XCTAssertTrue(_clean)
@@ -137,13 +137,13 @@ final class TestServiceTests: TuistUnitTestCase {
             }
             return Observable.just(.standardOutput(.init(raw: "success", formatted: nil)))
         }
-        
+
         // Then
         try subject.testRun(
             path: path
         )
     }
-    
+
     func test_run_lists_schemes() throws {
         // Given
         let path = try temporaryPath()
@@ -168,12 +168,12 @@ final class TestServiceTests: TuistUnitTestCase {
         xcodebuildController.testStub = { _, _, _, _, _ in
             .just(.standardOutput(.init(raw: "success", formatted: nil)))
         }
-        
+
         // When
         try subject.testRun(
             path: path
         )
-        
+
         // Then
         XCTAssertPrinterContains("Found the following testable schemes: A, B", at: .debug, ==)
     }

@@ -550,7 +550,7 @@ public class Graph: Encodable, Equatable {
             node.dependencies.contains(where: { $0.path == path && $0.name == name })
         } ?? nil
     }
-    
+
     /// - Returns: Host application for a given `targetNode`, if it exists
     public func hostApplication(for targetNode: TargetNode) -> TargetNode? {
         targetDependencies(path: targetNode.path, name: targetNode.name)
