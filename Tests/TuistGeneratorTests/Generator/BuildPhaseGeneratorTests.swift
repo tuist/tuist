@@ -237,7 +237,8 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let headerFileReference = PBXFileReference()
         fileElements.elements[headerPath] = headerFileReference
 
-        let target = Target.test(platform: .macOS,
+        let target = Target.test(platform: .iOS,
+                                 product: .framework,
                                  sources: [(path: "/test/file.swift", compilerFlags: nil)],
                                  headers: headers)
         let graph = ValueGraph.test(path: tmpDir)

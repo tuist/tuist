@@ -128,11 +128,11 @@ public struct Target: Equatable, Hashable, Comparable {
 
     /// Returns true if the target supports having a headers build phase..
     public var shouldIncludeHeadersBuildPhase: Bool {
-        switch (platform, product) {
-        case (.iOS, .app):
-            return false
-        default:
+        switch (product) {
+        case .framework, .staticFramework, .staticLibrary, .dynamicLibrary:
             return true
+        default:
+            return false
         }
     }
 
