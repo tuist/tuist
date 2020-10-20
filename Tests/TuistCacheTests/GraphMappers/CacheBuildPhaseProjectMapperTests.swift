@@ -32,7 +32,7 @@ final class CacheBuildPhaseProjectMapperTests: TuistUnitTestCase {
 
         // Then
         let script = try XCTUnwrap(got.targets.first?.scripts.first)
-        XCTAssertEqual(script.name, "Create file to locate the built products dir")
+        XCTAssertEqual(script.name, "[Tuist] Create file to locate the built products directory")
         let expected = """
         if [ -n "$\(target.targetLocatorBuildPhaseVariable)" ]; then
             touch $BUILT_PRODUCTS_DIR/.$\(target.targetLocatorBuildPhaseVariable).tuist

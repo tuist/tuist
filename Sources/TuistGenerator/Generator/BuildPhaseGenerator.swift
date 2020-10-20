@@ -95,6 +95,10 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                                          pbxTarget: pbxTarget,
                                          fileElements: fileElements,
                                          pbxproj: pbxproj)
+
+        generateScripts(target.scripts,
+                        pbxTarget: pbxTarget,
+                        pbxproj: pbxproj)
     }
 
     func generateActions(actions: [TargetAction],
@@ -121,6 +125,21 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                 buildPhase.alwaysOutOfDate = !basedOnDependencyAnalysis
             }
 
+            pbxproj.add(object: buildPhase)
+            pbxTarget.buildPhases.append(buildPhase)
+        }
+    }
+
+    func generateScripts(_ scripts: [TargetScript],
+                         pbxTarget: PBXTarget,
+                         pbxproj: PBXProj)
+    {
+        scripts.forEach { script in
+            let buildPhase = PBXShellScriptBuildPhase(files: [],
+                                                      name: script.name,
+                                                      shellPath: "/bin/sh",
+                                                      shellScript: script.script,
+                                                      showEnvVarsInLog: true)
             pbxproj.add(object: buildPhase)
             pbxTarget.buildPhases.append(buildPhase)
         }
