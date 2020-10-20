@@ -9,6 +9,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Require the `Config.swift` file to be in the Tuist directory [#693](https://github.com/tuist/tuist/issues/693) by [@mollyIV](https://github.com/mollyIV).
 - Mapper for the caching logic to locate the built products directory [](https://github.com/tuist/tuist/pull/1929) by [@pepibumur](https://github.com/pepibumur).
 
+### Fixed
+
+- Fixed non-framework/library targets having a header build phase [#367](https://github.com/tuist/tuist/issues/367) by [@eito](https://github.com/eito).
+
 ## 1.22.0 - Heimat
 
 ### Changed

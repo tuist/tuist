@@ -62,7 +62,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                              fileElements: ProjectFileElements,
                              pbxproj: PBXProj) throws
     {
-        if let headers = target.headers {
+        if target.shouldIncludeHeadersBuildPhase, let headers = target.headers {
             try generateHeadersBuildPhase(headers: headers,
                                           pbxTarget: pbxTarget,
                                           fileElements: fileElements,

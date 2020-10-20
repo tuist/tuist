@@ -184,6 +184,41 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         ])
     }
 
+    func test_generateHeadersBuildPhase_empty_when_iOSAppTarget() throws {
+        let tmpDir = try temporaryPath()
+        let pbxTarget = PBXNativeTarget(name: "Test")
+        let pbxproj = PBXProj()
+        pbxproj.add(object: pbxTarget)
+
+        let fileElements = ProjectFileElements()
+        let path = AbsolutePath("/test/file.swift")
+
+        let sourceFileReference = PBXFileReference(sourceTree: .group, name: "Test")
+        fileElements.elements[path] = sourceFileReference
+
+        let headerPath = AbsolutePath("/test.h")
+        let headers = Headers.test(public: [path], private: [], project: [])
+
+        let headerFileReference = PBXFileReference()
+        fileElements.elements[headerPath] = headerFileReference
+
+        let target = Target.test(platform: .iOS,
+                                 sources: [(path: "/test/file.swift", compilerFlags: nil)],
+                                 headers: headers)
+
+        let graph = ValueGraph.test(path: tmpDir)
+        let graphTraverser = ValueGraphTraverser(graph: graph)
+
+        try subject.generateBuildPhases(path: tmpDir,
+                                        target: target,
+                                        graphTraverser: graphTraverser,
+                                        pbxTarget: pbxTarget,
+                                        fileElements: fileElements,
+                                        pbxproj: pbxproj)
+
+        XCTAssertEmpty(pbxTarget.buildPhases.filter { $0 is PBXHeadersBuildPhase })
+    }
+
     func test_generateHeadersBuildPhase_before_generateSourceBuildPhase() throws {
         let tmpDir = try temporaryPath()
         let pbxTarget = PBXNativeTarget(name: "Test")
@@ -202,7 +237,9 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let headerFileReference = PBXFileReference()
         fileElements.elements[headerPath] = headerFileReference
 
-        let target = Target.test(sources: [(path: "/test/file.swift", compilerFlags: nil)],
+        let target = Target.test(platform: .iOS,
+                                 product: .framework,
+                                 sources: [(path: "/test/file.swift", compilerFlags: nil)],
                                  headers: headers)
         let graph = ValueGraph.test(path: tmpDir)
         let graphTraverser = ValueGraphTraverser(graph: graph)

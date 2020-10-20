@@ -140,6 +140,16 @@ public struct Target: Equatable, Hashable, Comparable {
         }
     }
 
+    /// Returns true if the target supports having a headers build phase..
+    public var shouldIncludeHeadersBuildPhase: Bool {
+        switch product {
+        case .framework, .staticFramework, .staticLibrary, .dynamicLibrary:
+            return true
+        default:
+            return false
+        }
+    }
+
     /// Returns true if the target supports having sources.
     public var supportsSources: Bool {
         switch (platform, product) {
