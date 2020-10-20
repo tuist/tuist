@@ -10,7 +10,9 @@ public class CacheBuildPhaseProjectMapper: ProjectMapping {
         let project = project.with(targets: project.targets.map { target in
             var target = target
             if target.product.isFramework {
-                target.scripts.append(.init(name: "Create file to locate the built products dir", script: script(target: target)))
+                target.scripts.append(.init(name: "[Tuist] Create file to locate the built products directory",
+                                            script: script(target: target),
+                                            showEnvVarsInLog: true))
             }
             return target
         })

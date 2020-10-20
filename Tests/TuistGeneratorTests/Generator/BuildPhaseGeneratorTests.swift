@@ -82,6 +82,28 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         ])
     }
 
+    func test_generateScripts() throws {
+        // Given
+        let target = PBXNativeTarget(name: "Test")
+        let pbxproj = PBXProj()
+        pbxproj.add(object: target)
+        let targetScript = TargetScript(name: "Test", script: "Script", showEnvVarsInLog: true)
+        let targetScripts = [targetScript]
+
+        // When
+        subject.generateScripts(targetScripts,
+                                pbxTarget: target,
+                                pbxproj: pbxproj)
+
+        // Then
+        let buildPhase = try XCTUnwrap(target.buildPhases.first as? PBXShellScriptBuildPhase)
+        XCTAssertEqual(buildPhase.name, targetScript.name)
+        XCTAssertEqual(buildPhase.shellScript, targetScript.script)
+        XCTAssertEqual(buildPhase.shellPath, "/bin/sh")
+        XCTAssertEqual(buildPhase.files, [])
+        XCTAssertTrue(buildPhase.showEnvVarsInLog)
+    }
+
     func test_generateSourcesBuildPhase_throws_when_theFileReferenceIsMissing() {
         let path = AbsolutePath("/test/file.swift")
         let target = PBXNativeTarget(name: "Test")
