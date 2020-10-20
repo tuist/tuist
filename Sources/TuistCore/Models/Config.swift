@@ -24,9 +24,12 @@ public struct Config: Equatable, Hashable {
     /// Cloud configuration.
     public let cloud: Cloud?
 
+    /// The path of the config file.
+    public let path: AbsolutePath?
+
     /// Returns the default Tuist configuration.
     public static var `default`: Config {
-        Config(compatibleXcodeVersions: .all, cloud: nil, generationOptions: [])
+        Config(compatibleXcodeVersions: .all, cloud: nil, generationOptions: [], path: nil)
     }
 
     /// Initializes the tuist cofiguration.
@@ -35,13 +38,16 @@ public struct Config: Equatable, Hashable {
     ///   - compatibleXcodeVersions: List of Xcode versions the project or set of projects is compatible with.
     ///   - cloud: Cloud configuration.
     ///   - generationOptions: Generation options.
+    ///   - path: The path of the config file.
     public init(compatibleXcodeVersions: CompatibleXcodeVersions,
                 cloud: Cloud?,
-                generationOptions: [GenerationOption])
+                generationOptions: [GenerationOption],
+                path: AbsolutePath?)
     {
         self.compatibleXcodeVersions = compatibleXcodeVersions
         self.cloud = cloud
         self.generationOptions = generationOptions
+        self.path = path
     }
 
     // MARK: - Hashable

@@ -1,3 +1,12 @@
+- name: SwiftUI + TCA Example
+  url: https://github.com/lm2s/Texther
+  author: Luís Marques Silva
+  author_url: https://twitter.com/_lm2s
+  author_subtitle: 
+  type: App
+  date: '2020-10-19'
+  icon_url: https://avatars2.githubusercontent.com/u/221489?s=400&u=ce4932ad5a0a5a079800989075c7522eccef8207&v=4
+
 - name: Our path to microframeworks with Tuist.io
   url: https://www.youtube.com/watch?v=AHf_LkN8RK0
   author: Jeroen Leenarts
