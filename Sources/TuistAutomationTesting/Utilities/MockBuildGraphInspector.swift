@@ -61,4 +61,9 @@ public final class MockBuildGraphInspector: BuildGraphInspecting {
             return []
         }
     }
+    
+    public var testSchemesStub: ((Graph) -> [Scheme])?
+    public func testSchemes(graph: Graph) -> [Scheme] {
+        testSchemesStub?(graph) ?? []
+    }
 }

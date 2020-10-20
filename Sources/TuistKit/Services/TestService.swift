@@ -95,7 +95,8 @@ final class TestService {
             )
         } else {
             var cleaned: Bool = false
-            try testableSchemes.forEach {
+            let testSchemes = buildGraphInspector.testSchemes(graph: graph)
+            try testSchemes.forEach {
                 try testScheme(
                     scheme: $0,
                     graph: graph,

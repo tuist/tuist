@@ -34,6 +34,10 @@ public protocol BuildGraphInspecting {
     ///     - graph: Dependency graph
     func buildableEntrySchemes(graph: Graph) -> [Scheme]
 
+    /// Given a graph, it returns a list of test schemes (those that include only one test target).
+    /// - Parameter graph: Dependency graph.
+    func testSchemes(graph: Graph) -> [Scheme]
+    
     /// Given a graph, it returns a list of testable schemes.
     /// - Parameter graph: Dependency graph.
     func testableSchemes(graph: Graph) -> [Scheme]
@@ -82,11 +86,10 @@ public class BuildGraphInspector: BuildGraphInspecting {
     }
 
     public func buildableSchemes(graph: Graph) -> [Scheme] {
-        graph.targets.values.flatMap {
-            $0.flatMap { $0.project.schemes }
-        }
-        .filter { $0.buildAction?.targets.isEmpty == false }
-        .sorted(by: { $0.name < $1.name })
+        graph.projects
+            .flatMap(\.schemes)
+            .filter { $0.buildAction?.targets.isEmpty == false }
+            .sorted(by: { $0.name < $1.name })
     }
 
     public func buildableEntrySchemes(graph: Graph) -> [Scheme] {
@@ -98,6 +101,13 @@ public class BuildGraphInspector: BuildGraphInspecting {
     }
 
     public func testableSchemes(graph: Graph) -> [Scheme] {
+        graph.projects
+            .flatMap(\.schemes)
+            .filter { $0.testAction?.targets.isEmpty == false }
+            .sorted(by: { $0.name < $1.name })
+    }
+    
+    public func testSchemes(graph: Graph) -> [Scheme] {
         graph.targets.values.flatMap { target -> [Scheme] in
             target
                 .filter { $0.target.product == .unitTests || $0.target.product == .uiTests }
