@@ -128,7 +128,7 @@ public struct Target: Equatable, Hashable, Comparable {
 
     /// Returns true if the target supports having a headers build phase..
     public var shouldIncludeHeadersBuildPhase: Bool {
-        switch (product) {
+        switch product {
         case .framework, .staticFramework, .staticLibrary, .dynamicLibrary:
             return true
         default:
