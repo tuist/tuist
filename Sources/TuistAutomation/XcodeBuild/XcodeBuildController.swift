@@ -202,29 +202,18 @@ public final class XcodeBuildController: XcodeBuildControlling {
                 switch event {
                 case let .standardError(errorData):
                     guard let line = String(data: errorData, encoding: .utf8) else { return Observable.empty() }
-                    return Observable.create { observer in
-                        let lines = line.split(separator: "\n")
-                        lines.map { line in
-                            let formatedOutput = self.parser.parse(line: String(line), colored: colored)
-                            return SystemEvent.standardError(XcodeBuildOutput(raw: "\(String(line))\n", formatted: formatedOutput.map { "\($0)\n" }))
-                        }
-                        .forEach(observer.onNext)
-                        observer.onCompleted()
-                        return Disposables.create()
+                    let output = line.split(separator: "\n").map { line -> SystemEvent<XcodeBuildOutput> in
+                        let formatedOutput = self.parser.parse(line: String(line), colored: colored)
+                        return SystemEvent.standardError(XcodeBuildOutput(raw: "\(String(line))\n", formatted: formatedOutput.map { "\($0)\n" }))
                     }
+                    return Observable.from(output)
                 case let .standardOutput(outputData):
                     guard let line = String(data: outputData, encoding: .utf8) else { return Observable.empty() }
-
-                    return Observable.create { observer in
-                        let lines = line.split(separator: "\n")
-                        lines.map { line in
-                            let formatedOutput = self.parser.parse(line: String(line), colored: colored)
-                            return SystemEvent.standardOutput(XcodeBuildOutput(raw: "\(String(line))\n", formatted: formatedOutput.map { "\($0)\n" }))
-                        }
-                        .forEach(observer.onNext)
-                        observer.onCompleted()
-                        return Disposables.create()
+                    let output = line.split(separator: "\n").map { line -> SystemEvent<XcodeBuildOutput> in
+                        let formatedOutput = self.parser.parse(line: String(line), colored: colored)
+                        return SystemEvent.standardOutput(XcodeBuildOutput(raw: "\(String(line))\n", formatted: formatedOutput.map { "\($0)\n" }))
                     }
+                    return Observable.from(output)
                 }
             }
     }

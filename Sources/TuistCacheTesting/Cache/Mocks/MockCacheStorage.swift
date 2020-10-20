@@ -30,10 +30,10 @@ public final class MockCacheStorage: CacheStoring {
         }
     }
 
-    var storeStub: ((_ hash: String, _ xcframeworkPath: AbsolutePath) -> Void)?
-    public func store(hash: String, xcframeworkPath: AbsolutePath) -> Completable {
+    var storeStub: ((_ hash: String, _ paths: [AbsolutePath]) -> Void)?
+    public func store(hash: String, paths: [AbsolutePath]) -> Completable {
         if let storeStub = storeStub {
-            storeStub(hash, xcframeworkPath)
+            storeStub(hash, paths)
         }
         return Completable.empty()
     }

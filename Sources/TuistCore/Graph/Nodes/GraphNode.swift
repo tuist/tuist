@@ -2,7 +2,7 @@ import Foundation
 import TSCBasic
 import TuistSupport
 
-public class GraphNode: Equatable, Hashable, Encodable, CustomStringConvertible {
+public class GraphNode: Equatable, Hashable, Encodable, CustomStringConvertible, CustomDebugStringConvertible {
     // MARK: - Attributes
 
     /// The path to the node.
@@ -13,6 +13,9 @@ public class GraphNode: Equatable, Hashable, Encodable, CustomStringConvertible 
 
     /// The description of the node.
     public var description: String { name }
+
+    /// The debug description of the node.
+    public var debugDescription: String { name }
 
     // MARK: - Init
 

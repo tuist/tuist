@@ -27,7 +27,7 @@ let package = Package(
                  targets: ["TuistGenerator"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/tuist/XcodeProj", .upToNextMajor(from: "7.11.0")),
+        .package(url: "https://github.com/tuist/XcodeProj", .upToNextMajor(from: "7.15.0")),
         .package(url: "https://github.com/IBM-Swift/BlueSignals", .upToNextMajor(from: "1.0.21")),
         .package(url: "https://github.com/ReactiveX/RxSwift.git", .upToNextMajor(from: "5.0.1")),
         .package(url: "https://github.com/rnine/Checksum.git", .upToNextMajor(from: "1.0.2")),
@@ -75,11 +75,11 @@ let package = Package(
         ),
         .target(
             name: "TuistKit",
-            dependencies: ["XcodeProj", "SwiftToolsSupport-auto", "ArgumentParser", "TuistSupport", "TuistGenerator", "TuistCache", "TuistAutomation", "ProjectDescription", "Signals", "RxSwift", "RxBlocking", "Checksum", "TuistLoader", "TuistInsights", "TuistScaffold", "TuistSigning", "TuistCloud", "TuistDoc", "GraphViz", "TuistMigration"]
+            dependencies: ["XcodeProj", "SwiftToolsSupport-auto", "ArgumentParser", "TuistSupport", "TuistGenerator", "TuistCache", "TuistAutomation", "ProjectDescription", "Signals", "RxSwift", "RxBlocking", "Checksum", "TuistLoader", "TuistInsights", "TuistScaffold", "TuistSigning", "TuistDependencies", "TuistCloud", "TuistDoc", "GraphViz", "TuistMigration"]
         ),
         .testTarget(
             name: "TuistKitTests",
-            dependencies: ["TuistKit", "TuistAutomation", "TuistSupportTesting", "TuistCoreTesting", "ProjectDescription", "RxBlocking", "TuistLoaderTesting", "TuistCacheTesting", "TuistGeneratorTesting", "TuistScaffoldTesting", "TuistCloudTesting", "TuistAutomationTesting", "TuistSigningTesting", "TuistMigrationTesting", "TuistDocTesting"]
+            dependencies: ["TuistKit", "TuistAutomation", "TuistSupportTesting", "TuistCoreTesting", "ProjectDescription", "RxBlocking", "TuistLoaderTesting", "TuistCacheTesting", "TuistGeneratorTesting", "TuistScaffoldTesting", "TuistCloudTesting", "TuistAutomationTesting", "TuistSigningTesting", "TuistDependenciesTesting", "TuistMigrationTesting", "TuistDocTesting"]
         ),
         .testTarget(
             name: "TuistKitIntegrationTests",
@@ -151,7 +151,7 @@ let package = Package(
         ),
         .target(
             name: "TuistCacheTesting",
-            dependencies: ["TuistCache", "SwiftToolsSupport-auto", "TuistCore", "RxTest", "RxSwift"]
+            dependencies: ["TuistCache", "SwiftToolsSupport-auto", "TuistCore", "RxTest", "RxSwift", "TuistSupportTesting"]
         ),
         .target(
             name: "TuistCloud",
@@ -228,6 +228,22 @@ let package = Package(
         .testTarget(
             name: "TuistSigningIntegrationTests",
             dependencies: ["TuistSigning", "TuistSupportTesting", "TuistCoreTesting", "TuistSigningTesting"]
+        ),
+        .target(
+            name: "TuistDependencies",
+            dependencies: ["TuistCore", "TuistSupport"]
+        ),
+        .target(
+            name: "TuistDependenciesTesting",
+            dependencies: ["TuistDependencies"]
+        ),
+        .testTarget(
+            name: "TuistDependenciesTests",
+            dependencies: ["TuistDependencies", "TuistDependenciesTesting", "TuistCoreTesting", "TuistSupportTesting"]
+        ),
+        .testTarget(
+            name: "TuistDependenciesIntegrationTests",
+            dependencies: ["TuistDependencies", "TuistDependenciesTesting", "TuistCoreTesting", "TuistSupportTesting"]
         ),
         .target(
             name: "TuistMigration",

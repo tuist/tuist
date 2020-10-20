@@ -25,7 +25,7 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
 
     func testGenerateThrowsLintingErrorWhenConfigurationsAreEmpty() throws {
         // Given
-        let projectSettings: Settings = Settings(configurations: [:])
+        let projectSettings = Settings(configurations: [:])
         let targetSettings: Settings? = nil
 
         // When / Then
@@ -335,7 +335,7 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
     }
 
     private func createConfig() -> Config {
-        Config(compatibleXcodeVersions: .all, cloud: nil, generationOptions: [])
+        Config(compatibleXcodeVersions: .all, cloud: nil, generationOptions: [], path: nil)
     }
 
     private func createWorkspace(path: AbsolutePath, projects: [String]) throws -> Workspace {

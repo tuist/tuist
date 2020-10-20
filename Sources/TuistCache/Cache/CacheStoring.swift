@@ -21,6 +21,6 @@ public protocol CacheStoring {
     /// It stores the xcframework at the given path in the cache.
     /// - Parameters:
     ///   - hash: Hash of the target the xcframework belongs to.
-    ///   - xcframeworkPath: Path to the .xcframework.
-    func store(hash: String, xcframeworkPath: AbsolutePath) -> Completable
+    ///   - paths: Path to the files that will be stored.
+    func store(hash: String, paths: [AbsolutePath]) -> Completable
 }

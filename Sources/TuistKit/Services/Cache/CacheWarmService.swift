@@ -16,12 +16,15 @@ final class CacheWarmService {
                                                     manifestLinter: manifestLinter)
     }
 
-    func run(path: String?, includeDeviceArch: Bool) throws {
+    func run(path: String?, xcframeworks: Bool) throws {
         let path = self.path(path)
         let config = try generatorModelLoader.loadConfig(at: currentPath)
         let cache = Cache(storageProvider: CacheStorageProvider(config: config))
-        let cacheController = CacheController(cache: cache)
-        try cacheController.cache(path: path, includeDeviceArch: includeDeviceArch)
+        let cacheControllerFactory = CacheControllerFactory(cache: cache)
+
+        let cacheController = xcframeworks ? cacheControllerFactory.makeForXCFramework()
+            : cacheControllerFactory.makeForSimulatorFramework()
+        try cacheController.cache(path: path)
     }
 
     // MARK: - Helpers

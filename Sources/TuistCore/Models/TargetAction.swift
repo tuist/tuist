@@ -43,6 +43,9 @@ public struct TargetAction: Equatable {
     /// Show environment variables in the logs
     public var showEnvVarsInLog: Bool
 
+    /// Whether to skip running this script in incremental builds, if nothing has changed
+    public let basedOnDependencyAnalysis: Bool?
+
     /// Initializes a new target action with its attributes.
     ///
     /// - Parameters:
@@ -55,6 +58,8 @@ public struct TargetAction: Equatable {
     ///   - inputFileListPaths: List of input filelist paths
     ///   - outputPaths: List of output file paths
     ///   - outputFileListPaths: List of output filelist paths
+    ///   - showEnvVarsInLog: Show environment variables in the logs
+    ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
     public init(name: String,
                 order: Order,
                 tool: String? = nil,
@@ -64,7 +69,8 @@ public struct TargetAction: Equatable {
                 inputFileListPaths: [AbsolutePath] = [],
                 outputPaths: [AbsolutePath] = [],
                 outputFileListPaths: [AbsolutePath] = [],
-                showEnvVarsInLog: Bool = true)
+                showEnvVarsInLog: Bool = true,
+                basedOnDependencyAnalysis: Bool? = nil)
     {
         self.name = name
         self.order = order
@@ -76,6 +82,7 @@ public struct TargetAction: Equatable {
         self.outputPaths = outputPaths
         self.outputFileListPaths = outputFileListPaths
         self.showEnvVarsInLog = showEnvVarsInLog
+        self.basedOnDependencyAnalysis = basedOnDependencyAnalysis
     }
 
     /// Returns the shell script that should be used in the target build phase.

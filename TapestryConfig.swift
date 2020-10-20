@@ -22,10 +22,10 @@ let config = TapestryConfig(
                         "build/tuistenv.zip",
                     ]
                 )
-            )
+            ),
         ],
         add: [
-            "CHANGELOG.md"
+            "CHANGELOG.md",
         ],
         commitMessage: "Version \(Argument.version)",
         push: true

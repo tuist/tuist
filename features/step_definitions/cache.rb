@@ -4,6 +4,10 @@ Then(/^tuist warms the cache$/) do
   system("swift", "run", "tuist", "cache", "warm", "--path", @dir)
 end
 
+Then(/^tuist warms the cache with xcframeworks$/) do
+  system("swift", "run", "tuist", "cache", "warm", "--path", @dir, "--xcframeworks")
+end
+
 Then(/^([a-zA-Z]+) links the xcframework ([a-zA-Z]+)$/) do |target_name, xcframework|
   projects = Xcode.projects(@workspace_path)
   target = projects.flat_map { |p| p.targets }.detect { |t| t.name == target_name }

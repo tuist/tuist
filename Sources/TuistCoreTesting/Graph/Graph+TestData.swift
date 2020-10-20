@@ -3,23 +3,28 @@ import TSCBasic
 @testable import TuistCore
 
 public extension Graph {
-    static func test(name: String = "test",
-                     entryPath: AbsolutePath = AbsolutePath("/test/graph"),
-                     entryNodes: [GraphNode] = [],
-                     projects: [Project] = [],
-                     cocoapods: [CocoaPodsNode] = [],
-                     packages: [PackageNode] = [],
-                     precompiled: [PrecompiledNode] = [],
-                     targets: [AbsolutePath: [TargetNode]] = [:]) -> Graph
-    {
-        Graph(name: name,
-              entryPath: entryPath,
-              entryNodes: entryNodes,
-              projects: projects,
-              cocoapods: cocoapods,
-              packages: packages,
-              precompiled: precompiled,
-              targets: targets)
+    static func test(
+        name: String = "test",
+        entryPath: AbsolutePath = AbsolutePath("/test/graph"),
+        entryNodes: [GraphNode] = [],
+        workspace: Workspace? = nil,
+        projects: [Project] = [],
+        cocoapods: [CocoaPodsNode] = [],
+        packages: [PackageNode] = [],
+        precompiled: [PrecompiledNode] = [],
+        targets: [AbsolutePath: [TargetNode]] = [:]
+    ) -> Graph {
+        Graph(
+            name: name,
+            entryPath: entryPath,
+            entryNodes: entryNodes,
+            workspace: workspace,
+            projects: projects,
+            cocoapods: cocoapods,
+            packages: packages,
+            precompiled: precompiled,
+            targets: targets
+        )
     }
 
     /// Creates a test dependency graph for targets within a single project

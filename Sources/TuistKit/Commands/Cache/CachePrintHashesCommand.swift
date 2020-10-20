@@ -16,7 +16,13 @@ struct CachePrintHashesCommand: ParsableCommand {
     )
     var path: String?
 
+    @Flag(
+        name: [.customShort("x"), .long],
+        help: "When passed it caches the targets for simulator and device in a .xcframework"
+    )
+    var xcframeworks: Bool = false
+
     func run() throws {
-        try CachePrintHashesService().run(path: path.map { AbsolutePath($0) } ?? FileHandler.shared.currentPath)
+        try CachePrintHashesService().run(path: path.map { AbsolutePath($0) } ?? FileHandler.shared.currentPath, xcframeworks: xcframeworks)
     }
 }

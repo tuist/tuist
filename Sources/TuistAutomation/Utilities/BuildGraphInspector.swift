@@ -86,8 +86,7 @@ public class BuildGraphInspector: BuildGraphInspecting {
     }
 
     public func buildableSchemes(graph: Graph) -> [Scheme] {
-        graph.projects
-            .flatMap(\.schemes)
+        graph.schemes
             .filter { $0.buildAction?.targets.isEmpty == false }
             .sorted(by: { $0.name < $1.name })
     }
@@ -101,8 +100,7 @@ public class BuildGraphInspector: BuildGraphInspecting {
     }
 
     public func testableSchemes(graph: Graph) -> [Scheme] {
-        graph.projects
-            .flatMap(\.schemes)
+        graph.schemes
             .filter { $0.testAction?.targets.isEmpty == false }
             .sorted(by: { $0.name < $1.name })
     }

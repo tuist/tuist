@@ -423,14 +423,19 @@ public final class System: Systeming {
 
     public func observable(_ arguments: [String], verbose: Bool, environment: [String: String]) -> Observable<SystemEvent<Data>> {
         Observable.create { (observer) -> Disposable in
+            let synchronizationQueue = DispatchQueue(label: "io.tuist.support.system")
             var errorData: [UInt8] = []
             let process = Process(arguments: arguments,
                                   environment: environment,
                                   outputRedirection: .stream(stdout: { bytes in
-                                      observer.onNext(.standardOutput(Data(bytes)))
+                                      synchronizationQueue.async {
+                                          observer.onNext(.standardOutput(Data(bytes)))
+                                      }
                                   }, stderr: { bytes in
-                                      errorData.append(contentsOf: bytes)
-                                      observer.onNext(.standardError(Data(bytes)))
+                                      synchronizationQueue.async {
+                                          errorData.append(contentsOf: bytes)
+                                          observer.onNext(.standardError(Data(bytes)))
+                                      }
                                   }),
                                   verbose: verbose,
                                   startNewProcessGroup: false)
@@ -443,9 +448,13 @@ public final class System: Systeming {
                                        output: result.output,
                                        stderrOutput: result.stderrOutput.map { _ in errorData })
                 try result.throwIfErrored()
-                observer.onCompleted()
+                synchronizationQueue.sync {
+                    observer.onCompleted()
+                }
             } catch {
-                observer.onError(error)
+                synchronizationQueue.sync {
+                    observer.onError(error)
+                }
             }
             return Disposables.create {
                 if process.launched {

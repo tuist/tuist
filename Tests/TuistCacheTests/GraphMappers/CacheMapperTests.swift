@@ -25,6 +25,7 @@ final class CacheMapperTests: TuistUnitTestCase {
                               cache: cache,
                               graphContentHasher: graphContentHasher,
                               sources: [],
+                              cacheOutputType: .framework,
                               cacheGraphMutator: cacheGraphMutator,
                               queue: DispatchQueue.main)
         super.setUp()
@@ -39,7 +40,7 @@ final class CacheMapperTests: TuistUnitTestCase {
         subject = nil
     }
 
-    func test_map_when_all_xcframeworks_are_fetched_successfully() throws {
+    func test_map_when_all_binaries_are_fetched_successfully() throws {
         let path = try temporaryPath()
 
         // Given
@@ -65,7 +66,7 @@ final class CacheMapperTests: TuistUnitTestCase {
             bNode: bHash,
             appNode: appHash,
         ]
-        graphContentHasher.contentHashesStub = contentHashes
+        graphContentHasher.stubbedContentHashesResult = contentHashes
 
         cache.existsStub = { hash in
             if hash == bHash { return true }
@@ -87,7 +88,7 @@ final class CacheMapperTests: TuistUnitTestCase {
         XCTAssertEqual(got.name, outputGraph.name)
     }
 
-    func test_map_when_one_of_the_xcframeworks_fails_cannot_be_fetched() throws {
+    func test_map_when_one_of_the_binaries_fails_cannot_be_fetched() throws {
         let path = try temporaryPath()
 
         // Given
@@ -113,7 +114,7 @@ final class CacheMapperTests: TuistUnitTestCase {
             appNode: appHash,
         ]
         let error = TestError("error downloading C")
-        graphContentHasher.contentHashesStub = contentHashes
+        graphContentHasher.stubbedContentHashesResult = contentHashes
 
         cache.existsStub = { hash in
             if hash == bHash { return true }
@@ -130,5 +131,35 @@ final class CacheMapperTests: TuistUnitTestCase {
 
         // Then
         XCTAssertThrowsSpecific(try subject.map(graph: inputGraph), error)
+    }
+
+    func test_map_forwards_correct_artifactType_to_hasher() throws {
+        // Given
+        subject = CacheMapper(config: config,
+                              cache: cache,
+                              graphContentHasher: graphContentHasher,
+                              sources: [],
+                              cacheOutputType: .xcframework,
+                              cacheGraphMutator: cacheGraphMutator,
+                              queue: DispatchQueue.main)
+
+        let cFramework = Target.test(name: "C", platform: .iOS, product: .framework)
+        let cNode = TargetNode.test(target: cFramework, dependencies: [])
+
+        let bFramework = Target.test(name: "B", platform: .iOS, product: .framework)
+        let bNode = TargetNode.test(target: bFramework, dependencies: [cNode])
+
+        let app = Target.test(name: "App", platform: .iOS, product: .app)
+        let appNode = TargetNode.test(target: app, dependencies: [bNode])
+
+        let inputGraph = Graph.test(name: "output", entryNodes: [appNode])
+        let outputGraph = Graph.test(name: "output")
+        cacheGraphMutator.stubbedMapResult = outputGraph
+
+        // When
+        _ = try subject.map(graph: inputGraph)
+
+        // Then
+        XCTAssertEqual(graphContentHasher.invokedContentHashesParameters?.cacheOutputType, .xcframework)
     }
 }

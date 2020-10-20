@@ -78,7 +78,7 @@ class ProjectGenerator: ProjectGenerating {
         if manifests.contains(.workspace) {
             return try loadWorkspace(path: path).1
         } else if manifests.contains(.project) {
-            return try loadProject(path: path).1
+            return try loadProjectWorkspace(path: path).2
         } else {
             throw ManifestLoaderError.manifestNotFound(path)
         }
@@ -232,7 +232,12 @@ class ProjectGenerator: ProjectGenerating {
             .workspace
             .merging(projects: updatedGraph.projects.map { $0.path })
 
-        return (updatedWorkspace, project, updatedGraph, modelMapperSideEffects + graphMapperSideEffects)
+        return (
+            updatedWorkspace,
+            project,
+            updatedGraph.with(workspace: updatedWorkspace),
+            modelMapperSideEffects + graphMapperSideEffects
+        )
     }
 
     // swiftlint:disable:next large_tuple
@@ -267,7 +272,11 @@ class ProjectGenerator: ProjectGenerating {
         let updatedWorkspace = workspace
             .merging(projects: updatedGraph.projects.map { $0.path })
 
-        return (updatedWorkspace, updatedGraph, modelMapperSideEffects + graphMapperSideEffects)
+        return (
+            updatedWorkspace,
+            updatedGraph.with(workspace: updatedWorkspace),
+            modelMapperSideEffects + graphMapperSideEffects
+        )
     }
 
     private func convert(manifests: LoadedProjects,

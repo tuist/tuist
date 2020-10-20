@@ -23,21 +23,28 @@ public final class MockFileHandler: FileHandler {
     // swiftlint:disable:next force_try
     override public var currentPath: AbsolutePath { try! temporaryDirectory() }
 
-    public var stubInTemporaryDirectory: AbsolutePath?
-    override public func inTemporaryDirectory(_ closure: (AbsolutePath) throws -> Void) throws {
-        guard let stubInTemporaryDirectory = stubInTemporaryDirectory else {
-            try super.inTemporaryDirectory(closure)
-            return
-        }
-        try closure(stubInTemporaryDirectory)
-    }
-
     public var stubExists: ((AbsolutePath) -> Bool)?
     override public func exists(_ path: AbsolutePath) -> Bool {
         guard let stubExists = stubExists else {
             return super.exists(path)
         }
         return stubExists(path)
+    }
+
+    override public func inTemporaryDirectory<Result>(removeOnCompletion _: Bool, _ closure: (AbsolutePath) throws -> Result) throws -> Result {
+        try closure(temporaryDirectory())
+    }
+
+    override public func inTemporaryDirectory(_ closure: (AbsolutePath) throws -> Void) throws {
+        try closure(temporaryDirectory())
+    }
+
+    override public func inTemporaryDirectory(removeOnCompletion _: Bool, _ closure: (AbsolutePath) throws -> Void) throws {
+        try closure(temporaryDirectory())
+    }
+
+    override public func inTemporaryDirectory<Result>(_ closure: (AbsolutePath) throws -> Result) throws -> Result {
+        try closure(temporaryDirectory())
     }
 }
 
@@ -97,7 +104,7 @@ public class TuistTestCase: XCTestCase {
     @discardableResult
     public func createFolders(_ folders: [String]) throws -> [AbsolutePath] {
         let temporaryPath = try self.temporaryPath()
-        let fileHandler = FileHandler()
+        let fileHandler = FileHandler.shared
         let paths = folders.map { temporaryPath.appending(RelativePath($0)) }
         try paths.forEach {
             try fileHandler.createFolder($0)

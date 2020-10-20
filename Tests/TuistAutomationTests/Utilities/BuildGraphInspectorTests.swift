@@ -123,12 +123,19 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         let coreScheme = Scheme.test(name: "Core", buildAction: .test(targets: [.init(projectPath: coreProjectPath, name: "Core")]))
         let kitScheme = Scheme.test(name: "Kit", buildAction: .test(targets: [.init(projectPath: projectPath, name: "Kit")]))
         let coreProject = Project.test(path: coreProjectPath, schemes: [coreScheme])
-        let kitTarget = Target.test(name: "Kit", dependencies: [.target(name: "Core")])
         let kitProject = Project.test(path: projectPath, schemes: [kitScheme])
-        let kitTargetNode = TargetNode.test(project: kitProject,
-                                            target: kitTarget)
+        let workspaceScheme = Scheme.test(
+            name: "Workspace-Scheme",
+            buildAction: .test(
+                targets: [
+                    .init(projectPath: coreProjectPath, name: "Core"),
+                    .init(projectPath: projectPath, name: "Kit"),
+                ]
+            )
+        )
+        let workspace = Workspace.test(schemes: [workspaceScheme])
         let graph = Graph.test(
-            entryNodes: [kitTargetNode],
+            workspace: workspace,
             projects: [
                 coreProject,
                 kitProject,
@@ -144,6 +151,7 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
             [
                 coreScheme,
                 kitScheme,
+                workspaceScheme,
             ]
         )
     }

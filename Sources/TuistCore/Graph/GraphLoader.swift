@@ -65,10 +65,13 @@ public class GraphLoader: GraphLoading {
             try self.loadTarget(name: target.name, path: path, graphLoaderCache: graphLoaderCache, graphCircularDetector: graphCircularDetector)
         }
 
-        let graph = Graph(name: project.name,
-                          entryPath: path,
-                          cache: graphLoaderCache,
-                          entryNodes: entryNodes)
+        let graph = Graph(
+            name: project.name,
+            entryPath: path,
+            cache: graphLoaderCache,
+            entryNodes: entryNodes,
+            workspace: nil
+        )
         return (graph, project)
     }
 
@@ -92,10 +95,13 @@ public class GraphLoader: GraphLoading {
             }
         }
 
-        let graph = Graph(name: workspace.name,
-                          entryPath: path,
-                          cache: graphLoaderCache,
-                          entryNodes: entryNodes)
+        let graph = Graph(
+            name: workspace.name,
+            entryPath: path,
+            cache: graphLoaderCache,
+            entryNodes: entryNodes,
+            workspace: workspace
+        )
         return (graph, workspace)
     }
 

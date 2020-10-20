@@ -47,6 +47,7 @@ public struct Target: Equatable, Hashable, Comparable {
     public var environment: [String: String]
     public var launchArguments: [String: Bool]
     public var filesGroup: ProjectGroup
+    public var scripts: [TargetScript]
 
     // MARK: - Init
 
@@ -67,7 +68,8 @@ public struct Target: Equatable, Hashable, Comparable {
                 environment: [String: String] = [:],
                 launchArguments: [String: Bool] = [:],
                 filesGroup: ProjectGroup,
-                dependencies: [Dependency] = [])
+                dependencies: [Dependency] = [],
+                scripts: [TargetScript] = [])
     {
         self.name = name
         self.product = product
@@ -87,6 +89,7 @@ public struct Target: Equatable, Hashable, Comparable {
         self.launchArguments = launchArguments
         self.filesGroup = filesGroup
         self.dependencies = dependencies
+        self.scripts = scripts
     }
 
     /// Target can be included in the link phase of other targets
@@ -116,6 +119,17 @@ public struct Target: Equatable, Hashable, Comparable {
         ].contains(product)
     }
 
+    /// It returns the name of the variable that should be used to create an empty file
+    /// in the $BUILT_PRODUCTS_DIR directory that is used after builds to reliably locate the
+    /// directories where the products have been exported into.
+    public var targetLocatorBuildPhaseVariable: String {
+        let upperCasedSnakeCasedProductName = productName
+            .camelCaseToSnakeCase()
+            .components(separatedBy: .whitespaces).joined(separator: "_")
+            .uppercased()
+        return "\(upperCasedSnakeCasedProductName)_LOCATE_HASH"
+    }
+
     /// Returns the product name including the extension.
     public var productNameWithExtension: String {
         switch product {
@@ -123,6 +137,16 @@ public struct Target: Equatable, Hashable, Comparable {
             return "lib\(productName).\(product.xcodeValue.fileExtension!)"
         case _:
             return "\(productName).\(product.xcodeValue.fileExtension!)"
+        }
+    }
+
+    /// Returns true if the target supports having a headers build phase..
+    public var shouldIncludeHeadersBuildPhase: Bool {
+        switch product {
+        case .framework, .staticFramework, .staticLibrary, .dynamicLibrary:
+            return true
+        default:
+            return false
         }
     }
 

@@ -86,7 +86,7 @@ class VersionResolver: VersionResolving {
     private func resolveVersionFile(path: AbsolutePath) throws -> ResolvedVersion {
         var value: String!
         do {
-            value = try String(contentsOf: URL(fileURLWithPath: path.pathString))
+            value = try String(contentsOf: URL(fileURLWithPath: path.pathString)).trimmingCharacters(in: .whitespacesAndNewlines)
         } catch {
             throw VersionResolverError.readError(path: path)
         }

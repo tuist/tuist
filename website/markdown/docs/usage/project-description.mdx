@@ -120,47 +120,6 @@ A `Project.swift` should initialize a variable of type `Project`. It can take an
   ]}
 />
 
-## Environment
-
-`Environment` is a special type that allows passing configuration down the manifest files at generation time using environment variables. Any variables following the convention `TUIST_XXX` defined in the environment or passed to Tuist when running commands will be accessible using the `Environment` type.
-The following example shows how we access the `TUIST_APP_NAME` variable:
-
-```swift
-func appName() -> String {
-  if case let .string(environmentAppName) = Environment.appName {
-    return environmentAppName
-  } else {
-    return "MyApp"
-  }
-}
-```
-
-Accessing variables returns an instance of type `Environment.Value?` which can take any of the following values:
-
-<EnumTable
-  cases={[
-    {
-      case: '.boolean',
-      description:
-        'Used when the variable represents a boolean. The values 1, true, TRUE, yes and YES are casted to `true`, and 0, false, FALSE, no, and NO are casted to `false`',
-    },
-    {
-      case: '.string',
-      description: 'Used when the variable represents a string.',
-    },
-  ]}
-/>
-
-You can also retrieve the string or boolean Environment variable using either of the helper methods defined below, these methods require a default value to be passed to ensure the user gets consistent results each time. This avoids the need to define the function appName() defined above.
-
-```swift
-Environment.appName?.getString(default: "TuistApp")
-```
-
-```swift
-Environment.isCI?.getBoolean(default: false)
-```
-
 ## Package
 
 You can add Swift Packages very similarly to how you add dependencies in a `Package.swift`:
@@ -185,7 +144,7 @@ For local:
 .package(path: "MyLibrary")
 ```
 
-Targets can then depend on products from these Swift Packages. See [Dependencies](/docs/usage/dependencies/)
+Targets can then depend on products from these Swift Packages. See [Dependencies](/docs/dependencies/local/)
 
 <Message
   info
@@ -636,25 +595,25 @@ Target actions, represented as target script build phases, are useful to define 
   cases={[
     {
       case:
-        '.pre(tool: String, arguments: String..., name: String, inputPaths: [Path], inputFileListPaths: [Path], outputPaths: [Path], outputFileListPaths: [Path])',
+        '.pre(tool: String, arguments: String..., name: String, inputPaths: [Path], inputFileListPaths: [Path], outputPaths: [Path], outputFileListPaths: [Path], basedOnDependencyAnalysis: Bool)',
       description:
         'Action executed before the target-specific build phases where tool is the name of the tool to be executed.',
     },
     {
       case:
-        '.pre(path: Path, arguments: String..., name: String, inputPaths: [Path], inputFileListPaths: [Path], outputPaths: [Path], outputFileListPaths: [Path])',
+        '.pre(path: Path, arguments: String..., name: String, inputPaths: [Path], inputFileListPaths: [Path], outputPaths: [Path], outputFileListPaths: [Path], basedOnDependencyAnalysis: Bool)',
       description:
         'Action executed before the target-specific build phases where path is the path to the tool to be executed.',
     },
     {
       case:
-        '.post(tool: String, arguments: String..., name: String, inputPaths: [Path], inputFileListPaths: [Path], outputPaths: [Path], outputFileListPaths: [Path])',
+        '.post(tool: String, arguments: String..., name: String, inputPaths: [Path], inputFileListPaths: [Path], outputPaths: [Path], outputFileListPaths: [Path], basedOnDependencyAnalysis: Bool)',
       description:
         'Action executed after all the target-specific build phases where tool is the name of the tool to be executed.',
     },
     {
       case:
-        '.post(path: Path, arguments: String..., name: String, inputPaths: [Path], inputFileListPaths: [Path], outputPaths: [Path], outputFileListPaths: [Path])',
+        '.post(path: Path, arguments: String..., name: String, inputPaths: [Path], inputFileListPaths: [Path], outputPaths: [Path], outputFileListPaths: [Path], basedOnDependencyAnalysis: Bool)',
       description:
         'Action executed after all the target-specific build phases where path is the path to the tool to be executed.',
     },
@@ -671,6 +630,12 @@ The following example shows the definition of an action that runs the `my_custom
 
 ```swift
 .pre(path: "my_custom_script.sh", name: "My Custom Script Phase", inputFileListPaths: [ "Data/Cars.raw.json", "Data/Drivers.raw.json" ], outputFileListPaths: [ "Data/Cars.swift", "Data/Drivers.swift" ])
+```
+
+The following example shows the definition of an action that runs the `my_custom_script.sh` on all incremental builds, regardless of whether or not something has changed:
+
+```swift
+.pre(path: "my_custom_script.sh", name: "My Custom Script Phase", basedOnDependencyAnalysis: false)
 ```
 
 ## Preset Build Configuration

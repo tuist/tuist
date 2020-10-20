@@ -9,18 +9,20 @@ import XCTest
 @testable import TuistLoaderTesting
 @testable import TuistSupportTesting
 
+private typealias GeneratorParameters = (sources: Set<String>, xcframeworks: Bool, ignoreCache: Bool)
+
 final class MockFocusServiceProjectGeneratorFactory: FocusServiceProjectGeneratorFactorying {
     var invokedGenerator = false
     var invokedGeneratorCount = 0
-    var invokedGeneratorParameters: (sources: Set<String>, Void)?
-    var invokedGeneratorParametersList = [(sources: Set<String>, Void)]()
+    fileprivate var invokedGeneratorParameters: GeneratorParameters?
+    fileprivate var invokedGeneratorParametersList = [GeneratorParameters]()
     var stubbedGeneratorResult: ProjectGenerating!
 
-    func generator(sources: Set<String>) -> ProjectGenerating {
+    func generator(sources: Set<String>, xcframeworks: Bool, ignoreCache: Bool) -> ProjectGenerating {
         invokedGenerator = true
         invokedGeneratorCount += 1
-        invokedGeneratorParameters = (sources, ())
-        invokedGeneratorParametersList.append((sources, ()))
+        invokedGeneratorParameters = (sources, xcframeworks, ignoreCache)
+        invokedGeneratorParametersList.append((sources, xcframeworks, ignoreCache))
         return stubbedGeneratorResult
     }
 }
@@ -64,7 +66,7 @@ final class FocusServiceTests: TuistUnitTestCase {
             throw error
         }
 
-        XCTAssertThrowsError(try subject.run(path: nil, sources: Set(), noOpen: true)) {
+        XCTAssertThrowsError(try subject.run(path: nil, sources: Set(), noOpen: true, xcframeworks: false, ignoreCache: false)) {
             XCTAssertEqual($0 as NSError?, error)
         }
     }
@@ -76,7 +78,7 @@ final class FocusServiceTests: TuistUnitTestCase {
             workspacePath
         }
 
-        try subject.run(path: nil, sources: Set(), noOpen: false)
+        try subject.run(path: nil, sources: Set(), noOpen: false, xcframeworks: false, ignoreCache: false)
 
         XCTAssertEqual(opener.openArgs.last?.0, workspacePath.pathString)
     }

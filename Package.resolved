@@ -24,7 +24,7 @@
         "repositoryURL": "https://github.com/rnine/Checksum.git",
         "state": {
           "branch": null,
-          "revision": "9dde3d1d898a5074608a1420791ef0a80c2399f2",
+          "revision": "cd1ae53384dd578a84a0afef492a4f5d6202b068",
           "version": "1.0.2"
         }
       },
@@ -204,8 +204,8 @@
         "repositoryURL": "https://github.com/tuist/XcodeProj",
         "state": {
           "branch": null,
-          "revision": "81bb2bb333eafa68f8ecd8187a4bb56d51e78e97",
-          "version": "7.14.0"
+          "revision": "3038221d72c7202a7b72fb971495dc6257bc3835",
+          "version": "7.15.0"
         }
       },
       {
