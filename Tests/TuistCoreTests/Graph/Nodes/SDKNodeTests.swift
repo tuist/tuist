@@ -7,8 +7,8 @@ import TuistSupportTesting
 
 final class SDKNodeTests: XCTestCase {
     func test_frameworkSearchPath() throws {
-        XCTAssertEqual(SDKSource.developer.frameworkSearchPath, "$(DEVELOPER_FRAMEWORKS_DIR)")
-        XCTAssertEqual(SDKSource.system.frameworkSearchPath, "$(PLATFORM_DIR)/Developer/Library/Frameworks")
+        XCTAssertEqual(SDKSource.developer.frameworkSearchPath, "$(PLATFORM_DIR)/Developer/Library/Frameworks")
+        XCTAssertNil(SDKSource.system.frameworkSearchPath)
     }
 
     func test_sdk_supportedTypes() throws {

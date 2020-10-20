@@ -241,7 +241,7 @@ final class LinkGenerator: LinkGenerating {
             .map { LinkGeneratorPath.absolutePath($0.removingLastComponent()) }
         let sdkPaths = dependencies.compactMap { (dependency: GraphDependencyReference) -> LinkGeneratorPath? in
             if case let GraphDependencyReference.sdk(_, _, source) = dependency {
-                return LinkGeneratorPath.string(source.frameworkSearchPath)
+                return source.frameworkSearchPath.map { LinkGeneratorPath.string($0) }
             } else {
                 return nil
             }
