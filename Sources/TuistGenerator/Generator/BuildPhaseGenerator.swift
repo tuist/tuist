@@ -139,7 +139,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                                                       name: script.name,
                                                       shellPath: "/bin/sh",
                                                       shellScript: script.script,
-                                                      showEnvVarsInLog: true)
+                                                      showEnvVarsInLog: script.showEnvVarsInLog)
             pbxproj.add(object: buildPhase)
             pbxTarget.buildPhases.append(buildPhase)
         }

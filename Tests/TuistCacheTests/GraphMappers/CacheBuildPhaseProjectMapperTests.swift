@@ -39,6 +39,7 @@ final class CacheBuildPhaseProjectMapperTests: TuistUnitTestCase {
         fi
         """
         XCTAssertEqual(script.script, expected)
+        XCTAssertTrue(script.showEnvVarsInLog)
     }
 
     func test_map_when_the_target_is_not_a_framework() throws {
