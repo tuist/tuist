@@ -6,6 +6,8 @@ import TuistCore
 import TuistSupport
 
 public class CacheBuildPhaseProjectMapper: ProjectMapping {
+    public init() {}
+
     public func map(project: Project) throws -> (Project, [SideEffectDescriptor]) {
         let project = project.with(targets: project.targets.map { target in
             var target = target

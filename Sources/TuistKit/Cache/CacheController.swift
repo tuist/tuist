@@ -10,6 +10,29 @@ import TuistGenerator
 import TuistLoader
 import TuistSupport
 
+/// A provider that concatenates the default mappers, to the mapper that adds the build phase
+/// to locate the built products directory.
+class CacheControllerProjectMapperProvider: ProjectMapperProviding {
+    func mapper(config: Config) -> ProjectMapping {
+        let defaultProjectMapperProvider = ProjectMapperProvider()
+        let defaultMapper = defaultProjectMapperProvider.mapper(config: config)
+        return SequentialProjectMapper(mappers: [defaultMapper, CacheBuildPhaseProjectMapper()])
+    }
+}
+
+protocol CacheControllerProjectGeneratorProviding {
+    /// Returns an instance of the project generator that should be used to generate the projects for caching.
+    /// - Returns: An instance of the project generator.
+    func generator() -> ProjectGenerating
+}
+
+/// A provider that returns the project generator that should be used by the cache controller.
+class CacheControllerProjectGeneratorProvider: CacheControllerProjectGeneratorProviding {
+    func generator() -> ProjectGenerating {
+        ProjectGenerator(projectMapperProvider: CacheControllerProjectMapperProvider())
+    }
+}
+
 protocol CacheControlling {
     /// Caches the cacheable targets that are part of the workspace or project at the given path.
     /// - Parameters:
@@ -18,8 +41,8 @@ protocol CacheControlling {
 }
 
 final class CacheController: CacheControlling {
-    /// Xcode project generator.
-    private let generator: ProjectGenerating
+    /// Project generator provider.
+    let projectGeneratorProvider: CacheControllerProjectGeneratorProviding
 
     /// Utility to build the (xc)frameworks.
     private let artifactBuilder: CacheArtifactBuilding
@@ -33,22 +56,23 @@ final class CacheController: CacheControlling {
     convenience init(cache: CacheStoring, artifactBuilder: CacheArtifactBuilding) {
         self.init(cache: cache,
                   artifactBuilder: artifactBuilder,
-                  generator: ProjectGenerator(),
+                  projectGeneratorProvider: CacheControllerProjectGeneratorProvider(),
                   graphContentHasher: GraphContentHasher())
     }
 
     init(cache: CacheStoring,
          artifactBuilder: CacheArtifactBuilding,
-         generator: ProjectGenerating,
+         projectGeneratorProvider: CacheControllerProjectGeneratorProviding,
          graphContentHasher: GraphContentHashing)
     {
         self.cache = cache
-        self.generator = generator
+        self.projectGeneratorProvider = projectGeneratorProvider
         self.artifactBuilder = artifactBuilder
         self.graphContentHasher = graphContentHasher
     }
 
     func cache(path: AbsolutePath) throws {
+        let generator = projectGeneratorProvider.generator()
         let (path, graph) = try generator.generateWithGraph(path: path, projectOnly: false)
 
         logger.notice("Hashing cacheable frameworks")
