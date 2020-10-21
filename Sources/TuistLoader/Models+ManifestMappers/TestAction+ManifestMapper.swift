@@ -45,7 +45,7 @@ extension TuistCore.TestAction {
             language = manifest.language
             region = manifest.region
 
-            testPlans = nil
+            testPlans = []
         }
 
         let configurationName = manifest.configurationName
