@@ -25,6 +25,8 @@ Scenario: The project is an iOS application with appclip (ios_app_with_appclip)
     Then tuist generates the project
     Then in project App the target App should contain the build phase Embed App Clips
     Then I should be able to build for iOS the scheme App
+    Then the product 'App.app' with destination 'Debug-iphonesimulator' contains the appClip 'AppClip' with architecture 'x86_64'
+    Then the product 'App.app' with destination 'Debug-iphonesimulator' contains the appClip 'AppClip' without architecture 'armv7'
     Then I should be able to build for iOS the scheme AppClip
     Then I should be able to test for iOS the scheme AppClipTests
     Then I should be able to test for iOS the scheme AppClipUITests
