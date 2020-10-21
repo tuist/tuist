@@ -99,7 +99,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         generateScripts(target.scripts,
                         pbxTarget: pbxTarget,
                         pbxproj: pbxproj)
-        
+
         try generateEmbedAppClipsBuildPhase(path: path,
                                             target: target,
                                             graphTraverser: graphTraverser,

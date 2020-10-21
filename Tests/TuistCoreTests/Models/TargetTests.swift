@@ -42,7 +42,7 @@ final class TargetTests: TuistUnitTestCase {
         let target = Target.test(name: "Test", product: .app)
         XCTAssertEqual(target.productNameWithExtension, "Test.app")
     }
-    
+
     func test_productName_when_appClip() {
         let target = Target.test(name: "Test", product: .appClip)
         XCTAssertEqual(target.productNameWithExtension, "Test.app")
@@ -63,7 +63,7 @@ final class TargetTests: TuistUnitTestCase {
 
         XCTAssertEqual(targets.apps, [app])
     }
-    
+
     func test_sequence_appClips() {
         let appClip = Target.test(product: .appClip)
         let tests = Target.test(product: .unitTests)
