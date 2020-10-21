@@ -4,6 +4,7 @@ import TSCBasic
 public struct TestAction: Equatable {
     // MARK: - Attributes
 
+    public var testPlans: [TestPlan]?
     public var targets: [TestableTarget]
     public var arguments: Arguments?
     public var configurationName: String
@@ -26,8 +27,10 @@ public struct TestAction: Equatable {
                 postActions: [ExecutionAction],
                 diagnosticsOptions: Set<SchemeDiagnosticsOption>,
                 language: String? = nil,
-                region: String? = nil)
+                region: String? = nil,
+                testPlans: [TestPlan]? = nil)
     {
+        self.testPlans = testPlans
         self.targets = targets
         self.arguments = arguments
         self.configurationName = configurationName

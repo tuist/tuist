@@ -244,6 +244,24 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         XCTAssertEqual(result.testables.count, 0)
     }
 
+    func test_schemeTestAction_when_usingTestPlans() throws {
+        // Given
+        let project = Project.test()
+        let planPath = AbsolutePath(project.path, "folder/Plan.xctestplan")
+        let planList = [TestPlan(path: planPath, isDefault: true)]
+        let scheme = Scheme.test(testAction: TestAction.test(testPlans: planList))
+        let generatedProject = GeneratedProject.test()
+        let graph = Graph.create(dependencies: [])
+
+        // Then
+        let got = try subject.schemeTestAction(scheme: scheme, graph: graph, rootPath: project.path, generatedProjects: [project.path: generatedProject])
+
+        // When
+        let result = try XCTUnwrap(got)
+        XCTAssertEqual(result.testPlans?.count, 1)
+        XCTAssertEqual(result.testPlans?.first?.reference, "container:folder/Plan.xctestplan")
+    }
+
     func test_schemeTestAction_with_testable_info() throws {
         // Given
         let target = Target.test(name: "App", product: .app)
