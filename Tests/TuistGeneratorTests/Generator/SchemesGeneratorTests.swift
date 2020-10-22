@@ -471,13 +471,7 @@ final class SchemesGeneratorTests: XCTestCase {
         let projectPath = AbsolutePath("/somepath/Project")
         let target = Target.test(name: "App", platform: .iOS, product: .app)
 
-        let appTargetReference = TargetReference(projectPath: projectPath, name: "App")
-        let buildAction = BuildAction.test(targets: [appTargetReference])
-        let testAction = TestAction.test(targets: [TestableTarget(target: appTargetReference)])
-        let runAction = RunAction.test(configurationName: "Release", executable: appTargetReference, arguments: nil)
-        let profileAction = ProfileAction.test(configurationName: "Beta Release", executable: appTargetReference, arguments: nil)
-
-        let scheme = Scheme.test(name: "App", buildAction: buildAction, testAction: testAction, runAction: runAction, profileAction: profileAction)
+        let scheme = makeProfileActionScheme()
         let project = Project.test(path: projectPath, targets: [target])
         let graph = Graph.create(dependencies: [(project: project, target: target, dependencies: [])])
 
@@ -552,6 +546,45 @@ final class SchemesGeneratorTests: XCTestCase {
         XCTAssertEqual(result.macroExpansion?.buildableName, "libLibrary.dylib")
         XCTAssertEqual(result.macroExpansion?.blueprintName, "Library")
         XCTAssertEqual(result.macroExpansion?.buildableIdentifier, "primary")
+    }
+
+    func test_schemeProfileAction_when_contains_launch_arguments() throws {
+        // Given
+        let projectPath = AbsolutePath("/somepath/Project")
+        let target = Target.test(name: "App", platform: .iOS, product: .app)
+
+        let scheme = makeProfileActionScheme(Arguments(launchArguments: ["something": true]))
+        let project = Project.test(path: projectPath, targets: [target])
+        let graph = Graph.create(dependencies: [(project: project, target: target, dependencies: [])])
+
+        // When
+        let got = try subject.schemeProfileAction(scheme: scheme,
+                                                  graph: graph,
+                                                  rootPath: projectPath,
+                                                  generatedProjects: createGeneratedProjects(projects: [project]))
+
+        // Then
+        let result = try XCTUnwrap(got)
+        let buildable = try XCTUnwrap(result.buildableProductRunnable?.buildableReference)
+
+        XCTAssertNil(result.macroExpansion)
+        XCTAssertEqual(result.buildableProductRunnable?.runnableDebuggingMode, "0")
+        XCTAssertEqual(buildable.referencedContainer, "container:Project.xcodeproj")
+        XCTAssertEqual(buildable.buildableName, target.productNameWithExtension)
+        XCTAssertEqual(buildable.blueprintName, target.name)
+        XCTAssertEqual(buildable.buildableIdentifier, "primary")
+
+        XCTAssertEqual(result.buildConfiguration, "Beta Release")
+        XCTAssertEqual(result.preActions, [])
+        XCTAssertEqual(result.postActions, [])
+        XCTAssertEqual(result.shouldUseLaunchSchemeArgsEnv, false)
+        XCTAssertEqual(result.savedToolIdentifier, "")
+        XCTAssertEqual(result.ignoresPersistentStateOnLaunch, false)
+        XCTAssertEqual(result.useCustomWorkingDirectory, false)
+        XCTAssertEqual(result.debugDocumentVersioning, true)
+        XCTAssertEqual(result.commandlineArguments, XCScheme.CommandLineArguments(arguments: [.init(name: "something", enabled: true)]))
+        XCTAssertEqual(result.environmentVariables, [])
+        XCTAssertEqual(result.enableTestabilityWhenProfilingTests, true)
     }
 
     // MARK: - Analyze Action Tests
@@ -731,5 +764,18 @@ final class SchemesGeneratorTests: XCTestCase {
         targets.forEach { pbxTargets[$0.name] = PBXNativeTarget(name: $0.name) }
         let path = AbsolutePath(projectPath)
         return GeneratedProject(pbxproj: .init(), path: path, targets: pbxTargets, name: path.basename)
+    }
+
+    private func makeProfileActionScheme(_ launchArguments: Arguments? = nil) -> Scheme {
+        let projectPath = AbsolutePath("/somepath/Project")
+        let appTargetReference = TargetReference(projectPath: projectPath, name: "App")
+        let buildAction = BuildAction.test(targets: [appTargetReference])
+        let testAction = TestAction.test(targets: [TestableTarget(target: appTargetReference)])
+        let runAction = RunAction.test(configurationName: "Release", executable: appTargetReference, arguments: nil)
+        let profileAction = ProfileAction.test(configurationName: "Beta Release", executable: appTargetReference, arguments: launchArguments)
+        return Scheme.test(name: "App",
+                           buildAction: buildAction,
+                           testAction: testAction,
+                           runAction: runAction, profileAction: profileAction)
     }
 }

@@ -377,6 +377,8 @@ final class SchemesGenerator: SchemesGenerating {
             }
         }
 
+        let shouldUseLaunchSchemeArgsEnv: Bool = commandlineArguments == nil && environments == nil
+
         guard let targetNode = graph.target(path: target.projectPath, name: target.name) else { return nil }
         guard let buildableReference = try createBuildableReference(targetReference: target,
                                                                     graph: graph,
@@ -396,6 +398,7 @@ final class SchemesGenerator: SchemesGenerating {
         return XCScheme.ProfileAction(buildableProductRunnable: buildableProductRunnable,
                                       buildConfiguration: buildConfiguration,
                                       macroExpansion: macroExpansion,
+                                      shouldUseLaunchSchemeArgsEnv: shouldUseLaunchSchemeArgsEnv,
                                       commandlineArguments: commandlineArguments,
                                       environmentVariables: environments)
     }
