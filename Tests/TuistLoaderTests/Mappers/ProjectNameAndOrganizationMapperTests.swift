@@ -15,8 +15,7 @@ class ProjectNameAndOrganizationMapperTests: TuistUnitTestCase {
         let nameTemplate: TemplateString = "Tuist-\(.projectName)"
         config = TuistCore.Config.test(generationOptions: [
             .xcodeProjectName(nameTemplate.description),
-            .organizationName("Tuist"),
-            .developmentRegion("en"),
+            .organizationName("Tuist")
         ])
         subject = ProjectNameAndOrganizationMapper(config: config)
         super.setUp()
@@ -48,16 +47,5 @@ class ProjectNameAndOrganizationMapperTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(got.organizationName, "Tuist")
-    }
-
-    func test_map_changes_the_development_region() throws {
-        // Given
-        let project = TuistCore.Project.test(name: "Test", developmentRegion: nil)
-
-        // When
-        let (got, _) = try subject.map(project: project)
-
-        // Then
-        XCTAssertEqual(got.developmentRegion, "en")
     }
 }

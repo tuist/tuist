@@ -46,7 +46,7 @@ final class ProjectMapperProvider: ProjectMapperProviding {
         mappers.append(ProjectNameAndOrganizationMapper(config: config))
         
         // Development region
-        mappers.append(DevelopmentRegionMapper(config: config))
+        mappers.append(ProjectDevelopmentRegionMapper(config: config))
 
         // Signing
         mappers.append(SigningMapper())
