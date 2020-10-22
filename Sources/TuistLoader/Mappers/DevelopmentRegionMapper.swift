@@ -28,8 +28,7 @@ public class DevelopmentRegionMapper: ProjectMapping {
 
     // MARK: - Private
 
-    /// It returns the development region that should be used for the project.
-    /// - Returns: The development region.
+    /// - Returns: The development region that should be used for the project.
     private func developmentRegionOverride() -> String? {
         config.generationOptions.compactMap { item -> String? in
             switch item {
