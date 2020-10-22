@@ -15,7 +15,7 @@ class ProjectNameAndOrganizationMapperTests: TuistUnitTestCase {
         let nameTemplate: TemplateString = "Tuist-\(.projectName)"
         config = TuistCore.Config.test(generationOptions: [
             .xcodeProjectName(nameTemplate.description),
-            .organizationName("Tuist")
+            .organizationName("Tuist"),
         ])
         subject = ProjectNameAndOrganizationMapper(config: config)
         super.setUp()

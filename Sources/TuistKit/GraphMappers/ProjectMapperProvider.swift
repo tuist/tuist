@@ -44,7 +44,7 @@ final class ProjectMapperProvider: ProjectMapperProviding {
 
         // Project name and organization
         mappers.append(ProjectNameAndOrganizationMapper(config: config))
-        
+
         // Development region
         mappers.append(ProjectDevelopmentRegionMapper(config: config))
 
