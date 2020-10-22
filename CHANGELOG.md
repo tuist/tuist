@@ -15,6 +15,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Fixed
 
 - Fixed non-framework/library targets having a header build phase [#367](https://github.com/tuist/tuist/issues/367) by [@eito](https://github.com/eito).
+- Fixed missing profile scheme arguments when specified in manifest [#1543](https://github.com/tuist/tuist/issues/1543) by [@lakpa](https://github.com/lakpa).
 
 ## 1.22.0 - Heimat
 
