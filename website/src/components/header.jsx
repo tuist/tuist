@@ -166,17 +166,6 @@ export default ({ menuOpen, setMenuOpen, menuRef }) => {
                   >
                     APPS AT SCALE
                   </Link>
-                  <a
-                    sx={{
-                      ...linkStyle,
-                      ml: [0, 4],
-                      variant: 'text.header',
-                    }}
-                    href="https://stats.tuist.io"
-                    alt="Statistics about the usage of Tuist"
-                  >
-                    STATS
-                  </a>
                   <Link
                     sx={{
                       ...linkStyle,

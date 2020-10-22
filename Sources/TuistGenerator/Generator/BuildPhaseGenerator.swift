@@ -62,7 +62,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                              fileElements: ProjectFileElements,
                              pbxproj: PBXProj) throws
     {
-        if let headers = target.headers {
+        if target.shouldIncludeHeadersBuildPhase, let headers = target.headers {
             try generateHeadersBuildPhase(headers: headers,
                                           pbxTarget: pbxTarget,
                                           fileElements: fileElements,
@@ -95,6 +95,10 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                                          pbxTarget: pbxTarget,
                                          fileElements: fileElements,
                                          pbxproj: pbxproj)
+
+        generateScripts(target.scripts,
+                        pbxTarget: pbxTarget,
+                        pbxproj: pbxproj)
     }
 
     func generateActions(actions: [TargetAction],
@@ -114,6 +118,28 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                                                           shellPath: "/bin/sh",
                                                           shellScript: action.shellScript(sourceRootPath: sourceRootPath),
                                                           showEnvVarsInLog: action.showEnvVarsInLog)
+            if let basedOnDependencyAnalysis = action.basedOnDependencyAnalysis {
+                // Force the script to run in all incremental builds, if we
+                // are NOT running it based on dependency analysis. Otherwise
+                // leave it at the default value.
+                buildPhase.alwaysOutOfDate = !basedOnDependencyAnalysis
+            }
+
+            pbxproj.add(object: buildPhase)
+            pbxTarget.buildPhases.append(buildPhase)
+        }
+    }
+
+    func generateScripts(_ scripts: [TargetScript],
+                         pbxTarget: PBXTarget,
+                         pbxproj: PBXProj)
+    {
+        scripts.forEach { script in
+            let buildPhase = PBXShellScriptBuildPhase(files: [],
+                                                      name: script.name,
+                                                      shellPath: "/bin/sh",
+                                                      shellScript: script.script,
+                                                      showEnvVarsInLog: script.showEnvVarsInLog)
             pbxproj.add(object: buildPhase)
             pbxTarget.buildPhases.append(buildPhase)
         }

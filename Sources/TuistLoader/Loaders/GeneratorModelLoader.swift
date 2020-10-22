@@ -52,7 +52,7 @@ extension GeneratorModelLoader: GeneratorModelLoading {
 
             if FileHandler.shared.exists(configPath) {
                 let manifest = try manifestLoader.loadConfig(at: configPath.parentDirectory)
-                return try TuistCore.Config.from(manifest: manifest)
+                return try TuistCore.Config.from(manifest: manifest, at: configPath)
             }
         }
 
@@ -66,7 +66,7 @@ extension GeneratorModelLoader: GeneratorModelLoading {
                 continue
             }
             let manifest = try manifestLoader.loadConfig(at: configPath.parentDirectory)
-            return try TuistCore.Config.from(manifest: manifest)
+            return try TuistCore.Config.from(manifest: manifest, at: configPath)
         }
 
         return TuistCore.Config.default

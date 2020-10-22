@@ -98,19 +98,25 @@ final class TemplateGeneratorTests: TuistTestCase {
 
     func test_files_are_generated_with_attributes() throws {
         // Given
+        let sourcePath = try temporaryPath()
         let files = [
             Template.File(path: RelativePath("{{ name }}"), contents: .string("{{ contentName }}")),
             Template.File(path: RelativePath("{{ directoryName }}/{{ fileName }}"), contents: .string("bContent")),
+            Template.File(path: RelativePath("file"), contents: .file(sourcePath.appending(component: "{{ filePath }}"))),
         ]
         let template = Template.test(files: files)
         let name = "test name"
         let contentName = "test content"
+        let fileContent = "test file content"
         let directoryName = "test directory"
         let fileName = "test file"
+        let filePath = "test file path"
         let destinationPath = try temporaryPath()
+        try FileHandler.shared.write(fileContent, path: sourcePath.appending(component: filePath), atomically: true)
         let expectedFiles: [(AbsolutePath, String)] = [
             (destinationPath.appending(component: name), contentName),
             (destinationPath.appending(components: directoryName, fileName), "bContent"),
+            (destinationPath.appending(component: filePath), fileContent),
         ]
 
         // When
@@ -121,6 +127,7 @@ final class TemplateGeneratorTests: TuistTestCase {
                                  "contentName": contentName,
                                  "directoryName": directoryName,
                                  "fileName": fileName,
+                                 "filePath": filePath,
                              ])
 
         // Then

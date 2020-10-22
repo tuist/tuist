@@ -38,7 +38,7 @@ Xcode has an incremental build system that tries to reuse results from past comp
 The problem though is that developers are used to using **CMD+K** when the compilation on Xcode yields errors.
 That invalidates Xcode's cache and results in a clean build.
 
-Some projects minimize the build time of clean builds by having a more horizontal project architecture _(e.g., [µFeatures architecture](/docs/usage/microfeatures/))_. Large companies prefer to replace Xcode's build system with other build systems like [Bazel](https://bazel.build) or [Buck](https://buck.build/) that the output of individual build steps remotely. Unfortunately, the latter is a huge undertaking that is not feasible for small and medium companies.
+Some projects minimize the build time of clean builds by having a more horizontal project architecture _(e.g., [µFeatures architecture](/docs/building-at-scale/microfeatures/))_. Large companies prefer to replace Xcode's build system with other build systems like [Bazel](https://bazel.build) or [Buck](https://buck.build/) that the output of individual build steps remotely. Unfortunately, the latter is a huge undertaking that is not feasible for small and medium companies.
 
 In Tuist, we aim to help teams with the challenges they face when scaling up projects, which was an obvious one to tackle.
 
@@ -53,7 +53,7 @@ When we **warm the cache**, we build all frameworks as xcframeworks and store th
 
 After warming the cache, developers can run `tuist focus --cache` which reads as: _I want to focus on the project in this directory, please, replace the dependencies (if possible) with their xcframework from the cache_. For instance, if you plan to work on `MyApp`, all the direct and transitive dependencies that `MyApp` depends on will be xcframeworks. That means even if you use CMD+K, you'll always be compiling just `MyApp`.
 
-**If you want to know more about the feature**, you can read our page [**Caching dependencies**](/docs/usage/caching/) in the documentation.
+**If you want to know more about the feature**, you can read our page [**Caching dependencies**](/docs/building-at-scale/caching/) in the documentation.
 
 <Message
   info

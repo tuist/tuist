@@ -144,7 +144,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
         )
 
         XCTAssertPrinterContains(
-            "Skipping synthesizing accessors for \(emptyPlist.pathString) because it's contents are empty.",
+            "Skipping synthesizing accessors for \(emptyPlist.pathString) because its contents are empty.",
             at: .warning,
             ==
         )

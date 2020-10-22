@@ -1,5 +1,6 @@
 import Foundation
 import TSCBasic
+import TuistCache
 import TuistCacheTesting
 import TuistCore
 import TuistCoreTesting
@@ -8,8 +9,29 @@ import TuistLoaderTesting
 import TuistSupport
 import XCTest
 
+@testable import TuistCore
 @testable import TuistKit
 @testable import TuistSupportTesting
+
+final class CacheControllerProjectMapperProviderTests: TuistUnitTestCase {
+    var subject: CacheControllerProjectMapperProvider!
+
+    override func setUp() {
+        subject = CacheControllerProjectMapperProvider()
+    }
+
+    func test_mapper_includes_the_cache_build_phase_project_mapper() throws {
+        // Given
+        let config = Config.test()
+
+        // When
+        let got = subject.mapper(config: config)
+
+        // Then
+        let sequentialMapper = try XCTUnwrap(got as? SequentialProjectMapper)
+        XCTAssertTrue(sequentialMapper.mappers.last is CacheBuildPhaseProjectMapper)
+    }
+}
 
 final class CacheControllerTests: TuistUnitTestCase {
     var generator: MockProjectGenerator!
@@ -18,6 +40,7 @@ final class CacheControllerTests: TuistUnitTestCase {
     var manifestLoader: MockManifestLoader!
     var cache: MockCacheStorage!
     var subject: CacheController!
+    var projectGeneratorProvider: MockCacheControllerProjectGeneratorProvider!
     var config: Config!
 
     override func setUp() {
@@ -27,9 +50,11 @@ final class CacheControllerTests: TuistUnitTestCase {
         manifestLoader = MockManifestLoader()
         graphContentHasher = MockGraphContentHasher()
         config = .test()
+        projectGeneratorProvider = MockCacheControllerProjectGeneratorProvider()
+        projectGeneratorProvider.stubbedGeneratorResult = generator
         subject = CacheController(cache: cache,
                                   artifactBuilder: artifactBuilder,
-                                  generator: generator,
+                                  projectGeneratorProvider: projectGeneratorProvider,
                                   graphContentHasher: graphContentHasher)
 
         super.setUp()
