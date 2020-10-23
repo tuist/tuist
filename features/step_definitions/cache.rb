@@ -13,12 +13,12 @@ Then(/^([a-zA-Z]+) links the framework ([a-zA-Z]+) from the cache/) do |target_n
   target = projects.flat_map { |p| p.targets }.detect { |t| t.name == target_name }
   flunk("Target #{target_name} doesn't exist in any of the projects' targets of the workspace") if target.nil?
   framework_deps = target.frameworks_build_phases.file_display_names.filter { |d| d.include?(".framework") }
-  build_file = target.frameworks_build_phases.files.filter { |f| f.display_name.include?("#{framework_name}.framework") }
+  build_file = target.frameworks_build_phases.files.filter { |f| f.display_name.include?("#{framework_name}.framework") }.first
   unless build_file
     flunk("Target #{target_name} doesn't link the framework #{framework}")
   end
   framework_path = File.expand_path(build_file.file_ref.full_path.to_s, @dir)
-  unless framework_path.includes?(@cache_dir)
+  unless framework_path.include?(@cache_dir)
     flunk("The framework '#{framework_name}' linked from target '#{target_name}' has a path outside the cache: #{framework_path}")
   end
 end
