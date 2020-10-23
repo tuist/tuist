@@ -135,6 +135,8 @@ public struct Target: Equatable, Hashable, Comparable {
         switch product {
         case .staticLibrary, .dynamicLibrary:
             return "lib\(productName).\(product.xcodeValue.fileExtension!)"
+        case .commandLineTool:
+            return productName
         case _:
             return "\(productName).\(product.xcodeValue.fileExtension!)"
         }

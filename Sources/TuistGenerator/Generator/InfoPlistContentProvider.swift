@@ -108,6 +108,8 @@ final class InfoPlistContentProvider: InfoPlistContentProviding {
             packageType = "$(PRODUCT_BUNDLE_PACKAGE_TYPE)"
         case .appExtension, .stickerPackExtension, .messagesExtension:
             packageType = "XPC!"
+        case .commandLineTool:
+            packageType = nil
         }
 
         if let packageType = packageType {

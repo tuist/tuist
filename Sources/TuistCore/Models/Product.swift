@@ -10,6 +10,7 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Encodable {
     case unitTests = "unit_tests"
     case uiTests = "ui_tests"
     case bundle
+    case commandLineTool
     case appExtension = "app_extension"
     //    case watchApp = "watch_app"
     case watch2App = "watch_2_app"
@@ -56,6 +57,8 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Encodable {
             return "messagesExtension"
         case .stickerPackExtension:
             return "stickerPackExtension"
+        case .commandLineTool:
+            return "commandLineTool"
         }
     }
 
@@ -95,13 +98,15 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Encodable {
             return "iMessage extension"
         case .stickerPackExtension:
             return "sticker pack extension"
+        case .commandLineTool:
+            return "command line tool"
         }
     }
 
     /// Returns true if the target can be ran.
     public var runnable: Bool {
         switch self {
-        case .app:
+        case .app, .commandLineTool:
             return true
         default:
             return false
@@ -138,6 +143,10 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Encodable {
         {
             base.append(.unitTests)
             base.append(.uiTests)
+        }
+        
+        if platform == .macOS {
+            base.append(.commandLineTool)
         }
 
         //        if platform == .watchOS {
@@ -195,6 +204,8 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Encodable {
             return .messagesExtension
         case .stickerPackExtension:
             return .stickerPack
+        case .commandLineTool:
+            return .commandLineTool
         }
     }
 }
