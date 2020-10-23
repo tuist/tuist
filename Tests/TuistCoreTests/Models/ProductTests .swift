@@ -48,6 +48,7 @@ final class ProductTests: XCTestCase {
         let got = Product.forPlatform(.macOS)
         let expected: [Product] = [
             .app,
+            .commandLineTool,
             .staticLibrary,
             .dynamicLibrary,
             .framework,
@@ -73,7 +74,7 @@ final class ProductTests: XCTestCase {
 
     func test_runnable() {
         Product.allCases.forEach { product in
-            if product == .app {
+            if [.app, .commandLineTool].contains(product) {
                 XCTAssertTrue(product.runnable)
             } else {
                 XCTAssertFalse(product.runnable)
