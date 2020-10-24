@@ -6,7 +6,7 @@ import TuistSupport
 import XcodeProj
 @testable import TuistGenerator
 
-final class MockProjectGenerator: ProjectGenerating {
+final class MockProjectDescriptorGenerator: ProjectDescriptorGenerating {
     enum MockError: Error {
         case stubNotImplemented
     }

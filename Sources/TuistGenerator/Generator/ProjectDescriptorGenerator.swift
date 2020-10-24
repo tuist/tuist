@@ -4,24 +4,7 @@ import TuistCore
 import TuistSupport
 import XcodeProj
 
-struct ProjectConstants {
-    var objectVersion: UInt
-    var archiveVersion: UInt
-}
-
-extension ProjectConstants {
-    static var xcode10: ProjectConstants {
-        ProjectConstants(objectVersion: 50,
-                         archiveVersion: Xcode.LastKnown.archiveVersion)
-    }
-
-    static var xcode11: ProjectConstants {
-        ProjectConstants(objectVersion: 52,
-                         archiveVersion: Xcode.LastKnown.archiveVersion)
-    }
-}
-
-protocol ProjectGenerating: AnyObject {
+protocol ProjectDescriptorGenerating: AnyObject {
     /// Generates the given project.
     /// - Parameters:
     ///   - project: Project to be generated.
@@ -30,7 +13,24 @@ protocol ProjectGenerating: AnyObject {
     func generate(project: Project, graph: Graph) throws -> ProjectDescriptor
 }
 
-final class ProjectGenerator: ProjectGenerating {
+final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
+    // MARK: - ProjectConstants
+
+    struct ProjectConstants {
+        var objectVersion: UInt
+        var archiveVersion: UInt
+
+        static var xcode10: ProjectConstants {
+            ProjectConstants(objectVersion: 50,
+                             archiveVersion: Xcode.LastKnown.archiveVersion)
+        }
+
+        static var xcode11: ProjectConstants {
+            ProjectConstants(objectVersion: 52,
+                             archiveVersion: Xcode.LastKnown.archiveVersion)
+        }
+    }
+
     // MARK: - Attributes
 
     /// Generator for the project targets.

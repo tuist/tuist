@@ -47,7 +47,7 @@ final class WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
 
     // MARK: - Attributes
 
-    private let projectGenerator: ProjectGenerating
+    private let projectDescriptorGenerator: ProjectDescriptorGenerating
     private let workspaceStructureGenerator: WorkspaceStructureGenerating
     private let schemesGenerator: SchemesGenerating
     private let config: Config
@@ -59,20 +59,20 @@ final class WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
     {
         let configGenerator = ConfigGenerator(defaultSettingsProvider: defaultSettingsProvider)
         let targetGenerator = TargetGenerator(configGenerator: configGenerator)
-        let projectGenerator = ProjectGenerator(targetGenerator: targetGenerator,
-                                                configGenerator: configGenerator)
-        self.init(projectGenerator: projectGenerator,
+        let projectDescriptorGenerator = ProjectDescriptorGenerator(targetGenerator: targetGenerator,
+                                                                    configGenerator: configGenerator)
+        self.init(projectDescriptorGenerator: projectDescriptorGenerator,
                   workspaceStructureGenerator: WorkspaceStructureGenerator(),
                   schemesGenerator: SchemesGenerator(),
                   config: config)
     }
 
-    init(projectGenerator: ProjectGenerating,
+    init(projectDescriptorGenerator: ProjectDescriptorGenerating,
          workspaceStructureGenerator: WorkspaceStructureGenerating,
          schemesGenerator: SchemesGenerating,
          config: Config = .default)
     {
-        self.projectGenerator = projectGenerator
+        self.projectDescriptorGenerator = projectDescriptorGenerator
         self.workspaceStructureGenerator = workspaceStructureGenerator
         self.schemesGenerator = schemesGenerator
         self.config = config
@@ -87,7 +87,7 @@ final class WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
 
         /// Projects
         let projects = try Array(graph.projects).compactMap(context: config.projectGenerationContext) { project -> ProjectDescriptor? in
-            try projectGenerator.generate(project: project, graph: graph)
+            try projectDescriptorGenerator.generate(project: project, graph: graph)
         }
 
         let generatedProjects: [AbsolutePath: GeneratedProject] = Dictionary(uniqueKeysWithValues: projects.map { project in
