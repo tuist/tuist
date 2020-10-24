@@ -47,7 +47,7 @@ protocol DocServicing {
 final class DocService {
     private static var temporaryDirectory: AbsolutePath?
 
-    private let projectGenerator: ProjectGenerating
+    private let generator: Generating
     private let swiftDocController: SwiftDocControlling
     private let swiftDocServer: SwiftDocServing
 
@@ -59,14 +59,14 @@ final class DocService {
     /// Semaphore to block the execution
     private let semaphore: Semaphoring
 
-    init(projectGenerator: ProjectGenerating = ProjectGenerator(),
+    init(generator: Generating = Generator(),
          swiftDocController: SwiftDocControlling = SwiftDocController(),
          swiftDocServer: SwiftDocServing = SwiftDocServer(),
          fileHandler: FileHandling = FileHandler.shared,
          opener: Opening = Opener(),
          semaphore: Semaphoring = Semaphore())
     {
-        self.projectGenerator = projectGenerator
+        self.generator = generator
         self.swiftDocController = swiftDocController
         self.swiftDocServer = swiftDocServer
         self.fileHandler = fileHandler
@@ -75,7 +75,7 @@ final class DocService {
     }
 
     func run(project path: AbsolutePath, target targetName: String) throws {
-        let (_, graph, _) = try projectGenerator.loadProject(path: path)
+        let (_, graph, _) = try generator.loadProject(path: path)
 
         let targets = graph.targets(at: path)
             .filter { !$0.dependsOnXCTest }

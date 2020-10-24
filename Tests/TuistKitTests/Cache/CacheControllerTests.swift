@@ -34,7 +34,7 @@ final class CacheControllerProjectMapperProviderTests: TuistUnitTestCase {
 }
 
 final class CacheControllerTests: TuistUnitTestCase {
-    var generator: MockProjectGenerator!
+    var generator: MockGenerator!
     var graphContentHasher: MockGraphContentHasher!
     var artifactBuilder: MockCacheArtifactBuilder!
     var manifestLoader: MockManifestLoader!
@@ -44,7 +44,7 @@ final class CacheControllerTests: TuistUnitTestCase {
     var config: Config!
 
     override func setUp() {
-        generator = MockProjectGenerator()
+        generator = MockGenerator()
         artifactBuilder = MockCacheArtifactBuilder()
         cache = MockCacheStorage()
         manifestLoader = MockManifestLoader()

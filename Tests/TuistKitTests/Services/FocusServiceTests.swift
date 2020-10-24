@@ -16,9 +16,9 @@ final class MockFocusServiceProjectGeneratorFactory: FocusServiceProjectGenerato
     var invokedGeneratorCount = 0
     fileprivate var invokedGeneratorParameters: GeneratorParameters?
     fileprivate var invokedGeneratorParametersList = [GeneratorParameters]()
-    var stubbedGeneratorResult: ProjectGenerating!
+    var stubbedGeneratorResult: Generating!
 
-    func generator(sources: Set<String>, xcframeworks: Bool, ignoreCache: Bool) -> ProjectGenerating {
+    func generator(sources: Set<String>, xcframeworks: Bool, ignoreCache: Bool) -> Generating {
         invokedGenerator = true
         invokedGeneratorCount += 1
         invokedGeneratorParameters = (sources, xcframeworks, ignoreCache)
@@ -40,13 +40,13 @@ final class FocusServiceErrorTests: TuistUnitTestCase {
 final class FocusServiceTests: TuistUnitTestCase {
     var subject: FocusService!
     var opener: MockOpener!
-    var generator: MockProjectGenerator!
+    var generator: MockGenerator!
     var projectGeneratorFactory: MockFocusServiceProjectGeneratorFactory!
 
     override func setUp() {
         super.setUp()
         opener = MockOpener()
-        generator = MockProjectGenerator()
+        generator = MockGenerator()
         projectGeneratorFactory = MockFocusServiceProjectGeneratorFactory()
         projectGeneratorFactory.stubbedGeneratorResult = generator
         subject = FocusService(opener: opener, projectGeneratorFactory: projectGeneratorFactory)
