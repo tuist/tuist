@@ -21,7 +21,7 @@ public protocol DescriptorGenerating {
     ///
     /// - Seealso: `GraphLoader`
     func generateProject(project: Project, graph: Graph) throws -> ProjectDescriptor
-
+    
     /// Generate a workspace descriptor
     ///
     /// - Parameters:
@@ -36,9 +36,9 @@ public protocol DescriptorGenerating {
 
 /// Default implementation of `DescriptorGenerating`
 public final class DescriptorGenerator: DescriptorGenerating {
-    private let workspaceGenerator: WorkspaceGenerating
+    private let workspaceDescriptorGenerator: WorkspaceDescriptorGenerating
     private let projectGenerator: ProjectGenerating
-
+    
     public convenience init(defaultSettingsProvider: DefaultSettingsProviding = DefaultSettingsProvider()) {
         let configGenerator = ConfigGenerator(defaultSettingsProvider: defaultSettingsProvider)
         let targetGenerator = TargetGenerator(configGenerator: configGenerator)
@@ -47,27 +47,27 @@ public final class DescriptorGenerator: DescriptorGenerating {
         let projectGenerator = ProjectGenerator(targetGenerator: targetGenerator,
                                                 configGenerator: configGenerator,
                                                 schemesGenerator: schemesGenerator)
-        let workspaceGenerator = WorkspaceGenerator(projectGenerator: projectGenerator,
-                                                    workspaceStructureGenerator: workspaceStructureGenerator,
-                                                    schemesGenerator: schemesGenerator)
-        self.init(workspaceGenerator: workspaceGenerator,
+        let workspaceDescriptorGenerator = WorkspaceDescriptorGenerator(projectGenerator: projectGenerator,
+                                                                        workspaceStructureGenerator: workspaceStructureGenerator,
+                                                                        schemesGenerator: schemesGenerator)
+        self.init(workspaceDescriptorGenerator: workspaceDescriptorGenerator,
                   projectGenerator: projectGenerator)
     }
-
-    init(workspaceGenerator: WorkspaceGenerating,
+    
+    init(workspaceDescriptorGenerator: WorkspaceDescriptorGenerating,
          projectGenerator: ProjectGenerating)
     {
-        self.workspaceGenerator = workspaceGenerator
+        self.workspaceDescriptorGenerator = workspaceDescriptorGenerator
         self.projectGenerator = projectGenerator
     }
-
+    
     public func generateProject(project: Project, graph: Graph) throws -> ProjectDescriptor {
         try projectGenerator.generate(project: project, graph: graph)
     }
-
+    
     public func generateWorkspace(workspace: Workspace, graph: Graph) throws -> WorkspaceDescriptor {
-        try workspaceGenerator.generate(workspace: workspace,
-                                        path: workspace.path,
-                                        graph: graph)
+        try workspaceDescriptorGenerator.generate(workspace: workspace,
+                                                  path: workspace.path,
+                                                  graph: graph)
     }
 }

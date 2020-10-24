@@ -4,7 +4,7 @@ import TuistCore
 import TuistSupport
 import XcodeProj
 
-enum WorkspaceGeneratorError: FatalError {
+enum WorkspaceDescriptorGeneratorError: FatalError {
     case projectNotFound(path: AbsolutePath)
     var type: ErrorType {
         switch self {
@@ -21,7 +21,7 @@ enum WorkspaceGeneratorError: FatalError {
     }
 }
 
-protocol WorkspaceGenerating: AnyObject {
+protocol WorkspaceDescriptorGenerating: AnyObject {
     /// Generates the given workspace.
     ///
     /// - Parameters:
@@ -35,7 +35,7 @@ protocol WorkspaceGenerating: AnyObject {
                   graph: Graph) throws -> WorkspaceDescriptor
 }
 
-final class WorkspaceGenerator: WorkspaceGenerating {
+final class WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
     struct Config {
         /// The execution context to use when generating
         /// descriptors for each project within the workspace / graph
@@ -217,7 +217,7 @@ final class WorkspaceGenerator: WorkspaceGenerating {
 
         case let .project(path: projectPath):
             guard let generatedProject = generatedProjects[projectPath] else {
-                throw WorkspaceGeneratorError.projectNotFound(path: projectPath)
+                throw WorkspaceDescriptorGeneratorError.projectNotFound(path: projectPath)
             }
             let relativePath = generatedProject.path.relative(to: path)
             return workspaceFileElement(path: relativePath)

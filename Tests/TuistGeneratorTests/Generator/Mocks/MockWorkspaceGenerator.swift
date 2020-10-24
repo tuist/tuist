@@ -6,7 +6,7 @@ import TuistSupport
 import XcodeProj
 @testable import TuistGenerator
 
-final class MockWorkspaceGenerator: WorkspaceGenerating {
+final class MockWorkspaceGenerator: WorkspaceDescriptorGenerating {
     enum MockError: Error {
         case stubNotImplemented
     }
