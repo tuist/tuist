@@ -2,6 +2,7 @@ import ArgumentParser
 import Foundation
 import TSCBasic
 import TuistSupport
+import TuistDependencies
 
 // MARK: - DocCommand
 
@@ -26,8 +27,9 @@ struct DocCommand: ParsableCommand {
             absolutePath = FileHandler.shared.currentPath
         }
 
-        try DocService().run(project: absolutePath,
-                             target: options.target)
+        print(try! OtoolController().dlybDependenciesPaths(forBinaryAt: absolutePath))
+//        try DocService().run(project: absolutePath,
+//                             target: options.target)
     }
 }
 
