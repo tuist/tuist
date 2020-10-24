@@ -7,7 +7,7 @@ import XCTest
 @testable import TuistLoader
 @testable import TuistSupportTesting
 
-class ProjectDevelopmentRegionMapperTests: TuistUnitTestCase {
+final class ProjectDevelopmentRegionMapperTests: TuistUnitTestCase {
     var subject: ProjectDevelopmentRegionMapper!
     var config: TuistCore.Config!
 

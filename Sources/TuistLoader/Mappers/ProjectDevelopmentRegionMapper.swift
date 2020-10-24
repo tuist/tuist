@@ -6,7 +6,7 @@ import TuistSupport
 
 /// Mapper that changes the development region based on configuration
 /// in the Config.swift
-public class ProjectDevelopmentRegionMapper: ProjectMapping {
+public final class ProjectDevelopmentRegionMapper: ProjectMapping {
     private let config: TuistCore.Config
 
     public init(config: TuistCore.Config) {
