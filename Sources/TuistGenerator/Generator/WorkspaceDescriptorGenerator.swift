@@ -49,7 +49,7 @@ final class WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
 
     private let projectDescriptorGenerator: ProjectDescriptorGenerating
     private let workspaceStructureGenerator: WorkspaceStructureGenerating
-    private let schemesGenerator: SchemesGenerating
+    private let schemeDescriptorsGenerator: SchemeDescriptorsGenerating
     private let config: Config
 
     // MARK: - Init
@@ -63,18 +63,18 @@ final class WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
                                                                     configGenerator: configGenerator)
         self.init(projectDescriptorGenerator: projectDescriptorGenerator,
                   workspaceStructureGenerator: WorkspaceStructureGenerator(),
-                  schemesGenerator: SchemesGenerator(),
+                  schemeDescriptorsGenerator: SchemeDescriptorsGenerator(),
                   config: config)
     }
 
     init(projectDescriptorGenerator: ProjectDescriptorGenerating,
          workspaceStructureGenerator: WorkspaceStructureGenerating,
-         schemesGenerator: SchemesGenerating,
+         schemeDescriptorsGenerator: SchemeDescriptorsGenerating,
          config: Config = .default)
     {
         self.projectDescriptorGenerator = projectDescriptorGenerator
         self.workspaceStructureGenerator = workspaceStructureGenerator
-        self.schemesGenerator = schemesGenerator
+        self.schemeDescriptorsGenerator = schemeDescriptorsGenerator
         self.config = config
     }
 
@@ -118,9 +118,9 @@ final class WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
 
         // Schemes
 
-        let schemes = try schemesGenerator.generateWorkspaceSchemes(workspace: workspace,
-                                                                    generatedProjects: generatedProjects,
-                                                                    graph: graph)
+        let schemes = try schemeDescriptorsGenerator.generateWorkspaceSchemes(workspace: workspace,
+                                                                              generatedProjects: generatedProjects,
+                                                                              graph: graph)
 
         return WorkspaceDescriptor(
             path: path,

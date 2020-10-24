@@ -40,7 +40,7 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
     let configGenerator: ConfigGenerating
 
     /// Generator for the project schemes.
-    let schemesGenerator: SchemesGenerating
+    let schemeDescriptorsGenerator: SchemeDescriptorsGenerating
 
     // MARK: - Init
 
@@ -49,14 +49,14 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
     /// - Parameters:
     ///   - targetGenerator: Generator for the project targets.
     ///   - configGenerator: Generator for the project configuration.
-    ///   - schemesGenerator: Generator for the project schemes.
+    ///   - schemeDescriptorsGenerator: Generator for the project schemes.
     init(targetGenerator: TargetGenerating = TargetGenerator(),
          configGenerator: ConfigGenerating = ConfigGenerator(),
-         schemesGenerator: SchemesGenerating = SchemesGenerator())
+         schemeDescriptorsGenerator: SchemeDescriptorsGenerating = SchemeDescriptorsGenerator())
     {
         self.targetGenerator = targetGenerator
         self.configGenerator = configGenerator
-        self.schemesGenerator = schemesGenerator
+        self.schemeDescriptorsGenerator = schemeDescriptorsGenerator
     }
 
     // MARK: - ProjectGenerating
@@ -105,9 +105,9 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
                                                 targets: nativeTargets,
                                                 name: project.xcodeProjPath.basename)
 
-        let schemes = try schemesGenerator.generateProjectSchemes(project: project,
-                                                                  generatedProject: generatedProject,
-                                                                  graph: graph)
+        let schemes = try schemeDescriptorsGenerator.generateProjectSchemes(project: project,
+                                                                            generatedProject: generatedProject,
+                                                                            graph: graph)
 
         let xcodeProj = XcodeProj(workspace: workspace, pbxproj: pbxproj)
         return ProjectDescriptor(path: project.path,

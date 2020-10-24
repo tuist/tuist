@@ -42,14 +42,14 @@ public final class DescriptorGenerator: DescriptorGenerating {
     public convenience init(defaultSettingsProvider: DefaultSettingsProviding = DefaultSettingsProvider()) {
         let configGenerator = ConfigGenerator(defaultSettingsProvider: defaultSettingsProvider)
         let targetGenerator = TargetGenerator(configGenerator: configGenerator)
-        let schemesGenerator = SchemesGenerator()
+        let schemeDescriptorsGenerator = SchemeDescriptorsGenerator()
         let workspaceStructureGenerator = WorkspaceStructureGenerator()
         let projectDescriptorGenerator = ProjectDescriptorGenerator(targetGenerator: targetGenerator,
                                                                     configGenerator: configGenerator,
-                                                                    schemesGenerator: schemesGenerator)
+                                                                    schemeDescriptorsGenerator: schemeDescriptorsGenerator)
         let workspaceDescriptorGenerator = WorkspaceDescriptorGenerator(projectDescriptorGenerator: projectDescriptorGenerator,
                                                                         workspaceStructureGenerator: workspaceStructureGenerator,
-                                                                        schemesGenerator: schemesGenerator)
+                                                                        schemeDescriptorsGenerator: schemeDescriptorsGenerator)
         self.init(workspaceDescriptorGenerator: workspaceDescriptorGenerator,
                   projectDescriptorGenerator: projectDescriptorGenerator)
     }
