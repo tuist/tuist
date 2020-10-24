@@ -13,7 +13,7 @@ final class ProjectDevelopmentRegionMapperTests: TuistUnitTestCase {
 
     override func setUp() {
         super.setUp()
-        
+
         config = TuistCore.Config.test(generationOptions: [
             .developmentRegion("en"),
         ])

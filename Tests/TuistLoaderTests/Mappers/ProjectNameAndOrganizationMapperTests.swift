@@ -13,7 +13,7 @@ class ProjectNameAndOrganizationMapperTests: TuistUnitTestCase {
 
     override func setUp() {
         super.setUp()
-        
+
         let nameTemplate: TemplateString = "Tuist-\(.projectName)"
         config = TuistCore.Config.test(generationOptions: [
             .xcodeProjectName(nameTemplate.description),
