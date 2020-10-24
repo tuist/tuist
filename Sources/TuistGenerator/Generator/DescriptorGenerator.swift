@@ -36,38 +36,38 @@ public protocol DescriptorGenerating {
 
 /// Default implementation of `DescriptorGenerating`
 public final class DescriptorGenerator: DescriptorGenerating {
-    private let workspaceGenerator: WorkspaceGenerating
-    private let projectGenerator: ProjectGenerating
+    private let workspaceDescriptorGenerator: WorkspaceDescriptorGenerating
+    private let projectDescriptorGenerator: ProjectDescriptorGenerating
 
     public convenience init(defaultSettingsProvider: DefaultSettingsProviding = DefaultSettingsProvider()) {
         let configGenerator = ConfigGenerator(defaultSettingsProvider: defaultSettingsProvider)
         let targetGenerator = TargetGenerator(configGenerator: configGenerator)
-        let schemesGenerator = SchemesGenerator()
+        let schemeDescriptorsGenerator = SchemeDescriptorsGenerator()
         let workspaceStructureGenerator = WorkspaceStructureGenerator()
-        let projectGenerator = ProjectGenerator(targetGenerator: targetGenerator,
-                                                configGenerator: configGenerator,
-                                                schemesGenerator: schemesGenerator)
-        let workspaceGenerator = WorkspaceGenerator(projectGenerator: projectGenerator,
-                                                    workspaceStructureGenerator: workspaceStructureGenerator,
-                                                    schemesGenerator: schemesGenerator)
-        self.init(workspaceGenerator: workspaceGenerator,
-                  projectGenerator: projectGenerator)
+        let projectDescriptorGenerator = ProjectDescriptorGenerator(targetGenerator: targetGenerator,
+                                                                    configGenerator: configGenerator,
+                                                                    schemeDescriptorsGenerator: schemeDescriptorsGenerator)
+        let workspaceDescriptorGenerator = WorkspaceDescriptorGenerator(projectDescriptorGenerator: projectDescriptorGenerator,
+                                                                        workspaceStructureGenerator: workspaceStructureGenerator,
+                                                                        schemeDescriptorsGenerator: schemeDescriptorsGenerator)
+        self.init(workspaceDescriptorGenerator: workspaceDescriptorGenerator,
+                  projectDescriptorGenerator: projectDescriptorGenerator)
     }
 
-    init(workspaceGenerator: WorkspaceGenerating,
-         projectGenerator: ProjectGenerating)
+    init(workspaceDescriptorGenerator: WorkspaceDescriptorGenerating,
+         projectDescriptorGenerator: ProjectDescriptorGenerating)
     {
-        self.workspaceGenerator = workspaceGenerator
-        self.projectGenerator = projectGenerator
+        self.workspaceDescriptorGenerator = workspaceDescriptorGenerator
+        self.projectDescriptorGenerator = projectDescriptorGenerator
     }
 
     public func generateProject(project: Project, graph: Graph) throws -> ProjectDescriptor {
-        try projectGenerator.generate(project: project, graph: graph)
+        try projectDescriptorGenerator.generate(project: project, graph: graph)
     }
 
     public func generateWorkspace(workspace: Workspace, graph: Graph) throws -> WorkspaceDescriptor {
-        try workspaceGenerator.generate(workspace: workspace,
-                                        path: workspace.path,
-                                        graph: graph)
+        try workspaceDescriptorGenerator.generate(workspace: workspace,
+                                                  path: workspace.path,
+                                                  graph: graph)
     }
 }

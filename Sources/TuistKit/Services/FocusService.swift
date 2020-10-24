@@ -9,16 +9,16 @@ import TuistLoader
 import TuistSupport
 
 protocol FocusServiceProjectGeneratorFactorying {
-    func generator(sources: Set<String>, xcframeworks: Bool, ignoreCache: Bool) -> ProjectGenerating
+    func generator(sources: Set<String>, xcframeworks: Bool, ignoreCache: Bool) -> Generating
 }
 
 final class FocusServiceProjectGeneratorFactory: FocusServiceProjectGeneratorFactorying {
-    func generator(sources: Set<String>, xcframeworks: Bool, ignoreCache: Bool) -> ProjectGenerating {
+    func generator(sources: Set<String>, xcframeworks: Bool, ignoreCache: Bool) -> Generating {
         let cacheOutputType: CacheOutputType = xcframeworks ? .xcframework : .framework
         let cacheConfig: CacheConfig = ignoreCache
             ? .withoutCaching()
             : .withCaching(cacheOutputType: cacheOutputType)
-        return ProjectGenerator(graphMapperProvider: GraphMapperProvider(cacheConfig: cacheConfig, sources: sources))
+        return Generator(graphMapperProvider: GraphMapperProvider(cacheConfig: cacheConfig, sources: sources))
     }
 }
 

@@ -4,7 +4,7 @@ import TuistCore
 import TuistCoreTesting
 @testable import TuistGenerator
 
-final class MockSchemesGenerator: SchemesGenerating {
+final class MockSchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
     func generateProjectSchemes(project _: Project, generatedProject _: GeneratedProject, graph _: Graph) throws -> [SchemeDescriptor] {
         []
     }

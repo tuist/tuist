@@ -4,7 +4,7 @@ import TuistCore
 import TuistGenerator
 @testable import TuistKit
 
-final class MockProjectGenerator: ProjectGenerating {
+final class MockGenerator: Generating {
     enum MockError: Error {
         case stubNotImplemented
     }
