@@ -12,13 +12,14 @@ class ProjectNameAndOrganizationMapperTests: TuistUnitTestCase {
     var config: TuistCore.Config!
 
     override func setUp() {
+        super.setUp()
+        
         let nameTemplate: TemplateString = "Tuist-\(.projectName)"
         config = TuistCore.Config.test(generationOptions: [
             .xcodeProjectName(nameTemplate.description),
             .organizationName("Tuist"),
         ])
         subject = ProjectNameAndOrganizationMapper(config: config)
-        super.setUp()
     }
 
     override func tearDown() {

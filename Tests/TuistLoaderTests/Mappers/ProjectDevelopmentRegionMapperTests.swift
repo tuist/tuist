@@ -12,11 +12,12 @@ final class ProjectDevelopmentRegionMapperTests: TuistUnitTestCase {
     var config: TuistCore.Config!
 
     override func setUp() {
+        super.setUp()
+        
         config = TuistCore.Config.test(generationOptions: [
             .developmentRegion("en"),
         ])
         subject = ProjectDevelopmentRegionMapper(config: config)
-        super.setUp()
     }
 
     override func tearDown() {
