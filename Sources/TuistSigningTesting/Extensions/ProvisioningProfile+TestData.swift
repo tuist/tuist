@@ -2,8 +2,8 @@ import TSCBasic
 import XCTest
 @testable import TuistSigning
 
-extension ProvisioningProfile {
-    public static func test(
+public extension ProvisioningProfile {
+    static func test(
         path: AbsolutePath = AbsolutePath("/targetName.configurationName.mobileprovision"),
         name: String = "name",
         targetName: String = "targetName",

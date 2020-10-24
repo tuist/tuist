@@ -140,8 +140,8 @@ class TargetLinter: TargetLinting {
     private func lintInfoplistExists(target: Target) -> [LintingIssue] {
         var issues: [LintingIssue] = []
         if let infoPlist = target.infoPlist,
-            case let InfoPlist.file(path: path) = infoPlist,
-            !FileHandler.shared.exists(path)
+           case let InfoPlist.file(path: path) = infoPlist,
+           !FileHandler.shared.exists(path)
         {
             issues.append(LintingIssue(reason: "Info.plist file not found at path \(infoPlist.path!.pathString)", severity: .error))
         }
@@ -189,7 +189,7 @@ class TargetLinter: TargetLinting {
         ]
 
         if let invalidProducts = invalidProductsForPlatforms[target.platform],
-            invalidProducts.contains(target.product)
+           invalidProducts.contains(target.product)
         {
             return [
                 LintingIssue(reason: "'\(target.name)' for platform '\(target.platform)' can't have a product type '\(target.product)'",

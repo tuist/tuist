@@ -39,11 +39,11 @@ extension TemplateString: ExpressibleByStringInterpolation {
     }
 }
 
-extension TemplateString {
+public extension TemplateString {
     /// Provides a template for existing project properties.
     ///
     /// - projectName: The name of the project.
-    public enum Token: String {
+    enum Token: String {
         case projectName = "${project_name}"
     }
 }

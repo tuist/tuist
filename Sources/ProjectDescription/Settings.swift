@@ -176,12 +176,12 @@ public enum DefaultSettings: Codable, Equatable {
     }
 }
 
-extension DefaultSettings {
-    public static var recommended: DefaultSettings {
+public extension DefaultSettings {
+    static var recommended: DefaultSettings {
         .recommended(excluding: [])
     }
 
-    public static var essential: DefaultSettings {
+    static var essential: DefaultSettings {
         .essential(excluding: [])
     }
 }

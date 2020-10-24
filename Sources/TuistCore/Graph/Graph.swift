@@ -348,7 +348,7 @@ public class Graph: Encodable, Equatable {
     ///   - name: Name of the target.
     public func embeddableFrameworks(path: AbsolutePath, name: String) throws -> [GraphDependencyReference] {
         guard let targetNode = findTargetNode(path: path, name: name),
-            canEmbedProducts(targetNode: targetNode)
+              canEmbedProducts(targetNode: targetNode)
         else {
             return []
         }

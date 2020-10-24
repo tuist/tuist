@@ -168,24 +168,24 @@ extension Version: Codable {
 
 // MARK: - Range operations
 
-extension ClosedRange where Bound == Version {
+public extension ClosedRange where Bound == Version {
     /// Marked as unavailable because we have custom rules for contains.
-    public func contains(_: Version) -> Bool {
+    func contains(_: Version) -> Bool {
         // Unfortunately, we can't use unavailable here.
         fatalError("contains(_:) is unavailable, use contains(version:)")
     }
 }
 
-extension Range where Bound == Version {
+public extension Range where Bound == Version {
     /// Marked as unavailable because we have custom rules for contains.
-    public func contains(_: Version) -> Bool {
+    func contains(_: Version) -> Bool {
         // Unfortunately, we can't use unavailable here.
         fatalError("contains(_:) is unavailable, use contains(version:)")
     }
 }
 
-extension Range where Bound == Version {
-    public func contains(version: Version) -> Bool {
+public extension Range where Bound == Version {
+    func contains(version: Version) -> Bool {
         // Special cases if version contains prerelease identifiers.
         if !version.prereleaseIdentifiers.isEmpty {
             // If the ranage does not contain prerelease identifiers, return false.

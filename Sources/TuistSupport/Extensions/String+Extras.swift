@@ -1,10 +1,10 @@
 import Foundation
 
-extension String {
+public extension String {
     // swiftlint:disable:next force_try
     private static let whitespaceRegularExpression = try! NSRegularExpression(pattern: "\\s")
 
-    public var escapingWhitespaces: String {
+    var escapingWhitespaces: String {
         String.whitespaceRegularExpression.stringByReplacingMatches(
             in: self,
             range: NSRange(startIndex..., in: self),
@@ -12,7 +12,7 @@ extension String {
         ).replacingOccurrences(of: "\0", with: "␀")
     }
 
-    public func chomp(separator: String? = nil) -> String {
+    func chomp(separator: String? = nil) -> String {
         func scrub(_ separator: String) -> String {
             var e = endIndex
             while String(self[startIndex ..< e]).hasSuffix(separator), e > startIndex {
@@ -32,7 +32,7 @@ extension String {
         }
     }
 
-    public func chuzzle() -> String? {
+    func chuzzle() -> String? {
         var cc = self
 
         loop: while true {
@@ -60,7 +60,7 @@ extension String {
         return String(cc)
     }
 
-    public func nsRange(from range: Range<String.Index>) -> NSRange? {
+    func nsRange(from range: Range<String.Index>) -> NSRange? {
         guard
             let from = range.lowerBound.samePosition(in: utf16),
             let to = range.upperBound.samePosition(in: utf16) else { return nil }
@@ -69,28 +69,28 @@ extension String {
                        length: utf16.distance(from: from, to: to))
     }
 
-    public func capitalizingFirstLetter() -> String {
+    func capitalizingFirstLetter() -> String {
         prefix(1).capitalized + dropFirst()
     }
 
-    public mutating func capitalizeFirstLetter() {
+    mutating func capitalizeFirstLetter() {
         self = capitalizingFirstLetter()
     }
 
-    public var uppercasingFirst: String {
+    var uppercasingFirst: String {
         prefix(1).uppercased() + dropFirst()
     }
 
-    public var lowercasingFirst: String {
+    var lowercasingFirst: String {
         prefix(1).lowercased() + dropFirst()
     }
 
     /// A collection of all the words in the string by separating out any punctuation and spaces.
-    public var words: [String] {
+    var words: [String] {
         components(separatedBy: CharacterSet.alphanumerics.inverted).filter { !$0.isEmpty }
     }
 
-    public var camelized: String {
+    var camelized: String {
         guard !isEmpty else {
             return ""
         }
@@ -103,7 +103,7 @@ extension String {
         return ([first] + rest).joined(separator: "")
     }
 
-    public func camelCaseToSnakeCase() -> String {
+    func camelCaseToSnakeCase() -> String {
         let acronymPattern = "([A-Z]+)([A-Z][a-z]|[0-9])"
         let normalPattern = "([a-z0-9])([A-Z])"
         return processCamalCaseRegex(pattern: acronymPattern)?

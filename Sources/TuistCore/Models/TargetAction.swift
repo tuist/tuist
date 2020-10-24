@@ -100,12 +100,12 @@ public struct TargetAction: Equatable {
     }
 }
 
-extension Array where Element == TargetAction {
-    public var preActions: [TargetAction] {
+public extension Array where Element == TargetAction {
+    var preActions: [TargetAction] {
         filter { $0.order == .pre }
     }
 
-    public var postActions: [TargetAction] {
+    var postActions: [TargetAction] {
         filter { $0.order == .post }
     }
 }

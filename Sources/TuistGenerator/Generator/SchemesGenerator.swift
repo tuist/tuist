@@ -33,7 +33,7 @@ protocol SchemesGenerating {
 
 // swiftlint:disable:next type_body_length
 final class SchemesGenerator: SchemesGenerating {
-    private struct Constants {
+    private enum Constants {
         /// Default last upgrade version for generated schemes.
         static let defaultLastUpgradeVersion = "1010"
 
@@ -414,7 +414,7 @@ final class SchemesGenerator: SchemesGenerating {
                              generatedProjects _: [AbsolutePath: GeneratedProject]) throws -> XCScheme.AnalyzeAction?
     {
         guard let target = defaultTargetReference(scheme: scheme),
-            let targetNode = graph.target(path: target.projectPath, name: target.name) else { return nil }
+              let targetNode = graph.target(path: target.projectPath, name: target.name) else { return nil }
 
         let buildConfiguration = scheme.analyzeAction?.configurationName ?? targetNode.project.defaultDebugBuildConfigurationName
         return XCScheme.AnalyzeAction(buildConfiguration: buildConfiguration)
@@ -434,7 +434,7 @@ final class SchemesGenerator: SchemesGenerating {
                              generatedProjects: [AbsolutePath: GeneratedProject]) throws -> XCScheme.ArchiveAction?
     {
         guard let target = defaultTargetReference(scheme: scheme),
-            let targetNode = graph.target(path: target.projectPath, name: target.name) else { return nil }
+              let targetNode = graph.target(path: target.projectPath, name: target.name) else { return nil }
 
         guard let archiveAction = scheme.archiveAction else {
             return defaultSchemeArchiveAction(for: targetNode.project)
@@ -461,8 +461,8 @@ final class SchemesGenerator: SchemesGenerating {
                                rootPath _: AbsolutePath) throws -> XCScheme.ExecutionAction
     {
         guard let targetReference = action.target,
-            let targetNode = graph.target(path: targetReference.projectPath, name: targetReference.name),
-            let generatedProject = generatedProjects[targetReference.projectPath]
+              let targetNode = graph.target(path: targetReference.projectPath, name: targetReference.name),
+              let generatedProject = generatedProjects[targetReference.projectPath]
         else {
             return schemeExecutionAction(action: action)
         }
@@ -648,7 +648,7 @@ final class SchemesGenerator: SchemesGenerating {
 
     private func isSchemeForAppExtension(scheme: Scheme, graph: Graph) -> Bool? {
         guard let defaultTarget = defaultTargetReference(scheme: scheme),
-            let targetNode = graph.target(path: defaultTarget.projectPath, name: defaultTarget.name)
+              let targetNode = graph.target(path: defaultTarget.projectPath, name: defaultTarget.name)
         else {
             return nil
         }

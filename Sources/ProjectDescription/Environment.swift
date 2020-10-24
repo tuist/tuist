@@ -1,7 +1,7 @@
 import Foundation
 
 @dynamicMemberLookup
-public struct Environment {
+public enum Environment {
     public enum Value {
         case boolean(Bool)
         case string(String)

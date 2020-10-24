@@ -73,7 +73,7 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
 
         // Linking node case
         guard let linkingNode = node as? TargetNode,
-            linkingNode.target.canLinkStaticProducts()
+              linkingNode.target.canLinkStaticProducts()
         else {
             return results
         }

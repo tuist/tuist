@@ -14,8 +14,8 @@ public struct LoggingConfig {
     public var verbose: Bool
 }
 
-extension LoggingConfig {
-    public static var `default`: LoggingConfig {
+public extension LoggingConfig {
+    static var `default`: LoggingConfig {
         let environment = ProcessInfo.processInfo.environment
 
         let osLog = environment["TUIST_OS_LOG"] != nil

@@ -17,14 +17,14 @@ public enum GlobError: FatalError, Equatable {
     }
 }
 
-extension AbsolutePath {
+public extension AbsolutePath {
     /// Returns the current path.
-    public static var current: AbsolutePath {
+    static var current: AbsolutePath {
         AbsolutePath(FileManager.default.currentDirectoryPath)
     }
 
     /// Returns the URL that references the absolute path.
-    public var url: URL {
+    var url: URL {
         URL(fileURLWithPath: pathString)
     }
 
@@ -32,7 +32,7 @@ extension AbsolutePath {
     ///
     /// - Parameter pattern: Relative glob pattern used to match the paths.
     /// - Returns: List of paths that match the given pattern.
-    public func glob(_ pattern: String) -> [AbsolutePath] {
+    func glob(_ pattern: String) -> [AbsolutePath] {
         Glob(pattern: appending(RelativePath(pattern)).pathString).paths.map { AbsolutePath($0) }
     }
 
@@ -41,7 +41,7 @@ extension AbsolutePath {
     /// - Parameter pattern: Relative glob pattern used to match the paths.
     /// - Throws: an error if the directory where the first glob pattern is declared doesn't exist
     /// - Returns: List of paths that match the given pattern.
-    public func throwingGlob(_ pattern: String) throws -> [AbsolutePath] {
+    func throwingGlob(_ pattern: String) throws -> [AbsolutePath] {
         let globPath = appending(RelativePath(pattern)).pathString
 
         if globPath.isGlobComponent {
@@ -58,7 +58,7 @@ extension AbsolutePath {
     }
 
     /// Returns true if the path points to a directory
-    public var isFolder: Bool {
+    var isFolder: Bool {
         var isDirectory = ObjCBool(true)
         let exists = FileManager.default.fileExists(atPath: pathString, isDirectory: &isDirectory)
         return exists && isDirectory.boolValue
@@ -70,7 +70,7 @@ extension AbsolutePath {
     /// If the path is one-level deep from the root directory it returns the root directory.
     ///
     /// - Returns: Path with the last component removed.
-    public func removingLastComponent() -> AbsolutePath {
+    func removingLastComponent() -> AbsolutePath {
         AbsolutePath("/\(components.dropLast().joined(separator: "/"))")
     }
 
@@ -84,7 +84,7 @@ extension AbsolutePath {
     ///
     /// - Parameter path: The other path to find a common path with
     /// - Returns: An absolute path to the common ancestor
-    public func commonAncestor(with path: AbsolutePath) -> AbsolutePath {
+    func commonAncestor(with path: AbsolutePath) -> AbsolutePath {
         var ancestorPath = AbsolutePath("/")
         for component in components.dropFirst() {
             let nextPath = ancestorPath.appending(component: component)
@@ -98,7 +98,7 @@ extension AbsolutePath {
     }
 
     /// Returns the hash of the file the path points to.
-    public func sha256() -> Data? {
+    func sha256() -> Data? {
         try? SHA256Digest.file(at: url)
     }
 }

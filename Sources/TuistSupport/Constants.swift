@@ -1,6 +1,6 @@
 import Foundation
 
-public struct Constants {
+public enum Constants {
     public static let versionFileName = ".tuist-version"
     public static let binFolderName = ".tuist-bin"
     public static let binName = "tuist"
@@ -20,19 +20,19 @@ public struct Constants {
     public static let joinSlackURL: String = "https://slack.tuist.io/"
     public static let tuistGeneratedFileName = ".tuist-generated"
 
-    public struct Vendor {
+    public enum Vendor {
         public static let swiftLint = "swiftlint"
         public static let swiftDoc = "swift-doc"
     }
 
-    public struct DerivedDirectory {
+    public enum DerivedDirectory {
         public static let name = "Derived"
         public static let infoPlists = "InfoPlists"
         public static let sources = "Sources"
         public static let signingKeychain = "signing.keychain"
     }
 
-    public struct EnvironmentVariables {
+    public enum EnvironmentVariables {
         public static let verbose = "TUIST_VERBOSE"
         public static let colouredOutput = "TUIST_COLOURED_OUTPUT"
         public static let versionsDirectory = "TUIST_VERSIONS_DIRECTORY"
@@ -41,7 +41,7 @@ public struct Constants {
         public static let cacheManifests = "TUIST_CACHE_MANIFESTS"
     }
 
-    public struct GoogleCloud {
+    public enum GoogleCloud {
         public static let relasesBucketURL = "https://storage.googleapis.com/tuist-releases/"
     }
 }

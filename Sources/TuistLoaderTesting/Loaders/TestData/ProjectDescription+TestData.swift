@@ -1,16 +1,16 @@
 import Foundation
 @testable import ProjectDescription
 
-extension Config {
-    public static func test(generationOptions: [Config.GenerationOptions] = []) -> Config {
+public extension Config {
+    static func test(generationOptions: [Config.GenerationOptions] = []) -> Config {
         Config(generationOptions: generationOptions)
     }
 }
 
-extension Template {
-    public static func test(description: String = "Template",
-                            attributes: [Template.Attribute] = [],
-                            files: [Template.File] = []) -> Template
+public extension Template {
+    static func test(description: String = "Template",
+                     attributes: [Template.Attribute] = [],
+                     files: [Template.File] = []) -> Template
     {
         Template(description: description,
                  attributes: attributes,
@@ -18,10 +18,10 @@ extension Template {
     }
 }
 
-extension Workspace {
-    public static func test(name: String = "Workspace",
-                            projects: [Path] = [],
-                            additionalFiles: [FileElement] = []) -> Workspace
+public extension Workspace {
+    static func test(name: String = "Workspace",
+                     projects: [Path] = [],
+                     additionalFiles: [FileElement] = []) -> Workspace
     {
         Workspace(name: name,
                   projects: projects,
@@ -29,12 +29,12 @@ extension Workspace {
     }
 }
 
-extension Project {
-    public static func test(name: String = "Project",
-                            organizationName: String? = nil,
-                            settings: Settings? = nil,
-                            targets: [Target] = [],
-                            additionalFiles: [FileElement] = []) -> Project
+public extension Project {
+    static func test(name: String = "Project",
+                     organizationName: String? = nil,
+                     settings: Settings? = nil,
+                     targets: [Target] = [],
+                     additionalFiles: [FileElement] = []) -> Project
     {
         Project(name: name,
                 organizationName: organizationName,
@@ -44,22 +44,22 @@ extension Project {
     }
 }
 
-extension Target {
-    public static func test(name: String = "Target",
-                            platform: Platform = .iOS,
-                            product: Product = .framework,
-                            productName: String? = nil,
-                            bundleId: String = "com.some.bundle.id",
-                            infoPlist: InfoPlist = .file(path: "Info.plist"),
-                            sources: SourceFilesList = "Sources/**",
-                            resources: [FileElement] = "Resources/**",
-                            headers: Headers? = nil,
-                            entitlements: Path? = Path("app.entitlements"),
-                            actions: [TargetAction] = [],
-                            dependencies: [TargetDependency] = [],
-                            settings: Settings? = nil,
-                            coreDataModels: [CoreDataModel] = [],
-                            environment: [String: String] = [:]) -> Target
+public extension Target {
+    static func test(name: String = "Target",
+                     platform: Platform = .iOS,
+                     product: Product = .framework,
+                     productName: String? = nil,
+                     bundleId: String = "com.some.bundle.id",
+                     infoPlist: InfoPlist = .file(path: "Info.plist"),
+                     sources: SourceFilesList = "Sources/**",
+                     resources: [FileElement] = "Resources/**",
+                     headers: Headers? = nil,
+                     entitlements: Path? = Path("app.entitlements"),
+                     actions: [TargetAction] = [],
+                     dependencies: [TargetDependency] = [],
+                     settings: Settings? = nil,
+                     coreDataModels: [CoreDataModel] = [],
+                     environment: [String: String] = [:]) -> Target
     {
         Target(name: name,
                platform: platform,
@@ -79,12 +79,12 @@ extension Target {
     }
 }
 
-extension TargetAction {
-    public static func test(name: String = "Action",
-                            tool: String? = nil,
-                            path: Path? = nil,
-                            order: Order = .pre,
-                            arguments: [String] = []) -> TargetAction
+public extension TargetAction {
+    static func test(name: String = "Action",
+                     tool: String? = nil,
+                     path: Path? = nil,
+                     order: Order = .pre,
+                     arguments: [String] = []) -> TargetAction
     {
         TargetAction(name: name,
                      tool: tool,
@@ -94,12 +94,12 @@ extension TargetAction {
     }
 }
 
-extension Scheme {
-    public static func test(name: String = "Scheme",
-                            shared: Bool = false,
-                            buildAction: BuildAction? = nil,
-                            testAction: TestAction? = nil,
-                            runAction: RunAction? = nil) -> Scheme
+public extension Scheme {
+    static func test(name: String = "Scheme",
+                     shared: Bool = false,
+                     buildAction: BuildAction? = nil,
+                     testAction: TestAction? = nil,
+                     runAction: RunAction? = nil) -> Scheme
     {
         Scheme(name: name,
                shared: shared,
@@ -109,19 +109,19 @@ extension Scheme {
     }
 }
 
-extension BuildAction {
-    public static func test(targets: [TargetReference] = []) -> BuildAction {
+public extension BuildAction {
+    static func test(targets: [TargetReference] = []) -> BuildAction {
         BuildAction(targets: targets,
                     preActions: [ExecutionAction.test()],
                     postActions: [ExecutionAction.test()])
     }
 }
 
-extension TestAction {
-    public static func test(targets: [TestableTarget] = [],
-                            arguments: Arguments? = nil,
-                            config: PresetBuildConfiguration = .debug,
-                            coverage: Bool = true) -> TestAction
+public extension TestAction {
+    static func test(targets: [TestableTarget] = [],
+                     arguments: Arguments? = nil,
+                     config: PresetBuildConfiguration = .debug,
+                     coverage: Bool = true) -> TestAction
     {
         TestAction(targets: targets,
                    arguments: arguments,
@@ -132,10 +132,10 @@ extension TestAction {
     }
 }
 
-extension RunAction {
-    public static func test(config: PresetBuildConfiguration = .debug,
-                            executable: TargetReference? = nil,
-                            arguments: Arguments? = nil) -> RunAction
+public extension RunAction {
+    static func test(config: PresetBuildConfiguration = .debug,
+                     executable: TargetReference? = nil,
+                     arguments: Arguments? = nil) -> RunAction
     {
         RunAction(config: config,
                   executable: executable,
@@ -143,10 +143,10 @@ extension RunAction {
     }
 }
 
-extension ExecutionAction {
-    public static func test(title: String = "Test Script",
-                            scriptText: String = "echo Test",
-                            target: TargetReference? = TargetReference(projectPath: nil, target: "Target")) -> ExecutionAction
+public extension ExecutionAction {
+    static func test(title: String = "Test Script",
+                     scriptText: String = "echo Test",
+                     target: TargetReference? = TargetReference(projectPath: nil, target: "Target")) -> ExecutionAction
     {
         ExecutionAction(title: title,
                         scriptText: scriptText,
@@ -154,18 +154,18 @@ extension ExecutionAction {
     }
 }
 
-extension Arguments {
-    public static func test(environment: [String: String] = [:],
-                            launchArguments: [String: Bool] = [:]) -> Arguments
+public extension Arguments {
+    static func test(environment: [String: String] = [:],
+                     launchArguments: [String: Bool] = [:]) -> Arguments
     {
         Arguments(environment: environment,
                   launchArguments: launchArguments)
     }
 }
 
-extension Dependencies {
-    public static func test(name: String = "Any Dependency",
-                            requirement: Dependency.Requirement = .exact("1.4.0")) -> Dependencies
+public extension Dependencies {
+    static func test(name: String = "Any Dependency",
+                     requirement: Dependency.Requirement = .exact("1.4.0")) -> Dependencies
     {
         Dependencies([Dependency(name: name, requirement: requirement)])
     }
