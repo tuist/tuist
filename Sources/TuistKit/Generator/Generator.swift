@@ -6,7 +6,7 @@ import TuistLoader
 import TuistSigning
 import TuistSupport
 
-protocol ProjectGenerating {
+protocol Generating {
     @discardableResult
     func load(path: AbsolutePath) throws -> Graph
     func loadProject(path: AbsolutePath) throws -> (Project, Graph, [SideEffectDescriptor])
@@ -15,7 +15,7 @@ protocol ProjectGenerating {
     func generateProjectWorkspace(path: AbsolutePath) throws -> (AbsolutePath, Graph)
 }
 
-class ProjectGenerator: ProjectGenerating {
+class Generator: Generating {
     private let recursiveManifestLoader: RecursiveManifestLoading
     private let converter: ManifestModelConverting
     private let manifestLinter: ManifestLinting = ManifestLinter()

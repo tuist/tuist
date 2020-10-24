@@ -4,7 +4,7 @@ import TuistCore
 import TuistSupport
 import XcodeProj
 
-enum WorkspaceGeneratorError: FatalError {
+enum WorkspaceDescriptorGeneratorError: FatalError {
     case projectNotFound(path: AbsolutePath)
     var type: ErrorType {
         switch self {
@@ -21,7 +21,7 @@ enum WorkspaceGeneratorError: FatalError {
     }
 }
 
-protocol WorkspaceGenerating: AnyObject {
+protocol WorkspaceDescriptorGenerating: AnyObject {
     /// Generates the given workspace.
     ///
     /// - Parameters:
@@ -35,7 +35,7 @@ protocol WorkspaceGenerating: AnyObject {
                   graph: Graph) throws -> WorkspaceDescriptor
 }
 
-final class WorkspaceGenerator: WorkspaceGenerating {
+final class WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
     struct Config {
         /// The execution context to use when generating
         /// descriptors for each project within the workspace / graph
@@ -47,9 +47,9 @@ final class WorkspaceGenerator: WorkspaceGenerating {
 
     // MARK: - Attributes
 
-    private let projectGenerator: ProjectGenerating
+    private let projectDescriptorGenerator: ProjectDescriptorGenerating
     private let workspaceStructureGenerator: WorkspaceStructureGenerating
-    private let schemesGenerator: SchemesGenerating
+    private let schemeDescriptorsGenerator: SchemeDescriptorsGenerating
     private let config: Config
 
     // MARK: - Init
@@ -59,22 +59,22 @@ final class WorkspaceGenerator: WorkspaceGenerating {
     {
         let configGenerator = ConfigGenerator(defaultSettingsProvider: defaultSettingsProvider)
         let targetGenerator = TargetGenerator(configGenerator: configGenerator)
-        let projectGenerator = ProjectGenerator(targetGenerator: targetGenerator,
-                                                configGenerator: configGenerator)
-        self.init(projectGenerator: projectGenerator,
+        let projectDescriptorGenerator = ProjectDescriptorGenerator(targetGenerator: targetGenerator,
+                                                                    configGenerator: configGenerator)
+        self.init(projectDescriptorGenerator: projectDescriptorGenerator,
                   workspaceStructureGenerator: WorkspaceStructureGenerator(),
-                  schemesGenerator: SchemesGenerator(),
+                  schemeDescriptorsGenerator: SchemeDescriptorsGenerator(),
                   config: config)
     }
 
-    init(projectGenerator: ProjectGenerating,
+    init(projectDescriptorGenerator: ProjectDescriptorGenerating,
          workspaceStructureGenerator: WorkspaceStructureGenerating,
-         schemesGenerator: SchemesGenerating,
+         schemeDescriptorsGenerator: SchemeDescriptorsGenerating,
          config: Config = .default)
     {
-        self.projectGenerator = projectGenerator
+        self.projectDescriptorGenerator = projectDescriptorGenerator
         self.workspaceStructureGenerator = workspaceStructureGenerator
-        self.schemesGenerator = schemesGenerator
+        self.schemeDescriptorsGenerator = schemeDescriptorsGenerator
         self.config = config
     }
 
@@ -87,7 +87,7 @@ final class WorkspaceGenerator: WorkspaceGenerating {
 
         /// Projects
         let projects = try Array(graph.projects).compactMap(context: config.projectGenerationContext) { project -> ProjectDescriptor? in
-            try projectGenerator.generate(project: project, graph: graph)
+            try projectDescriptorGenerator.generate(project: project, graph: graph)
         }
 
         let generatedProjects: [AbsolutePath: GeneratedProject] = Dictionary(uniqueKeysWithValues: projects.map { project in
@@ -118,9 +118,9 @@ final class WorkspaceGenerator: WorkspaceGenerating {
 
         // Schemes
 
-        let schemes = try schemesGenerator.generateWorkspaceSchemes(workspace: workspace,
-                                                                    generatedProjects: generatedProjects,
-                                                                    graph: graph)
+        let schemes = try schemeDescriptorsGenerator.generateWorkspaceSchemes(workspace: workspace,
+                                                                              generatedProjects: generatedProjects,
+                                                                              graph: graph)
 
         return WorkspaceDescriptor(
             path: path,
@@ -217,7 +217,7 @@ final class WorkspaceGenerator: WorkspaceGenerating {
 
         case let .project(path: projectPath):
             guard let generatedProject = generatedProjects[projectPath] else {
-                throw WorkspaceGeneratorError.projectNotFound(path: projectPath)
+                throw WorkspaceDescriptorGeneratorError.projectNotFound(path: projectPath)
             }
             let relativePath = generatedProject.path.relative(to: path)
             return workspaceFileElement(path: relativePath)

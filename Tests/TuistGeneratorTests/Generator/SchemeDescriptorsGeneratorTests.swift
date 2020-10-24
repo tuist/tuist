@@ -9,12 +9,12 @@ import XCTest
 @testable import TuistGenerator
 @testable import TuistSupportTesting
 
-final class SchemesGeneratorTests: XCTestCase {
-    var subject: SchemesGenerator!
+final class SchemeDescriptorsGeneratorTests: XCTestCase {
+    var subject: SchemeDescriptorsGenerator!
 
     override func setUp() {
         super.setUp()
-        subject = SchemesGenerator()
+        subject = SchemeDescriptorsGenerator()
     }
 
     override func tearDown() {

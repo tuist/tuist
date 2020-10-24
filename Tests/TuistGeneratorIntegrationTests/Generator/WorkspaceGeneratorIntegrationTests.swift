@@ -9,11 +9,11 @@ import XCTest
 @testable import TuistSupportTesting
 
 final class WorkspaceGeneratorIntegrationTests: TuistTestCase {
-    var subject: WorkspaceGenerator!
+    var subject: WorkspaceDescriptorGenerator!
 
     override func setUp() {
         super.setUp()
-        subject = WorkspaceGenerator(config: .init(projectGenerationContext: .concurrent))
+        subject = WorkspaceDescriptorGenerator(config: .init(projectGenerationContext: .concurrent))
     }
 
     override func tearDown() {

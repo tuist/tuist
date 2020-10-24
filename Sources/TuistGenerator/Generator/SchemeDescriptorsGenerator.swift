@@ -5,7 +5,7 @@ import TuistSupport
 import XcodeProj
 
 /// Protocol that defines the interface of the schemes generation.
-protocol SchemesGenerating {
+protocol SchemeDescriptorsGenerating {
     /// Generates the schemes for the workspace targets.
     ///
     /// - Parameters:
@@ -32,7 +32,7 @@ protocol SchemesGenerating {
 }
 
 // swiftlint:disable:next type_body_length
-final class SchemesGenerator: SchemesGenerating {
+final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
     private struct Constants {
         /// Default last upgrade version for generated schemes.
         static let defaultLastUpgradeVersion = "1010"

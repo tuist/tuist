@@ -9,13 +9,13 @@ import XCTest
 @testable import TuistGenerator
 @testable import TuistSupportTesting
 
-final class ProjectGeneratorTests: TuistUnitTestCase {
-    var subject: ProjectGenerator!
+final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
+    var subject: ProjectDescriptorGenerator!
 
     override func setUp() {
         super.setUp()
         system.swiftVersionStub = { "5.2" }
-        subject = ProjectGenerator()
+        subject = ProjectDescriptorGenerator()
     }
 
     override func tearDown() {

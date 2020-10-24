@@ -4,9 +4,9 @@ import Foundation
 final class MockCacheControllerProjectGeneratorProvider: CacheControllerProjectGeneratorProviding {
     var invokedGenerator = false
     var invokedGeneratorCount = 0
-    var stubbedGeneratorResult: ProjectGenerating!
+    var stubbedGeneratorResult: Generating!
 
-    func generator() -> ProjectGenerating {
+    func generator() -> Generating {
         invokedGenerator = true
         invokedGeneratorCount += 1
         return stubbedGeneratorResult
