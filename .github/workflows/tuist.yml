@@ -28,7 +28,7 @@ jobs:
     runs-on: macOS-latest
     strategy:
       matrix:
-        xcode: ['11.5', '12.1']
+        xcode: ['12.1']
     steps:
       - uses: actions/checkout@v1
       - name: Select Xcode
@@ -50,7 +50,7 @@ jobs:
     runs-on: macOS-latest
     strategy:
       matrix:
-        xcode: ['11.5']
+        xcode: ['12.1']
     steps:
       - uses: actions/checkout@v1
       - name: Select Xcode
@@ -70,7 +70,7 @@ jobs:
     runs-on: macOS-latest
     strategy:
       matrix:
-        xcode: ['11.5']
+        xcode: ['12.1']
         feature:
           [
             'generate-1',
@@ -154,10 +154,13 @@ jobs:
     if: github.ref == 'refs/heads/master'
     name: Upload
     runs-on: macOS-latest
+    strategy:
+      matrix:
+        xcode: ['12.1']
     steps:
       - uses: actions/checkout@v1
-      - name: Select Xcode 11.4
-        run: sudo xcode-select -switch /Applications/Xcode_11.5.app
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_${{ matrix.xcode }}.app
       - uses: actions/setup-ruby@v1
         with:
           ruby-version: '2.x'

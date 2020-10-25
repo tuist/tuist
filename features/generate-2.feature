@@ -44,7 +44,7 @@ Feature: Generate a new project using Tuist (suite 2)
     Then I should be able to build for iOS the scheme AppUITests
     Then the product 'AppUITests-Runner.app' with destination 'Debug-iphonesimulator' does not contain the framework 'Framework2'
     Then I should be able to build for iOS the scheme Framework1-iOS
-    Then I should be able to build for iOS the scheme Framework1-macOS
+    Then I should be able to build for macOS the scheme Framework1-macOS
     Then I should be able to build for iOS the scheme Framework1Tests-iOS
     Then I should be able to build for macOS the scheme Framework1Tests-macOS
 
