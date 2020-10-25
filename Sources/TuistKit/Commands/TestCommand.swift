@@ -41,7 +41,7 @@ struct TestCommand: ParsableCommand {
         name: .shortAndLong,
         help: "Test with a specific version of the OS."
     )
-    var osVersion: String?
+    var os: String?
 
     @Option(
         name: [.long, .customShort("C")],
@@ -63,7 +63,7 @@ struct TestCommand: ParsableCommand {
             configuration: configuration,
             path: absolutePath,
             deviceName: device,
-            osVersion: osVersion
+            osVersion: os
         )
     }
 }
