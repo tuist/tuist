@@ -25,16 +25,6 @@ Scenario: The project is an iOS application with remote Swift package (ios_app_w
     Then I should be able to build for iOS the scheme App
     Then I should be able to test for iOS the scheme AppTests
 
-Scenario: The project is an iOS application with Carthage frameworks (ios_app_with_carthage_frameworks)
-    Given that tuist is available
-    And I have a working directory
-    Then I copy the fixture ios_app_with_carthage_frameworks into the working directory
-    Then tuist generates the project
-    Then I should be able to build for iOS the scheme AllTargets
-    Then the product 'App.app' with destination 'Debug-iphonesimulator' contains the framework 'RxSwift' without architecture 'armv7'
-    Then the product 'App.app' with destination 'Debug-iphonesimulator' contains the framework 'RxSwift' with architecture 'x86_64'
-    Then the product 'App.app' with destination 'Debug-iphonesimulator' does not contain headers
-
 Scenario: The project is an iOS application with extensions (ios_app_with_extensions)
     Given that tuist is available
     And I have a working directory

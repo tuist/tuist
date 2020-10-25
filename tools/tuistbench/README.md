@@ -23,12 +23,10 @@ swift run tuistbench --binary /path/to/local/tuist --reference-binary /path/to/m
 ```
 
 `fixtures.json` example:
+
 ```json
 {
-    "paths": [
-        "/path/to/fixtures/fixture_a",
-        "/path/to/fixtures/fixture_b"
-    ]
+  "paths": ["/path/to/fixtures/fixture_a", "/path/to/fixtures/fixture_b"]
 }
 ```
 
@@ -40,13 +38,14 @@ swift run tuistbench --binary /path/to/local/tuist --reference-binary /path/to/m
 - `--fixture-list`, `-l`: Path to the fixture list json file (this contains a list of fixture paths)
 - `--format`: The output format (`console` or `markdown`)
 - `--config`, `-c`: Path the configuration override json file.
-    - `arguments`: The arguments to use when invoking the binary (eg. `[generate]`)
-    - `runs`: The number of times to perform a measurement (final results are the average of those runs)
-    - `deltaThreshold`: The time interval threshold that measurements must exceed to be considered different (unit is `TimeInterval` /  `Double` seconds)
+  - `arguments`: The arguments to use when invoking the binary (eg. `[generate]`)
+  - `runs`: The number of times to perform a measurement (final results are the average of those runs)
+  - `deltaThreshold`: The time interval threshold that measurements must exceed to be considered different (unit is `TimeInterval` / `Double` seconds)
 
 `deltaThreshold` example:
 
 When `deltaThreshold` is `0.02`
+
 - new measurement: `1.20`s
 - old measurement: `1.21`s
 - The results consider those measurements approximately equal `≈`
@@ -56,6 +55,7 @@ When `deltaThreshold` is `0.02`
 - The results will display a delta of `-0.03`s
 
 `config.json` example:
+
 ```
 {
     "arguments": ["generate"],
@@ -78,7 +78,7 @@ Runs          : 5
 Result
     - cold : 0.72s
     - warm : 0.74s
-    
+
 ```
 
 Markdown:
@@ -88,9 +88,8 @@ $ swift run tuistbench -b $(which tuist) -f /path/to/ios_app_with_tests --format
 ```
 
 | Fixture            | Cold  | Warm  |
-| ------------------ | ------| ----- |
+| ------------------ | ----- | ----- |
 | ios_app_with_tests | 0.72s | 0.72s |
-
 
 **Benchmark (multiple fixtures):**
 
@@ -98,11 +97,10 @@ $ swift run tuistbench -b $(which tuist) -f /path/to/ios_app_with_tests --format
 
 ```json
 {
-    "paths": [
-        "/path/to/fixtures/ios_app_with_tests",
-        "/path/to/fixtures/ios_app_with_carthage_frameworks",
-        "/path/to/fixtures/ios_app_with_helpers"
-    ]
+  "paths": [
+    "/path/to/fixtures/ios_app_with_tests",
+    "/path/to/fixtures/ios_app_with_helpers"
+  ]
 }
 ```
 
@@ -118,13 +116,6 @@ Result
     - warm : 0.75s  vs  0.79s (⬇︎ 0.04s 5.63%)
 
 
-Fixture       : ios_app_with_carthage_frameworks
-Runs          : 5
-Result
-    - cold : 0.78s  vs  0.86s (⬇︎ 0.08s 8.90%)
-    - warm : 0.76s  vs  0.80s (⬇︎ 0.04s 5.05%)
-
-
 Fixture       : ios_app_with_helpers
 Runs          : 5
 Result
@@ -133,26 +124,22 @@ Result
 
 ```
 
-
 Markdown:
 
 ```sh
 $ swift run tuistbench -b /path/to/tuist/.build/release/tuist -r $(which tuist) -l fixtures.json --format markdown
 ```
 
-| Fixture         | New    | Old  | Delta    |
-| --------------- | ------ | ---- | -------- |
-| ios_app_with_tests _(cold)_ | 0.73s     | 0.79s   | ⬇︎ 7.92%   |
-| ios_app_with_tests _(warm)_ | 0.79s   | 0.79s | ≈ |
-| ios_app_with_carthage_frameworks _(cold)_ | 0.79s     | 0.85s   | ⬇︎ 7.36%   |
-| ios_app_with_carthage_frameworks _(warm)_ | 0.77s   | 0.81s | ⬇︎ 5.26% |
-| ios_app_with_helpers _(cold)_ | 2.29s     | 2.43s   | ⬇︎ 5.80%   |
-| ios_app_with_helpers _(warm)_ | 1.97s   | 2.15s | ⬇︎ 8.05% |
-
+| Fixture                        | New   | Old   | Delta    |
+| ------------------------------ | ----- | ----- | -------- |
+| ios*app_with_tests *(cold)\_   | 0.73s | 0.79s | ⬇︎ 7.92% |
+| ios*app_with_tests *(warm)\_   | 0.79s | 0.79s | ≈        |
+| ios*app_with_helpers *(cold)\_ | 2.29s | 2.43s | ⬇︎ 5.80% |
+| ios*app_with_helpers *(warm)\_ | 1.97s | 2.15s | ⬇︎ 8.05% |
 
 ## Features
 
-- [x] Measure cold and warm runs for `tuist generate` 
+- [x] Measure cold and warm runs for `tuist generate`
 - [x] Specify individual fixture paths
 - [x] Specify multiple fixture paths (via `.json` file)
 - [x] Basic console results output

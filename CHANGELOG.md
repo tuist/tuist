@@ -16,6 +16,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Fixed non-framework/library targets having a header build phase [#367](https://github.com/tuist/tuist/issues/367) by [@eito](https://github.com/eito).
 - Fixed missing profile scheme arguments when specified in manifest [#1543](https://github.com/tuist/tuist/issues/1543) by [@lakpa](https://github.com/lakpa).
+- Fixed cache warming exporting unrelated .frameworks [#1939](https://github.com/tuist/tuist/pull/1939) by [@pepibumur](https://github.com/pepibumur).
+- Fixed cache warming building from a clean state for every target [#1939](https://github.com/tuist/tuist/pull/1939) by [@pepibumur](https://github.com/pepibumur).
 
 ### Changed
 

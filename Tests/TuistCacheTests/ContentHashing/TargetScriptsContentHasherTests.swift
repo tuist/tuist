@@ -30,10 +30,12 @@ final class TargetScriptsContentHasherTests: TuistUnitTestCase {
         // Given
         let first = TargetScript(name: "First Test",
                                  script: "echo 'first'",
-                                 showEnvVarsInLog: true)
+                                 showEnvVarsInLog: true,
+                                 hashable: true)
         let second = TargetScript(name: "Second test",
                                   script: "echo 'second'",
-                                  showEnvVarsInLog: false)
+                                  showEnvVarsInLog: false,
+                                  hashable: true)
 
         // When
         _ = try subject.hash(targetScripts: [first, second])
@@ -42,6 +44,27 @@ final class TargetScriptsContentHasherTests: TuistUnitTestCase {
         let expected = [
             first.name, first.script, "\(first.showEnvVarsInLog)",
             second.name, second.script, "\(second.showEnvVarsInLog)",
+        ]
+        XCTAssertEqual(mockContentHasher.hashStringsSpy, expected)
+    }
+
+    func test_hash_when_not_hashable() throws {
+        // Given
+        let first = TargetScript(name: "Test",
+                                 script: "echo 'test'",
+                                 showEnvVarsInLog: true,
+                                 hashable: true)
+        let second = TargetScript(name: "Test",
+                                  script: "echo 'test'",
+                                  showEnvVarsInLog: true,
+                                  hashable: false)
+
+        // When
+        _ = try subject.hash(targetScripts: [first, second])
+
+        // Then
+        let expected = [
+            first.name, first.script, "\(first.showEnvVarsInLog)",
         ]
         XCTAssertEqual(mockContentHasher.hashStringsSpy, expected)
     }

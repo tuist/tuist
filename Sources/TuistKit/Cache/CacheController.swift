@@ -29,7 +29,9 @@ protocol CacheControllerProjectGeneratorProviding {
 /// A provider that returns the project generator that should be used by the cache controller.
 class CacheControllerProjectGeneratorProvider: CacheControllerProjectGeneratorProviding {
     func generator() -> Generating {
-        Generator(projectMapperProvider: CacheControllerProjectMapperProvider())
+        let projectMapperProvider = CacheControllerProjectMapperProvider()
+        return Generator(projectMapperProvider: projectMapperProvider,
+                         workspaceMapperProvider: WorkspaceMapperProvider(projectMapperProvider: projectMapperProvider))
     }
 }
 

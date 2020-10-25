@@ -24,9 +24,11 @@ public final class TargetScriptsContentHasher: TargetScriptsContentHashing {
     public func hash(targetScripts: [TargetScript]) throws -> String {
         var stringsToHash: [String] = []
         for targetScript in targetScripts {
-            stringsToHash.append(targetScript.name)
-            stringsToHash.append(targetScript.script)
-            stringsToHash.append("\(targetScript.showEnvVarsInLog)")
+            if targetScript.hashable {
+                stringsToHash.append(targetScript.name)
+                stringsToHash.append(targetScript.script)
+                stringsToHash.append("\(targetScript.showEnvVarsInLog)")
+            }
         }
         return try contentHasher.hash(stringsToHash)
     }
