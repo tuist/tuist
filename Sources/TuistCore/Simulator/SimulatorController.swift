@@ -44,7 +44,7 @@ public final class SimulatorController: SimulatorControlling {
                     let data = output.standardOutput.data(using: .utf8)!
                     let json = try JSONSerialization.jsonObject(with: data, options: [])
                     guard let dictionary = json as? [String: Any],
-                          let devicesJSON = dictionary["devices"] as? [String: [[String: Any]]]
+                        let devicesJSON = dictionary["devices"] as? [String: [[String: Any]]]
                     else {
                         return .just([])
                     }
@@ -75,7 +75,7 @@ public final class SimulatorController: SimulatorControlling {
                     let data = output.standardOutput.data(using: .utf8)!
                     let json = try JSONSerialization.jsonObject(with: data, options: [])
                     guard let dictionary = json as? [String: Any],
-                          let runtimesJSON = dictionary["runtimes"] as? [Any]
+                        let runtimesJSON = dictionary["runtimes"] as? [Any]
                     else {
                         return .just([])
                     }

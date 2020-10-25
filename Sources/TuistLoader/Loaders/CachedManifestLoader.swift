@@ -189,8 +189,8 @@ public class CachedManifestLoader: ManifestLoading {
         }
 
         guard cachedManifest.cacheVersion == CachedManifest.currentCacheVersion,
-              cachedManifest.tuistVersion == tuistVersion,
-              cachedManifest.hashes == hashes
+            cachedManifest.tuistVersion == tuistVersion,
+            cachedManifest.hashes == hashes
         else {
             return nil
         }

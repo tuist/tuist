@@ -417,7 +417,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
                              generatedProjects _: [AbsolutePath: GeneratedProject]) throws -> XCScheme.AnalyzeAction?
     {
         guard let target = defaultTargetReference(scheme: scheme),
-              let targetNode = graph.target(path: target.projectPath, name: target.name) else { return nil }
+            let targetNode = graph.target(path: target.projectPath, name: target.name) else { return nil }
 
         let buildConfiguration = scheme.analyzeAction?.configurationName ?? targetNode.project.defaultDebugBuildConfigurationName
         return XCScheme.AnalyzeAction(buildConfiguration: buildConfiguration)
@@ -437,7 +437,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
                              generatedProjects: [AbsolutePath: GeneratedProject]) throws -> XCScheme.ArchiveAction?
     {
         guard let target = defaultTargetReference(scheme: scheme),
-              let targetNode = graph.target(path: target.projectPath, name: target.name) else { return nil }
+            let targetNode = graph.target(path: target.projectPath, name: target.name) else { return nil }
 
         guard let archiveAction = scheme.archiveAction else {
             return defaultSchemeArchiveAction(for: targetNode.project)
@@ -464,8 +464,8 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
                                rootPath _: AbsolutePath) throws -> XCScheme.ExecutionAction
     {
         guard let targetReference = action.target,
-              let targetNode = graph.target(path: targetReference.projectPath, name: targetReference.name),
-              let generatedProject = generatedProjects[targetReference.projectPath]
+            let targetNode = graph.target(path: targetReference.projectPath, name: targetReference.name),
+            let generatedProject = generatedProjects[targetReference.projectPath]
         else {
             return schemeExecutionAction(action: action)
         }
@@ -651,7 +651,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
 
     private func isSchemeForAppExtension(scheme: Scheme, graph: Graph) -> Bool? {
         guard let defaultTarget = defaultTargetReference(scheme: scheme),
-              let targetNode = graph.target(path: defaultTarget.projectPath, name: defaultTarget.name)
+            let targetNode = graph.target(path: defaultTarget.projectPath, name: defaultTarget.name)
         else {
             return nil
         }
