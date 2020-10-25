@@ -8,13 +8,13 @@ import XCTest
 @testable import TuistGenerator
 @testable import TuistSupportTesting
 
-final class WorkspaceGeneratorTests: TuistUnitTestCase {
-    var subject: WorkspaceGenerator!
+final class WorkspaceDescriptorGeneratorTests: TuistUnitTestCase {
+    var subject: WorkspaceDescriptorGenerator!
 
     override func setUp() {
         super.setUp()
         system.swiftVersionStub = { "5.2" }
-        subject = WorkspaceGenerator(config: .init(projectGenerationContext: .serial))
+        subject = WorkspaceDescriptorGenerator(config: .init(projectGenerationContext: .serial))
     }
 
     override func tearDown() {

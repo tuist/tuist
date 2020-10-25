@@ -4,24 +4,7 @@ import TuistCore
 import TuistSupport
 import XcodeProj
 
-struct ProjectConstants {
-    var objectVersion: UInt
-    var archiveVersion: UInt
-}
-
-extension ProjectConstants {
-    static var xcode10: ProjectConstants {
-        ProjectConstants(objectVersion: 50,
-                         archiveVersion: Xcode.LastKnown.archiveVersion)
-    }
-
-    static var xcode11: ProjectConstants {
-        ProjectConstants(objectVersion: 52,
-                         archiveVersion: Xcode.LastKnown.archiveVersion)
-    }
-}
-
-protocol ProjectGenerating: AnyObject {
+protocol ProjectDescriptorGenerating: AnyObject {
     /// Generates the given project.
     /// - Parameters:
     ///   - project: Project to be generated.
@@ -30,7 +13,24 @@ protocol ProjectGenerating: AnyObject {
     func generate(project: Project, graph: Graph) throws -> ProjectDescriptor
 }
 
-final class ProjectGenerator: ProjectGenerating {
+final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
+    // MARK: - ProjectConstants
+
+    struct ProjectConstants {
+        var objectVersion: UInt
+        var archiveVersion: UInt
+
+        static var xcode10: ProjectConstants {
+            ProjectConstants(objectVersion: 50,
+                             archiveVersion: Xcode.LastKnown.archiveVersion)
+        }
+
+        static var xcode11: ProjectConstants {
+            ProjectConstants(objectVersion: 52,
+                             archiveVersion: Xcode.LastKnown.archiveVersion)
+        }
+    }
+
     // MARK: - Attributes
 
     /// Generator for the project targets.
@@ -40,7 +40,7 @@ final class ProjectGenerator: ProjectGenerating {
     let configGenerator: ConfigGenerating
 
     /// Generator for the project schemes.
-    let schemesGenerator: SchemesGenerating
+    let schemeDescriptorsGenerator: SchemeDescriptorsGenerating
 
     // MARK: - Init
 
@@ -49,14 +49,14 @@ final class ProjectGenerator: ProjectGenerating {
     /// - Parameters:
     ///   - targetGenerator: Generator for the project targets.
     ///   - configGenerator: Generator for the project configuration.
-    ///   - schemesGenerator: Generator for the project schemes.
+    ///   - schemeDescriptorsGenerator: Generator for the project schemes.
     init(targetGenerator: TargetGenerating = TargetGenerator(),
          configGenerator: ConfigGenerating = ConfigGenerator(),
-         schemesGenerator: SchemesGenerating = SchemesGenerator())
+         schemeDescriptorsGenerator: SchemeDescriptorsGenerating = SchemeDescriptorsGenerator())
     {
         self.targetGenerator = targetGenerator
         self.configGenerator = configGenerator
-        self.schemesGenerator = schemesGenerator
+        self.schemeDescriptorsGenerator = schemeDescriptorsGenerator
     }
 
     // MARK: - ProjectGenerating
@@ -105,9 +105,9 @@ final class ProjectGenerator: ProjectGenerating {
                                                 targets: nativeTargets,
                                                 name: project.xcodeProjPath.basename)
 
-        let schemes = try schemesGenerator.generateProjectSchemes(project: project,
-                                                                  generatedProject: generatedProject,
-                                                                  graph: graph)
+        let schemes = try schemeDescriptorsGenerator.generateProjectSchemes(project: project,
+                                                                            generatedProject: generatedProject,
+                                                                            graph: graph)
 
         let xcodeProj = XcodeProj(workspace: workspace, pbxproj: pbxproj)
         return ProjectDescriptor(path: project.path,

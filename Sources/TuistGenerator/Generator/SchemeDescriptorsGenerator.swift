@@ -5,7 +5,7 @@ import TuistSupport
 import XcodeProj
 
 /// Protocol that defines the interface of the schemes generation.
-protocol SchemesGenerating {
+protocol SchemeDescriptorsGenerating {
     /// Generates the schemes for the workspace targets.
     ///
     /// - Parameters:
@@ -32,8 +32,8 @@ protocol SchemesGenerating {
 }
 
 // swiftlint:disable:next type_body_length
-final class SchemesGenerator: SchemesGenerating {
-    private enum Constants {
+final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
+    private struct Constants {
         /// Default last upgrade version for generated schemes.
         static let defaultLastUpgradeVersion = "1010"
 
@@ -377,6 +377,8 @@ final class SchemesGenerator: SchemesGenerating {
             }
         }
 
+        let shouldUseLaunchSchemeArgsEnv: Bool = commandlineArguments == nil && environments == nil
+
         guard let targetNode = graph.target(path: target.projectPath, name: target.name) else { return nil }
         guard let buildableReference = try createBuildableReference(targetReference: target,
                                                                     graph: graph,
@@ -396,6 +398,7 @@ final class SchemesGenerator: SchemesGenerating {
         return XCScheme.ProfileAction(buildableProductRunnable: buildableProductRunnable,
                                       buildConfiguration: buildConfiguration,
                                       macroExpansion: macroExpansion,
+                                      shouldUseLaunchSchemeArgsEnv: shouldUseLaunchSchemeArgsEnv,
                                       commandlineArguments: commandlineArguments,
                                       environmentVariables: environments)
     }

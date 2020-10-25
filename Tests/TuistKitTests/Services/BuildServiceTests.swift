@@ -23,24 +23,24 @@ final class BuildServiceErrorTests: TuistUnitTestCase {
 }
 
 final class BuildServiceTests: TuistUnitTestCase {
-    var projectGenerator: MockProjectGenerator!
+    var generator: MockGenerator!
     var xcodebuildController: MockXcodeBuildController!
     var buildgraphInspector: MockBuildGraphInspector!
     var subject: BuildService!
 
     override func setUp() {
         super.setUp()
-        projectGenerator = MockProjectGenerator()
+        generator = MockGenerator()
         xcodebuildController = MockXcodeBuildController()
         buildgraphInspector = MockBuildGraphInspector()
-        subject = BuildService(projectGenerator: projectGenerator,
+        subject = BuildService(generator: generator,
                                xcodebuildController: xcodebuildController,
                                buildGraphInspector: buildgraphInspector)
     }
 
     override func tearDown() {
         super.tearDown()
-        projectGenerator = nil
+        generator = nil
         xcodebuildController = nil
         buildgraphInspector = nil
         subject = nil
@@ -55,7 +55,7 @@ final class BuildServiceTests: TuistUnitTestCase {
         let target = Target.test()
         let buildArguments: [XcodeBuildArgument] = [.sdk("iphoneos")]
 
-        projectGenerator.generateWithGraphStub = { _path, _projectOnly in
+        generator.generateWithGraphStub = { _path, _projectOnly in
             XCTAssertEqual(_path, path)
             XCTAssertFalse(_projectOnly)
             return (path, graph)
@@ -99,7 +99,7 @@ final class BuildServiceTests: TuistUnitTestCase {
         let target = Target.test()
         let buildArguments: [XcodeBuildArgument] = [.sdk("iphoneos")]
 
-        projectGenerator.loadStub = { _path in
+        generator.loadStub = { _path in
             XCTAssertEqual(_path, path)
             return graph
         }
@@ -144,7 +144,7 @@ final class BuildServiceTests: TuistUnitTestCase {
         let targetB = Target.test(name: "B")
         let buildArguments: [XcodeBuildArgument] = [.sdk("iphoneos")]
 
-        projectGenerator.loadStub = { _path in
+        generator.loadStub = { _path in
             XCTAssertEqual(_path, path)
             return graph
         }
@@ -197,7 +197,7 @@ final class BuildServiceTests: TuistUnitTestCase {
         let targetB = Target.test(name: "B")
         let buildArguments: [XcodeBuildArgument] = [.sdk("iphoneos")]
 
-        projectGenerator.loadStub = { _path in
+        generator.loadStub = { _path in
             XCTAssertEqual(_path, path)
             return graph
         }
@@ -243,7 +243,7 @@ final class BuildServiceTests: TuistUnitTestCase {
         let graph = Graph.test()
         let schemeA = Scheme.test(name: "A")
         let schemeB = Scheme.test(name: "B")
-        projectGenerator.loadStub = { _path in
+        generator.loadStub = { _path in
             XCTAssertEqual(_path, path)
             return graph
         }
