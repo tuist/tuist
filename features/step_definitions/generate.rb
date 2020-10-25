@@ -72,10 +72,26 @@ Then("the product {string} with destination {string} contains the Info.plist key
     derived_data_path: @derived_data_path
   )
   flunk("Product with name #{product} and destination #{destination} not found in DerivedData") if info_plist_path.nil?
-
+  
   unless system("/usr/libexec/PlistBuddy -c \"print :#{key}\" #{info_plist_path}")
     flunk("Key #{key} not found in the #{product} Info.plist")
   end
+end
+
+Then("the product {string} with destination {string} contains the Info.plist key {string} with value {string}") do |product, destination, key, value|
+  info_plist_path = Xcode.find_resource(
+    product: product,
+    destination: destination,
+    resource: "Info.plist",
+    derived_data_path: @derived_data_path
+  )
+  flunk("Product with name #{product} and destination #{destination} not found in DerivedData") if info_plist_path.nil?
+
+  output = `/usr/libexec/PlistBuddy -c \"print :#{key}\" #{info_plist_path}`
+
+  flunk("Key #{key} not found in the #{product} Info.plist") if output.nil?
+  
+  assert(output == "#{value}\n")
 end
 
 Then("the product {string} with destination {string} contains extension {string}") do |product, destination, extension|

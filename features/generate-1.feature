@@ -1,5 +1,13 @@
 Feature: Generate a new project using Tuist (suite 1)
 
+  Scenario: The project is an iOS application with tests (app_with_development_region_config)
+    Given that tuist is available
+    And I have a working directory
+    Then I copy the fixture app_with_development_region_config into the working directory
+    Then tuist generates the project
+    Then I should be able to build for iOS the scheme App
+    Then the product 'App.app' with destination 'Debug-iphonesimulator' contains the Info.plist key 'CFBundleDevelopmentRegion' with value 'de'
+
   Scenario: The project is an iOS application with tests (ios_app_with_tests)
     Given that tuist is available
     And I have a working directory
