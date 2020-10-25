@@ -30,6 +30,7 @@ Then(/I should be able to (.+) for (iOS|macOS|tvOS|watchOS) the scheme (.+)/) do
     args << "-sdk\ appletvsimulator"
   end
   if ["iOS", "tvOS", "watchOS"].include?(platform)
+    platform = "iOS" if platform == "watchOS"
     args << "-destination '#{Xcode.valid_simulator_destination_for_platform(platform)}'"
   else
     args << "-destination 'platform=OS X,arch=x86_64'"
