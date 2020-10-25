@@ -60,8 +60,8 @@ extension PrintableString: ExpressibleByStringInterpolation {
     }
 }
 
-public extension PrintableString {
-    indirect enum Token: ExpressibleByStringLiteral {
+extension PrintableString {
+    public indirect enum Token: ExpressibleByStringLiteral {
         case raw(String)
         case command(Token)
         case keystroke(Token)
@@ -119,7 +119,7 @@ public extension PrintableString {
     }
 }
 
-public extension Logger {
+extension Logger {
     /// Log a message passing with the `Logger.Level.notice` log level.
     ///
     /// `pretty` is always printed to the console, and is omitted to the logger as `notice`.
@@ -133,7 +133,7 @@ public extension Logger {
     ///                it defaults to `#function`).
     ///    - line: The line this log message originates from (there's usually no need to pass it explicitly as it
     ///            defaults to `#line`).
-    func pretty(
+    public func pretty(
         _ message: @autoclosure () -> PrintableString,
         metadata: @autoclosure () -> Logger.Metadata? = nil,
         file: String = #file, function: String = #function, line: UInt = #line

@@ -48,8 +48,8 @@ public struct HTTPResource<T, E: Error>: Equatable, Hashable, CustomStringConver
     }
 }
 
-public extension HTTPResource where T: Decodable, E: Decodable {
-    static func jsonResource(request: @escaping () -> URLRequest) -> HTTPResource<T, E> {
+extension HTTPResource where T: Decodable, E: Decodable {
+    public static func jsonResource(request: @escaping () -> URLRequest) -> HTTPResource<T, E> {
         let jsonDecoder = JSONDecoder()
         jsonDecoder.keyDecodingStrategy = .convertFromSnakeCase
         return HTTPResource<T, E>(

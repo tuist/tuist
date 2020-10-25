@@ -45,8 +45,8 @@ public struct TestingLogHandler: LogHandler {
     }
 }
 
-public extension Dictionary where Key == Logger.Level, Value == [String] {
-    subscript(_ key: Key, _ comparison: (Key, Key) -> Bool) -> String {
+extension Dictionary where Key == Logger.Level, Value == [String] {
+    public subscript(_ key: Key, _ comparison: (Key, Key) -> Bool) -> String {
         let level = [Key](repeating: key, count: keys.count)
         return zip(level, keys)
             .lazy

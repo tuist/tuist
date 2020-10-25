@@ -144,7 +144,7 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Encodable {
             base.append(.unitTests)
             base.append(.uiTests)
         }
-
+        
         if platform == .macOS {
             base.append(.commandLineTool)
         }

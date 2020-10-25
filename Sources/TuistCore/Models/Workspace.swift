@@ -22,14 +22,14 @@ public struct Workspace: Equatable {
     }
 }
 
-public extension Workspace {
-    func with(name: String) -> Workspace {
+extension Workspace {
+    public func with(name: String) -> Workspace {
         var copy = self
         copy.name = name
         return copy
     }
 
-    func adding(files: [AbsolutePath]) -> Workspace {
+    public func adding(files: [AbsolutePath]) -> Workspace {
         Workspace(path: path,
                   name: name,
                   projects: projects,
@@ -37,7 +37,7 @@ public extension Workspace {
                   additionalFiles: additionalFiles + files.map { .file(path: $0) })
     }
 
-    func replacing(projects: [AbsolutePath]) -> Workspace {
+    public func replacing(projects: [AbsolutePath]) -> Workspace {
         Workspace(path: path,
                   name: name,
                   projects: projects,
@@ -45,7 +45,7 @@ public extension Workspace {
                   additionalFiles: additionalFiles)
     }
 
-    func merging(projects otherProjects: [AbsolutePath]) -> Workspace {
+    public func merging(projects otherProjects: [AbsolutePath]) -> Workspace {
         Workspace(path: path,
                   name: name,
                   projects: Array(Set(projects + otherProjects)),

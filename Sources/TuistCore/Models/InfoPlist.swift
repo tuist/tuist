@@ -118,8 +118,8 @@ extension InfoPlist.Value: ExpressibleByArrayLiteral {
 
 // MARK: - Dictionary (InfoPlist.Value)
 
-public extension Dictionary where Value == InfoPlist.Value {
-    func unwrappingValues() -> [Key: Any] {
+extension Dictionary where Value == InfoPlist.Value {
+    public func unwrappingValues() -> [Key: Any] {
         mapValues { $0.value }
     }
 }
