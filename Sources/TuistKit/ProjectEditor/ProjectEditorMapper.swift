@@ -99,6 +99,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
                               xcodeProjPath: xcodeProjPath,
                               name: "Manifests",
                               organizationName: nil,
+                              developmentRegion: nil,
                               settings: projectSettings,
                               filesGroup: .group(name: "Manifests"),
                               targets: targets,
