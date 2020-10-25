@@ -3,7 +3,7 @@ import TSCBasic
 import TuistSupport
 
 /// Model of a provisioning profile
-public struct ProvisioningProfile: Equatable {
+struct ProvisioningProfile: Equatable {
     /// Path to the provisioning profile
     var path: AbsolutePath
     let name: String
