@@ -79,11 +79,11 @@ private extension SchemeLinter {
     func projectSchemeCantReferenceRemoteTargets(scheme: Scheme, project: Project) -> [LintingIssue] {
         var issues: [LintingIssue] = []
 
-        scheme.targetDependencies().forEach {
-            if $0.projectPath != project.path {
-                issues.append(.init(reason: "The target '\($0.name)' specified in scheme '\(scheme.name)' is not defined in the project named '\(project.name)'. Consider using a workspace scheme instead to reference a target in another project.", severity: .error))
-            }
-        }
+//        scheme.targetDependencies().forEach {
+//            if $0.projectPath != project.path {
+//                issues.append(.init(reason: "The target '\($0.name)' specified in scheme '\(scheme.name)' is not defined in the project named '\(project.name)'. Consider using a workspace scheme instead to reference a target in another project.", severity: .error))
+//            }
+//        }
 
         return issues
     }

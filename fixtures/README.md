@@ -317,3 +317,7 @@ A project with an invalid manifest
 ## framework_with_environment_variables
 
 A framework project that leverages environment variables to change the name of the framework.
+
+## ios_app_with_cross_project_schemes
+
+An iOS app that has schemes that reference targets from other projects.
