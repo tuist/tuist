@@ -71,7 +71,7 @@ final class TestServiceTests: TuistUnitTestCase {
         }
 
         let availableDevice: SimulatorDevice = .test()
-        simulatorController.findAvailableDeviceStub = { _, _, _ in
+        simulatorController.findAvailableDeviceStub = { _, _, _, _ in
             .just(availableDevice)
         }
         xcodebuildController.testStub = { _target, _scheme, _clean, _destination, _arguments in

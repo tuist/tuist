@@ -85,6 +85,7 @@ jobs:
             'scaffold',
             'up',
             'build',
+            'test',
           ]
     steps:
       - uses: actions/checkout@v1

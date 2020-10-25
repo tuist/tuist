@@ -54,6 +54,7 @@ final class SimulatorControllerIntegrationTests: TuistTestCase {
         let got = try subject.findAvailableDevice(
             platform: .iOS,
             version: nil,
+            minVersion: nil,
             deviceName: nil
         )
         .toBlocking()

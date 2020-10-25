@@ -1,7 +1,6 @@
 import Foundation
 import RxSwift
 import struct TSCUtility.Version
-import TuistCore
 import TuistSupport
 
 public protocol SimulatorControlling {
@@ -17,9 +16,16 @@ public protocol SimulatorControlling {
     /// - Returns: the list of simulator devices and runtimes.
     func devicesAndRuntimes() -> Single<[SimulatorDeviceAndRuntime]>
 
+    /// Finds first available device defined by given parameters
+    /// - Parameters:
+    ///     - platform: Given platform
+    ///     - version: Specific version, ignored if nil
+    ///     - minVersion: Minimum version of the OS
+    ///     - deviceName: Specific device name (eg. iPhone X)
     func findAvailableDevice(
         platform: Platform,
         version: Version?,
+        minVersion: Version?,
         deviceName: String?
     ) -> Single<SimulatorDevice>
 }
@@ -121,6 +127,7 @@ public final class SimulatorController: SimulatorControlling {
     public func findAvailableDevice(
         platform: Platform,
         version: Version?,
+        minVersion: Version?,
         deviceName: String?
     ) -> Single<SimulatorDevice> {
         devicesAndRuntimes()
@@ -129,8 +136,11 @@ public final class SimulatorController: SimulatorControlling {
                     .filter { simulatorDeviceAndRuntime in
                         let nameComponents = simulatorDeviceAndRuntime.runtime.name.components(separatedBy: " ")
                         guard nameComponents.first == platform.caseValue else { return false }
+                        let deviceVersion = nameComponents.last?.version()
                         if let version = version {
-                            guard nameComponents.last?.version() == version else { return false }
+                            guard deviceVersion == version else { return false }
+                        } else if let minVersion = minVersion, let deviceVersion = deviceVersion {
+                            guard deviceVersion >= minVersion else { return false }
                         }
                         if let deviceName = deviceName {
                             guard simulatorDeviceAndRuntime.device.name == deviceName else { return false }

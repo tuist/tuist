@@ -132,9 +132,21 @@ final class TestService {
         let destination: XcodeBuildDestination
         switch buildableTarget.platform {
         case .iOS, .tvOS, .watchOS:
+            let minVersion: Version?
+            if let deploymentTarget = buildableTarget.deploymentTarget {
+                minVersion = deploymentTarget.version.version()
+            } else {
+                minVersion = scheme.targetDependencies()
+                    .compactMap { graph.findTargetNode(path: $0.projectPath, name: $0.name) }
+                    .flatMap { $0.targetDependencies.compactMap { $0.target.deploymentTarget?.version } }
+                    .compactMap { $0.version() }
+                    .sorted()
+                    .first
+            }
             let device = try simulatorController.findAvailableDevice(
                 platform: buildableTarget.platform,
                 version: version,
+                minVersion: minVersion,
                 deviceName: deviceName
             )
             .toBlocking()
