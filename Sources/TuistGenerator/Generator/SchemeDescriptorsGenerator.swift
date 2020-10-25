@@ -11,11 +11,11 @@ protocol SchemeDescriptorsGenerating {
     /// - Parameters:
     ///   - workspace: Workspace model.
     ///   - xcworkspacePath: Path to the workspace.
-    ///   - generatedProject: Generated Xcode project.
+    ///   - projectDescriptors: The project descriptors of the projects that are part of the graph.
     ///   - graph: Tuist graph.
     /// - Throws: A FatalError if the generation of the schemes fails.
     func generateWorkspaceSchemes(workspace: Workspace,
-                                  generatedProjects: [AbsolutePath: GeneratedProject],
+                                  projectDescriptors: [AbsolutePath: ProjectDescriptor],
                                   graph: Graph) throws -> [SchemeDescriptor]
 
     /// Generates the schemes for the project targets.
@@ -23,11 +23,11 @@ protocol SchemeDescriptorsGenerating {
     /// - Parameters:
     ///   - project: Project manifest.
     ///   - xcprojectPath: Path to the Xcode project.
-    ///   - generatedProject: Generated Xcode project.
+    ///   - projectDescriptors: The project descriptors of the projects that are part of the graph.
     ///   - graph: Tuist graph.
     /// - Throws: A FatalError if the generation of the schemes fails.
     func generateProjectSchemes(project: Project,
-                                generatedProject: GeneratedProject,
+                                projectDescriptors: [AbsolutePath: ProjectDescriptor],
                                 graph: Graph) throws -> [SchemeDescriptor]
 }
 
@@ -63,28 +63,28 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
     }
 
     func generateWorkspaceSchemes(workspace: Workspace,
-                                  generatedProjects: [AbsolutePath: GeneratedProject],
+                                  projectDescriptors: [AbsolutePath: ProjectDescriptor],
                                   graph: Graph) throws -> [SchemeDescriptor]
     {
         let schemes = try workspace.schemes.map { scheme in
             try generateScheme(scheme: scheme,
                                path: workspace.path,
                                graph: graph,
-                               generatedProjects: generatedProjects)
+                               projectDescriptors: projectDescriptors)
         }
 
         return schemes
     }
 
     func generateProjectSchemes(project: Project,
-                                generatedProject: GeneratedProject,
+                                projectDescriptors: [AbsolutePath: ProjectDescriptor],
                                 graph: Graph) throws -> [SchemeDescriptor]
     {
         try project.schemes.map { scheme in
             try generateScheme(scheme: scheme,
                                path: project.path,
                                graph: graph,
-                               generatedProjects: [project.path: generatedProject])
+                               projectDescriptors: projectDescriptors)
         }
     }
 
@@ -109,36 +109,36 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
     ///     - xcPath: Path to workspace's .xcworkspace or project's .xcodeproj.
     ///     - path: Path to workspace or project folder.
     ///     - graph: Tuist graph.
-    ///     - generatedProjects: Project paths mapped to generated projects.
+    ///     - projectDescriptors: The project descriptors of the projects that are part of the graph.
     private func generateScheme(scheme: Scheme,
                                 path: AbsolutePath,
                                 graph: Graph,
-                                generatedProjects: [AbsolutePath: GeneratedProject]) throws -> SchemeDescriptor
+                                projectDescriptors: [AbsolutePath: ProjectDescriptor]) throws -> SchemeDescriptor
     {
         let generatedBuildAction = try schemeBuildAction(scheme: scheme,
                                                          graph: graph,
                                                          rootPath: path,
-                                                         generatedProjects: generatedProjects)
+                                                         projectDescriptors: projectDescriptors)
         let generatedTestAction = try schemeTestAction(scheme: scheme,
                                                        graph: graph,
                                                        rootPath: path,
-                                                       generatedProjects: generatedProjects)
+                                                       projectDescriptors: projectDescriptors)
         let generatedLaunchAction = try schemeLaunchAction(scheme: scheme,
                                                            graph: graph,
                                                            rootPath: path,
-                                                           generatedProjects: generatedProjects)
+                                                           projectDescriptors: projectDescriptors)
         let generatedProfileAction = try schemeProfileAction(scheme: scheme,
                                                              graph: graph,
                                                              rootPath: path,
-                                                             generatedProjects: generatedProjects)
+                                                             projectDescriptors: projectDescriptors)
         let generatedAnalyzeAction = try schemeAnalyzeAction(scheme: scheme,
                                                              graph: graph,
                                                              rootPath: path,
-                                                             generatedProjects: generatedProjects)
+                                                             projectDescriptors: projectDescriptors)
         let generatedArchiveAction = try schemeArchiveAction(scheme: scheme,
                                                              graph: graph,
                                                              rootPath: path,
-                                                             generatedProjects: generatedProjects)
+                                                             projectDescriptors: projectDescriptors)
 
         let wasCreatedForAppExtension = isSchemeForAppExtension(scheme: scheme, graph: graph)
 
@@ -162,12 +162,12 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
     ///   - scheme: Scheme manifest.
     ///   - graph: Tuist graph.
     ///   - rootPath: Path to the project or workspace.
-    ///   - generatedProjects: Project paths mapped to generated projects.
+    ///   - projectDescriptors: The project descriptors of the projects that are part of the graph.
     /// - Returns: Scheme build action.
     func schemeBuildAction(scheme: Scheme,
                            graph: Graph,
                            rootPath: AbsolutePath,
-                           generatedProjects: [AbsolutePath: GeneratedProject]) throws -> XCScheme.BuildAction?
+                           projectDescriptors: [AbsolutePath: ProjectDescriptor]) throws -> XCScheme.BuildAction?
     {
         guard let buildAction = scheme.buildAction else { return nil }
 
@@ -183,16 +183,16 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             guard let buildableReference = try createBuildableReference(targetReference: buildActionTarget,
                                                                         graph: graph,
                                                                         rootPath: rootPath,
-                                                                        generatedProjects: generatedProjects) else { return }
+                                                                        projectDescriptors: projectDescriptors) else { return }
             entries.append(XCScheme.BuildAction.Entry(buildableReference: buildableReference, buildFor: buildFor))
         }
 
         preActions = try buildAction.preActions.map {
-            try schemeExecutionAction(action: $0, graph: graph, generatedProjects: generatedProjects, rootPath: rootPath)
+            try schemeExecutionAction(action: $0, graph: graph, projectDescriptors: projectDescriptors, rootPath: rootPath)
         }
 
         postActions = try buildAction.postActions.map {
-            try schemeExecutionAction(action: $0, graph: graph, generatedProjects: generatedProjects, rootPath: rootPath)
+            try schemeExecutionAction(action: $0, graph: graph, projectDescriptors: projectDescriptors, rootPath: rootPath)
         }
 
         return XCScheme.BuildAction(buildActionEntries: entries,
@@ -208,13 +208,13 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
     ///   - scheme: Scheme manifest.
     ///   - graph: Tuist graph.
     ///   - rootPath: Root path to either project or workspace.
-    ///   - generatedProjects: Project paths mapped to generated projects.
+    ///   - projectDescriptors: The project descriptors of the projects that are part of the graph.
     /// - Returns: Scheme test action.
     // swiftlint:disable:next function_body_length
     func schemeTestAction(scheme: Scheme,
                           graph: Graph,
                           rootPath: AbsolutePath,
-                          generatedProjects: [AbsolutePath: GeneratedProject]) throws -> XCScheme.TestAction?
+                          projectDescriptors: [AbsolutePath: ProjectDescriptor]) throws -> XCScheme.TestAction?
     {
         guard let testAction = scheme.testAction else { return nil }
 
@@ -226,7 +226,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             guard let reference = try createBuildableReference(targetReference: testableTarget.target,
                                                                graph: graph,
                                                                rootPath: rootPath,
-                                                               generatedProjects: generatedProjects) else { return }
+                                                               projectDescriptors: projectDescriptors) else { return }
             let testable = XCScheme.TestableReference(skipped: testableTarget.isSkipped,
                                                       parallelizable: testableTarget.isParallelizable,
                                                       randomExecutionOrdering: testableTarget.isRandomExecutionOrdering,
@@ -236,11 +236,11 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
 
         preActions = try testAction.preActions.map { try schemeExecutionAction(action: $0,
                                                                                graph: graph,
-                                                                               generatedProjects: generatedProjects,
+                                                                               projectDescriptors: projectDescriptors,
                                                                                rootPath: rootPath) }
         postActions = try testAction.postActions.map { try schemeExecutionAction(action: $0,
                                                                                  graph: graph,
-                                                                                 generatedProjects: generatedProjects,
+                                                                                 projectDescriptors: projectDescriptors,
                                                                                  rootPath: rootPath) }
 
         var args: XCScheme.CommandLineArguments?
@@ -254,7 +254,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         let codeCoverageTargets = try testAction.codeCoverageTargets.compactMap {
             try testCoverageTargetReferences(target: $0,
                                              graph: graph,
-                                             generatedProjects: generatedProjects,
+                                             projectDescriptors: projectDescriptors,
                                              rootPath: rootPath)
         }
 
@@ -287,12 +287,12 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
     ///   - scheme: Scheme manifest.
     ///   - graph: Tuist graph.
     ///   - rootPath: Root path to either project or workspace.
-    ///   - generatedProjects: Project paths mapped to generated projects.
+    ///   - projectDescriptors: The project descriptors of the projects that are part of the graph.
     /// - Returns: Scheme launch action.
     func schemeLaunchAction(scheme: Scheme,
                             graph: Graph,
                             rootPath: AbsolutePath,
-                            generatedProjects: [AbsolutePath: GeneratedProject]) throws -> XCScheme.LaunchAction?
+                            projectDescriptors: [AbsolutePath: ProjectDescriptor]) throws -> XCScheme.LaunchAction?
     {
         let specifiedExecutableTarget = scheme.runAction?.executable
         let defaultTarget = defaultTargetReference(scheme: scheme)
@@ -311,7 +311,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             guard let buildableReference = try createBuildableReference(targetReference: target,
                                                                         graph: graph,
                                                                         rootPath: rootPath,
-                                                                        generatedProjects: generatedProjects) else { return nil }
+                                                                        projectDescriptors: projectDescriptors) else { return nil }
 
             if targetNode.target.product.runnable {
                 buildableProductRunnable = XCScheme.BuildableProductRunnable(buildableReference: buildableReference, runnableDebuggingMode: "0")
@@ -352,12 +352,12 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
     ///   - scheme: Target manifest.
     ///   - graph: Tuist graph.
     ///   - rootPath: Root path to either project or workspace.
-    ///   - generatedProjects: Project paths mapped to generated projects.
+    ///   - projectDescriptors: The project descriptors of the projects that are part of the graph.
     /// - Returns: Scheme profile action.
     func schemeProfileAction(scheme: Scheme,
                              graph: Graph,
                              rootPath: AbsolutePath,
-                             generatedProjects: [AbsolutePath: GeneratedProject]) throws -> XCScheme.ProfileAction?
+                             projectDescriptors: [AbsolutePath: ProjectDescriptor]) throws -> XCScheme.ProfileAction?
     {
         guard var target = defaultTargetReference(scheme: scheme) else { return nil }
         var commandlineArguments: XCScheme.CommandLineArguments?
@@ -383,7 +383,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         guard let buildableReference = try createBuildableReference(targetReference: target,
                                                                     graph: graph,
                                                                     rootPath: rootPath,
-                                                                    generatedProjects: generatedProjects) else { return nil }
+                                                                    projectDescriptors: projectDescriptors) else { return nil }
 
         var buildableProductRunnable: XCScheme.BuildableProductRunnable?
         var macroExpansion: XCScheme.BuildableReference?
@@ -409,12 +409,12 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
     ///     - scheme: Scheme manifest.
     ///     - graph: Tuist graph.
     ///     - rootPath: Root path to either project or workspace.
-    ///     - generatedProjects: Project paths mapped to generated projects.
+    ///     - projectDescriptors: The project descriptors of the projects that are part of the graph.
     /// - Returns: Scheme analyze action.
     func schemeAnalyzeAction(scheme: Scheme,
                              graph: Graph,
                              rootPath _: AbsolutePath,
-                             generatedProjects _: [AbsolutePath: GeneratedProject]) throws -> XCScheme.AnalyzeAction?
+                             projectDescriptors _: [AbsolutePath: ProjectDescriptor]) throws -> XCScheme.AnalyzeAction?
     {
         guard let target = defaultTargetReference(scheme: scheme),
             let targetNode = graph.target(path: target.projectPath, name: target.name) else { return nil }
@@ -429,12 +429,12 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
     ///     - scheme: Scheme manifest.
     ///     - graph: Tuist graph.
     ///     - rootPath: Root path to either project or workspace.
-    ///     - generatedProjects: Project paths mapped to generated projects.
+    ///     - projectDescriptors: The project descriptors of the projects that are part of the graph.
     /// - Returns: Scheme archive action.
     func schemeArchiveAction(scheme: Scheme,
                              graph: Graph,
                              rootPath: AbsolutePath,
-                             generatedProjects: [AbsolutePath: GeneratedProject]) throws -> XCScheme.ArchiveAction?
+                             projectDescriptors: [AbsolutePath: ProjectDescriptor]) throws -> XCScheme.ArchiveAction?
     {
         guard let target = defaultTargetReference(scheme: scheme),
             let targetNode = graph.target(path: target.projectPath, name: target.name) else { return nil }
@@ -444,11 +444,11 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         }
 
         let preActions = try archiveAction.preActions.map {
-            try schemeExecutionAction(action: $0, graph: graph, generatedProjects: generatedProjects, rootPath: rootPath)
+            try schemeExecutionAction(action: $0, graph: graph, projectDescriptors: projectDescriptors, rootPath: rootPath)
         }
 
         let postActions = try archiveAction.postActions.map {
-            try schemeExecutionAction(action: $0, graph: graph, generatedProjects: generatedProjects, rootPath: rootPath)
+            try schemeExecutionAction(action: $0, graph: graph, projectDescriptors: projectDescriptors, rootPath: rootPath)
         }
 
         return XCScheme.ArchiveAction(buildConfiguration: archiveAction.configurationName,
@@ -460,18 +460,18 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
 
     func schemeExecutionAction(action: ExecutionAction,
                                graph: Graph,
-                               generatedProjects: [AbsolutePath: GeneratedProject],
+                               projectDescriptors: [AbsolutePath: ProjectDescriptor],
                                rootPath _: AbsolutePath) throws -> XCScheme.ExecutionAction
     {
         guard let targetReference = action.target,
             let targetNode = graph.target(path: targetReference.projectPath, name: targetReference.name),
-            let generatedProject = generatedProjects[targetReference.projectPath]
+            let projectDescriptor = projectDescriptors[targetReference.projectPath]
         else {
             return schemeExecutionAction(action: action)
         }
         return schemeExecutionAction(action: action,
                                      target: targetNode.target,
-                                     generatedProject: generatedProject)
+                                     projectDescriptor: projectDescriptor)
     }
 
     private func schemeExecutionAction(action: ExecutionAction) -> XCScheme.ExecutionAction {
@@ -485,19 +485,19 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
     /// - Parameters:
     ///   - action: pre/post action manifest.
     ///   - target: Project manifest.
-    ///   - generatedProject: Generated Xcode project.
+    ///   - projectDescriptor: The project descriptor of the project the scheme's target gelongs to.
     /// - Returns: Scheme actions.
     private func schemeExecutionAction(action: ExecutionAction,
                                        target: Target,
-                                       generatedProject: GeneratedProject) -> XCScheme.ExecutionAction
+                                       projectDescriptor: ProjectDescriptor) -> XCScheme.ExecutionAction
     {
         /// Return Buildable Reference for Scheme Action
-        func schemeBuildableReference(target: Target, generatedProject: GeneratedProject) -> XCScheme.BuildableReference? {
-            guard let pbxTarget = generatedProject.targets[target.name] else { return nil }
+        func schemeBuildableReference(target: Target, projectDescriptor: ProjectDescriptor) -> XCScheme.BuildableReference? {
+            guard let pbxTarget = projectDescriptor.xcodeProj.pbxproj.targets(named: target.name).first as? PBXNativeTarget else { return nil }
 
             return targetBuildableReference(target: target,
                                             pbxTarget: pbxTarget,
-                                            projectPath: generatedProject.name)
+                                            projectPath: projectDescriptor.name)
         }
 
         let schemeAction = XCScheme.ExecutionAction(scriptText: action.scriptText,
@@ -505,17 +505,17 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
                                                     environmentBuildable: nil)
 
         schemeAction.environmentBuildable = schemeBuildableReference(target: target,
-                                                                     generatedProject: generatedProject)
+                                                                     projectDescriptor: projectDescriptor)
         return schemeAction
     }
 
     // MARK: - Helpers
 
     private func resolveRelativeProjectPath(targetNode: TargetNode,
-                                            generatedProject: GeneratedProject,
+                                            projectDescriptor: ProjectDescriptor,
                                             rootPath: AbsolutePath) -> RelativePath
     {
-        let xcodeProjectPath = targetNode.path.appending(component: generatedProject.name)
+        let xcodeProjectPath = targetNode.path.appending(component: projectDescriptor.name)
         return xcodeProjectPath.relative(to: rootPath)
     }
 
@@ -525,18 +525,18 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
     ///     - targetReference: The target reference.
     ///     - graph: Tuist graph.
     ///     - rootPath: Path to the project or workspace.
-    ///     - generatedProjects: Project paths mapped to generated projects.
+    ///     - projectDescriptors: Project descriptors of the projects that are part of the graph.
     private func createBuildableReference(targetReference: TargetReference,
                                           graph: Graph,
                                           rootPath: AbsolutePath,
-                                          generatedProjects: [AbsolutePath: GeneratedProject]) throws -> XCScheme.BuildableReference?
+                                          projectDescriptors: [AbsolutePath: ProjectDescriptor]) throws -> XCScheme.BuildableReference?
     {
         let projectPath = targetReference.projectPath
         guard let target = graph.target(path: projectPath, name: targetReference.name) else { return nil }
-        guard let generatedProject = generatedProjects[projectPath] else { return nil }
-        guard let pbxTarget = generatedProject.targets[targetReference.name] else { return nil }
+        guard let projectDescriptor = projectDescriptors[projectPath] else { return nil }
+        guard let pbxTarget = projectDescriptor.xcodeProj.pbxproj.targets(named: targetReference.name).first as? PBXNativeTarget else { return nil }
         let relativeXcodeProjectPath = resolveRelativeProjectPath(targetNode: target,
-                                                                  generatedProject: generatedProject,
+                                                                  projectDescriptor: projectDescriptor,
                                                                   rootPath: rootPath)
 
         return targetBuildableReference(target: target.target,
@@ -550,18 +550,18 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
     /// - Parameters:
     ///   - target: test actions.
     ///   - graph: tuist graph.
-    ///   - generatedProjects: Generated Xcode projects.
+    ///   - projectDescriptors: Project descriptors of the projects that are part of the graph.
     ///   - rootPath: Root path to workspace or project.
     /// - Returns: Array of buildable references.
     private func testCoverageTargetReferences(target: TargetReference,
                                               graph: Graph,
-                                              generatedProjects: [AbsolutePath: GeneratedProject],
+                                              projectDescriptors: [AbsolutePath: ProjectDescriptor],
                                               rootPath: AbsolutePath) throws -> XCScheme.BuildableReference?
     {
         try createBuildableReference(targetReference: target,
                                      graph: graph,
                                      rootPath: rootPath,
-                                     generatedProjects: generatedProjects)
+                                     projectDescriptors: projectDescriptors)
     }
 
     /// Creates the directory where the schemes are stored inside the project.

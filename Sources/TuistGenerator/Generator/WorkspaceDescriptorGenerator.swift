@@ -86,21 +86,11 @@ final class WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
         logger.notice("Generating workspace \(workspaceName)", metadata: .section)
 
         /// Projects
-        let projects = try Array(graph.projects).compactMap(context: config.projectGenerationContext) { project -> ProjectDescriptor? in
-            try projectDescriptorGenerator.generate(project: project, graph: graph)
-        }
-
-        let generatedProjects: [AbsolutePath: GeneratedProject] = Dictionary(uniqueKeysWithValues: projects.map { project in
-            let pbxproj = project.xcodeProj.pbxproj
-            let targets = pbxproj.nativeTargets.map {
-                ($0.name, $0)
+        var projectDescriptors = try Array(graph.projects)
+            .compactMap(context: config.projectGenerationContext) { project -> ProjectDescriptor? in
+                try projectDescriptorGenerator.generate(project: project, graph: graph)
             }
-            return (project.path,
-                    GeneratedProject(pbxproj: pbxproj,
-                                     path: project.xcodeprojPath,
-                                     targets: Dictionary(targets, uniquingKeysWith: { $1 }),
-                                     name: project.xcodeprojPath.basename))
-        })
+            .reduce(into: [AbsolutePath: ProjectDescriptor]()) { $0[$1.path] = $1 }
 
         // Workspace structure
         let structure = workspaceStructureGenerator.generateStructure(path: path,
@@ -111,22 +101,34 @@ final class WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
         let workspaceData = XCWorkspaceData(children: [])
         let xcWorkspace = XCWorkspace(data: workspaceData)
         try workspaceData.children = structure.contents.map {
-            try recursiveChildElement(generatedProjects: generatedProjects,
+            try recursiveChildElement(projectDescriptors: projectDescriptors,
                                       element: $0,
                                       path: path)
         }
 
-        // Schemes
-
+        // Workspace Schemes
         let schemes = try schemeDescriptorsGenerator.generateWorkspaceSchemes(workspace: workspace,
-                                                                              generatedProjects: generatedProjects,
+                                                                              projectDescriptors: projectDescriptors,
                                                                               graph: graph)
+
+        // Project schemes
+        // Note: Project need to be generated after all the project descriptors have been defined.
+        // Only then all the PBX targets have been generated and therefore we can set the cross-project references in schemes.
+        projectDescriptors = try projectDescriptors.mapValues { (projectDescriptor) -> ProjectDescriptor in
+            // TODO: Optimize
+            var projectDescriptor = projectDescriptor
+            let project = graph.projects.first(where: { $0.path == projectDescriptor.path })!
+            projectDescriptor.schemeDescriptors = try schemeDescriptorsGenerator.generateProjectSchemes(project: project,
+                                                                                                        projectDescriptors: projectDescriptors,
+                                                                                                        graph: graph)
+            return projectDescriptor
+        }
 
         return WorkspaceDescriptor(
             path: path,
             xcworkspacePath: workspacePath,
             xcworkspace: xcWorkspace,
-            projectDescriptors: projects,
+            projectDescriptors: Array(projectDescriptors.values),
             schemeDescriptors: schemes,
             sideEffectDescriptors: []
         )
@@ -189,7 +191,7 @@ final class WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
         }
     }
 
-    private func recursiveChildElement(generatedProjects: [AbsolutePath: GeneratedProject],
+    private func recursiveChildElement(projectDescriptors: [AbsolutePath: ProjectDescriptor],
                                        element: WorkspaceStructure.Element,
                                        path: AbsolutePath) throws -> XCWorkspaceDataElement
     {
@@ -207,7 +209,7 @@ final class WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
                 location: location,
                 name: name,
                 children: try contents.map {
-                    try recursiveChildElement(generatedProjects: generatedProjects,
+                    try recursiveChildElement(projectDescriptors: projectDescriptors,
                                               element: $0,
                                               path: groupPath)
                 }.sorted(by: workspaceDataElementSort)
@@ -216,10 +218,10 @@ final class WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
             return .group(groupReference)
 
         case let .project(path: projectPath):
-            guard let generatedProject = generatedProjects[projectPath] else {
+            guard let projectDescriptors = projectDescriptors[projectPath] else {
                 throw WorkspaceDescriptorGeneratorError.projectNotFound(path: projectPath)
             }
-            let relativePath = generatedProject.path.relative(to: path)
+            let relativePath = projectDescriptors.xcodeprojPath.relative(to: path)
             return workspaceFileElement(path: relativePath)
         }
     }

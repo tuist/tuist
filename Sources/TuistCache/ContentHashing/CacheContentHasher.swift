@@ -13,6 +13,10 @@ public final class CacheContentHasher: ContentHashing {
         self.contentHasher = contentHasher
     }
 
+    public func hash(_ data: Data) throws -> String {
+        try contentHasher.hash(data)
+    }
+
     public func hash(_ string: String) throws -> String {
         try contentHasher.hash(string)
     }

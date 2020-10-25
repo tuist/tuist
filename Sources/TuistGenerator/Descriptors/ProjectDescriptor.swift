@@ -27,6 +27,9 @@ public struct ProjectDescriptor {
     /// The side effects required for generating this project
     public var sideEffectDescriptors: [SideEffectDescriptor]
 
+    /// The xcodeproj name.
+    public var name: String { xcodeprojPath.basename }
+
     public init(path: AbsolutePath,
                 xcodeprojPath: AbsolutePath,
                 xcodeProj: XcodeProj,

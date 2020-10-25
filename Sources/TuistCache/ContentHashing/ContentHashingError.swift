@@ -9,6 +9,7 @@ enum ContentHashingError: FatalError, Equatable {
     case failedToReadFile(AbsolutePath)
     case fileHashingFailed(AbsolutePath)
     case stringHashingFailed(String)
+    case dataHashingFailed
 
     var type: ErrorType {
         .abort
@@ -22,6 +23,8 @@ enum ContentHashingError: FatalError, Equatable {
             return "Couldn't calculate hash of file at path \(path.pathString)"
         case let .stringHashingFailed(string):
             return "Couldn't calculate hash of string \(string) for caching."
+        case .dataHashingFailed:
+            return "Couldn't calculate the hash of a data object."
         }
     }
 
@@ -33,6 +36,8 @@ enum ContentHashingError: FatalError, Equatable {
             return lhsPath == rhsPath
         case let (.stringHashingFailed(lhsPath), .stringHashingFailed(rhsPath)):
             return lhsPath == rhsPath
+        case (.dataHashingFailed, .dataHashingFailed):
+            return true
         default:
             return false
         }

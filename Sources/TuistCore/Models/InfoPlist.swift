@@ -47,7 +47,7 @@ public enum InfoPlist: Equatable {
     case file(path: AbsolutePath)
 
     // Path to a generated info.plist file (may not exist on disk at the time of project generation).
-    case generatedFile(path: AbsolutePath)
+    case generatedFile(path: AbsolutePath, data: Data)
 
     // User defined dictionary of keys/values for an info.plist file.
     case dictionary([String: Value])
@@ -60,7 +60,7 @@ public enum InfoPlist: Equatable {
 
     public var path: AbsolutePath? {
         switch self {
-        case let .file(path), let .generatedFile(path: path):
+        case let .file(path), let .generatedFile(path: path, _):
             return path
         default:
             return nil

@@ -8,6 +8,7 @@ public protocol FileContentHashing {
 }
 
 public protocol ContentHashing: FileContentHashing {
+    func hash(_ data: Data) throws -> String
     func hash(_ string: String) throws -> String
     func hash(_ strings: [String]) throws -> String
     func hash(_ dictionary: [String: String]) throws -> String
@@ -25,6 +26,13 @@ public final class ContentHasher: ContentHashing {
     }
 
     // MARK: - ContentHashing
+
+    public func hash(_ data: Data) throws -> String {
+        guard let hash = data.checksum(algorithm: .md5) else {
+            throw ContentHashingError.dataHashingFailed
+        }
+        return hash
+    }
 
     public func hash(_ string: String) throws -> String {
         guard let hash = string.checksum(algorithm: .md5) else {

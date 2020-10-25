@@ -5,11 +5,11 @@ import TuistCoreTesting
 @testable import TuistGenerator
 
 final class MockSchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
-    func generateProjectSchemes(project _: Project, generatedProject _: GeneratedProject, graph _: Graph) throws -> [SchemeDescriptor] {
+    func generateProjectSchemes(project _: Project, projectDescriptor _: ProjectDescriptor, graph _: Graph) throws -> [SchemeDescriptor] {
         []
     }
 
-    func generateWorkspaceSchemes(workspace _: Workspace, generatedProjects _: [AbsolutePath: GeneratedProject], graph _: Graph) throws -> [SchemeDescriptor] {
+    func generateWorkspaceSchemes(workspace _: Workspace, projectDescriptors _: [AbsolutePath: ProjectDescriptor], graph _: Graph) throws -> [SchemeDescriptor] {
         []
     }
 }

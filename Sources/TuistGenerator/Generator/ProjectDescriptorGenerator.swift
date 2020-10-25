@@ -86,11 +86,11 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
                                                 groups: groups,
                                                 pbxproj: pbxproj)
 
-        let nativeTargets = try generateTargets(project: project,
-                                                pbxproj: pbxproj,
-                                                pbxProject: pbxProject,
-                                                fileElements: fileElements,
-                                                graph: graph)
+        _ = try generateTargets(project: project,
+                                pbxproj: pbxproj,
+                                pbxProject: pbxProject,
+                                fileElements: fileElements,
+                                graph: graph)
 
         generateTestTargetIdentity(project: project,
                                    pbxproj: pbxproj,
@@ -100,21 +100,14 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
                                            pbxproj: pbxproj,
                                            pbxProject: pbxProject)
 
-        let generatedProject = GeneratedProject(pbxproj: pbxproj,
-                                                path: project.xcodeProjPath,
-                                                targets: nativeTargets,
-                                                name: project.xcodeProjPath.basename)
-
-        let schemes = try schemeDescriptorsGenerator.generateProjectSchemes(project: project,
-                                                                            generatedProject: generatedProject,
-                                                                            graph: graph)
-
         let xcodeProj = XcodeProj(workspace: workspace, pbxproj: pbxproj)
-        return ProjectDescriptor(path: project.path,
-                                 xcodeprojPath: project.xcodeProjPath,
-                                 xcodeProj: xcodeProj,
-                                 schemeDescriptors: schemes,
-                                 sideEffectDescriptors: [])
+        var projectDescriptor = ProjectDescriptor(path: project.path,
+                                                  xcodeprojPath: project.xcodeProjPath,
+                                                  xcodeProj: xcodeProj,
+                                                  schemeDescriptors: [],
+                                                  sideEffectDescriptors: [])
+
+        return projectDescriptor
     }
 
     // MARK: - Fileprivate
