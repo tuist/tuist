@@ -28,7 +28,7 @@ jobs:
     runs-on: macOS-latest
     strategy:
       matrix:
-        xcode: ['11.5', '12_beta']
+        xcode: ['11.5', '12.1']
     steps:
       - uses: actions/checkout@v1
       - name: Select Xcode
@@ -119,7 +119,7 @@ jobs:
     runs-on: macOS-latest
     strategy:
       matrix:
-        xcode: ['12_beta']
+        xcode: ['12.1']
         feature: ['cache-xcframeworks', 'cache-frameworks']
     steps:
       - uses: actions/checkout@v1
