@@ -33,7 +33,7 @@ enum TestServiceError: FatalError {
 
 final class TestService {
     /// Project generator
-    let projectGenerator: ProjectGenerating
+    let generator: Generating
 
     /// Xcode build controller.
     let xcodebuildController: XcodeBuildControlling
@@ -45,12 +45,12 @@ final class TestService {
     let simulatorController: SimulatorControlling
 
     init(
-        projectGenerator: ProjectGenerating = ProjectGenerator(),
+        generator: Generating = Generator(),
         xcodebuildController: XcodeBuildControlling = XcodeBuildController(),
         buildGraphInspector: BuildGraphInspecting = BuildGraphInspector(),
         simulatorController: SimulatorControlling = SimulatorController()
     ) {
-        self.projectGenerator = projectGenerator
+        self.generator = generator
         self.xcodebuildController = xcodebuildController
         self.buildGraphInspector = buildGraphInspector
         self.simulatorController = simulatorController
@@ -67,9 +67,9 @@ final class TestService {
     ) throws {
         let graph: Graph
         if try (generate || buildGraphInspector.workspacePath(directory: path) == nil) {
-            graph = try projectGenerator.generateWithGraph(path: path, projectOnly: false).1
+            graph = try generator.generateWithGraph(path: path, projectOnly: false).1
         } else {
-            graph = try projectGenerator.load(path: path)
+            graph = try generator.load(path: path)
         }
 
         let version = osVersion?.version()

@@ -12,20 +12,20 @@ import XCTest
 
 final class TestServiceTests: TuistUnitTestCase {
     private var subject: TestService!
-    private var projectGenerator: MockProjectGenerator!
+    private var generator: MockGenerator!
     private var xcodebuildController: MockXcodeBuildController!
     private var buildGraphInspector: MockBuildGraphInspector!
     private var simulatorController: MockSimulatorController!
 
     override func setUp() {
         super.setUp()
-        projectGenerator = .init()
+        generator = .init()
         xcodebuildController = .init()
         buildGraphInspector = .init()
         simulatorController = .init()
 
         subject = TestService(
-            projectGenerator: projectGenerator,
+            generator: generator,
             xcodebuildController: xcodebuildController,
             buildGraphInspector: buildGraphInspector,
             simulatorController: simulatorController
@@ -33,7 +33,7 @@ final class TestServiceTests: TuistUnitTestCase {
     }
 
     override func tearDown() {
-        projectGenerator = nil
+        generator = nil
         xcodebuildController = nil
         buildGraphInspector = nil
         simulatorController = nil
@@ -50,7 +50,7 @@ final class TestServiceTests: TuistUnitTestCase {
         let target = Target.test()
         let buildArguments: [XcodeBuildArgument] = [.sdk("iphoneos")]
 
-        projectGenerator.loadStub = { _path in
+        generator.loadStub = { _path in
             XCTAssertEqual(_path, path)
             return graph
         }
@@ -102,7 +102,7 @@ final class TestServiceTests: TuistUnitTestCase {
         let targetB = Target.test(name: "B")
         let buildArguments: [XcodeBuildArgument] = [.sdk("iphoneos")]
 
-        projectGenerator.loadStub = { _path in
+        generator.loadStub = { _path in
             XCTAssertEqual(_path, path)
             return graph
         }
@@ -151,7 +151,7 @@ final class TestServiceTests: TuistUnitTestCase {
         let graph = Graph.test()
         let schemeA = Scheme.test(name: "A")
         let schemeB = Scheme.test(name: "B")
-        projectGenerator.loadStub = { _path in
+        generator.loadStub = { _path in
             XCTAssertEqual(_path, path)
             return graph
         }
