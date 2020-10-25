@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 require 'minitest/assertions'
 require 'xcodeproj'
+require 'simctl'
 
 module Xcode
   include Minitest::Assertions
@@ -78,5 +79,18 @@ module Xcode
     headers_glob = File.join(product_path, "**/*.h")
     # /path/to/product/header.h
     Dir.glob(headers_glob)
+  end
+
+  def self.valid_simulator_destination_for_platform(platform)
+    device = SimCtl
+      .list_devices
+      .select { |d| d.is_available && d.runtime.name.downcase.include?(platform.downcase) }
+      .sort { |l, r| l.runtime.version <=> r.runtime.version }
+      .last
+
+    if device.nil?
+      flunk("Couldn't find an available destination simulator for platform #{platform}")
+    end
+    "platform=#{platform} Simulator,id=#{device.udid}"
   end
 end

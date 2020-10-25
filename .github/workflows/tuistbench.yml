@@ -14,10 +14,13 @@ jobs:
   test:
     name: Build
     runs-on: macOS-latest
+    strategy:
+      matrix:
+        xcode: ['12.1']
     steps:
       - uses: actions/checkout@v1
-      - name: Select Xcode 11.5
-        run: sudo xcode-select -switch /Applications/Xcode_11.5.app
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_${{ matrix.xcode }}.app
       - name: Build Package
         working-directory: ./tools/tuistbench
         run: swift build

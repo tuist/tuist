@@ -87,7 +87,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let target = PBXNativeTarget(name: "Test")
         let pbxproj = PBXProj()
         pbxproj.add(object: target)
-        let targetScript = TargetScript(name: "Test", script: "Script", showEnvVarsInLog: true)
+        let targetScript = TargetScript(name: "Test", script: "Script", showEnvVarsInLog: true, hashable: false)
         let targetScripts = [targetScript]
 
         // When

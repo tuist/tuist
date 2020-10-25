@@ -13,7 +13,7 @@ import XCTest
 final class TuistDocServiceTests: TuistUnitTestCase {
     var subject: DocService!
 
-    var projectGenerator: MockProjectGenerator!
+    var generator: MockGenerator!
     var swiftDocController: MockSwiftDocController!
     var opener: MockOpener!
     var swiftDocServer: MockSwiftDocServer!
@@ -22,7 +22,7 @@ final class TuistDocServiceTests: TuistUnitTestCase {
     override func setUp() {
         super.setUp()
 
-        projectGenerator = MockProjectGenerator()
+        generator = MockGenerator()
         swiftDocController = MockSwiftDocController()
         opener = MockOpener()
         swiftDocServer = MockSwiftDocServer()
@@ -31,7 +31,7 @@ final class TuistDocServiceTests: TuistUnitTestCase {
 
         fileHandler = MockFileHandler(temporaryDirectory: { try self.temporaryPath() })
 
-        subject = DocService(projectGenerator: projectGenerator,
+        subject = DocService(generator: generator,
                              swiftDocController: swiftDocController,
                              swiftDocServer: swiftDocServer,
                              fileHandler: fileHandler,
@@ -42,7 +42,7 @@ final class TuistDocServiceTests: TuistUnitTestCase {
     override func tearDown() {
         super.tearDown()
 
-        projectGenerator = nil
+        generator = nil
         swiftDocController = nil
         opener = nil
         swiftDocServer = nil
@@ -117,7 +117,7 @@ final class TuistDocServiceTests: TuistUnitTestCase {
         let targetNode = TargetNode(project: project, target: target, dependencies: [])
         let graph = Graph.test(targets: [path: [targetNode]])
 
-        projectGenerator.loadProjectStub = { _ in
+        generator.loadProjectStub = { _ in
             (Project.test(), graph, [])
         }
     }

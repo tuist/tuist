@@ -14,7 +14,8 @@ public class CacheBuildPhaseProjectMapper: ProjectMapping {
             if target.product.isFramework {
                 target.scripts.append(.init(name: "[Tuist] Create file to locate the built products directory",
                                             script: script(target: target),
-                                            showEnvVarsInLog: true))
+                                            showEnvVarsInLog: true,
+                                            hashable: false))
             }
             return target
         })
