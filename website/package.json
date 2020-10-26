@@ -38,7 +38,7 @@
     "gatsby-plugin-react-helmet": "^3.3.14",
     "gatsby-plugin-react-svg": "^3.0.0",
     "gatsby-plugin-robots-txt": "^1.5.3",
-    "gatsby-plugin-sharp": "2.6.42",
+    "gatsby-plugin-sharp": "2.6.43",
     "gatsby-plugin-sitemap": "^2.4.15",
     "gatsby-plugin-theme-ui": "^0.3.0",
     "gatsby-redirect-from": "^0.2.4",
