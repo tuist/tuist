@@ -18,7 +18,7 @@ public enum DependenciesControllerError: FatalError {
     public var description: String {
         switch self {
         case .unimplemented:
-            return "Pssst! You have found secret and hidden part of project where we are trying to create something new and unexpected. Chimera!"
+            return "A standard approach for managing third-party dependencies is being worked on and it'll be available soon."
         }
     }
 }
@@ -28,7 +28,7 @@ public enum DependenciesControllerError: FatalError {
 /// `DependenciesControlling` controls:
 ///     1. Fetching/updating dependencies defined in `./Tuist/Dependencies.swift` by running appropriate dependencies managers (`Cocoapods`, `Carthage`, `SPM`).
 ///     2. Compiling fetched/updated depedencies into `.framework.`/`.xcframework.`.
-///     3. Saving complited frameworks uder `./Tuist/Dependencies/*`.
+///     3. Saving compiled frameworks uder `./Tuist/Dependencies/*`.
 public protocol DependenciesControlling {
     /// Fetches dependencies.
     /// - Parameter path: Directory whose project's dependencies will be fetched.
