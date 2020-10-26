@@ -17,6 +17,10 @@ public protocol ManifestFilesLocating: AnyObject {
     /// It traverses up the directory hierarchy until it finds a `Config.swift` file.
     /// - Parameter at: Path from where to do the lookup.
     func locateConfig(at: AbsolutePath) -> AbsolutePath?
+    
+    /// It traverses up the directory hierarchy until it finds a `Dependencies.swift` file.
+    /// - Parameter at: Path from where to do the lookup.
+    func locateDependencies(at: AbsolutePath) -> AbsolutePath?
 
     /// It traverses up the directory hierarchy until it finds a `Setup.swift` file.
     /// - Parameter at: Path from where to do the lookup.
@@ -48,6 +52,11 @@ public final class ManifestFilesLocator: ManifestFilesLocating {
 
     public func locateConfig(at: AbsolutePath) -> AbsolutePath? {
         let subPath = RelativePath("\(Constants.tuistDirectoryName)/\(Manifest.config.fileName(at))")
+        return traverseAndLocate(at: at, appending: subPath)
+    }
+    
+    public func locateDependencies(at: AbsolutePath) -> AbsolutePath? {
+        let subPath = RelativePath("\(Constants.tuistDirectoryName)/\(Manifest.dependencies.fileName(at))")
         return traverseAndLocate(at: at, appending: subPath)
     }
 
