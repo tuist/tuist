@@ -14,11 +14,10 @@ protocol FocusServiceProjectGeneratorFactorying {
 
 final class FocusServiceProjectGeneratorFactory: FocusServiceProjectGeneratorFactorying {
     func generator(sources: Set<String>, xcframeworks: Bool, ignoreCache: Bool) -> Generating {
-        let cacheOutputType: CacheOutputType = xcframeworks ? .xcframework : .framework
-        let cacheConfig: CacheConfig = ignoreCache
-            ? .withoutCaching()
-            : .withCaching(cacheOutputType: cacheOutputType)
-        return Generator(graphMapperProvider: GraphMapperProvider(cacheConfig: cacheConfig, sources: sources))
+        let graphMapperProvider = FocusGraphMapperProvider(cache: !ignoreCache,
+                                                           cacheSources: sources,
+                                                           cacheOutputType: xcframeworks ? .xcframework : .framework)
+        return Generator(graphMapperProvider: graphMapperProvider)
     }
 }
 

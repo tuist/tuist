@@ -54,8 +54,12 @@ class CacheGraphMutator: CacheGraphMutating {
                                  visitedPrecompiledFrameworkPaths: &visitedPrecompiledFrameworkPaths,
                                  loadedPrecompiledNodes: &loadedPrecompiledNodes) }
 
-        let newGraph = treeShake(graph: graph, sourceTargets: sourceTargets)
-        return newGraph
+        // We mark them to be pruned during the tree-shaking
+        graph.targets.flatMap(\.value).forEach {
+            if !sourceTargets.contains($0) { $0.prune = true }
+        }
+
+        return graph
     }
 
     fileprivate func visit(targetNode: TargetNode,
@@ -127,48 +131,6 @@ class CacheGraphMutator: CacheGraphMutating {
             newDependencies.append(precompiledFramework)
         }
         return newDependencies
-    }
-
-    func treeShake(graph: Graph, sourceTargets: Set<TargetNode>) -> Graph {
-        let targetReferences = Set(sourceTargets.map { TargetReference(projectPath: $0.path, name: $0.name) })
-
-        let projects = graph.projects.compactMap { (project) -> Project? in
-            let targets: [Target] = project.targets.compactMap { (target) -> Target? in
-                guard let targetNode = graph.target(path: project.path, name: target.name) else { return nil }
-                guard sourceTargets.contains(targetNode) else { return nil }
-                return target
-            }
-            if targets.isEmpty {
-                return nil
-            } else {
-                let schemes: [Scheme] = project.schemes.compactMap { scheme -> Scheme? in
-                    let buildActionTargets = scheme.buildAction?.targets.filter { targetReferences.contains($0) } ?? []
-
-                    // The scheme contains no buildable targets so we don't include it.
-                    if buildActionTargets.isEmpty { return nil }
-
-                    let testActionTargets = scheme.testAction?.targets.filter { targetReferences.contains($0.target) } ?? []
-                    var scheme = scheme
-                    var buildAction = scheme.buildAction
-                    var testAction = scheme.testAction
-                    buildAction?.targets = buildActionTargets
-                    testAction?.targets = testActionTargets
-                    scheme.buildAction = buildAction
-                    scheme.testAction = testAction
-
-                    return scheme
-                }
-                return project.with(targets: targets).with(schemes: schemes)
-            }
-        }
-
-        return graph
-            .with(projects: projects)
-            .with(targets: sourceTargets.reduce(into: [AbsolutePath: [TargetNode]]()) { acc, target in
-                var targets = acc[target.path, default: []]
-                targets.append(target)
-                acc[target.path] = targets
-            })
     }
 
     fileprivate func loadPrecompiledFramework(path: AbsolutePath, loadedPrecompiledFrameworks: inout [AbsolutePath: PrecompiledNode]) throws -> PrecompiledNode {
