@@ -22,23 +22,6 @@ final class FocusServiceProjectGeneratorFactory: FocusServiceProjectGeneratorFac
     }
 }
 
-enum FocusServiceError: FatalError {
-    case cacheWorkspaceNonSupported
-    var description: String {
-        switch self {
-        case .cacheWorkspaceNonSupported:
-            return "Caching is only supported when focusing on a project. Please, run the command in a directory that contains a Project.swift file."
-        }
-    }
-
-    var type: ErrorType {
-        switch self {
-        case .cacheWorkspaceNonSupported:
-            return .abort
-        }
-    }
-}
-
 final class FocusService {
     private let opener: Opening
     private let projectGeneratorFactory: FocusServiceProjectGeneratorFactorying
@@ -55,9 +38,6 @@ final class FocusService {
 
     func run(path: String?, sources: Set<String>, noOpen: Bool, xcframeworks: Bool, ignoreCache: Bool) throws {
         let path = self.path(path)
-        if isWorkspace(path: path) {
-            throw FocusServiceError.cacheWorkspaceNonSupported
-        }
         let generator = projectGeneratorFactory.generator(sources: sources,
                                                           xcframeworks: xcframeworks,
                                                           ignoreCache: ignoreCache)
@@ -75,9 +55,5 @@ final class FocusService {
         } else {
             return FileHandler.shared.currentPath
         }
-    }
-
-    private func isWorkspace(path: AbsolutePath) -> Bool {
-        manifestLoader.manifests(at: path).contains(.workspace)
     }
 }

@@ -27,16 +27,6 @@ final class MockFocusServiceProjectGeneratorFactory: FocusServiceProjectGenerato
     }
 }
 
-final class FocusServiceErrorTests: TuistUnitTestCase {
-    func test_description() {
-        XCTAssertEqual(FocusServiceError.cacheWorkspaceNonSupported.description, "Caching is only supported when focusing on a project. Please, run the command in a directory that contains a Project.swift file.")
-    }
-
-    func test_type() {
-        XCTAssertEqual(FocusServiceError.cacheWorkspaceNonSupported.type, .abort)
-    }
-}
-
 final class FocusServiceTests: TuistUnitTestCase {
     var subject: FocusService!
     var opener: MockOpener!
