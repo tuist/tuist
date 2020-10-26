@@ -81,7 +81,7 @@ final class GraphTests: TuistUnitTestCase {
                                     dependencies: [precompiledNode])
         let graph = Graph.test(targets: [targetNode.path: [targetNode]])
 
-        let got = graph.linkableDependencies(path: project.path, name: target.name)
+        let got = try graph.linkableDependencies(path: project.path, name: target.name)
         XCTAssertEqual(got.first, GraphDependencyReference(precompiledNode: precompiledNode))
     }
 
@@ -99,7 +99,7 @@ final class GraphTests: TuistUnitTestCase {
             project.path: [dependencyNode, targetNode],
         ])
 
-        let got = graph.linkableDependencies(path: project.path, name: target.name)
+        let got = try graph.linkableDependencies(path: project.path, name: target.name)
         XCTAssertEqual(got.first, .product(target: "Dependency", productName: "libDependency.a"))
     }
 
@@ -120,12 +120,12 @@ final class GraphTests: TuistUnitTestCase {
                                     dependencies: [dependencyNode])
 
         let graph = Graph.test(projects: [project], targets: [project.path: [targetNode, dependencyNode, staticDependencyNode]])
-        let got = graph.linkableDependencies(path: project.path,
-                                             name: target.name)
+        let got = try graph.linkableDependencies(path: project.path,
+                                                 name: target.name)
         XCTAssertEqual(got.count, 1)
         XCTAssertEqual(got.first, .product(target: "Dependency", productName: "Dependency.framework"))
 
-        let frameworkGot = graph.linkableDependencies(path: project.path, name: dependency.name)
+        let frameworkGot = try graph.linkableDependencies(path: project.path, name: dependency.name)
 
         XCTAssertEqual(frameworkGot.count, 1)
         XCTAssertTrue(frameworkGot.contains(.product(target: "StaticDependency", productName: "libStaticDependency.a")))
@@ -152,7 +152,7 @@ final class GraphTests: TuistUnitTestCase {
                                  ])
 
         // When
-        let result = graph.linkableDependencies(path: projectA.path, name: app.name)
+        let result = try graph.linkableDependencies(path: projectA.path, name: app.name)
 
         // Then
         XCTAssertEqual(result, [GraphDependencyReference.product(target: "DynamicFramework", productName: "DynamicFramework.framework"),
@@ -188,8 +188,8 @@ final class GraphTests: TuistUnitTestCase {
                                  ])
 
         // When
-        let appResult = graph.linkableDependencies(path: projectA.path, name: app.name)
-        let dynamicFramework1Result = graph.linkableDependencies(path: projectA.path, name: dynamicFramework1.name)
+        let appResult = try graph.linkableDependencies(path: projectA.path, name: app.name)
+        let dynamicFramework1Result = try graph.linkableDependencies(path: projectA.path, name: dynamicFramework1.name)
 
         // Then
         XCTAssertEqual(appResult, [
@@ -235,7 +235,7 @@ final class GraphTests: TuistUnitTestCase {
                                  ])
 
         // When
-        let dynamicFramework1Result = graph.linkableDependencies(path: projectA.path, name: dynamicFramework1.name)
+        let dynamicFramework1Result = try graph.linkableDependencies(path: projectA.path, name: dynamicFramework1.name)
 
         // Then
         XCTAssertEqual(dynamicFramework1Result, [GraphDependencyReference.product(target: "DynamicFramework2", productName: "DynamicFramework2.framework")])
@@ -262,7 +262,7 @@ final class GraphTests: TuistUnitTestCase {
                                  ])
 
         // When
-        let result = graph.linkableDependencies(path: projectA.path, name: app.name)
+        let result = try graph.linkableDependencies(path: projectA.path, name: app.name)
 
         // Then
         XCTAssertEqual(result.compactMap(sdkDependency), [
@@ -291,8 +291,8 @@ final class GraphTests: TuistUnitTestCase {
                                  ])
 
         // When
-        let appResult = graph.linkableDependencies(path: projectA.path, name: app.name)
-        let dynamicResult = graph.linkableDependencies(path: projectA.path, name: dynamicFramework.name)
+        let appResult = try graph.linkableDependencies(path: projectA.path, name: app.name)
+        let dynamicResult = try graph.linkableDependencies(path: projectA.path, name: dynamicFramework.name)
 
         // Then
         XCTAssertEqual(appResult.compactMap(sdkDependency), [])
@@ -318,7 +318,7 @@ final class GraphTests: TuistUnitTestCase {
                                  ])
 
         // When
-        let result = graph.linkableDependencies(path: projectA.path, name: app.name)
+        let result = try graph.linkableDependencies(path: projectA.path, name: app.name)
 
         // Then
         XCTAssertEqual(result.compactMap(sdkDependency), [SDKPathAndStatus(name: "some.framework", status: .optional)])
@@ -339,7 +339,7 @@ final class GraphTests: TuistUnitTestCase {
                                  ])
 
         // When
-        let result = graph.linkableDependencies(path: projectA.path, name: staticFramework.name)
+        let result = try graph.linkableDependencies(path: projectA.path, name: staticFramework.name)
 
         // Then
         XCTAssertEqual(result.compactMap(sdkDependency),
@@ -365,7 +365,7 @@ final class GraphTests: TuistUnitTestCase {
                                  ])
 
         // When
-        let result = graph.linkableDependencies(path: projectA.path, name: staticFrameworkA.name)
+        let result = try graph.linkableDependencies(path: projectA.path, name: staticFrameworkA.name)
 
         // Then
         XCTAssertEqual(result.compactMap(sdkDependency),
@@ -387,7 +387,7 @@ final class GraphTests: TuistUnitTestCase {
                                  ])
 
         // When
-        let result = graph.linkableDependencies(path: project.path, name: watchExtension.name)
+        let result = try graph.linkableDependencies(path: project.path, name: watchExtension.name)
 
         // Then
         XCTAssertEqual(result, [
@@ -410,7 +410,7 @@ final class GraphTests: TuistUnitTestCase {
                                  ])
 
         // When
-        let result = graph.linkableDependencies(path: project.path, name: watchExtension.name)
+        let result = try graph.linkableDependencies(path: project.path, name: watchExtension.name)
 
         // Then
         XCTAssertEqual(result, [
@@ -436,7 +436,7 @@ final class GraphTests: TuistUnitTestCase {
                                  ])
 
         // When
-        let result = graph.linkableDependencies(path: projectA.path, name: tests.name)
+        let result = try graph.linkableDependencies(path: projectA.path, name: tests.name)
 
         // Then
         XCTAssertTrue(result.isEmpty)
@@ -459,7 +459,7 @@ final class GraphTests: TuistUnitTestCase {
                                  ])
 
         // When
-        let result = graph.linkableDependencies(path: projectA.path, name: tests.name)
+        let result = try graph.linkableDependencies(path: projectA.path, name: tests.name)
 
         // Then
         XCTAssertEqual(result, [
@@ -484,10 +484,25 @@ final class GraphTests: TuistUnitTestCase {
                                  ])
 
         // When
-        let result = graph.linkableDependencies(path: projectA.path, name: tests.name)
+        let result = try graph.linkableDependencies(path: projectA.path, name: tests.name)
 
         // Then
         XCTAssertTrue(result.isEmpty)
+    }
+
+    func test_linkableDependencies_when_appClipSDKNode() throws {
+        // Given
+        let target = Target.test(name: "AppClip", product: .appClip)
+        let projectA = Project.test(path: "/path/a")
+
+        let graph = Graph.create(project: projectA,
+                                 dependencies: [(target: target, dependencies: [])])
+
+        // When
+        let linkableModules = try graph.linkableDependencies(path: projectA.path, name: target.name)
+
+        // Then
+        XCTAssertEqual(linkableModules, [.sdk(path: try SDKNode.appClip(status: .required).path, status: .required, source: .system)])
     }
 
     func test_librariesPublicHeaders() throws {

@@ -51,6 +51,14 @@ public class SDKNode: GraphNode {
         try! SDKNode(name: "XCTest.framework", platform: platform, status: status, source: .system)
     }
 
+    /// Creates an instace of SDKNode that represents the AppClip framework.
+    /// - Parameters:
+    ///   - status: SDK status
+    /// - Returns: Initialized SDK node.
+    public static func appClip(status: SDKStatus) throws -> SDKNode {
+        try SDKNode(name: "AppClip.framework", platform: .iOS, status: status, source: .system)
+    }
+
     static func path(name: String, platform: Platform, source _: SDKSource, type: Type) throws -> AbsolutePath {
         let sdkRootPath: AbsolutePath
         if name == SDKNode.xctestFrameworkName {
