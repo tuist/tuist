@@ -551,6 +551,12 @@ public class Graph: Encodable, Equatable {
         } ?? nil
     }
 
+    /// - Returns: Host application for a given `targetNode`, if it exists
+    public func hostApplication(for targetNode: TargetNode) -> TargetNode? {
+        targetDependencies(path: targetNode.path, name: targetNode.name)
+            .first(where: { $0.target.product == .app })
+    }
+
     /// Returns a copy of the graph with the given projects set.
     /// - Parameter projects: Projects to be set to the copy.
     public func with(projects: [Project]) -> Graph {
@@ -641,11 +647,6 @@ public class Graph: Encodable, Equatable {
 
     fileprivate func productDependencyReference(for targetNode: TargetNode) -> GraphDependencyReference {
         .product(target: targetNode.target.name, productName: targetNode.target.productNameWithExtension)
-    }
-
-    fileprivate func hostApplication(for targetNode: TargetNode) -> TargetNode? {
-        targetDependencies(path: targetNode.path, name: targetNode.name)
-            .first(where: { $0.target.product == .app })
     }
 
     fileprivate func isStaticLibrary(targetNode: TargetNode) -> Bool {

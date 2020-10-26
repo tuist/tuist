@@ -156,6 +156,138 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         )
     }
 
+    func test_testSchemes() throws {
+        // Given
+        let path = try temporaryPath()
+        let projectPath = path.appending(component: "Project.xcodeproj")
+        let coreProjectPath = path.appending(component: "CoreProject.xcodeproj")
+        let coreScheme = Scheme.test(
+            name: "Core",
+            testAction: .test(
+                targets: [.init(target: .init(projectPath: projectPath, name: "CoreTests"))]
+            )
+        )
+        let coreTestsScheme = Scheme(
+            name: "CoreTests",
+            testAction: .test(
+                targets: [.init(target: .init(projectPath: projectPath, name: "CoreTests"))]
+            )
+        )
+        let kitScheme = Scheme.test(
+            name: "Kit",
+            testAction: .test(
+                targets: [.init(target: .init(projectPath: projectPath, name: "KitTests"))]
+            )
+        )
+        let kitTestsScheme = Scheme(
+            name: "KitTests",
+            testAction: .test(
+                targets: [.init(target: .init(projectPath: projectPath, name: "KitTests"))]
+            )
+        )
+        let coreTarget = Target.test(name: "Core")
+        let coreProject = Project.test(
+            path: coreProjectPath,
+            schemes: [coreScheme, coreTestsScheme]
+        )
+        let coreTargetNode = TargetNode.test(
+            project: coreProject,
+            target: coreTarget
+        )
+        let coreTestsTarget = Target.test(
+            name: "CoreTests",
+            product: .unitTests,
+            dependencies: [.target(name: "Core")]
+        )
+        let coreTestsTargetNode = TargetNode.test(
+            project: coreProject,
+            target: coreTestsTarget
+        )
+        let kitTarget = Target.test(name: "Kit", dependencies: [.target(name: "Core")])
+        let kitProject = Project.test(
+            path: projectPath,
+            schemes: [kitScheme, kitTestsScheme]
+        )
+        let kitTargetNode = TargetNode.test(
+            project: kitProject,
+            target: kitTarget
+        )
+        let kitTestsTarget = Target.test(
+            name: "KitTests",
+            product: .unitTests,
+            dependencies: [.target(name: "Kit")]
+        )
+        let kitTestsTargetNode = TargetNode.test(
+            project: kitProject,
+            target: kitTestsTarget
+        )
+        let graph = Graph.test(
+            entryNodes: [kitTargetNode],
+            targets: [
+                projectPath: [kitTargetNode, kitTestsTargetNode],
+                coreProjectPath: [coreTargetNode, coreTestsTargetNode],
+            ]
+        )
+
+        // When
+        let got = subject.testSchemes(graph: graph)
+
+        // Then
+        XCTAssertEqual(
+            got,
+            [
+                coreTestsScheme,
+                kitTestsScheme,
+            ]
+        )
+    }
+
+    func test_testableSchemes() throws {
+        // Given
+        let path = try temporaryPath()
+        let projectPath = path.appending(component: "Project.xcodeproj")
+        let coreProjectPath = path.appending(component: "CoreProject.xcodeproj")
+        let coreScheme = Scheme.test(
+            name: "Core",
+            testAction: .test(
+                targets: [.init(target: .init(projectPath: projectPath, name: "CoreTests"))]
+            )
+        )
+        let coreTestsScheme = Scheme(
+            name: "CoreTests",
+            testAction: .test(
+                targets: [.init(target: .init(projectPath: projectPath, name: "CoreTests"))]
+            )
+        )
+        let coreTarget = Target.test(name: "Core")
+        let coreProject = Project.test(
+            path: coreProjectPath,
+            schemes: [coreScheme, coreTestsScheme]
+        )
+        let coreTargetNode = TargetNode.test(
+            project: coreProject,
+            target: coreTarget
+        )
+        let graph = Graph.test(
+            entryNodes: [coreTargetNode],
+            projects: [
+                coreProject,
+            ]
+        )
+
+        // When
+        let got = subject.testableSchemes(graph: graph)
+
+        // Then
+        XCTAssertEqual(
+            got,
+            [
+                coreScheme,
+                coreTestsScheme,
+            ]
+        )
+    }
+
     func test_buildableEntrySchemes_only_includes_entryTargets() throws {
         // Given
         let path = try temporaryPath()
