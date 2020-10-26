@@ -84,6 +84,7 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
     <td align="center"><a href="https://djankowski.dev"><img src="https://avatars0.githubusercontent.com/u/10795657?v=4" width="100px;" alt=""/><br /><sub><b>Daniel Jankowski</b></sub></a><br /><a href="#ideas-mollyIV" title="Ideas, Planning, & Feedback">🤔</a></td>
     <td align="center"><a href="https://github.com/facumenzella"><img src="https://avatars1.githubusercontent.com/u/1125252?v=4" width="100px;" alt=""/><br /><sub><b>Facundo Menzella</b></sub></a><br /><a href="#ideas-facumenzella" title="Ideas, Planning, & Feedback">🤔</a></td>
     <td align="center"><a href="https://github.com/eito"><img src="https://avatars3.githubusercontent.com/u/775643?v=4" width="100px;" alt=""/><br /><sub><b>Eric Ito</b></sub></a><br /><a href="#ideas-eito" title="Ideas, Planning, & Feedback">🤔</a></td>
+    <td align="center"><a href="https://github.com/olejnjak"><img src="https://avatars1.githubusercontent.com/u/3148214?v=4" width="100px;" alt=""/><br /><sub><b>Jakub Olejník</b></sub></a><br /><a href="#ideas-olejnjak" title="Ideas, Planning, & Feedback">🤔</a></td>
   </tr>
 </table>
 
