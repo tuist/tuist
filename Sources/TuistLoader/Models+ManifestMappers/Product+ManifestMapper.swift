@@ -35,6 +35,8 @@ extension TuistCore.Product {
             return .watch2Extension
         case .messagesExtension:
             return .messagesExtension
+        case .appClip:
+            return .appClip
         }
     }
 }

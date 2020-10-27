@@ -91,7 +91,7 @@ final class LinkGenerator: LinkGenerating {
                        graph: Graph) throws
     {
         let embeddableFrameworks = try graph.embeddableFrameworks(path: path, name: target.name)
-        let linkableModules = graph.linkableDependencies(path: path, name: target.name)
+        let linkableModules = try graph.linkableDependencies(path: path, name: target.name)
 
         try setupSearchAndIncludePaths(target: target,
                                        pbxTarget: pbxTarget,

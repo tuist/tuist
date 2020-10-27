@@ -39,6 +39,22 @@ module Xcode
     framework_path
   end
 
+  def self.find_app_clip(product:, destination:, app_clip:, derived_data_path:)
+    product_path = product_with_name(
+      product,
+      destination: destination,
+      derived_data_path: derived_data_path
+    )
+
+    return if product_path.nil?
+
+    app_clip_glob = File.join(product_path, "/AppClips/#{app_clip}.app")
+    # /path/to/product/AppClips/AppClip.app
+    app_clip_path = Dir.glob(app_clip_glob).first
+
+    app_clip_path
+  end
+
   def self.find_resource(product:, destination:, resource:, derived_data_path:)
     product_path = product_with_name(
       product,

@@ -71,6 +71,11 @@ public class ValueGraphTraverser: GraphTraversing {
             .sorted()
     }
 
+    public func appClipsDependency(path: AbsolutePath, name: String) -> Target? {
+        directTargetDependencies(path: path, name: name)
+            .first { $0.product == .appClip }
+    }
+
     public func directStaticDependencies(path: AbsolutePath, name: String) -> [GraphDependencyReference] {
         graph.dependencies[.target(name: name, path: path)]?
             .compactMap { (dependency: ValueGraphDependency) -> (path: AbsolutePath, name: String)? in

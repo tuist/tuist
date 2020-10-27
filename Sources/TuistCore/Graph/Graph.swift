@@ -206,7 +206,7 @@ public class Graph: Encodable, Equatable {
     /// - Parameters:
     ///   - path: Path to the directory where the project that defines the target is located.
     ///   - name: Name of the target.
-    public func linkableDependencies(path: AbsolutePath, name: String) -> [GraphDependencyReference] {
+    public func linkableDependencies(path: AbsolutePath, name: String) throws -> [GraphDependencyReference] {
         guard let targetNode = findTargetNode(path: path, name: name) else {
             return []
         }
@@ -223,6 +223,13 @@ public class Graph: Encodable, Equatable {
             }
 
             references = references.union(transitiveSystemLibraries)
+        }
+
+        if targetNode.target.isAppClip {
+            let path = try SDKNode.appClip(status: .required).path
+            references.insert(GraphDependencyReference.sdk(path: path,
+                                                           status: .required,
+                                                           source: .system))
         }
 
         let directSystemLibrariesAndFrameworks = targetNode.sdkDependencies.map {
@@ -406,8 +413,8 @@ public class Graph: Encodable, Equatable {
     /// This method is useful to know which references should be added to the products directory in the generated project.
     /// - Parameter project: Project whose dependency references will be returned.
     public func allDependencyReferences(for project: Project) throws -> [GraphDependencyReference] {
-        let linkableDependencies = project.targets.flatMap {
-            self.linkableDependencies(path: project.path, name: $0.name)
+        let linkableDependencies = try project.targets.flatMap {
+            try self.linkableDependencies(path: project.path, name: $0.name)
         }
 
         let embeddableDependencies = try project.targets.flatMap {
@@ -437,6 +444,14 @@ public class Graph: Encodable, Equatable {
 
         return targetNode.targetDependencies
             .filter { validProducts.contains($0.target.product) }
+    }
+
+    public func appClipsDependency(path: AbsolutePath, name: String) -> TargetNode? {
+        guard let targetNode = findTargetNode(path: path, name: name) else {
+            return nil
+        }
+
+        return targetNode.targetDependencies.first { $0.target.product == .appClip }
     }
 
     /// Depth-first search (DFS) is an algorithm for traversing graph data structures. It starts at a source node
