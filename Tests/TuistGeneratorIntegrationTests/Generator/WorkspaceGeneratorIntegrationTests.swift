@@ -32,19 +32,18 @@ final class WorkspaceGeneratorIntegrationTests: TuistTestCase {
                          settings: .default,
                          targets: [Target.test(name: "Project\($0)_Target")])
         }
-        let graph = Graph.create(projects: projects,
+        var graph = Graph.create(projects: projects,
                                  dependencies: projects.flatMap { project in
                                      project.targets.map { target in
                                          (project: project, target: target, dependencies: [])
                                      }
                                  })
         let workspace = Workspace.test(path: temporaryPath, projects: projects.map(\.path))
+        graph = graph.with(workspace: workspace)
 
         // When / Then
         try (0 ..< 50).forEach { _ in
-            _ = try subject.generate(workspace: workspace,
-                                     path: temporaryPath,
-                                     graph: graph)
+            _ = try subject.generate(graph: graph)
         }
     }
 }

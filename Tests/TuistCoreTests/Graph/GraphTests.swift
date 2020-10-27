@@ -747,7 +747,7 @@ final class GraphTests: TuistUnitTestCase {
             entryPath: project.path,
             cache: cache,
             entryNodes: [unitTestsNode],
-            workspace: nil
+            workspace: Workspace.test()
         )
 
         // When
@@ -805,7 +805,7 @@ final class GraphTests: TuistUnitTestCase {
             entryPath: project.path,
             cache: cache,
             entryNodes: [appNode, uiTestsNode],
-            workspace: nil
+            workspace: Workspace.test()
         )
 
         // When
@@ -835,7 +835,7 @@ final class GraphTests: TuistUnitTestCase {
             entryPath: project.path,
             cache: cache,
             entryNodes: [unitTestsNode],
-            workspace: nil
+            workspace: Workspace.test(path: project.path)
         )
 
         // When
@@ -869,7 +869,7 @@ final class GraphTests: TuistUnitTestCase {
             entryPath: project.path,
             cache: cache,
             entryNodes: [unitTestsNode],
-            workspace: nil
+            workspace: Workspace.test()
         )
 
         // When
