@@ -19,8 +19,6 @@ enum TargetsExtractorError: FatalError, Equatable {
 
     public var type: ErrorType {
         switch self {
-        case .missingXcodeProj:
-            return .abort
         case .missingProject:
             return .abort
         case .noTargets:
@@ -46,7 +44,7 @@ public final class TargetsExtractor: TargetsExtracting {
     // MARK: - EmptyBuildSettingsChecking
 
     public func targetsSortedByDependencies(xcodeprojPath: AbsolutePath) throws -> [(targetName: String, dependenciesCount: Int)] {
-        guard FileHandler.shared.exists(xcodeprojPath) else { throw TargetsExtractorError.missingXcodeProj(xcodeprojPath) }
+        guard FileHandler.shared.exists(xcodeprojPath) else { throw TargetsExtractorError.missingProject }
         let pbxproj = try XcodeProj(path: Path(xcodeprojPath.pathString)).pbxproj
         let targets = pbxproj.nativeTargets + pbxproj.aggregateTargets + pbxproj.legacyTargets
         if targets.isEmpty {
