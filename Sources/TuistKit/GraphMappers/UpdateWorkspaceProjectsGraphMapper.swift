@@ -6,9 +6,9 @@ import TuistCore
 final class UpdateWorkspaceProjectsGraphMapper: GraphMapping {
     func map(graph: Graph) throws -> (Graph, [SideEffectDescriptor]) {
         let graphProjects = Set(graph.projects.map(\.path))
-        let workspaceProjects = Set(graph.workspace.projects)
+        let workspaceProjects = Set(graph.workspace.projects).intersection(graphProjects)
         var workspace = graph.workspace
-        workspace.projects = Array(workspaceProjects.intersection(graphProjects))
+        workspace.projects = Array(workspaceProjects.union(graphProjects))
         return (graph.with(workspace: workspace), [])
     }
 }
