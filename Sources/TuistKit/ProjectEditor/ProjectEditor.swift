@@ -93,6 +93,7 @@ final class ProjectEditor: ProjectEditing {
         let projectDesciptionPath = try resourceLocator.projectDescription()
         let manifests = manifestFilesLocator.locateAllProjectManifests(at: at)
         let configPath = manifestFilesLocator.locateConfig(at: at)
+        let dependenciesPath = manifestFilesLocator.locateDependencies(at: at)
         let setupPath = manifestFilesLocator.locateSetup(at: at)
         var helpers: [AbsolutePath] = []
         if let helpersDirectory = helpersDirectoryLocator.locate(at: at) {
@@ -117,6 +118,7 @@ final class ProjectEditor: ProjectEditing {
                                                            xcodeProjPath: xcodeprojPath,
                                                            setupPath: setupPath,
                                                            configPath: configPath,
+                                                           dependenciesPath: dependenciesPath,
                                                            manifests: manifests.map { $0.1 },
                                                            helpers: helpers,
                                                            templates: templates,

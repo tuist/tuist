@@ -9,6 +9,7 @@ protocol ProjectEditorMapping: AnyObject {
              xcodeProjPath: AbsolutePath,
              setupPath: AbsolutePath?,
              configPath: AbsolutePath?,
+             dependenciesPath: AbsolutePath?,
              manifests: [AbsolutePath],
              helpers: [AbsolutePath],
              templates: [AbsolutePath],
@@ -22,6 +23,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
              xcodeProjPath: AbsolutePath,
              setupPath: AbsolutePath?,
              configPath: AbsolutePath?,
+             dependenciesPath: AbsolutePath?,
              manifests: [AbsolutePath],
              helpers: [AbsolutePath],
              templates: [AbsolutePath],
@@ -79,6 +81,12 @@ final class ProjectEditorMapper: ProjectEditorMapping {
                                                      targetSettings: targetSettings,
                                                      sourcePaths: [configPath])
         }
+        var dependenciesTarget: Target?
+        if let dependenciesPath = dependenciesPath {
+            dependenciesTarget = Target.editorHelperTarget(name: "Dependencies",
+                                                           targetSettings: targetSettings,
+                                                           sourcePaths: [dependenciesPath])
+        }
 
         var targets: [Target] = []
         targets.append(contentsOf: manifestsTargets)
@@ -86,6 +94,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         if let templatesTarget = templatesTarget { targets.append(templatesTarget) }
         if let setupTarget = setupTarget { targets.append(setupTarget) }
         if let configTarget = configTarget { targets.append(configTarget) }
+        if let dependenciesTarget = dependenciesTarget { targets.append(dependenciesTarget) }
 
         // Run Scheme
         let buildAction = BuildAction(targets: targets.map { TargetReference(projectPath: sourceRootPath, name: $0.name) })
@@ -125,6 +134,10 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         if let configTarget = configTarget {
             let configNode = TargetNode(project: project, target: configTarget, dependencies: [])
             dependencies.append(configNode)
+        }
+        if let dependenciesTarget = dependenciesTarget {
+            let dependenciesNode = TargetNode(project: project, target: dependenciesTarget, dependencies: [])
+            dependencies.append(dependenciesNode)
         }
 
         let manifestTargetNodes = manifestsTargets.map { TargetNode(project: project, target: $0, dependencies: dependencies) }
