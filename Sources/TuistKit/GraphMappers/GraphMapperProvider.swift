@@ -21,6 +21,7 @@ final class GraphMapperProvider: GraphMapperProviding {
 
     func mappers(config _: Config) -> [GraphMapping] {
         var mappers: [GraphMapping] = []
+        mappers.append(UpdateWorkspaceProjectsGraphMapper())
         return mappers
     }
 }

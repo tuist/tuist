@@ -266,16 +266,14 @@ class Generator: Generating {
         // Load Graph
         let cachedModelLoader = CachedModelLoader(workspace: [updatedModels.workspace], projects: updatedModels.projects)
         let cachedGraphLoader = GraphLoader(modelLoader: cachedModelLoader)
-        let (graph, workspace) = try cachedGraphLoader.loadWorkspace(path: path)
+        let graph = try cachedGraphLoader.loadWorkspace(path: path)
 
         // Apply graph mappers
-        let (updatedGraph, graphMapperSideEffects) = try graphMapperProvider.mapper(config: config).map(graph: graph)
-        let updatedWorkspace = workspace
-            .merging(projects: updatedGraph.projects.map { $0.path })
+        let (mappedGraph, graphMapperSideEffects) = try graphMapperProvider.mapper(config: config).map(graph: graph)
 
         return (
-            updatedWorkspace,
-            updatedGraph.with(workspace: updatedWorkspace),
+            mappedGraph.workspace,
+            mappedGraph,
             modelMapperSideEffects + graphMapperSideEffects
         )
     }

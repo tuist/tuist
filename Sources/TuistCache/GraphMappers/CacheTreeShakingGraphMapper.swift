@@ -28,15 +28,8 @@ public final class CacheTreeShakingGraphMapper: GraphMapping {
             }
         }
 
-        // Workspace
-        var workspace: Workspace?
-        if let graphWorkspace = graph.workspace {
-            workspace = treeShake(workspace: graphWorkspace, sourceTargets: sourceTargets, projects: projects)
-        }
-
         let graph = graph
             .with(projects: projects)
-            .with(workspace: workspace)
             .with(targets: sourceTargets.reduce(into: [AbsolutePath: [TargetNode]]()) { acc, targetReference in
                 var targets = acc[targetReference.projectPath, default: []]
                 if let target = graph.target(path: targetReference.projectPath, name: targetReference.name) {
@@ -46,14 +39,6 @@ public final class CacheTreeShakingGraphMapper: GraphMapping {
             })
 
         return (graph, [])
-    }
-
-    fileprivate func treeShake(workspace: Workspace, sourceTargets: Set<TargetReference>, projects: [Project]) -> Workspace {
-        var workspace = workspace
-        let projectPaths = projects.map(\.path)
-        workspace.schemes = treeShake(schemes: workspace.schemes, sourceTargets: sourceTargets)
-        workspace.projects = workspace.projects.filter { projectPaths.contains($0) }
-        return workspace
     }
 
     fileprivate func treeShake(targets: [Target], path: AbsolutePath, graph: Graph, sourceTargets: Set<TargetReference>) -> [Target] {

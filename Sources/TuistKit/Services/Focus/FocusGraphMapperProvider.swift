@@ -23,7 +23,7 @@ final class FocusGraphMapperProvider: GraphMapperProviding {
         let defaultMapper = defaultProvider.mapper(config: config)
 
         // Cache
-        var mappers: [GraphMapping] = [defaultMapper]
+        var mappers: [GraphMapping] = []
         if cache {
             let cacheMapper = CacheMapper(config: config,
                                           cacheStorageProvider: CacheStorageProvider(config: config),
@@ -32,6 +32,10 @@ final class FocusGraphMapperProvider: GraphMapperProviding {
             mappers.append(cacheMapper)
             mappers.append(CacheTreeShakingGraphMapper())
         }
+
+        /// The default mapper is executed at the end because
+        /// it ensures that the workspace is in sync with the content in the graph.
+        mappers.append(defaultMapper)
 
         return SequentialGraphMapper(mappers)
     }
