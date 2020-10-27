@@ -110,7 +110,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(configTarget.sources.map { $0.path }, [configPath])
         XCTAssertEqual(configTarget.filesGroup, .group(name: "Manifests"))
         XCTAssertEmpty(configTarget.dependencies)
-        
+
         // Generated Dependencies target
         let dependenciesTarget = try XCTUnwrap(project.targets.last(where: { $0.name == "Dependencies" }))
         XCTAssertEqual(targetNodes.dropFirst().first?.target, dependenciesTarget)

@@ -154,7 +154,7 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
         // Then
         XCTAssertNil(configPath)
     }
-    
+
     func test_locateDependencies() throws {
         // Given
         let paths = try createFiles([
