@@ -10,34 +10,32 @@ let project = Project(name: "App",
                                infoPlist: .default,
                                sources: ["App/Sources/**",],
                                dependencies: [
-                                .target(name: "AppClip"),
+                                .target(name: "AppClip1"),
                                 ]),
-                        Target(name: "AppClip",
+                        Target(name: "AppClip1",
                                platform: .iOS,
                                product: .appClip,
                                bundleId: "io.tuist.App.Clip",
                                infoPlist: .default,
-                               sources: ["AppClip/Sources/**",],
-                               entitlements: "AppClip/Entitlements/AppClip.entitlements",
-                               dependencies: [
-                                .sdk(name: "AppClip.framework", status: .required),
-                                ]),
-                        Target(name: "AppClipTests",
+                               sources: ["AppClip1/Sources/**",],
+                               entitlements: "AppClip1/Entitlements/AppClip.entitlements",
+                               dependencies: []),
+                        Target(name: "AppClip1Tests",
                                platform: .iOS,
                                product: .unitTests,
-                               bundleId: "io.tuist.AppClipTests",
+                               bundleId: "io.tuist.AppClip1Tests",
                                infoPlist: .default,
-                               sources: ["AppClipTests/Tests/**"],
+                               sources: ["AppClip1Tests/Tests/**"],
                                dependencies: [
-                                .target(name: "AppClip")
+                                .target(name: "AppClip1")
                                ]),
-                        Target(name: "AppClipUITests",
+                        Target(name: "AppClip1UITests",
                                platform: .iOS,
                                product: .uiTests,
-                               bundleId: "io.tuist.AppClipUITests",
+                               bundleId: "io.tuist.AppClip1UITests",
                                infoPlist: .default,
-                               sources: ["AppClipUITests/Tests/**"],
+                               sources: ["AppClip1UITests/Tests/**"],
                                dependencies: [
-                                .target(name: "AppClip")
+                                .target(name: "AppClip1")
                                ])
                       ])
