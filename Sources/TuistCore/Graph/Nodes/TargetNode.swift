@@ -26,11 +26,13 @@ public class TargetNode: GraphNode {
 
     public init(project: Project,
                 target: Target,
-                dependencies: [GraphNode])
+                dependencies: [GraphNode],
+                prune: Bool = false)
     {
         self.project = project
         self.target = target
         self.dependencies = dependencies
+        self.prune = prune
         super.init(path: project.path, name: target.name)
     }
 
