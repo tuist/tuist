@@ -128,12 +128,13 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         }
 
         let manifestTargetNodes = manifestsTargets.map { TargetNode(project: project, target: $0, dependencies: dependencies) }
+        let workspace = Workspace(path: project.path, name: "Manifests", projects: [project.path])
 
         let graph = Graph(
             name: "Manifests",
             entryPath: sourceRootPath,
             entryNodes: manifestTargetNodes,
-            workspace: nil,
+            workspace: workspace,
             projects: [project],
             cocoapods: [],
             packages: [],

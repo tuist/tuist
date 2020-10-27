@@ -25,14 +25,10 @@ protocol WorkspaceDescriptorGenerating: AnyObject {
     /// Generates the given workspace.
     ///
     /// - Parameters:
-    ///   - workspace: Workspace model.
-    ///   - path: Path to the directory where the generation command is executed from.
     ///   - graph: In-memory representation of the graph.
     /// - Returns: Generated workspace descriptor
     /// - Throws: An error if the generation fails.
-    func generate(workspace: Workspace,
-                  path: AbsolutePath,
-                  graph: Graph) throws -> WorkspaceDescriptor
+    func generate(graph: Graph) throws -> WorkspaceDescriptor
 }
 
 final class WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
@@ -80,7 +76,7 @@ final class WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
 
     // MARK: - WorkspaceGenerating
 
-    func generate(workspace: Workspace, path: AbsolutePath, graph: Graph) throws -> WorkspaceDescriptor {
+    func generate(graph: Graph) throws -> WorkspaceDescriptor {
         let workspaceName = "\(graph.name).xcworkspace"
 
         logger.notice("Generating workspace \(workspaceName)", metadata: .section)
@@ -103,27 +99,26 @@ final class WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
         })
 
         // Workspace structure
-        let structure = workspaceStructureGenerator.generateStructure(path: path,
-                                                                      workspace: workspace,
+        let structure = workspaceStructureGenerator.generateStructure(path: graph.entryPath,
+                                                                      workspace: graph.workspace,
                                                                       fileHandler: FileHandler.shared)
 
-        let workspacePath = path.appending(component: workspaceName)
+        let workspacePath = graph.entryPath.appending(component: workspaceName)
         let workspaceData = XCWorkspaceData(children: [])
         let xcWorkspace = XCWorkspace(data: workspaceData)
         try workspaceData.children = structure.contents.map {
             try recursiveChildElement(generatedProjects: generatedProjects,
                                       element: $0,
-                                      path: path)
+                                      path: graph.entryPath)
         }
 
         // Schemes
-
-        let schemes = try schemeDescriptorsGenerator.generateWorkspaceSchemes(workspace: workspace,
+        let schemes = try schemeDescriptorsGenerator.generateWorkspaceSchemes(workspace: graph.workspace,
                                                                               generatedProjects: generatedProjects,
                                                                               graph: graph)
 
         return WorkspaceDescriptor(
-            path: path,
+            path: graph.entryPath,
             xcworkspacePath: workspacePath,
             xcworkspace: xcWorkspace,
             projectDescriptors: projects,

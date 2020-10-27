@@ -76,9 +76,9 @@ class Generator: Generating {
         let manifests = manifestLoader.manifests(at: path)
 
         if manifests.contains(.workspace) {
-            return try loadWorkspace(path: path).1
+            return try loadWorkspace(path: path).0
         } else if manifests.contains(.project) {
-            return try loadProjectWorkspace(path: path).2
+            return try loadProjectWorkspace(path: path).1
         } else {
             throw ManifestLoaderError.manifestNotFound(path)
         }
@@ -141,13 +141,13 @@ class Generator: Generating {
 
     private func generateWorkspace(path: AbsolutePath) throws -> (AbsolutePath, Graph) {
         // Load
-        let (workspace, graph, sideEffects) = try loadWorkspace(path: path)
+        let (graph, sideEffects) = try loadWorkspace(path: path)
 
         // Lint
         try lint(graph: graph)
 
         // Generate
-        let workspaceDescriptor = try generator.generateWorkspace(workspace: workspace, graph: graph)
+        let workspaceDescriptor = try generator.generateWorkspace(graph: graph)
 
         // Write
         try writer.write(workspace: workspaceDescriptor)
@@ -163,13 +163,13 @@ class Generator: Generating {
 
     internal func generateProjectWorkspace(path: AbsolutePath) throws -> (AbsolutePath, Graph) {
         // Load
-        let (workspace, _, graph, sideEffects) = try loadProjectWorkspace(path: path)
+        let (_, graph, sideEffects) = try loadProjectWorkspace(path: path)
 
         // Lint
         try lint(graph: graph)
 
         // Generate
-        let workspaceDescriptor = try generator.generateWorkspace(workspace: workspace, graph: graph)
+        let workspaceDescriptor = try generator.generateWorkspace(graph: graph)
 
         // Write
         try writer.write(workspace: workspaceDescriptor)
@@ -197,7 +197,7 @@ class Generator: Generating {
     }
 
     // swiftlint:disable:next large_tuple
-    private func loadProjectWorkspace(path: AbsolutePath) throws -> (Workspace, Project, Graph, [SideEffectDescriptor]) {
+    private func loadProjectWorkspace(path: AbsolutePath) throws -> (Project, Graph, [SideEffectDescriptor]) {
         // Load all manifests
         let manifests = try recursiveManifestLoader.loadProject(at: path)
 
@@ -234,7 +234,6 @@ class Generator: Generating {
             .merging(projects: updatedGraph.projects.map { $0.path })
 
         return (
-            updatedWorkspace,
             project,
             updatedGraph.with(workspace: updatedWorkspace),
             modelMapperSideEffects + graphMapperSideEffects
@@ -242,7 +241,7 @@ class Generator: Generating {
     }
 
     // swiftlint:disable:next large_tuple
-    private func loadWorkspace(path: AbsolutePath) throws -> (Workspace, Graph, [SideEffectDescriptor]) {
+    private func loadWorkspace(path: AbsolutePath) throws -> (Graph, [SideEffectDescriptor]) {
         // Load all manifests
         let manifests = try recursiveManifestLoader.loadWorkspace(at: path)
 
@@ -266,18 +265,12 @@ class Generator: Generating {
         // Load Graph
         let cachedModelLoader = CachedModelLoader(workspace: [updatedModels.workspace], projects: updatedModels.projects)
         let cachedGraphLoader = GraphLoader(modelLoader: cachedModelLoader)
-        let (graph, workspace) = try cachedGraphLoader.loadWorkspace(path: path)
+        let graph = try cachedGraphLoader.loadWorkspace(path: path)
 
         // Apply graph mappers
-        let (updatedGraph, graphMapperSideEffects) = try graphMapperProvider.mapper(config: config).map(graph: graph)
-        let updatedWorkspace = workspace
-            .merging(projects: updatedGraph.projects.map { $0.path })
+        let (mappedGraph, graphMapperSideEffects) = try graphMapperProvider.mapper(config: config).map(graph: graph)
 
-        return (
-            updatedWorkspace,
-            updatedGraph.with(workspace: updatedWorkspace),
-            modelMapperSideEffects + graphMapperSideEffects
-        )
+        return (mappedGraph, modelMapperSideEffects + graphMapperSideEffects)
     }
 
     private func convert(manifests: LoadedProjects,

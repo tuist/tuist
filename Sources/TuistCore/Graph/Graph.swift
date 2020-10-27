@@ -34,7 +34,7 @@ public class Graph: Encodable, Equatable {
     public let entryNodes: [GraphNode]
 
     /// Workspace of the graph
-    public let workspace: Workspace?
+    public let workspace: Workspace
 
     /// Projects of the graph
     public let projects: [Project]
@@ -59,7 +59,7 @@ public class Graph: Encodable, Equatable {
 
     /// Schemes of the graph
     public var schemes: [Scheme] {
-        projects.flatMap(\.schemes) + (workspace?.schemes ?? [])
+        projects.flatMap(\.schemes) + workspace.schemes
     }
 
     // MARK: - Init
@@ -69,7 +69,7 @@ public class Graph: Encodable, Equatable {
         entryPath: AbsolutePath,
         cache: GraphLoaderCaching,
         entryNodes: [GraphNode],
-        workspace: Workspace?
+        workspace: Workspace
     ) {
         self.init(
             name: name,
@@ -88,7 +88,7 @@ public class Graph: Encodable, Equatable {
         name: String,
         entryPath: AbsolutePath,
         entryNodes: [GraphNode],
-        workspace: Workspace?,
+        workspace: Workspace,
         projects: [Project],
         cocoapods: [CocoaPodsNode],
         packages: [PackageNode],
@@ -608,7 +608,7 @@ public class Graph: Encodable, Equatable {
     /// Returns a copy of the graph with a given workspace.
     /// - Parameter workspace: Workspace to be set to the copy.
     /// - Returns: New graph with a given workspace.
-    public func with(workspace: Workspace?) -> Graph {
+    public func with(workspace: Workspace) -> Graph {
         Graph(
             name: name,
             entryPath: entryPath,

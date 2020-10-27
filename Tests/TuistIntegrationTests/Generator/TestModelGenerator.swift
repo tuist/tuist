@@ -27,7 +27,7 @@ final class TestModelGenerator {
         self.config = config
     }
 
-    func generate() throws -> (Graph, Workspace) {
+    func generate() throws -> Graph {
         let frameworkNodeLoader = MockFrameworkNodeLoader()
         let libraryNodeLoader = MockLibraryNodeLoader()
         let xcframeworkNodeLoader = MockXCFrameworkNodeLoader()
