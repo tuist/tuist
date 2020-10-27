@@ -19,4 +19,4 @@ Feature: List targets sorted by number of dependencies
       Data - dependencies count: 1
       DataTests - dependencies count: 2
       """
-    
+  
