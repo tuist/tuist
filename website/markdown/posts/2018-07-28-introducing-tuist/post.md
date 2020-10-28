@@ -97,7 +97,7 @@ I read that GitHub came up with [some design principles](https://ben.balter.com/
 
 - **If it can't be reliable, you'd better not build it:** If a feature doesn't work as expected, users will have a negative perception of the tool. If you plan to build something, which can't be reliable, don't build it. Instead, do some groundwork to make it reliable or find another approach to address the same problem.
 
-It's is a malleable list which will change and grow as the project evolves. You can check out the [full list](https://github.com/tuist/contributors/blob/master/Zen.md) on the [contributors' repository](https://github.com/tuist/contributors)
+It's is a malleable list which will change and grow as the project evolves. You can check out the [full list](https://github.com/tuist/contributors/blob/main/Zen.md) on the [contributors' repository](https://github.com/tuist/contributors)
 
 > We implemented an endpoint, [api.tuist.io/zen](http://api.tuist.io/zen), to return the project design principles.
 
@@ -118,8 +118,8 @@ Would you like to give Tuist a try? You can check out the [Getting started](/doc
 ## 📒 Resources
 
 - [The vision of the project](https://tuist.io/vision/)
-- [Design principles](https://github.com/tuist/contributors/blob/master/Zen.md)
-- [Contributing](https://github.com/tuist/contributors/blob/master/Contributing.md)
+- [Design principles](https://github.com/tuist/contributors/blob/main/Zen.md)
+- [Contributing](https://github.com/tuist/contributors/blob/main/Contributing.md)
 
 ## ❤️ I need you
 

@@ -4,7 +4,7 @@ let config = TapestryConfig(
     release: Release(
         actions:
         [
-            .pre(tool: "git", arguments: ["checkout", "master"]),
+            .pre(tool: "git", arguments: ["checkout", "main"]),
             .pre(tool: "git", arguments: ["pull"]),
             .pre(.dependenciesCompatibility([.spm(.all)])),
             .pre(tool: "swift", arguments: ["test"]),

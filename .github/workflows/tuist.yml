@@ -3,7 +3,7 @@ name: Tuist
 on:
   push:
     branches:
-      - master
+      - main
     paths:
       - Sources/**/*
       - Tests/**/*
@@ -121,7 +121,12 @@ jobs:
       matrix:
         xcode: ['12.1']
         feature:
-          ['generate-6', 'cache-xcframeworks', 'cache-frameworks', 'precompiled']
+          [
+            'generate-6',
+            'cache-xcframeworks',
+            'cache-frameworks',
+            'precompiled',
+          ]
     steps:
       - uses: actions/checkout@v1
       - name: Select Xcode
@@ -151,7 +156,7 @@ jobs:
       - name: Run tests
         run: FEATURE=features/${{ matrix.feature }}.feature bundle exec rake features
   upload:
-    if: github.ref == 'refs/heads/master'
+    if: github.ref == 'refs/heads/main'
     name: Upload
     runs-on: macOS-latest
     strategy:
