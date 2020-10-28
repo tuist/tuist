@@ -86,6 +86,7 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
     <td align="center"><a href="https://github.com/eito"><img src="https://avatars3.githubusercontent.com/u/775643?v=4" width="100px;" alt=""/><br /><sub><b>Eric Ito</b></sub></a><br /><a href="#ideas-eito" title="Ideas, Planning, & Feedback">🤔</a></td>
     <td align="center"><a href="https://github.com/olejnjak"><img src="https://avatars1.githubusercontent.com/u/3148214?v=4" width="100px;" alt=""/><br /><sub><b>Jakub Olejník</b></sub></a><br /><a href="#ideas-olejnjak" title="Ideas, Planning, & Feedback">🤔</a></td>
     <td align="center"><a href="https://github.com/lakpa"><img src="https://avatars0.githubusercontent.com/u/389328?v=4" width="100px;" alt=""/><br /><sub><b>ldindu</b></sub></a><br /><a href="#ideas-lakpa" title="Ideas, Planning, & Feedback">🤔</a></td>
+    <td align="center"><a href="https://github.com/gtsifrikas"><img src="https://avatars2.githubusercontent.com/u/8904378?v=4" width="100px;" alt=""/><br /><sub><b>George Tsifrikas</b></sub></a><br /><a href="#blog-gtsifrikas" title="Blogposts">📝</a></td>
   </tr>
 </table>
 
