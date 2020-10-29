@@ -24,53 +24,12 @@ extension TuistCore.Project {
                        xcodeProjPath: generatorPaths.manifestDirectory.appending(component: "\(name).xcodeproj"),
                        name: name,
                        organizationName: organizationName,
+                       developmentRegion: nil,
                        settings: settings ?? .default,
                        filesGroup: .group(name: "Project"),
                        targets: targets,
                        packages: packages,
                        schemes: schemes,
                        additionalFiles: additionalFiles)
-    }
-
-    func adding(target: TuistCore.Target) -> TuistCore.Project {
-        Project(path: path,
-                sourceRootPath: sourceRootPath,
-                xcodeProjPath: xcodeProjPath,
-                name: name,
-                organizationName: organizationName,
-                settings: settings,
-                filesGroup: filesGroup,
-                targets: targets + [target],
-                packages: packages,
-                schemes: schemes,
-                additionalFiles: additionalFiles)
-    }
-
-    func replacing(xcodeProjPath: AbsolutePath) -> TuistCore.Project {
-        Project(path: path,
-                sourceRootPath: sourceRootPath,
-                xcodeProjPath: xcodeProjPath,
-                name: name,
-                organizationName: organizationName,
-                settings: settings,
-                filesGroup: filesGroup,
-                targets: targets,
-                packages: packages,
-                schemes: schemes,
-                additionalFiles: additionalFiles)
-    }
-
-    func replacing(organizationName: String?) -> TuistCore.Project {
-        Project(path: path,
-                sourceRootPath: sourceRootPath,
-                xcodeProjPath: xcodeProjPath,
-                name: name,
-                organizationName: organizationName,
-                settings: settings,
-                filesGroup: filesGroup,
-                targets: targets,
-                packages: packages,
-                schemes: schemes,
-                additionalFiles: additionalFiles)
     }
 }

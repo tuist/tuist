@@ -13,7 +13,7 @@ enum ResourceLocatingError: FatalError {
     var description: String {
         switch self {
         case let .notFound(name):
-            return "Couldn't find \(name)"
+            return "Couldn't find resource named \(name)"
         }
     }
 
@@ -48,14 +48,14 @@ public final class ResourceLocator: ResourceLocating {
     // MARK: - Fileprivate
 
     private func frameworkPath(_ name: String) throws -> AbsolutePath {
-        let frameworkNames = ["\(name).framework", "lib\(name).dylib"]
+        let frameworkNames = ["lib\(name).dylib", "\(name).framework", "PackageFrameworks/\(name).framework"]
         let bundlePath = AbsolutePath(Bundle(for: ManifestLoader.self).bundleURL.path)
         let paths = [
             bundlePath,
             bundlePath.parentDirectory,
         ]
         let candidates = paths.flatMap { path in
-            frameworkNames.map { path.appending(component: $0) }
+            frameworkNames.map { path.appending(RelativePath($0)) }
         }
         guard let frameworkPath = candidates.first(where: { FileHandler.shared.exists($0) }) else {
             throw ResourceLocatingError.notFound(name)

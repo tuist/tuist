@@ -34,4 +34,8 @@ public final class GraphTraverser: GraphTraversing {
     public func directStaticDependencies(path: AbsolutePath, name: String) -> [GraphDependencyReference] {
         graph.staticDependencies(path: path, name: name)
     }
+
+    public func appClipsDependency(path: AbsolutePath, name: String) -> Target? {
+        graph.appClipsDependency(path: path, name: name).map { $0.target }
+    }
 }

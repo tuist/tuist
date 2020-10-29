@@ -17,8 +17,8 @@ public class CachedManifestLoader: ManifestLoading {
     private let fileHandler: FileHandling
     private let environment: Environmenting
     private let tuistVersion: String
-    private let decoder: JSONDecoder = JSONDecoder()
-    private let encoder: JSONEncoder = JSONEncoder()
+    private let decoder = JSONDecoder()
+    private let encoder = JSONEncoder()
     private var helpersCache: [AbsolutePath: String?] = [:]
 
     public convenience init(manifestLoader: ManifestLoading = ManifestLoader()) {
@@ -77,6 +77,10 @@ public class CachedManifestLoader: ManifestLoading {
         }
     }
 
+    public func loadDependencies(at path: AbsolutePath) throws -> Dependencies {
+        try manifestLoader.loadDependencies(at: path)
+    }
+
     public func manifests(at path: AbsolutePath) -> Set<Manifest> {
         manifestLoader.manifests(at: path)
     }
@@ -116,10 +120,7 @@ public class CachedManifestLoader: ManifestLoading {
 
     private func findManifestPath(for manifest: Manifest, at path: AbsolutePath) -> AbsolutePath? {
         let manifestFileNames = [manifest.fileName(path), manifest.deprecatedFileName]
-        return manifestFileNames
-            .compactMap { $0 }
-            .map { path.appending(component: $0) }
-            .first(where: { fileHandler.exists($0) })
+        return manifestFileNames.compactMap { $0 }.map { path.appending(component: $0) }.first(where: { fileHandler.exists($0) })
     }
 
     private func calculateHashes(path: AbsolutePath,
@@ -158,7 +159,7 @@ public class CachedManifestLoader: ManifestLoading {
     }
 
     private func calculateEnvironmentHash() -> String? {
-        let tuistEnvVariables = environment.tuistVariables.map { "\($0.key)=\($0.value)" }.sorted()
+        let tuistEnvVariables = environment.manifestLoadingVariables.map { "\($0.key)=\($0.value)" }.sorted()
         guard !tuistEnvVariables.isEmpty else {
             return nil
         }

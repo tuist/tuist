@@ -9,22 +9,30 @@ import TuistGenerator
 import TuistLoader
 import TuistSupport
 
+enum FocusCommandError: FatalError {
+    case noSources
+
+    var description: String {
+        switch self {
+        case .noSources:
+            return "A list of targets is required: tuist focus MyTarget."
+        }
+    }
+
+    var type: ErrorType {
+        switch self {
+        case .noSources:
+            return .abort
+        }
+    }
+}
+
 /// The focus command generates the Xcode workspace and launches it on Xcode.
 struct FocusCommand: ParsableCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(commandName: "focus",
                              abstract: "Opens Xcode ready to focus on the project in the current directory")
     }
-
-    @Flag(help: "Generate a project replacing dependencies with pre-compiled assets.")
-    var cache: Bool = false
-
-    @Option(
-        name: NameSpecification([.customShort("i"), .customLong("include-sources", withSingleDash: false)]),
-        parsing: .singleValue,
-        help: "When used with --cache, it generates the given target (with the sources) even if it exists in the cache."
-    )
-    var includeSources: [String] = []
 
     @Option(
         name: .shortAndLong,
@@ -33,16 +41,35 @@ struct FocusCommand: ParsableCommand {
     )
     var path: String?
 
+    @Argument(help: "A list of targets in which you'd like to focus. Those and their dependant targets will be generated as sources.")
+    var sources: [String] = []
+
     @Flag(
         name: .shortAndLong,
         help: "Don't open the project after generating it."
     )
     var noOpen: Bool = false
 
+    @Flag(
+        name: [.customShort("x"), .long],
+        help: "When passed it uses xcframeworks (simulator and device) from the cache instead of frameworks (only simulator)."
+    )
+    var xcframeworks: Bool = false
+
+    @Flag(
+        name: [.customLong("no-cache")],
+        help: "Ignore cached targets, and use their sources instead."
+    )
+    var ignoreCache: Bool = false
+
     func run() throws {
-        try FocusService().run(cache: cache,
-                               path: path,
-                               includeSources: Set(includeSources),
-                               noOpen: noOpen)
+        if sources.isEmpty {
+            throw FocusCommandError.noSources
+        }
+        try FocusService().run(path: path,
+                               sources: Set(sources),
+                               noOpen: noOpen,
+                               xcframeworks: xcframeworks,
+                               ignoreCache: ignoreCache)
     }
 }

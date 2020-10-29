@@ -19,9 +19,28 @@ public protocol BuildGraphInspecting {
     ///   - graph: Dependency graph.
     func buildableTarget(scheme: Scheme, graph: Graph) -> Target?
 
+    ///  From the list of testable targets of the given scheme, it returns the first one.
+    /// - Parameters:
+    ///   - scheme: Scheme in which to look up the target.
+    ///   - graph: Dependency graph.
+    func testableTarget(scheme: Scheme, graph: Graph) -> Target?
+
     /// Given a graph, it returns a list of buildable schemes.
     /// - Parameter graph: Dependency graph.
     func buildableSchemes(graph: Graph) -> [Scheme]
+
+    /// Given a graph, it returns a list of buildable schemes that are part of the entry node
+    /// - Parameters:
+    ///     - graph: Dependency graph
+    func buildableEntrySchemes(graph: Graph) -> [Scheme]
+
+    /// Given a graph, it returns a list of test schemes (those that include only one test target).
+    /// - Parameter graph: Dependency graph.
+    func testSchemes(graph: Graph) -> [Scheme]
+
+    /// Given a graph, it returns a list of testable schemes.
+    /// - Parameter graph: Dependency graph.
+    func testableSchemes(graph: Graph) -> [Scheme]
 }
 
 public class BuildGraphInspector: BuildGraphInspecting {
@@ -48,19 +67,55 @@ public class BuildGraphInspector: BuildGraphInspecting {
     }
 
     public func buildableTarget(scheme: Scheme, graph: Graph) -> Target? {
-        if scheme.buildAction?.targets.count == 0 {
+        guard
+            scheme.buildAction?.targets.isEmpty == false,
+            let buildTarget = scheme.buildAction?.targets.first
+        else {
             return nil
         }
-        let buildTarget = scheme.buildAction!.targets.first!
-        return graph.target(path: buildTarget.projectPath, name: buildTarget.name)!.target
+
+        return graph.target(path: buildTarget.projectPath, name: buildTarget.name)?.target
+    }
+
+    public func testableTarget(scheme: Scheme, graph: Graph) -> Target? {
+        if scheme.testAction?.targets.count == 0 {
+            return nil
+        }
+        let testTarget = scheme.testAction!.targets.first!
+        return graph.target(path: testTarget.target.projectPath, name: testTarget.target.name)!.target
     }
 
     public func buildableSchemes(graph: Graph) -> [Scheme] {
+        graph.schemes
+            .filter { $0.buildAction?.targets.isEmpty == false }
+            .sorted(by: { $0.name < $1.name })
+    }
+
+    public func buildableEntrySchemes(graph: Graph) -> [Scheme] {
         let projects = Set(graph.entryNodes.compactMap { ($0 as? TargetNode)?.project })
         return projects
             .flatMap { $0.schemes }
-            .filter { $0.buildAction?.targets.count != 0 }
+            .filter { $0.buildAction?.targets.isEmpty == false }
             .sorted(by: { $0.name < $1.name })
+    }
+
+    public func testableSchemes(graph: Graph) -> [Scheme] {
+        graph.schemes
+            .filter { $0.testAction?.targets.isEmpty == false }
+            .sorted(by: { $0.name < $1.name })
+    }
+
+    public func testSchemes(graph: Graph) -> [Scheme] {
+        graph.targets.values.flatMap { target -> [Scheme] in
+            target
+                .filter { $0.target.product == .unitTests || $0.target.product == .uiTests }
+                .flatMap { target -> [Scheme] in
+                    target.project.schemes
+                        .filter { $0.targetDependencies().map(\.name) == [target.name] }
+                }
+        }
+        .filter { $0.testAction?.targets.isEmpty == false }
+        .sorted(by: { $0.name < $1.name })
     }
 
     public func workspacePath(directory: AbsolutePath) throws -> AbsolutePath? {

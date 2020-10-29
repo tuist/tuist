@@ -7,6 +7,8 @@ protocol ProjectEditorMapping: AnyObject {
     func map(tuistPath: AbsolutePath,
              sourceRootPath: AbsolutePath,
              xcodeProjPath: AbsolutePath,
+             setupPath: AbsolutePath?,
+             configPath: AbsolutePath?,
              manifests: [AbsolutePath],
              helpers: [AbsolutePath],
              templates: [AbsolutePath],
@@ -18,6 +20,8 @@ final class ProjectEditorMapper: ProjectEditorMapping {
     func map(tuistPath: AbsolutePath,
              sourceRootPath: AbsolutePath,
              xcodeProjPath: AbsolutePath,
+             setupPath: AbsolutePath?,
+             configPath: AbsolutePath?,
              manifests: [AbsolutePath],
              helpers: [AbsolutePath],
              templates: [AbsolutePath],
@@ -37,9 +41,6 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         var manifestsDependencies: [Dependency] = []
         if !helpers.isEmpty {
             manifestsDependencies = [.target(name: "ProjectDescriptionHelpers")]
-        }
-        if !templates.isEmpty {
-            manifestsDependencies.append(.target(name: "Templates"))
         }
 
         let manifestsTargets = named(manifests: manifests).map { name, manifest in
@@ -66,11 +67,25 @@ final class ProjectEditorMapper: ProjectEditorMapping {
                                                         targetSettings: targetSettings,
                                                         sourcePaths: templates)
         }
+        var setupTarget: Target?
+        if let setupPath = setupPath {
+            setupTarget = Target.editorHelperTarget(name: "Setup",
+                                                    targetSettings: targetSettings,
+                                                    sourcePaths: [setupPath])
+        }
+        var configTarget: Target?
+        if let configPath = configPath {
+            configTarget = Target.editorHelperTarget(name: "Config",
+                                                     targetSettings: targetSettings,
+                                                     sourcePaths: [configPath])
+        }
 
         var targets: [Target] = []
         targets.append(contentsOf: manifestsTargets)
         if let helpersTarget = helpersTarget { targets.append(helpersTarget) }
         if let templatesTarget = templatesTarget { targets.append(templatesTarget) }
+        if let setupTarget = setupTarget { targets.append(setupTarget) }
+        if let configTarget = configTarget { targets.append(configTarget) }
 
         // Run Scheme
         let buildAction = BuildAction(targets: targets.map { TargetReference(projectPath: sourceRootPath, name: $0.name) })
@@ -84,6 +99,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
                               xcodeProjPath: xcodeProjPath,
                               name: "Manifests",
                               organizationName: nil,
+                              developmentRegion: nil,
                               settings: projectSettings,
                               filesGroup: .group(name: "Manifests"),
                               targets: targets,
@@ -102,17 +118,29 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             let templatesNode = TargetNode(project: project, target: templatesTarget, dependencies: [])
             dependencies.append(templatesNode)
         }
+        if let setupTarget = setupTarget {
+            let setupNode = TargetNode(project: project, target: setupTarget, dependencies: [])
+            dependencies.append(setupNode)
+        }
+        if let configTarget = configTarget {
+            let configNode = TargetNode(project: project, target: configTarget, dependencies: [])
+            dependencies.append(configNode)
+        }
 
         let manifestTargetNodes = manifestsTargets.map { TargetNode(project: project, target: $0, dependencies: dependencies) }
+        let workspace = Workspace(path: project.path, name: "Manifests", projects: [project.path])
 
-        let graph = Graph(name: "Manifests",
-                          entryPath: sourceRootPath,
-                          entryNodes: manifestTargetNodes,
-                          projects: [project],
-                          cocoapods: [],
-                          packages: [],
-                          precompiled: [],
-                          targets: [sourceRootPath: manifestTargetNodes + dependencies])
+        let graph = Graph(
+            name: "Manifests",
+            entryPath: sourceRootPath,
+            entryNodes: manifestTargetNodes,
+            workspace: workspace,
+            projects: [project],
+            cocoapods: [],
+            packages: [],
+            precompiled: [],
+            targets: [sourceRootPath: manifestTargetNodes + dependencies]
+        )
 
         // Project
         return (project, graph)

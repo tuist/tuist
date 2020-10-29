@@ -10,7 +10,7 @@ import XCTest
 
 final class CachePrintHashesServiceTests: TuistUnitTestCase {
     var subject: CachePrintHashesService!
-    var projectGenerator: MockProjectGenerator!
+    var generator: MockGenerator!
     var graphContentHasher: MockGraphContentHasher!
     var clock: Clock!
     var path: AbsolutePath!
@@ -18,18 +18,18 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
     override func setUp() {
         super.setUp()
         path = AbsolutePath("/Test")
-        projectGenerator = MockProjectGenerator()
+        generator = MockGenerator()
 
         graphContentHasher = MockGraphContentHasher()
         clock = StubClock()
 
-        subject = CachePrintHashesService(projectGenerator: projectGenerator,
+        subject = CachePrintHashesService(generator: generator,
                                           graphContentHasher: graphContentHasher,
                                           clock: clock)
     }
 
     override func tearDown() {
-        projectGenerator = nil
+        generator = nil
         graphContentHasher = nil
         clock = nil
         subject = nil
@@ -38,27 +38,27 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
 
     func test_run_loads_the_graph() throws {
         // Given
-        subject = CachePrintHashesService(projectGenerator: projectGenerator,
+        subject = CachePrintHashesService(generator: generator,
                                           graphContentHasher: graphContentHasher,
                                           clock: clock)
 
         // When
-        _ = try subject.run(path: path)
+        _ = try subject.run(path: path, xcframeworks: false)
 
         // Then
-        XCTAssertEqual(projectGenerator.invokedLoadParameterPath, path)
+        XCTAssertEqual(generator.invokedLoadParameterPath, path)
     }
 
     func test_run_content_hasher_gets_correct_graph() throws {
         // Given
-        subject = CachePrintHashesService(projectGenerator: projectGenerator,
+        subject = CachePrintHashesService(generator: generator,
                                           graphContentHasher: graphContentHasher,
                                           clock: clock)
-        let graph: Graph = Graph.test()
-        projectGenerator.loadStub = { _ in graph }
+        let graph = Graph.test()
+        generator.loadStub = { _ in graph }
 
         // When
-        _ = try subject.run(path: path)
+        _ = try subject.run(path: path, xcframeworks: false)
 
         // Then
         XCTAssertEqual(graphContentHasher.invokedContentHashesParameters?.graph, graph)
@@ -68,17 +68,31 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
         // Given
         let target1 = TargetNode.test(target: .test(name: "ShakiOne"))
         let target2 = TargetNode.test(target: .test(name: "ShakiTwo"))
-        graphContentHasher.contentHashesStub = [target1: "hash1", target2: "hash2"]
+        graphContentHasher.stubbedContentHashesResult = [target1: "hash1", target2: "hash2"]
 
-        subject = CachePrintHashesService(projectGenerator: projectGenerator,
+        subject = CachePrintHashesService(generator: generator,
                                           graphContentHasher: graphContentHasher,
                                           clock: clock)
 
         // When
-        _ = try subject.run(path: path)
+        _ = try subject.run(path: path, xcframeworks: false)
 
         // Then
         XCTAssertPrinterOutputContains("ShakiOne - hash1")
         XCTAssertPrinterOutputContains("ShakiTwo - hash2")
+    }
+
+    func test_run_gives_correct_artifact_type_to_hasher() throws {
+        // When
+        _ = try subject.run(path: path, xcframeworks: true)
+
+        // Then
+        XCTAssertEqual(graphContentHasher.invokedContentHashesParameters?.cacheOutputType, .xcframework)
+
+        // When
+        _ = try subject.run(path: path, xcframeworks: false)
+
+        // Then
+        XCTAssertEqual(graphContentHasher.invokedContentHashesParameters?.cacheOutputType, .framework)
     }
 }

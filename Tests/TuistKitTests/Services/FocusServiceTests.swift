@@ -9,42 +9,34 @@ import XCTest
 @testable import TuistLoaderTesting
 @testable import TuistSupportTesting
 
+private typealias GeneratorParameters = (sources: Set<String>, xcframeworks: Bool, ignoreCache: Bool)
+
 final class MockFocusServiceProjectGeneratorFactory: FocusServiceProjectGeneratorFactorying {
     var invokedGenerator = false
     var invokedGeneratorCount = 0
-    var invokedGeneratorParameters: (cache: Bool, includeSources: Set<String>)?
-    var invokedGeneratorParametersList = [(cache: Bool, includeSources: Set<String>)]()
-    var stubbedGeneratorResult: ProjectGenerating!
+    fileprivate var invokedGeneratorParameters: GeneratorParameters?
+    fileprivate var invokedGeneratorParametersList = [GeneratorParameters]()
+    var stubbedGeneratorResult: Generating!
 
-    func generator(cache: Bool, includeSources: Set<String>) -> ProjectGenerating {
+    func generator(sources: Set<String>, xcframeworks: Bool, ignoreCache: Bool) -> Generating {
         invokedGenerator = true
         invokedGeneratorCount += 1
-        invokedGeneratorParameters = (cache, includeSources)
-        invokedGeneratorParametersList.append((cache, includeSources))
+        invokedGeneratorParameters = (sources, xcframeworks, ignoreCache)
+        invokedGeneratorParametersList.append((sources, xcframeworks, ignoreCache))
         return stubbedGeneratorResult
-    }
-}
-
-final class FocusServiceErrorTests: TuistUnitTestCase {
-    func test_description() {
-        XCTAssertEqual(FocusServiceError.cacheWorkspaceNonSupported.description, "Caching is only supported when focusing on a project. Please, run the command in a directory that contains a Project.swift file.")
-    }
-
-    func test_type() {
-        XCTAssertEqual(FocusServiceError.cacheWorkspaceNonSupported.type, .abort)
     }
 }
 
 final class FocusServiceTests: TuistUnitTestCase {
     var subject: FocusService!
     var opener: MockOpener!
-    var generator: MockProjectGenerator!
+    var generator: MockGenerator!
     var projectGeneratorFactory: MockFocusServiceProjectGeneratorFactory!
 
     override func setUp() {
         super.setUp()
         opener = MockOpener()
-        generator = MockProjectGenerator()
+        generator = MockGenerator()
         projectGeneratorFactory = MockFocusServiceProjectGeneratorFactory()
         projectGeneratorFactory.stubbedGeneratorResult = generator
         subject = FocusService(opener: opener, projectGeneratorFactory: projectGeneratorFactory)
@@ -64,7 +56,7 @@ final class FocusServiceTests: TuistUnitTestCase {
             throw error
         }
 
-        XCTAssertThrowsError(try subject.run(cache: false, path: nil, includeSources: Set(), noOpen: true)) {
+        XCTAssertThrowsError(try subject.run(path: nil, sources: Set(), noOpen: true, xcframeworks: false, ignoreCache: false)) {
             XCTAssertEqual($0 as NSError?, error)
         }
     }
@@ -76,7 +68,7 @@ final class FocusServiceTests: TuistUnitTestCase {
             workspacePath
         }
 
-        try subject.run(cache: false, path: nil, includeSources: Set(), noOpen: false)
+        try subject.run(path: nil, sources: Set(), noOpen: false, xcframeworks: false, ignoreCache: false)
 
         XCTAssertEqual(opener.openArgs.last?.0, workspacePath.pathString)
     }

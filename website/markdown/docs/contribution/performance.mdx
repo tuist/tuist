@@ -10,9 +10,9 @@ To test out generation speeds and to provide some utilities to aid profiling Tui
 - `fixturegen`: A tool to generate large fixtures
 - `tuistbench`: A tool to benchmark Tuist
 
-Those tools are located within the [`tools/`](https://github.com/tuist/tuist/blob/master/tools) directory.
+Those tools are located within the [`tools/`](https://github.com/tuist/tuist/blob/main/tools) directory.
 
-## Benchmarking 
+## Benchmarking
 
 As a convenience to automate the benchmarking process which entails leveraging several tools, a rake task is included with Tuist.
 
@@ -22,7 +22,7 @@ bundle exec rake benchmark
 
 This benchmarks the current branch's version of Tuist against the latest published release using the tools described below.
 
-## Fixture Generator (`fixturegen`)
+## Fixture Generator
 
 `fixturegen` allows generating large fixtures. For example it can generate a workspace with 10 projects, each project with 10 targets, and each target with 500 source files!
 
@@ -34,7 +34,7 @@ swift run fixturegen --projects 100 --targets 10 --sources 500
 
 Generating those large fixtures can be helpful in profiling Tuist and identifying any hot spots that may otherwise go unnoticed when generating smaller fixtures during development.
 
-## Tuist Benchmark (`tuistbench`)
+## Tuist Benchmark
 
 `tuistbench` has a few modes of operation:
 
@@ -120,7 +120,6 @@ A fixture list `json` file is needed to specify multiple fixtures, here's an exa
 {
   "paths": [
     "/path/to/fixtures/ios_app_with_tests",
-    "/path/to/fixtures/ios_app_with_carthage_frameworks",
     "/path/to/fixtures/ios_app_with_helpers"
   ]
 }

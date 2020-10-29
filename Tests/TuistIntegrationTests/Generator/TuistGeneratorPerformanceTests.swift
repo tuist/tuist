@@ -39,11 +39,11 @@ final class TuistGeneratorPerformanceTests: TuistTestCase {
                                                                 headers: 100)
                 let temporaryPath = try self.temporaryPath()
                 let modelGenerator = TestModelGenerator(rootPath: temporaryPath, config: config)
-                let (graph, workspace) = try modelGenerator.generate()
+                let graph = try modelGenerator.generate()
 
                 // When
                 startMeasuring()
-                _ = try subject.generateWorkspace(workspace: workspace, graph: graph)
+                _ = try subject.generateWorkspace(graph: graph)
                 stopMeasuring()
 
             } catch {

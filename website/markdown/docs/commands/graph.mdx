@@ -5,16 +5,22 @@ excerpt: "Learn how to use the graph command to get a visual representation of y
 
 # Project graph
 
-When projects grow, it becomes hard to visualize the dependencies between all the targets that are part of the project. Fortunately, Tuist provides a command, `tuist graph`, that loads your project dependencies graph and exports it.
-The command will output the dependency graph in `dot` (see [DOT](<https://en.wikipedia.org/wiki/DOT_(graph_description_language)>)) or `png` format.
-For producing a `png` image that represent the graph, you can use some well known graphviz [layout algorithms](https://graphviz.org/documentation/).
+When projects grow, it becomes hard to visualize the dependencies between all the targets that are part of the project.
+Fortunately, Tuist provides a command, `tuist graph`, that loads your project dependencies graph and exports it. As the
+saying goes, "one image is worth a thousand words":
+
+![Sample graph exported with the graph command](/assets/GraphExample.png)
+
+The command will output the dependency graph as an image, in the `png` format.
+You can also change the format to `dot` (see [DOT](<https://en.wikipedia.org/wiki/DOT_(graph_description_language)>))
+to get the raw contents of the graph.
 
 ## Command
 
 Run the following command from a directory that contains a workspace or project manifest:
 
 ```bash
-tuist graph --format png
+tuist graph
 ```
 
 If you prefer to have the dot representation of the graph and render it separately, you can run:
@@ -23,19 +29,29 @@ If you prefer to have the dot representation of the graph and render it separate
 tuist graph --format dot
 ```
 
+### Legend
+
+The graph command will style every type of target or dependency differently. This makes it easier to understand
+and visualize the graph. App targets, swift packages, frameworks, and all other types will have different shapes and colors.
+To better understand what which one means, you can use the following legend as a reference.
+
+![Legend: different types of dependencies and targets and their styles in the graph](/assets/Legend.png)
+
+If you prefer the old style, without different colors and shapes, pass the `--simple` flag when creating the graph.
+
 ### Arguments
 
 <ArgumentsTable
   args={[
     {
       long: '`--skip-test-targets`',
-      short: '`-s`',
+      short: '`-t`',
       description: 'Excludes test targets from the generated graph.',
     },
     {
       long: '`--skip-external-dependencies`',
-      short: '`-s`',
-      description: 'Excludes test targets from the generated graph.',
+      short: '`-d`',
+      description: 'Excludes external dependencies from the generated graph.',
     },
     {
       long: '`--format`',
@@ -45,8 +61,13 @@ tuist graph --format dot
       default: '`png`',
     },
     {
-      long: '`--layout-algorithm`',
-      short: '`-l`',
+      long: '`--simple`',
+      short: '`-s`',
+      description: 'Simple graph: disable different shapes and colors.',
+    },
+    {
+      long: '`--algorithm`',
+      short: '`-a`',
       description:
         "The algorithm used for drawing the graph. For large graphs, it's recommended to use `fdp`.",
       default: '`dot`',

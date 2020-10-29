@@ -1,0 +1,50 @@
+---
+name: Focus on targets
+excerpt: 'Learn how to generate projects with the focus on specific targets removing the unnecessary targets and schemes, and replacing direct and transitive dependencies with pre-compiled targets from the cache.'
+---
+
+# Focus on targets
+
+In large Xcode projects that contain many targets and schemes, Xcode can be slow indexing the project.
+Moreover, the build system, which needs to resolve implicit dependencies, might take longer to do so because there are more Xcode objects to analyze.
+This is **not ideal for developers' productivity** and for that reason Tuist includes a command that allows users to focus on a specific target or set of targets.
+
+```bash
+tuist focus MyApp
+```
+
+The command generates and opens an Xcode workspace where the targets and schemes that are not directly related to `MyApp` are removed.
+Moreover, if the direct and transitive dependencies exist in the [cache](/docs/building-at-scale/caching/),
+Tuist replaces them with their pre-compiled version.
+Thanks to that developers can safely clean their Xcode environment because they'll only be building the target they are focusing on.
+
+### Arguments
+
+<ArgumentsTable
+  args={[
+    {
+      long: '`--path`',
+      short: '`-p`',
+      description: 'The path to the directory that contains the manifest file.',
+      default: '',
+    },
+    {
+      long: '`--no-open`',
+      short: '`-n`',
+      description: "Don't open the project after generating it.",
+      default: '`false`',
+    },
+    {
+      long: '`--xcframeworks`',
+      short: '`-x`',
+      description:
+        'When passed it uses xcframeworks (simulator and device) from the cache instead of frameworks (only simulator).',
+      default: '`false`',
+    },
+    {
+      long: '`--no-cache`',
+      description: ' Ignore cached targets, and use their sources instead.',
+      default: '`false`',
+    },
+  ]}
+/>

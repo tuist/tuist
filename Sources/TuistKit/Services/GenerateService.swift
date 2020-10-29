@@ -4,12 +4,12 @@ import TuistLoader
 import TuistSupport
 
 protocol GenerateServiceProjectGeneratorFactorying {
-    func generator() -> ProjectGenerating
+    func generator() -> Generating
 }
 
 final class GenerateServiceProjectGeneratorFactory: GenerateServiceProjectGeneratorFactorying {
-    func generator() -> ProjectGenerating {
-        ProjectGenerator(graphMapperProvider: GraphMapperProvider(cache: false, includeSources: Set()))
+    func generator() -> Generating {
+        Generator(graphMapperProvider: GraphMapperProvider())
     }
 }
 

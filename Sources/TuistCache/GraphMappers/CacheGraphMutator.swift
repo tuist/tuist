@@ -10,13 +10,13 @@ protocol CacheGraphMutating {
     /// to the .xcframeworks in the cache, it mutates the graph to link the enry nodes against the .xcframeworks instead.
     /// - Parameters:
     ///   - graph: Dependency graph.
-    ///   - xcframeworks: Dictionary that maps targets with the paths to their cached .xcframeworks.
+    ///   - precompiledFrameworks: Dictionary that maps targets with the paths to their cached `.framework`s or `.xcframework`s.
     ///   - source: Contains a list of targets that won't be replaced with their pre-compiled version from the cache.
-    func map(graph: Graph, xcframeworks: [TargetNode: AbsolutePath], sources: Set<String>) throws -> Graph
+    func map(graph: Graph, precompiledFrameworks: [TargetNode: AbsolutePath], sources: Set<String>) throws -> Graph
 }
 
 class CacheGraphMutator: CacheGraphMutating {
-    struct VisitedXCFramework {
+    struct VisitedPrecompiledFramework {
         let path: AbsolutePath?
     }
 
@@ -25,52 +25,66 @@ class CacheGraphMutator: CacheGraphMutating {
     /// Utility to parse an .xcframework from the filesystem and load it into memory.
     private let xcframeworkLoader: XCFrameworkNodeLoading
 
+    /// Utility to parse a .framework from the filesystem and load it into memory.
+    private let frameworkLoader: FrameworkNodeLoading
+
     /// Initializes the graph mapper with its attributes.
     /// - Parameter xcframeworkLoader: Utility to parse an .xcframework from the filesystem and load it into memory.
-    init(xcframeworkLoader: XCFrameworkNodeLoading = XCFrameworkNodeLoader()) {
+    init(frameworkLoader: FrameworkNodeLoading = FrameworkNodeLoader(),
+         xcframeworkLoader: XCFrameworkNodeLoading = XCFrameworkNodeLoader())
+    {
+        self.frameworkLoader = frameworkLoader
         self.xcframeworkLoader = xcframeworkLoader
     }
 
     // MARK: - CacheGraphMapping
 
-    public func map(graph: Graph, xcframeworks: [TargetNode: AbsolutePath], sources: Set<String>) throws -> Graph {
-        var visitedXCFrameworkPaths: [TargetNode: VisitedXCFramework?] = [:]
-        var loadedXCFrameworks: [AbsolutePath: XCFrameworkNode] = [:]
-        var sourceTargets: Set<TargetNode> = Set()
+    public func map(graph: Graph, precompiledFrameworks: [TargetNode: AbsolutePath], sources: Set<String>) throws -> Graph {
+        var visitedPrecompiledFrameworkPaths: [TargetNode: VisitedPrecompiledFramework?] = [:]
+        var loadedPrecompiledNodes: [AbsolutePath: PrecompiledNode] = [:]
+        let userSpecifiedSourceTargets = graph.targets.flatMap { $0.value }.filter { sources.contains($0.target.name) }
+        let userSpecifiedSourceTestTargets = userSpecifiedSourceTargets.flatMap { graph.testTargetsDependingOn(path: $0.path, name: $0.name) }
+        var sourceTargets: Set<TargetNode> = Set(userSpecifiedSourceTargets)
 
-        try graph.entryNodes.compactMap { $0 as? TargetNode }
+        try (userSpecifiedSourceTargets + userSpecifiedSourceTestTargets)
             .forEach { try visit(targetNode: $0,
-                                 xcframeworks: xcframeworks,
+                                 precompiledFrameworks: precompiledFrameworks,
                                  sources: sources,
                                  sourceTargets: &sourceTargets,
-                                 visitedXCFrameworkPaths: &visitedXCFrameworkPaths,
-                                 loadedXCFrameworks: &loadedXCFrameworks) }
+                                 visitedPrecompiledFrameworkPaths: &visitedPrecompiledFrameworkPaths,
+                                 loadedPrecompiledNodes: &loadedPrecompiledNodes) }
 
-        return treeShake(graph: graph, sourceTargets: sourceTargets)
+        // We mark them to be pruned during the tree-shaking
+        graph.targets.flatMap(\.value).forEach {
+            if !sourceTargets.contains($0) { $0.prune = true }
+        }
+
+        return graph
     }
 
     fileprivate func visit(targetNode: TargetNode,
-                           xcframeworks: [TargetNode: AbsolutePath],
+                           precompiledFrameworks: [TargetNode: AbsolutePath],
                            sources: Set<String>,
                            sourceTargets: inout Set<TargetNode>,
-                           visitedXCFrameworkPaths: inout [TargetNode: VisitedXCFramework?],
-                           loadedXCFrameworks: inout [AbsolutePath: XCFrameworkNode]) throws
+                           visitedPrecompiledFrameworkPaths: inout [TargetNode: VisitedPrecompiledFramework?],
+                           loadedPrecompiledNodes: inout [AbsolutePath: PrecompiledNode]) throws
     {
         sourceTargets.formUnion([targetNode])
         targetNode.dependencies = try mapDependencies(targetNode.dependencies,
-                                                      xcframeworks: xcframeworks,
+                                                      precompiledFrameworks: precompiledFrameworks,
                                                       sources: sources,
                                                       sourceTargets: &sourceTargets,
-                                                      visitedXCFrameworkPaths: &visitedXCFrameworkPaths,
-                                                      loadedXCFrameworks: &loadedXCFrameworks)
+                                                      visitedPrecompiledFrameworkPaths: &visitedPrecompiledFrameworkPaths,
+                                                      loadedPrecompiledFrameworks: &loadedPrecompiledNodes)
     }
 
+    // swiftlint:disable line_length
     fileprivate func mapDependencies(_ dependencies: [GraphNode],
-                                     xcframeworks: [TargetNode: AbsolutePath],
+                                     precompiledFrameworks: [TargetNode: AbsolutePath],
                                      sources: Set<String>,
                                      sourceTargets: inout Set<TargetNode>,
-                                     visitedXCFrameworkPaths: inout [TargetNode: VisitedXCFramework?],
-                                     loadedXCFrameworks: inout [AbsolutePath: XCFrameworkNode]) throws -> [GraphNode]
+                                     visitedPrecompiledFrameworkPaths: inout [TargetNode: VisitedPrecompiledFramework?],
+                                     loadedPrecompiledFrameworks: inout [AbsolutePath: PrecompiledNode]) throws -> [GraphNode]
     {
         var newDependencies: [GraphNode] = []
         try dependencies.forEach { dependency in
@@ -80,119 +94,80 @@ class CacheGraphMutator: CacheGraphMutating {
                 return
             }
 
-            // If the target cannot be replaced with its associated .xcframework we return
-            guard !sources.contains(targetDependency.target.name), let xcframeworkPath = xcframeworkPath(target: targetDependency,
-                                                                                                         xcframeworks: xcframeworks,
-                                                                                                         visitedXCFrameworkPaths: &visitedXCFrameworkPaths)
+            // If the target cannot be replaced with its associated .(xc)framework we return
+            guard !sources.contains(targetDependency.target.name), let precompiledFrameworkPath = precompiledFrameworkPath(target: targetDependency,
+                                                                                                                           precompiledFrameworks: precompiledFrameworks,
+                                                                                                                           visitedPrecompiledFrameworkPaths: &visitedPrecompiledFrameworkPaths)
             else {
                 sourceTargets.formUnion([targetDependency])
                 targetDependency.dependencies = try mapDependencies(targetDependency.dependencies,
-                                                                    xcframeworks: xcframeworks,
+                                                                    precompiledFrameworks: precompiledFrameworks,
                                                                     sources: sources,
                                                                     sourceTargets: &sourceTargets,
-                                                                    visitedXCFrameworkPaths: &visitedXCFrameworkPaths,
-                                                                    loadedXCFrameworks: &loadedXCFrameworks)
+                                                                    visitedPrecompiledFrameworkPaths: &visitedPrecompiledFrameworkPaths,
+                                                                    loadedPrecompiledFrameworks: &loadedPrecompiledFrameworks)
                 newDependencies.append(targetDependency)
                 return
             }
 
-            // We load the xcframework
-            let xcframework = try self.loadXCFramework(path: xcframeworkPath, loadedXCFrameworks: &loadedXCFrameworks)
+            // We load the .framework (or fallback on .xcframework)
+            let precompiledFramework: PrecompiledNode = try loadPrecompiledFramework(path: precompiledFrameworkPath, loadedPrecompiledFrameworks: &loadedPrecompiledFrameworks)
+
             try mapDependencies(targetDependency.dependencies,
-                                xcframeworks: xcframeworks,
+                                precompiledFrameworks: precompiledFrameworks,
                                 sources: sources,
                                 sourceTargets: &sourceTargets,
-                                visitedXCFrameworkPaths: &visitedXCFrameworkPaths,
-                                loadedXCFrameworks: &loadedXCFrameworks).forEach { dependency in
+                                visitedPrecompiledFrameworkPaths: &visitedPrecompiledFrameworkPaths,
+                                loadedPrecompiledFrameworks: &loadedPrecompiledFrameworks).forEach { dependency in
                 if let frameworkDependency = dependency as? FrameworkNode {
-                    xcframework.add(dependency: XCFrameworkNode.Dependency.framework(frameworkDependency))
+                    precompiledFramework.add(dependency: PrecompiledNode.Dependency.framework(frameworkDependency))
                 } else if let xcframeworkDependency = dependency as? XCFrameworkNode {
-                    xcframework.add(dependency: XCFrameworkNode.Dependency.xcframework(xcframeworkDependency))
+                    precompiledFramework.add(dependency: PrecompiledNode.Dependency.xcframework(xcframeworkDependency))
                 } else {
                     // Static dependencies fall into this case.
-                    // Those are now part of the precompiled xcframework and therefore we don't have to link against them.
+                    // Those are now part of the precompiled (xc)framework and therefore we don't have to link against them.
                 }
             }
-            newDependencies.append(xcframework)
+            newDependencies.append(precompiledFramework)
         }
         return newDependencies
     }
 
-    func treeShake(graph: Graph, sourceTargets: Set<TargetNode>) -> Graph {
-        let entryProjects = Set(graph.entryNodes.compactMap { $0 as? TargetNode }.map { $0.project })
-        let targetReferences = Set(sourceTargets.map { TargetReference(projectPath: $0.path, name: $0.name) })
-
-        let projects = graph.projects.compactMap { (project) -> Project? in
-            if entryProjects.contains(project) {
-                return project
-            } else {
-                let targets: [Target] = project.targets.compactMap { (target) -> Target? in
-                    guard let targetNode = graph.target(path: project.path, name: target.name) else { return nil }
-                    guard sourceTargets.contains(targetNode) else { return nil }
-                    return target
-                }
-                if targets.isEmpty {
-                    return nil
-                } else {
-                    let schemes: [Scheme] = project.schemes.compactMap { scheme -> Scheme? in
-                        let buildActionTargets = scheme.buildAction?.targets.filter { targetReferences.contains($0) } ?? []
-
-                        // The scheme contains no buildable targets so we don't include it.
-                        if buildActionTargets.isEmpty { return nil }
-
-                        let testActionTargets = scheme.testAction?.targets.filter { targetReferences.contains($0.target) } ?? []
-                        var scheme = scheme
-                        var buildAction = scheme.buildAction
-                        var testAction = scheme.testAction
-                        buildAction?.targets = buildActionTargets
-                        testAction?.targets = testActionTargets
-                        scheme.buildAction = buildAction
-                        scheme.testAction = testAction
-
-                        return scheme
-                    }
-                    return project.with(targets: targets).with(schemes: schemes)
-                }
-            }
+    fileprivate func loadPrecompiledFramework(path: AbsolutePath, loadedPrecompiledFrameworks: inout [AbsolutePath: PrecompiledNode]) throws -> PrecompiledNode {
+        if let cachedFramework = loadedPrecompiledFrameworks[path] {
+            return cachedFramework
+        } else if let framework = try? frameworkLoader.load(path: path) {
+            loadedPrecompiledFrameworks[path] = framework
+            return framework
+        } else {
+            let xcframework = try xcframeworkLoader.load(path: path)
+            loadedPrecompiledFrameworks[path] = xcframework
+            return xcframework
         }
-
-        return graph
-            .with(projects: projects)
-            .with(targets: sourceTargets.reduce(into: [AbsolutePath: [TargetNode]]()) { acc, target in
-                var targets = acc[target.path, default: []]
-                targets.append(target)
-                acc[target.path] = targets
-            })
     }
 
-    fileprivate func loadXCFramework(path: AbsolutePath, loadedXCFrameworks: inout [AbsolutePath: XCFrameworkNode]) throws -> XCFrameworkNode {
-        if let cachedXCFramework = loadedXCFrameworks[path] { return cachedXCFramework }
-        let xcframework = try xcframeworkLoader.load(path: path)
-        loadedXCFrameworks[path] = xcframework
-        return xcframework
-    }
-
-    fileprivate func xcframeworkPath(target: TargetNode,
-                                     xcframeworks: [TargetNode: AbsolutePath],
-                                     visitedXCFrameworkPaths: inout [TargetNode: VisitedXCFramework?]) -> AbsolutePath?
+    fileprivate func precompiledFrameworkPath(target: TargetNode,
+                                              precompiledFrameworks: [TargetNode: AbsolutePath],
+                                              visitedPrecompiledFrameworkPaths: inout [TargetNode: VisitedPrecompiledFramework?]) -> AbsolutePath?
     {
         // Already visited
-        if let visited = visitedXCFrameworkPaths[target] { return visited?.path }
+        if let visited = visitedPrecompiledFrameworkPaths[target] { return visited?.path }
 
-        // The target doesn't have a cached xcframework
-        if xcframeworks[target] == nil {
-            visitedXCFrameworkPaths[target] = VisitedXCFramework(path: nil)
+        // The target doesn't have a cached .(xc)framework
+        if precompiledFrameworks[target] == nil {
+            visitedPrecompiledFrameworkPaths[target] = VisitedPrecompiledFramework(path: nil)
             return nil
         }
         // The target can be replaced
-        else if let path = xcframeworks[target],
-            target.targetDependencies.allSatisfy({ xcframeworkPath(target: $0, xcframeworks: xcframeworks,
-                                                                   visitedXCFrameworkPaths: &visitedXCFrameworkPaths) != nil })
+        else if let path = precompiledFrameworks[target],
+            target.targetDependencies.allSatisfy({ precompiledFrameworkPath(target: $0,
+                                                                            precompiledFrameworks: precompiledFrameworks,
+                                                                            visitedPrecompiledFrameworkPaths: &visitedPrecompiledFrameworkPaths) != nil })
         {
-            visitedXCFrameworkPaths[target] = VisitedXCFramework(path: path)
+            visitedPrecompiledFrameworkPaths[target] = VisitedPrecompiledFramework(path: path)
             return path
         } else {
-            visitedXCFrameworkPaths[target] = VisitedXCFramework(path: nil)
+            visitedPrecompiledFrameworkPaths[target] = VisitedPrecompiledFramework(path: nil)
             return nil
         }
     }

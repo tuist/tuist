@@ -30,6 +30,16 @@ final class SettingsTests: XCTestCase {
         ])
     }
 
+    func test_codable_config_with_exclusions() throws {
+        // Given
+        let recommendedSubject = Settings(base: [:], configurations: [], defaultSettings: .recommended(excluding: ["someRecommendedKey", "anotherKey"]))
+        let essentialSubject = Settings(base: [:], configurations: [], defaultSettings: .essential(excluding: ["someEssentialKey", "anotherKey"]))
+
+        // Then
+        XCTAssertCodable(recommendedSubject)
+        XCTAssertCodable(essentialSubject)
+    }
+
     func test_codable_multi_configs() throws {
         // Given
         let configurations: [CustomConfiguration] = [

@@ -61,7 +61,7 @@ final class UpTests: TuistUnitTestCase {
             "platforms": JSON.array([JSON.string("macos")]),
         ])
         let got = try Up.with(dictionary: dictionary, projectPath: temporaryPath) as? UpCarthage
-        XCTAssertEqual(got?.name, "Carthage update")
+        XCTAssertEqual(got?.name, "Carthage bootstrap")
         XCTAssertEqual(got?.platforms, [.macOS])
     }
 

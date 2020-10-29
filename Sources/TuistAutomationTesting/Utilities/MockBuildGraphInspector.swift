@@ -30,6 +30,11 @@ public final class MockBuildGraphInspector: BuildGraphInspecting {
         }
     }
 
+    public var buildableEntrySchemesStub: ((Graph) -> [Scheme])?
+    public func buildableEntrySchemes(graph: Graph) -> [Scheme] {
+        buildableEntrySchemesStub?(graph) ?? []
+    }
+
     public var buildArgumentsStub: ((Target, String?) -> [XcodeBuildArgument])?
     public func buildArguments(target: Target, configuration: String?) -> [XcodeBuildArgument] {
         if let buildArgumentsStub = buildArgumentsStub {
@@ -37,5 +42,28 @@ public final class MockBuildGraphInspector: BuildGraphInspecting {
         } else {
             return []
         }
+    }
+
+    public var testableTargetStub: ((Scheme, Graph) -> Target?)?
+    public func testableTarget(scheme: Scheme, graph: Graph) -> Target? {
+        if let testableTargetStub = testableTargetStub {
+            return testableTargetStub(scheme, graph)
+        } else {
+            return Target.test()
+        }
+    }
+
+    public var testableSchemesStub: ((Graph) -> [Scheme])?
+    public func testableSchemes(graph: Graph) -> [Scheme] {
+        if let testableSchemesStub = testableSchemesStub {
+            return testableSchemesStub(graph)
+        } else {
+            return []
+        }
+    }
+
+    public var testSchemesStub: ((Graph) -> [Scheme])?
+    public func testSchemes(graph: Graph) -> [Scheme] {
+        testSchemesStub?(graph) ?? []
     }
 }

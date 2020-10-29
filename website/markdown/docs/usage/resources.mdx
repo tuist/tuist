@@ -44,3 +44,51 @@ In this case, the Bundle needs to be accessed using the target name to avoid nam
 ```objectivec
 NSBundle *bundle = [MyFeatureResources bundle];
 ```
+
+## Synthesized Resource Interface Accessors
+
+Accessing images, strings and other resources with String-based APIs gets messy real fast, which is why lots of teams
+have opted to use [SwiftGen](https://github.com/SwiftGen/SwiftGen) or some other code generator.
+
+This is why we think it is a great opportunity to integrate [SwiftGen](https://github.com/SwiftGen/SwiftGen) into tuist,
+so teams can use it out of the box without having to set it up themselves!
+
+So, how does one synthesize the resource interface accessors? It's simple, you just add `resources` to your `Target`
+and the rest is done for you.
+
+It generates code that uses tuist's aforementioned bundle accessor, so you can use it safely in your libraries, too.
+
+Currently, we support these types of resources with the following interface names and files:
+
+- Assets (images and colors) {TargetName}Assets `Assets+{TargetName}.swift`
+- Strings {TargetName}Assets `Strings+{TargetName}.swift`
+- Plists {NameOfPlist} `{NameOfPlist}.swift`
+- Fonts `Fonts+{TargetName}.swift`
+
+So, for example if you have a target `MyFramework` with the following resources:
+
+- Assets.xcassets
+  - image1
+  - image2
+- Environment.plist
+  - myKey
+- Fonts
+  - SF-Pro-Display-Bold.otf
+  - SF-Pro-Display-Heavy.otf
+
+```swift
+// Accessing Asset Catalog Images
+let image1 = MyFrameworkAssets.myImage1
+let image2 = MyFrameworkAssets.myImage2
+
+// Accessing Plist Key values
+let myKeyValue = Environment.myKey
+
+// Accessing Fonts
+let sfProBoldFont = MyFrameworkFontFamily.SFProDisplay.bold
+let sfProHeavyFont = MyFrameworkFontFamily.SFProDisplay.heavy
+```
+
+To ensure that it works well with our cache feature, it's not possible to run it from a build path.
+
+You can also opt out of this feature by adding `disableSynthesizedResourceAccessors` to `generationOptions` in `Config.swift`

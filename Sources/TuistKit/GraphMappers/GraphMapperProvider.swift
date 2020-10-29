@@ -13,29 +13,15 @@ protocol GraphMapperProviding {
 }
 
 final class GraphMapperProvider: GraphMapperProviding {
-    fileprivate let cache: Bool
-    fileprivate let includeSources: Set<String>
-
-    init(cache: Bool = false, includeSources: Set<String> = Set()) {
-        self.cache = cache
-        self.includeSources = includeSources
-    }
+    init() {}
 
     func mapper(config: Config) -> GraphMapping {
         SequentialGraphMapper(mappers(config: config))
     }
 
-    func mappers(config: Config) -> [GraphMapping] {
+    func mappers(config _: Config) -> [GraphMapping] {
         var mappers: [GraphMapping] = []
-
-        // Cache
-        if cache {
-            let cacheMapper = CacheMapper(config: config,
-                                          cacheStorageProvider: CacheStorageProvider(config: config),
-                                          sources: includeSources)
-            mappers.append(cacheMapper)
-        }
-
+        mappers.append(UpdateWorkspaceProjectsGraphMapper())
         return mappers
     }
 }

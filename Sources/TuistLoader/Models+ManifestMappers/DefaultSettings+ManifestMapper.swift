@@ -11,10 +11,10 @@ extension TuistCore.DefaultSettings {
     ///   - generatorPaths: Generator paths.
     static func from(manifest: ProjectDescription.DefaultSettings) -> TuistCore.DefaultSettings {
         switch manifest {
-        case .recommended:
-            return .recommended
-        case .essential:
-            return .essential
+        case let .recommended(excludedKeys):
+            return .recommended(excluding: excludedKeys)
+        case let .essential(excludedKeys):
+            return .essential(excluding: excludedKeys)
         case .none:
             return .none
         }

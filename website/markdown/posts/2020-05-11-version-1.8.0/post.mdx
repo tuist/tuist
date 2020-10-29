@@ -8,7 +8,7 @@ author: pepibumur
 
 Hola 👋!
 
-Despite our plan to release new versions [every Friday](/docs/contribution/release/),
+Despite our plan to release new versions every Friday,
 we are doing things a bit different this time,
 and we are releasing a new version on Monday.
 In this blog post, I'm **introducing the version 1.8.0** of Tuist.
@@ -68,7 +68,7 @@ There's an [ongoing work](https://github.com/tuist/tuist/pull/1186) to add suppo
 In a nutshell, Tuist will take care of installing certificates, copying profiles, and setting the right build settings to your projects.
 All you need to do is to place them in the `Tuist/Signing` directory and use a built-in command to encrypt them.
 
-Moreover, we paused the work on the cache to refactor one of our key pieces of the codebase, the [graph](https://github.com/tuist/tuist/blob/master/Sources/TuistCore/Graph/Graph.swift).
+Moreover, we paused the work on the cache to refactor one of our key pieces of the codebase, the [graph](https://github.com/tuist/tuist/blob/main/Sources/TuistCore/Graph/Graph.swift).
 Since its creation,
 the model has gone through several iterations and broadened its responsibilities.
 We think it's now a good time to refactor it into a value type that will support well current and future features that we are planning for Tuist.

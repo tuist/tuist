@@ -7,15 +7,18 @@ public struct ExecutionAction: Equatable {
     public let title: String
     public let scriptText: String
     public let target: TargetReference?
+    public let showEnvVarsInLog: Bool
 
     // MARK: - Init
 
     public init(title: String,
                 scriptText: String,
-                target: TargetReference?)
+                target: TargetReference?,
+                showEnvVarsInLog: Bool = true)
     {
         self.title = title
         self.scriptText = scriptText
         self.target = target
+        self.showEnvVarsInLog = showEnvVarsInLog
     }
 }

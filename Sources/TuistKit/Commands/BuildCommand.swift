@@ -41,14 +41,16 @@ struct BuildCommand: ParsableCommand {
     func run() throws {
         let absolutePath: AbsolutePath
         if let path = path {
-            absolutePath = AbsolutePath(path)
+            absolutePath = AbsolutePath(path, relativeTo: FileHandler.shared.currentPath)
         } else {
             absolutePath = FileHandler.shared.currentPath
         }
-        try BuildService().run(schemeName: scheme,
-                               generate: generate,
-                               clean: clean,
-                               configuration: configuration,
-                               path: absolutePath)
+        try BuildService().run(
+            schemeName: scheme,
+            generate: generate,
+            clean: clean,
+            configuration: configuration,
+            path: absolutePath
+        )
     }
 }

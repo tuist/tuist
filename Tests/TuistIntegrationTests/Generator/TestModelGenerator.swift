@@ -27,7 +27,7 @@ final class TestModelGenerator {
         self.config = config
     }
 
-    func generate() throws -> (Graph, Workspace) {
+    func generate() throws -> Graph {
         let frameworkNodeLoader = MockFrameworkNodeLoader()
         let libraryNodeLoader = MockLibraryNodeLoader()
         let xcframeworkNodeLoader = MockXCFrameworkNodeLoader()
@@ -100,6 +100,7 @@ final class TestModelGenerator {
                 xcodeProjPath: path.appending(component: "App.xcodeproj"),
                 name: name,
                 organizationName: nil,
+                developmentRegion: nil,
                 settings: settings,
                 filesGroup: .group(name: "Project"),
                 targets: targets,
@@ -278,7 +279,7 @@ final class TestModelGenerator {
 
     private func createExecutionActions() -> [ExecutionAction] {
         (0 ..< 10).map {
-            ExecutionAction(title: "ExecutionAction\($0)", scriptText: "ScripText\($0)", target: nil)
+            ExecutionAction(title: "ExecutionAction\($0)", scriptText: "ScripText\($0)", target: nil, showEnvVarsInLog: false)
         }
     }
 

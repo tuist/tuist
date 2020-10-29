@@ -1,0 +1,28 @@
+opt_in_rules:
+  - empty_count
+  - empty_string
+  - contains_over_first_not_nil
+  - first_where
+  - sorted_first_last
+  - modifier_order
+  - type_contents_order
+  - file_types_order
+  - force_unwrapping
+
+disabled_rules:
+  - nesting
+  - xctfail_message
+  - vertical_parameter_alignment
+    
+trailing_comma:
+  mandatory_comma: true
+
+trailing_whitespace:
+  ignores_empty_lines: true
+
+line_length: 240
+function_body_length: 50
+function_parameter_count: 6
+file_length:
+  warning: 500
+  error: 800

@@ -128,7 +128,7 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
         let path = try temporaryPath().appending(component: "App")
         let project = Project.test(name: "App")
         try stub(manifest: project, at: path)
-        environment.tuistVariables = ["NAME": "A"]
+        environment.manifestLoadingVariables = ["NAME": "A"]
 
         // When
         _ = try subject.loadProject(at: path)
@@ -146,11 +146,11 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
         let path = try temporaryPath().appending(component: "App")
         let project = Project.test(name: "App")
         try stub(manifest: project, at: path)
-        environment.tuistVariables = ["NAME": "A"]
+        environment.manifestLoadingVariables = ["NAME": "A"]
         _ = try subject.loadProject(at: path)
 
         // When
-        environment.tuistVariables = ["NAME": "B"]
+        environment.manifestLoadingVariables = ["NAME": "B"]
         _ = try subject.loadProject(at: path)
 
         // Then

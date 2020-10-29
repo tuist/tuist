@@ -82,6 +82,10 @@ public protocol ManifestLoading {
     ///     - path: Path to the directory that contains the name_of_template.swift
     func loadTemplate(at path: AbsolutePath) throws -> ProjectDescription.Template
 
+    /// Loads the Dependencies.swift in the given directory
+    /// - Parameter path: Path to the directory that containst Dependencies.swift
+    func loadDependencies(at path: AbsolutePath) throws -> ProjectDescription.Dependencies
+
     /// List all the manifests in the given directory.
     /// - Parameter path: Path to the directory whose manifest files will be returend.
     func manifests(at path: AbsolutePath) -> Set<Manifest>
@@ -117,7 +121,7 @@ public class ManifestLoader: ManifestLoading {
     }
 
     public func manifests(at path: AbsolutePath) -> Set<Manifest> {
-        Set(manifestFilesLocator.locate(at: path).map { $0.0 })
+        Set(manifestFilesLocator.locateProjectManifests(at: path).map { $0.0 })
     }
 
     public func loadConfig(at path: AbsolutePath) throws -> ProjectDescription.Config {
@@ -151,6 +155,18 @@ public class ManifestLoader: ManifestLoading {
         }
     }
 
+    public func loadDependencies(at path: AbsolutePath) throws -> ProjectDescription.Dependencies {
+        let dependencyPath = path.appending(component: Manifest.dependencies.fileName(path))
+        guard FileHandler.shared.exists(dependencyPath) else {
+            throw ManifestLoaderError.manifestNotFound(.dependencies, path)
+        }
+
+        let dependenciesData = try loadManifestData(at: dependencyPath)
+        let decoder = JSONDecoder()
+
+        return try decoder.decode(Dependencies.self, from: dependenciesData)
+    }
+
     // MARK: - Private
 
     private func loadManifest<T: Decodable>(_ manifest: Manifest, at path: AbsolutePath) throws -> T {
@@ -165,7 +181,7 @@ public class ManifestLoader: ManifestLoading {
             let data = try loadManifestData(at: manifestPath)
             if Environment.shared.isVerbose {
                 let string = String(data: data, encoding: .utf8)
-                logger.debug("Trying to load the manifest represented by the following JSON representation:\n\(string)")
+                logger.debug("Trying to load the manifest represented by the following JSON representation:\n\(string ?? "")")
             }
             return try decoder.decode(T.self, from: data)
         }
@@ -175,20 +191,21 @@ public class ManifestLoader: ManifestLoading {
 
     private func loadManifestData(at path: AbsolutePath) throws -> Data {
         let projectDescriptionPath = try resourceLocator.projectDescription()
-
+        let searchPaths = ProjectDescriptionSearchPaths.paths(for: projectDescriptionPath)
         var arguments: [String] = [
             "/usr/bin/xcrun",
             "swiftc",
             "--driver-mode=swift",
             "-suppress-warnings",
-            "-I", projectDescriptionPath.parentDirectory.pathString,
-            "-L", projectDescriptionPath.parentDirectory.pathString,
-            "-F", projectDescriptionPath.parentDirectory.pathString,
+            "-I", searchPaths.includeSearchPath.pathString,
+            "-L", searchPaths.librarySearchPath.pathString,
+            "-F", searchPaths.frameworkSearchPath.pathString,
             "-lProjectDescription",
+            "-framework", "ProjectDescription",
         ]
 
         // Helpers
-        let projectDesciptionHelpersModulePath = try projectDescriptionHelpersBuilder.build(at: path, projectDescriptionPath: projectDescriptionPath)
+        let projectDesciptionHelpersModulePath = try projectDescriptionHelpersBuilder.build(at: path, projectDescriptionSearchPaths: searchPaths)
         if let projectDesciptionHelpersModulePath = projectDesciptionHelpersModulePath {
             arguments.append(contentsOf: [
                 "-I", projectDesciptionHelpersModulePath.parentDirectory.pathString,
@@ -201,7 +218,9 @@ public class ManifestLoader: ManifestLoading {
         arguments.append(path.pathString)
         arguments.append("--tuist-dump")
 
-        let result = System.shared.observable(arguments, verbose: false, environment: environment.tuistVariables)
+        let result = System.shared.observable(arguments,
+                                              verbose: false,
+                                              environment: environment.manifestLoadingVariables)
             .toBlocking()
             .materialize()
 

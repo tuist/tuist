@@ -11,14 +11,10 @@ import XCTest
 
 final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
     var subject: SwiftPackageManagerInteractor!
-    var rootDirectoryLocator: MockRootDirectoryLocator!
 
     override func setUp() {
         super.setUp()
-        rootDirectoryLocator = MockRootDirectoryLocator()
-        subject = SwiftPackageManagerInteractor(
-            rootDirectoryLocator: rootDirectoryLocator
-        )
+        subject = SwiftPackageManagerInteractor()
     }
 
     override func tearDown() {
@@ -46,14 +42,11 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         system.succeedCommand(["xcodebuild", "-resolvePackageDependencies", "-workspace", workspacePath.pathString, "-list"])
         try createFiles(["\(workspacePath.basename)/xcshareddata/swiftpm/Package.resolved"])
 
-        let rootPath = try self.temporaryPath()
-        rootDirectoryLocator.locateStub = rootPath
-
         // When
         try subject.install(graph: graph, workspaceName: workspacePath.basename)
 
         // Then
-        XCTAssertTrue(FileHandler.shared.exists(rootPath.appending(component: ".package.resolved")))
+        XCTAssertTrue(FileHandler.shared.exists(temporaryPath.appending(component: ".package.resolved")))
     }
 
     func test_generate_linksRootPackageResolved_before_resolving() throws {
@@ -79,8 +72,6 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
                                        projects: [project.path])
         let rootPackageResolvedPath = temporaryPath.appending(component: ".package.resolved")
         try FileHandler.shared.write("package", path: rootPackageResolvedPath, atomically: false)
-
-        rootDirectoryLocator.locateStub = temporaryPath
 
         let workspacePath = temporaryPath.appending(component: workspace.name + ".xcworkspace")
         system.succeedCommand(["xcodebuild", "-resolvePackageDependencies", "-workspace", workspacePath.pathString, "-list"])
@@ -114,8 +105,6 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
 
         let workspace = Workspace.test(projects: [project.path])
         let workspacePath = temporaryPath.appending(component: workspace.name + ".xcworkspace")
-
-        rootDirectoryLocator.locateStub = temporaryPath
 
         // When
         try subject.install(graph: graph, workspaceName: workspacePath.basename)
