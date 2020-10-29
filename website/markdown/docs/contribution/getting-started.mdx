@@ -41,8 +41,7 @@ With it you'll also get familiar with the most used elements from the Foundation
 To start working on the project, we can follow the steps below:
 
 - Clone the repository by running: `git clone git@github.com:tuist/tuist.git`
-- Generate Xcode project with `swift package generate-xcodeproj --skip-extra-files`.
-- Open `tuist.xcodeproj` using Xcode.
+- Open `Package.swift` using Xcode
 
 <Message
   info
@@ -53,12 +52,18 @@ To start working on the project, we can follow the steps below:
 ## Run Tuist from Xcode
 
 You can run Tuist from Xcode like you'd do from your terminal.
-With the project opened in Xcode,
-edit the `tuist` scheme.
+
+With the project opened in Xcode:
+
+- Build the `ProjectDescription` scheme first
+- Edit the `tuist` scheme
+
 In the **Arguments** tab inside the **Run** section specify the arguments that you'd like to pass to Tuist as shown in the screenshot below:
 
 ![This screenshot shows how to configure the launch arguments that will be passed to tuist](./assets/launch-arguments.png)
 
-After that, change the **working directory** in the **options** section to point to the directory that contains the project:
+- Change the **working directory** in the **options** section to point to the directory that contains the project:
 
 ![This screenshot shows the run options where we can specify the working directory](./assets/working-directory.png)
+
+- Run the `tuist` scheme

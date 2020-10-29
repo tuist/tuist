@@ -18,12 +18,12 @@ final class MockDescriptorGenerator: DescriptorGenerating {
         return try generateProjectSub(project, graph)
     }
 
-    var generateWorkspaceStub: ((Workspace, Graph) throws -> WorkspaceDescriptor)?
-    func generateWorkspace(workspace: Workspace, graph: Graph) throws -> WorkspaceDescriptor {
+    var generateWorkspaceStub: ((Graph) throws -> WorkspaceDescriptor)?
+    func generateWorkspace(graph: Graph) throws -> WorkspaceDescriptor {
         guard let generateWorkspaceStub = generateWorkspaceStub else {
             throw MockError.stubNotImplemented
         }
 
-        return try generateWorkspaceStub(workspace, graph)
+        return try generateWorkspaceStub(graph)
     }
 }

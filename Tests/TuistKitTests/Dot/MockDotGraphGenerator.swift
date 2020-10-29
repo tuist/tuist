@@ -6,8 +6,8 @@ import TuistGenerator
 final class MockGraphVizGenerator: GraphVizGenerating {
     var generateProjectArgs: [AbsolutePath] = []
     var generateWorkspaceArgs: [AbsolutePath] = []
-    var generateProjectStub: GraphViz.Graph = GraphViz.Graph()
-    var generateWorkspaceStub: GraphViz.Graph = GraphViz.Graph()
+    var generateProjectStub = GraphViz.Graph()
+    var generateWorkspaceStub = GraphViz.Graph()
 
     func generateProject(at path: AbsolutePath, skipTestTargets _: Bool, skipExternalDependencies _: Bool) throws -> GraphViz.Graph {
         generateProjectArgs.append(path)

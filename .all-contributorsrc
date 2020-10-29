@@ -11,6 +11,88 @@
       "avatar_url": "https://avatars1.githubusercontent.com/u/1033839?v=4",
       "profile": "https://github.com/kalkwarf",
       "contributions": [
+        "ideas",
+        "bug"
+      ]
+    },
+    {
+      "login": "fortmarek",
+      "name": "Marek Fořt",
+      "avatar_url": "https://avatars0.githubusercontent.com/u/9371695?v=4",
+      "profile": "https://github.com/fortmarek",
+      "contributions": [
+        "ideas"
+      ]
+    },
+    {
+      "login": "fortmarek",
+      "name": "Marek Fořt",
+      "avatar_url": "https://avatars0.githubusercontent.com/u/9371695?v=4",
+      "profile": "https://github.com/fortmarek",
+      "contributions": [
+        "ideas"
+      ]
+    },
+    {
+      "login": "kwridan",
+      "name": "Kas",
+      "avatar_url": "https://avatars3.githubusercontent.com/u/11914919?v=4",
+      "profile": "http://www.matrixprojects.net",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "natanrolnik",
+      "name": "Natan Rolnik",
+      "avatar_url": "https://avatars3.githubusercontent.com/u/1164565?v=4",
+      "profile": "http://natanrolnik.me",
+      "contributions": [
+        "bug"
+      ]
+    },
+    {
+      "login": "svastven",
+      "name": "svastven",
+      "avatar_url": "https://avatars0.githubusercontent.com/u/42235915?v=4",
+      "profile": "https://github.com/svastven",
+      "contributions": [
+        "ideas"
+      ]
+    },
+    {
+      "login": "bhuemer",
+      "name": "Bernhard Huemer",
+      "avatar_url": "https://avatars2.githubusercontent.com/u/1212480?v=4",
+      "profile": "http://bhuemer.github.io",
+      "contributions": [
+        "ideas"
+      ]
+    },
+    {
+      "login": "mollyIV",
+      "name": "Daniel Jankowski",
+      "avatar_url": "https://avatars0.githubusercontent.com/u/10795657?v=4",
+      "profile": "https://djankowski.dev",
+      "contributions": [
+        "ideas"
+      ]
+    },
+    {
+      "login": "facumenzella",
+      "name": "Facundo Menzella",
+      "avatar_url": "https://avatars1.githubusercontent.com/u/1125252?v=4",
+      "profile": "https://github.com/facumenzella",
+      "contributions": [
+        "ideas"
+      ]
+    },
+    {
+      "login": "eito",
+      "name": "Eric Ito",
+      "avatar_url": "https://avatars3.githubusercontent.com/u/775643?v=4",
+      "profile": "https://github.com/eito",
+      "contributions": [
         "ideas"
       ]
     },
@@ -22,6 +104,33 @@
       "contributions": [
         "code",
         "ideas"
+      ]
+    },
+    {
+      "login": "olejnjak",
+      "name": "Jakub Olejník",
+      "avatar_url": "https://avatars1.githubusercontent.com/u/3148214?v=4",
+      "profile": "https://github.com/olejnjak",
+      "contributions": [
+        "ideas"
+      ]
+    },
+    {
+      "login": "lakpa",
+      "name": "ldindu",
+      "avatar_url": "https://avatars0.githubusercontent.com/u/389328?v=4",
+      "profile": "https://github.com/lakpa",
+      "contributions": [
+        "ideas"
+      ]
+    },
+    {
+      "login": "gtsifrikas",
+      "name": "George Tsifrikas",
+      "avatar_url": "https://avatars2.githubusercontent.com/u/8904378?v=4",
+      "profile": "https://github.com/gtsifrikas",
+      "contributions": [
+        "blog"
       ]
     }
   ],

@@ -48,8 +48,8 @@ public final class Cache: CacheStoring {
             }!
     }
 
-    public func store(hash: String, xcframeworkPath: AbsolutePath) -> Completable {
+    public func store(hash: String, paths: [AbsolutePath]) -> Completable {
         let storages = storageProvider.storages()
-        return Completable.zip(storages.map { $0.store(hash: hash, xcframeworkPath: xcframeworkPath) })
+        return Completable.zip(storages.map { $0.store(hash: hash, paths: paths) })
     }
 }

@@ -35,10 +35,10 @@ final class ProjectDescriptionHelpersBuilderIntegrationTests: TuistTestCase {
         try FileHandler.shared.createFolder(helpersPath)
         try FileHandler.shared.write("import Foundation; class Test {}", path: helpersPath.appending(component: "Helper.swift"), atomically: true)
         let projectDescriptionPath = try resourceLocator.projectDescription()
-        print(helpersPath)
+        let searchPaths = ProjectDescriptionSearchPaths.paths(for: projectDescriptionPath)
 
         // When
-        let paths = try (0 ..< 3).map { _ in try subject.build(at: path, projectDescriptionPath: projectDescriptionPath) }
+        let paths = try (0 ..< 3).map { _ in try subject.build(at: path, projectDescriptionSearchPaths: searchPaths) }
 
         // Then
         XCTAssertEqual(Set(paths).count, 1)

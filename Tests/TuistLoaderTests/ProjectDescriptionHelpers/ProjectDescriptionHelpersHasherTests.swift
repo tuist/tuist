@@ -27,7 +27,7 @@ class ProjectDescriptionHelpersHasherTests: TuistUnitTestCase {
         let temporaryDir = try temporaryPath()
         let helperPath = temporaryDir.appending(component: "Project+Templates.swift")
         try FileHandler.shared.write("import ProjectDescription", path: helperPath, atomically: true)
-        environment.tuistVariables = ["TUIST_VARIABLE": "TEST"]
+        environment.manifestLoadingVariables = ["TUIST_VARIABLE": "TEST"]
 
         // Then
         for _ in 0 ..< 20 {

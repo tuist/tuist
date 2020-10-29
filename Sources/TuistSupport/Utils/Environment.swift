@@ -20,8 +20,8 @@ public protocol Environmenting: AnyObject {
     /// Returns the directory where the project description helper modules are cached.
     var projectDescriptionHelpersCacheDirectory: AbsolutePath { get }
 
-    /// Returns the directory where the xcframeworks are cached.
-    var xcframeworksCacheDirectory: AbsolutePath { get }
+    /// Returns the directory where the build artifacts are cached.
+    var buildCacheDirectory: AbsolutePath { get }
 
     /// Returns all the environment variables that are specific to Tuist (prefixed with TUIST_)
     var tuistVariables: [String: String] { get }
@@ -38,7 +38,7 @@ public class Environment: Environmenting {
     public static var shared: Environmenting = Environment()
 
     /// Returns the default local directory.
-    static let defaultDirectory: AbsolutePath = AbsolutePath(URL(fileURLWithPath: NSHomeDirectory()).path).appending(component: ".tuist")
+    static let defaultDirectory = AbsolutePath(URL(fileURLWithPath: NSHomeDirectory()).path).appending(component: ".tuist")
 
     // MARK: - Attributes
 
@@ -105,9 +105,9 @@ public class Environment: Environmenting {
         }
     }
 
-    /// Returns the directory where the xcframeworks are cached.
-    public var xcframeworksCacheDirectory: AbsolutePath {
-        cacheDirectory.appending(component: "xcframeworks")
+    /// Returns the directory where the build artifacts are cached.
+    public var buildCacheDirectory: AbsolutePath {
+        cacheDirectory.appending(component: "BuildCache")
     }
 
     /// Returns the directory where the project description helper modules are cached.
@@ -131,7 +131,6 @@ public class Environment: Environmenting {
 
     public var manifestLoadingVariables: [String: String] {
         let allowedVariableKeys = [
-            "PATH",
             "DEVELOPER_DIR",
         ]
         let allowedVariables = ProcessInfo.processInfo.environment.filter {

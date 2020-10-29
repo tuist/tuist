@@ -265,10 +265,6 @@ Note: to re-create `PrebuiltStaticFramework.framework` run `fixtures/ios_app_wit
 
 An example of a workspace that has a dependency cycle between targets in different projects.
 
-## ios_app_with_carthage_frameworks
-
-An example of an iOS app that contains Carthage frameworks \*(fat frameworks with device & simulators architectures)\*. This fixture is useful to test the script that embeds them stripping the architectures that are not necessary.
-
 ## ios_app_with_helpers
 
 A basic iOS app that has some manifest bits extracted into helpers.
@@ -301,6 +297,10 @@ A simple iOS app with a Core Data model and Mapping Model (.xcmappingmodel)
 ## ios_app_with_incompatible_dependencies
 
 An iOS app that has a dependency with a dependency with a framework for macOS.
+
+## app_with_development_region_config
+
+An iOS app where the development region is defined at the `Config` level.
 
 ## app_with_old_config_name
 

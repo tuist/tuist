@@ -72,7 +72,7 @@ public struct ValueGraph: Equatable {
         if let targetNode = node as? TargetNode {
             targetNode.dependencies.forEach { nodeDependencies.formUnion([self.dependency(from: $0)]) }
         } else if let frameworkNode = node as? FrameworkNode {
-            frameworkNode.dependencies.forEach { nodeDependencies.formUnion([self.dependency(from: $0)]) }
+            frameworkNode.dependencies.forEach { nodeDependencies.formUnion([self.dependency(from: $0.node)]) }
         } else if let xcframeworkNode = node as? XCFrameworkNode {
             xcframeworkNode.dependencies.forEach { nodeDependencies.formUnion([self.dependency(from: $0.node)]) }
         }

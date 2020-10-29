@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 require 'minitest/assertions'
 require 'xcodeproj'
+require 'simctl'
 
 module Xcode
   include Minitest::Assertions
@@ -36,6 +37,22 @@ module Xcode
     framework_path = Dir.glob(framework_glob).first
 
     framework_path
+  end
+
+  def self.find_app_clip(product:, destination:, app_clip:, derived_data_path:)
+    product_path = product_with_name(
+      product,
+      destination: destination,
+      derived_data_path: derived_data_path
+    )
+
+    return if product_path.nil?
+
+    app_clip_glob = File.join(product_path, "/AppClips/#{app_clip}.app")
+    # /path/to/product/AppClips/AppClip.app
+    app_clip_path = Dir.glob(app_clip_glob).first
+
+    app_clip_path
   end
 
   def self.find_resource(product:, destination:, resource:, derived_data_path:)
@@ -78,5 +95,18 @@ module Xcode
     headers_glob = File.join(product_path, "**/*.h")
     # /path/to/product/header.h
     Dir.glob(headers_glob)
+  end
+
+  def self.valid_simulator_destination_for_platform(platform)
+    device = SimCtl
+      .list_devices
+      .select { |d| d.is_available && d.runtime.name.downcase.include?(platform.downcase) }
+      .sort { |l, r| l.runtime.version <=> r.runtime.version }
+      .last
+
+    if device.nil?
+      flunk("Couldn't find an available destination simulator for platform #{platform}")
+    end
+    "platform=#{platform} Simulator,id=#{device.udid}"
   end
 end

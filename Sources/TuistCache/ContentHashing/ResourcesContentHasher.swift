@@ -16,6 +16,8 @@ public final class ResourcesContentHasher: ResourcesContentHashing {
         self.contentHasher = contentHasher
     }
 
+    // MARK: - ResourcesContentHashing
+
     public func hash(resources: [FileElement]) throws -> String {
         let hashes = try resources.map { try contentHasher.hash(path: $0.path) }
         return try contentHasher.hash(hashes)

@@ -7,25 +7,26 @@ import TuistSupport
 
 final class CachePrintHashesService {
     /// Project generator
-    let projectGenerator: ProjectGenerating
+    let generator: Generating
 
     let graphContentHasher: GraphContentHashing
     private let clock: Clock
 
-    init(projectGenerator: ProjectGenerating = ProjectGenerator(),
+    init(generator: Generating = Generator(),
          graphContentHasher: GraphContentHashing = GraphContentHasher(),
          clock: Clock = WallClock())
     {
-        self.projectGenerator = projectGenerator
+        self.generator = generator
         self.graphContentHasher = graphContentHasher
         self.clock = clock
     }
 
-    func run(path: AbsolutePath) throws {
+    func run(path: AbsolutePath, xcframeworks: Bool) throws {
         let timer = clock.startTimer()
 
-        let graph = try projectGenerator.load(path: path)
-        let hashes = try graphContentHasher.contentHashes(for: graph)
+        let graph = try generator.load(path: path)
+        let cacheOutputType: CacheOutputType = xcframeworks ? .xcframework : .framework
+        let hashes = try graphContentHasher.contentHashes(for: graph, cacheOutputType: cacheOutputType)
         let duration = timer.stop()
         let time = String(format: "%.3f", duration)
         guard hashes.count > 0 else {

@@ -50,12 +50,26 @@ struct FocusCommand: ParsableCommand {
     )
     var noOpen: Bool = false
 
+    @Flag(
+        name: [.customShort("x"), .long],
+        help: "When passed it uses xcframeworks (simulator and device) from the cache instead of frameworks (only simulator)."
+    )
+    var xcframeworks: Bool = false
+
+    @Flag(
+        name: [.customLong("no-cache")],
+        help: "Ignore cached targets, and use their sources instead."
+    )
+    var ignoreCache: Bool = false
+
     func run() throws {
         if sources.isEmpty {
             throw FocusCommandError.noSources
         }
         try FocusService().run(path: path,
                                sources: Set(sources),
-                               noOpen: noOpen)
+                               noOpen: noOpen,
+                               xcframeworks: xcframeworks,
+                               ignoreCache: ignoreCache)
     }
 }

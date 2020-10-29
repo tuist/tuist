@@ -1,4 +1,5 @@
 import Foundation
+import TSCBasic
 import TuistCore
 import TuistSupport
 
@@ -11,12 +12,17 @@ public protocol EnvironmentLinting {
 }
 
 public class EnvironmentLinter: EnvironmentLinting {
+    private let rootDirectoryLocator: RootDirectoryLocating
+
     /// Default constructor.
-    public init() {}
+    public init(rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator()) {
+        self.rootDirectoryLocator = rootDirectoryLocator
+    }
 
     public func lint(config: Config) throws -> [LintingIssue] {
         var issues = [LintingIssue]()
 
+        issues.append(contentsOf: lintConfigPath(config: config))
         issues.append(contentsOf: try lintXcodeVersion(config: config))
 
         return issues
@@ -46,5 +52,22 @@ public class EnvironmentLinter: EnvironmentLinting {
         } else {
             return []
         }
+    }
+
+    func lintConfigPath(config: Config) -> [LintingIssue] {
+        guard
+            let configPath = config.path,
+            let rootDirectoryPath = rootDirectoryLocator.locate(from: configPath)
+        else {
+            return []
+        }
+
+        let tuistDirectoryPath = rootDirectoryPath.appending(RelativePath("\(Constants.tuistDirectoryName)"))
+        guard configPath.removingLastComponent() == tuistDirectoryPath else {
+            let message = "`Config.swift` manifest file is not located at `Tuist` directory"
+            return [LintingIssue(reason: message, severity: .warning)]
+        }
+
+        return []
     }
 }

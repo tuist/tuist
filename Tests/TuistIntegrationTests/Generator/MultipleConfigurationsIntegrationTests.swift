@@ -25,7 +25,7 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
 
     func testGenerateThrowsLintingErrorWhenConfigurationsAreEmpty() throws {
         // Given
-        let projectSettings: Settings = Settings(configurations: [:])
+        let projectSettings = Settings(configurations: [:])
         let targetSettings: Settings? = nil
 
         // When / Then
@@ -300,9 +300,9 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
         let linter = GraphLinter()
         let graphLoader = GraphLoader(modelLoader: modelLoader)
 
-        let (graph, workspace) = try graphLoader.loadWorkspace(path: temporaryPath)
+        let graph = try graphLoader.loadWorkspace(path: temporaryPath)
         try linter.lint(graph: graph).printAndThrowIfNeeded()
-        let descriptor = try subject.generateWorkspace(workspace: workspace, graph: graph)
+        let descriptor = try subject.generateWorkspace(graph: graph)
         try writer.write(workspace: descriptor)
     }
 
@@ -335,7 +335,7 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
     }
 
     private func createConfig() -> Config {
-        Config(compatibleXcodeVersions: .all, cloud: nil, generationOptions: [])
+        Config(compatibleXcodeVersions: .all, cloud: nil, generationOptions: [], path: nil)
     }
 
     private func createWorkspace(path: AbsolutePath, projects: [String]) throws -> Workspace {
@@ -348,6 +348,7 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
                 xcodeProjPath: path.appending(component: "App.xcodeproj"),
                 name: "App",
                 organizationName: nil,
+                developmentRegion: nil,
                 settings: settings,
                 filesGroup: .group(name: "Project"),
                 targets: targets,

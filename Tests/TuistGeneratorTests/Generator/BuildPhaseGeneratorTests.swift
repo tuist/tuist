@@ -82,6 +82,28 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         ])
     }
 
+    func test_generateScripts() throws {
+        // Given
+        let target = PBXNativeTarget(name: "Test")
+        let pbxproj = PBXProj()
+        pbxproj.add(object: target)
+        let targetScript = TargetScript(name: "Test", script: "Script", showEnvVarsInLog: true, hashable: false)
+        let targetScripts = [targetScript]
+
+        // When
+        subject.generateScripts(targetScripts,
+                                pbxTarget: target,
+                                pbxproj: pbxproj)
+
+        // Then
+        let buildPhase = try XCTUnwrap(target.buildPhases.first as? PBXShellScriptBuildPhase)
+        XCTAssertEqual(buildPhase.name, targetScript.name)
+        XCTAssertEqual(buildPhase.shellScript, targetScript.script)
+        XCTAssertEqual(buildPhase.shellPath, "/bin/sh")
+        XCTAssertEqual(buildPhase.files, [])
+        XCTAssertTrue(buildPhase.showEnvVarsInLog)
+    }
+
     func test_generateSourcesBuildPhase_throws_when_theFileReferenceIsMissing() {
         let path = AbsolutePath("/test/file.swift")
         let target = PBXNativeTarget(name: "Test")
@@ -184,6 +206,41 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         ])
     }
 
+    func test_generateHeadersBuildPhase_empty_when_iOSAppTarget() throws {
+        let tmpDir = try temporaryPath()
+        let pbxTarget = PBXNativeTarget(name: "Test")
+        let pbxproj = PBXProj()
+        pbxproj.add(object: pbxTarget)
+
+        let fileElements = ProjectFileElements()
+        let path = AbsolutePath("/test/file.swift")
+
+        let sourceFileReference = PBXFileReference(sourceTree: .group, name: "Test")
+        fileElements.elements[path] = sourceFileReference
+
+        let headerPath = AbsolutePath("/test.h")
+        let headers = Headers.test(public: [path], private: [], project: [])
+
+        let headerFileReference = PBXFileReference()
+        fileElements.elements[headerPath] = headerFileReference
+
+        let target = Target.test(platform: .iOS,
+                                 sources: [(path: "/test/file.swift", compilerFlags: nil)],
+                                 headers: headers)
+
+        let graph = ValueGraph.test(path: tmpDir)
+        let graphTraverser = ValueGraphTraverser(graph: graph)
+
+        try subject.generateBuildPhases(path: tmpDir,
+                                        target: target,
+                                        graphTraverser: graphTraverser,
+                                        pbxTarget: pbxTarget,
+                                        fileElements: fileElements,
+                                        pbxproj: pbxproj)
+
+        XCTAssertEmpty(pbxTarget.buildPhases.filter { $0 is PBXHeadersBuildPhase })
+    }
+
     func test_generateHeadersBuildPhase_before_generateSourceBuildPhase() throws {
         let tmpDir = try temporaryPath()
         let pbxTarget = PBXNativeTarget(name: "Test")
@@ -202,7 +259,9 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let headerFileReference = PBXFileReference()
         fileElements.elements[headerPath] = headerFileReference
 
-        let target = Target.test(sources: [(path: "/test/file.swift", compilerFlags: nil)],
+        let target = Target.test(platform: .iOS,
+                                 product: .framework,
+                                 sources: [(path: "/test/file.swift", compilerFlags: nil)],
                                  headers: headers)
         let graph = ValueGraph.test(path: tmpDir)
         let graphTraverser = ValueGraphTraverser(graph: graph)
@@ -535,6 +594,93 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
                        [["ATTRIBUTES": ["RemoveHeadersOnCopy"]]])
     }
 
+    func test_generateTarget_actions() throws {
+        // Given
+        system.swiftVersionStub = { "5.2" }
+        let fileElements = ProjectFileElements([:], playgrounds: MockPlaygrounds())
+        let graph = Graph.test()
+        let path = AbsolutePath("/test")
+        let pbxproj = PBXProj()
+        let pbxProject = createPbxProject(pbxproj: pbxproj)
+        let target = Target.test(sources: [],
+                                 resources: [],
+                                 actions: [
+                                     TargetAction(name: "post", order: .post, path: path.appending(component: "script.sh"), arguments: ["arg"], showEnvVarsInLog: false, basedOnDependencyAnalysis: false),
+                                     TargetAction(name: "pre", order: .pre, path: path.appending(component: "script.sh"), arguments: ["arg"]),
+                                 ])
+        let project = Project.test(path: path, sourceRootPath: path, xcodeProjPath: path.appending(component: "Project.xcodeproj"), targets: [target])
+        let groups = ProjectGroups.generate(project: project,
+                                            pbxproj: pbxproj,
+                                            playgrounds: MockPlaygrounds())
+        try fileElements.generateProjectFiles(project: project,
+                                              graph: graph,
+                                              groups: groups,
+                                              pbxproj: pbxproj)
+
+        // When
+        let pbxTarget = try TargetGenerator().generateTarget(target: target,
+                                                             project: project,
+                                                             pbxproj: pbxproj,
+                                                             pbxProject: pbxProject,
+                                                             projectSettings: Settings.test(),
+                                                             fileElements: fileElements,
+                                                             path: path,
+                                                             graph: graph)
+
+        // Then
+        let preBuildPhase = try XCTUnwrap(pbxTarget.buildPhases.first as? PBXShellScriptBuildPhase)
+        XCTAssertEqual(preBuildPhase.name, "pre")
+        XCTAssertEqual(preBuildPhase.shellPath, "/bin/sh")
+        XCTAssertEqual(preBuildPhase.shellScript, "\"${PROJECT_DIR}\"/script.sh arg")
+        XCTAssertTrue(preBuildPhase.showEnvVarsInLog)
+        XCTAssertFalse(preBuildPhase.alwaysOutOfDate)
+
+        let postBuildPhase = try XCTUnwrap(pbxTarget.buildPhases.last as? PBXShellScriptBuildPhase)
+        XCTAssertEqual(postBuildPhase.name, "post")
+        XCTAssertEqual(postBuildPhase.shellPath, "/bin/sh")
+        XCTAssertEqual(postBuildPhase.shellScript, "\"${PROJECT_DIR}\"/script.sh arg")
+        XCTAssertFalse(postBuildPhase.showEnvVarsInLog)
+        XCTAssertTrue(postBuildPhase.alwaysOutOfDate)
+    }
+
+    func test_generateEmbedAppClipsBuildPhase() throws {
+        // Given
+        let app = Target.test(name: "App", product: .app)
+        let appClip = Target.test(name: "AppClip", product: .appClip)
+        let project = Project.test()
+        let pbxproj = PBXProj()
+        let nativeTarget = PBXNativeTarget(name: "Test")
+        let fileElements = createProductFileElements(for: [app, appClip])
+
+        let targets: [AbsolutePath: [String: Target]] = [
+            project.path: [app.name: app, appClip.name: appClip],
+        ]
+        let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
+            .target(name: appClip.name, path: project.path): Set(),
+            .target(name: app.name, path: project.path): Set([.target(name: appClip.name, path: project.path)]),
+        ]
+        let graph = ValueGraph.test(path: project.path,
+                                    projects: [project.path: project],
+                                    targets: targets,
+                                    dependencies: dependencies)
+        let graphTraverser = ValueGraphTraverser(graph: graph)
+        // When
+        try subject.generateEmbedAppClipsBuildPhase(path: project.path,
+                                                    target: app,
+                                                    graphTraverser: graphTraverser,
+                                                    pbxTarget: nativeTarget,
+                                                    fileElements: fileElements,
+                                                    pbxproj: pbxproj)
+
+        // Then
+        let pbxBuildPhase: PBXBuildPhase? = nativeTarget.buildPhases.first
+        XCTAssertNotNil(pbxBuildPhase)
+        XCTAssertTrue(pbxBuildPhase is PBXCopyFilesBuildPhase)
+        XCTAssertEqual(pbxBuildPhase?.files?.compactMap { $0.file?.nameOrPath }, ["AppClip"])
+        XCTAssertEqual(pbxBuildPhase?.files?.compactMap { $0.settings as? [String: [String]] },
+                       [["ATTRIBUTES": ["RemoveHeadersOnCopy"]]])
+    }
+
     // MARK: - Helpers
 
     private func createProductFileElements(for targets: [Target]) -> ProjectFileElements {
@@ -563,5 +709,18 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
 
     private func createFileElements(for headers: Headers) -> ProjectFileElements {
         createFileElements(for: headers.public + headers.private + headers.project)
+    }
+
+    private func createPbxProject(pbxproj: PBXProj) -> PBXProject {
+        let configList = XCConfigurationList(buildConfigurations: [])
+        pbxproj.add(object: configList)
+        let mainGroup = PBXGroup()
+        pbxproj.add(object: mainGroup)
+        let pbxProject = PBXProject(name: "Project",
+                                    buildConfigurationList: configList,
+                                    compatibilityVersion: "0",
+                                    mainGroup: mainGroup)
+        pbxproj.add(object: pbxProject)
+        return pbxProject
     }
 }

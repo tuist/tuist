@@ -10,11 +10,15 @@ import XCTest
 // Alternative: https://dot-to-ascii.ggerganov.com/
 final class CacheGraphMapperTests: TuistUnitTestCase {
     var xcframeworkLoader: MockXCFrameworkNodeLoader!
+    var frameworkLoader: MockFrameworkNodeLoader!
+
     var subject: CacheGraphMutator!
 
     override func setUp() {
         xcframeworkLoader = MockXCFrameworkNodeLoader()
-        subject = CacheGraphMutator(xcframeworkLoader: xcframeworkLoader)
+        frameworkLoader = MockFrameworkNodeLoader()
+        subject = CacheGraphMutator(frameworkLoader: frameworkLoader,
+                                    xcframeworkLoader: xcframeworkLoader)
         super.setUp()
     }
 
@@ -25,11 +29,11 @@ final class CacheGraphMapperTests: TuistUnitTestCase {
     }
 
     // First scenario
-    //       +---->B (Cached Framework)+
+    //       +---->B (Cached XCFramework)+
     //       |                         |
-    //    App|                         +------>D (Cached Framework)
+    //    App|                         +------>D (Cached XCFramework)
     //       |                         |
-    //       +---->C (Cached Framework)+
+    //       +---->C (Cached XCFramework)+
     func test_map_when_first_scenario() throws {
         let path = try temporaryPath()
 
@@ -76,8 +80,12 @@ final class CacheGraphMapperTests: TuistUnitTestCase {
             else { fatalError("Unexpected load call") }
         }
 
+        frameworkLoader.loadStub = { _ in
+            throw "Can't find .framework here"
+        }
+
         // When
-        let got = try subject.map(graph: graph, xcframeworks: xcframeworks, sources: Set(["App"]))
+        let got = try subject.map(graph: graph, precompiledFrameworks: xcframeworks, sources: Set(["App"]))
 
         // Then
         let appNode = try XCTUnwrap(got.entryNodes.first as? TargetNode)
@@ -85,24 +93,14 @@ final class CacheGraphMapperTests: TuistUnitTestCase {
         let c = try XCTUnwrap(appNode.dependencies.compactMap { $0 as? XCFrameworkNode }.first(where: { $0.path == cXCFrameworkPath }))
         XCTAssertTrue(b.dependencies.contains(where: { $0.path == dXCFrameworkPath }))
         XCTAssertTrue(c.dependencies.contains(where: { $0.path == dXCFrameworkPath }))
-
-        // Treeshake
-        let gotTargets = Set(got.targets.flatMap { $0.value })
-        let gotProjects = Set(got.projects)
-        XCTAssertFalse(gotTargets.contains(bFrameworkNode))
-        XCTAssertFalse(gotTargets.contains(cFrameworkNode))
-        XCTAssertFalse(gotTargets.contains(dFrameworkNode))
-        XCTAssertFalse(gotProjects.contains(bFrameworkNode.project))
-        XCTAssertFalse(gotProjects.contains(cFrameworkNode.project))
-        XCTAssertFalse(gotProjects.contains(dFrameworkNode.project))
     }
 
     // Second scenario
-    //       +---->B (Cached Framework)+
+    //       +---->B (Cached XCFramework)+
     //       |                         |
     //    App|                         +------>D Precompiled .framework
     //       |                         |
-    //       +---->C (Cached Framework)+
+    //       +---->C (Cached XCFramework)+
     func test_map_when_second_scenario() throws {
         let path = try temporaryPath()
 
@@ -144,8 +142,13 @@ final class CacheGraphMapperTests: TuistUnitTestCase {
             else { fatalError("Unexpected load call") }
         }
 
+        frameworkLoader.loadStub = { path in
+            if path == dFrameworkPath { return dFramework }
+            throw "Can't find .framework here"
+        }
+
         // When
-        let got = try subject.map(graph: graph, xcframeworks: xcframeworks, sources: Set(["App"]))
+        let got = try subject.map(graph: graph, precompiledFrameworks: xcframeworks, sources: Set(["App"]))
 
         // Then
         let app = try XCTUnwrap(got.entryNodes.first as? TargetNode)
@@ -153,22 +156,14 @@ final class CacheGraphMapperTests: TuistUnitTestCase {
         let c = try XCTUnwrap(app.dependencies.compactMap { $0 as? XCFrameworkNode }.first(where: { $0.path == cXCFrameworkPath }))
         XCTAssertTrue(b.dependencies.contains(where: { $0.path == dFrameworkPath }))
         XCTAssertTrue(c.dependencies.contains(where: { $0.path == dFrameworkPath }))
-
-        // Treeshake
-        let gotTargets = Set(got.targets.flatMap { $0.value })
-        let gotProjects = Set(got.projects)
-        XCTAssertFalse(gotTargets.contains(bFrameworkNode))
-        XCTAssertFalse(gotTargets.contains(cFrameworkNode))
-        XCTAssertFalse(gotProjects.contains(bFrameworkNode.project))
-        XCTAssertFalse(gotProjects.contains(cFrameworkNode.project))
     }
 
     // Third scenario
-    //       +---->B (Cached Framework)+
+    //       +---->B (Cached XCFramework)+
     //       |                         |
     //    App|                         +------>D Precompiled .framework
     //       |                         |
-    //       +---->C (Cached Framework)+------>E Precompiled .xcframework
+    //       +---->C (Cached XCFramework)+------>E Precompiled .xcframework
     func test_map_when_third_scenario() throws {
         let path = try temporaryPath()
 
@@ -216,8 +211,13 @@ final class CacheGraphMapperTests: TuistUnitTestCase {
             else { fatalError("Unexpected load call") }
         }
 
+        frameworkLoader.loadStub = { path in
+            if path == dFrameworkPath { return dFramework }
+            throw "Can't find .framework here"
+        }
+
         // When
-        let got = try subject.map(graph: graph, xcframeworks: xcframeworks, sources: Set(["App"]))
+        let got = try subject.map(graph: graph, precompiledFrameworks: xcframeworks, sources: Set(["App"]))
 
         // Then
         let app = try XCTUnwrap(got.entryNodes.first as? TargetNode)
@@ -226,14 +226,6 @@ final class CacheGraphMapperTests: TuistUnitTestCase {
         XCTAssertTrue(b.dependencies.contains(where: { $0.path == dFrameworkPath }))
         XCTAssertTrue(c.dependencies.contains(where: { $0.path == dFrameworkPath }))
         XCTAssertTrue(c.dependencies.contains(where: { $0.path == eXCFrameworkPath }))
-
-        // Treeshake
-        let gotTargets = Set(got.targets.flatMap { $0.value })
-        let gotProjects = Set(got.projects)
-        XCTAssertFalse(gotTargets.contains(bFrameworkNode))
-        XCTAssertFalse(gotTargets.contains(cFrameworkNode))
-        XCTAssertFalse(gotProjects.contains(bFrameworkNode.project))
-        XCTAssertFalse(gotProjects.contains(cFrameworkNode.project))
     }
 
     // Fourth scenario
@@ -241,7 +233,7 @@ final class CacheGraphMapperTests: TuistUnitTestCase {
     //       |
     //    App|
     //       |
-    //       +---->C (Cached Framework)+------>E Precompiled .xcframework
+    //       +---->C (Cached XCFramework)+------>E Precompiled .xcframework
     func test_map_when_fourth_scenario() throws {
         let path = try temporaryPath()
 
@@ -284,8 +276,13 @@ final class CacheGraphMapperTests: TuistUnitTestCase {
             else { fatalError("Unexpected load call") }
         }
 
+        frameworkLoader.loadStub = { path in
+            if path == dFrameworkPath { return dFramework }
+            throw "Can't find .framework here"
+        }
+
         // When
-        let got = try subject.map(graph: graph, xcframeworks: xcframeworks, sources: Set(["App"]))
+        let got = try subject.map(graph: graph, precompiledFrameworks: xcframeworks, sources: Set(["App"]))
 
         // Then
         let app = try XCTUnwrap(got.entryNodes.first as? TargetNode)
@@ -293,17 +290,9 @@ final class CacheGraphMapperTests: TuistUnitTestCase {
         let c = try XCTUnwrap(app.dependencies.compactMap { $0 as? XCFrameworkNode }.first(where: { $0.path == cXCFrameworkPath }))
         XCTAssertTrue(b.dependencies.contains(where: { $0.path == dFrameworkPath }))
         XCTAssertTrue(c.dependencies.contains(where: { $0.path == eXCFrameworkPath }))
-
-        // Treeshake
-        let gotTargets = Set(got.targets.flatMap { $0.value })
-        let gotProjects = Set(got.projects)
-        XCTAssertTrue(gotTargets.contains(bFrameworkNode))
-        XCTAssertFalse(gotTargets.contains(cFrameworkNode))
-        XCTAssertTrue(gotProjects.contains(bFrameworkNode.project))
-        XCTAssertFalse(gotProjects.contains(cFrameworkNode.project))
     }
 
-    // Fith scenario
+    // Fifth scenario
     //
     //    App ---->B (Framework)+------>C (Framework that depends on XCTest)
     func test_map_when_fith_scenario() throws {
@@ -328,20 +317,278 @@ final class CacheGraphMapperTests: TuistUnitTestCase {
         let graph = Graph.test(entryNodes: [appTargetNode], projects: graphProjects(targetNodes), targets: graphTargets(targetNodes))
 
         // When
-        let got = try subject.map(graph: graph, xcframeworks: [:], sources: Set(["App"]))
+        let got = try subject.map(graph: graph, precompiledFrameworks: [:], sources: Set(["App"]))
 
         // Then
         let app = try XCTUnwrap(got.entryNodes.first as? TargetNode)
         let b = try XCTUnwrap(app.dependencies.compactMap { $0 as? TargetNode }.first(where: { $0.name == "B" }))
         _ = try XCTUnwrap(b.dependencies.compactMap { $0 as? TargetNode }.first(where: { $0.name == "C" }))
+    }
 
-        // Treeshake
-        let gotTargets = Set(got.targets.flatMap { $0.value })
-        let gotProjects = Set(got.projects)
-        XCTAssertTrue(gotTargets.contains(bFrameworkNode))
-        XCTAssertTrue(gotTargets.contains(cFrameworkNode))
-        XCTAssertTrue(gotProjects.contains(bFrameworkNode.project))
-        XCTAssertTrue(gotProjects.contains(cFrameworkNode.project))
+    /// Scenari with cached .framework
+
+    // Sixth scenario
+    //       +---->B (Cached Framework)+
+    //       |                         |
+    //    App|                         +------>D (Cached Framework)
+    //       |                         |
+    //       +---->C (Cached Framework)+
+    func test_map_when_sixth_scenario() throws {
+        let path = try temporaryPath()
+
+        // Given: D
+        let dFramework = Target.test(name: "D", platform: .iOS, product: .framework)
+        let dProject = Project.test(path: path.appending(component: "D"), name: "D", targets: [dFramework])
+        let dFrameworkNode = TargetNode.test(project: dProject, target: dFramework)
+
+        // Given: B
+        let bFramework = Target.test(name: "B", platform: .iOS, product: .framework)
+        let bProject = Project.test(path: path.appending(component: "B"), name: "B", targets: [bFramework])
+        let bFrameworkNode = TargetNode.test(project: bProject, target: bFramework, dependencies: [dFrameworkNode])
+
+        // Given: C
+        let cFramework = Target.test(name: "C", platform: .iOS, product: .framework)
+        let cProject = Project.test(path: path.appending(component: "C"), name: "C", targets: [cFramework])
+        let cFrameworkNode = TargetNode.test(project: cProject, target: cFramework, dependencies: [dFrameworkNode])
+
+        // Given: App
+        let app = Target.test(name: "App", platform: .iOS, product: .app)
+        let appProject = Project.test(path: path.appending(component: "App"), name: "App", targets: [app])
+        let appTargetNode = TargetNode.test(project: appProject, target: app, dependencies: [bFrameworkNode, cFrameworkNode])
+
+        let targetNodes = [bFrameworkNode, cFrameworkNode, dFrameworkNode, appTargetNode]
+        let graph = Graph.test(entryNodes: [appTargetNode], projects: graphProjects(targetNodes), targets: graphTargets(targetNodes))
+
+        // Given xcframeworks
+        let dCachedFrameworkPath = path.appending(component: "D.framework")
+        let dCachedFramework = FrameworkNode.test(path: dCachedFrameworkPath)
+        let bCachedFrameworkPath = path.appending(component: "B.framework")
+        let bCachedFramework = FrameworkNode.test(path: bCachedFrameworkPath)
+        let cCachedFrameworkPath = path.appending(component: "C.framework")
+        let cCachedFramework = FrameworkNode.test(path: cCachedFrameworkPath)
+        let frameworks = [
+            dFrameworkNode: dCachedFrameworkPath,
+            bFrameworkNode: bCachedFrameworkPath,
+            cFrameworkNode: cCachedFrameworkPath,
+        ]
+
+        frameworkLoader.loadStub = { path in
+            if path == dCachedFrameworkPath { return dCachedFramework }
+            else if path == bCachedFrameworkPath { return bCachedFramework }
+            else if path == cCachedFrameworkPath { return cCachedFramework }
+            else { fatalError("Unexpected load call") }
+        }
+
+        xcframeworkLoader.loadStub = { _ in
+            throw "Can't find an .xcframework here"
+        }
+
+        // When
+        let got = try subject.map(graph: graph, precompiledFrameworks: frameworks, sources: Set(["App"]))
+
+        // Then
+        let appNode = try XCTUnwrap(got.entryNodes.first as? TargetNode)
+        let b = try XCTUnwrap(appNode.dependencies.compactMap { $0 as? FrameworkNode }.first(where: { $0.path == bCachedFrameworkPath }))
+        let c = try XCTUnwrap(appNode.dependencies.compactMap { $0 as? FrameworkNode }.first(where: { $0.path == cCachedFrameworkPath }))
+        XCTAssertTrue(b.dependencies.contains(where: { $0.path == dCachedFrameworkPath }))
+        XCTAssertTrue(c.dependencies.contains(where: { $0.path == dCachedFrameworkPath }))
+    }
+
+    // Seventh scenario
+    //       +---->B (Cached Framework)+
+    //       |                         |
+    //    App|                         +------>D Precompiled .framework
+    //       |                         |
+    //       +---->C (Cached Framework)+
+    func test_map_when_seventh_scenario() throws {
+        let path = try temporaryPath()
+
+        // Given: D
+        let dFrameworkPath = path.appending(component: "D.framework")
+        let dFramework = FrameworkNode.test(path: dFrameworkPath)
+
+        // Given: B
+        let bFramework = Target.test(name: "B", platform: .iOS, product: .framework)
+        let bProject = Project.test(path: path.appending(component: "B"), name: "B", targets: [bFramework])
+        let bFrameworkNode = TargetNode.test(project: bProject, target: bFramework, dependencies: [dFramework])
+
+        // Given: C
+        let cFramework = Target.test(name: "C", platform: .iOS, product: .framework)
+        let cProject = Project.test(path: path.appending(component: "C"), name: "C", targets: [cFramework])
+        let cFrameworkNode = TargetNode.test(project: cProject, target: cFramework, dependencies: [dFramework])
+
+        // Given: App
+        let appTarget = Target.test(name: "App", platform: .iOS, product: .app)
+        let appProject = Project.test(path: path.appending(component: "App"), name: "App", targets: [appTarget])
+        let appTargetNode = TargetNode.test(project: appProject, target: appTarget, dependencies: [bFrameworkNode, cFrameworkNode])
+
+        let targetNodes = [bFrameworkNode, cFrameworkNode, appTargetNode]
+        let graph = Graph.test(entryNodes: [appTargetNode], projects: graphProjects(targetNodes), targets: graphTargets(targetNodes))
+
+        // Given xcframeworks
+        let bCachedFrameworkPath = path.appending(component: "B.framework")
+        let bCachedFramework = FrameworkNode.test(path: bCachedFrameworkPath)
+        let cCachedFrameworkPath = path.appending(component: "C.framework")
+        let cCachedFramework = FrameworkNode.test(path: cCachedFrameworkPath)
+        let frameworks = [
+            bFrameworkNode: bCachedFrameworkPath,
+            cFrameworkNode: cCachedFrameworkPath,
+        ]
+
+        frameworkLoader.loadStub = { path in
+            if path == bCachedFrameworkPath { return bCachedFramework }
+            else if path == cCachedFrameworkPath { return cCachedFramework }
+            else if path == dFrameworkPath { return dFramework }
+            else { fatalError("Unexpected load call") }
+        }
+
+        xcframeworkLoader.loadStub = { _ in
+            throw "Can't find .framework here"
+        }
+
+        // When
+        let got = try subject.map(graph: graph, precompiledFrameworks: frameworks, sources: Set(["App"]))
+
+        // Then
+        let app = try XCTUnwrap(got.entryNodes.first as? TargetNode)
+        let b = try XCTUnwrap(app.dependencies.compactMap { $0 as? FrameworkNode }.first(where: { $0.path == bCachedFrameworkPath }))
+        let c = try XCTUnwrap(app.dependencies.compactMap { $0 as? FrameworkNode }.first(where: { $0.path == cCachedFrameworkPath }))
+        XCTAssertTrue(b.dependencies.contains(where: { $0.path == dFrameworkPath }))
+        XCTAssertTrue(c.dependencies.contains(where: { $0.path == dFrameworkPath }))
+    }
+
+    // Eighth scenario
+    //       +---->B (Cached Framework)+
+    //       |                         |
+    //    App|                         +------>D Precompiled .framework
+    //       |                         |
+    //       +---->C (Cached Framework)+------>E Precompiled .xcframework
+    func test_map_when_eighth_scenario() throws {
+        let path = try temporaryPath()
+
+        // Given nodes
+
+        // Given E
+        let eXCFrameworkPath = path.appending(component: "E.xcframework")
+        let eXCFramework = XCFrameworkNode.test(path: eXCFrameworkPath)
+
+        // Given: D
+        let dFrameworkPath = path.appending(component: "D.framework")
+        let dFramework = FrameworkNode.test(path: dFrameworkPath)
+
+        // Given: B
+        let bFramework = Target.test(name: "B", platform: .iOS, product: .framework)
+        let bProject = Project.test(path: path.appending(component: "B"), name: "B", targets: [bFramework])
+        let bFrameworkNode = TargetNode.test(project: bProject, target: bFramework, dependencies: [dFramework])
+
+        // Given: C
+        let cFramework = Target.test(name: "C", platform: .iOS, product: .framework)
+        let cProject = Project.test(path: path.appending(component: "C"), name: "C", targets: [cFramework])
+        let cFrameworkNode = TargetNode.test(project: cProject, target: cFramework, dependencies: [dFramework, eXCFramework])
+
+        // Given: App
+        let appTarget = Target.test(name: "App", platform: .iOS, product: .app)
+        let appProject = Project.test(path: path.appending(component: "App"), name: "App", targets: [appTarget])
+        let appTargetNode = TargetNode.test(project: appProject, target: appTarget, dependencies: [bFrameworkNode, cFrameworkNode])
+
+        let targetNodes = [bFrameworkNode, cFrameworkNode, appTargetNode]
+        let graph = Graph.test(entryNodes: [appTargetNode], projects: graphProjects(targetNodes), targets: graphTargets(targetNodes))
+
+        // Given xcframeworks
+        let bCachedFrameworkPath = path.appending(component: "B.framework")
+        let bCachedFramework = FrameworkNode.test(path: bCachedFrameworkPath)
+        let cCachedFrameworkPath = path.appending(component: "C.framework")
+        let cCachedFramework = FrameworkNode.test(path: cCachedFrameworkPath)
+        let frameworks = [
+            bFrameworkNode: bCachedFrameworkPath,
+            cFrameworkNode: cCachedFrameworkPath,
+        ]
+
+        frameworkLoader.loadStub = { path in
+            if path == bCachedFrameworkPath { return bCachedFramework }
+            else if path == cCachedFrameworkPath { return cCachedFramework }
+            else if path == dFrameworkPath { return dFramework }
+            else { fatalError("Unexpected load call") }
+        }
+
+        xcframeworkLoader.loadStub = { path in
+            if path == eXCFrameworkPath { return eXCFramework }
+            throw "Can't find an .xcframework here"
+        }
+
+        // When
+        let got = try subject.map(graph: graph, precompiledFrameworks: frameworks, sources: Set(["App"]))
+
+        // Then
+        let app = try XCTUnwrap(got.entryNodes.first as? TargetNode)
+        let b = try XCTUnwrap(app.dependencies.compactMap { $0 as? FrameworkNode }.first(where: { $0.path == bCachedFrameworkPath }))
+        let c = try XCTUnwrap(app.dependencies.compactMap { $0 as? FrameworkNode }.first(where: { $0.path == cCachedFrameworkPath }))
+        XCTAssertTrue(b.dependencies.contains(where: { $0.path == dFrameworkPath }))
+        XCTAssertTrue(c.dependencies.contains(where: { $0.path == dFrameworkPath }))
+        XCTAssertTrue(c.dependencies.contains(where: { $0.path == eXCFrameworkPath }))
+    }
+
+    // 9th scenario
+    //       +---->B (Framework)+------>D Precompiled .framework
+    //       |
+    //    App|
+    //       |
+    //       +---->C (Cached Framework)+------>E Precompiled .xcframework
+    func test_map_when_nineth_scenario() throws {
+        let path = try temporaryPath()
+
+        // Given nodes
+
+        // Given: E
+        let eXCFrameworkPath = path.appending(component: "E.xcframework")
+        let eXCFramework = XCFrameworkNode.test(path: eXCFrameworkPath)
+
+        // Given: D
+        let dFrameworkPath = path.appending(component: "D.framework")
+        let dFramework = FrameworkNode.test(path: dFrameworkPath)
+
+        // Given: B
+        let bFramework = Target.test(name: "B", platform: .iOS, product: .framework)
+        let bProject = Project.test(path: path.appending(component: "B"), name: "B", targets: [bFramework])
+        let bFrameworkNode = TargetNode.test(project: bProject, target: bFramework, dependencies: [dFramework])
+
+        // Given: C
+        let cProject = Project.test(path: path.appending(component: "C"), name: "C")
+        let cFramework = Target.test(name: "C", platform: .iOS, product: .framework)
+        let cFrameworkNode = TargetNode.test(project: cProject, target: cFramework, dependencies: [eXCFramework])
+
+        // Given: App
+        let appProject = Project.test(path: path.appending(component: "App"), name: "App")
+        let appTargetNode = TargetNode.test(project: appProject, target: Target.test(name: "App", platform: .iOS, product: .app), dependencies: [bFrameworkNode, cFrameworkNode])
+
+        let targetNodes = [bFrameworkNode, cFrameworkNode, appTargetNode]
+        let graph = Graph.test(entryNodes: [appTargetNode], projects: graphProjects(targetNodes), targets: graphTargets(targetNodes))
+
+        // Given xcframeworks
+        let cCachedFrameworkPath = path.appending(component: "C.xcframework")
+        let cCachedFramework = FrameworkNode.test(path: cCachedFrameworkPath)
+        let frameworks = [
+            cFrameworkNode: cCachedFrameworkPath,
+        ]
+
+        frameworkLoader.loadStub = { path in
+            if path == cCachedFrameworkPath { return cCachedFramework }
+            else { fatalError("Unexpected load call") }
+        }
+
+        xcframeworkLoader.loadStub = { _ in
+            throw "Can't find an .xcframework here"
+        }
+
+        // When
+        let got = try subject.map(graph: graph, precompiledFrameworks: frameworks, sources: Set(["App"]))
+
+        // Then
+        let app = try XCTUnwrap(got.entryNodes.first as? TargetNode)
+        let b = try XCTUnwrap(app.dependencies.compactMap { $0 as? TargetNode }.first(where: { $0.name == "B" }))
+        let c = try XCTUnwrap(app.dependencies.compactMap { $0 as? FrameworkNode }.first(where: { $0.path == cCachedFrameworkPath }))
+        XCTAssertTrue(b.dependencies.contains(where: { $0.path == dFrameworkPath }))
+        XCTAssertTrue(c.dependencies.contains(where: { $0.path == eXCFrameworkPath }))
     }
 
     fileprivate func graphProjects(_ targets: [TargetNode]) -> [Project] {

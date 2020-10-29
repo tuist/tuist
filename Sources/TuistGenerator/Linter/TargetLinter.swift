@@ -206,7 +206,55 @@ class TargetLinter: TargetLinting {
         target.dependencies.forEach { seen[$0, default: 0] += 1 }
         let duplicates = seen.enumerated().filter { $0.element.value > 1 }
         return duplicates.map {
-            .init(reason: "Target \(target.name) has duplicate '\($0.element.key)' dependency specified", severity: .warning)
+            .init(reason: "Target '\(target.name)' has duplicate \($0.element.key.typeName) dependency specified: '\($0.element.key.name)'", severity: .warning)
+        }
+    }
+}
+
+private extension Dependency {
+    var typeName: String {
+        switch self {
+        case .target:
+            return "target"
+        case .project:
+            return "project"
+        case .framework:
+            return "framework"
+        case .library:
+            return "library"
+        case .package:
+            return "package"
+        case .sdk:
+            return "sdk"
+        case .cocoapods:
+            return "cocoapods"
+        case .xcFramework:
+            return "xcframework"
+        case .xctest:
+            return "xctest"
+        }
+    }
+
+    var name: String {
+        switch self {
+        case let .target(name):
+            return name
+        case let .project(target, _):
+            return target
+        case let .framework(path):
+            return path.basename
+        case let .xcFramework(path):
+            return path.basename
+        case let .library(path, _, _):
+            return path.basename
+        case let .package(product):
+            return product
+        case let .sdk(name, _):
+            return name
+        case let .cocoapods(path):
+            return path.basename
+        case .xctest:
+            return "xctest"
         }
     }
 }

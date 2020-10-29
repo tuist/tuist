@@ -29,6 +29,12 @@ Then(/I should be able to (.+) for (iOS|macOS|tvOS|watchOS) the scheme (.+)/) do
   if action == "build" && platform == "tvOS"
     args << "-sdk\ appletvsimulator"
   end
+  if ["iOS", "tvOS", "watchOS"].include?(platform)
+    platform = "iOS" if platform == "watchOS"
+    args << "-destination '#{Xcode.valid_simulator_destination_for_platform(platform)}'"
+  else
+    args << "-destination 'platform=OS X,arch=x86_64'"
+  end
 
   args << "clean"
   args << action
@@ -38,7 +44,6 @@ Then(/I should be able to (.+) for (iOS|macOS|tvOS|watchOS) the scheme (.+)/) do
   args << "CODE_SIGN_ENTITLEMENTS=\"\""
 
   xcodebuild(*args)
-  
 end
 
 Then(/the scheme (.+) has a build setting (.+) with value (.+) for the configuration (.+)/) do |scheme, key, value, config| # rubocop:disable Metrics/LineLength
@@ -101,4 +106,3 @@ Then(/^in project (.+) the target (.+) should have the build phase (.+) in the l
   flunk("The target #{target_name} doesn't have build phases") if build_phase.nil?
   assert_equal phase_name, build_phase.name
 end
-

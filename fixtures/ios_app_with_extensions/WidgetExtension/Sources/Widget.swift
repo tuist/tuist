@@ -6,6 +6,18 @@ import SwiftUI
 struct Provider: TimelineProvider {
     public typealias Entry = SimpleEntry
 
+    func placeholder(in context: Context) -> SimpleEntry {
+        return SimpleEntry(date: Date())
+    }
+    
+    func getSnapshot(in context: Context, completion: @escaping (SimpleEntry) -> Void) {
+        
+    }
+    
+    func getTimeline(in context: Context, completion: @escaping (Timeline<SimpleEntry>) -> Void) {
+        
+    }
+
     public func snapshot(with context: Context, completion: @escaping (SimpleEntry) -> ()) {
         let entry = SimpleEntry(date: Date())
         completion(entry)
@@ -50,7 +62,7 @@ struct MyWidget: Widget {
     private let kind: String = "MyWidget"
 
     public var body: some WidgetConfiguration {
-        StaticConfiguration(kind: kind, provider: Provider(), placeholder: PlaceholderView()) { entry in
+        StaticConfiguration(kind: kind, provider: Provider()) { entry in
             MyWidgetEntryView(entry: entry)
         }
         .configurationDisplayName("MyWidget")

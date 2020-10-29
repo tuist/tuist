@@ -82,6 +82,10 @@ public protocol ManifestLoading {
     ///     - path: Path to the directory that contains the name_of_template.swift
     func loadTemplate(at path: AbsolutePath) throws -> ProjectDescription.Template
 
+    /// Loads the Dependencies.swift in the given directory
+    /// - Parameter path: Path to the directory that containst Dependencies.swift
+    func loadDependencies(at path: AbsolutePath) throws -> ProjectDescription.Dependencies
+
     /// List all the manifests in the given directory.
     /// - Parameter path: Path to the directory whose manifest files will be returend.
     func manifests(at path: AbsolutePath) -> Set<Manifest>
@@ -117,7 +121,7 @@ public class ManifestLoader: ManifestLoading {
     }
 
     public func manifests(at path: AbsolutePath) -> Set<Manifest> {
-        Set(manifestFilesLocator.locate(at: path).map { $0.0 })
+        Set(manifestFilesLocator.locateProjectManifests(at: path).map { $0.0 })
     }
 
     public func loadConfig(at path: AbsolutePath) throws -> ProjectDescription.Config {
@@ -149,6 +153,18 @@ public class ManifestLoader: ManifestLoading {
             try Up.with(dictionary: $0,
                         projectPath: path)
         }
+    }
+
+    public func loadDependencies(at path: AbsolutePath) throws -> ProjectDescription.Dependencies {
+        let dependencyPath = path.appending(component: Manifest.dependencies.fileName(path))
+        guard FileHandler.shared.exists(dependencyPath) else {
+            throw ManifestLoaderError.manifestNotFound(.dependencies, path)
+        }
+
+        let dependenciesData = try loadManifestData(at: dependencyPath)
+        let decoder = JSONDecoder()
+
+        return try decoder.decode(Dependencies.self, from: dependenciesData)
     }
 
     // MARK: - Private
@@ -189,7 +205,7 @@ public class ManifestLoader: ManifestLoading {
         ]
 
         // Helpers
-        let projectDesciptionHelpersModulePath = try projectDescriptionHelpersBuilder.build(at: path, projectDescriptionPath: projectDescriptionPath)
+        let projectDesciptionHelpersModulePath = try projectDescriptionHelpersBuilder.build(at: path, projectDescriptionSearchPaths: searchPaths)
         if let projectDesciptionHelpersModulePath = projectDesciptionHelpersModulePath {
             arguments.append(contentsOf: [
                 "-I", projectDesciptionHelpersModulePath.parentDirectory.pathString,

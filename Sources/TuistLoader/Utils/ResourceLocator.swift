@@ -13,7 +13,7 @@ enum ResourceLocatingError: FatalError {
     var description: String {
         switch self {
         case let .notFound(name):
-            return "Couldn't find \(name)"
+            return "Couldn't find resource named \(name)"
         }
     }
 

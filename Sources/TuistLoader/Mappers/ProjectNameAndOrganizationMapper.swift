@@ -53,8 +53,7 @@ public class ProjectNameAndOrganizationMapper: ProjectMapping {
         return xcodeFileName
     }
 
-    /// It returns the organization name that should be used for the project.
-    /// - Returns: The organization name.
+    /// - Returns: The organization name that should be used for the project.
     private func organizationNameOverride() -> String? {
         config.generationOptions.compactMap { item -> String? in
             switch item {

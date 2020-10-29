@@ -17,8 +17,8 @@ public class CachedManifestLoader: ManifestLoading {
     private let fileHandler: FileHandling
     private let environment: Environmenting
     private let tuistVersion: String
-    private let decoder: JSONDecoder = JSONDecoder()
-    private let encoder: JSONEncoder = JSONEncoder()
+    private let decoder = JSONDecoder()
+    private let encoder = JSONEncoder()
     private var helpersCache: [AbsolutePath: String?] = [:]
 
     public convenience init(manifestLoader: ManifestLoading = ManifestLoader()) {
@@ -75,6 +75,10 @@ public class CachedManifestLoader: ManifestLoading {
         try load(manifest: .template, at: path) {
             try manifestLoader.loadTemplate(at: path)
         }
+    }
+
+    public func loadDependencies(at path: AbsolutePath) throws -> Dependencies {
+        try manifestLoader.loadDependencies(at: path)
     }
 
     public func manifests(at path: AbsolutePath) -> Set<Manifest> {
@@ -155,7 +159,7 @@ public class CachedManifestLoader: ManifestLoading {
     }
 
     private func calculateEnvironmentHash() -> String? {
-        let tuistEnvVariables = environment.tuistVariables.map { "\($0.key)=\($0.value)" }.sorted()
+        let tuistEnvVariables = environment.manifestLoadingVariables.map { "\($0.key)=\($0.value)" }.sorted()
         guard !tuistEnvVariables.isEmpty else {
             return nil
         }
