@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-SWIFTDOC_VERSION = "1.0.0-beta.4".freeze
+SWIFTDOC_VERSION = "1.0.0-beta.5".freeze
 SWIFTLINT_VERSION = "0.40.2".freeze
 
 require 'rubygems'
