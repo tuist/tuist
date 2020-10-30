@@ -6,6 +6,7 @@ let config = TapestryConfig(
         [
             .pre(tool: "git", arguments: ["checkout", "main"]),
             .pre(tool: "git", arguments: ["pull"]),
+            .pre(tool: "bundle", arguments: ["install"]),
             .pre(.dependenciesCompatibility([.spm(.all)])),
             .pre(tool: "swift", arguments: ["test"]),
             .pre(tool: "bundle", arguments: ["exec", "rake", "features"]),
