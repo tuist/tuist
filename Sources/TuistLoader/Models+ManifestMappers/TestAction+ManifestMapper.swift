@@ -24,11 +24,11 @@ extension TuistCore.TestAction {
 
             testPlans = [defaultPlan] + otherPlans
 
+            // not used when using test plans
             targets = []
             arguments = nil
             coverage = false
             codeCoverageTargets = []
-
             diagnosticsOptions = Set()
             language = nil
             region = nil
@@ -45,6 +45,7 @@ extension TuistCore.TestAction {
             language = manifest.language
             region = manifest.region
 
+            // not used when using targets
             testPlans = nil
         }
 
