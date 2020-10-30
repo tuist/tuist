@@ -842,12 +842,12 @@ Alternatively, when leveraging custom configurations, the configuration name can
 
 ### Test Action
 
-You can either create a custom test action with a list of test targets, or a set of test plans.
+You can create a test action with either a set of test targets or test plans.
 
 <Message
-  warning
+  info
   title="Test Plans"
-  description="Test plans do not support the same properties as custom test actions, so you have to use the `testPlans` factory method instead of `init` to create a test action using test plans (details below)."
+  description="Test plans do not support all properties (those are part of the plan itself). Use the `testPlans` factory method instead of the initializer to create a test action using test plans instead of test targets (details below)."
 />
 
 <PropertiesTable
