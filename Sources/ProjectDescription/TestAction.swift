@@ -71,7 +71,7 @@ public struct TestAction: Equatable, Codable {
     ///   - diagnosticsOptions: Diagnostics options.
     ///   - language: Language (e.g. "pl")
     ///   - region: Region (e.g. "PL")
-    public init(targets: [TestableTarget] = [],
+    public init(targets: [TestableTarget],
                 arguments: Arguments? = nil,
                 configurationName: String,
                 coverage: Bool = false,
@@ -107,7 +107,7 @@ public struct TestAction: Equatable, Codable {
     ///   - diagnosticsOptions: Diagnostics options.
     ///   - language: Language (e.g. "pl")
     ///   - region: Region (e.g. "PL")
-    public init(targets: [TestableTarget] = [],
+    public init(targets: [TestableTarget],
                 arguments: Arguments? = nil,
                 config: PresetBuildConfiguration = .debug,
                 coverage: Bool = false,
