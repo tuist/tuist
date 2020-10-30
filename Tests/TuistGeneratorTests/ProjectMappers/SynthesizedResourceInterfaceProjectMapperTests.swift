@@ -1,8 +1,10 @@
+import Checksum
 import Foundation
 import TSCBasic
 import TuistCore
 import TuistSupport
 import XCTest
+
 @testable import TuistCoreTesting
 @testable import TuistGenerator
 @testable import TuistSupportTesting
@@ -29,8 +31,9 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
 
     func test_map() throws {
         // Given
-        synthesizedResourceInterfacesGenerator.renderStub = { _, _, _ in
-            ""
+        synthesizedResourceInterfacesGenerator.renderStub = { _, _, paths in
+            let content = paths.last?.basename
+            return content ?? ""
         }
 
         let projectPath = try temporaryPath()
@@ -92,25 +95,25 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
                 .file(
                     FileDescriptor(
                         path: derivedSourcesPath.appending(component: "Assets+TargetA.swift"),
-                        contents: "".data(using: .utf8)
+                        contents: "a.xcassets".data(using: .utf8)
                     )
                 ),
                 .file(
                     FileDescriptor(
                         path: derivedSourcesPath.appending(component: "Strings+TargetA.swift"),
-                        contents: "".data(using: .utf8)
+                        contents: "aStrings.strings".data(using: .utf8)
                     )
                 ),
                 .file(
                     FileDescriptor(
                         path: derivedSourcesPath.appending(component: "Environment.swift"),
-                        contents: "".data(using: .utf8)
+                        contents: "Environment.plist".data(using: .utf8)
                     )
                 ),
                 .file(
                     FileDescriptor(
                         path: derivedSourcesPath.appending(component: "Fonts+TargetA.swift"),
-                        contents: "".data(using: .utf8)
+                        contents: "ttcFont.ttc".data(using: .utf8)
                     )
                 ),
             ]
@@ -124,18 +127,22 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
                     Target.test(
                         name: targetA.name,
                         sources: [
-                            (path: derivedSourcesPath
+                            SourceFile(path: derivedSourcesPath
                                 .appending(component: "Assets+TargetA.swift"),
-                                compilerFlags: nil),
-                            (path: derivedSourcesPath
+                                compilerFlags: nil,
+                                hash: "a.xcassets".data(using: .utf8)?.checksum(algorithm: .md5)),
+                            SourceFile(path: derivedSourcesPath
                                 .appending(component: "Strings+TargetA.swift"),
-                                compilerFlags: nil),
-                            (path: derivedSourcesPath
+                                compilerFlags: nil,
+                                hash: "aStrings.strings".data(using: .utf8)?.checksum(algorithm: .md5)),
+                            SourceFile(path: derivedSourcesPath
                                 .appending(component: "Environment.swift"),
-                                compilerFlags: nil),
-                            (path: derivedSourcesPath
+                                compilerFlags: nil,
+                                hash: "Environment.plist".data(using: .utf8)?.checksum(algorithm: .md5)),
+                            SourceFile(path: derivedSourcesPath
                                 .appending(component: "Fonts+TargetA.swift"),
-                                compilerFlags: nil),
+                                compilerFlags: nil,
+                                hash: "ttcFont.ttc".data(using: .utf8)?.checksum(algorithm: .md5)),
                         ],
                         resources: targetA.resources
                     ),

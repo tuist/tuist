@@ -101,16 +101,16 @@ final class LintCodeServiceTests: TuistUnitTestCase {
         manifestLoader.manifestsAtStub = { _ in Set([.workspace]) }
 
         let target01 = Target.test(sources: [
-            ("/target01/file1.swift", nil),
-            ("/target01/file2.swift", nil),
+            SourceFile(path: "/target01/file1.swift", compilerFlags: nil),
+            SourceFile(path: "/target01/file2.swift", compilerFlags: nil),
         ])
         let target02 = Target.test(sources: [
-            ("/target02/file1.swift", nil),
-            ("/target02/file2.swift", nil),
-            ("/target02/file3.swift", nil),
+            SourceFile(path: "/target02/file1.swift", compilerFlags: nil),
+            SourceFile(path: "/target02/file2.swift", compilerFlags: nil),
+            SourceFile(path: "/target02/file3.swift", compilerFlags: nil),
         ])
         let target03 = Target.test(sources: [
-            ("/target03/file1.swift", nil),
+            SourceFile(path: "/target03/file1.swift", compilerFlags: nil),
         ])
         let graph = Graph.test(
             entryPath: "/rootPath",
@@ -150,16 +150,16 @@ final class LintCodeServiceTests: TuistUnitTestCase {
         manifestLoader.manifestsAtStub = { _ in Set([.project]) }
 
         let target01 = Target.test(sources: [
-            ("/target01/file1.swift", nil),
-            ("/target01/file2.swift", nil),
+            SourceFile(path: "/target01/file1.swift", compilerFlags: nil),
+            SourceFile(path: "/target01/file2.swift", compilerFlags: nil),
         ])
         let target02 = Target.test(sources: [
-            ("/target02/file1.swift", nil),
-            ("/target02/file2.swift", nil),
-            ("/target02/file3.swift", nil),
+            SourceFile(path: "/target02/file1.swift", compilerFlags: nil),
+            SourceFile(path: "/target02/file2.swift", compilerFlags: nil),
+            SourceFile(path: "/target02/file3.swift", compilerFlags: nil),
         ])
         let target03 = Target.test(sources: [
-            ("/target03/file1.swift", nil),
+            SourceFile(path: "/target03/file1.swift", compilerFlags: nil),
         ])
         let graph = Graph.test(
             entryPath: "/rootPath",
@@ -199,16 +199,16 @@ final class LintCodeServiceTests: TuistUnitTestCase {
         manifestLoader.manifestsAtStub = { _ in Set([.workspace]) }
 
         let target01 = Target.test(name: "Target1", sources: [
-            ("/target01/file1.swift", nil),
-            ("/target01/file2.swift", nil),
+            SourceFile(path: "/target01/file1.swift", compilerFlags: nil),
+            SourceFile(path: "/target01/file2.swift", compilerFlags: nil),
         ])
         let target02 = Target.test(name: "Target2", sources: [
-            ("/target02/file1.swift", nil),
-            ("/target02/file2.swift", nil),
-            ("/target02/file3.swift", nil),
+            SourceFile(path: "/target02/file1.swift", compilerFlags: nil),
+            SourceFile(path: "/target02/file2.swift", compilerFlags: nil),
+            SourceFile(path: "/target02/file3.swift", compilerFlags: nil),
         ])
         let target03 = Target.test(name: "Target3", sources: [
-            ("/target03/file1.swift", nil),
+            SourceFile(path: "/target03/file1.swift", compilerFlags: nil),
         ])
         let graph = Graph.test(targets: [
             "/path1": [.test(target: target01), .test(target: target02), .test(target: target03)],

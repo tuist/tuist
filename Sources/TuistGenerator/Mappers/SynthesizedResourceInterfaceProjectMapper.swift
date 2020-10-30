@@ -1,8 +1,8 @@
+import Checksum
 import Foundation
 import TSCBasic
 import TuistCore
 import TuistSupport
-import Checksum
 
 /// A project mapper that synthezies resource interfaces
 public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping {

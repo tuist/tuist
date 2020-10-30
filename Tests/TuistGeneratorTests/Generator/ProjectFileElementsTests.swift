@@ -291,7 +291,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
                                  infoPlist: .file(path: AbsolutePath("/project/info.plist")),
                                  entitlements: AbsolutePath("/project/app.entitlements"),
                                  settings: settings,
-                                 sources: [(path: AbsolutePath("/project/file.swift"), compilerFlags: nil)],
+                                 sources: [SourceFile(path: AbsolutePath("/project/file.swift"))],
                                  resources: [
                                      .file(path: AbsolutePath("/project/image.png")),
                                      .folderReference(path: AbsolutePath("/project/reference")),
