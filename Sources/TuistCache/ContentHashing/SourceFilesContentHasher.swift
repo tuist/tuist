@@ -2,7 +2,7 @@ import Foundation
 import TuistCore
 
 public protocol SourceFilesContentHashing {
-    func hash(sources: [Target.SourceFile]) throws -> String
+    func hash(sources: [SourceFile]) throws -> String
 }
 
 /// `SourceFilesContentHasher`
@@ -21,7 +21,7 @@ public final class SourceFilesContentHasher: SourceFilesContentHashing {
     /// Returns a unique hash that identifies an arry of sourceFiles
     /// First it hashes the content of every file and append to every hash the compiler flags of the file. It assumes the files are always sorted the same way.
     /// Then it hashes again all partial hashes to get a unique identifier that represents a group of source files together with their compiler flags
-    public func hash(sources: [Target.SourceFile]) throws -> String {
+    public func hash(sources: [SourceFile]) throws -> String {
         var stringsToHash: [String] = []
         for source in sources.sorted(by: { $0.path < $1.path }) {
             var sourceHash = try contentHasher.hash(path: source.path)

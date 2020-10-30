@@ -16,9 +16,6 @@ public enum TargetError: FatalError, Equatable {
 }
 
 public struct Target: Equatable, Hashable, Comparable {
-    public typealias SourceFile = (path: AbsolutePath, compilerFlags: String?)
-    public typealias SourceFileGlob = (glob: String, excluding: [String], compilerFlags: String?)
-
     // MARK: - Static
 
     public static let validSourceExtensions: [String] = ["m", "swift", "mm", "cpp", "c", "d", "intentdefinition", "xcmappingmodel", "metal"]
@@ -194,8 +191,8 @@ public struct Target: Equatable, Hashable, Comparable {
     /// This method unfolds the source file globs subtracting the paths that are excluded and ignoring
     /// the files that don't have a supported source extension.
     /// - Parameter sources: List of source file glob to be unfolded.
-    public static func sources(targetName: String, sources: [SourceFileGlob]) throws -> [TuistCore.Target.SourceFile] {
-        var sourceFiles: [AbsolutePath: TuistCore.Target.SourceFile] = [:]
+    public static func sources(targetName: String, sources: [SourceFileGlob]) throws -> [TuistCore.SourceFile] {
+        var sourceFiles: [AbsolutePath: TuistCore.SourceFile] = [:]
         var invalidGlobs: [InvalidGlob] = []
 
         try sources.forEach { source in
@@ -226,7 +223,7 @@ public struct Target: Equatable, Hashable, Comparable {
                         return true
                     }
                     return false
-                }.forEach { sourceFiles[$0] = (path: $0, compilerFlags: source.compilerFlags) }
+            }.forEach { sourceFiles[$0] = SourceFile(path: $0, compilerFlags: source.compilerFlags) }
         }
 
         if !invalidGlobs.isEmpty {

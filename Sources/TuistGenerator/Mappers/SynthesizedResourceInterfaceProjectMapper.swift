@@ -2,6 +2,7 @@ import Foundation
 import TSCBasic
 import TuistCore
 import TuistSupport
+import Checksum
 
 /// A project mapper that synthezies resource interfaces
 public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping {
@@ -146,8 +147,10 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping {
         var target = target
 
         target.sources += renderedResources
-            .map(\.path)
-            .map { (path: $0, compilerFlags: nil) }
+            .map { resource in
+                let hash = resource.contents?.checksum(algorithm: .md5)
+                return SourceFile(path: resource.path, hash: hash)
+            }
 
         let sideEffects = renderedResources
             .map { FileDescriptor(path: $0.path, contents: $0.contents) }

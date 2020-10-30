@@ -44,7 +44,7 @@ public class ResourcesProjectMapper: ProjectMapping {
 
         if target.supportsSources {
             let (filePath, fileDescriptors) = synthesizedFile(bundleName: bundleName, target: target, project: project)
-            modifiedTarget.sources.append((path: filePath, compilerFlags: nil))
+            modifiedTarget.sources.append(SourceFile(path: filePath, compilerFlags: nil))
             sideEffects.append(contentsOf: fileDescriptors)
         }
 

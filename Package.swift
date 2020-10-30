@@ -128,7 +128,7 @@ let package = Package(
         ),
         .target(
             name: "TuistGenerator",
-            dependencies: ["XcodeProj", "SwiftToolsSupport-auto", "TuistCore", "TuistSupport", "RxBlocking", "GraphViz", "SwiftGenKit", "StencilSwiftKit"]
+            dependencies: ["XcodeProj", "SwiftToolsSupport-auto", "TuistCore", "TuistSupport", "RxBlocking", "GraphViz", "SwiftGenKit", "StencilSwiftKit", "Checksum"]
         ),
         .target(
             name: "TuistGeneratorTesting",
