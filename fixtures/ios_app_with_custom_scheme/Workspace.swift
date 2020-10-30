@@ -9,7 +9,7 @@ let customAppScheme = Scheme(name: "Workspace-App",
                              runAction: RunAction(executable: .project(path: "App", target: "App")),
                              archiveAction: ArchiveAction(configurationName: "Debug", customArchiveName: "Something2"))
 
-let customAppSchemeWithTestPlans = Scheme(name: "Workspace-App-With-Testplans",
+let customAppSchemeWithTestPlans = Scheme(name: "Workspace-App-With-TestPlans",
                                          shared: true,
                                          buildAction: BuildAction(targets: [.project(path: "App", target: "App")], preActions: []),
                                          testAction: .testPlans(default: "DefaultTestPlan.xctestplan", other: ["OtherTestPlan.xctestplan", "YetAnotherTestPlan.xctestplan", "NonExistentTestPlan.xctestplan"]),
