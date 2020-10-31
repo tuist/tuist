@@ -1,12 +1,11 @@
 import Foundation
-import TuistAsyncQueue
 import RxSwift
+import TuistAsyncQueue
 import TuistCore
 
 public final class MockAsyncQueuePersistor<U: AsyncQueueEvent>: AsyncQueuePersisting {
-
     public init() {}
-    
+
     public var invokedReadAll = false
     public var invokedReadAllCount = 0
     public var stubbedReadAllResult: Single<[AsyncQueueEventTuple]> = Single.just([])
@@ -36,7 +35,7 @@ public final class MockAsyncQueuePersistor<U: AsyncQueueEvent>: AsyncQueuePersis
     public var invokedDeleteEvent: U?
     public var invokedDeleteEvents = [U]()
     public var stubbedDeleteEventResult: Completable = .empty()
-    
+
     public func delete<T: AsyncQueueEvent>(event: T) -> Completable {
         invokedDeleteEventCount += 1
         invokedDeleteEvent = event as? U

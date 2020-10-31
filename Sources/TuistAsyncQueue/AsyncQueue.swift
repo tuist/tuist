@@ -82,9 +82,9 @@ public class AsyncQueue: AsyncQueuing {
             }
         }
     }
-    
+
     private func dispatchPersisted(eventTuple: AsyncQueueEventTuple) {
-        guard let dispatcher = self.dispatchers.first(where: { $0.key == eventTuple.dispatcherId })?.value else {
+        guard let dispatcher = dispatchers.first(where: { $0.key == eventTuple.dispatcherId })?.value else {
             deletePersistedEvent(filename: eventTuple.filename)
             logger.error("Couldn't find dispatcher for persisted event with id: \(eventTuple.dispatcherId)")
             return
@@ -93,10 +93,11 @@ public class AsyncQueue: AsyncQueuing {
         let operation = persistedDispatchOperation(event: eventTuple, dispatcher: dispatcher)
         queue.addOperation(operation)
     }
-    
+
     private func persistedDispatchOperation(event: AsyncQueueEventTuple,
-                                            dispatcher: AsyncQueueDispatching) -> Operation {
-        ConcurrentOperation(name: event.id.uuidString) { operation in
+                                            dispatcher: AsyncQueueDispatching) -> Operation
+    {
+        ConcurrentOperation(name: event.id.uuidString) { _ in
             /// After the dispatching operation finishes, we delete the event locally.
             defer { self.deletePersistedEvent(filename: event.filename) }
 
@@ -145,8 +146,8 @@ public class AsyncQueue: AsyncQueuing {
     private func scheduler() -> ConcurrentDispatchQueueScheduler {
         ConcurrentDispatchQueueScheduler(queue: DispatchQueue(label: "io.tuist.async-queue", qos: .background))
     }
-    
+
     private func deletePersistedEvent(filename: String) {
-        persistor.delete(filename: filename).subscribe().disposed(by: self.disposeBag)
+        persistor.delete(filename: filename).subscribe().disposed(by: disposeBag)
     }
 }

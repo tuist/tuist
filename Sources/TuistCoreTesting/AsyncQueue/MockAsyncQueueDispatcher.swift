@@ -1,10 +1,9 @@
 import Foundation
 import TuistCore
 
-final public class MockAsyncQueueDispatcher: AsyncQueueDispatching {
-
+public final class MockAsyncQueueDispatcher: AsyncQueueDispatching {
     init() {}
-    
+
     public var invokedIdentifierGetter = false
     public var invokedIdentifierGetterCount = 0
     public var stubbedIdentifier: String! = ""

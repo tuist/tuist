@@ -523,11 +523,11 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         let pbxproj = PBXProj()
         pbxproj.add(object: group)
         subject.addFileElement(from: from,
-                                   fileAbsolutePath: fileAbsolutePath,
-                                   fileRelativePath: fileRelativePath,
-                                   name: nil,
-                                   toGroup: group,
-                                   pbxproj: pbxproj)
+                               fileAbsolutePath: fileAbsolutePath,
+                               fileRelativePath: fileRelativePath,
+                               name: nil,
+                               toGroup: group,
+                               pbxproj: pbxproj)
         let file: PBXFileReference? = group.children.first as? PBXFileReference
         XCTAssertEqual(file?.path, "file.swift")
         XCTAssertEqual(file?.sourceTree, .group)

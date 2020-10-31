@@ -2,9 +2,8 @@ import Foundation
 import TuistAsyncQueue
 
 public final class MockQueuer: Queuing {
-
     public init() {}
-    
+
     public var invokedAddOperation = false
     public var invokedAddOperationCount = 0
     public var invokedAddOperationParameters: (operation: Operation, Void)?

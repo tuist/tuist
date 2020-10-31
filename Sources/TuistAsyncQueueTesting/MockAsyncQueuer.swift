@@ -3,9 +3,8 @@ import TuistAsyncQueue
 import TuistCore
 
 public class MockAsyncQueuer: AsyncQueuing {
-
     public init() {}
-    
+
     public var invokedDispatch = false
     public var invokedDispatchCount = 0
     public var invokedDispatchParameters: (event: Any, Void)?

@@ -1,15 +1,14 @@
+import Foundation
 import TuistAsyncQueue
 import TuistCore
-import Foundation
 
 public enum MockAsyncQueueDispatcherError: Error {
     case dispatchError
 }
 
 public class MockAsyncQueueDispatcher: AsyncQueueDispatching {
-
     public init() {}
-    
+
     public var invokedIdentifierGetter = false
     public var invokedIdentifierGetterCount = 0
     public var stubbedIdentifier: String! = ""
@@ -23,7 +22,7 @@ public class MockAsyncQueueDispatcher: AsyncQueueDispatching {
     public var invokedDispatch = false
     public var invokedDispatchCallBack: () -> Void = {}
     public var invokedDispatchCount = 0
-    public var invokedDispatchParameterEvent: AsyncQueueEvent? = nil
+    public var invokedDispatchParameterEvent: AsyncQueueEvent?
     public var invokedDispatchParametersEventsList = [AsyncQueueEvent]()
     public var stubbedDispatchError: Error?
 
