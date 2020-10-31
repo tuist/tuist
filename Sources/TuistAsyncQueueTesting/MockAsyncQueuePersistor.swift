@@ -25,8 +25,10 @@ public final class MockAsyncQueuePersistor<U: AsyncQueueEvent>: AsyncQueuePersis
     public func write<T: AsyncQueueEvent>(event: T) -> Completable {
         invokedWrite = true
         invokedWriteCount += 1
-        invokedWriteEvent = event as? U
-        invokedWriteEvents.append(event as! U)
+        if let event = event as? U {
+            invokedWriteEvent = event
+            invokedWriteEvents.append(event)
+        }
         return stubbedWriteResult
     }
 
@@ -38,8 +40,10 @@ public final class MockAsyncQueuePersistor<U: AsyncQueueEvent>: AsyncQueuePersis
 
     public func delete<T: AsyncQueueEvent>(event: T) -> Completable {
         invokedDeleteEventCount += 1
-        invokedDeleteEvent = event as? U
-        invokedDeleteEvents.append(event as! U)
+        if let event = event as? U {
+            invokedDeleteEvent = event
+            invokedDeleteEvents.append(event)
+        }
         invokedDeleteCallBack()
         return stubbedDeleteEventResult
     }
