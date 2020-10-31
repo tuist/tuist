@@ -37,6 +37,8 @@ extension TuistCore.Product {
             return .messagesExtension
         case .commandLineTool:
             return .commandLineTool
+        case .appClip:
+            return .appClip
         }
     }
 }

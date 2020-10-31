@@ -68,7 +68,7 @@ final class ValueGraphTests: TuistUnitTestCase {
             name: "Graph",
             entryPath: project.path,
             entryNodes: [appNode],
-            workspace: nil,
+            workspace: Workspace.test(),
             projects: [project],
             cocoapods: [],
             packages: [packageNode],

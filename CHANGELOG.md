@@ -6,21 +6,27 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Added
 
+- Allow specifying Development Region via new `developmentRegion` parameter in `Config`s GenerationOption. [#1062](https://github.com/tuist/tuist/pull/1867) by [@svastven](https://github.com/svastven).
 - Require the `Config.swift` file to be in the Tuist directory [#693](https://github.com/tuist/tuist/issues/693) by [@mollyIV](https://github.com/mollyIV).
 - Mapper for the caching logic to locate the built products directory [#1929](https://github.com/tuist/tuist/pull/1929) by [@pepibumur](https://github.com/pepibumur).
 - Extended `BuildPhaseGenerator` to generate script build phases [#1932](https://github.com/tuist/tuist/pull/1932) by [@pepibumur](https://github.com/pepibumur).
 - Extend the `TargetContentHasher` to account for the `Target.scripts` attribute [#1933](https://github.com/tuist/tuist/pull/1933) by [@pepibumur](https://github.com/pepibumur).
 - Extend the `CacheController` to generate projects with the build phase to locate the targets' built products directory [#1933](https://github.com/tuist/tuist/pull/1933) by [@pepibumur](https://github.com/pepibumur).
 - Add support for Command Line Tool targets [#1941](https://github.com/tuist/tuist/pull/1941) by [@olejnjak](https://github.com/olejnjak).
+- Add support for appClip [#1854](https://github.com/tuist/tuist/pull/1854) by [@lakpa](https://github.com/lakpa).
 
 ### Fixed
 
 - Fixed non-framework/library targets having a header build phase [#367](https://github.com/tuist/tuist/issues/367) by [@eito](https://github.com/eito).
 - Fixed missing profile scheme arguments when specified in manifest [#1543](https://github.com/tuist/tuist/issues/1543) by [@lakpa](https://github.com/lakpa).
+- Fixed cache warming exporting unrelated .frameworks [#1939](https://github.com/tuist/tuist/pull/1939) by [@pepibumur](https://github.com/pepibumur).
+- Fixed cache warming building from a clean state for every target [#1939](https://github.com/tuist/tuist/pull/1939) by [@pepibumur](https://github.com/pepibumur).
+- Updated swift-doc version to 1.0.0-beta.5 by [@facumenzella](https://github.com/facumenzella).
 
 ### Changed
 
 - Some renames in the generation logic to make the generation logic easier to reason about [#1942](https://github.com/tuist/tuist/pull/1942) by [@pepibumur](https://github.com/pepibumur).
+- Update some Swift dependencies [#1971](https://github.com/tuist/tuist/pull/1971) by [@pepibumur](https://github.com/pepibumur).
 
 ## 1.22.0 - Heimat
 

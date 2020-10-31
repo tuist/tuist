@@ -150,8 +150,8 @@
         "repositoryURL": "https://github.com/apple/swift-argument-parser",
         "state": {
           "branch": null,
-          "revision": "7255fd547f70468e19abbac5f7964f1ef309ad92",
-          "version": "0.2.1"
+          "revision": "92646c0cdbaca076c8d3d0207891785b3379cbff",
+          "version": "0.3.1"
         }
       },
       {
@@ -168,8 +168,8 @@
         "repositoryURL": "https://github.com/apple/swift-tools-support-core",
         "state": {
           "branch": null,
-          "revision": "f39fc6c12266697b1585589090f0004903974685",
-          "version": "0.1.10"
+          "revision": "243beea77d20db46647a3de4765c96e2c801c7c7",
+          "version": "0.1.12"
         }
       },
       {
@@ -177,8 +177,8 @@
         "repositoryURL": "https://github.com/httpswift/swifter.git",
         "state": {
           "branch": null,
-          "revision": "8b5afb48ae64d4f729f0489ddcfe09c62b9c3687",
-          "version": "1.4.7"
+          "revision": "9483a5d459b45c3ffd059f7b55f9638e268632fd",
+          "version": "1.5.0"
         }
       },
       {
@@ -195,8 +195,8 @@
         "repositoryURL": "https://github.com/thii/xcbeautify.git",
         "state": {
           "branch": null,
-          "revision": "77bf4eae0f090dbf7cbcabb68fcaf0e7ff9826db",
-          "version": "0.8.0"
+          "revision": "fd7b0b6972809eead52b9016b383cf6d467e00b0",
+          "version": "0.8.1"
         }
       },
       {
@@ -204,8 +204,8 @@
         "repositoryURL": "https://github.com/tuist/XcodeProj",
         "state": {
           "branch": null,
-          "revision": "3038221d72c7202a7b72fb971495dc6257bc3835",
-          "version": "7.15.0"
+          "revision": "2ae8e322ddbed99655802533441bc52f9ae76f24",
+          "version": "7.17.0"
         }
       },
       {
@@ -231,8 +231,8 @@
         "repositoryURL": "https://github.com/marmelroy/Zip.git",
         "state": {
           "branch": null,
-          "revision": "80b1c3005ee25b4c7ce46c4029ac3347e8d5e37e",
-          "version": "2.0.0"
+          "revision": "bd19d974e8a38cc8d3a88c90c8a107386c3b8ccf",
+          "version": "2.1.1"
         }
       }
     ]

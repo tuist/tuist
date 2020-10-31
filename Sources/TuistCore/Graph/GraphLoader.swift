@@ -9,7 +9,7 @@ public protocol GraphLoading: AnyObject {
 
     /// Loads the graph for the workspace in the given directory.
     /// - Parameter path: Path to the directory that contains the workspace.
-    func loadWorkspace(path: AbsolutePath) throws -> (Graph, Workspace)
+    func loadWorkspace(path: AbsolutePath) throws -> Graph
 
     /// Loads the configuration.
     ///
@@ -64,18 +64,19 @@ public class GraphLoader: GraphLoading {
         let entryNodes: [GraphNode] = try project.targets.map { target in
             try self.loadTarget(name: target.name, path: path, graphLoaderCache: graphLoaderCache, graphCircularDetector: graphCircularDetector)
         }
+        let workspace = Workspace(path: project.path, name: project.name, projects: [project.path])
 
         let graph = Graph(
             name: project.name,
             entryPath: path,
             cache: graphLoaderCache,
             entryNodes: entryNodes,
-            workspace: nil
+            workspace: workspace
         )
         return (graph, project)
     }
 
-    public func loadWorkspace(path: AbsolutePath) throws -> (Graph, Workspace) {
+    public func loadWorkspace(path: AbsolutePath) throws -> Graph {
         let graphLoaderCache = GraphLoaderCache()
         let graphCircularDetector = GraphCircularDetector()
         let workspace = try modelLoader.loadWorkspace(at: path)
@@ -102,7 +103,7 @@ public class GraphLoader: GraphLoading {
             entryNodes: entryNodes,
             workspace: workspace
         )
-        return (graph, workspace)
+        return graph
     }
 
     public func loadConfig(path: AbsolutePath) throws -> Config {

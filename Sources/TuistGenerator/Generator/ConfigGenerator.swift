@@ -225,7 +225,7 @@ final class ConfigGenerator: ConfigGenerating {
         }
 
         let targetDependencies = graphTraverser.directTargetDependencies(path: projectPath, name: target.name)
-        let appDependency = targetDependencies.first { $0.product == .app }
+        let appDependency = targetDependencies.first { $0.product.canHostTests() }
 
         guard let app = appDependency else {
             return [:]

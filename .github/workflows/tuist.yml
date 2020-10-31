@@ -3,7 +3,7 @@ name: Tuist
 on:
   push:
     branches:
-      - master
+      - main
     paths:
       - Sources/**/*
       - Tests/**/*
@@ -28,7 +28,7 @@ jobs:
     runs-on: macOS-latest
     strategy:
       matrix:
-        xcode: ['11.5', '12_beta']
+        xcode: ['11.5', '12.1']
     steps:
       - uses: actions/checkout@v1
       - name: Select Xcode
@@ -50,7 +50,7 @@ jobs:
     runs-on: macOS-latest
     strategy:
       matrix:
-        xcode: ['11.5']
+        xcode: ['11.5', '12.1']
     steps:
       - uses: actions/checkout@v1
       - name: Select Xcode
@@ -70,7 +70,7 @@ jobs:
     runs-on: macOS-latest
     strategy:
       matrix:
-        xcode: ['11.5']
+        xcode: ['11.5', '12.1']
         feature:
           [
             'generate-1',
@@ -78,13 +78,13 @@ jobs:
             'generate-3',
             'generate-4',
             'generate-5',
-            'generate-6',
             'init',
             'lint-project',
             'lint-code',
             'scaffold',
             'up',
             'build',
+            'test',
           ]
     steps:
       - uses: actions/checkout@v1
@@ -114,13 +114,19 @@ jobs:
           bundle install --jobs 4 --retry 3
       - name: Run tests
         run: FEATURE=features/${{ matrix.feature }}.feature bundle exec rake features
-  cache_acceptance_tests:
-    name: Cache Acceptance tests (${{ matrix.feature }})
+  xcode_12_acceptance_tests:
+    name: Xcode 12 Acceptance tests (${{ matrix.feature }})
     runs-on: macOS-latest
     strategy:
       matrix:
-        xcode: ['12_beta']
-        feature: ['cache-xcframeworks', 'cache-frameworks']
+        xcode: ['12.1']
+        feature:
+          [
+            'generate-6',
+            'cache-xcframeworks',
+            'cache-frameworks',
+            'precompiled',
+          ]
     steps:
       - uses: actions/checkout@v1
       - name: Select Xcode
@@ -149,15 +155,17 @@ jobs:
           bundle install --jobs 4 --retry 3
       - name: Run tests
         run: FEATURE=features/${{ matrix.feature }}.feature bundle exec rake features
-
   upload:
-    if: github.ref == 'refs/heads/master'
+    if: github.ref == 'refs/heads/main'
     name: Upload
     runs-on: macOS-latest
+    strategy:
+      matrix:
+        xcode: ['12.1']
     steps:
       - uses: actions/checkout@v1
-      - name: Select Xcode 11.4
-        run: sudo xcode-select -switch /Applications/Xcode_11.5.app
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_${{ matrix.xcode }}.app
       - uses: actions/setup-ruby@v1
         with:
           ruby-version: '2.x'

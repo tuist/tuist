@@ -172,6 +172,14 @@ public struct Target: Equatable, Hashable, Comparable {
         }
     }
 
+    /// Returns true if the target is an AppClip
+    public var isAppClip: Bool {
+        if case .appClip = product {
+            return true
+        }
+        return false
+    }
+
     /// Returns true if the file at the given path is a resource.
     /// - Parameter path: Path to the file to be checked.
     public static func isResource(path: AbsolutePath) -> Bool {
@@ -289,8 +297,8 @@ extension Sequence where Element == Target {
         filter { $0.product.testsBundle }
     }
 
-    /// Filters and returns only the targets that are apps.
+    /// Filters and returns only the targets that are apps and app clips.
     var apps: [Target] {
-        filter { $0.product == .app }
+        filter { $0.product == .app || $0.product == .appClip }
     }
 }

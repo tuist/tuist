@@ -61,3 +61,5 @@ DerivedData/
 ### Projects ###
 *.xcodeproj
 *.xcworkspace
+
+Derived

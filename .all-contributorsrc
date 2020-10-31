@@ -95,6 +95,43 @@
       "contributions": [
         "ideas"
       ]
+    },
+    {
+      "login": "laxmorek",
+      "name": "Kamil Harasimowicz",
+      "avatar_url": "https://avatars2.githubusercontent.com/u/4774319?v=4",
+      "profile": "https://github.com/laxmorek",
+      "contributions": [
+        "code",
+        "ideas"
+      ]
+    },
+    {
+      "login": "olejnjak",
+      "name": "Jakub Olejník",
+      "avatar_url": "https://avatars1.githubusercontent.com/u/3148214?v=4",
+      "profile": "https://github.com/olejnjak",
+      "contributions": [
+        "ideas"
+      ]
+    },
+    {
+      "login": "lakpa",
+      "name": "ldindu",
+      "avatar_url": "https://avatars0.githubusercontent.com/u/389328?v=4",
+      "profile": "https://github.com/lakpa",
+      "contributions": [
+        "ideas"
+      ]
+    },
+    {
+      "login": "gtsifrikas",
+      "name": "George Tsifrikas",
+      "avatar_url": "https://avatars2.githubusercontent.com/u/8904378?v=4",
+      "profile": "https://github.com/gtsifrikas",
+      "contributions": [
+        "blog"
+      ]
     }
   ],
   "contributorsPerLine": 7,
