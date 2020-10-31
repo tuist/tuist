@@ -45,10 +45,10 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             manifestsDependencies = [.target(name: "ProjectDescriptionHelpers")]
         }
 
-        let manifestsTargets = named(manifests: manifests).map { name, manifest in
+        let manifestsTargets = named(manifests: manifests).map { name, manifestSourcePath in
             editorHelperTarget(name: name,
                                targetSettings: targetSettings,
-                               sourcePaths: manifests,
+                               sourcePaths: [manifestSourcePath],
                                dependencies: manifestsDependencies)
         }
 
