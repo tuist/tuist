@@ -522,7 +522,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         let group = PBXGroup()
         let pbxproj = PBXProj()
         pbxproj.add(object: group)
-        _ = subject.addFileElement(from: from,
+        subject.addFileElement(from: from,
                                    fileAbsolutePath: fileAbsolutePath,
                                    fileRelativePath: fileRelativePath,
                                    name: nil,
