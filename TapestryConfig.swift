@@ -9,7 +9,7 @@ let config = TapestryConfig(
             .pre(tool: "bundle", arguments: ["install"]),
             .pre(.dependenciesCompatibility([.spm(.all)])),
             .pre(tool: "swift", arguments: ["test"]),
-            .pre(tool: "bundle", arguments: ["exec", "rake", "features"]),
+            // .pre(tool: "bundle", arguments: ["exec", "rake", "features"]),
             .pre(.docsUpdate),
             .pre(tool: "sudo", arguments: ["xcode-select", "-s", "/Applications/Xcode_11.5.app"]),
             .post(tool: "bundle", arguments: ["exec", "rake", "release"]),
