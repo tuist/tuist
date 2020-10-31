@@ -2,7 +2,7 @@ import Foundation
 import RxSwift
 
 /// Async queue dispatcher.
-public protocol AsyncQueueDispatcher {
+public protocol AsyncQueueDispatching {
     /// Identifier.
     var identifier: String { get }
 

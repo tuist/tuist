@@ -15,82 +15,42 @@ public class AsyncQueue: AsyncQueuing {
 
     public static var shared: AsyncQueuing!
     private let disposeBag: DisposeBag = DisposeBag()
-    private let dispatchQueue: DispatchQueue!
-    private let queue: Queuer
+    private let queue: Queuing
     private let ciChecker: CIChecking
     private let persistor: AsyncQueuePersisting
-    private let dispatchers: [String: AsyncQueueDispatcher]
+    private let dispatchers: [String: AsyncQueueDispatching]
     private let executionBlock: () throws -> Void
 
     // MARK: - Init
 
-    public static func dispatchQueue() -> DispatchQueue {
-        .init(label: "io.tuist.async-queue", qos: .background)
-    }
-
-    public convenience init(dispatchers: [AsyncQueueDispatcher],
-                            dispatchQueue: DispatchQueue = AsyncQueue.dispatchQueue(),
+    public convenience init(dispatchers: [AsyncQueueDispatching],
                             executionBlock: @escaping () throws -> Void) throws
     {
         try self.init(queue: Queuer.shared,
-                      dispatchQueue: dispatchQueue,
                       executionBlock: executionBlock,
                       ciChecker: CIChecker(),
                       persistor: AsyncQueuePersistor(),
                       dispatchers: dispatchers)
     }
 
-    init(queue: Queuer,
-         dispatchQueue: DispatchQueue,
+    init(queue: Queuing,
          executionBlock: @escaping () throws -> Void,
          ciChecker: CIChecking,
          persistor: AsyncQueuePersisting,
-         dispatchers: [AsyncQueueDispatcher]) throws
+         dispatchers: [AsyncQueueDispatching]) throws
     {
         self.queue = queue
-        self.dispatchQueue = dispatchQueue
         self.executionBlock = executionBlock
         self.ciChecker = ciChecker
         self.persistor = persistor
-        self.dispatchers = dispatchers.reduce(into: [String: AsyncQueueDispatcher]()) { $0[$1.identifier] = $1 }
+        self.dispatchers = dispatchers.reduce(into: [String: AsyncQueueDispatching]()) { $0[$1.identifier] = $1 }
         try run()
     }
 
     // MARK: - AsyncQueuing
 
     public func dispatch<T: AsyncQueueEvent>(event: T) {
-        dispatch(event: event, persist: true)
-    }
-
-    // MARK: - Private
-
-    private func dispatchPersisted(event: AsyncQueueEventTuple) {
-        let delete = {
-            self.persistor.delete(filename: event.filename).subscribe().disposed(by: self.disposeBag)
-        }
-
-        dispatchQueue.async {
-            guard let dispatcher = self.dispatchers.first(where: { $0.key == event.dispatcherId })?.value else {
-                delete()
-                logger.error("Couldn't find dispatcher with id: \(event.dispatcherId)")
-                return
-            }
-            do {
-                logger.debug("Dispatching persisted event with ID '\(event.id.uuidString)' to '\(dispatcher.identifier)'")
-                try dispatcher.dispatchPersisted(data: event.data)
-            } catch {
-                delete()
-            }
-        }
-    }
-
-    private func dispatch<T: AsyncQueueEvent>(event: T, persist: Bool = true) {
-        let delete = {
-            self.persistor.delete(event: event).subscribe().disposed(by: self.disposeBag)
-        }
-
         guard let dispatcher = dispatchers[event.dispatcherId] else {
-            delete()
             logger.error("Couldn't find dispatcher with id: \(event.dispatcherId)")
             return
         }
@@ -98,27 +58,55 @@ public class AsyncQueue: AsyncQueuing {
         // We persist the event in case the dispatching is halted because Tuist's
         // process exits. In that case we want to retry again the next time there's
         // opportunity for that.
-        if persist {
-            _ = persistor.write(event: event)
-        }
+        _ = persistor.write(event: event)
 
-        let operation = ConcurrentOperation(name: event.id.uuidString) { operation in
+        // Queue event to send
+        let operation = liveDispatchOperation(event: event, dispatcher: dispatcher)
+        queue.addOperation(operation)
+    }
+
+    // MARK: - Private
+
+    private func liveDispatchOperation<T: AsyncQueueEvent>(event: T, dispatcher: AsyncQueueDispatching) -> Operation {
+        ConcurrentOperation(name: event.id.uuidString) { operation in
             logger.debug("Dispatching event with ID '\(event.id.uuidString)' to '\(dispatcher.identifier)'")
-
-            /// The current implementation doesn't support retries but that's something that we can improve in the future.
-            operation.maximumRetries = 1
-
-            /// After the dispatching operation finishes, we delete the event locally.
-            defer { _ = self.persistor.delete(event: event) }
 
             do {
                 try dispatcher.dispatch(event: event)
                 operation.success = true
+
+                /// After the dispatching operation finishes, we delete the event locally.
+                _ = self.persistor.delete(event: event)
             } catch {
                 operation.success = false
             }
         }
+    }
+    
+    private func dispatchPersisted(eventTuple: AsyncQueueEventTuple) {
+        guard let dispatcher = self.dispatchers.first(where: { $0.key == eventTuple.dispatcherId })?.value else {
+            deletePersistedEvent(filename: eventTuple.filename)
+            logger.error("Couldn't find dispatcher for persisted event with id: \(eventTuple.dispatcherId)")
+            return
+        }
+
+        let operation = persistedDispatchOperation(event: eventTuple, dispatcher: dispatcher)
         queue.addOperation(operation)
+    }
+    
+    private func persistedDispatchOperation(event: AsyncQueueEventTuple,
+                                            dispatcher: AsyncQueueDispatching) -> Operation {
+        ConcurrentOperation(name: event.id.uuidString) { operation in
+            /// After the dispatching operation finishes, we delete the event locally.
+            defer { self.deletePersistedEvent(filename: event.filename) }
+
+            do {
+                logger.debug("Dispatching persisted event with ID '\(event.id.uuidString)' to '\(dispatcher.identifier)'")
+                try dispatcher.dispatchPersisted(data: event.data)
+            } catch {
+                logger.debug("Failed to dispatch persisted event with ID '\(event.id.uuidString)' to '\(dispatcher.identifier)'")
+            }
+        }
     }
 
     private func run() throws {
@@ -155,6 +143,10 @@ public class AsyncQueue: AsyncQueuing {
     }
 
     private func scheduler() -> ConcurrentDispatchQueueScheduler {
-        ConcurrentDispatchQueueScheduler(queue: dispatchQueue)
+        ConcurrentDispatchQueueScheduler(queue: DispatchQueue(label: "io.tuist.async-queue", qos: .background))
+    }
+    
+    private func deletePersistedEvent(filename: String) {
+        persistor.delete(filename: filename).subscribe().disposed(by: self.disposeBag)
     }
 }

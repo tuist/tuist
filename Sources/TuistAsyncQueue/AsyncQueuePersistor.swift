@@ -4,9 +4,9 @@ import TSCBasic
 import TuistCore
 import TuistSupport
 
-typealias AsyncQueueEventTuple = (dispatcherId: String, id: UUID, date: Date, data: Data, filename: String)
+public typealias AsyncQueueEventTuple = (dispatcherId: String, id: UUID, date: Date, data: Data, filename: String)
 
-protocol AsyncQueuePersisting {
+public protocol AsyncQueuePersisting {
     /// Reads all the persisted events and returns them.
     func readAll() -> Single<[AsyncQueueEventTuple]>
 
