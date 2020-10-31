@@ -1,10 +1,14 @@
 import TSCBasic
 import TuistSupport
 
-public protocol CarthageManaging: DependencyManaging {
+// MARK: - Carthage Interacting
+
+public protocol CarthageInteracting: DependencyManagerInteracting {
 }
 
-public final class CarthageManager: CarthageManaging {
+// MARK: - Carthage Interactor
+
+public final class CarthageInteractor: CarthageInteracting {
     public var isAvailable: Bool { canUseCarthageThroughBundler() || canUseSystemCarthage() }
     
     public init() { }

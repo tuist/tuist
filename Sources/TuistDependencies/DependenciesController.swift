@@ -39,10 +39,16 @@ public protocol DependenciesControlling {
 // MARK: - Dependencies Controller
 
 public final class DependenciesController: DependenciesControlling {
-    private let carthageManager: CarthageManaging
+    private let carthageInteractor: CarthageInteracting
+    private let cocoapodsInteractor: CocoapodsInteracting
+    private let spmInteractor: SPMInteracting
     
-    public init(carthageManager: CarthageManaging = CarthageManager()) {
-        self.carthageManager = carthageManager
+    public init(carthageInteractor: CarthageInteracting = CarthageInteractor(),
+                cocoapodsInteractor: CocoapodsInteracting = CocoapodsInteractor(),
+                spmInteractor: SPMInteracting = SPMInteractor()) {
+        self.carthageInteractor = carthageInteractor
+        self.cocoapodsInteractor = cocoapodsInteractor
+        self.spmInteractor = spmInteractor
     }
     
     public func install(at path: AbsolutePath, method: InstallDependenciesMethod) throws {
