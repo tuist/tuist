@@ -40,6 +40,7 @@ public class GraphLinter: GraphLinting {
         issues.append(contentsOf: lintDependencies(graph: graph))
         issues.append(contentsOf: lintMismatchingConfigurations(graph: graph))
         issues.append(contentsOf: lintWatchBundleIndentifiers(graph: graph))
+        issues.append(contentsOf: lintCommandLineTool(graph: graph))
 
         return issues
     }
@@ -199,6 +200,12 @@ public class GraphLinter: GraphLinting {
 
         return issues
     }
+    
+    private func lintCommandLineTool(graph: Graph) -> [LintingIssue] {
+        graph.targets.values
+            .flatMap { $0.filter { $0.target.product == .commandLineTool } }
+            .flatMap { lint(cliTool: $0) }
+    }
 
     private func lintCarthageDependencies(graph: Graph) -> [LintingIssue] {
         let frameworks = graph.frameworks
@@ -288,6 +295,52 @@ public class GraphLinter: GraphLinting {
             }
         } else {
             foundIssues.append(LintingIssue(reason: "An AppClip '\(appClip.target.name)' requires its Parent Application Identifiers Entitlement to be set", severity: .error))
+        }
+
+        return foundIssues
+    }
+    
+    private func lint(cliTool tool: TargetNode) -> [LintingIssue] {
+        var foundIssues = [LintingIssue]()
+        
+        let supportedDependencies: [Product] = [
+            .staticLibrary,
+            .staticFramework,
+        ]
+        
+        let unsupportedTargets = tool.targetDependencies
+            .filter { !supportedDependencies.contains($0.target.product) }
+        
+        if unsupportedTargets.count > 0 {
+            let unsupportedTargetsString = unsupportedTargets.map { "'\($0.name)' (\($0.target.product))" }
+                .joined(separator: ", ")
+            let supportedDependenciesString = supportedDependencies.map { "'\($0)'" }
+                .joined(separator: ", ")
+            let issue = LintingIssue(reason: "Command line tool '\(tool.target.name)' depends on unsupported targets \(unsupportedTargetsString), only \(supportedDependenciesString) types are supported", severity: .error)
+            
+            foundIssues.append(issue)
+        }
+        
+        let dynamicFrameworks = tool.frameworkDependencies.filter { $0.linking == .dynamic }
+        let precompiledDynamicDependencies = tool.precompiledDependencies.filter { $0.isDynamicAndLinkable() }
+        let allDynamicFrameworks = dynamicFrameworks + precompiledDynamicDependencies
+        
+        if allDynamicFrameworks.count > 0 {
+            let dynamicFrameworksString = allDynamicFrameworks.map { "'\($0.name)'" }
+                        .joined(separator: ", ")
+            let issue = LintingIssue(reason: "Command line tool '\(tool.target.name)' depends on dynamic frameworks \(dynamicFrameworksString), only static frameworks are supported", severity: .error)
+            
+            foundIssues.append(issue)
+        }
+        
+        let dynamicLibs = tool.libraryDependencies.filter { $0.linking == .dynamic }
+        
+        if dynamicLibs.count > 0 {
+            let dynamicLibsString = dynamicLibs.map { "'\($0.name)'" }
+                .joined(separator: ", ")
+            let issue = LintingIssue(reason: "Command line tool '\(tool.name)' depends on dynamic libs \(dynamicLibsString), only static libs are supported", severity: .error)
+            
+            foundIssues.append(issue)
         }
 
         return foundIssues
