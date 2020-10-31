@@ -40,17 +40,20 @@ public class MockAsyncQueueDispatcher: AsyncQueueDispatching {
 
     public var invokedDispatchPersisted = false
     public var invokedDispatchPersistedCount = 0
-    public var invokedDispatchPersistedParameters: (data: Data, Void)?
-    public var invokedDispatchPersistedParametersList = [(data: Data, Void)]()
+    public var invokedDispatchPersistedCallBack: () -> Void = {}
+    public var invokedDispatchPersistedDataParameter: Data?
+    public var invokedDispatchPersistedParametersDataList = [Data]()
     public var stubbedDispatchPersistedError: Error?
 
     public func dispatchPersisted(data: Data) throws {
         invokedDispatchPersisted = true
         invokedDispatchPersistedCount += 1
-        invokedDispatchPersistedParameters = (data, ())
-        invokedDispatchPersistedParametersList.append((data, ()))
+        invokedDispatchPersistedDataParameter = data
+        invokedDispatchPersistedParametersDataList.append(data)
         if let error = stubbedDispatchPersistedError {
+            invokedDispatchPersistedCallBack()
             throw error
         }
+        invokedDispatchPersistedCallBack()
     }
 }

@@ -6,14 +6,14 @@ public final class MockQueuer: Queuing {
 
     public var invokedAddOperation = false
     public var invokedAddOperationCount = 0
-    public var invokedAddOperationParameters: (operation: Operation, Void)?
-    public var invokedAddOperationParametersList = [(operation: Operation, Void)]()
+    public var invokedAddOperationParameterOperation: Operation?
+    public var invokedAddOperationParametersOperationsList = [Operation]()
 
     public func addOperation(_ operation: Operation) {
         invokedAddOperation = true
         invokedAddOperationCount += 1
-        invokedAddOperationParameters = (operation, ())
-        invokedAddOperationParametersList.append((operation, ()))
+        invokedAddOperationParameterOperation = operation
+        invokedAddOperationParametersOperationsList.append(operation)
     }
 
     public var invokedResume = false

@@ -61,7 +61,8 @@ final class AsyncQueueTests: TuistUnitTestCase {
             executionBlock: executionBlock,
             ciChecker: ciChecker ?? mockCIChecker,
             persistor: persistor ?? mockPersistor,
-            dispatchers: dispatchers ?? [mockAsyncQueueDispatcher1, mockAsyncQueueDispatcher2]
+            dispatchers: dispatchers ?? [mockAsyncQueueDispatcher1, mockAsyncQueueDispatcher2],
+            persistedEventsSchedulerType: MainScheduler()
         ) else {
             XCTFail("Could not create subject")
             return try! AsyncQueue(dispatchers: [mockAsyncQueueDispatcher1, mockAsyncQueueDispatcher2], executionBlock: executionBlock)
@@ -94,7 +95,7 @@ final class AsyncQueueTests: TuistUnitTestCase {
         subject.dispatch(event: event)
 
         // Then
-        guard let queuedOperation = mockQueuer.invokedAddOperationParameters?.operation as? ConcurrentOperation else {
+        guard let queuedOperation = mockQueuer.invokedAddOperationParameterOperation as? ConcurrentOperation else {
             XCTFail("Operation not added to the queuer")
             return
         }
@@ -191,5 +192,103 @@ final class AsyncQueueTests: TuistUnitTestCase {
         wait(for: [expectation], timeout: timeout)
         XCTAssertEqual(count, 3)
         XCTAssertEqual(mockPersistor.invokedDeleteEventCount, 0)
+    }
+
+    func test_dispatch_readsPersistedEventsInitialization() throws {
+        // Given
+        let eventTuple1: AsyncQueueEventTuple = makeEventTuple(id: 1)
+        let eventTuple2: AsyncQueueEventTuple = makeEventTuple(id: 2)
+        let eventTuple3: AsyncQueueEventTuple = makeEventTuple(id: 3)
+        mockPersistor.stubbedReadAllResult = .just([eventTuple1, eventTuple2, eventTuple3])
+
+        // When
+        subject = subjectWithExecutionBlock()
+
+        // Then
+        let numberOfOperationsQueued = mockQueuer.invokedAddOperationCount
+        XCTAssertEqual(numberOfOperationsQueued, 3)
+
+        guard let queuedOperation1 = mockQueuer.invokedAddOperationParametersOperationsList[0] as? ConcurrentOperation else {
+            XCTFail("Operation for event tuple 1 not added to the queuer")
+            return
+        }
+        XCTAssertEqual(queuedOperation1.name, eventTuple1.id.uuidString)
+
+        guard let queuedOperation2 = mockQueuer.invokedAddOperationParametersOperationsList[1] as? ConcurrentOperation else {
+            XCTFail("Operation for event tuple 2 not added to the queuer")
+            return
+        }
+        XCTAssertEqual(queuedOperation2.name, eventTuple2.id.uuidString)
+
+        guard let queuedOperation3 = mockQueuer.invokedAddOperationParametersOperationsList[2] as? ConcurrentOperation else {
+            XCTFail("Operation for event tuple 3 not added to the queuer")
+            return
+        }
+        XCTAssertEqual(queuedOperation3.name, eventTuple3.id.uuidString)
+    }
+
+    func test_dispatch_persistedEventIsDispatchedByTheRightDispatcher() throws {
+        // Given
+        let eventTuple1: AsyncQueueEventTuple = makeEventTuple(id: 1)
+        mockPersistor.stubbedReadAllResult = .just([eventTuple1])
+
+        let expectation = XCTestExpectation(description: #function)
+        mockAsyncQueueDispatcher1.invokedDispatchPersistedCallBack = {
+            expectation.fulfill()
+        }
+
+        // When
+        subject = subjectWithExecutionBlock(queue: Queuer.shared)
+
+        // Then
+        wait(for: [expectation], timeout: timeout)
+        guard let dispatchedEventData = mockAsyncQueueDispatcher1.invokedDispatchPersistedDataParameter else {
+            XCTFail("Data from persisted event was not dispatched")
+            return
+        }
+        XCTAssertEqual(eventTuple1.data, dispatchedEventData)
+        XCTAssertEqual(mockAsyncQueueDispatcher1.invokedDispatchPersistedCount, 1)
+        XCTAssertEqual(mockAsyncQueueDispatcher2.invokedDispatchPersistedCount, 0)
+    }
+
+    func test_dispatch_sentPersistedEventIsThenDeleted() throws {
+        // Given
+        let id: UInt = 1
+        let eventTuple1: AsyncQueueEventTuple = makeEventTuple(id: id)
+        mockPersistor.stubbedReadAllResult = .just([eventTuple1])
+
+        let expectation = XCTestExpectation(description: #function)
+        mockAsyncQueueDispatcher1.invokedDispatchPersistedCallBack = {
+            expectation.fulfill()
+        }
+
+        // When
+        subject = subjectWithExecutionBlock(queue: Queuer.shared)
+
+        // Then
+        wait(for: [expectation], timeout: timeout)
+        guard let filename = mockPersistor.invokedDeleteFilenameParameter else {
+            XCTFail("Sent persisted event was then not deleted")
+            return
+        }
+        XCTAssertEqual(filename, self.filename(with: id))
+    }
+
+    // MARK: Private
+
+    private func makeEventTuple(id: UInt, dispatcherId: String? = nil) -> AsyncQueueEventTuple {
+        (dispatcherId: dispatcherId ?? dispatcher1ID,
+         id: UUID(),
+         date: Date(),
+         data: data(with: id),
+         filename: filename(with: id))
+    }
+
+    private func data(with id: UInt) -> Data {
+        withUnsafeBytes(of: id) { Data($0) }
+    }
+
+    private func filename(with id: UInt) -> String {
+        "filename-\(id)"
     }
 }

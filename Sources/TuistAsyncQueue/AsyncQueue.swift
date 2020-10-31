@@ -20,6 +20,7 @@ public class AsyncQueue: AsyncQueuing {
     private let persistor: AsyncQueuePersisting
     private let dispatchers: [String: AsyncQueueDispatching]
     private let executionBlock: () throws -> Void
+    private let persistedEventsSchedulerType: SchedulerType
 
     // MARK: - Init
 
@@ -37,13 +38,15 @@ public class AsyncQueue: AsyncQueuing {
          executionBlock: @escaping () throws -> Void,
          ciChecker: CIChecking,
          persistor: AsyncQueuePersisting,
-         dispatchers: [AsyncQueueDispatching]) throws
+         dispatchers: [AsyncQueueDispatching],
+         persistedEventsSchedulerType: SchedulerType = AsyncQueue.schedulerType()) throws
     {
         self.queue = queue
         self.executionBlock = executionBlock
         self.ciChecker = ciChecker
         self.persistor = persistor
         self.dispatchers = dispatchers.reduce(into: [String: AsyncQueueDispatching]()) { $0[$1.identifier] = $1 }
+        self.persistedEventsSchedulerType = persistedEventsSchedulerType
         try run()
     }
 
@@ -134,7 +137,7 @@ public class AsyncQueue: AsyncQueuing {
     private func loadEvents() {
         persistor
             .readAll()
-            .subscribeOn(scheduler())
+            .subscribeOn(persistedEventsSchedulerType)
             .subscribe(onSuccess: { events in
                 events.forEach(self.dispatchPersisted)
             }, onError: { error in
@@ -143,11 +146,17 @@ public class AsyncQueue: AsyncQueuing {
             .disposed(by: disposeBag)
     }
 
-    private func scheduler() -> ConcurrentDispatchQueueScheduler {
-        ConcurrentDispatchQueueScheduler(queue: DispatchQueue(label: "io.tuist.async-queue", qos: .background))
-    }
-
     private func deletePersistedEvent(filename: String) {
         persistor.delete(filename: filename).subscribe().disposed(by: disposeBag)
+    }
+
+    // MARK: Private & Static
+
+    private static func dispatchQueue() -> DispatchQueue {
+        DispatchQueue(label: "io.tuist.async-queue", qos: .background)
+    }
+
+    private static func schedulerType() -> SchedulerType {
+        ConcurrentDispatchQueueScheduler(queue: dispatchQueue())
     }
 }

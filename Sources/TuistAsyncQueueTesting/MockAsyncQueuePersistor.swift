@@ -46,15 +46,15 @@ public final class MockAsyncQueuePersistor<U: AsyncQueueEvent>: AsyncQueuePersis
 
     public var invokedDeleteFilename = false
     public var invokedDeleteFilenameCount = 0
-    public var invokedDeleteFilenameParameters: (filename: String, Void)?
-    public var invokedDeleteFilenameParametersList = [(filename: String, Void)]()
-    public var stubbedDeleteFilenameResult: Completable!
+    public var invokedDeleteFilenameParameter: String?
+    public var invokedDeleteFilenameParametersList = [String]()
+    public var stubbedDeleteFilenameResult: Completable = .empty()
 
     public func delete(filename: String) -> Completable {
         invokedDeleteFilename = true
         invokedDeleteFilenameCount += 1
-        invokedDeleteFilenameParameters = (filename, ())
-        invokedDeleteFilenameParametersList.append((filename, ()))
+        invokedDeleteFilenameParameter = filename
+        invokedDeleteFilenameParametersList.append(filename)
         return stubbedDeleteFilenameResult
     }
 }
