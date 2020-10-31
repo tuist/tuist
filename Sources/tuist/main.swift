@@ -1,6 +1,5 @@
 import Foundation
 import enum TSCBasic.ProcessEnv
-import TuistAsyncQueue
 import TuistSupport
 import enum TuistSupport.LogOutput
 
@@ -10,6 +9,4 @@ LogOutput.bootstrap()
 
 import TuistKit
 
-try AsyncQueue.run {
-    TuistCommand.main()
-}
+TuistCommand.main()
