@@ -638,7 +638,7 @@ final class GraphLinterTests: TuistUnitTestCase {
                          severity: .error),
         ])
     }
-    
+
     func test_lint_when_cli_tool_links_dynamic_framework() throws {
         // Given
         let tool = Target.test(name: "App",
@@ -666,7 +666,7 @@ final class GraphLinterTests: TuistUnitTestCase {
                          severity: .error),
         ])
     }
-    
+
     func test_lint_when_cli_tool_links_dynamic_library() throws {
         // Given
         let tool = Target.test(name: "App",
@@ -694,7 +694,7 @@ final class GraphLinterTests: TuistUnitTestCase {
                          severity: .error),
         ])
     }
-    
+
     func test_lint_when_cli_tool_links_supported_dependencies() throws {
         // Given
         let tool = Target.test(name: "App",
@@ -702,9 +702,9 @@ final class GraphLinterTests: TuistUnitTestCase {
                                product: .commandLineTool,
                                bundleId: "com.example.app")
         let staticLib = Target.test(name: "StaticLib",
-                                  platform: .macOS,
-                                  product: .staticLibrary,
-                                  bundleId: "com.example.staticlib")
+                                    platform: .macOS,
+                                    product: .staticLibrary,
+                                    bundleId: "com.example.staticlib")
         let staticFmwk = Target.test(name: "StaticFramework",
                                      platform: .macOS,
                                      product: .staticLibrary,
@@ -713,9 +713,9 @@ final class GraphLinterTests: TuistUnitTestCase {
         let project = Project.test(targets: [tool, staticLib, staticFmwk])
         let graph = Graph.create(project: project,
                                  dependencies: [
-                                    (target: tool, dependencies: [staticLib, staticFmwk]),
-                                    (target: staticLib, dependencies: []),
-                                    (target: staticFmwk, dependencies: []),
+                                     (target: tool, dependencies: [staticLib, staticFmwk]),
+                                     (target: staticLib, dependencies: []),
+                                     (target: staticFmwk, dependencies: []),
                                  ])
 
         // When
