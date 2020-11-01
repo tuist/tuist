@@ -4,15 +4,17 @@ import TSCBasic
 import TuistSupport
 import XcodeProj
 
-enum TargetsExtractorError: FatalError, Equatable {
+public enum TargetsExtractorError: FatalError, Equatable {
     case missingProject
     case noTargets
     case failedToExtractTargets(String)
+    case failedToEncode
 
     public var description: String {
         switch self {
         case .missingProject: return "The project's pbxproj file contains no projects."
         case .noTargets: return "The project doesn't have any targets."
+        case .failedToEncode: return "Failed to encode targets into JSON schema"
         case let .failedToExtractTargets(reason): return "Failed to extract targets for reason: \(reason)."
         }
     }
@@ -25,6 +27,8 @@ enum TargetsExtractorError: FatalError, Equatable {
             return .abort
         case .failedToExtractTargets:
             return .bug
+        case .failedToEncode:
+            return .bug
         }
     }
 }
@@ -33,7 +37,12 @@ enum TargetsExtractorError: FatalError, Equatable {
 public protocol TargetsExtracting {
     /// - Parameters:
     ///   - xcodeprojPath: Path to the Xcode project.
-    func targetsSortedByDependencies(xcodeprojPath: AbsolutePath) throws -> [(targetName: String, dependenciesCount: Int)]
+    func targetsSortedByDependencies(xcodeprojPath: AbsolutePath) throws -> [TargetDependencyCount]
+}
+
+public struct TargetDependencyCount: Encodable {
+    public let targetName: String
+    public let dependenciesCount: Int
 }
 
 public final class TargetsExtractor: TargetsExtracting {
@@ -43,7 +52,7 @@ public final class TargetsExtractor: TargetsExtracting {
 
     // MARK: - EmptyBuildSettingsChecking
 
-    public func targetsSortedByDependencies(xcodeprojPath: AbsolutePath) throws -> [(targetName: String, dependenciesCount: Int)] {
+    public func targetsSortedByDependencies(xcodeprojPath: AbsolutePath) throws -> [TargetDependencyCount] {
         guard FileHandler.shared.exists(xcodeprojPath) else { throw TargetsExtractorError.missingProject }
         let pbxproj = try XcodeProj(path: Path(xcodeprojPath.pathString)).pbxproj
         let targets = pbxproj.nativeTargets + pbxproj.aggregateTargets + pbxproj.legacyTargets
@@ -53,7 +62,7 @@ public final class TargetsExtractor: TargetsExtracting {
         return try sortTargetsByDependenciesCount(targets)
     }
 
-    private func sortTargetsByDependenciesCount(_ targets: [PBXTarget]) throws -> [(targetName: String, dependenciesCount: Int)] {
+    private func sortTargetsByDependenciesCount(_ targets: [PBXTarget]) throws -> [TargetDependencyCount] {
         let sortedTargets = try targets.sorted { lTarget, rTarget -> Bool in
             let lCount = try countDependencies(of: lTarget)
             let rCount = try countDependencies(of: rTarget)
@@ -62,7 +71,7 @@ public final class TargetsExtractor: TargetsExtracting {
             }
             return lCount < rCount
         }
-        return try sortedTargets.map { (targetName: $0.name, dependenciesCount: try countDependencies(of: $0)) }
+        return try sortedTargets.map { TargetDependencyCount(targetName: $0.name, dependenciesCount: try countDependencies(of: $0)) }
     }
 
     private func countDependencies(of target: PBXTarget) throws -> Int {
