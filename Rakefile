@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-SWIFTDOC_VERSION = "1.0.0-beta.4".freeze
+SWIFTDOC_VERSION = "1.0.0-beta.5".freeze
 SWIFTLINT_VERSION = "0.40.2".freeze
 
 require 'rubygems'
@@ -81,9 +81,9 @@ task :local_package do
 end
 
 desc("Builds, archives, and publishes tuist and tuistenv for release")
-task :release do
+task :release, [:version] do |task, options|
   decrypt_secrets
-  release
+  release(options[:version])
 end
 
 desc("Publishes the installation scripts")
@@ -249,8 +249,12 @@ def package
   FileUtils.cp(".build/release/tuistenv.zip", "build/tuistenv.zip")
 end
 
-def release
-  version = cli.ask("Introduce the released version:")
+def release(version)
+  if version == nil
+    version = cli.ask("Introduce the released version:")
+  end
+
+  puts "Releasing #{version} 🚀"
 
   package
 

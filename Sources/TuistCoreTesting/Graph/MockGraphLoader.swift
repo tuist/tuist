@@ -10,9 +10,9 @@ public final class MockGraphLoader: GraphLoading {
         return try loadProjectStub?(path) ?? (Graph.test(), Project.test())
     }
 
-    public var loadWorkspaceStub: ((AbsolutePath) throws -> (Graph, Workspace))?
-    public func loadWorkspace(path: AbsolutePath) throws -> (Graph, Workspace) {
-        return try loadWorkspaceStub?(path) ?? (Graph.test(), Workspace.test())
+    public var loadWorkspaceStub: ((AbsolutePath) throws -> (Graph))?
+    public func loadWorkspace(path: AbsolutePath) throws -> (Graph) {
+        return try loadWorkspaceStub?(path) ?? Graph.test()
     }
 
     public var loadConfigStub: ((AbsolutePath) throws -> (Config))?

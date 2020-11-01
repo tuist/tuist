@@ -4,7 +4,7 @@ name: Checks
 on:
   push:
     branches:
-      - master
+      - main
     paths:
       - Sources/**/*
       - Tests/**/*

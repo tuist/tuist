@@ -64,7 +64,7 @@ public final class GraphVizGenerator: GraphVizGenerating {
     /// - Returns: Dot graph representation.
     /// - Throws: An error if the workspace can't be loaded.
     public func generateWorkspace(at path: AbsolutePath, skipTestTargets: Bool, skipExternalDependencies: Bool) throws -> GraphViz.Graph {
-        let (graph, _) = try graphLoader.loadWorkspace(path: path)
+        let graph = try graphLoader.loadWorkspace(path: path)
         return graphToGraphVizMapper.map(graph: graph, skipTestTargets: skipTestTargets, skipExternalDependencies: skipExternalDependencies)
     }
 }

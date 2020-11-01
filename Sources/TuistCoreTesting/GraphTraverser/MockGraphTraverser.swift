@@ -100,4 +100,8 @@ final class MockGraphTraverser: GraphTraversing {
         invokedDirectStaticDependenciesParametersList.append((path, name))
         return stubbedDirectStaticDependenciesResult
     }
+
+    func appClipsDependency(path _: AbsolutePath, name _: String) -> Target? {
+        nil
+    }
 }

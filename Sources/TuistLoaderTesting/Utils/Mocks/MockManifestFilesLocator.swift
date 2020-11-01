@@ -9,6 +9,8 @@ public final class MockManifestFilesLocator: ManifestFilesLocating {
     public var locateAllProjectManifestsArgs: [AbsolutePath] = []
     public var locateConfigStub: AbsolutePath?
     public var locateConfigArgs: [AbsolutePath] = []
+    public var locateDependenciesStub: AbsolutePath?
+    public var locateDependenciesArgs: [AbsolutePath] = []
     public var locateSetupStub: AbsolutePath?
     public var locateSetupArgs: [AbsolutePath] = []
 
@@ -25,6 +27,11 @@ public final class MockManifestFilesLocator: ManifestFilesLocating {
     public func locateConfig(at: AbsolutePath) -> AbsolutePath? {
         locateConfigArgs.append(at)
         return locateConfigStub ?? at.appending(components: "Tuist", "Config.swift")
+    }
+
+    public func locateDependencies(at: AbsolutePath) -> AbsolutePath? {
+        locateDependenciesArgs.append(at)
+        return locateDependenciesStub ?? at.appending(components: "Tuist", "Dependencies.swift")
     }
 
     public func locateSetup(at: AbsolutePath) -> AbsolutePath? {

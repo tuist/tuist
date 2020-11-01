@@ -40,6 +40,7 @@ public class GraphLinter: GraphLinting {
         issues.append(contentsOf: lintDependencies(graph: graph))
         issues.append(contentsOf: lintMismatchingConfigurations(graph: graph))
         issues.append(contentsOf: lintWatchBundleIndentifiers(graph: graph))
+
         return issues
     }
 
@@ -57,6 +58,7 @@ public class GraphLinter: GraphLinting {
         issues.append(contentsOf: lintCarthageDependencies(graph: graph))
         issues.append(contentsOf: lintCocoaPodsDependencies(graph: graph))
         issues.append(contentsOf: lintPackageDependencies(graph: graph))
+        issues.append(contentsOf: lintAppClip(graph: graph))
 
         return issues
     }
@@ -170,6 +172,34 @@ public class GraphLinter: GraphLinting {
         }
     }
 
+    private func lintAppClip(graph: Graph) -> [LintingIssue] {
+        let apps = graph
+            .targets.values
+            .flatMap { targets -> [TargetNode] in
+                targets.compactMap { target in
+                    if target.target.product == .app { return target }
+                    return nil
+                }
+            }
+
+        let issues = apps.flatMap { app -> [LintingIssue] in
+            let appClips = products(ofType: .appClip, for: app, graph: graph)
+
+            if appClips.count > 1 {
+                return [
+                    LintingIssue(reason: "App '\(app)' cannot depend on more than one app clip -> \(appClips.map(\.name).joined(separator: ", "))",
+                                 severity: .error),
+                ]
+            }
+
+            return appClips.flatMap { appClip -> [LintingIssue] in
+                lint(appClip: appClip, parentApp: app)
+            }
+        }
+
+        return issues
+    }
+
     private func lintCarthageDependencies(graph: Graph) -> [LintingIssue] {
         let frameworks = graph.frameworks
         let carthageFrameworks = frameworks.filter { $0.isCarthage }
@@ -200,10 +230,10 @@ public class GraphLinter: GraphLinting {
             }
 
         let issues = apps.flatMap { app -> [LintingIssue] in
-            let watchApps = watchAppsFor(targetNode: app, graph: graph)
+            let watchApps = products(ofType: .watch2App, for: app, graph: graph)
             return watchApps.flatMap { watchApp -> [LintingIssue] in
                 let watchAppIssues = lint(watchApp: watchApp, parentApp: app)
-                let watchExtensions = watchExtensionsFor(targetNode: watchApp, graph: graph)
+                let watchExtensions = products(ofType: .watch2Extension, for: watchApp, graph: graph)
                 let watchExtensionIssues = watchExtensions.flatMap { watchExtension in
                     lint(watchExtension: watchExtension, parentWatchApp: watchApp)
                 }
@@ -236,16 +266,31 @@ public class GraphLinter: GraphLinting {
         return []
     }
 
-    private func watchAppsFor(targetNode: TargetNode, graph: Graph) -> [TargetNode] {
+    private func products(ofType type: Product, for targetNode: TargetNode, graph: Graph) -> [TargetNode] {
         graph.targetDependencies(path: targetNode.path,
                                  name: targetNode.name)
-            .filter { $0.target.product == .watch2App }
+            .filter { $0.target.product == type }
     }
 
-    private func watchExtensionsFor(targetNode: TargetNode, graph: Graph) -> [TargetNode] {
-        graph.targetDependencies(path: targetNode.path,
-                                 name: targetNode.name)
-            .filter { $0.target.product == .watch2Extension }
+    private func lint(appClip: TargetNode, parentApp: TargetNode) -> [LintingIssue] {
+        var foundIssues = [LintingIssue]()
+
+        if !appClip.target.bundleId.hasPrefix(parentApp.target.bundleId) {
+            foundIssues.append(
+                LintingIssue(reason: """
+                AppClip '\(appClip.name)' bundleId: \(appClip.target.bundleId) isn't prefixed with its parent's app '\(parentApp.name)' bundleId '\(parentApp.target.bundleId)'
+                """, severity: .error))
+        }
+
+        if let entitlements = appClip.target.entitlements {
+            if !FileHandler.shared.exists(entitlements) {
+                foundIssues.append(LintingIssue(reason: "The entitlements at path '\(entitlements)' referenced by target does not exist", severity: .error))
+            }
+        } else {
+            foundIssues.append(LintingIssue(reason: "An AppClip '\(appClip.target.name)' requires its Parent Application Identifiers Entitlement to be set", severity: .error))
+        }
+
+        return foundIssues
     }
 
     struct LintableTarget: Equatable, Hashable {
@@ -265,6 +310,7 @@ public class GraphLinter: GraphLinting {
             LintableTarget(platform: .iOS, product: .messagesExtension),
             LintableTarget(platform: .iOS, product: .stickerPackExtension),
             LintableTarget(platform: .watchOS, product: .watch2App),
+            LintableTarget(platform: .iOS, product: .appClip),
 //            LintableTarget(platform: .watchOS, product: .watchApp),
         ],
         LintableTarget(platform: .iOS, product: .staticLibrary): [
@@ -296,6 +342,7 @@ public class GraphLinter: GraphLinting {
             LintableTarget(platform: .iOS, product: .framework),
             LintableTarget(platform: .iOS, product: .staticFramework),
             LintableTarget(platform: .iOS, product: .bundle),
+            LintableTarget(platform: .iOS, product: .appClip),
         ],
         LintableTarget(platform: .iOS, product: .uiTests): [
             LintableTarget(platform: .iOS, product: .app),
@@ -304,6 +351,7 @@ public class GraphLinter: GraphLinting {
             LintableTarget(platform: .iOS, product: .framework),
             LintableTarget(platform: .iOS, product: .staticFramework),
             LintableTarget(platform: .iOS, product: .bundle),
+            LintableTarget(platform: .iOS, product: .appClip),
         ],
         LintableTarget(platform: .iOS, product: .appExtension): [
             LintableTarget(platform: .iOS, product: .staticLibrary),

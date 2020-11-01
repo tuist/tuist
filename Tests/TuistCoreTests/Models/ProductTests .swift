@@ -14,6 +14,7 @@ final class ProductTests: XCTestCase {
         XCTAssertEqual(Product.uiTests.xcodeValue, PBXProductType.uiTestBundle)
         XCTAssertEqual(Product.appExtension.xcodeValue, PBXProductType.appExtension)
         XCTAssertEqual(Product.stickerPackExtension.xcodeValue, PBXProductType.stickerPack)
+        XCTAssertEqual(Product.appClip.xcodeValue, PBXProductType.onDemandInstallCapableApplication)
     }
 
     func test_description() {
@@ -25,6 +26,7 @@ final class ProductTests: XCTestCase {
         XCTAssertEqual(Product.uiTests.description, "ui tests")
         XCTAssertEqual(Product.appExtension.description, "app extension")
         XCTAssertEqual(Product.stickerPackExtension.description, "sticker pack extension")
+        XCTAssertEqual(Product.appClip.description, "appClip")
     }
 
     func test_forPlatform_when_ios() {
@@ -40,6 +42,7 @@ final class ProductTests: XCTestCase {
             .messagesExtension,
             .unitTests,
             .uiTests,
+            .appClip,
         ]
         XCTAssertEqual(Set(got), Set(expected))
     }
@@ -73,7 +76,7 @@ final class ProductTests: XCTestCase {
 
     func test_runnable() {
         Product.allCases.forEach { product in
-            if product == .app {
+            if [.app, .appClip].contains(product) {
                 XCTAssertTrue(product.runnable)
             } else {
                 XCTAssertFalse(product.runnable)

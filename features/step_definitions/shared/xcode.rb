@@ -106,4 +106,3 @@ Then(/^in project (.+) the target (.+) should have the build phase (.+) in the l
   flunk("The target #{target_name} doesn't have build phases") if build_phase.nil?
   assert_equal phase_name, build_phase.name
 end
-

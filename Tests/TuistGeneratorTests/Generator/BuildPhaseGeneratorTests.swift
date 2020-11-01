@@ -643,6 +643,44 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         XCTAssertTrue(postBuildPhase.alwaysOutOfDate)
     }
 
+    func test_generateEmbedAppClipsBuildPhase() throws {
+        // Given
+        let app = Target.test(name: "App", product: .app)
+        let appClip = Target.test(name: "AppClip", product: .appClip)
+        let project = Project.test()
+        let pbxproj = PBXProj()
+        let nativeTarget = PBXNativeTarget(name: "Test")
+        let fileElements = createProductFileElements(for: [app, appClip])
+
+        let targets: [AbsolutePath: [String: Target]] = [
+            project.path: [app.name: app, appClip.name: appClip],
+        ]
+        let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
+            .target(name: appClip.name, path: project.path): Set(),
+            .target(name: app.name, path: project.path): Set([.target(name: appClip.name, path: project.path)]),
+        ]
+        let graph = ValueGraph.test(path: project.path,
+                                    projects: [project.path: project],
+                                    targets: targets,
+                                    dependencies: dependencies)
+        let graphTraverser = ValueGraphTraverser(graph: graph)
+        // When
+        try subject.generateEmbedAppClipsBuildPhase(path: project.path,
+                                                    target: app,
+                                                    graphTraverser: graphTraverser,
+                                                    pbxTarget: nativeTarget,
+                                                    fileElements: fileElements,
+                                                    pbxproj: pbxproj)
+
+        // Then
+        let pbxBuildPhase: PBXBuildPhase? = nativeTarget.buildPhases.first
+        XCTAssertNotNil(pbxBuildPhase)
+        XCTAssertTrue(pbxBuildPhase is PBXCopyFilesBuildPhase)
+        XCTAssertEqual(pbxBuildPhase?.files?.compactMap { $0.file?.nameOrPath }, ["AppClip"])
+        XCTAssertEqual(pbxBuildPhase?.files?.compactMap { $0.settings as? [String: [String]] },
+                       [["ATTRIBUTES": ["RemoveHeadersOnCopy"]]])
+    }
+
     // MARK: - Helpers
 
     private func createProductFileElements(for targets: [Target]) -> ProjectFileElements {

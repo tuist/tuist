@@ -99,7 +99,7 @@ To have better understanding of what's happening when running codesigning, we no
 
 ## Changelog
 
-You can check out the complete changelog [here](https://github.com/tuist/tuist/blob/master/CHANGELOG.md).
+You can check out the complete changelog [here](https://github.com/tuist/tuist/blob/main/CHANGELOG.md).
 
 ### Personal note
 

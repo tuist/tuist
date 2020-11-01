@@ -43,6 +43,11 @@ final class TargetTests: TuistUnitTestCase {
         XCTAssertEqual(target.productNameWithExtension, "Test.app")
     }
 
+    func test_productName_when_appClip() {
+        let target = Target.test(name: "Test", product: .appClip)
+        XCTAssertEqual(target.productNameWithExtension, "Test.app")
+    }
+
     func test_sequence_testBundles() {
         let app = Target.test(product: .app)
         let tests = Target.test(product: .unitTests)
@@ -57,6 +62,14 @@ final class TargetTests: TuistUnitTestCase {
         let targets = [app, tests]
 
         XCTAssertEqual(targets.apps, [app])
+    }
+
+    func test_sequence_appClips() {
+        let appClip = Target.test(product: .appClip)
+        let tests = Target.test(product: .unitTests)
+        let targets = [appClip, tests]
+
+        XCTAssertEqual(targets.apps, [appClip])
     }
 
     func test_targetLocatorBuildPhaseVariable() {
@@ -198,6 +211,7 @@ final class TargetTests: TuistUnitTestCase {
         XCTAssertTrue(Target.test(product: .watch2Extension).supportsResources)
         XCTAssertTrue(Target.test(product: .messagesExtension).supportsResources)
         XCTAssertTrue(Target.test(product: .stickerPackExtension).supportsResources)
+        XCTAssertTrue(Target.test(product: .appClip).supportsResources)
     }
 
     func test_resources() throws {

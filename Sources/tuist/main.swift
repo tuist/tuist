@@ -8,4 +8,5 @@ if CommandLine.arguments.contains("--verbose") { try? ProcessEnv.setVar(Constant
 LogOutput.bootstrap()
 
 import TuistKit
+
 TuistCommand.main()

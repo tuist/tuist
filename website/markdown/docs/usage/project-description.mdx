@@ -524,6 +524,10 @@ The type of build product this target will output. It can be any of the followin
       case: '.messagesExtension',
       description: 'An iMessage extension. (iOS platform only)',
     },
+    {
+      case: '.appClip',
+      description: 'An appClip. (iOS platform only)',
+    },
   ]}
 />
 
@@ -1523,83 +1527,6 @@ The `DeploymentDevice` model represents the device your product will support. It
     {
       case: '.mac',
       description: 'A mac device.',
-    },
-  ]}
-/>
-
-# Workspace.swift
-
-By default, `tuist generate` generates an Xcode workspace that has the same name as the current project. It includes the project and all its dependencies. Tuist allows customizing this behaviour by defining a workspace manifest within a `Workspace.swift` file.
-
-Workspace manifests allow specifying a list of projects to generate and include in an Xcode workspace. Those projects don’t necessarily have to depend on one another.
-
-Additionally, files and folder references _(such as documentation files)_ can be included in a workspace manifest.
-
-The snippet below shows an example workspace manifest:
-
-```swift
-import ProjectDescription
-
-let workspace = Workspace(name: "CustomWorkspace",
-                          projects: [
-                            "App",
-                            "Modules/**"
-                          ],
-                          schemes: [
-                            Scheme(name: "Workspace-App",
-                                   shared: true,
-                                   buildAction: BuildAction(targets: [.project(path: "App", target: "App")], preActions: []),
-                                   testAction: TestAction(targets: [TestableTarget(target: .project(path: "App", target: "AppTests"))]),
-                                   runAction: RunAction(executable: .project(path: "App", target: "App")),
-                                   archiveAction: ArchiveAction(configurationName: "Debug", customArchiveName: "Something2"))
-                          ],
-                          additionalFiles: [
-                            "Documentation/**",
-                            .folderReference(path: "Website")
-                          ])
-```
-
-A `Workspace.swift` file can reside in any directory (including a project directory).
-
-## Workspace
-
-A `Workspace.swift` should initialize a variable of type `Workspace`. It can take any name, although we recommend to stick to `workspace`. A workspace accepts the following attributes:
-
-<PropertiesTable
-  properties={[
-    {
-      name: 'Name',
-      description:
-        'Name of the workspace. It’s used to determine the name of the generated Xcode workspace.',
-      type: 'String',
-      optional: false,
-      default: '',
-    },
-    {
-      name: 'Projects',
-      description:
-        'List of paths (or glob patterns) to projects to generate and include within the generated Xcode workspace.',
-      type: '[Path]',
-      typeLink: '#path',
-      optional: false,
-      default: '',
-    },
-    {
-      name: 'Schemes',
-      description: 'List of custom schemes to include in the workspace',
-      type: '[Scheme]',
-      typeLink: '#scheme',
-      optional: true,
-      default: '[]',
-    },
-    {
-      name: 'AdditionalFiles',
-      description:
-        "List of files to include in the workspace - these won't be included in any of the projects or their build phases.",
-      type: '[FileElement]',
-      typeLink: '#fileelement',
-      optional: true,
-      default: '[]',
     },
   ]}
 />

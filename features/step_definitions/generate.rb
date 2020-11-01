@@ -121,3 +121,33 @@ Then(/^a file (.+) exists$/) do |file|
   file_path = File.join(@dir, file)
   assert(File.exist?(file_path), "#{file_path} does not exist")
 end
+
+Then("the product {string} with destination {string} contains the appClip {string} with architecture {string}") do |product, destination, app_clip, architecture|
+  app_clip_path = Xcode.find_app_clip(
+    product: product,
+    destination: destination,
+    app_clip: app_clip,
+    derived_data_path: @derived_data_path
+  )
+  flunk("AppClip #{app_clip} not found") if app_clip_path.nil?
+
+  binary_path = File.join(app_clip_path, app_clip)
+  out, err, status = Open3.capture3("file", binary_path)
+  assert(status.success?, err)
+  assert(out.include?(architecture))
+end
+
+Then("the product {string} with destination {string} contains the appClip {string} without architecture {string}") do |product, destination, app_clip, architecture|
+  app_clip_path = Xcode.find_app_clip(
+    product: product,
+    destination: destination,
+    app_clip: app_clip,
+    derived_data_path: @derived_data_path
+  )
+  flunk("AppClip #{app_clip} not found") if app_clip_path.nil?
+
+  binary_path = File.join(app_clip_path, app_clip)
+  out, err, status = Open3.capture3("file", binary_path)
+  assert(status.success?, err)
+  refute(out.include?(architecture))
+end
