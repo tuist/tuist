@@ -38,7 +38,7 @@ final class CartfileContentBuilder {
         fileprivate func toString() -> String {
             switch self {
             case .github(let name, let version):
-                return "github \(name) == \(version)"
+                return #"github "\#(name)" == \#(version)"#
             }
         }
     }
