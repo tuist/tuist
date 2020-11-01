@@ -1,6 +1,9 @@
 import TSCBasic
 import TuistSupport
 
+#warning("Is it a correct import?")
+import ProjectDescription
+
 // MARK: - Dependencies Controller Errors
 
 public enum DependenciesControllerError: FatalError {
@@ -53,6 +56,13 @@ public final class DependenciesController: DependenciesControlling {
     
     public func install(at path: AbsolutePath, method: InstallDependenciesMethod) throws {
         logger.notice("Start installing depednencies.")
+        
+        #warning("Pass depednecies via method's argument or read depednecies from `./Tuist/Dependencies/*`.")
+        #warning("Stubbed depednecies array. Should be repalced with real depednecies later.")
+        let dependencies = Dependencies([
+            .carthage(name: "Alamofire/Alamofire", requirement: .exact("5.3.0")),
+            .carthage(name: "onevcat/Kingfisher", requirement: .exact("5.15.7")),
+        ])
         
         // TODO: implement me!
         throw DependenciesControllerError.unimplemented
