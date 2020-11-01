@@ -102,7 +102,7 @@ final class CarthageCommandBuilder {
         // Flags
         
         if cacheBuilds { commandComponents.append("--cache-builds") }
-        if newResolver { commandComponents.append("----new-resolver") }
+        if newResolver { commandComponents.append("--new-resolver") }
         
         // Build
         

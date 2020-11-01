@@ -28,6 +28,13 @@ public final class CarthageInteractor: CarthageInteracting {
             .cacheBuilds(true)
             .newResolver(true)
             .build()
+        
+        let cartfileContent = try CartfileContentBuilder()
+            .dependnecies([
+                .github(name: "Foo/Foo", version: "1.0.0"),
+                .github(name: "Bar/Bar", version: "1.0.0"),
+            ])
+            .build()
     }
     
     // MARK: - Helpers
