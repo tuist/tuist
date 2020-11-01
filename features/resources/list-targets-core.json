@@ -1,0 +1,10 @@
+[
+  {
+    "dependenciesCount" : 0,
+    "targetName" : "Core"
+  },
+  {
+    "dependenciesCount" : 2,
+    "targetName" : "CoreTests"
+  }
+]
