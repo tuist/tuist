@@ -14,7 +14,20 @@ public final class CarthageInteractor: CarthageInteracting {
     public init() { }
     
     public func install(method: InstallDependenciesMethod) throws {
+        let carthageCommand: CarthageCommandBuilder.Command = {
+            switch method {
+            case .fetch: return .fetch
+            case .update: return .update
+            }
+        }()
         
+        #warning("TODO: how to determine platforms?")
+        let command = try CarthageCommandBuilder()
+            .command(carthageCommand)
+            .platforms([.iOS, .macOS])
+            .cacheBuilds(true)
+            .newResolver(true)
+            .build()
     }
     
     // MARK: - Helpers
