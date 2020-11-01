@@ -7,5 +7,4 @@ Feature: List targets sorted by number of dependencies
     Then run tuist migration list-targets for UIComponents in ios_workspace_with_microfeature_architecture matches list-targets-ui-components.json
     Then run tuist migration list-targets for Core in ios_workspace_with_microfeature_architecture matches list-targets-core.json
     Then run tuist migration list-targets for Data in ios_workspace_with_microfeature_architecture matches list-targets-data.json
-    
-  
+
