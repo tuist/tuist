@@ -4,6 +4,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+## 1.23.0
+
 ### Added
 
 - Allow specifying Development Region via new `developmentRegion` parameter in `Config`s GenerationOption. [#1062](https://github.com/tuist/tuist/pull/1867) by [@svastven](https://github.com/svastven).
