@@ -15118,10 +15118,10 @@ slice-ansi@^2.1.0:
     astral-regex "^1.0.0"
     is-fullwidth-code-point "^2.0.0"
 
-slug@^4.0.1:
-  version "4.0.1"
-  resolved "https://registry.yarnpkg.com/slug/-/slug-4.0.1.tgz#24775a0fbb7fabae2f94e34bdfab0a32ed3bc1ba"
-  integrity sha512-g3eofiaQdlNRrjGSW+gtSHmAdE8Oq/tFIrFlP6oQ4AW4M3l3FegO2C4TV6MM4eHdnpllJJdgG892Vt/KqpV9kQ==
+slug@^4.0.2:
+  version "4.0.2"
+  resolved "https://registry.yarnpkg.com/slug/-/slug-4.0.2.tgz#35a62b4e71582778ac08bb30a1bf439fd0a43ea7"
+  integrity sha512-c5XbWkwxHU13gAdSvBHQgnGy2sxv/REMz0ugcM0SOSBCO/N4wfU0TDBC3pgdOwVGjZwGnLBTRljXzdVYE+KYNw==
 
 slugify@^1.4.4:
   version "1.4.5"
