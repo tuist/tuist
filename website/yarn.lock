@@ -16010,10 +16010,10 @@ tailwind.macro@^1.0.0-alpha.10:
     dset "^2.0.1"
     tailwindcss "^1.0.0-beta.8"
 
-tailwindcss@^1.0.0-beta.8, tailwindcss@^1.2.0, tailwindcss@^1.8.8:
-  version "1.8.9"
-  resolved "https://registry.yarnpkg.com/tailwindcss/-/tailwindcss-1.8.9.tgz#86aa05f019b4975675d1c67a2c9962d9c833ea13"
-  integrity sha512-VgoBxIyF+Ipf+x3eDz3tPA8A5blGBPkswA2xM6fxCmAwAmhlIr9Zk3exft44BUf3q9mxorvjCRtxBrklfPDSoQ==
+tailwindcss@^1.0.0-beta.8, tailwindcss@^1.2.0, tailwindcss@^1.9.6:
+  version "1.9.6"
+  resolved "https://registry.yarnpkg.com/tailwindcss/-/tailwindcss-1.9.6.tgz#0c5089911d24e1e98e592a31bfdb3d8f34ecf1a0"
+  integrity sha512-nY8WYM/RLPqGsPEGEV2z63riyQPcHYZUJpAwdyBzVpxQHOHqHE+F/fvbCeXhdF1+TA5l72vSkZrtYCB9hRcwkQ==
   dependencies:
     "@fullhuman/postcss-purgecss" "^2.1.2"
     autoprefixer "^9.4.5"
@@ -16449,10 +16449,10 @@ tweetnacl@^0.14.3, tweetnacl@~0.14.0:
   resolved "https://registry.yarnpkg.com/tweetnacl/-/tweetnacl-0.14.5.tgz#5ae68177f192d4456269d108afa93ff8743f4f64"
   integrity sha1-WuaBd/GS1EViadEIr6k/+HQ/T2Q=
 
-twin.macro@^1.10.0:
-  version "1.10.0"
-  resolved "https://registry.yarnpkg.com/twin.macro/-/twin.macro-1.10.0.tgz#b13d0934457d4cae54f1504a3a2ed744ed603960"
-  integrity sha512-+K9xvBvlx7iQ+CRatqNO/3VVV2+D+rbxexViKFtkjlICd+7A9hp5/8IOQ3SUPTQp80Ouist3Zcs/89quSLaoZg==
+twin.macro@^1.12.0:
+  version "1.12.0"
+  resolved "https://registry.yarnpkg.com/twin.macro/-/twin.macro-1.12.0.tgz#3917743cee5e0693df9679ab182aba4de962be45"
+  integrity sha512-KGRed9d42MkZDIS4wnCvUp5PsPnRx3eaMpvTAOQTz7/K7ArELhg/+SrbJxniQWh6QtRm7/LotlzRfvVW3/qGHQ==
   dependencies:
     "@babel/parser" "^7.10.2"
     babel-plugin-macros "^2.8.0"
@@ -16463,7 +16463,7 @@ twin.macro@^1.10.0:
     dset "^2.0.1"
     lodash.merge "^4.6.2"
     string-similarity "^4.0.1"
-    tailwindcss "^1.8.8"
+    tailwindcss "^1.9.6"
     timsort "^0.3.0"
 
 type-check@~0.3.2:
