@@ -13,9 +13,9 @@ import XCTest
 final class MockGenerateServiceProjectGeneratorFactory: GenerateServiceProjectGeneratorFactorying {
     var invokedGenerator = false
     var invokedGeneratorCount = 0
-    var stubbedGeneratorResult: ProjectGenerating!
+    var stubbedGeneratorResult: Generating!
 
-    func generator() -> ProjectGenerating {
+    func generator() -> Generating {
         invokedGenerator = true
         invokedGeneratorCount += 1
         return stubbedGeneratorResult
@@ -24,7 +24,7 @@ final class MockGenerateServiceProjectGeneratorFactory: GenerateServiceProjectGe
 
 final class GenerateServiceTests: TuistUnitTestCase {
     var subject: GenerateService!
-    var generator: MockProjectGenerator!
+    var generator: MockGenerator!
     var opener: MockOpener!
     var clock: StubClock!
     var projectGeneratorFactory: MockGenerateServiceProjectGeneratorFactory!
@@ -33,7 +33,7 @@ final class GenerateServiceTests: TuistUnitTestCase {
         super.setUp()
         opener = MockOpener()
         projectGeneratorFactory = MockGenerateServiceProjectGeneratorFactory()
-        generator = MockProjectGenerator()
+        generator = MockGenerator()
         projectGeneratorFactory.stubbedGeneratorResult = generator
         clock = StubClock()
         generator.generateStub = { _, _ in

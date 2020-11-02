@@ -1,6 +1,6 @@
 ---
 layout: post
-title: "Version 0.9.0 published"
+title: 'Version 0.9.0 published'
 date: 2018-12-03
 categories: [tuist, release, swift]
 excerpt: In this blog post we talk about the changes that come with the recently published version 0.9.0.
@@ -34,7 +34,7 @@ Then I should be able to build the scheme Test
 Then I delete the working directory
 ```
 
-If any of the feature steps breaks, the test fails and we have to fix it before merging the changes into master. This brings more confidence when adding changes to the project, which is very handy for new project contributors.
+If any of the feature steps breaks, the test fails and we have to fix it before merging the changes into main. This brings more confidence when adding changes to the project, which is very handy for new project contributors.
 
 ## How to update
 

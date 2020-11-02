@@ -11,7 +11,7 @@ IPHONE_OS_DIR="$TEMP_DIR/Build/Products/Debug-iphonesimulator"
 mkdir -p $TEMP_DIR
 
 xcrun xcodebuild build -scheme "$FRAMEWORK_NAME" -workspace "$WORKSPACE_NAME.xcworkspace" -sdk iphoneos -destination "generic/platform=iOS" -derivedDataPath $TEMP_DIR
-xcrun xcodebuild build -scheme "$FRAMEWORK_NAME" -workspace "$WORKSPACE_NAME.xcworkspace" -sdk iphonesimulator -derivedDataPath $TEMP_DIR
+xcrun xcodebuild build -scheme "$FRAMEWORK_NAME" -workspace "$WORKSPACE_NAME.xcworkspace" -sdk iphonesimulator -destination "platform=iOS Simulator,name=iPhone 11,OS=latest" -derivedDataPath $TEMP_DIR
 
 mkdir -p "prebuilt/$FRAMEWORK_NAME.framework"
 

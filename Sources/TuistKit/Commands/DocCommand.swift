@@ -36,22 +36,6 @@ struct DocCommand: ParsableCommand {
 // MARK: - Options
 
 extension DocCommand {
-    enum Mode: EnumerableFlag {
-        case localhost
-        case filesOnly
-
-        static func name(for value: DocCommand.Mode) -> NameSpecification {
-            switch value {
-            case .localhost:
-                return [.long]
-            case .filesOnly:
-                return [.long]
-            }
-        }
-
-        var shouldServe: Bool { self == .localhost }
-    }
-
     struct Options: ParsableArguments {
         @Option(
             name: .shortAndLong,

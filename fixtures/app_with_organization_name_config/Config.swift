@@ -1,6 +1,6 @@
 import ProjectDescription
 
-let config = TuistConfig(
+let config = Config(
   generationOptions: [
     .organizationName("Tuist")
   ]

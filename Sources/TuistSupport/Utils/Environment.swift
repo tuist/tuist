@@ -31,6 +31,9 @@ public protocol Environmenting: AnyObject {
 
     /// Returns true if Tuist is running with verbose mode enabled.
     var isVerbose: Bool { get }
+
+    /// Returns the path to the directory where the async queue events are persisted.
+    var queueDirectory: AbsolutePath { get }
 }
 
 /// Local environment controller.
@@ -121,6 +124,14 @@ public class Environment: Environmenting {
             return AbsolutePath(envVariable)
         } else {
             return directory.appending(component: "Cache")
+        }
+    }
+
+    public var queueDirectory: AbsolutePath {
+        if let envVariable = ProcessInfo.processInfo.environment[Constants.EnvironmentVariables.queueDirectory] {
+            return AbsolutePath(envVariable)
+        } else {
+            return directory.appending(component: Constants.AsyncQueue.directoryName)
         }
     }
 

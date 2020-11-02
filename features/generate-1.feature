@@ -1,5 +1,13 @@
 Feature: Generate a new project using Tuist (suite 1)
 
+  Scenario: The project is an iOS application with tests (app_with_development_region_config)
+    Given that tuist is available
+    And I have a working directory
+    Then I copy the fixture app_with_development_region_config into the working directory
+    Then tuist generates the project
+    Then I should be able to build for iOS the scheme App
+    Then the product 'App.app' with destination 'Debug-iphonesimulator' contains the Info.plist key 'CFBundleDevelopmentRegion' with value 'de'
+
   Scenario: The project is an iOS application with tests (ios_app_with_tests)
     Given that tuist is available
     And I have a working directory
@@ -49,15 +57,3 @@ Feature: Generate a new project using Tuist (suite 1)
     Then the scheme SignApp has a build setting PROVISIONING_PROFILE_SPECIFIER with value d34fb066-f494-4d85-a556-d469c2196f46 for the configuration Debug
     Then the scheme SignApp has a build setting CODE_SIGN_IDENTITY with value Apple Development: Marek Fort (54GSF6G47V) for the configuration Release
     Then the scheme SignApp has a build setting PROVISIONING_PROFILE_SPECIFIER with value 76a7d75c-01d4-4c7f-9140-1d829227883a for the configuration Release
-
-  Scenario: The project is an iOS application with frameworks and tests (ios_app_with_static_libraries)
-    Given that tuist is available
-    And I have a working directory
-    Then I copy the fixture ios_app_with_static_libraries into the working directory
-    Then tuist generates the project
-    Then I should be able to build for iOS the scheme App
-    Then I should be able to test for iOS the scheme AppTests
-    Then I should be able to build for iOS the scheme A
-    Then I should be able to test for iOS the scheme ATests
-    Then I should be able to build for iOS the scheme B
-    Then I should be able to test for iOS the scheme BTests

@@ -31,8 +31,8 @@ enum BuildServiceError: FatalError {
 }
 
 final class BuildService {
-    /// Project generator
-    let projectGenerator: ProjectGenerating
+    /// Generator
+    let generator: Generating
 
     /// Xcode build controller.
     let xcodebuildController: XcodeBuildControlling
@@ -40,11 +40,11 @@ final class BuildService {
     /// Build graph inspector.
     let buildGraphInspector: BuildGraphInspecting
 
-    init(projectGenerator: ProjectGenerating = ProjectGenerator(),
+    init(generator: Generating = Generator(),
          xcodebuildController: XcodeBuildControlling = XcodeBuildController(),
          buildGraphInspector: BuildGraphInspecting = BuildGraphInspector())
     {
-        self.projectGenerator = projectGenerator
+        self.generator = generator
         self.xcodebuildController = xcodebuildController
         self.buildGraphInspector = buildGraphInspector
     }
@@ -58,9 +58,9 @@ final class BuildService {
     ) throws {
         let graph: Graph
         if try (generate || buildGraphInspector.workspacePath(directory: path) == nil) {
-            graph = try projectGenerator.generateWithGraph(path: path, projectOnly: false).1
+            graph = try generator.generateWithGraph(path: path, projectOnly: false).1
         } else {
-            graph = try projectGenerator.load(path: path)
+            graph = try generator.load(path: path)
         }
 
         let buildableSchemes = buildGraphInspector.buildableSchemes(graph: graph)

@@ -7,7 +7,7 @@ public extension Graph {
         name: String = "test",
         entryPath: AbsolutePath = AbsolutePath("/test/graph"),
         entryNodes: [GraphNode] = [],
-        workspace: Workspace? = nil,
+        workspace: Workspace = Workspace.test(path: "/test/graph"),
         projects: [Project] = [],
         cocoapods: [CocoaPodsNode] = [],
         packages: [PackageNode] = [],

@@ -5,8 +5,9 @@ import TSCBasic
 public extension TargetScript {
     static func test(name: String = "Test",
                      script: String = "",
-                     showEnvVarsInLog: Bool = false) -> TargetScript
+                     showEnvVarsInLog: Bool = false,
+                     hashable: Bool = false) -> TargetScript
     {
-        TargetScript(name: name, script: script, showEnvVarsInLog: showEnvVarsInLog)
+        TargetScript(name: name, script: script, showEnvVarsInLog: showEnvVarsInLog, hashable: hashable)
     }
 }

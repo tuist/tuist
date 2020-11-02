@@ -6,11 +6,14 @@ import TuistCore
 import TuistSupport
 
 public enum CacheFrameworkBuilderError: FatalError {
+    case builtProductsDirectoryNotFound(targetName: String)
     case frameworkNotFound(name: String, derivedDataPath: AbsolutePath)
     case deviceNotFound(platform: String)
 
     public var description: String {
         switch self {
+        case let .builtProductsDirectoryNotFound(targetName):
+            return "Couldn't find the built products directory for target '\(targetName)'."
         case let .frameworkNotFound(name, derivedDataPath):
             return "Couldn't find framework '\(name)' in the derived data directory: \(derivedDataPath.pathString)"
         case let .deviceNotFound(platform):
@@ -20,6 +23,7 @@ public enum CacheFrameworkBuilderError: FatalError {
 
     public var type: ErrorType {
         switch self {
+        case .builtProductsDirectoryNotFound: return .bug
         case .frameworkNotFound: return .bug
         case .deviceNotFound: return .bug
         }
@@ -89,26 +93,33 @@ public final class CacheFrameworkBuilder: CacheArtifactBuilding {
         let scheme = target.name.spm_shellEscaped()
 
         // Create temporary directories
-        return try FileHandler.shared.inTemporaryDirectory(removeOnCompletion: true) { _ in
-            logger.notice("Building .framework for \(target.name)...", metadata: .section)
+        let builtProductsDirFingerprint = String.random()
+        logger.notice("Building .framework for \(target.name)...", metadata: .section)
 
-            let sdk = self.sdk(target: target)
-            let configuration = "Debug" // TODO: Is it available?
+        let sdk = self.sdk(target: target)
+        let configuration = "Debug" // TODO: Is it available?
 
-            let arguments = try self.arguments(target: target,
-                                               sdk: sdk,
-                                               configuration: configuration,
-                                               outputDirectory: outputDirectory)
-            try self.xcodebuild(
-                projectTarget: projectTarget,
-                scheme: scheme,
-                target: target,
-                arguments: arguments
-            )
-        }
+        let arguments = try self.arguments(target: target,
+                                           sdk: sdk,
+                                           configuration: configuration,
+                                           builtProductsDirFingerprint: builtProductsDirFingerprint)
+        try xcodebuild(
+            projectTarget: projectTarget,
+            scheme: scheme,
+            target: target,
+            arguments: arguments
+        )
+
+        try exportFrameworksAndDSYMs(into: outputDirectory,
+                                     target: target,
+                                     builtProductsDirFingerprint: builtProductsDirFingerprint)
     }
 
-    fileprivate func arguments(target: Target, sdk: String, configuration: String, outputDirectory: AbsolutePath) throws -> [XcodeBuildArgument] {
+    fileprivate func arguments(target: Target,
+                               sdk: String,
+                               configuration: String,
+                               builtProductsDirFingerprint: String) throws -> [XcodeBuildArgument]
+    {
         try destination(target: target)
             .map { (destination: String) -> [XcodeBuildArgument] in
                 [
@@ -116,7 +127,7 @@ public final class CacheFrameworkBuilder: CacheArtifactBuilding {
                     .configuration(configuration),
                     .buildSetting("DEBUG_INFORMATION_FORMAT", "dwarf-with-dsym"),
                     .buildSetting("GCC_GENERATE_DEBUGGING_SYMBOLS", "YES"),
-                    .buildSetting("CONFIGURATION_BUILD_DIR", outputDirectory.pathString),
+                    .buildSetting(target.targetLocatorBuildPhaseVariable, builtProductsDirFingerprint),
                     .destination(destination),
                 ]
             }
@@ -175,5 +186,24 @@ public final class CacheFrameworkBuilder: CacheArtifactBuilding {
             .ignoreElements()
             .toBlocking()
             .last()
+    }
+
+    fileprivate func exportFrameworksAndDSYMs(into outputDirectory: AbsolutePath,
+                                              target: Target,
+                                              builtProductsDirFingerprint: String) throws
+    {
+        let globPattern = "**/.\(builtProductsDirFingerprint).tuist"
+        let derivedDataPath = developerEnvironment.derivedDataDirectory
+        guard let directory = FileHandler.shared.glob(derivedDataPath, glob: globPattern).first?.parentDirectory else {
+            throw CacheFrameworkBuilderError.builtProductsDirectoryNotFound(targetName: target.name)
+        }
+        guard let framework = FileHandler.shared.glob(directory, glob: target.productNameWithExtension).first else {
+            throw CacheFrameworkBuilderError.frameworkNotFound(name: target.productNameWithExtension, derivedDataPath: derivedDataPath)
+        }
+        let dsyms = FileHandler.shared.glob(directory, glob: "\(target.productNameWithExtension).dSYM")
+        try FileHandler.shared.copy(from: framework, to: outputDirectory.appending(component: framework.basename))
+        try dsyms.forEach { dsym in
+            try FileHandler.shared.copy(from: dsym, to: outputDirectory.appending(component: dsym.basename))
+        }
     }
 }

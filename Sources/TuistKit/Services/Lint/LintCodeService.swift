@@ -84,7 +84,7 @@ final class LintCodeService {
         logger.notice("Loading the dependency graph")
         if manifests.contains(.workspace) {
             logger.notice("Loading workspace at \(path.pathString)")
-            let (graph, _) = try graphLoader.loadWorkspace(path: path)
+            let graph = try graphLoader.loadWorkspace(path: path)
             return graph
         } else if manifests.contains(.project) {
             logger.notice("Loading project at \(path.pathString)")

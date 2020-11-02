@@ -13,16 +13,22 @@ public struct TargetScript: Equatable {
     /// Whether we want the build phase to show the environment variables in the logs.
     public let showEnvVarsInLog: Bool
 
+    /// Whether the script should be hashed for caching purposes.
+    public let hashable: Bool
+
     /// Initializes the target script.
     /// - Parameter name: The name of the build phase.
     /// - Parameter script: Script.
     /// - Parameter showEnvVarsInLog: Whether we want the build phase to show the environment variables in the logs.
+    /// - Parameter hashable: Whether the script should be hashed for caching purposes.
     public init(name: String,
                 script: String,
-                showEnvVarsInLog: Bool)
+                showEnvVarsInLog: Bool,
+                hashable: Bool)
     {
         self.name = name
         self.script = script
         self.showEnvVarsInLog = showEnvVarsInLog
+        self.hashable = hashable
     }
 }

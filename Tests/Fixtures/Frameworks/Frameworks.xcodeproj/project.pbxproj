@@ -176,6 +176,7 @@
 				B9023DFE239BCDA200666BE6 /* Sources */,
 				B9023DFF239BCDA200666BE6 /* Frameworks */,
 				B9023E00239BCDA200666BE6 /* Resources */,
+				B93A85442542E4EE003EA8C2 /* [Tuist] Create file to locate the built products directory */,
 			);
 			buildRules = (
 			);
@@ -194,6 +195,7 @@
 				B9023E10239BCDE900666BE6 /* Sources */,
 				B9023E11239BCDE900666BE6 /* Frameworks */,
 				B9023E12239BCDE900666BE6 /* Resources */,
+				B93A85452542E525003EA8C2 /* [Tuist] Create file to locate the built products directory */,
 			);
 			buildRules = (
 			);
@@ -212,6 +214,7 @@
 				B9023E1F239BCE1000666BE6 /* Sources */,
 				B9023E20239BCE1000666BE6 /* Frameworks */,
 				B9023E21239BCE1000666BE6 /* Resources */,
+				B93A85462542E531003EA8C2 /* [Tuist] Create file to locate the built products directory */,
 			);
 			buildRules = (
 			);
@@ -230,6 +233,7 @@
 				B9023E2E239BCE2D00666BE6 /* Sources */,
 				B9023E2F239BCE2D00666BE6 /* Frameworks */,
 				B9023E30239BCE2D00666BE6 /* Resources */,
+				B93A85472542E540003EA8C2 /* [Tuist] Create file to locate the built products directory */,
 			);
 			buildRules = (
 			);
@@ -318,6 +322,81 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		B93A85442542E4EE003EA8C2 /* [Tuist] Create file to locate the built products directory */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "[Tuist] Create file to locate the built products directory";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "if [ -n \"$I_OS_LOCATE_HASH\" ]; then\n    touch $BUILT_PRODUCTS_DIR/.$I_OS_LOCATE_HASH.tuist\nfi\n";
+		};
+		B93A85452542E525003EA8C2 /* [Tuist] Create file to locate the built products directory */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "[Tuist] Create file to locate the built products directory";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "if [ -n \"$WATCH_OS_LOCATE_HASH\" ]; then\n    touch $BUILT_PRODUCTS_DIR/.$WATCH_OS_LOCATE_HASH.tuist\nfi\n";
+		};
+		B93A85462542E531003EA8C2 /* [Tuist] Create file to locate the built products directory */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "[Tuist] Create file to locate the built products directory";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "if [ -n \"$TV_OS_LOCATE_HASH\" ]; then\n    touch $BUILT_PRODUCTS_DIR/.$TV_OS_LOCATE_HASH.tuist\nfi\n";
+		};
+		B93A85472542E540003EA8C2 /* [Tuist] Create file to locate the built products directory */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "[Tuist] Create file to locate the built products directory";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "if [ -n \"$MAC_OS_LOCATE_HASH\" ]; then\n    touch $BUILT_PRODUCTS_DIR/.$MAC_OS_LOCATE_HASH.tuist\nfi\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		B9023DFE239BCDA200666BE6 /* Sources */ = {

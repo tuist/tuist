@@ -1,0 +1,10 @@
+[
+  {
+    "dependenciesCount" : 1,
+    "targetName" : "Data"
+  },
+  {
+    "dependenciesCount" : 2,
+    "targetName" : "DataTests"
+  }
+]

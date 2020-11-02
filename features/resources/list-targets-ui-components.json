@@ -1,0 +1,10 @@
+[
+  {
+    "dependenciesCount" : 1,
+    "targetName" : "UIComponents"
+  },
+  {
+    "dependenciesCount" : 2,
+    "targetName" : "UIComponentsTests"
+  }
+]

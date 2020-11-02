@@ -25,14 +25,15 @@ public struct SimulatorRuntime: Decodable, Hashable, CustomStringConvertible {
     // Name of the runtime (e.g. iOS 13.5)
     public let name: String
 
-    init(bundlePath: AbsolutePath,
-         buildVersion: String,
-         runtimeRoot: AbsolutePath,
-         identifier: String,
-         version: SimulatorRuntimeVersion,
-         isAvailable: Bool,
-         name: String)
-    {
+    public init(
+        bundlePath: AbsolutePath,
+        buildVersion: String,
+        runtimeRoot: AbsolutePath,
+        identifier: String,
+        version: SimulatorRuntimeVersion,
+        isAvailable: Bool,
+        name: String
+    ) {
         self.bundlePath = bundlePath
         self.buildVersion = buildVersion
         self.runtimeRoot = runtimeRoot

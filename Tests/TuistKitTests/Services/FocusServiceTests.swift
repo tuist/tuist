@@ -16,9 +16,9 @@ final class MockFocusServiceProjectGeneratorFactory: FocusServiceProjectGenerato
     var invokedGeneratorCount = 0
     fileprivate var invokedGeneratorParameters: GeneratorParameters?
     fileprivate var invokedGeneratorParametersList = [GeneratorParameters]()
-    var stubbedGeneratorResult: ProjectGenerating!
+    var stubbedGeneratorResult: Generating!
 
-    func generator(sources: Set<String>, xcframeworks: Bool, ignoreCache: Bool) -> ProjectGenerating {
+    func generator(sources: Set<String>, xcframeworks: Bool, ignoreCache: Bool) -> Generating {
         invokedGenerator = true
         invokedGeneratorCount += 1
         invokedGeneratorParameters = (sources, xcframeworks, ignoreCache)
@@ -27,26 +27,16 @@ final class MockFocusServiceProjectGeneratorFactory: FocusServiceProjectGenerato
     }
 }
 
-final class FocusServiceErrorTests: TuistUnitTestCase {
-    func test_description() {
-        XCTAssertEqual(FocusServiceError.cacheWorkspaceNonSupported.description, "Caching is only supported when focusing on a project. Please, run the command in a directory that contains a Project.swift file.")
-    }
-
-    func test_type() {
-        XCTAssertEqual(FocusServiceError.cacheWorkspaceNonSupported.type, .abort)
-    }
-}
-
 final class FocusServiceTests: TuistUnitTestCase {
     var subject: FocusService!
     var opener: MockOpener!
-    var generator: MockProjectGenerator!
+    var generator: MockGenerator!
     var projectGeneratorFactory: MockFocusServiceProjectGeneratorFactory!
 
     override func setUp() {
         super.setUp()
         opener = MockOpener()
-        generator = MockProjectGenerator()
+        generator = MockGenerator()
         projectGeneratorFactory = MockFocusServiceProjectGeneratorFactory()
         projectGeneratorFactory.stubbedGeneratorResult = generator
         subject = FocusService(opener: opener, projectGeneratorFactory: projectGeneratorFactory)
