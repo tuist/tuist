@@ -8,9 +8,13 @@ public struct Dependency: Codable, Equatable {
     /// Type of requirement for the given dependency
     let requirement: Dependency.Requirement
 
-    public init(name: String, requirement: Dependency.Requirement) {
+    /// Dependecy manager used to retrieve the dependecy
+    public let manager: Dependency.Manager
+
+    public init(name: String, requirement: Dependency.Requirement, manager: Dependency.Manager) {
         self.name = name
         self.requirement = requirement
+        self.manager = manager
     }
 
     /// Carthage dependency initailizer
@@ -18,7 +22,7 @@ public struct Dependency: Codable, Equatable {
     /// - Parameter requirement: Type of requirement for the given dependency
     /// - Returns Dependency
     public static func carthage(name: String, requirement: Dependency.Requirement) -> Dependency {
-        Dependency(name: name, requirement: requirement)
+        Dependency(name: name, requirement: requirement, manager: .carthage)
     }
 
     public static func == (lhs: Dependency, rhs: Dependency) -> Bool {
@@ -27,7 +31,7 @@ public struct Dependency: Codable, Equatable {
 }
 
 public struct Dependencies: Codable, Equatable {
-    private let dependencies: [Dependency]
+    public let dependencies: [Dependency]
 
     public init(_ dependencies: [Dependency]) {
         self.dependencies = dependencies
