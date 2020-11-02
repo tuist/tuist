@@ -17,7 +17,7 @@ final class CacheControllerProjectMapperProviderTests: TuistUnitTestCase {
     var subject: CacheControllerProjectMapperProvider!
 
     override func setUp() {
-        subject = CacheControllerProjectMapperProvider()
+        subject = CacheControllerProjectMapperProvider(contentHasher: ContentHasher())
     }
 
     func test_mapper_includes_the_cache_build_phase_project_mapper() throws {

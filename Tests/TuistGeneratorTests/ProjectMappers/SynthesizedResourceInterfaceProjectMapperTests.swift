@@ -1,4 +1,3 @@
-import Checksum
 import Foundation
 import TSCBasic
 import TuistCore
@@ -12,19 +11,22 @@ import XCTest
 final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
     private var subject: SynthesizedResourceInterfaceProjectMapper!
     private var synthesizedResourceInterfacesGenerator: MockSynthesizedResourceInterfaceGenerator!
+    private var contentHasher: ContentHashing!
 
     override func setUp() {
         super.setUp()
 
         synthesizedResourceInterfacesGenerator = MockSynthesizedResourceInterfaceGenerator()
+        contentHasher = ContentHasher()
         subject = SynthesizedResourceInterfaceProjectMapper(
-            synthesizedResourceInterfacesGenerator: synthesizedResourceInterfacesGenerator
+            synthesizedResourceInterfacesGenerator: synthesizedResourceInterfacesGenerator,
+            contentHasher: contentHasher
         )
     }
 
     override func tearDown() {
         super.tearDown()
-
+        contentHasher = nil
         synthesizedResourceInterfacesGenerator = nil
         subject = nil
     }
@@ -118,7 +120,6 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
                 ),
             ]
         )
-
         XCTAssertEqual(
             mappedProject,
             Project.test(
@@ -130,19 +131,19 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
                             SourceFile(path: derivedSourcesPath
                                 .appending(component: "Assets+TargetA.swift"),
                                 compilerFlags: nil,
-                                hash: "a.xcassets".data(using: .utf8)?.checksum(algorithm: .md5)),
+                                contentHash: try contentHasher.hash("a.xcassets")),
                             SourceFile(path: derivedSourcesPath
                                 .appending(component: "Strings+TargetA.swift"),
                                 compilerFlags: nil,
-                                hash: "aStrings.strings".data(using: .utf8)?.checksum(algorithm: .md5)),
+                                contentHash: try contentHasher.hash("aString.strings")),
                             SourceFile(path: derivedSourcesPath
                                 .appending(component: "Environment.swift"),
                                 compilerFlags: nil,
-                                hash: "Environment.plist".data(using: .utf8)?.checksum(algorithm: .md5)),
+                                contentHash: try contentHasher.hash("Environment.plist")),
                             SourceFile(path: derivedSourcesPath
                                 .appending(component: "Fonts+TargetA.swift"),
                                 compilerFlags: nil,
-                                hash: "ttcFont.ttc".data(using: .utf8)?.checksum(algorithm: .md5)),
+                                contentHash: try contentHasher.hash("ttcFont.ttc")),
                         ],
                         resources: targetA.resources
                     ),

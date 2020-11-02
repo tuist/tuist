@@ -2,6 +2,7 @@ import Foundation
 import RxBlocking
 import Signals
 import TSCBasic
+import TuistCache
 import TuistCore
 import TuistDoc
 import TuistSupport
@@ -59,7 +60,7 @@ final class DocService {
     /// Semaphore to block the execution
     private let semaphore: Semaphoring
 
-    init(generator: Generating = Generator(),
+    init(generator: Generating = Generator(contentHasher: CacheContentHasher()),
          swiftDocController: SwiftDocControlling = SwiftDocController(),
          swiftDocServer: SwiftDocServing = SwiftDocServer(),
          fileHandler: FileHandling = FileHandler.shared,

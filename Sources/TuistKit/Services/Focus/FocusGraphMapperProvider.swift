@@ -7,12 +7,15 @@ final class FocusGraphMapperProvider: GraphMapperProviding {
     private let cacheSources: Set<String>
     private let cache: Bool
     private let cacheOutputType: CacheOutputType
+    private let contentHasher: ContentHashing
 
-    init(cache: Bool,
+    init(contentHasher: ContentHashing,
+         cache: Bool,
          cacheSources: Set<String>,
          cacheOutputType: CacheOutputType,
          defaultProvider: GraphMapperProviding = GraphMapperProvider())
     {
+        self.contentHasher = contentHasher
         self.cacheSources = cacheSources
         self.cache = cache
         self.defaultProvider = defaultProvider
@@ -28,7 +31,8 @@ final class FocusGraphMapperProvider: GraphMapperProviding {
             let cacheMapper = CacheMapper(config: config,
                                           cacheStorageProvider: CacheStorageProvider(config: config),
                                           sources: cacheSources,
-                                          cacheOutputType: cacheOutputType)
+                                          cacheOutputType: cacheOutputType,
+                                          contentHasher: contentHasher)
             mappers.append(cacheMapper)
             mappers.append(CacheTreeShakingGraphMapper())
         }

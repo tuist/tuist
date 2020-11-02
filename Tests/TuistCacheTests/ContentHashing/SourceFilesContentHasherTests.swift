@@ -36,8 +36,8 @@ final class SourceFilesContentHasherTests: TuistUnitTestCase {
 
     func test_hash_when_the_files_have_a_hash() throws {
         // When
-        sourceFile1 = SourceFile(path: sourceFile1Path, hash: "first")
-        sourceFile2 = SourceFile(path: sourceFile2Path, hash: "second")
+        sourceFile1 = SourceFile(path: sourceFile1Path, contentHash: "first")
+        sourceFile2 = SourceFile(path: sourceFile2Path, contentHash: "second")
         let hash = try subject.hash(sources: [sourceFile1, sourceFile2])
 
         // Then

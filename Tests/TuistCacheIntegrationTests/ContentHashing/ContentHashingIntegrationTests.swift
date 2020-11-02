@@ -1,5 +1,6 @@
 import Foundation
 import TSCBasic
+import TuistCore
 import TuistCoreTesting
 import TuistSupport
 import XCTest
@@ -42,7 +43,7 @@ final class ContentHashingIntegrationTests: TuistTestCase {
         } catch {
             XCTFail("Error while creating files for stub project")
         }
-        subject = GraphContentHasher()
+        subject = GraphContentHasher(contentHasher: CacheContentHasher())
     }
 
     override func tearDown() {

@@ -1,4 +1,3 @@
-import Checksum
 import Foundation
 import TSCBasic
 import TuistCore
@@ -7,15 +6,19 @@ import TuistSupport
 /// A project mapper that synthezies resource interfaces
 public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping {
     private let synthesizedResourceInterfacesGenerator: SynthesizedResourceInterfacesGenerating
+    private let contentHasher: ContentHashing
 
-    public convenience init() {
-        self.init(synthesizedResourceInterfacesGenerator: SynthesizedResourceInterfacesGenerator())
+    public convenience init(contentHasher: ContentHashing) {
+        self.init(synthesizedResourceInterfacesGenerator: SynthesizedResourceInterfacesGenerator(),
+                  contentHasher: contentHasher)
     }
 
     init(
-        synthesizedResourceInterfacesGenerator: SynthesizedResourceInterfacesGenerating
+        synthesizedResourceInterfacesGenerator: SynthesizedResourceInterfacesGenerating,
+        contentHasher: ContentHashing
     ) {
         self.synthesizedResourceInterfacesGenerator = synthesizedResourceInterfacesGenerator
+        self.contentHasher = contentHasher
     }
 
     public func map(project: Project) throws -> (Project, [SideEffectDescriptor]) {
@@ -148,8 +151,9 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping {
 
         target.sources += renderedResources
             .map { resource in
-                let hash = resource.contents?.checksum(algorithm: .md5)
-                return SourceFile(path: resource.path, hash: hash)
+                // TODO:
+//                let hash = resource.contents?.checksum(algorithm: .md5)
+                SourceFile(path: resource.path, contentHash: "hash")
             }
 
         let sideEffects = renderedResources
