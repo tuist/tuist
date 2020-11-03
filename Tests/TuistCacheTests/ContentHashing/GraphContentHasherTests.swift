@@ -12,7 +12,7 @@ final class GraphContentHasherTests: TuistUnitTestCase {
 
     override func setUp() {
         super.setUp()
-        subject = GraphContentHasher()
+        subject = GraphContentHasher(contentHasher: ContentHasher())
     }
 
     override func tearDown() {

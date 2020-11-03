@@ -1,5 +1,6 @@
 import TuistAutomation
 import TuistCache
+import TuistCore
 
 /// A factory that returns cache controllers for different type of pre-built artifacts.
 final class CacheControllerFactory {
@@ -13,16 +14,18 @@ final class CacheControllerFactory {
     }
 
     /// Returns a cache controller that uses frameworks built for the simulator architecture.
+    /// - Parameter contentHasher: Content hasher.
     /// - Returns: A cache controller instance.
-    func makeForSimulatorFramework() -> CacheControlling {
+    func makeForSimulatorFramework(contentHasher: ContentHashing) -> CacheControlling {
         let frameworkBuilder = CacheFrameworkBuilder(xcodeBuildController: XcodeBuildController())
-        return CacheController(cache: cache, artifactBuilder: frameworkBuilder)
+        return CacheController(cache: cache, artifactBuilder: frameworkBuilder, contentHasher: contentHasher)
     }
 
     /// Returns a cache controller that uses xcframeworks built for the simulator and device architectures.
-    /// - Returns: A cache controller instance.
-    func makeForXCFramework() -> CacheControlling {
+    /// - Parameter contentHasher: Content hasher.
+    /// - Returns: Instance of the cache controller.
+    func makeForXCFramework(contentHasher: ContentHashing) -> CacheControlling {
         let frameworkBuilder = CacheXCFrameworkBuilder(xcodeBuildController: XcodeBuildController())
-        return CacheController(cache: cache, artifactBuilder: frameworkBuilder)
+        return CacheController(cache: cache, artifactBuilder: frameworkBuilder, contentHasher: contentHasher)
     }
 }

@@ -3,6 +3,7 @@ import TuistCacheTesting
 import TuistSupport
 import XCTest
 @testable import TuistCache
+@testable import TuistCoreTesting
 @testable import TuistSupportTesting
 
 final class CacheContentHasherTests: TuistUnitTestCase {

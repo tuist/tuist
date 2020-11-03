@@ -46,9 +46,9 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let pbxproj = PBXProj()
         pbxproj.add(object: target)
 
-        let sources: [Target.SourceFile] = [
-            ("/test/file1.swift", "flag"),
-            ("/test/file2.swift", nil),
+        let sources: [SourceFile] = [
+            SourceFile(path: "/test/file1.swift", compilerFlags: "flag"),
+            SourceFile(path: "/test/file2.swift"),
         ]
 
         let fileElements = createFileElements(for: sources.map { $0.path })
@@ -111,7 +111,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         pbxproj.add(object: target)
         let fileElements = ProjectFileElements()
 
-        XCTAssertThrowsError(try subject.generateSourcesBuildPhase(files: [(path: path, compilerFlags: nil)],
+        XCTAssertThrowsError(try subject.generateSourcesBuildPhase(files: [SourceFile(path: path, compilerFlags: nil)],
                                                                    coreDataModels: [],
                                                                    pbxTarget: target,
                                                                    fileElements: fileElements,
@@ -126,9 +126,9 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let pbxproj = PBXProj()
         pbxproj.add(object: target)
 
-        let sources: [Target.SourceFile] = [
-            ("/path/sources/Base.lproj/OTTSiriExtension.intentdefinition", nil),
-            ("/path/sources/en.lproj/OTTSiriExtension.intentdefinition", nil),
+        let sources: [SourceFile] = [
+            SourceFile(path: "/path/sources/Base.lproj/OTTSiriExtension.intentdefinition", compilerFlags: nil),
+            SourceFile(path: "/path/sources/en.lproj/OTTSiriExtension.intentdefinition", compilerFlags: nil),
         ]
 
         let fileElements = createLocalizedResourceFileElements(for: [
@@ -158,7 +158,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         pbxproj.add(object: target)
         let fileElements = ProjectFileElements()
 
-        XCTAssertThrowsError(try subject.generateSourcesBuildPhase(files: [(path: path, compilerFlags: nil)],
+        XCTAssertThrowsError(try subject.generateSourcesBuildPhase(files: [SourceFile(path: path, compilerFlags: nil)],
                                                                    coreDataModels: [],
                                                                    pbxTarget: target,
                                                                    fileElements: fileElements,
@@ -225,7 +225,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         fileElements.elements[headerPath] = headerFileReference
 
         let target = Target.test(platform: .iOS,
-                                 sources: [(path: "/test/file.swift", compilerFlags: nil)],
+                                 sources: [SourceFile(path: "/test/file.swift", compilerFlags: nil)],
                                  headers: headers)
 
         let graph = ValueGraph.test(path: tmpDir)
@@ -261,7 +261,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
 
         let target = Target.test(platform: .iOS,
                                  product: .framework,
-                                 sources: [(path: "/test/file.swift", compilerFlags: nil)],
+                                 sources: [SourceFile(path: "/test/file.swift", compilerFlags: nil)],
                                  headers: headers)
         let graph = ValueGraph.test(path: tmpDir)
         let graphTraverser = ValueGraphTraverser(graph: graph)

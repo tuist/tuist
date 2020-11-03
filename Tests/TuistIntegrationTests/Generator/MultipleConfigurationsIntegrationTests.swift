@@ -364,7 +364,7 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
                productName: "AppTarget",
                bundleId: "test.bundle",
                settings: settings,
-               sources: [(path: try pathTo("App/Sources/AppDelegate.swift"), compilerFlags: nil)],
+               sources: [SourceFile(path: try pathTo("App/Sources/AppDelegate.swift"))],
                filesGroup: .group(name: "ProjectGroup"))
     }
 

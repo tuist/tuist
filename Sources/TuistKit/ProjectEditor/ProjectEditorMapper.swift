@@ -194,7 +194,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
                productName: name,
                bundleId: "io.tuist.${PRODUCT_NAME:rfc1034identifier}",
                settings: targetSettings,
-               sources: sourcePaths.map { (path: $0, compilerFlags: nil) },
+               sources: sourcePaths.map { SourceFile(path: $0, compilerFlags: nil) },
                filesGroup: .group(name: "Manifests"),
                dependencies: dependencies)
     }

@@ -13,15 +13,15 @@ final class SourceFilesContentHasherTests: TuistUnitTestCase {
     private var mockContentHasher: MockContentHashing!
     private let sourceFile1Path = AbsolutePath("/file1")
     private let sourceFile2Path = AbsolutePath("/file2")
-    private var sourceFile1: Target.SourceFile!
-    private var sourceFile2: Target.SourceFile!
+    private var sourceFile1: SourceFile!
+    private var sourceFile2: SourceFile!
 
     override func setUp() {
         super.setUp()
         mockContentHasher = MockContentHashing()
         subject = SourceFilesContentHasher(contentHasher: mockContentHasher)
-        sourceFile1 = (path: sourceFile1Path, compilerFlags: "-fno-objc-arc")
-        sourceFile2 = (path: sourceFile2Path, compilerFlags: "-print-objc-runtime-info")
+        sourceFile1 = SourceFile(path: sourceFile1Path, compilerFlags: "-fno-objc-arc")
+        sourceFile2 = SourceFile(path: sourceFile2Path, compilerFlags: "-print-objc-runtime-info")
     }
 
     override func tearDown() {
@@ -33,6 +33,16 @@ final class SourceFilesContentHasherTests: TuistUnitTestCase {
     }
 
     // MARK: - Tests
+
+    func test_hash_when_the_files_have_a_hash() throws {
+        // When
+        sourceFile1 = SourceFile(path: sourceFile1Path, contentHash: "first")
+        sourceFile2 = SourceFile(path: sourceFile2Path, contentHash: "second")
+        let hash = try subject.hash(sources: [sourceFile1, sourceFile2])
+
+        // Then
+        XCTAssertEqual(hash, "first;second")
+    }
 
     func test_hash_returnsSameValue() throws {
         // When

@@ -1,4 +1,3 @@
-import Checksum
 import Foundation
 import TSCBasic
 import TuistCore
@@ -16,9 +15,12 @@ public final class GraphContentHasher: GraphContentHashing {
 
     // MARK: - Init
 
-    public init(
-        targetContentHasher: TargetContentHashing = TargetContentHasher()
-    ) {
+    public convenience init(contentHasher: ContentHashing) {
+        let targetContentHasher = TargetContentHasher(contentHasher: contentHasher)
+        self.init(contentHasher: contentHasher, targetContentHasher: targetContentHasher)
+    }
+
+    public init(contentHasher _: ContentHashing, targetContentHasher: TargetContentHashing) {
         self.targetContentHasher = targetContentHasher
     }
 

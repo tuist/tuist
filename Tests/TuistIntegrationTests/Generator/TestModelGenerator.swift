@@ -123,10 +123,10 @@ final class TestModelGenerator {
                dependencies: dependencies.map { Dependency.target(name: $0) })
     }
 
-    private func createSources(path: AbsolutePath) -> [Target.SourceFile] {
-        let sources: [Target.SourceFile] = (0 ..< config.sources)
+    private func createSources(path: AbsolutePath) -> [SourceFile] {
+        let sources: [SourceFile] = (0 ..< config.sources)
             .map { "Sources/SourceFile\($0).swift" }
-            .map { (path: path.appending(RelativePath($0)), compilerFlags: nil) }
+            .map { SourceFile(path: path.appending(RelativePath($0))) }
             .shuffled()
         return sources
     }
