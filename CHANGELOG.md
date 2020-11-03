@@ -4,6 +4,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+- Add support for `StencilSwiftKit`'s additional filters. [#1994](https://github.com/tuist/tuist/pull/1994) by [@svastven](https://github.com/svastven).
 - Add `migration list-targets` command to show all targets sorted by number of dependencies [#1732](https://github.com/tuist/tuist/pull/1732) of a given project by [@andreacipriani](https://github.com/andreacipriani).
 
 ## 1.23.0
