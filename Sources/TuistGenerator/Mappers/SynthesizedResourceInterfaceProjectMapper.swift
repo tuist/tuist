@@ -191,7 +191,7 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping {
         case .strings:
             var seen: Set<String> = []
             return resourcesPaths
-                .filter { $0.extension == "strings" }
+                .filter { $0.extension == "strings" || $0.extension == "stringsdict" }
                 .filter { seen.insert($0.basename).inserted }
         case .plists:
             return resourcesPaths

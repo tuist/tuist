@@ -34,8 +34,10 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
     func test_map() throws {
         // Given
         synthesizedResourceInterfacesGenerator.renderStub = { _, _, paths in
-            let content = paths.last?.basename
-            return content ?? ""
+            let content = paths.map(\.basename).joined(separator: ", ")
+            print(paths)
+            print(content)
+            return content
         }
 
         let projectPath = try temporaryPath()
@@ -43,7 +45,9 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
         let aAssets = targetAPath.appending(component: "a.xcassets")
         let aAsset = aAssets.appending(component: "asset")
         let frenchStrings = targetAPath.appending(components: "fr.lproj", "aStrings.strings")
+        let frenchStringsDict = targetAPath.appending(components: "fr.lproj", "aStrings.stringsdict")
         let englishStrings = targetAPath.appending(components: "en.lproj", "aStrings.strings")
+        let englishStringsDict = targetAPath.appending(components: "en.lproj", "aStrings.stringsdict")
         let environmentPlist = targetAPath.appending(component: "Environment.plist")
         let emptyPlist = targetAPath.appending(component: "Empty.plist")
         let ttfFont = targetAPath.appending(component: "ttfFont.ttf")
@@ -53,9 +57,13 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
         try fileHandler.createFolder(aAssets)
         try fileHandler.touch(aAsset)
         try fileHandler.touch(frenchStrings)
+        try fileHandler.touch(frenchStringsDict)
         try fileHandler.touch(englishStrings)
+        try fileHandler.touch(englishStringsDict)
         try fileHandler.write("a", path: frenchStrings, atomically: true)
+        try fileHandler.write("a", path: frenchStringsDict, atomically: true)
         try fileHandler.write("a", path: englishStrings, atomically: true)
+        try fileHandler.write("a", path: englishStringsDict, atomically: true)
         try fileHandler.touch(emptyPlist)
         try fileHandler.write("a", path: environmentPlist, atomically: true)
         try fileHandler.write("a", path: ttfFont, atomically: true)
@@ -67,7 +75,9 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
             resources: [
                 .folderReference(path: aAssets),
                 .file(path: frenchStrings),
+                .file(path: frenchStringsDict),
                 .file(path: englishStrings),
+                .file(path: englishStringsDict),
                 .file(path: emptyPlist),
                 .file(path: environmentPlist),
                 .file(path: ttfFont),
@@ -103,7 +113,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
                 .file(
                     FileDescriptor(
                         path: derivedSourcesPath.appending(component: "Strings+TargetA.swift"),
-                        contents: "aStrings.strings".data(using: .utf8)
+                        contents: "aStrings.strings, aStrings.stringsdict".data(using: .utf8)
                     )
                 ),
                 .file(
@@ -115,7 +125,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
                 .file(
                     FileDescriptor(
                         path: derivedSourcesPath.appending(component: "Fonts+TargetA.swift"),
-                        contents: "ttcFont.ttc".data(using: .utf8)
+                        contents: "ttfFont.ttf, otfFont.otf, ttcFont.ttc".data(using: .utf8)
                     )
                 ),
             ]
@@ -129,21 +139,21 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
                         name: targetA.name,
                         sources: [
                             SourceFile(path: derivedSourcesPath
-                                .appending(component: "Assets+TargetA.swift"),
-                                compilerFlags: nil,
-                                contentHash: try contentHasher.hash("a.xcassets".data(using: .utf8)!)),
+                                        .appending(component: "Assets+TargetA.swift"),
+                                       compilerFlags: nil,
+                                       contentHash: try contentHasher.hash("a.xcassets".data(using: .utf8)!)),
                             SourceFile(path: derivedSourcesPath
-                                .appending(component: "Strings+TargetA.swift"),
-                                compilerFlags: nil,
-                                contentHash: try contentHasher.hash("aStrings.strings".data(using: .utf8)!)),
+                                        .appending(component: "Strings+TargetA.swift"),
+                                       compilerFlags: nil,
+                                       contentHash: try contentHasher.hash("aStrings.strings, aStrings.stringsdict".data(using: .utf8)!)),
                             SourceFile(path: derivedSourcesPath
-                                .appending(component: "Environment.swift"),
-                                compilerFlags: nil,
-                                contentHash: try contentHasher.hash("Environment.plist".data(using: .utf8)!)),
+                                        .appending(component: "Environment.swift"),
+                                       compilerFlags: nil,
+                                       contentHash: try contentHasher.hash("Environment.plist".data(using: .utf8)!)),
                             SourceFile(path: derivedSourcesPath
-                                .appending(component: "Fonts+TargetA.swift"),
-                                compilerFlags: nil,
-                                contentHash: try contentHasher.hash("ttcFont.ttc".data(using: .utf8)!)),
+                                        .appending(component: "Fonts+TargetA.swift"),
+                                       compilerFlags: nil,
+                                       contentHash: try contentHasher.hash("ttfFont.ttf, otfFont.otf, ttcFont.ttc".data(using: .utf8)!)),
                         ],
                         resources: targetA.resources
                     ),
