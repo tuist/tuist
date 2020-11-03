@@ -149,11 +149,10 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping {
 
         var target = target
 
-        target.sources += renderedResources
+        target.sources += try renderedResources
             .map { resource in
-                // TODO:
-//                let hash = resource.contents?.checksum(algorithm: .md5)
-                SourceFile(path: resource.path, contentHash: "hash")
+                let hash = try resource.contents.map(contentHasher.hash)
+                return SourceFile(path: resource.path, contentHash: hash)
             }
 
         let sideEffects = renderedResources

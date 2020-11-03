@@ -131,19 +131,19 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
                             SourceFile(path: derivedSourcesPath
                                 .appending(component: "Assets+TargetA.swift"),
                                 compilerFlags: nil,
-                                contentHash: try contentHasher.hash("a.xcassets")),
+                                contentHash: try contentHasher.hash("a.xcassets".data(using: .utf8)!)),
                             SourceFile(path: derivedSourcesPath
                                 .appending(component: "Strings+TargetA.swift"),
                                 compilerFlags: nil,
-                                contentHash: try contentHasher.hash("aString.strings")),
+                                contentHash: try contentHasher.hash("aStrings.strings".data(using: .utf8)!)),
                             SourceFile(path: derivedSourcesPath
                                 .appending(component: "Environment.swift"),
                                 compilerFlags: nil,
-                                contentHash: try contentHasher.hash("Environment.plist")),
+                                contentHash: try contentHasher.hash("Environment.plist".data(using: .utf8)!)),
                             SourceFile(path: derivedSourcesPath
                                 .appending(component: "Fonts+TargetA.swift"),
                                 compilerFlags: nil,
-                                contentHash: try contentHasher.hash("ttcFont.ttc")),
+                                contentHash: try contentHasher.hash("ttcFont.ttc".data(using: .utf8)!)),
                         ],
                         resources: targetA.resources
                     ),
