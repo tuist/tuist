@@ -13,29 +13,19 @@ protocol FocusServiceProjectGeneratorFactorying {
 }
 
 final class FocusServiceProjectGeneratorFactory: FocusServiceProjectGeneratorFactorying {
+    init() {}
+
     func generator(sources: Set<String>, xcframeworks: Bool, ignoreCache: Bool) -> Generating {
-        let cacheOutputType: CacheOutputType = xcframeworks ? .xcframework : .framework
-        let cacheConfig: CacheConfig = ignoreCache
-            ? .withoutCaching()
-            : .withCaching(cacheOutputType: cacheOutputType)
-        return Generator(graphMapperProvider: GraphMapperProvider(cacheConfig: cacheConfig, sources: sources))
-    }
-}
-
-enum FocusServiceError: FatalError {
-    case cacheWorkspaceNonSupported
-    var description: String {
-        switch self {
-        case .cacheWorkspaceNonSupported:
-            return "Caching is only supported when focusing on a project. Please, run the command in a directory that contains a Project.swift file."
-        }
-    }
-
-    var type: ErrorType {
-        switch self {
-        case .cacheWorkspaceNonSupported:
-            return .abort
-        }
+        let contentHasher = CacheContentHasher()
+        let graphMapperProvider = FocusGraphMapperProvider(contentHasher: contentHasher,
+                                                           cache: !ignoreCache,
+                                                           cacheSources: sources,
+                                                           cacheOutputType: xcframeworks ? .xcframework : .framework)
+        let projectMapperProvider = ProjectMapperProvider(contentHasher: contentHasher)
+        return Generator(projectMapperProvider: projectMapperProvider,
+                         graphMapperProvider: graphMapperProvider,
+                         workspaceMapperProvider: WorkspaceMapperProvider(contentHasher: contentHasher),
+                         manifestLoaderFactory: ManifestLoaderFactory())
     }
 }
 
@@ -55,9 +45,6 @@ final class FocusService {
 
     func run(path: String?, sources: Set<String>, noOpen: Bool, xcframeworks: Bool, ignoreCache: Bool) throws {
         let path = self.path(path)
-        if isWorkspace(path: path) {
-            throw FocusServiceError.cacheWorkspaceNonSupported
-        }
         let generator = projectGeneratorFactory.generator(sources: sources,
                                                           xcframeworks: xcframeworks,
                                                           ignoreCache: ignoreCache)
@@ -75,9 +62,5 @@ final class FocusService {
         } else {
             return FileHandler.shared.currentPath
         }
-    }
-
-    private func isWorkspace(path: AbsolutePath) -> Bool {
-        manifestLoader.manifests(at: path).contains(.workspace)
     }
 }

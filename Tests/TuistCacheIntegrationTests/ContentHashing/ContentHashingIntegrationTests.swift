@@ -1,5 +1,6 @@
 import Foundation
 import TSCBasic
+import TuistCore
 import TuistCoreTesting
 import TuistSupport
 import XCTest
@@ -11,10 +12,10 @@ import XCTest
 final class ContentHashingIntegrationTests: TuistTestCase {
     var subject: GraphContentHasher!
     var temporaryDirectoryPath: String!
-    var source1: Target.SourceFile!
-    var source2: Target.SourceFile!
-    var source3: Target.SourceFile!
-    var source4: Target.SourceFile!
+    var source1: SourceFile!
+    var source2: SourceFile!
+    var source3: SourceFile!
+    var source4: SourceFile!
     var resourceFile1: FileElement!
     var resourceFile2: FileElement!
     var resourceFolderReference1: FileElement!
@@ -42,7 +43,7 @@ final class ContentHashingIntegrationTests: TuistTestCase {
         } catch {
             XCTFail("Error while creating files for stub project")
         }
-        subject = GraphContentHasher()
+        subject = GraphContentHasher(contentHasher: CacheContentHasher())
     }
 
     override func tearDown() {
@@ -252,11 +253,11 @@ final class ContentHashingIntegrationTests: TuistTestCase {
 
     // MARK: - Private helpers
 
-    private func createTemporarySourceFile(on temporaryDirectoryPath: AbsolutePath, name: String, content: String) throws -> Target.SourceFile {
+    private func createTemporarySourceFile(on temporaryDirectoryPath: AbsolutePath, name: String, content: String) throws -> SourceFile {
         let filePath = temporaryDirectoryPath.appending(component: name)
         try FileHandler.shared.touch(filePath)
         try FileHandler.shared.write(content, path: filePath, atomically: true)
-        return Target.SourceFile(path: filePath, compilerFlags: nil)
+        return SourceFile(path: filePath, compilerFlags: nil)
     }
 
     private func createTemporaryResourceFile(on temporaryDirectoryPath: AbsolutePath, name: String, content: String) throws -> FileElement {
@@ -276,7 +277,7 @@ final class ContentHashingIntegrationTests: TuistTestCase {
     private func makeFramework(named: String,
                                platform: Platform = .iOS,
                                productName: String? = nil,
-                               sources: [Target.SourceFile] = [],
+                               sources: [SourceFile] = [],
                                resources: [FileElement] = [],
                                coreDataModels: [CoreDataModel] = [],
                                targetActions: [TargetAction] = []) -> TargetNode

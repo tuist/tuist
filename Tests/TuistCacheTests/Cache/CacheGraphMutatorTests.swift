@@ -93,16 +93,6 @@ final class CacheGraphMapperTests: TuistUnitTestCase {
         let c = try XCTUnwrap(appNode.dependencies.compactMap { $0 as? XCFrameworkNode }.first(where: { $0.path == cXCFrameworkPath }))
         XCTAssertTrue(b.dependencies.contains(where: { $0.path == dXCFrameworkPath }))
         XCTAssertTrue(c.dependencies.contains(where: { $0.path == dXCFrameworkPath }))
-
-        // Treeshake
-        let gotTargets = Set(got.targets.flatMap { $0.value })
-        let gotProjects = Set(got.projects)
-        XCTAssertFalse(gotTargets.contains(bFrameworkNode))
-        XCTAssertFalse(gotTargets.contains(cFrameworkNode))
-        XCTAssertFalse(gotTargets.contains(dFrameworkNode))
-        XCTAssertFalse(gotProjects.contains(bFrameworkNode.project))
-        XCTAssertFalse(gotProjects.contains(cFrameworkNode.project))
-        XCTAssertFalse(gotProjects.contains(dFrameworkNode.project))
     }
 
     // Second scenario
@@ -166,14 +156,6 @@ final class CacheGraphMapperTests: TuistUnitTestCase {
         let c = try XCTUnwrap(app.dependencies.compactMap { $0 as? XCFrameworkNode }.first(where: { $0.path == cXCFrameworkPath }))
         XCTAssertTrue(b.dependencies.contains(where: { $0.path == dFrameworkPath }))
         XCTAssertTrue(c.dependencies.contains(where: { $0.path == dFrameworkPath }))
-
-        // Treeshake
-        let gotTargets = Set(got.targets.flatMap { $0.value })
-        let gotProjects = Set(got.projects)
-        XCTAssertFalse(gotTargets.contains(bFrameworkNode))
-        XCTAssertFalse(gotTargets.contains(cFrameworkNode))
-        XCTAssertFalse(gotProjects.contains(bFrameworkNode.project))
-        XCTAssertFalse(gotProjects.contains(cFrameworkNode.project))
     }
 
     // Third scenario
@@ -244,14 +226,6 @@ final class CacheGraphMapperTests: TuistUnitTestCase {
         XCTAssertTrue(b.dependencies.contains(where: { $0.path == dFrameworkPath }))
         XCTAssertTrue(c.dependencies.contains(where: { $0.path == dFrameworkPath }))
         XCTAssertTrue(c.dependencies.contains(where: { $0.path == eXCFrameworkPath }))
-
-        // Treeshake
-        let gotTargets = Set(got.targets.flatMap { $0.value })
-        let gotProjects = Set(got.projects)
-        XCTAssertFalse(gotTargets.contains(bFrameworkNode))
-        XCTAssertFalse(gotTargets.contains(cFrameworkNode))
-        XCTAssertFalse(gotProjects.contains(bFrameworkNode.project))
-        XCTAssertFalse(gotProjects.contains(cFrameworkNode.project))
     }
 
     // Fourth scenario
@@ -316,14 +290,6 @@ final class CacheGraphMapperTests: TuistUnitTestCase {
         let c = try XCTUnwrap(app.dependencies.compactMap { $0 as? XCFrameworkNode }.first(where: { $0.path == cXCFrameworkPath }))
         XCTAssertTrue(b.dependencies.contains(where: { $0.path == dFrameworkPath }))
         XCTAssertTrue(c.dependencies.contains(where: { $0.path == eXCFrameworkPath }))
-
-        // Treeshake
-        let gotTargets = Set(got.targets.flatMap { $0.value })
-        let gotProjects = Set(got.projects)
-        XCTAssertTrue(gotTargets.contains(bFrameworkNode))
-        XCTAssertFalse(gotTargets.contains(cFrameworkNode))
-        XCTAssertTrue(gotProjects.contains(bFrameworkNode.project))
-        XCTAssertFalse(gotProjects.contains(cFrameworkNode.project))
     }
 
     // Fifth scenario
@@ -357,14 +323,6 @@ final class CacheGraphMapperTests: TuistUnitTestCase {
         let app = try XCTUnwrap(got.entryNodes.first as? TargetNode)
         let b = try XCTUnwrap(app.dependencies.compactMap { $0 as? TargetNode }.first(where: { $0.name == "B" }))
         _ = try XCTUnwrap(b.dependencies.compactMap { $0 as? TargetNode }.first(where: { $0.name == "C" }))
-
-        // Treeshake
-        let gotTargets = Set(got.targets.flatMap { $0.value })
-        let gotProjects = Set(got.projects)
-        XCTAssertTrue(gotTargets.contains(bFrameworkNode))
-        XCTAssertTrue(gotTargets.contains(cFrameworkNode))
-        XCTAssertTrue(gotProjects.contains(bFrameworkNode.project))
-        XCTAssertTrue(gotProjects.contains(cFrameworkNode.project))
     }
 
     /// Scenari with cached .framework
@@ -434,16 +392,6 @@ final class CacheGraphMapperTests: TuistUnitTestCase {
         let c = try XCTUnwrap(appNode.dependencies.compactMap { $0 as? FrameworkNode }.first(where: { $0.path == cCachedFrameworkPath }))
         XCTAssertTrue(b.dependencies.contains(where: { $0.path == dCachedFrameworkPath }))
         XCTAssertTrue(c.dependencies.contains(where: { $0.path == dCachedFrameworkPath }))
-
-        // Treeshake
-        let gotTargets = Set(got.targets.flatMap { $0.value })
-        let gotProjects = Set(got.projects)
-        XCTAssertFalse(gotTargets.contains(bFrameworkNode))
-        XCTAssertFalse(gotTargets.contains(cFrameworkNode))
-        XCTAssertFalse(gotTargets.contains(dFrameworkNode))
-        XCTAssertFalse(gotProjects.contains(bFrameworkNode.project))
-        XCTAssertFalse(gotProjects.contains(cFrameworkNode.project))
-        XCTAssertFalse(gotProjects.contains(dFrameworkNode.project))
     }
 
     // Seventh scenario
@@ -507,14 +455,6 @@ final class CacheGraphMapperTests: TuistUnitTestCase {
         let c = try XCTUnwrap(app.dependencies.compactMap { $0 as? FrameworkNode }.first(where: { $0.path == cCachedFrameworkPath }))
         XCTAssertTrue(b.dependencies.contains(where: { $0.path == dFrameworkPath }))
         XCTAssertTrue(c.dependencies.contains(where: { $0.path == dFrameworkPath }))
-
-        // Treeshake
-        let gotTargets = Set(got.targets.flatMap { $0.value })
-        let gotProjects = Set(got.projects)
-        XCTAssertFalse(gotTargets.contains(bFrameworkNode))
-        XCTAssertFalse(gotTargets.contains(cFrameworkNode))
-        XCTAssertFalse(gotProjects.contains(bFrameworkNode.project))
-        XCTAssertFalse(gotProjects.contains(cFrameworkNode.project))
     }
 
     // Eighth scenario
@@ -586,14 +526,6 @@ final class CacheGraphMapperTests: TuistUnitTestCase {
         XCTAssertTrue(b.dependencies.contains(where: { $0.path == dFrameworkPath }))
         XCTAssertTrue(c.dependencies.contains(where: { $0.path == dFrameworkPath }))
         XCTAssertTrue(c.dependencies.contains(where: { $0.path == eXCFrameworkPath }))
-
-        // Treeshake
-        let gotTargets = Set(got.targets.flatMap { $0.value })
-        let gotProjects = Set(got.projects)
-        XCTAssertFalse(gotTargets.contains(bFrameworkNode))
-        XCTAssertFalse(gotTargets.contains(cFrameworkNode))
-        XCTAssertFalse(gotProjects.contains(bFrameworkNode.project))
-        XCTAssertFalse(gotProjects.contains(cFrameworkNode.project))
     }
 
     // 9th scenario
@@ -657,14 +589,6 @@ final class CacheGraphMapperTests: TuistUnitTestCase {
         let c = try XCTUnwrap(app.dependencies.compactMap { $0 as? FrameworkNode }.first(where: { $0.path == cCachedFrameworkPath }))
         XCTAssertTrue(b.dependencies.contains(where: { $0.path == dFrameworkPath }))
         XCTAssertTrue(c.dependencies.contains(where: { $0.path == eXCFrameworkPath }))
-
-        // Treeshake
-        let gotTargets = Set(got.targets.flatMap { $0.value })
-        let gotProjects = Set(got.projects)
-        XCTAssertTrue(gotTargets.contains(bFrameworkNode))
-        XCTAssertFalse(gotTargets.contains(cFrameworkNode))
-        XCTAssertTrue(gotProjects.contains(bFrameworkNode.project))
-        XCTAssertFalse(gotProjects.contains(cFrameworkNode.project))
     }
 
     fileprivate func graphProjects(_ targets: [TargetNode]) -> [Project] {

@@ -40,13 +40,11 @@ final class WorkspaceDescriptorGeneratorTests: TuistUnitTestCase {
             .folderReference(path: temporaryPath.appending(RelativePath("Website"))),
         ]
 
-        let graph = Graph.test(entryPath: temporaryPath)
         let workspace = Workspace.test(additionalFiles: additionalFiles)
+        let graph = Graph.test(entryPath: temporaryPath, workspace: workspace)
 
         // When
-        let result = try subject.generate(workspace: workspace,
-                                          path: temporaryPath,
-                                          graph: graph)
+        let result = try subject.generate(graph: graph)
 
         // Then
         let xcworkspace = result.xcworkspace
@@ -64,15 +62,12 @@ final class WorkspaceDescriptorGeneratorTests: TuistUnitTestCase {
         let name = "test"
         let temporaryPath = try self.temporaryPath()
         try FileHandler.shared.createFolder(temporaryPath.appending(component: "\(name).xcworkspace"))
-
-        let graph = Graph.test(entryPath: temporaryPath)
         let workspace = Workspace.test(name: name)
+        let graph = Graph.test(entryPath: temporaryPath, workspace: workspace)
 
         // When
         XCTAssertNoThrow(
-            try subject.generate(workspace: workspace,
-                                 path: temporaryPath,
-                                 graph: graph)
+            try subject.generate(graph: graph)
         )
     }
 
@@ -86,14 +81,13 @@ final class WorkspaceDescriptorGeneratorTests: TuistUnitTestCase {
                                    name: "Test",
                                    settings: .default,
                                    targets: [target])
+
+        let workspace = Workspace.test(projects: [project.path])
         let graph = Graph.create(project: project,
                                  dependencies: [(target, [])])
-        let workspace = Workspace.test(projects: [project.path])
 
         // When
-        let result = try subject.generate(workspace: workspace,
-                                          path: temporaryPath,
-                                          graph: graph)
+        let result = try subject.generate(graph: graph.with(workspace: workspace))
 
         // Then
         let xcworkspace = result.xcworkspace

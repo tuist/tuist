@@ -1,1 +1,8 @@
 version = 1
+
+[update]
+always = true # default: false
+require_automerge_label = false # default: true
+
+[approve]
+auto_approve_usernames = ["dependabot"]

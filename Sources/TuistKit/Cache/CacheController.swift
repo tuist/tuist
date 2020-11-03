@@ -13,8 +13,13 @@ import TuistSupport
 /// A provider that concatenates the default mappers, to the mapper that adds the build phase
 /// to locate the built products directory.
 class CacheControllerProjectMapperProvider: ProjectMapperProviding {
+    fileprivate let contentHasher: ContentHashing
+    init(contentHasher: ContentHashing) {
+        self.contentHasher = contentHasher
+    }
+
     func mapper(config: Config) -> ProjectMapping {
-        let defaultProjectMapperProvider = ProjectMapperProvider()
+        let defaultProjectMapperProvider = ProjectMapperProvider(contentHasher: contentHasher)
         let defaultMapper = defaultProjectMapperProvider.mapper(config: config)
         return SequentialProjectMapper(mappers: [defaultMapper, CacheBuildPhaseProjectMapper()])
     }
@@ -28,8 +33,18 @@ protocol CacheControllerProjectGeneratorProviding {
 
 /// A provider that returns the project generator that should be used by the cache controller.
 class CacheControllerProjectGeneratorProvider: CacheControllerProjectGeneratorProviding {
+    fileprivate let contentHasher: ContentHashing
+    init(contentHasher: ContentHashing) {
+        self.contentHasher = contentHasher
+    }
+
     func generator() -> Generating {
-        Generator(projectMapperProvider: CacheControllerProjectMapperProvider())
+        let contentHasher = CacheContentHasher()
+        let projectMapperProvider = CacheControllerProjectMapperProvider(contentHasher: contentHasher)
+        return Generator(projectMapperProvider: projectMapperProvider,
+                         graphMapperProvider: GraphMapperProvider(),
+                         workspaceMapperProvider: WorkspaceMapperProvider(contentHasher: contentHasher),
+                         manifestLoaderFactory: ManifestLoaderFactory())
     }
 }
 
@@ -53,11 +68,14 @@ final class CacheController: CacheControlling {
     /// Cache.
     private let cache: CacheStoring
 
-    convenience init(cache: CacheStoring, artifactBuilder: CacheArtifactBuilding) {
+    convenience init(cache: CacheStoring,
+                     artifactBuilder: CacheArtifactBuilding,
+                     contentHasher: ContentHashing)
+    {
         self.init(cache: cache,
                   artifactBuilder: artifactBuilder,
-                  projectGeneratorProvider: CacheControllerProjectGeneratorProvider(),
-                  graphContentHasher: GraphContentHasher())
+                  projectGeneratorProvider: CacheControllerProjectGeneratorProvider(contentHasher: contentHasher),
+                  graphContentHasher: GraphContentHasher(contentHasher: contentHasher))
     }
 
     init(cache: CacheStoring,

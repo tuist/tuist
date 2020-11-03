@@ -28,33 +28,22 @@ tuist cache warm
 <ArgumentsTable
   args={[
     {
-      long: '`--include-device-arch`',
-      short: '`-d`',
+      long: '`--path`',
+      short: '`-p`',
+      description: 'The path to the directory that contains the manifest file.',
+      default: '',
+    },
+    {
+      long: '`--xcframeworks`',
+      short: '`-x`',
       description:
-        'When passed, it includes the architecture for device when caching the targets.',
+        'Cache the targets as .xcframeworks. It requires targets to be enabled for library distribution.',
       default: '`false`',
     },
   ]}
 />
 
-## Focusing on a project
-
-Once the cache has been warmed with the pre-compiled targets,
-we can tell Tuist that we want to focus on a particular project and get the dependencies from the cache.
-All we need to do is run the following command:
-
-```
-tuist focus --cache
-```
-
-### Include sources
-
-We might want to generate a target with sources for any of the direct or transitive dependencies of the focused target.
-To do so, we can use the `--include-sources` argument:
-
-```
-tuist focus --cache --include-sources FeatureFramework
-```
+One the cache is warmed, you can use the [focus](/docs/commands/focus/) command to generate a project replacing direct and transitive dependencies with artifacts from the cache.
 
 ## Debugging
 
@@ -67,3 +56,7 @@ To facilitate debugging, Tuist exposes a command that prints the hash of every t
 ```
 tuist cache print-hashes
 ```
+
+## Unsupported configurations
+
+- **Dynamic Swift Packages and packages with modulemaps:** Due to the approach that Xcode follows for integrating Swift packages, Tuist doesn't have enough details about the SPM dependency graph, and can't ensure the generated project is valid. If you try, you'll likely get `module not found` errors.

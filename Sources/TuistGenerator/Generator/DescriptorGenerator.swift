@@ -25,11 +25,10 @@ public protocol DescriptorGenerating {
     /// Generate a workspace descriptor
     ///
     /// - Parameters:
-    ///   - project: Workspace model
     ///   - graph: Graph model
     ///
     /// - Seealso: `GraphLoader`
-    func generateWorkspace(workspace: Workspace, graph: Graph) throws -> WorkspaceDescriptor
+    func generateWorkspace(graph: Graph) throws -> WorkspaceDescriptor
 }
 
 // MARK: -
@@ -65,9 +64,7 @@ public final class DescriptorGenerator: DescriptorGenerating {
         try projectDescriptorGenerator.generate(project: project, graph: graph)
     }
 
-    public func generateWorkspace(workspace: Workspace, graph: Graph) throws -> WorkspaceDescriptor {
-        try workspaceDescriptorGenerator.generate(workspace: workspace,
-                                                  path: workspace.path,
-                                                  graph: graph)
+    public func generateWorkspace(graph: Graph) throws -> WorkspaceDescriptor {
+        try workspaceDescriptorGenerator.generate(graph: graph)
     }
 }

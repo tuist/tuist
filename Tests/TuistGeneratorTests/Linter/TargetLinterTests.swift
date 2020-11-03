@@ -136,7 +136,7 @@ final class TargetLinterTests: TuistUnitTestCase {
         let bundle = Target.empty(platform: .iOS,
                                   product: .bundle,
                                   sources: [
-                                      (path: "/path/to/some/source.swift", compilerFlags: nil),
+                                      SourceFile(path: "/path/to/some/source.swift"),
                                   ],
                                   resources: [])
 

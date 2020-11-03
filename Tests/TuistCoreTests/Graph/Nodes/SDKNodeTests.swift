@@ -106,4 +106,15 @@ final class SDKNodeTests: XCTestCase {
         // Then
         XCTAssertEqual(got, "CoreData")
     }
+
+    func test_appClip_sdk_framework_path() throws {
+        // Given
+        let subject = try SDKNode.appClip(status: .required)
+
+        // When
+        let got = subject.path
+
+        // Then
+        XCTAssertEqual(got, "/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk/System/Library/Frameworks/AppClip.framework")
+    }
 }

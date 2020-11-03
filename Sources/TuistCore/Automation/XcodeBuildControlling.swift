@@ -3,6 +3,11 @@ import RxSwift
 import TSCBasic
 import TuistSupport
 
+public enum XcodeBuildDestination: Equatable {
+    case device(String)
+    case mac
+}
+
 public protocol XcodeBuildControlling {
     /// Returns an observable to build the given project using xcodebuild.
     /// - Parameters:
@@ -14,6 +19,20 @@ public protocol XcodeBuildControlling {
                scheme: String,
                clean: Bool,
                arguments: [XcodeBuildArgument]) -> Observable<SystemEvent<XcodeBuildOutput>>
+
+    /// Returns an observable to test the given project using xcodebuild.
+    /// - Parameters:
+    ///   - target: The project or workspace to be built.
+    ///   - scheme: The scheme of the project that should be built.
+    ///   - clean: True if xcodebuild should clean the project before building.
+    ///   - arguments: Extra xcodebuild arguments.
+    func test(
+        _ target: XcodeBuildTarget,
+        scheme: String,
+        clean: Bool,
+        destination: XcodeBuildDestination,
+        arguments: [XcodeBuildArgument]
+    ) -> Observable<SystemEvent<XcodeBuildOutput>>
 
     /// Returns an observable that archives the given project using xcodebuild.
     /// - Parameters:

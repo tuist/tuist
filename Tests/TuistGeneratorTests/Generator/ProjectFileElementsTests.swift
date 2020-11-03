@@ -291,7 +291,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
                                  infoPlist: .file(path: AbsolutePath("/project/info.plist")),
                                  entitlements: AbsolutePath("/project/app.entitlements"),
                                  settings: settings,
-                                 sources: [(path: AbsolutePath("/project/file.swift"), compilerFlags: nil)],
+                                 sources: [SourceFile(path: AbsolutePath("/project/file.swift"))],
                                  resources: [
                                      .file(path: AbsolutePath("/project/image.png")),
                                      .folderReference(path: AbsolutePath("/project/reference")),
@@ -522,12 +522,12 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         let group = PBXGroup()
         let pbxproj = PBXProj()
         pbxproj.add(object: group)
-        _ = subject.addFileElement(from: from,
-                                   fileAbsolutePath: fileAbsolutePath,
-                                   fileRelativePath: fileRelativePath,
-                                   name: nil,
-                                   toGroup: group,
-                                   pbxproj: pbxproj)
+        subject.addFileElement(from: from,
+                               fileAbsolutePath: fileAbsolutePath,
+                               fileRelativePath: fileRelativePath,
+                               name: nil,
+                               toGroup: group,
+                               pbxproj: pbxproj)
         let file: PBXFileReference? = group.children.first as? PBXFileReference
         XCTAssertEqual(file?.path, "file.swift")
         XCTAssertEqual(file?.sourceTree, .group)

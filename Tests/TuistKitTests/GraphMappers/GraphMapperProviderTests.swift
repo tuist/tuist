@@ -23,26 +23,4 @@ final class GraphMapperProviderTests: TuistUnitTestCase {
         subject = nil
         super.tearDown()
     }
-
-    func test_mappers_returns_theCacheMapper_when_useCache_is_true() {
-        // Given
-        subject = GraphMapperProvider(cacheConfig: CacheConfig.withCaching(cacheOutputType: .framework))
-
-        // when
-        let got = subject.mappers(config: Config.test())
-
-        // Then
-        XCTAssertEqual(got.filter { $0 is CacheMapper }.count, 1)
-    }
-
-    func test_mappers_doesnt_return_theCacheMapper_when_useCache_is_false() {
-        // Given
-        subject = GraphMapperProvider()
-
-        // when
-        let got = subject.mappers(config: Config.test())
-
-        // Then
-        XCTAssertEqual(got.filter { $0 is CacheMapper }.count, 0)
-    }
 }

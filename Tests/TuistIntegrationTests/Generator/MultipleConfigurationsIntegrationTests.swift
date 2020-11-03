@@ -300,9 +300,9 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
         let linter = GraphLinter()
         let graphLoader = GraphLoader(modelLoader: modelLoader)
 
-        let (graph, workspace) = try graphLoader.loadWorkspace(path: temporaryPath)
+        let graph = try graphLoader.loadWorkspace(path: temporaryPath)
         try linter.lint(graph: graph).printAndThrowIfNeeded()
-        let descriptor = try subject.generateWorkspace(workspace: workspace, graph: graph)
+        let descriptor = try subject.generateWorkspace(graph: graph)
         try writer.write(workspace: descriptor)
     }
 
@@ -348,6 +348,7 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
                 xcodeProjPath: path.appending(component: "App.xcodeproj"),
                 name: "App",
                 organizationName: nil,
+                developmentRegion: nil,
                 settings: settings,
                 filesGroup: .group(name: "Project"),
                 targets: targets,
@@ -363,7 +364,7 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
                productName: "AppTarget",
                bundleId: "test.bundle",
                settings: settings,
-               sources: [(path: try pathTo("App/Sources/AppDelegate.swift"), compilerFlags: nil)],
+               sources: [SourceFile(path: try pathTo("App/Sources/AppDelegate.swift"))],
                filesGroup: .group(name: "ProjectGroup"))
     }
 

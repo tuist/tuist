@@ -96,9 +96,9 @@ Both Kas and Marcing have introduced fixes into this release! 💪🏼
 
 ### Installing custom tuist builds from source 👷🏼‍♂️
 
-`tuist local` was failing to install due to a small bug in the installer still referencing an old compiler flag, luckily I was able to track down the issue and [fix it](https://github.com/tuist/tuist/pull/402). So if you like living on the edge and using the `master` branch then it's all back up and working 👍🏼
+`tuist local` was failing to install due to a small bug in the installer still referencing an old compiler flag, luckily I was able to track down the issue and [fix it](https://github.com/tuist/tuist/pull/402). So if you like living on the edge and using the `main` branch then it's all back up and working 👍🏼
 
-### And much much more, [checkout the changelog](https://github.com/tuist/tuist/blob/master/CHANGELOG.md) for the full list of additions, fixes and improvements
+### And much much more, [checkout the changelog](https://github.com/tuist/tuist/blob/main/CHANGELOG.md) for the full list of additions, fixes and improvements
 
 ## Next up 🕵🏼‍♂️
 

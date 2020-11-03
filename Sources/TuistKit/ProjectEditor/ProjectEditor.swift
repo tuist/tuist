@@ -27,10 +27,10 @@ enum ProjectEditorError: FatalError, Equatable {
 protocol ProjectEditing: AnyObject {
     /// Generates an Xcode project to edit the Project defined in the given directory.
     /// - Parameters:
-    ///   - at: Directory whose project will be edited.
+    ///   - editingPath: Directory whose project will be edited.
     ///   - destinationDirectory: Directory in which the Xcode project will be generated.
     /// - Returns: The path to the generated Xcode project.
-    func edit(at: AbsolutePath, in destinationDirectory: AbsolutePath) throws -> AbsolutePath
+    func edit(at editingPath: AbsolutePath, in destinationDirectory: AbsolutePath) throws -> AbsolutePath
 }
 
 final class ProjectEditor: ProjectEditing {
@@ -87,36 +87,38 @@ final class ProjectEditor: ProjectEditing {
         self.sideEffectDescriptorExecutor = sideEffectDescriptorExecutor
     }
 
-    func edit(at: AbsolutePath, in dstDirectory: AbsolutePath) throws -> AbsolutePath {
+    func edit(at editingPath: AbsolutePath, in dstDirectory: AbsolutePath) throws -> AbsolutePath {
         let xcodeprojPath = dstDirectory.appending(component: "Manifests.xcodeproj")
 
         let projectDesciptionPath = try resourceLocator.projectDescription()
-        let manifests = manifestFilesLocator.locateAllProjectManifests(at: at)
-        let configPath = manifestFilesLocator.locateConfig(at: at)
-        let setupPath = manifestFilesLocator.locateSetup(at: at)
+        let manifests = manifestFilesLocator.locateAllProjectManifests(at: editingPath)
+        let configPath = manifestFilesLocator.locateConfig(at: editingPath)
+        let dependenciesPath = manifestFilesLocator.locateDependencies(at: editingPath)
+        let setupPath = manifestFilesLocator.locateSetup(at: editingPath)
         var helpers: [AbsolutePath] = []
-        if let helpersDirectory = helpersDirectoryLocator.locate(at: at) {
+        if let helpersDirectory = helpersDirectoryLocator.locate(at: editingPath) {
             helpers = FileHandler.shared.glob(helpersDirectory, glob: "**/*.swift")
         }
         var templates: [AbsolutePath] = []
-        if let templatesDirectory = templatesDirectoryLocator.locateUserTemplates(at: at) {
+        if let templatesDirectory = templatesDirectoryLocator.locateUserTemplates(at: editingPath) {
             templates = FileHandler.shared.glob(templatesDirectory, glob: "**/*.swift")
                 + FileHandler.shared.glob(templatesDirectory, glob: "**/*.stencil")
         }
 
         /// We error if the user tries to edit a project in a directory where there are no editable files.
         if manifests.isEmpty, helpers.isEmpty, templates.isEmpty {
-            throw ProjectEditorError.noEditableFiles(at)
+            throw ProjectEditorError.noEditableFiles(editingPath)
         }
 
         // To be sure that we are using the same binary of Tuist that invoked `edit`
         let tuistPath = AbsolutePath(TuistCommand.processArguments()!.first!)
 
         let (project, graph) = try projectEditorMapper.map(tuistPath: tuistPath,
-                                                           sourceRootPath: at,
+                                                           sourceRootPath: editingPath,
                                                            xcodeProjPath: xcodeprojPath,
                                                            setupPath: setupPath,
                                                            configPath: configPath,
+                                                           dependenciesPath: dependenciesPath,
                                                            manifests: manifests.map { $0.1 },
                                                            helpers: helpers,
                                                            templates: templates,

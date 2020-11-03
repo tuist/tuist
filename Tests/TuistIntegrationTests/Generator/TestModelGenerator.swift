@@ -27,7 +27,7 @@ final class TestModelGenerator {
         self.config = config
     }
 
-    func generate() throws -> (Graph, Workspace) {
+    func generate() throws -> Graph {
         let frameworkNodeLoader = MockFrameworkNodeLoader()
         let libraryNodeLoader = MockLibraryNodeLoader()
         let xcframeworkNodeLoader = MockXCFrameworkNodeLoader()
@@ -100,6 +100,7 @@ final class TestModelGenerator {
                 xcodeProjPath: path.appending(component: "App.xcodeproj"),
                 name: name,
                 organizationName: nil,
+                developmentRegion: nil,
                 settings: settings,
                 filesGroup: .group(name: "Project"),
                 targets: targets,
@@ -122,10 +123,10 @@ final class TestModelGenerator {
                dependencies: dependencies.map { Dependency.target(name: $0) })
     }
 
-    private func createSources(path: AbsolutePath) -> [Target.SourceFile] {
-        let sources: [Target.SourceFile] = (0 ..< config.sources)
+    private func createSources(path: AbsolutePath) -> [SourceFile] {
+        let sources: [SourceFile] = (0 ..< config.sources)
             .map { "Sources/SourceFile\($0).swift" }
-            .map { (path: path.appending(RelativePath($0)), compilerFlags: nil) }
+            .map { SourceFile(path: path.appending(RelativePath($0))) }
             .shuffled()
         return sources
     }

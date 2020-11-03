@@ -39,16 +39,17 @@ public struct SimulatorDevice: Decodable, Hashable, CustomStringConvertible {
         name
     }
 
-    public init(dataPath: AbsolutePath,
-                logPath: AbsolutePath,
-                udid: String,
-                isAvailable: Bool,
-                deviceTypeIdentifier: String,
-                state: String,
-                name: String,
-                availabilityError: String?,
-                runtimeIdentifier: String)
-    {
+    public init(
+        dataPath: AbsolutePath,
+        logPath: AbsolutePath,
+        udid: String,
+        isAvailable: Bool,
+        deviceTypeIdentifier: String,
+        state: String,
+        name: String,
+        availabilityError: String?,
+        runtimeIdentifier: String
+    ) {
         self.dataPath = dataPath
         self.logPath = logPath
         self.udid = udid

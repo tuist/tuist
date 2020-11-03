@@ -1,5 +1,6 @@
 import Foundation
 import RxSwift
+import struct TSCUtility.Version
 import TuistSupport
 
 public protocol SimulatorControlling {
@@ -9,22 +10,43 @@ public protocol SimulatorControlling {
     /// Returns the list of simulator runtimes that are available in the system.
     func runtimes() -> Single<[SimulatorRuntime]>
 
-    /// Returns the list of simulator devices and runtimes.
+    /// - Parameters:
+    ///     - platform: Optionally filter by platform
+    ///     - deviceName: Optionally filter by device name
+    /// - Returns: the list of simulator devices and runtimes.
     func devicesAndRuntimes() -> Single<[SimulatorDeviceAndRuntime]>
+
+    /// Finds first available device defined by given parameters
+    /// - Parameters:
+    ///     - platform: Given platform
+    ///     - version: Specific version, ignored if nil
+    ///     - minVersion: Minimum version of the OS
+    ///     - deviceName: Specific device name (eg. iPhone X)
+    func findAvailableDevice(
+        platform: Platform,
+        version: Version?,
+        minVersion: Version?,
+        deviceName: String?
+    ) -> Single<SimulatorDevice>
 }
 
 public enum SimulatorControllerError: FatalError {
     case simctlError(String)
+    case deviceNotFound(Platform, Version?, String?, [SimulatorDeviceAndRuntime])
 
     public var type: ErrorType {
         switch self {
-        case .simctlError: return .abort
+        case .simctlError, .deviceNotFound:
+            return .abort
         }
     }
 
     public var description: String {
         switch self {
-        case let .simctlError(output): return output
+        case let .simctlError(output):
+            return output
+        case let .deviceNotFound(platform, version, deviceName, devices):
+            return "Could not find a suitable device for \(platform.caseValue)\(version.map { " \($0)" } ?? "")\(deviceName.map { ", device name \($0)" } ?? ""). Did find \(devices.map { "\($0.device.name) (\($0.runtime.description))" }.joined(separator: ", "))"
         }
     }
 }
@@ -99,6 +121,38 @@ public final class SimulatorController: SimulatorControlling {
                     guard let runtime = input.1.first(where: { $0.identifier == device.runtimeIdentifier }) else { return nil }
                     return SimulatorDeviceAndRuntime(device: device, runtime: runtime)
                 }
+            }
+    }
+
+    public func findAvailableDevice(
+        platform: Platform,
+        version: Version?,
+        minVersion: Version?,
+        deviceName: String?
+    ) -> Single<SimulatorDevice> {
+        devicesAndRuntimes()
+            .flatMap { devicesAndRuntimes in
+                let availableDevices = devicesAndRuntimes
+                    .filter { simulatorDeviceAndRuntime in
+                        let nameComponents = simulatorDeviceAndRuntime.runtime.name.components(separatedBy: " ")
+                        guard nameComponents.first == platform.caseValue else { return false }
+                        let deviceVersion = nameComponents.last?.version()
+                        if let version = version {
+                            guard deviceVersion == version else { return false }
+                        } else if let minVersion = minVersion, let deviceVersion = deviceVersion {
+                            guard deviceVersion >= minVersion else { return false }
+                        }
+                        if let deviceName = deviceName {
+                            guard simulatorDeviceAndRuntime.device.name == deviceName else { return false }
+                        }
+                        return true
+                    }
+                    .map(\.device)
+                guard
+                    let device = availableDevices.first(where: { !$0.isShutdown }) ?? availableDevices.first
+                else { return .error(SimulatorControllerError.deviceNotFound(platform, version, deviceName, devicesAndRuntimes)) }
+
+                return .just(device)
             }
     }
 }

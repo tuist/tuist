@@ -168,6 +168,7 @@ final class InfoPlistContentProviderTests: XCTestCase {
         assertPackageType(content(for: .test(product: .framework)), "FMWK")
         assertPackageType(content(for: .test(product: .staticFramework)), "FMWK")
         assertPackageType(content(for: .test(product: .watch2App)), "$(PRODUCT_BUNDLE_PACKAGE_TYPE)")
+        assertPackageType(content(for: .test(product: .appClip)), "APPL")
     }
 
     func test_content_whenWatchOSApp() {

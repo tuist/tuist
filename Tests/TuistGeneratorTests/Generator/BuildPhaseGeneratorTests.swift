@@ -46,9 +46,9 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let pbxproj = PBXProj()
         pbxproj.add(object: target)
 
-        let sources: [Target.SourceFile] = [
-            ("/test/file1.swift", "flag"),
-            ("/test/file2.swift", nil),
+        let sources: [SourceFile] = [
+            SourceFile(path: "/test/file1.swift", compilerFlags: "flag"),
+            SourceFile(path: "/test/file2.swift"),
         ]
 
         let fileElements = createFileElements(for: sources.map { $0.path })
@@ -87,7 +87,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let target = PBXNativeTarget(name: "Test")
         let pbxproj = PBXProj()
         pbxproj.add(object: target)
-        let targetScript = TargetScript(name: "Test", script: "Script", showEnvVarsInLog: true)
+        let targetScript = TargetScript(name: "Test", script: "Script", showEnvVarsInLog: true, hashable: false)
         let targetScripts = [targetScript]
 
         // When
@@ -111,7 +111,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         pbxproj.add(object: target)
         let fileElements = ProjectFileElements()
 
-        XCTAssertThrowsError(try subject.generateSourcesBuildPhase(files: [(path: path, compilerFlags: nil)],
+        XCTAssertThrowsError(try subject.generateSourcesBuildPhase(files: [SourceFile(path: path, compilerFlags: nil)],
                                                                    coreDataModels: [],
                                                                    pbxTarget: target,
                                                                    fileElements: fileElements,
@@ -126,9 +126,9 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let pbxproj = PBXProj()
         pbxproj.add(object: target)
 
-        let sources: [Target.SourceFile] = [
-            ("/path/sources/Base.lproj/OTTSiriExtension.intentdefinition", nil),
-            ("/path/sources/en.lproj/OTTSiriExtension.intentdefinition", nil),
+        let sources: [SourceFile] = [
+            SourceFile(path: "/path/sources/Base.lproj/OTTSiriExtension.intentdefinition", compilerFlags: nil),
+            SourceFile(path: "/path/sources/en.lproj/OTTSiriExtension.intentdefinition", compilerFlags: nil),
         ]
 
         let fileElements = createLocalizedResourceFileElements(for: [
@@ -158,7 +158,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         pbxproj.add(object: target)
         let fileElements = ProjectFileElements()
 
-        XCTAssertThrowsError(try subject.generateSourcesBuildPhase(files: [(path: path, compilerFlags: nil)],
+        XCTAssertThrowsError(try subject.generateSourcesBuildPhase(files: [SourceFile(path: path, compilerFlags: nil)],
                                                                    coreDataModels: [],
                                                                    pbxTarget: target,
                                                                    fileElements: fileElements,
@@ -225,7 +225,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         fileElements.elements[headerPath] = headerFileReference
 
         let target = Target.test(platform: .iOS,
-                                 sources: [(path: "/test/file.swift", compilerFlags: nil)],
+                                 sources: [SourceFile(path: "/test/file.swift", compilerFlags: nil)],
                                  headers: headers)
 
         let graph = ValueGraph.test(path: tmpDir)
@@ -261,7 +261,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
 
         let target = Target.test(platform: .iOS,
                                  product: .framework,
-                                 sources: [(path: "/test/file.swift", compilerFlags: nil)],
+                                 sources: [SourceFile(path: "/test/file.swift", compilerFlags: nil)],
                                  headers: headers)
         let graph = ValueGraph.test(path: tmpDir)
         let graphTraverser = ValueGraphTraverser(graph: graph)
@@ -641,6 +641,44 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         XCTAssertEqual(postBuildPhase.shellScript, "\"${PROJECT_DIR}\"/script.sh arg")
         XCTAssertFalse(postBuildPhase.showEnvVarsInLog)
         XCTAssertTrue(postBuildPhase.alwaysOutOfDate)
+    }
+
+    func test_generateEmbedAppClipsBuildPhase() throws {
+        // Given
+        let app = Target.test(name: "App", product: .app)
+        let appClip = Target.test(name: "AppClip", product: .appClip)
+        let project = Project.test()
+        let pbxproj = PBXProj()
+        let nativeTarget = PBXNativeTarget(name: "Test")
+        let fileElements = createProductFileElements(for: [app, appClip])
+
+        let targets: [AbsolutePath: [String: Target]] = [
+            project.path: [app.name: app, appClip.name: appClip],
+        ]
+        let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
+            .target(name: appClip.name, path: project.path): Set(),
+            .target(name: app.name, path: project.path): Set([.target(name: appClip.name, path: project.path)]),
+        ]
+        let graph = ValueGraph.test(path: project.path,
+                                    projects: [project.path: project],
+                                    targets: targets,
+                                    dependencies: dependencies)
+        let graphTraverser = ValueGraphTraverser(graph: graph)
+        // When
+        try subject.generateEmbedAppClipsBuildPhase(path: project.path,
+                                                    target: app,
+                                                    graphTraverser: graphTraverser,
+                                                    pbxTarget: nativeTarget,
+                                                    fileElements: fileElements,
+                                                    pbxproj: pbxproj)
+
+        // Then
+        let pbxBuildPhase: PBXBuildPhase? = nativeTarget.buildPhases.first
+        XCTAssertNotNil(pbxBuildPhase)
+        XCTAssertTrue(pbxBuildPhase is PBXCopyFilesBuildPhase)
+        XCTAssertEqual(pbxBuildPhase?.files?.compactMap { $0.file?.nameOrPath }, ["AppClip"])
+        XCTAssertEqual(pbxBuildPhase?.files?.compactMap { $0.settings as? [String: [String]] },
+                       [["ATTRIBUTES": ["RemoveHeadersOnCopy"]]])
     }
 
     // MARK: - Helpers
