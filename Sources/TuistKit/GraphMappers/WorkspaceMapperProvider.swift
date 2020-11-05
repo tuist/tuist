@@ -8,7 +8,12 @@ protocol WorkspaceMapperProviding {
 
 final class WorkspaceMapperProvider: WorkspaceMapperProviding {
     private let projectMapperProvider: ProjectMapperProviding
-    init(projectMapperProvider: ProjectMapperProviding = ProjectMapperProvider()) {
+
+    convenience init(contentHasher: ContentHashing) {
+        self.init(projectMapperProvider: ProjectMapperProvider(contentHasher: contentHasher))
+    }
+
+    init(projectMapperProvider: ProjectMapperProviding) {
         self.projectMapperProvider = projectMapperProvider
     }
 

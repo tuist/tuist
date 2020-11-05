@@ -12,10 +12,13 @@ final class CachePrintHashesService {
     let graphContentHasher: GraphContentHashing
     private let clock: Clock
 
-    init(generator: Generating = Generator(),
-         graphContentHasher: GraphContentHashing = GraphContentHasher(),
-         clock: Clock = WallClock())
-    {
+    convenience init(contentHasher: ContentHashing = CacheContentHasher()) {
+        self.init(generator: Generator(contentHasher: contentHasher),
+                  graphContentHasher: GraphContentHasher(contentHasher: contentHasher),
+                  clock: WallClock())
+    }
+
+    init(generator: Generating, graphContentHasher: GraphContentHashing, clock: Clock) {
         self.generator = generator
         self.graphContentHasher = graphContentHasher
         self.clock = clock

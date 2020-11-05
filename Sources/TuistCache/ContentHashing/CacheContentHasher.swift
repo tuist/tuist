@@ -1,5 +1,6 @@
 import Foundation
 import TSCBasic
+import TuistCore
 
 /// `CacheContentHasher`
 /// is a wrapper on top of `ContentHasher` that adds an in-memory cache to avoid re-computing the same hashes
@@ -11,6 +12,10 @@ public final class CacheContentHasher: ContentHashing {
 
     public init(contentHasher: ContentHashing = ContentHasher()) {
         self.contentHasher = contentHasher
+    }
+
+    public func hash(_ data: Data) throws -> String {
+        try contentHasher.hash(data)
     }
 
     public func hash(_ string: String) throws -> String {

@@ -81,9 +81,15 @@ final class ProjectEditorTests: TuistUnitTestCase {
         try helpers.forEach { try FileHandler.shared.touch($0) }
         let manifests: [(Manifest, AbsolutePath)] = [(.project, directory.appending(component: "Project.swift"))]
         let tuistPath = AbsolutePath(ProcessInfo.processInfo.arguments.first!)
+        let setupPath = directory.appending(components: "Setup.swift")
+        let configPath = directory.appending(components: "Tuist", "Config.swift")
+        let dependenciesPath = directory.appending(components: "Tuist", "Dependencies.swif")
 
         resourceLocator.projectDescriptionStub = { projectDescriptionPath }
         manifestFilesLocator.locateProjectManifestsStub = manifests
+        manifestFilesLocator.locateConfigStub = configPath
+        manifestFilesLocator.locateDependenciesStub = dependenciesPath
+        manifestFilesLocator.locateSetupStub = setupPath
         helpersDirectoryLocator.locateStub = helpersDirectory
         projectEditorMapper.mapStub = (project, graph)
         var mappedProject: Project?
@@ -107,6 +113,9 @@ final class ProjectEditorTests: TuistUnitTestCase {
         XCTAssertEqual(mapArgs?.helpers, helpers)
         XCTAssertEqual(mapArgs?.sourceRootPath, directory)
         XCTAssertEqual(mapArgs?.projectDescriptionPath, projectDescriptionPath)
+        XCTAssertEqual(mapArgs?.configPath, configPath)
+        XCTAssertEqual(mapArgs?.setupPath, setupPath)
+        XCTAssertEqual(mapArgs?.dependenciesPath, dependenciesPath)
         XCTAssertEqual(project, mappedProject)
 
         XCTAssertEqual(generatedProject, project)

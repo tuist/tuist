@@ -1,9 +1,17 @@
 import Foundation
 import TSCBasic
-import TuistCache
+import TuistCore
 
 public class MockContentHashing: ContentHashing {
     public init() {}
+
+    public var hashDataSpy: Data?
+    public var hashDataCallCount = 0
+    public func hash(_ data: Data) throws -> String {
+        hashDataSpy = data
+        hashDataCallCount += 1
+        return "\(String(describing: hashDataSpy?.base64EncodedString()))-hash"
+    }
 
     public var hashStringSpy: String?
     public var hashStringCallCount = 0

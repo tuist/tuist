@@ -152,7 +152,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         }
     }
 
-    func generateSourcesBuildPhase(files: [Target.SourceFile],
+    func generateSourcesBuildPhase(files: [SourceFile],
                                    coreDataModels: [CoreDataModel],
                                    pbxTarget: PBXTarget,
                                    fileElements: ProjectFileElements,

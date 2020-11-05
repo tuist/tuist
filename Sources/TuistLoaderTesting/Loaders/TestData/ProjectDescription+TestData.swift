@@ -167,6 +167,6 @@ extension Dependencies {
     public static func test(name: String = "Any Dependency",
                             requirement: Dependency.Requirement = .exact("1.4.0")) -> Dependencies
     {
-        Dependencies([Dependency(name: name, requirement: requirement)])
+        Dependencies([.carthage(name: name, requirement: requirement)])
     }
 }

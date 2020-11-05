@@ -9,6 +9,7 @@ protocol ProjectEditorMapping: AnyObject {
              xcodeProjPath: AbsolutePath,
              setupPath: AbsolutePath?,
              configPath: AbsolutePath?,
+             dependenciesPath: AbsolutePath?,
              manifests: [AbsolutePath],
              helpers: [AbsolutePath],
              templates: [AbsolutePath],
@@ -22,6 +23,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
              xcodeProjPath: AbsolutePath,
              setupPath: AbsolutePath?,
              configPath: AbsolutePath?,
+             dependenciesPath: AbsolutePath?,
              manifests: [AbsolutePath],
              helpers: [AbsolutePath],
              templates: [AbsolutePath],
@@ -43,41 +45,42 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             manifestsDependencies = [.target(name: "ProjectDescriptionHelpers")]
         }
 
-        let manifestsTargets = named(manifests: manifests).map { name, manifest in
-            Target(name: name,
-                   platform: .macOS,
-                   product: .staticFramework,
-                   productName: name,
-                   bundleId: "io.tuist.${PRODUCT_NAME:rfc1034identifier}",
-                   settings: targetSettings,
-                   sources: [(path: manifest, compilerFlags: nil)],
-                   filesGroup: .group(name: "Manifests"),
-                   dependencies: manifestsDependencies)
+        let manifestsTargets = named(manifests: manifests).map { name, manifestSourcePath in
+            editorHelperTarget(name: name,
+                               targetSettings: targetSettings,
+                               sourcePaths: [manifestSourcePath],
+                               dependencies: manifestsDependencies)
         }
 
         var helpersTarget: Target?
         if !helpers.isEmpty {
-            helpersTarget = Target.editorHelperTarget(name: "ProjectDescriptionHelpers",
-                                                      targetSettings: targetSettings,
-                                                      sourcePaths: helpers)
+            helpersTarget = editorHelperTarget(name: "ProjectDescriptionHelpers",
+                                               targetSettings: targetSettings,
+                                               sourcePaths: helpers)
         }
         var templatesTarget: Target?
         if !templates.isEmpty {
-            templatesTarget = Target.editorHelperTarget(name: "Templates",
-                                                        targetSettings: targetSettings,
-                                                        sourcePaths: templates)
+            templatesTarget = editorHelperTarget(name: "Templates",
+                                                 targetSettings: targetSettings,
+                                                 sourcePaths: templates)
         }
         var setupTarget: Target?
         if let setupPath = setupPath {
-            setupTarget = Target.editorHelperTarget(name: "Setup",
-                                                    targetSettings: targetSettings,
-                                                    sourcePaths: [setupPath])
+            setupTarget = editorHelperTarget(name: "Setup",
+                                             targetSettings: targetSettings,
+                                             sourcePaths: [setupPath])
         }
         var configTarget: Target?
         if let configPath = configPath {
-            configTarget = Target.editorHelperTarget(name: "Config",
-                                                     targetSettings: targetSettings,
-                                                     sourcePaths: [configPath])
+            configTarget = editorHelperTarget(name: "Config",
+                                              targetSettings: targetSettings,
+                                              sourcePaths: [configPath])
+        }
+        var dependenciesTarget: Target?
+        if let dependenciesPath = dependenciesPath {
+            dependenciesTarget = editorHelperTarget(name: "Dependencies",
+                                                    targetSettings: targetSettings,
+                                                    sourcePaths: [dependenciesPath])
         }
 
         var targets: [Target] = []
@@ -86,6 +89,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         if let templatesTarget = templatesTarget { targets.append(templatesTarget) }
         if let setupTarget = setupTarget { targets.append(setupTarget) }
         if let configTarget = configTarget { targets.append(configTarget) }
+        if let dependenciesTarget = dependenciesTarget { targets.append(dependenciesTarget) }
 
         // Run Scheme
         let buildAction = BuildAction(targets: targets.map { TargetReference(projectPath: sourceRootPath, name: $0.name) })
@@ -126,6 +130,10 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             let configNode = TargetNode(project: project, target: configTarget, dependencies: [])
             dependencies.append(configNode)
         }
+        if let dependenciesTarget = dependenciesTarget {
+            let dependenciesNode = TargetNode(project: project, target: dependenciesTarget, dependencies: [])
+            dependencies.append(dependenciesNode)
+        }
 
         let manifestTargetNodes = manifestsTargets.map { TargetNode(project: project, target: $0, dependencies: dependencies) }
         let workspace = Workspace(path: project.path, name: "Manifests", projects: [project.path])
@@ -149,7 +157,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
     /// It returns the build settings that should be used in the manifests target.
     /// - Parameter projectDescriptionPath: Path to the ProjectDescription framework.
     /// - Parameter swiftVersion: The system's Swift version.
-    fileprivate func settings(projectDescriptionPath: AbsolutePath, swiftVersion: String) -> SettingsDictionary {
+    private func settings(projectDescriptionPath: AbsolutePath, swiftVersion: String) -> SettingsDictionary {
         let frameworkParentDirectory = projectDescriptionPath.parentDirectory
         var buildSettings = SettingsDictionary()
         buildSettings["FRAMEWORK_SEARCH_PATHS"] = .string(frameworkParentDirectory.pathString)
@@ -162,7 +170,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
     /// It returns a dictionary with unique name as key for each Manifest file
     /// - Parameter manifests: Manifest files to assign an unique name
     /// - Returns: Dictionary composed by unique name as key and Manifest file as value.
-    fileprivate func named(manifests: [AbsolutePath]) -> [String: AbsolutePath] {
+    private func named(manifests: [AbsolutePath]) -> [String: AbsolutePath] {
         manifests.reduce(into: [String: AbsolutePath]()) { result, manifest in
             var name = "\(manifest.parentDirectory.basename)Manifests"
             while result[name] != nil {
@@ -171,21 +179,23 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             result[name] = manifest
         }
     }
-}
 
-private extension Target {
-    /// Target for edit project
-    static func editorHelperTarget(name: String,
-                                   targetSettings: Settings,
-                                   sourcePaths: [AbsolutePath]) -> Target
-    {
+    /// It returns a target for edit project.
+    /// - Parameters:
+    ///   - name: Name for the target.
+    ///   - targetSettings: Target's settings.
+    ///   - sourcePaths: Target's sources.
+    ///   - dependencies: Target's dependencies.
+    /// - Returns: Target for edit project.
+    private func editorHelperTarget(name: String, targetSettings: Settings, sourcePaths: [AbsolutePath], dependencies: [Dependency] = []) -> Target {
         Target(name: name,
                platform: .macOS,
                product: .staticFramework,
                productName: name,
                bundleId: "io.tuist.${PRODUCT_NAME:rfc1034identifier}",
                settings: targetSettings,
-               sources: sourcePaths.map { (path: $0, compilerFlags: nil) },
-               filesGroup: .group(name: "Manifests"))
+               sources: sourcePaths.map { SourceFile(path: $0, compilerFlags: nil) },
+               filesGroup: .group(name: "Manifests"),
+               dependencies: dependencies)
     }
 }
