@@ -41,9 +41,10 @@ class CacheControllerProjectGeneratorProvider: CacheControllerProjectGeneratorPr
     func generator() -> Generating {
         let contentHasher = CacheContentHasher()
         let projectMapperProvider = CacheControllerProjectMapperProvider(contentHasher: contentHasher)
+        let workspaceMapperProvider = WorkspaceMapperProvider(projectMapperProvider: projectMapperProvider)
         return Generator(projectMapperProvider: projectMapperProvider,
                          graphMapperProvider: GraphMapperProvider(),
-                         workspaceMapperProvider: WorkspaceMapperProvider(contentHasher: contentHasher),
+                         workspaceMapperProvider: workspaceMapperProvider,
                          manifestLoaderFactory: ManifestLoaderFactory())
     }
 }

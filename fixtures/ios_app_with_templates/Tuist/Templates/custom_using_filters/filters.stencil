@@ -1,0 +1,1 @@
+// Generated file with platform: {{ platform|lowerFirstLetter }} and snake case name: {{ name|camelToSnakeCase }}
