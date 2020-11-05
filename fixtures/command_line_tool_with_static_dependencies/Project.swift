@@ -7,6 +7,7 @@ let project = Project(name: "CommandLineTool",
                                product: .commandLineTool,
                                bundleId: "com.example.commandlinetool",
                                infoPlist: .default,
+                               sources: "CommandLineTool/**",
                                dependencies: [
                                 .target(name: "StaticLib"),
                                ]),
@@ -14,5 +15,7 @@ let project = Project(name: "CommandLineTool",
                                platform: .macOS,
                                product: .staticLibrary,
                                bundleId: "com.example.staticlib",
-                               infoPlist: .default),
+                               infoPlist: .default,
+                               sources: "StaticLib/**"
+                               ),
 ])
