@@ -23,6 +23,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         print("Main bundle image: \(String(describing: UIImage(named: "tuist")))")
         print("Asset catalogue image: \(String(describing: AppAsset.assetCatalogLogo.image))")
         print("Strings: \(AppStrings.Greetings.morning)")
+        print("String dicts: \(AppStrings.App.appleCount(1))")
         print("Font: \(AppFontFamily.SFProDisplay.bold.name)")
         print("StaticFrameworkResource image: \(String(describing: staticFrameworkResources.tuist))")
         print("StaticFramework2Resource image: \(String(describing: staticFramework2Resources.loadImage()))")
