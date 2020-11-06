@@ -1,5 +1,5 @@
 import Foundation
-import func StencilSwiftKit.stencilSwiftEnvironment
+import StencilSwiftKit
 import TSCBasic
 import TuistCore
 import TuistSupport

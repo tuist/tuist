@@ -60,8 +60,6 @@ extension SynthesizedResourceInterfaceTemplates {
         {% empty %}
           :
         {% endfor %}]
-      {% elif metadata.type == "Bool" %}
-        Bool(truncating: {{ value }})
       {% else %}
         {{ value }}
       {% endif %}

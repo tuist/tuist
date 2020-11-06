@@ -34,7 +34,7 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-log.git", .upToNextMajor(from: "1.4.0")),
         .package(url: "https://github.com/thii/xcbeautify.git", .upToNextMajor(from: "0.8.1")),
         .package(url: "https://github.com/krzyzanowskim/CryptoSwift", .upToNextMajor(from: "1.3.0")),
-        .package(url: "https://github.com/stencilproject/Stencil", .branch("master")),
+        .package(url: "https://github.com/stencilproject/Stencil.git", .upToNextMajor(from: "0.14.0")),
         .package(url: "https://github.com/kishikawakatsumi/KeychainAccess.git", .upToNextMajor(from: "4.1.0")),
         .package(url: "https://github.com/httpswift/swifter.git", .upToNextMajor(from: "1.5.0")),
         .package(url: "https://github.com/apple/swift-tools-support-core", .upToNextMinor(from: "0.1.12")),
