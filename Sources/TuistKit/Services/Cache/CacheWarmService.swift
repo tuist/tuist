@@ -21,9 +21,9 @@ final class CacheWarmService {
         let config = try generatorModelLoader.loadConfig(at: currentPath)
         let cache = Cache(storageProvider: CacheStorageProvider(config: config))
         let cacheControllerFactory = CacheControllerFactory(cache: cache)
-
-        let cacheController = xcframeworks ? cacheControllerFactory.makeForXCFramework()
-            : cacheControllerFactory.makeForSimulatorFramework()
+        let contentHasher = CacheContentHasher()
+        let cacheController = xcframeworks ? cacheControllerFactory.makeForXCFramework(contentHasher: contentHasher)
+            : cacheControllerFactory.makeForSimulatorFramework(contentHasher: contentHasher)
         try cacheController.cache(path: path)
     }
 

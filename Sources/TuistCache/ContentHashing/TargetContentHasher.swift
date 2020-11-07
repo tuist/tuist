@@ -24,7 +24,7 @@ public final class TargetContentHasher: TargetContentHashing {
 
     // MARK: - Init
 
-    public convenience init(contentHasher: ContentHashing = CacheContentHasher()) {
+    public convenience init(contentHasher: ContentHashing) {
         self.init(
             contentHasher: contentHasher,
             sourceFilesContentHasher: SourceFilesContentHasher(contentHasher: contentHasher),

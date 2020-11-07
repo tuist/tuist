@@ -6,15 +6,19 @@ import TuistSupport
 /// A project mapper that synthezies resource interfaces
 public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping {
     private let synthesizedResourceInterfacesGenerator: SynthesizedResourceInterfacesGenerating
+    private let contentHasher: ContentHashing
 
-    public convenience init() {
-        self.init(synthesizedResourceInterfacesGenerator: SynthesizedResourceInterfacesGenerator())
+    public convenience init(contentHasher: ContentHashing) {
+        self.init(synthesizedResourceInterfacesGenerator: SynthesizedResourceInterfacesGenerator(),
+                  contentHasher: contentHasher)
     }
 
     init(
-        synthesizedResourceInterfacesGenerator: SynthesizedResourceInterfacesGenerating
+        synthesizedResourceInterfacesGenerator: SynthesizedResourceInterfacesGenerating,
+        contentHasher: ContentHashing
     ) {
         self.synthesizedResourceInterfacesGenerator = synthesizedResourceInterfacesGenerator
+        self.contentHasher = contentHasher
     }
 
     public func map(project: Project) throws -> (Project, [SideEffectDescriptor]) {
@@ -145,9 +149,11 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping {
 
         var target = target
 
-        target.sources += renderedResources
-            .map(\.path)
-            .map { (path: $0, compilerFlags: nil) }
+        target.sources += try renderedResources
+            .map { resource in
+                let hash = try resource.contents.map(contentHasher.hash)
+                return SourceFile(path: resource.path, contentHash: hash)
+            }
 
         let sideEffects = renderedResources
             .map { FileDescriptor(path: $0.path, contents: $0.contents) }
@@ -185,7 +191,7 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping {
         case .strings:
             var seen: Set<String> = []
             return resourcesPaths
-                .filter { $0.extension == "strings" }
+                .filter { $0.extension == "strings" || $0.extension == "stringsdict" }
                 .filter { seen.insert($0.basename).inserted }
         case .plists:
             return resourcesPaths

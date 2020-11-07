@@ -1,7 +1,7 @@
 import TSCBasic
 import TuistSupport
 import XCTest
-@testable import TuistCache
+@testable import TuistCore
 @testable import TuistSupportTesting
 
 final class ContentHasherTests: TuistUnitTestCase {

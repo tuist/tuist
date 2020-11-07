@@ -13,11 +13,19 @@ protocol FocusServiceProjectGeneratorFactorying {
 }
 
 final class FocusServiceProjectGeneratorFactory: FocusServiceProjectGeneratorFactorying {
+    init() {}
+
     func generator(sources: Set<String>, xcframeworks: Bool, ignoreCache: Bool) -> Generating {
-        let graphMapperProvider = FocusGraphMapperProvider(cache: !ignoreCache,
+        let contentHasher = CacheContentHasher()
+        let graphMapperProvider = FocusGraphMapperProvider(contentHasher: contentHasher,
+                                                           cache: !ignoreCache,
                                                            cacheSources: sources,
                                                            cacheOutputType: xcframeworks ? .xcframework : .framework)
-        return Generator(graphMapperProvider: graphMapperProvider)
+        let projectMapperProvider = ProjectMapperProvider(contentHasher: contentHasher)
+        return Generator(projectMapperProvider: projectMapperProvider,
+                         graphMapperProvider: graphMapperProvider,
+                         workspaceMapperProvider: WorkspaceMapperProvider(contentHasher: contentHasher),
+                         manifestLoaderFactory: ManifestLoaderFactory())
     }
 }
 

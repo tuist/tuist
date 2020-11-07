@@ -34,11 +34,12 @@ public class CacheMapper: GraphMapping {
     public convenience init(config: Config,
                             cacheStorageProvider: CacheStorageProviding,
                             sources: Set<String>,
-                            cacheOutputType: CacheOutputType)
+                            cacheOutputType: CacheOutputType,
+                            contentHasher: ContentHashing)
     {
         self.init(config: config,
                   cache: Cache(storageProvider: cacheStorageProvider),
-                  graphContentHasher: GraphContentHasher(),
+                  graphContentHasher: GraphContentHasher(contentHasher: contentHasher),
                   sources: sources,
                   cacheOutputType: cacheOutputType)
     }

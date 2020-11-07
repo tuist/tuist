@@ -3,6 +3,7 @@ import RxBlocking
 import TSCBasic
 import struct TSCUtility.Version
 import TuistAutomation
+import TuistCache
 import TuistCore
 import TuistSupport
 
@@ -45,7 +46,7 @@ final class TestService {
     let simulatorController: SimulatorControlling
 
     init(
-        generator: Generating = Generator(),
+        generator: Generating = Generator(contentHasher: ContentHasher()),
         xcodebuildController: XcodeBuildControlling = XcodeBuildController(),
         buildGraphInspector: BuildGraphInspecting = BuildGraphInspector(),
         simulatorController: SimulatorControlling = SimulatorController()

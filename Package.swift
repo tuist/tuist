@@ -34,7 +34,7 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-log.git", .upToNextMajor(from: "1.4.0")),
         .package(url: "https://github.com/thii/xcbeautify.git", .upToNextMajor(from: "0.8.1")),
         .package(url: "https://github.com/krzyzanowskim/CryptoSwift", .upToNextMajor(from: "1.3.0")),
-        .package(url: "https://github.com/stencilproject/Stencil", .branch("master")),
+        .package(url: "https://github.com/stencilproject/Stencil.git", .upToNextMajor(from: "0.14.0")),
         .package(url: "https://github.com/kishikawakatsumi/KeychainAccess.git", .upToNextMajor(from: "4.1.0")),
         .package(url: "https://github.com/httpswift/swifter.git", .upToNextMajor(from: "1.5.0")),
         .package(url: "https://github.com/apple/swift-tools-support-core", .upToNextMinor(from: "0.1.12")),
@@ -48,7 +48,7 @@ let package = Package(
     targets: [
         .target(
             name: "TuistCore",
-            dependencies: ["SwiftToolsSupport-auto", "TuistSupport", "XcodeProj"]
+            dependencies: ["SwiftToolsSupport-auto", "TuistSupport", "XcodeProj", "Checksum"]
         ),
         .target(
             name: "TuistCoreTesting",
@@ -76,7 +76,7 @@ let package = Package(
         ),
         .target(
             name: "TuistKit",
-            dependencies: ["XcodeProj", "SwiftToolsSupport-auto", "ArgumentParser", "TuistSupport", "TuistGenerator", "TuistCache", "TuistAutomation", "ProjectDescription", "Signals", "RxSwift", "RxBlocking", "Checksum", "TuistLoader", "TuistInsights", "TuistScaffold", "TuistSigning", "TuistDependencies", "TuistCloud", "TuistDoc", "GraphViz", "TuistMigration", "TuistAsyncQueue"]
+            dependencies: ["XcodeProj", "SwiftToolsSupport-auto", "ArgumentParser", "TuistSupport", "TuistGenerator", "TuistCache", "TuistAutomation", "ProjectDescription", "Signals", "RxSwift", "RxBlocking", "TuistLoader", "TuistInsights", "TuistScaffold", "TuistSigning", "TuistDependencies", "TuistCloud", "TuistDoc", "GraphViz", "TuistMigration", "TuistAsyncQueue"]
         ),
         .testTarget(
             name: "TuistKitTests",
@@ -144,7 +144,7 @@ let package = Package(
         ),
         .target(
             name: "TuistCache",
-            dependencies: ["XcodeProj", "SwiftToolsSupport-auto", "TuistCore", "TuistSupport", "Checksum", "RxSwift"]
+            dependencies: ["XcodeProj", "SwiftToolsSupport-auto", "TuistCore", "TuistSupport", "RxSwift"]
         ),
         .testTarget(
             name: "TuistCacheTests",
@@ -156,7 +156,7 @@ let package = Package(
         ),
         .target(
             name: "TuistCloud",
-            dependencies: ["XcodeProj", "SwiftToolsSupport-auto", "TuistCore", "TuistSupport", "Checksum", "RxSwift"]
+            dependencies: ["XcodeProj", "SwiftToolsSupport-auto", "TuistCore", "TuistSupport", "RxSwift"]
         ),
         .testTarget(
             name: "TuistCloudTests",

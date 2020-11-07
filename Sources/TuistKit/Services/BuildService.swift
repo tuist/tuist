@@ -2,6 +2,7 @@ import Foundation
 import RxBlocking
 import TSCBasic
 import TuistAutomation
+import TuistCache
 import TuistCore
 import TuistSupport
 
@@ -40,7 +41,7 @@ final class BuildService {
     /// Build graph inspector.
     let buildGraphInspector: BuildGraphInspecting
 
-    init(generator: Generating = Generator(),
+    init(generator: Generating = Generator(contentHasher: CacheContentHasher()),
          xcodebuildController: XcodeBuildControlling = XcodeBuildController(),
          buildGraphInspector: BuildGraphInspecting = BuildGraphInspector())
     {
