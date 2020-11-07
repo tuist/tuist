@@ -1,13 +1,13 @@
 ---
 name: Command Line Tools
-excerpt: 'This page documents how to declare and use Command Line Tool targets.'
+excerpt: Learn how to use Tuist to define a CLI tools that might contain static dependencies.
 ---
 
 import Message from '../components/message'
 
 # Command Line Tools
 
-On macOS we can build various command line tools (like tuist) this way you can define your project.
+Tuist supports defining CLI tools that might contain static dependencies. Below there's an example of how you'd define a project with a CLI target:
 
 ```swift
 let project = Project(
@@ -20,9 +20,16 @@ let project = Project(
             bundleId: "io.tuist.App",
             infoPlist: .default,
             sources: ["Sources/**"],
+            dependencies: [.target(name: "StaticLib")]
+        ),
+        Target(
+            name: "StaticLib",
+            platform: .macOS,
+            product: .staticLibrary,
+            bundleId: "io.tuist.StaticLib",
+            infoPlist: .default,
+            sources: ["StaticLib/Sources/**"]
         ),
     ]
 )
 ```
-
-Keep in mind that command line tools support only statically linked dependencies, Tuist will do its best to keep his eye on that.
