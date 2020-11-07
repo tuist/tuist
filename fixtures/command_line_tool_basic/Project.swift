@@ -6,5 +6,6 @@ let project = Project(name: "CommandLineTool",
                                platform: .macOS,
                                product: .commandLineTool,
                                bundleId: "com.example.commandlinetool",
-                               infoPlist: .default)
+                               infoPlist: .default,
+                               sources: ["main.swift"])
 ])
