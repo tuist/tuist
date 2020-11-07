@@ -2,7 +2,5 @@ import TSCBasic
 import TuistSupport
 
 public protocol DependencyManagerInteracting {
-    var isAvailable: Bool { get }
-    
-    func install(method: InstallDependenciesMethod) throws
+    func install(at path: AbsolutePath, method: InstallDependenciesMethod) throws
 }

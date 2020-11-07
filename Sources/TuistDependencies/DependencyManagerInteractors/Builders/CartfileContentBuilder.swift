@@ -1,29 +1,6 @@
 import TSCBasic
 import TuistSupport
 
-// MARK: - Cartfile Content Builder Error
-
-enum CartfileContentBuilderError: FatalError {
-    case unspecifiedDependencies
-    
-    /// Error type.
-    var type: ErrorType {
-        switch self {
-        case .unspecifiedDependencies:
-            return .abort
-        }
-    }
-
-    /// Description.
-    var description: String {
-        switch self {
-        case .unspecifiedDependencies:
-            #warning("Provide description")
-            return ""
-        }
-    }
-}
-
 // MARK: - Cartfile Content Builder
 
 #warning("Add unit test!")
@@ -45,30 +22,18 @@ final class CartfileContentBuilder {
     
     // MARK: - State
     
-    var depedencies: [Dependency] = []
+    private let dependencies: [Dependency]
     
-    // MARK: - Configurators
+    // MARK: - Init
     
-    @discardableResult
-    func dependnecy(_ dependency: Dependency) -> Self {
-        self.depedencies.append(dependency)
-        return self
-    }
-    
-    @discardableResult
-    func dependnecies(_ dependencies: [Dependency]) -> Self {
-        self.depedencies.append(contentsOf: dependencies)
-        return self
+    init(dependencies: [Dependency]) {
+        self.dependencies = dependencies
     }
     
     // MARK: - Build
     
-    func build() throws -> String {
-        guard !depedencies.isEmpty else {
-            throw CartfileContentBuilderError.unspecifiedDependencies
-        }
-        
-        return depedencies
+    func build() -> String {
+        dependencies
             .map { $0.toString() }
             .joined(separator: "\n")
     }

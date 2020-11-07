@@ -30,12 +30,11 @@ public protocol CocoapodsInteracting: DependencyManagerInteracting {
 
 // MARK: - Cocoapods Interactor
 
+#warning("Add unit test!")
 public final class CocoapodsInteractor: CocoapodsInteracting {
-    public var isAvailable = false
-    
     public init() { }
     
-    public func install(method: InstallDependenciesMethod) throws {
+    public func install(at path: AbsolutePath, method: InstallDependenciesMethod) throws {
         throw CocoapodsInteractorError.unimplemented
     }
 }

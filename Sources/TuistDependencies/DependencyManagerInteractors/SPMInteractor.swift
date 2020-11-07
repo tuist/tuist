@@ -30,12 +30,11 @@ public protocol SPMInteracting: DependencyManagerInteracting {
 
 // MARK: - SPM Interactor
 
+#warning("Add unit test!")
 public final class SPMInteractor: SPMInteracting {
-    public let isAvailable = false
-    
     public init() { }
     
-    public func install(method: InstallDependenciesMethod) throws {
+    public func install(at path: AbsolutePath, method: InstallDependenciesMethod) throws {
         throw SPMInteractorError.unimplemented
     }
 }

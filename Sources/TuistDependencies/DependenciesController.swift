@@ -41,6 +41,7 @@ public protocol DependenciesControlling {
 
 // MARK: - Dependencies Controller
 
+#warning("Add unit test!")
 public final class DependenciesController: DependenciesControlling {
     private let carthageInteractor: CarthageInteracting
     private let cocoapodsInteractor: CocoapodsInteracting
@@ -58,13 +59,6 @@ public final class DependenciesController: DependenciesControlling {
         logger.notice("Start installing depednencies.")
         
         #warning("Pass depednecies via method's argument or read depednecies from `./Tuist/Dependencies/*`.")
-        #warning("Stubbed depednecies array. Should be repalced with real depednecies later.")
-        let dependencies = Dependencies([
-            .carthage(name: "Alamofire/Alamofire", requirement: .exact("5.3.0")),
-            .carthage(name: "onevcat/Kingfisher", requirement: .exact("5.15.7")),
-        ])
-        
-        // TODO: implement me!
-        throw DependenciesControllerError.unimplemented
+        try carthageInteractor.install(at: path, method: method)
     }
 }

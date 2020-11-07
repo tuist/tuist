@@ -1,41 +1,13 @@
 import TSCBasic
 import TuistSupport
 
-// MARK: - Carthage Command Builder Error
-
-enum CarthageCommandBuilderError: FatalError {
-    case unrecognizedCommand
-    
-    /// Error type.
-    var type: ErrorType {
-        switch self {
-        case .unrecognizedCommand:
-            return .abort
-        }
-    }
-
-    /// Description.
-    var description: String {
-        switch self {
-        case .unrecognizedCommand:
-            #warning("Provide description")
-            return ""
-        }
-    }
-}
-
 // MARK: - Carthage Command Builder
 
 #warning("Add unit test!")
 final class CarthageCommandBuilder {
     
     // MARK: - Models
-    
-    enum Command: String {
-        case update = "update"
-        case fetch = "fetch"
-    }
-    
+
     enum Platform: String {
         case iOS = "iOS"
         case macOS = "macOS"
@@ -45,18 +17,20 @@ final class CarthageCommandBuilder {
     
     // MARK: - State
     
-    private var command: Command?
+    private let method: InstallDependenciesMethod
+    private let path: AbsolutePath
     private var platforms: Set<Platform>?
     private var cacheBuilds: Bool = false
     private var newResolver: Bool = false
     
-    // MARK: - Configurators
+    // MARK: - Init
     
-    @discardableResult
-    func command(_ command: Command) -> Self {
-        self.command = command
-        return self
+    init(method: InstallDependenciesMethod, path: AbsolutePath) {
+        self.method = method
+        self.path = path
     }
+    
+    // MARK: - Configurators
     
     @discardableResult
     func platforms(_ platforms: Set<Platform>) -> Self {
@@ -78,18 +52,22 @@ final class CarthageCommandBuilder {
     
     // MARK: - Build
     
-    func build() throws -> String {
+    func build() -> String {
         var commandComponents: [String] = ["carthage"]
         
         // Command
         
-        guard let command = command else {
-            throw CarthageCommandBuilderError.unrecognizedCommand
+        switch method {
+        case .fetch: commandComponents.append("bootstrap")
+        case .update: commandComponents.append("update")
         }
-        commandComponents.append(command.rawValue)
+        
+        // Project Directory
+        
+        commandComponents.append("--project-directory \(path)")
         
         // Platforms
-        
+
         if let platforms = platforms, !platforms.isEmpty {
             commandComponents.append("--platform")
             commandComponents.append(
@@ -98,9 +76,9 @@ final class CarthageCommandBuilder {
                     .joined(separator: ",")
             )
         }
-        
+
         // Flags
-        
+
         if cacheBuilds { commandComponents.append("--cache-builds") }
         if newResolver { commandComponents.append("--new-resolver") }
         
