@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 Given(/tuist is available/) do
-  system("swift", "build")
+  system("swift", "build", "--package-path", File.expand_path("../../..", __dir__))
 end
 
 Then(/^tuist generates the project$/) do

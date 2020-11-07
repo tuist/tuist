@@ -78,6 +78,7 @@ jobs:
             'generate-3',
             'generate-4',
             'generate-5',
+            'generate-6',
             'init',
             'lint-project',
             'lint-code',
@@ -85,6 +86,9 @@ jobs:
             'up',
             'build',
             'test',
+            'precompiled',
+            'env',
+            'doc',
           ]
     steps:
       - uses: actions/checkout@v1
