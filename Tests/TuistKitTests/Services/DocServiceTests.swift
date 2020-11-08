@@ -117,8 +117,8 @@ final class TuistDocServiceTests: TuistUnitTestCase {
         let targetNode = TargetNode(project: project, target: target, dependencies: [])
         let graph = Graph.test(targets: [path: [targetNode]])
 
-        generator.loadProjectStub = { _ in
-            (Project.test(), graph, [])
+        generator.loadStub = { _ in
+            graph
         }
     }
 }
