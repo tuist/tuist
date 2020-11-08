@@ -26,7 +26,7 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         let target = Target.test(platform: .macOS)
 
         // When
-        let got = subject.buildArguments(target: target, configuration: nil)
+        let got = subject.buildArguments(target: target, configuration: nil, skipSigning: false)
 
         // Then
         XCTAssertEqual(got, [
@@ -39,7 +39,7 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         let target = Target.test(platform: .iOS)
 
         // When
-        let got = subject.buildArguments(target: target, configuration: nil)
+        let got = subject.buildArguments(target: target, configuration: nil, skipSigning: false)
 
         // Then
         XCTAssertEqual(got, [
@@ -52,7 +52,7 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         let target = Target.test(platform: .watchOS)
 
         // When
-        let got = subject.buildArguments(target: target, configuration: nil)
+        let got = subject.buildArguments(target: target, configuration: nil, skipSigning: false)
 
         // Then
         XCTAssertEqual(got, [
@@ -65,7 +65,7 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         let target = Target.test(platform: .tvOS)
 
         // When
-        let got = subject.buildArguments(target: target, configuration: nil)
+        let got = subject.buildArguments(target: target, configuration: nil, skipSigning: false)
 
         // Then
         XCTAssertEqual(got, [
@@ -79,7 +79,7 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         let target = Target.test(settings: settings)
 
         // When
-        let got = subject.buildArguments(target: target, configuration: "Release")
+        let got = subject.buildArguments(target: target, configuration: "Release", skipSigning: false)
 
         // Then
         XCTAssertTrue(got.contains(.configuration("Release")))
@@ -91,7 +91,7 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         let target = Target.test(settings: settings)
 
         // When
-        let got = subject.buildArguments(target: target, configuration: "Release")
+        let got = subject.buildArguments(target: target, configuration: "Release", skipSigning: false)
 
         // Then
         XCTAssertFalse(got.contains(.configuration("Release")))

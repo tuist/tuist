@@ -71,7 +71,7 @@ final class BuildServiceTests: TuistUnitTestCase {
             XCTAssertEqual(_path, path)
             return workspacePath
         }
-        buildgraphInspector.buildArgumentsStub = { _target, _ in
+        buildgraphInspector.buildArgumentsStub = { _target, _, _ in
             XCTAssertEqual(_target, target)
             return buildArguments
         }
@@ -114,7 +114,7 @@ final class BuildServiceTests: TuistUnitTestCase {
             XCTAssertEqual(_path, path)
             return workspacePath
         }
-        buildgraphInspector.buildArgumentsStub = { _target, _ in
+        buildgraphInspector.buildArgumentsStub = { _target, _, _ in
             XCTAssertEqual(_target, target)
             return buildArguments
         }
@@ -160,7 +160,7 @@ final class BuildServiceTests: TuistUnitTestCase {
             XCTAssertEqual(_path, path)
             return workspacePath
         }
-        buildgraphInspector.buildArgumentsStub = { _, _ in
+        buildgraphInspector.buildArgumentsStub = { _, _, _ in
             buildArguments
         }
         xcodebuildController.buildStub = { _target, _scheme, _clean, _arguments in
@@ -213,7 +213,7 @@ final class BuildServiceTests: TuistUnitTestCase {
             XCTAssertEqual(_path, path)
             return workspacePath
         }
-        buildgraphInspector.buildArgumentsStub = { _, _ in
+        buildgraphInspector.buildArgumentsStub = { _, _, _ in
             buildArguments
         }
         xcodebuildController.buildStub = { _target, _scheme, _clean, _arguments in

@@ -65,7 +65,7 @@ final class TestServiceTests: TuistUnitTestCase {
             XCTAssertEqual(_path, path)
             return workspacePath
         }
-        buildGraphInspector.buildArgumentsStub = { _target, _ in
+        buildGraphInspector.buildArgumentsStub = { _target, _, _ in
             XCTAssertEqual(_target, target)
             return buildArguments
         }
@@ -118,7 +118,7 @@ final class TestServiceTests: TuistUnitTestCase {
             XCTAssertEqual(_path, path)
             return workspacePath
         }
-        buildGraphInspector.buildArgumentsStub = { _, _ in
+        buildGraphInspector.buildArgumentsStub = { _, _, _ in
             buildArguments
         }
         xcodebuildController.testStub = { _target, _scheme, _clean, _, _arguments in
