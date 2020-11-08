@@ -13,6 +13,7 @@ class BuildCopier: BuildCopying {
     static let files: [String] = [
         "tuist",
         Constants.templatesDirectoryName,
+        Constants.vendorDirectoryName,
         // Project description
         "ProjectDescription.swiftmodule",
         "ProjectDescription.swiftdoc",
