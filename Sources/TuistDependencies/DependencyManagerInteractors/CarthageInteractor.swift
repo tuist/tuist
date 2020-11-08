@@ -1,3 +1,4 @@
+import Foundation
 import TSCBasic
 import TuistSupport
 import RxBlocking
@@ -9,7 +10,7 @@ public protocol CarthageInteracting: DependencyManagerInteracting {
 
 // MARK: - Carthage Interactor
 
-#warning("Add unit test!")
+#warning("TODO: Add unit test!")
 public final class CarthageInteractor: CarthageInteracting {
     private let fileHandler: FileHandling!
     
@@ -19,63 +20,118 @@ public final class CarthageInteractor: CarthageInteracting {
     
     #warning("TODO: check if carthage installed, throw error if not")
     public func install(at path: AbsolutePath, method: InstallDependenciesMethod) throws {
-        #warning("Check if Cartfile.resolved already exist under `Tuist/*`")
+        #warning("TODO: How to determine platforms?")
+        let platoforms: Set<CarthageCommandBuilder.Platform> = [.macOS]
+        #warning("TODO: Replace stubbed values with reals.")
+        let dependencies: [CartfileContentBuilder.Dependency] = [.github(name: "Alamofire/Alamofire", version: "5.0.4")]
+        
+        #warning("TODO: Check if Cartfile.resolved already exist under `Tuist/*`")
         try withTemporaryDirectory { temporaryDirectoryPath in
-            let commnad = buildCarthageCommand(for: method, path: temporaryDirectoryPath)
-            let cartfileContent = buildCarfileContent()
+            // create `carthage` shell command
+            let commnad = buildCarthageCommand(for: method, platforms: platoforms, path: temporaryDirectoryPath)
             
+            // create `Cartfile`
+            let cartfileContent = buildCarfileContent(for: dependencies)
             let cartfilePath = temporaryDirectoryPath.appending(component: "Cartfile")
             try fileHandler.touch(cartfilePath)
             try fileHandler.write(cartfileContent, path: cartfilePath, atomically: true)
             
+            // run `carthage`
+            try System.shared.runAndPrint(commnad)
             
-            print("At:")
-            print(temporaryDirectoryPath)
-            print("Cartfile:")
-            print(cartfileContent)
-            
-            let arguments = commnad.components(separatedBy: " ")
-            try System.shared.runAndPrint(arguments)
-            
-            print(try fileHandler.contentsOfDirectory(temporaryDirectoryPath))
-            
+            // copy `Cartfile.resolved`
+            let cartfileResolvedDestinationPath = path.appending(components: "Tuist", "Dependencies", "Lockfiles", "Cartfile.resolved")
             let cartfileResolvedPath = temporaryDirectoryPath.appending(component: "Cartfile.resolved")
+            try fileHandler.delete(cartfileResolvedDestinationPath)
+            try fileHandler.copy(from: cartfileResolvedPath, to: cartfileResolvedDestinationPath)
             
-            if !fileHandler.exists(cartfileResolvedPath) {
-                #warning("TODO: throw - no Cartfile.resolved")
-            }
+            print(try fileHandler.contentsOfDirectory(temporaryDirectoryPath.appending(components: "Carthage", "Build", "Mac", "Alamofire.framework")))
             
-//            let iOSBuildsPath = temporaryDirectoryPath.appending(components: "Build", "iOS")
-//            if !fileHandler.exists(iOSBuildsPath) {
-//                #warning("TODO: throw - no iOS builds")
-//            }
+            // copy frameworks
+            let decoder = JSONDecoder()
+            var aleardyCopied = Set<String>()
+            try dependencies
+                .map { $0.name }
+                .forEach { dependencyName in
+                    let versionFilePath = temporaryDirectoryPath.appending(components: "Carthage", "Build", ".\(dependencyName).version")
+                    let versionFileData = try fileHandler.readFile(versionFilePath)
+                    let version = try decoder.decode(CarthageVersion.self, from: versionFileData)
+                    
+                    #warning("TODO: add rest platforms support")
+                    try version.macOS.forEach {
+                        guard aleardyCopied.contains($0.name) else { return }
+                        
+                        let frameworkPath = temporaryDirectoryPath.appending(components: "Carthage", "Build", "Mac", "\($0.name).framework")
+                        let frameworkDestinationPath = path.appending(components: "Tuist", "Dependencies", $0.name, "macOS", "\($0.name).framework")
+                        try fileHandler.delete(frameworkDestinationPath)
+                        try fileHandler.copy(from: frameworkPath, to: frameworkDestinationPath)
+                        
+                        aleardyCopied.insert($0.name)
+                    }
+                }
             
-            
-            let cartfileResolvedDestinationPath = path.appending(components: "Tuist", "Dependencies", "Lockfiles")
-            try fileHandler.copy(from: cartfileResolvedPath, to: path)
+            // update `graph.json`
+            #warning("TODO: update graph.json")
         }
     }
     
-    #warning("TODO: Replace stubbed values with reals.")
-    private func buildCarfileContent() -> String {
-        CartfileContentBuilder(
-            dependencies: [
-                .github(name: "Alamofire/Alamofire", version: "5.4.0"),
-            ]
-        ).build()
+    private func buildCarfileContent(for dependnecies: [CartfileContentBuilder.Dependency]) -> String {
+        CartfileContentBuilder(dependencies: dependnecies)
+            .build()
     }
     
-    #warning("TODO: Replace stubbed values with reals.")
-    #warning("TODO: how to determine platforms?")
     #warning("TODO: run via bundler or not?")
-    private func buildCarthageCommand(for method: InstallDependenciesMethod, path: AbsolutePath) -> String {
+    private func buildCarthageCommand(for method: InstallDependenciesMethod, platforms: Set<CarthageCommandBuilder.Platform>, path: AbsolutePath) -> [String] {
         CarthageCommandBuilder(method: method, path: path)
-            .platforms([.macOS])
+            .platforms(platforms)
             .cacheBuilds(true)
             .newResolver(true)
             .build()
     }
 }
+
+
+struct CarthageVersion: Decodable {
+    enum CodingKeys: String, CodingKey {
+        case commitish
+        case iOS
+        case macOS = "Mac"
+        case tvOS
+        case watchOS
+    }
+    
+    let commitish: String
+    let iOS: [Dependency]
+    let macOS: [Dependency]
+    let tvOS: [Dependency]
+    let watchOS: [Dependency]
+    
+    struct Dependency: Decodable {
+        let hash: String
+        let name: String
+        let linking: String
+        let swiftToolchainVersion: String
+    }
+    
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        commitish = try container.decode(String.self, forKey: .commitish)
+        iOS = try container.decodeIfPresent([Dependency].self, forKey: .iOS) ?? []
+        macOS = try container.decodeIfPresent([Dependency].self, forKey: .macOS) ?? []
+        tvOS = try container.decodeIfPresent([Dependency].self, forKey: .tvOS) ?? []
+        watchOS = try container.decodeIfPresent([Dependency].self, forKey: .watchOS) ?? []
+    }
+}
+
+struct DependenciesGraph: Codable {
+    struct Dependency: Codable {
+        let name: String
+        let depenencies: [String]
+    }
+    
+    let dependencies: [Dependency]
+}
+
 
 
 //// MARK: - Helpers

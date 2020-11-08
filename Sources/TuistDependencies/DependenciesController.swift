@@ -41,7 +41,7 @@ public protocol DependenciesControlling {
 
 // MARK: - Dependencies Controller
 
-#warning("Add unit test!")
+#warning("TODO: Add unit test!")
 public final class DependenciesController: DependenciesControlling {
     private let carthageInteractor: CarthageInteracting
     private let cocoapodsInteractor: CocoapodsInteracting
@@ -58,7 +58,7 @@ public final class DependenciesController: DependenciesControlling {
     public func install(at path: AbsolutePath, method: InstallDependenciesMethod) throws {
         logger.notice("Start installing depednencies.")
         
-        #warning("Pass depednecies via method's argument or read depednecies from `./Tuist/Dependencies/*`.")
+        #warning("TODO: Pass depednecies via method's argument or read depednecies from `./Tuist/Dependencies/*`.")
         try carthageInteractor.install(at: path, method: method)
     }
 }

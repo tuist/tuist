@@ -3,7 +3,7 @@ import TuistSupport
 
 // MARK: - Cartfile Content Builder
 
-#warning("Add unit test!")
+#warning("TODO: Add unit test!")
 final class CartfileContentBuilder {
     
     // MARK: - Models
@@ -11,6 +11,13 @@ final class CartfileContentBuilder {
     #warning("How to handle dependencies versioning?")
     enum Dependency {
         case github(name: String, version: String)
+        
+        var name: String {
+            switch self {
+            case .github(let name, _):
+                return name.components(separatedBy: "/").last ?? name
+            }
+        }
         
         fileprivate func toString() -> String {
             switch self {

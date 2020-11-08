@@ -52,7 +52,7 @@ final class CarthageCommandBuilder {
     
     // MARK: - Build
     
-    func build() -> String {
+    func build() -> [String] {
         var commandComponents: [String] = ["carthage"]
         
         // Command
@@ -64,7 +64,8 @@ final class CarthageCommandBuilder {
         
         // Project Directory
         
-        commandComponents.append("--project-directory \(path)")
+        commandComponents.append("--project-directory")
+        commandComponents.append(path.pathString)
         
         // Platforms
 
@@ -84,6 +85,6 @@ final class CarthageCommandBuilder {
         
         // Build
         
-        return commandComponents.joined(separator: " ")
+        return commandComponents
     }
 }
