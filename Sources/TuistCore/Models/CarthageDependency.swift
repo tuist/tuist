@@ -6,5 +6,5 @@ struct CarthageDependency {
     let name: String
 
     /// Type of requirement for the given dependency
-    let requirement: DependencyRequirement
+    let requirement: Requirement
 }
