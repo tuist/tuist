@@ -73,6 +73,7 @@ public final class CarthageInteractor: CarthageInteracting {
             
             // save generated frameworks
             let names = dependencies.map { $0.name }
+            #warning("TODO: dont pass names")
             try dependenciesDirectoryController.saveCarthageFrameworks(at: path, temporaryDirectoryPath: temporaryDirectoryPath, names: names)
         }
     }
