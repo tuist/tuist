@@ -18,7 +18,6 @@ struct DocCommand: ParsableCommand {
     var options: DocCommand.Options
 
     // MARK: - Run
-
     func run() throws {
         let absolutePath: AbsolutePath
         if let path = options.path {
@@ -26,10 +25,8 @@ struct DocCommand: ParsableCommand {
         } else {
             absolutePath = FileHandler.shared.currentPath
         }
-
-        print(try! OtoolController().dlybDependenciesPaths(forBinaryAt: absolutePath))
-//        try DocService().run(project: absolutePath,
-//                             target: options.target)
+        try DocService().run(project: absolutePath,
+                             target: options.target)
     }
 }
 
