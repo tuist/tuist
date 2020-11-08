@@ -73,6 +73,23 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         ])
     }
 
+    func test_buildArguments_when_skipSigning() {
+        // Given
+        let target = Target.test(platform: .iOS)
+
+        // When
+        let got = subject.buildArguments(target: target, configuration: nil, skipSigning: true)
+
+        // Then
+        XCTAssertEqual(got, [
+            .sdk(Platform.iOS.xcodeSimulatorSDK!),
+            .xcarg("CODE_SIGN_IDENTITY", ""),
+            .xcarg("CODE_SIGNING_REQUIRED", "NO"),
+            .xcarg("CODE_SIGN_ENTITLEMENTS", ""),
+            .xcarg("CODE_SIGNING_ALLOWED", "NO"),
+        ])
+    }
+
     func test_buildArguments_when_theGivenConfigurationExists() throws {
         // Given
         let settings = Settings.test(base: [:], debug: .test(), release: .test())
