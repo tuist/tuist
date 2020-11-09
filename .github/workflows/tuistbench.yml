@@ -1,14 +1,6 @@
 name: Tuist Benchmark
 
-on:
-  push:
-    paths:
-      - tools/tuistbench/**/*
-      - .github/workflows/tuistbench.yml
-  pull_request:
-    paths:
-      - tools/tuistbench/**/*
-      - .github/workflows/tuistbench.yml
+on: ['push', 'pull_request']
 
 jobs:
   test:

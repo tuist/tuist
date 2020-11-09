@@ -4,23 +4,7 @@ on:
   push:
     branches:
       - main
-    paths:
-      - Sources/**/*
-      - Tests/**/*
-      - fixtures/**/*
-      - Templates/**/*
-      - .github/workflows/tuist.yml
-      - Package.swift
-      - Package.resolved
   pull_request:
-    paths:
-      - Sources/**/*
-      - Tests/**/*
-      - fixtures/**/*
-      - Templates/**/*
-      - .github/workflows/tuist.yml
-      - Package.swift
-      - Package.resolved
 
 jobs:
   unit_tests:

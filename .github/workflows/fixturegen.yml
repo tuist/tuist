@@ -1,16 +1,6 @@
 name: Fixture Generator
 
-on:
-  push:
-    paths:
-      - tools/fixturegen/**/*
-      - Sources/ProjectDescription/**/*
-      - .github/workflows/fixturegen.yml
-  pull_request:
-    paths:
-      - tools/fixturegen/**/*
-      - Sources/ProjectDescription/**/*
-      - .github/workflows/fixturegen.yml
+on: ['push', 'pull_request']
 
 jobs:
   test:
