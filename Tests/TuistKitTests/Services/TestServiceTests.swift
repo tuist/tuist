@@ -70,16 +70,16 @@ final class TestServiceTests: TuistUnitTestCase {
             return buildArguments
         }
 
-        let availableDevice: SimulatorDevice = .test()
+        let availableDeviceAndRuntime: SimulatorDeviceAndRuntime = .test()
         simulatorController.findAvailableDeviceStub = { _, _, _, _ in
-            .just(availableDevice)
+            .just(availableDeviceAndRuntime)
         }
         xcodebuildController.testStub = { _target, _scheme, _clean, _destination, _arguments in
             XCTAssertEqual(_target, .workspace(workspacePath))
             XCTAssertEqual(_scheme, scheme.name)
             XCTAssertTrue(_clean)
             XCTAssertEqual(_arguments, buildArguments)
-            XCTAssertEqual(_destination, .device(availableDevice.udid))
+            XCTAssertEqual(_destination, .device(availableDeviceAndRuntime.device.udid))
             return Observable.just(.standardOutput(.init(raw: "success", formatted: nil)))
         }
 
