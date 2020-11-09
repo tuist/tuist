@@ -10,6 +10,11 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Add support for `StencilSwiftKit`'s additional filters. [#1994](https://github.com/tuist/tuist/pull/1994) by [@svastven](https://github.com/svastven).
 - Add `migration list-targets` command to show all targets sorted by number of dependencies [#1732](https://github.com/tuist/tuist/pull/1732) of a given project by [@andreacipriani](https://github.com/andreacipriani).
 
+### Fixed
+
+- Re-enable tests acceptance tests that were not running on CI [#1999](https://github.com/tuist/tuist/pull/1999) by [@pepibumur](https://github.com/pepibumur).
+- Block the process while editing the project and remove the project after the edition finishes [#1999](https://github.com/tuist/tuist/pull/1999) by [@pepibumur](https://github.com/pepibumur).
+
 ## 1.23.0
 
 ### Added
