@@ -132,6 +132,12 @@ public struct TestAction: Equatable, Codable {
                   region: region)
     }
 
+    /// Initializes a new instance of a test action using test plans
+    /// - Parameters:
+    ///   - testPlans: List of test plans. The first in the list will be the default plan.
+    ///   - config: Configuration that should be used for building the test targets.
+    ///   - preActions: ist of actions to be executed before running the tests.
+    ///   - postActions: List of actions to be executed after running the tests.
     public static func testPlans(_ testPlans: Path...,
                                  config: PresetBuildConfiguration = .debug,
                                  preActions: [ExecutionAction] = [],
@@ -150,6 +156,12 @@ public struct TestAction: Equatable, Codable {
              region: nil)
     }
 
+    /// Initializes a new instance of a test action using test plans
+    /// - Parameters:
+    ///   - testPlans: List of test plans. The first in the list will be the default plan.
+    ///   - config: Configuration that should be used for building the test targets.
+    ///   - preActions: ist of actions to be executed before running the tests.
+    ///   - postActions: List of actions to be executed after running the tests.
     public static func testPlans(_ testPlans: Path...,
                                  configurationName: String,
                                  preActions: [ExecutionAction] = [],
