@@ -19,10 +19,9 @@ extension TuistCore.TestAction {
         let region: String?
 
         if let plans = manifest.testPlans {
-            let defaultPlan = try TuistCore.TestPlan.from(path: plans.default, isDefault: true, generatorPaths: generatorPaths)
-            let otherPlans = try plans.other.map { try TuistCore.TestPlan.from(path: $0, isDefault: false, generatorPaths: generatorPaths) }
-
-            testPlans = [defaultPlan] + otherPlans
+            testPlans = try plans.enumerated().map { index, path in
+                try TestPlan(path: generatorPaths.resolve(path: path), isDefault: index == 0)
+            }
 
             // not used when using test plans
             targets = []
@@ -66,12 +65,5 @@ extension TuistCore.TestAction {
                           language: language,
                           region: region,
                           testPlans: testPlans)
-    }
-}
-
-extension TuistCore.TestPlan {
-    static func from(path: Path, isDefault: Bool, generatorPaths: GeneratorPaths) throws -> Self {
-        try Self(path: generatorPaths.resolve(path: path),
-                 isDefault: isDefault)
     }
 }

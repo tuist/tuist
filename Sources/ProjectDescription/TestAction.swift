@@ -2,7 +2,8 @@ import Foundation
 
 /// It represents the test action of a scheme.
 public struct TestAction: Equatable, Codable {
-    public let testPlans: TestPlanList?
+    /// List of test plans. The first in the list will be the default plan.
+    public let testPlans: [Path]?
 
     /// List of targets to be tested.
     public let targets: [TestableTarget]
@@ -34,7 +35,7 @@ public struct TestAction: Equatable, Codable {
     /// Diagnostics options.
     public let diagnosticsOptions: [SchemeDiagnosticsOption]
 
-    private init(testPlans: TestPlanList?,
+    private init(testPlans: [Path]?,
                  targets: [TestableTarget],
                  arguments: Arguments?,
                  configurationName: String,
@@ -131,13 +132,12 @@ public struct TestAction: Equatable, Codable {
                   region: region)
     }
 
-    public static func testPlans(default: Path,
-                                 other: [Path] = [],
+    public static func testPlans(_ testPlans: Path...,
                                  config: PresetBuildConfiguration = .debug,
                                  preActions: [ExecutionAction] = [],
                                  postActions: [ExecutionAction] = []) -> Self
     {
-        Self(testPlans: TestPlanList(default: `default`, other: other),
+        Self(testPlans: testPlans,
              targets: [],
              arguments: nil,
              configurationName: config.name,
@@ -150,13 +150,12 @@ public struct TestAction: Equatable, Codable {
              region: nil)
     }
 
-    public static func testPlans(default: Path,
-                                 other: [Path] = [],
+    public static func testPlans(_ testPlans: Path...,
                                  configurationName: String,
                                  preActions: [ExecutionAction] = [],
                                  postActions: [ExecutionAction] = []) -> Self
     {
-        Self(testPlans: TestPlanList(default: `default`, other: other),
+        Self(testPlans: testPlans,
              targets: [],
              arguments: nil,
              configurationName: configurationName,
