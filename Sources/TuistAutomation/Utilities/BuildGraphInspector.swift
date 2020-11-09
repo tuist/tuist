@@ -65,14 +65,12 @@ public class BuildGraphInspector: BuildGraphInspecting {
 
         // Signing
         if skipSigning {
-            arguments.append(
-                contentsOf: [
-                    .xcarg("CODE_SIGN_IDENTITY", ""),
-                    .xcarg("CODE_SIGNING_REQUIRED", "NO"),
-                    .xcarg("CODE_SIGN_ENTITLEMENTS", ""),
-                    .xcarg("CODE_SIGNING_ALLOWED", "NO")
-                ]
-            )
+            arguments += [
+                .xcarg("CODE_SIGN_IDENTITY", ""),
+                .xcarg("CODE_SIGNING_REQUIRED", "NO"),
+                .xcarg("CODE_SIGN_ENTITLEMENTS", ""),
+                .xcarg("CODE_SIGNING_ALLOWED", "NO")
+            ]
         }
 
         return arguments
