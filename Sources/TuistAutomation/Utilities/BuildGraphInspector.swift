@@ -7,6 +7,7 @@ public protocol BuildGraphInspecting {
     /// Returns the build arguments to be used with the given target.
     /// - Parameter target: Target whose build arguments will be returned.
     /// - Parameter configuration: The configuration to be built. When nil, it defaults to the configuration specified in the scheme.
+    /// - Parameter skipSigning: Skip code signing during build that is not required to be signed (eg. build for testing on iOS Simulator)
     func buildArguments(target: Target, configuration: String?, skipSigning: Bool) -> [XcodeBuildArgument]
 
     /// Given a directory, it returns the first .xcworkspace found.
