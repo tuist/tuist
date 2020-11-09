@@ -4,11 +4,11 @@ on: ['push', 'pull_request']
 
 jobs:
   test:
-    name: Build
+    name: Build tuistbench with Xcode ${{ matrix.xcode }}
     runs-on: macOS-latest
     strategy:
       matrix:
-        xcode: ['12.1']
+        xcode: ['11.5', '12.1']
     steps:
       - uses: actions/checkout@v1
       - name: Select Xcode

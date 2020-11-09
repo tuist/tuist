@@ -8,7 +8,7 @@ on:
 
 jobs:
   unit_tests:
-    name: Unit tests
+    name: Unit tests with Xcode ${{ matrix.xcode }}
     runs-on: macOS-latest
     strategy:
       matrix:
@@ -30,7 +30,7 @@ jobs:
           mkdir -p .coverage
           swift test --enable-code-coverage
   release_build:
-    name: Release build
+    name: Release build with Xcode ${{ matrix.xcode }}
     runs-on: macOS-latest
     strategy:
       matrix:
@@ -50,7 +50,7 @@ jobs:
       - name: Build Tuistenv for release
         run: swift build -c release --product tuistenv
   acceptance_tests:
-    name: Acceptance tests (${{ matrix.feature }})
+    name: Acceptance tests with Xcode ${{ matrix.feature }}
     runs-on: macOS-latest
     strategy:
       matrix:
@@ -101,7 +101,7 @@ jobs:
       - name: Run tests
         run: FEATURE=features/${{ matrix.feature }}.feature bundle exec rake features
   xcode_12_acceptance_tests:
-    name: Xcode 12 Acceptance tests (${{ matrix.feature }})
+    name: Xcode 12 Acceptance tests (${{ matrix.feature }}) with Xcode ${{ matrix.xcode }}
     runs-on: macOS-latest
     strategy:
       matrix:
