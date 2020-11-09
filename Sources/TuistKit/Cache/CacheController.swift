@@ -69,6 +69,9 @@ final class CacheController: CacheControlling {
     /// Cache.
     private let cache: CacheStoring
 
+    /// Cache graph linter.
+    private let cacheGraphLinter: CacheGraphLinting
+
     convenience init(cache: CacheStoring,
                      artifactBuilder: CacheArtifactBuilding,
                      contentHasher: ContentHashing)
@@ -76,34 +79,42 @@ final class CacheController: CacheControlling {
         self.init(cache: cache,
                   artifactBuilder: artifactBuilder,
                   projectGeneratorProvider: CacheControllerProjectGeneratorProvider(contentHasher: contentHasher),
-                  graphContentHasher: GraphContentHasher(contentHasher: contentHasher))
+                  graphContentHasher: GraphContentHasher(contentHasher: contentHasher),
+                  cacheGraphLinter: CacheGraphLinter())
     }
 
     init(cache: CacheStoring,
          artifactBuilder: CacheArtifactBuilding,
          projectGeneratorProvider: CacheControllerProjectGeneratorProviding,
-         graphContentHasher: GraphContentHashing)
+         graphContentHasher: GraphContentHashing,
+         cacheGraphLinter: CacheGraphLinting)
     {
         self.cache = cache
         self.projectGeneratorProvider = projectGeneratorProvider
         self.artifactBuilder = artifactBuilder
         self.graphContentHasher = graphContentHasher
+        self.cacheGraphLinter = cacheGraphLinter
     }
 
     func cache(path: AbsolutePath) throws {
         let generator = projectGeneratorProvider.generator()
         let (path, graph) = try generator.generateWithGraph(path: path, projectOnly: false)
 
-        logger.notice("Hashing cacheable frameworks")
+        // Lint
+        cacheGraphLinter.lint(graph: graph)
+
+        // Hash
+        logger.notice("Hashing cacheable targets")
         let cacheableTargets = try self.cacheableTargets(graph: graph)
 
-        logger.notice("Building cacheable frameworks as \(artifactBuilder.cacheOutputType.description)s")
+        // Build
+        logger.notice("Building cacheable targets")
 
         try cacheableTargets.sorted(by: { $0.key.target.name < $1.key.target.name }).forEach { target, hash in
             try self.buildAndCacheFramework(path: path, target: target, hash: hash)
         }
 
-        logger.notice("All cacheable frameworks have been cached successfully as \(artifactBuilder.cacheOutputType.description)s", metadata: .success)
+        logger.notice("All cacheable targets have been cached successfully as \(artifactBuilder.cacheOutputType.description)s", metadata: .success)
     }
 
     /// Returns all the targets that are cacheable and their hashes.
