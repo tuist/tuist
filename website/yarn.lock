@@ -2343,10 +2343,10 @@
   resolved "https://registry.yarnpkg.com/@theme-ui/css/-/css-0.3.1.tgz#b85c7e8fae948dc0de65aa30b853368993e25cb3"
   integrity sha512-QB2/fZBpo4inaLHL3OrB8NOBgNfwnj8GtHzXWHb9iQSRjmtNX8zPXBe32jLT7qQP0+y8JxPT4YChZIkm5ZyIdg==
 
-"@theme-ui/match-media@^0.3.1":
-  version "0.3.1"
-  resolved "https://registry.yarnpkg.com/@theme-ui/match-media/-/match-media-0.3.1.tgz#05af6a71cf14368e1b3bd7180fc382c72d5ba53b"
-  integrity sha512-PHvSRB1vqUgDnPkGlXLa+qadmOMOy3LKSOzovwpTi+wzCUyyOGAsUY/fJQ7nufBrmU3vdYeUTrKplLn5VIEmlg==
+"@theme-ui/match-media@^0.3.3":
+  version "0.3.3"
+  resolved "https://registry.yarnpkg.com/@theme-ui/match-media/-/match-media-0.3.3.tgz#1ae6f58eebced0891f9da9f2ade099baaa3ad9af"
+  integrity sha512-RoZWjhmKDy9cg+No+V12DdIf0KGWHibkf570r0Gx+1IKFazCghKM2Q2kxh5u7rxuFaHgxNCKBOqWJOpMGDRSqw==
 
 "@theme-ui/mdx@^0.3.0":
   version "0.3.0"
