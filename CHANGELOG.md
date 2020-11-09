@@ -18,6 +18,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Synthesize accessors for stringsdict [#1993](https://github.com/tuist/tuist/pull/1993) by [@fortmarek](https://githubl.com/fortmarek)
 - Add support for `StencilSwiftKit`'s additional filters. [#1994](https://github.com/tuist/tuist/pull/1994) by [@svastven](https://github.com/svastven).
 - Add `migration list-targets` command to show all targets sorted by number of dependencies [#1732](https://github.com/tuist/tuist/pull/1732) of a given project by [@andreacipriani](https://github.com/andreacipriani).
+- Add support for test plans [#1936](https://github.com/tuist/tuist/pull/1936) by [@iteracticman](https://github.com/iteracticman).
 
 ### Fixed
 
@@ -36,7 +37,6 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Extend the `TargetContentHasher` to account for the `Target.scripts` attribute [#1933](https://github.com/tuist/tuist/pull/1933) by [@pepibumur](https://github.com/pepibumur).
 - Extend the `CacheController` to generate projects with the build phase to locate the targets' built products directory [#1933](https://github.com/tuist/tuist/pull/1933) by [@pepibumur](https://github.com/pepibumur).
 - Add support for appClip [#1854](https://github.com/tuist/tuist/pull/1854) by [@lakpa](https://github.com/lakpa).
-- Add support for test plans [#1936](https://github.com/tuist/tuist/pull/1936) by [@iteracticman](https://github.com/iteracticman).
 
 ### Fixed
 
