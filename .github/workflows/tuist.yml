@@ -86,7 +86,6 @@ jobs:
             'up',
             'build',
             'test',
-            'precompiled',
             'env',
           ]
     steps:
