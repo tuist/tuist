@@ -37,52 +37,56 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
     func test_buildArguments_when_iOS() throws {
         // Given
         let target = Target.test(platform: .iOS)
+        let iosSimulatorSDK = try XCTUnwrap(Platform.iOS.xcodeSimulatorSDK)
 
         // When
         let got = subject.buildArguments(target: target, configuration: nil, skipSigning: false)
 
         // Then
         XCTAssertEqual(got, [
-            .sdk(Platform.iOS.xcodeSimulatorSDK!),
+            .sdk(iosSimulatorSDK),
         ])
     }
 
     func test_buildArguments_when_watchOS() throws {
         // Given
         let target = Target.test(platform: .watchOS)
+        let watchosSimulatorSDK = try XCTUnwrap(Platform.watchOS.xcodeSimulatorSDK)
 
         // When
         let got = subject.buildArguments(target: target, configuration: nil, skipSigning: false)
 
         // Then
         XCTAssertEqual(got, [
-            .sdk(Platform.watchOS.xcodeSimulatorSDK!),
+            .sdk(watchosSimulatorSDK),
         ])
     }
 
     func test_buildArguments_when_tvOS() throws {
         // Given
         let target = Target.test(platform: .tvOS)
+        let tvosSimulatorSDK = try XCTUnwrap(Platform.tvOS.xcodeSimulatorSDK)
 
         // When
         let got = subject.buildArguments(target: target, configuration: nil, skipSigning: false)
 
         // Then
         XCTAssertEqual(got, [
-            .sdk(Platform.tvOS.xcodeSimulatorSDK!),
+            .sdk(tvosSimulatorSDK),
         ])
     }
 
-    func test_buildArguments_when_skipSigning() {
+    func test_buildArguments_when_skipSigning() throws {
         // Given
         let target = Target.test(platform: .iOS)
+        let iosSimulatorSDK = try XCTUnwrap(Platform.iOS.xcodeSimulatorSDK)
 
         // When
         let got = subject.buildArguments(target: target, configuration: nil, skipSigning: true)
 
         // Then
         XCTAssertEqual(got, [
-            .sdk(Platform.iOS.xcodeSimulatorSDK!),
+            .sdk(iosSimulatorSDK),
             .xcarg("CODE_SIGN_IDENTITY", ""),
             .xcarg("CODE_SIGNING_REQUIRED", "NO"),
             .xcarg("CODE_SIGN_ENTITLEMENTS", ""),
