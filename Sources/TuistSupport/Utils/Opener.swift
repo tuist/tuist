@@ -30,6 +30,7 @@ public protocol Opening: AnyObject {
     func open(path: AbsolutePath, wait: Bool) throws
     func open(path: AbsolutePath) throws
     func open(path: AbsolutePath, application: AbsolutePath) throws
+    func open(path: AbsolutePath, application: AbsolutePath, wait: Bool) throws
     func open(url: URL) throws
     func open(target: String, wait: Bool) throws
 }
@@ -64,10 +65,15 @@ public class Opener: Opening {
     }
 
     public func open(path: AbsolutePath, application: AbsolutePath) throws {
+        try open(path: path, application: application, wait: true)
+    }
+
+    public func open(path: AbsolutePath, application: AbsolutePath, wait: Bool) throws {
         var arguments: [String] = []
         arguments.append(contentsOf: ["/usr/bin/open"])
         arguments.append(path.pathString)
         arguments.append(contentsOf: ["-a", application.pathString])
+        if wait { arguments.append("-W") }
         try System.shared.run(arguments)
     }
 }

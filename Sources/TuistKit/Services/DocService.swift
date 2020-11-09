@@ -17,7 +17,7 @@ enum DocServiceError: FatalError, Equatable {
     var description: String {
         switch self {
         case let .targetNotFound(name):
-            return "The target \(name) is not visible in the current project."
+            return "The target \(name) was not found."
         case .documentationNotGenerated:
             return "The documentation was not generated. Problably the provided target does not have public symbols."
         case let .invalidHostURL(url, port):
@@ -76,9 +76,10 @@ final class DocService {
     }
 
     func run(project path: AbsolutePath, target targetName: String) throws {
-        let (_, graph, _) = try generator.loadProject(path: path)
+        let graph = try generator.load(path: path)
 
-        let targets = graph.targets(at: path)
+        let targets = graph.targets
+            .flatMap(\.value)
             .filter { !$0.dependsOnXCTest }
             .map { $0.target }
 

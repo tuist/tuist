@@ -223,6 +223,7 @@ DEPENDENCIES
   highline (~> 2.0)
   minitest (~> 5.14)
   rake (~> 13.0)
+  ruby-macho (~> 1.4)
   rubocop (~> 1.2.0)
   rubyzip (~> 2.3.0)
   simctl (~> 1.6)
