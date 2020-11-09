@@ -166,7 +166,12 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         let sortedFiles = files.sorted(by: { $0.path < $1.path })
         try sortedFiles.forEach { buildFile in
             let buildFilePath = buildFile.path
-            let isLocalized = buildFilePath.pathString.contains(".lproj/")
+            // Adding a performance regression to test out performance tests
+
+            // let isLocalized = buildFilePath.pathString.contains(".lproj/")
+            let pathString = buildFilePath.pathString
+            let pathRange = NSRange(location: 0, length: pathString.count)
+            let isLocalized = ProjectFileElements.localizedRegex.firstMatch(in: pathString, options: [], range: pathRange) != nil
 
             let element: (element: PBXFileElement, path: AbsolutePath)
             if !isLocalized {
