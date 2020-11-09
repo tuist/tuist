@@ -54,7 +54,7 @@ jobs:
     runs-on: macos-latest
     strategy:
       matrix:
-        xcode: [12.1']
+        xcode: ['12.1']
         feature:
           [
             'generate-1',
