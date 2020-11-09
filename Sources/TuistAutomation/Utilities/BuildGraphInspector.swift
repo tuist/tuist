@@ -70,7 +70,7 @@ public class BuildGraphInspector: BuildGraphInspecting {
                 .xcarg("CODE_SIGN_IDENTITY", ""),
                 .xcarg("CODE_SIGNING_REQUIRED", "NO"),
                 .xcarg("CODE_SIGN_ENTITLEMENTS", ""),
-                .xcarg("CODE_SIGNING_ALLOWED", "NO")
+                .xcarg("CODE_SIGNING_ALLOWED", "NO"),
             ]
         }
 
