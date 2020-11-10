@@ -35,10 +35,10 @@ public final class MockBuildGraphInspector: BuildGraphInspecting {
         buildableEntrySchemesStub?(graph) ?? []
     }
 
-    public var buildArgumentsStub: ((Target, String?) -> [XcodeBuildArgument])?
-    public func buildArguments(target: Target, configuration: String?) -> [XcodeBuildArgument] {
+    public var buildArgumentsStub: ((Target, String?, Bool) -> [XcodeBuildArgument])?
+    public func buildArguments(target: Target, configuration: String?, skipSigning: Bool) -> [XcodeBuildArgument] {
         if let buildArgumentsStub = buildArgumentsStub {
-            return buildArgumentsStub(target, configuration)
+            return buildArgumentsStub(target, configuration, skipSigning)
         } else {
             return []
         }

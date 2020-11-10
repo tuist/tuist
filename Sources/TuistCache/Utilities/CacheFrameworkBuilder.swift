@@ -125,9 +125,9 @@ public final class CacheFrameworkBuilder: CacheArtifactBuilding {
                 [
                     .sdk(sdk),
                     .configuration(configuration),
-                    .buildSetting("DEBUG_INFORMATION_FORMAT", "dwarf-with-dsym"),
-                    .buildSetting("GCC_GENERATE_DEBUGGING_SYMBOLS", "YES"),
-                    .buildSetting(target.targetLocatorBuildPhaseVariable, builtProductsDirFingerprint),
+                    .xcarg("DEBUG_INFORMATION_FORMAT", "dwarf-with-dsym"),
+                    .xcarg("GCC_GENERATE_DEBUGGING_SYMBOLS", "YES"),
+                    .xcarg(target.targetLocatorBuildPhaseVariable, builtProductsDirFingerprint),
                     .destination(destination),
                 ]
             }

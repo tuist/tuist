@@ -163,7 +163,7 @@ final class TestService {
             scheme: scheme.name,
             clean: clean,
             destination: destination,
-            arguments: buildGraphInspector.buildArguments(target: buildableTarget, configuration: configuration)
+            arguments: buildGraphInspector.buildArguments(target: buildableTarget, configuration: configuration, skipSigning: true)
         )
         .printFormattedOutput()
         .toBlocking()
