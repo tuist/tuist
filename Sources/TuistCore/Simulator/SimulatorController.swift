@@ -130,10 +130,6 @@ public final class SimulatorController: SimulatorControlling {
             }
     }
 
-    public func findAvailableDevice(platform: Platform) -> Single<SimulatorDeviceAndRuntime> {
-        self.findAvailableDevice(platform: platform, version: nil, minVersion: nil, deviceName: nil)
-    }
-
     public func findAvailableDevice(
         platform: Platform,
         version: Version?,
@@ -164,5 +160,11 @@ public final class SimulatorController: SimulatorControlling {
 
                 return .just(device)
             }
+    }
+}
+
+public extension SimulatorControlling {
+    func findAvailableDevice(platform: Platform) -> Single<SimulatorDeviceAndRuntime> {
+        self.findAvailableDevice(platform: platform, version: nil, minVersion: nil, deviceName: nil)
     }
 }

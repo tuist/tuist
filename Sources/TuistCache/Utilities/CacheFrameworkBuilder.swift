@@ -148,7 +148,7 @@ public final class CacheFrameworkBuilder: CacheArtifactBuilding {
 
         return simulatorController.findAvailableDevice(platform: target.platform)
             .flatMap { (deviceAndRuntime) -> Single<String> in
-                .just("platform=\(platform.caseValue) Simulator,id=\(deviceAndRuntime.device.udid)")
+                .just("id=\(deviceAndRuntime.device.udid)")
             }
     }
 
