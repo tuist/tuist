@@ -20,7 +20,7 @@ public final class CacheGraphLinter: CacheGraphLinting {
             let message: Logger.Message = """
             The following targets contain actions that might introduce non-cacheable side-effects: \(targetsWithActions.map(\.name).joined(separator: ", ")).
             Note that a side-effect is an action that affects the target built products based on a given input (e.g. Xcode build variable).
-            If it's not your case, it's safe to ignore this warning. Otherwise, you can bring up your use case on the community forum, \(Constants.communityURL), to explore adding a cache-compliant interface for your use-case.
+            These warnings can be ignored when the actions do not have side effects. Please report eventual use cases to the community forum \(Constants.communityURL).
             """
             logger.warning(message)
         }
