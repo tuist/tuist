@@ -7,7 +7,8 @@ public protocol BuildGraphInspecting {
     /// Returns the build arguments to be used with the given target.
     /// - Parameter target: Target whose build arguments will be returned.
     /// - Parameter configuration: The configuration to be built. When nil, it defaults to the configuration specified in the scheme.
-    func buildArguments(target: Target, configuration: String?) -> [XcodeBuildArgument]
+    /// - Parameter skipSigning: Skip code signing during build that is not required to be signed (eg. build for testing on iOS Simulator)
+    func buildArguments(target: Target, configuration: String?, skipSigning: Bool) -> [XcodeBuildArgument]
 
     /// Given a directory, it returns the first .xcworkspace found.
     /// - Parameter path: Found .xcworkspace.
@@ -46,7 +47,7 @@ public protocol BuildGraphInspecting {
 public class BuildGraphInspector: BuildGraphInspecting {
     public init() {}
 
-    public func buildArguments(target: Target, configuration: String?) -> [XcodeBuildArgument] {
+    public func buildArguments(target: Target, configuration: String?, skipSigning: Bool) -> [XcodeBuildArgument] {
         var arguments: [XcodeBuildArgument]
         if target.platform == .macOS {
             arguments = [.sdk(target.platform.xcodeDeviceSDK)]
@@ -61,6 +62,16 @@ public class BuildGraphInspector: BuildGraphInspecting {
             } else {
                 logger.warning("The scheme's targets don't have the given configuration \(configuration). Defaulting to the scheme's default.")
             }
+        }
+
+        // Signing
+        if skipSigning {
+            arguments += [
+                .xcarg("CODE_SIGN_IDENTITY", ""),
+                .xcarg("CODE_SIGNING_REQUIRED", "NO"),
+                .xcarg("CODE_SIGN_ENTITLEMENTS", ""),
+                .xcarg("CODE_SIGNING_ALLOWED", "NO"),
+            ]
         }
 
         return arguments

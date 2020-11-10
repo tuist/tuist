@@ -36,7 +36,7 @@ final class CodeLinter: CodeLinting {
                                          verbose: false,
                                          environment: environment)
             .mapToString()
-            .printStandardError()
+            .print()
             .toBlocking()
             .last()
     }
