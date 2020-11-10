@@ -43,7 +43,7 @@ extension TuistCore.Config.GenerationOption {
         case .disableShowEnvironmentVarsInScriptPhases:
             return .disableShowEnvironmentVarsInScriptPhases
         case .enableCodeCoverage:
-          return .enableCodeCoverage
+            return .enableCodeCoverage
         }
     }
 }

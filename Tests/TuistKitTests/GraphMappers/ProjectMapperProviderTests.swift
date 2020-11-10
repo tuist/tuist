@@ -95,7 +95,7 @@ final class ProjectMapperProviderTests: TuistUnitTestCase {
         let sequentialProjectMapper = try XCTUnwrap(got as? SequentialProjectMapper)
         XCTAssertEqual(sequentialProjectMapper.mappers.filter { $0 is TargetProjectMapper }.count, 1)
     }
-  
+
     func test_mappers_does_enable_code_coverage() throws {
         // Given
         subject = ProjectMapperProvider(contentHasher: CacheContentHasher())

@@ -94,7 +94,7 @@ extension Config.GenerationOptions {
             return
         }
         if container.allKeys.contains(.enableCodeCoverage), try container.decode(Bool.self, forKey: .enableCodeCoverage) {
-            self  = .enableCodeCoverage
+            self = .enableCodeCoverage
             return
         }
 
