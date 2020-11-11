@@ -638,4 +638,90 @@ final class GraphLinterTests: TuistUnitTestCase {
                          severity: .error),
         ])
     }
+
+    func test_lint_when_cli_tool_links_dynamic_framework() throws {
+        // Given
+        let tool = Target.test(name: "App",
+                               platform: .macOS,
+                               product: .commandLineTool,
+                               bundleId: "com.example.app")
+        let dynamic = Target.test(name: "Dynamic",
+                                  platform: .macOS,
+                                  product: .framework,
+                                  bundleId: "com.example.dynamic")
+
+        let project = Project.test(targets: [tool, dynamic])
+        let graph = Graph.create(project: project,
+                                 dependencies: [
+                                     (target: tool, dependencies: [dynamic]),
+                                     (target: dynamic, dependencies: []),
+                                 ])
+
+        // When
+        let got = subject.lint(graph: graph)
+
+        // Then
+        XCTAssertEqual(got, [
+            LintingIssue(reason: "Target App has a dependency with target Dynamic of type framework for platform 'macOS' which is invalid or not supported yet.",
+                         severity: .error),
+        ])
+    }
+
+    func test_lint_when_cli_tool_links_dynamic_library() throws {
+        // Given
+        let tool = Target.test(name: "App",
+                               platform: .macOS,
+                               product: .commandLineTool,
+                               bundleId: "com.example.app")
+        let dynamic = Target.test(name: "Dynamic",
+                                  platform: .macOS,
+                                  product: .dynamicLibrary,
+                                  bundleId: "com.example.dynamic")
+
+        let project = Project.test(targets: [tool, dynamic])
+        let graph = Graph.create(project: project,
+                                 dependencies: [
+                                     (target: tool, dependencies: [dynamic]),
+                                     (target: dynamic, dependencies: []),
+                                 ])
+
+        // When
+        let got = subject.lint(graph: graph)
+
+        // Then
+        XCTAssertEqual(got, [
+            LintingIssue(reason: "Target App has a dependency with target Dynamic of type dynamic library for platform 'macOS' which is invalid or not supported yet.",
+                         severity: .error),
+        ])
+    }
+
+    func test_lint_when_cli_tool_links_supported_dependencies() throws {
+        // Given
+        let tool = Target.test(name: "App",
+                               platform: .macOS,
+                               product: .commandLineTool,
+                               bundleId: "com.example.app")
+        let staticLib = Target.test(name: "StaticLib",
+                                    platform: .macOS,
+                                    product: .staticLibrary,
+                                    bundleId: "com.example.staticlib")
+        let staticFmwk = Target.test(name: "StaticFramework",
+                                     platform: .macOS,
+                                     product: .staticLibrary,
+                                     bundleId: "com.example.staticfmwk")
+
+        let project = Project.test(targets: [tool, staticLib, staticFmwk])
+        let graph = Graph.create(project: project,
+                                 dependencies: [
+                                     (target: tool, dependencies: [staticLib, staticFmwk]),
+                                     (target: staticLib, dependencies: []),
+                                     (target: staticFmwk, dependencies: []),
+                                 ])
+
+        // When
+        let got = subject.lint(graph: graph)
+
+        // Then
+        XCTAssertEmpty(got)
+    }
 }

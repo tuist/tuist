@@ -60,7 +60,7 @@ public final class FrameworkNodeLoader: FrameworkNodeLoading {
         let dependencies: [PrecompiledNode.Dependency] = try otoolController
             .dlybDependenciesPath(forBinaryAt: binaryPath)
             .filter { $0.contains("@rpath") }
-            .map { String($0.dropFirst(7)) }
+            .map { String($0.dropFirst(7)) } // dropping @rpath/
             .compactMap { (dependencyPath: String) in
                 let name = String(dependencyPath.split(separator: "/").first ?? "")
                 guard !path.pathString.contains(name) else { return nil }

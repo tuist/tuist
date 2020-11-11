@@ -5,7 +5,8 @@ public struct Constants {
     public static let binFolderName = ".tuist-bin"
     public static let binName = "tuist"
     public static let gitRepositoryURL = "https://github.com/tuist/tuist.git"
-    public static let version = "1.23.0"
+    public static let communityURL = "https://community.tuist.io"
+    public static let version = "1.24.0"
     public static let bundleName: String = "tuist.zip"
     public static let trueValues: [String] = ["1", "true", "TRUE", "yes", "YES"]
     public static let tuistDirectoryName: String = "Tuist"
@@ -16,6 +17,7 @@ public struct Constants {
     public static let masterKey = "master.key"
     public static let encryptedExtension = "encrypted"
     public static let templatesDirectoryName: String = "Templates"
+    public static let vendorDirectoryName: String = "vendor"
     public static let twitterHandle: String = "tuistio"
     public static let joinSlackURL: String = "https://slack.tuist.io/"
     public static let tuistGeneratedFileName = ".tuist-generated"
