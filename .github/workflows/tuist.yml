@@ -63,6 +63,7 @@ jobs:
             'generate-4',
             'generate-5',
             'generate-6',
+            'generate-7',
             'init',
             'lint-project',
             'lint-code',
