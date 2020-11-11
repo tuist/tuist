@@ -1,6 +1,7 @@
 import Foundation
 import TSCBasic
 import TuistCore
+import TuistPlugin
 import XCTest
 
 @testable import TuistCoreTesting
@@ -24,7 +25,7 @@ final class LintCodeServiceTests: TuistUnitTestCase {
         graphLoader = MockGraphLoader()
 
         subject = LintCodeService(codeLinter: codeLinter,
-                                  manifestLoading: manifestLoader,
+                                  manifestLoader: manifestLoader,
                                   graphLoader: graphLoader)
     }
 
@@ -59,7 +60,7 @@ final class LintCodeServiceTests: TuistUnitTestCase {
             "/path1": [.test(target: target01), .test(target: target02), .test(target: target03)],
         ])
         let fakeNoExistTargetName = "Target_999"
-        graphLoader.loadWorkspaceStub = { _ in graph }
+        graphLoader.loadWorkspaceStub = { _, _ in graph }
 
         // When
         XCTAssertThrowsSpecific(try subject.run(path: path.pathString, targetName: fakeNoExistTargetName), LintCodeServiceError.targetNotFound(fakeNoExistTargetName))
@@ -78,7 +79,7 @@ final class LintCodeServiceTests: TuistUnitTestCase {
                 "/path1": [.test(target: target01), .test(target: target02), .test(target: target03)],
             ]
         )
-        graphLoader.loadWorkspaceStub = { _ in graph }
+        graphLoader.loadWorkspaceStub = { _, _ in graph }
 
         // When
         XCTAssertThrowsSpecific(try subject.run(path: path.pathString, targetName: target01.name), LintCodeServiceError.lintableFilesForTargetNotFound(target01.name))
@@ -118,7 +119,7 @@ final class LintCodeServiceTests: TuistUnitTestCase {
                 "/path1": [.test(target: target01), .test(target: target02), .test(target: target03)],
             ]
         )
-        graphLoader.loadWorkspaceStub = { _ in graph }
+        graphLoader.loadWorkspaceStub = { _, _ in graph }
 
         // When
         try subject.run(path: path.pathString, targetName: nil)
@@ -167,7 +168,7 @@ final class LintCodeServiceTests: TuistUnitTestCase {
                 "/path1": [.test(target: target01), .test(target: target02), .test(target: target03)],
             ]
         )
-        graphLoader.loadProjectStub = { _ in (graph, Project.test()) }
+        graphLoader.loadProjectStub = { _, _ in (graph, Project.test()) }
 
         // When
         try subject.run(path: path.pathString, targetName: nil)
@@ -213,7 +214,7 @@ final class LintCodeServiceTests: TuistUnitTestCase {
         let graph = Graph.test(targets: [
             "/path1": [.test(target: target01), .test(target: target02), .test(target: target03)],
         ])
-        graphLoader.loadWorkspaceStub = { _ in graph }
+        graphLoader.loadWorkspaceStub = { _, _ in graph }
 
         // When
         try subject.run(path: path.pathString, targetName: target01.name)

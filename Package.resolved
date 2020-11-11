@@ -96,8 +96,8 @@
         "repositoryURL": "https://github.com/kishikawakatsumi/KeychainAccess.git",
         "state": {
           "branch": null,
-          "revision": "3d0ea2c0806791abcc5d7f0d9f62f1cfd4a7264d",
-          "version": "4.2.0"
+          "revision": "654d52d30f3dd4592e944c3e0bccb53178c992f6",
+          "version": "4.2.1"
         }
       },
       {
@@ -140,9 +140,9 @@
         "package": "Stencil",
         "repositoryURL": "https://github.com/stencilproject/Stencil.git",
         "state": {
-          "branch": "master",
-          "revision": "22440c53690c84603cea018a5204c0f1e770461d",
-          "version": null
+          "branch": null,
+          "revision": "94197b3adbbf926348ad8765476a158aa4e54f8a",
+          "version": "0.14.0"
         }
       },
       {
@@ -150,7 +150,7 @@
         "repositoryURL": "https://github.com/fortmarek/StencilSwiftKit.git",
         "state": {
           "branch": "stable",
-          "revision": "33cf26bc68f3aced91cb810bc0a4e5ce445a140f",
+          "revision": "99ac008eb7026e40af7fc882d5788f5de6eda47e",
           "version": null
         }
       },
@@ -231,8 +231,8 @@
         "repositoryURL": "https://github.com/jpsim/Yams.git",
         "state": {
           "branch": null,
-          "revision": "138cf1b701cf825233b92ceac919152d5aba8a3f",
-          "version": "4.0.1"
+          "revision": "88caa2e6fffdbef2e91c2022d038576062042907",
+          "version": "4.0.0"
         }
       },
       {

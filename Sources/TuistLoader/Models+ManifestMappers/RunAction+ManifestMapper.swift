@@ -2,12 +2,13 @@ import Foundation
 import ProjectDescription
 import TSCBasic
 import TuistCore
+import TuistSupport
 
 extension TuistCore.RunAction {
     /// Maps a ProjectDescription.RunAction instance into a TuistCore.RunAction instance.
     /// - Parameters:
     ///   - manifest: Manifest representation of  the settings.
-    ///   - generatorPaths: Generator paths.
+    ///   - pathResolver: A path resolver.
     static func from(manifest: ProjectDescription.RunAction,
                      generatorPaths: GeneratorPaths) throws -> TuistCore.RunAction
     {

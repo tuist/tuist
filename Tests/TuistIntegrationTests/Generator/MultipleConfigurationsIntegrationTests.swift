@@ -300,7 +300,7 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
         let linter = GraphLinter()
         let graphLoader = GraphLoader(modelLoader: modelLoader)
 
-        let graph = try graphLoader.loadWorkspace(path: temporaryPath)
+        let graph = try graphLoader.loadWorkspace(path: temporaryPath, plugins: .none)
         try linter.lint(graph: graph).printAndThrowIfNeeded()
         let descriptor = try subject.generateWorkspace(graph: graph)
         try writer.write(workspace: descriptor)
@@ -335,7 +335,7 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
     }
 
     private func createConfig() -> Config {
-        Config(compatibleXcodeVersions: .all, cloud: nil, generationOptions: [], path: nil)
+        Config(compatibleXcodeVersions: .all, cloud: nil, plugins: [], generationOptions: [], path: nil)
     }
 
     private func createWorkspace(path: AbsolutePath, projects: [String]) throws -> Workspace {

@@ -3,17 +3,21 @@ import TSCBasic
 import TuistSupport
 
 public protocol GraphLoading: AnyObject {
-    /// Path to the directory that contains the project.
-    /// - Parameter path: Path to the directory that contains the project.
-    func loadProject(path: AbsolutePath) throws -> (Graph, Project)
+    /// Loads the project at the given path using the given plugins.
+    /// - Parameters:
+    ///   - path: Path to the directory that contains the project.
+    ///   - plugins: The plugins used when loading the project.
+    func loadProject(path: AbsolutePath, plugins: Plugins) throws -> (Graph, Project)
 
-    /// Loads the graph for the workspace in the given directory.
-    /// - Parameter path: Path to the directory that contains the workspace.
-    func loadWorkspace(path: AbsolutePath) throws -> Graph
+    /// Loads the workspace at the given path using the given plugins.
+    /// - Parameters:
+    ///   - path: Path to the directory that contains the workspace.
+    ///   - plugins: The plugins used when loading the workspace.
+    func loadWorkspace(path: AbsolutePath, plugins: Plugins) throws -> Graph
 
-    /// Loads the configuration.
+    /// Loads the `Config` at the given `path`.
     ///
-    /// - Parameter path: Directory from which look up and load the Config.
+    /// - Parameter path: Directory from which to look up and load the Config.
     /// - Returns: Loaded Config object.
     /// - Throws: An error if the Config.swift can't be parsed.
     func loadConfig(path: AbsolutePath) throws -> Config
@@ -55,14 +59,25 @@ public class GraphLoader: GraphLoading {
 
     // MARK: - GraphLoading
 
-    public func loadProject(path: AbsolutePath) throws -> (Graph, Project) {
+    public func loadProject(path: AbsolutePath, plugins: Plugins) throws -> (Graph, Project) {
         let graphLoaderCache = GraphLoaderCache()
         let graphCircularDetector = GraphCircularDetector()
 
-        let project = try loadProject(at: path, graphLoaderCache: graphLoaderCache, graphCircularDetector: graphCircularDetector)
+        let project = try loadProject(
+            at: path,
+            graphLoaderCache: graphLoaderCache,
+            graphCircularDetector: graphCircularDetector,
+            plugins: plugins
+        )
 
         let entryNodes: [GraphNode] = try project.targets.map { target in
-            try self.loadTarget(name: target.name, path: path, graphLoaderCache: graphLoaderCache, graphCircularDetector: graphCircularDetector)
+            try self.loadTarget(
+                name: target.name,
+                path: path,
+                graphLoaderCache: graphLoaderCache,
+                graphCircularDetector: graphCircularDetector,
+                plugins: plugins
+            )
         }
         let workspace = Workspace(path: project.path, name: project.name, projects: [project.path])
 
@@ -76,23 +91,32 @@ public class GraphLoader: GraphLoading {
         return (graph, project)
     }
 
-    public func loadWorkspace(path: AbsolutePath) throws -> Graph {
+    public func loadWorkspace(path: AbsolutePath, plugins: Plugins) throws -> Graph {
         let graphLoaderCache = GraphLoaderCache()
         let graphCircularDetector = GraphCircularDetector()
-        let workspace = try modelLoader.loadWorkspace(at: path)
+        let workspace = try modelLoader.loadWorkspace(at: path, plugins: plugins)
 
         let projects = try workspace.projects.map { (projectPath) -> (AbsolutePath, Project) in
-            try (projectPath, self.loadProject(at: projectPath, graphLoaderCache: graphLoaderCache, graphCircularDetector: graphCircularDetector))
+            let project = try self.loadProject(
+                at: projectPath,
+                graphLoaderCache: graphLoaderCache,
+                graphCircularDetector: graphCircularDetector,
+                plugins: plugins
+            )
+            return (projectPath, project)
         }
 
         let entryNodes = try projects.flatMap { (project) -> [TargetNode] in
             let projectPath = project.0
             let projectManifest = project.1
             return try projectManifest.targets.map { target in
-                try self.loadTarget(name: target.name,
-                                    path: projectPath,
-                                    graphLoaderCache: graphLoaderCache,
-                                    graphCircularDetector: graphCircularDetector)
+                try self.loadTarget(
+                    name: target.name,
+                    path: projectPath,
+                    graphLoaderCache: graphLoaderCache,
+                    graphCircularDetector: graphCircularDetector,
+                    plugins: plugins
+                )
             }
         }
 
@@ -124,15 +148,19 @@ public class GraphLoader: GraphLoading {
     /// - Parameters:
     ///   - path: Path to the directory that contains the project.
     ///   - cache: Graph loading cache.
+    ///   - graphLoaderCache: The cache for the graph loader.
     ///   - graphCircularDetector: Graph circular detector
-    fileprivate func loadProject(at path: AbsolutePath,
-                                 graphLoaderCache: GraphLoaderCaching,
-                                 graphCircularDetector: GraphCircularDetecting) throws -> Project
-    {
+    ///   - plugins: The plugins to load with the project.
+    fileprivate func loadProject(
+        at path: AbsolutePath,
+        graphLoaderCache: GraphLoaderCaching,
+        graphCircularDetector: GraphCircularDetecting,
+        plugins: Plugins
+    ) throws -> Project {
         if let project = graphLoaderCache.project(path) {
             return project
         } else {
-            let project = try modelLoader.loadProject(at: path)
+            let project = try modelLoader.loadProject(at: path, plugins: plugins)
             graphLoaderCache.add(project: project)
 
             for target in project.targets {
@@ -140,7 +168,8 @@ public class GraphLoader: GraphLoading {
                 _ = try loadTarget(name: target.name,
                                    path: path,
                                    graphLoaderCache: graphLoaderCache,
-                                   graphCircularDetector: graphCircularDetector)
+                                   graphCircularDetector: graphCircularDetector,
+                                   plugins: plugins)
             }
 
             return project
@@ -153,14 +182,22 @@ public class GraphLoader: GraphLoading {
     ///   - path: Path to the directory that contains the project.
     ///   - graphLoaderCache: Graph loader cache.
     ///   - graphCircularDetector: Graph circular dependency detector.
-    fileprivate func loadTarget(name: String,
-                                path: AbsolutePath,
-                                graphLoaderCache: GraphLoaderCaching,
-                                graphCircularDetector: GraphCircularDetecting) throws -> TargetNode
-    {
+    ///   - plugins: The plugins to load with the target.
+    fileprivate func loadTarget(
+        name: String,
+        path: AbsolutePath,
+        graphLoaderCache: GraphLoaderCaching,
+        graphCircularDetector: GraphCircularDetecting,
+        plugins: Plugins
+    ) throws -> TargetNode {
         if let targetNode = graphLoaderCache.targetNode(path, name: name) { return targetNode }
 
-        let project = try loadProject(at: path, graphLoaderCache: graphLoaderCache, graphCircularDetector: graphCircularDetector)
+        let project = try loadProject(
+            at: path,
+            graphLoaderCache: graphLoaderCache,
+            graphCircularDetector: graphCircularDetector,
+            plugins: plugins
+        )
 
         guard let target = project.targets.first(where: { $0.name == name }) else {
             throw GraphLoadingError.targetNotFound(name, path)
@@ -175,7 +212,8 @@ public class GraphLoader: GraphLoading {
                                name: name,
                                platform: target.platform,
                                graphLoaderCache: graphLoaderCache,
-                               graphCircularDetector: graphCircularDetector)
+                               graphCircularDetector: graphCircularDetector,
+                               plugins: plugins)
         }
 
         targetNode.dependencies = dependencies
@@ -193,27 +231,42 @@ public class GraphLoader: GraphLoading {
     ///   - platform: Platform of the target whose dependency is being loaded.
     ///   - graphLoaderCache: Graph loader cache.
     ///   - graphCircularDetector: Graph circular dependency detector.
-    fileprivate func loadDependency(for dependency: Dependency,
-                                    path: AbsolutePath,
-                                    name: String,
-                                    platform: Platform,
-                                    graphLoaderCache: GraphLoaderCaching,
-                                    graphCircularDetector: GraphCircularDetecting) throws -> GraphNode
-    {
+    ///   - plugins: The plugins to use.
+    fileprivate func loadDependency(
+        for dependency: Dependency,
+        path: AbsolutePath,
+        name: String,
+        platform: Platform,
+        graphLoaderCache: GraphLoaderCaching,
+        graphCircularDetector: GraphCircularDetecting,
+        plugins: Plugins
+    ) throws -> GraphNode {
         switch dependency {
         // A target within the same project.
         case let .target(target):
             let circularFrom = GraphCircularDetectorNode(path: path, name: name)
             let circularTo = GraphCircularDetectorNode(path: path, name: target)
             graphCircularDetector.start(from: circularFrom, to: circularTo)
-            return try loadTarget(name: target, path: path, graphLoaderCache: graphLoaderCache, graphCircularDetector: graphCircularDetector)
+            return try loadTarget(
+                name: target,
+                path: path,
+                graphLoaderCache: graphLoaderCache,
+                graphCircularDetector: graphCircularDetector,
+                plugins: plugins
+            )
 
         // A target from another project
         case let .project(target, projectPath):
             let circularFrom = GraphCircularDetectorNode(path: path, name: name)
             let circularTo = GraphCircularDetectorNode(path: projectPath, name: target)
             graphCircularDetector.start(from: circularFrom, to: circularTo)
-            return try loadTarget(name: target, path: projectPath, graphLoaderCache: graphLoaderCache, graphCircularDetector: graphCircularDetector)
+            return try loadTarget(
+                name: target,
+                path: projectPath,
+                graphLoaderCache: graphLoaderCache,
+                graphCircularDetector: graphCircularDetector,
+                plugins: plugins
+            )
 
         // Precompiled framework
         case let .framework(frameworkPath):

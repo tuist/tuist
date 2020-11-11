@@ -3,6 +3,7 @@ import TSCBasic
 import TuistCore
 import TuistGenerator
 import TuistLoader
+import TuistPlugin
 import TuistSupport
 
 enum LintProjectServiceError: FatalError, Equatable {
@@ -27,43 +28,67 @@ enum LintProjectServiceError: FatalError, Equatable {
 }
 
 final class LintProjectService {
-    /// Graph linter
     private let graphLinter: GraphLinting
     private let environmentLinter: EnvironmentLinting
-    private let manifestLoading: ManifestLoading
+    private let manifestLoader: ManifestLoading
+    private let modelLoader: GeneratorModelLoading
     private let graphLoader: GraphLoading
+    private let pluginService: PluginServicing
 
-    init(graphLinter: GraphLinting = GraphLinter(),
-         environmentLinter: EnvironmentLinting = EnvironmentLinter(),
-         manifestLoading: ManifestLoading = ManifestLoader(),
-         graphLoader: GraphLoading = GraphLoader(modelLoader: GeneratorModelLoader(manifestLoader: ManifestLoader(),
-                                                                                   manifestLinter: AnyManifestLinter())))
-    {
+    convenience init(
+        graphLinter: GraphLinting = GraphLinter(),
+        environmentLinter: EnvironmentLinting = EnvironmentLinter(),
+        manifestLoader: ManifestLoading = ManifestLoader(),
+        manifestLinter: ManifestLinting = AnyManifestLinter()
+    ) {
+        let modelLoader = GeneratorModelLoader(manifestLoader: manifestLoader, manifestLinter: manifestLinter)
+        self.init(
+            graphLinter: graphLinter,
+            environmentLinter: environmentLinter,
+            manifestLoader: manifestLoader,
+            modelLoader: modelLoader,
+            graphLoader: GraphLoader(modelLoader: modelLoader)
+        )
+    }
+
+    init(
+        graphLinter: GraphLinting = GraphLinter(),
+        environmentLinter: EnvironmentLinting = EnvironmentLinter(),
+        manifestLoader: ManifestLoading = ManifestLoader(),
+        modelLoader: GeneratorModelLoading = GeneratorModelLoader(manifestLoader: ManifestLoader(), manifestLinter: AnyManifestLinter()),
+        pluginService: PluginServicing = PluginService(),
+        graphLoader: GraphLoading
+    ) {
         self.graphLinter = graphLinter
         self.environmentLinter = environmentLinter
-        self.manifestLoading = manifestLoading
+        self.manifestLoader = manifestLoader
+        self.modelLoader = modelLoader
         self.graphLoader = graphLoader
+        self.pluginService = pluginService
     }
 
     func run(path: String?) throws {
         let path = self.path(path)
 
         // Load graph
-        let manifests = manifestLoading.manifests(at: path)
+        let manifests = manifestLoader.manifests(at: path)
         var graph: Graph!
+        
+        let plugins = try pluginService.loadPlugins(at: path)
 
         logger.notice("Loading the dependency graph")
         if manifests.contains(.workspace) {
             logger.notice("Loading workspace at \(path.pathString)")
-            graph = try graphLoader.loadWorkspace(path: path)
+            graph = try graphLoader.loadWorkspace(path: path, plugins: plugins)
         } else if manifests.contains(.project) {
             logger.notice("Loading project at \(path.pathString)")
-            (graph, _) = try graphLoader.loadProject(path: path)
+            (graph, _) = try graphLoader.loadProject(path: path, plugins: plugins)
         } else {
             throw LintProjectServiceError.manifestNotFound(path)
         }
 
         logger.notice("Running linters")
+
         let config = try graphLoader.loadConfig(path: path)
 
         var issues: [LintingIssue] = []

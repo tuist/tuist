@@ -3,6 +3,7 @@ import TSCBasic
 import TuistCore
 import TuistGenerator
 import TuistLoader
+import TuistPlugin
 import TuistSigning
 import TuistSupport
 
@@ -33,6 +34,7 @@ class Generator: Generating {
     private let projectMapperProvider: ProjectMapperProviding
     private let workspaceMapperProvider: WorkspaceMapperProviding
     private let manifestLoader: ManifestLoading
+    private let pluginService: PluginServicing = PluginService()
 
     convenience init(contentHasher: ContentHashing) {
         self.init(projectMapperProvider: ProjectMapperProvider(contentHasher: contentHasher),
@@ -92,20 +94,23 @@ class Generator: Generating {
     }
 
     // swiftlint:disable:next large_tuple
-    func loadProject(path: AbsolutePath) throws -> (Project, Graph, [SideEffectDescriptor]) {
+    func loadProject(path: AbsolutePath) throws -> (TuistCore.Project, Graph, [SideEffectDescriptor]) {
+        // Load plugins
+        let plugins = try pluginService.loadPlugins(at: path)
+
         // Load all manifests
-        let manifests = try recursiveManifestLoader.loadProject(at: path)
+        let manifests = try recursiveManifestLoader.loadProject(at: path, plugins: plugins)
 
         // Lint Manifests
         try manifests.projects.flatMap {
             manifestLinter.lint(project: $0.value)
         }.printAndThrowIfNeeded()
 
-        // Load config
-        let config = try graphLoader.loadConfig(path: path)
-
         // Convert to models
         let models = try convert(manifests: manifests)
+
+        // Load config
+        let config = try graphLoader.loadConfig(path: path)
 
         // Apply any registered model mappers
         let projectMapper = projectMapperProvider.mapper(config: config)
@@ -116,7 +121,7 @@ class Generator: Generating {
         // Load Graph
         let cachedModelLoader = CachedModelLoader(projects: updatedProjects)
         let cachedGraphLoader = GraphLoader(modelLoader: cachedModelLoader)
-        let (graph, project) = try cachedGraphLoader.loadProject(path: path)
+        let (graph, project) = try cachedGraphLoader.loadProject(path: path, plugins: plugins)
 
         // Apply graph mappers
         let (updatedGraph, graphMapperSideEffects) = try graphMapperProvider.mapper(config: config).map(graph: graph)
@@ -192,7 +197,6 @@ class Generator: Generating {
 
     private func lint(graph: Graph) throws {
         let config = try graphLoader.loadConfig(path: graph.entryPath)
-
         try environmentLinter.lint(config: config).printAndThrowIfNeeded()
         try graphLinter.lint(graph: graph).printAndThrowIfNeeded()
     }
@@ -205,16 +209,16 @@ class Generator: Generating {
 
     // swiftlint:disable:next large_tuple
     private func loadProjectWorkspace(path: AbsolutePath) throws -> (Project, Graph, [SideEffectDescriptor]) {
+        // Fetch & load plugins
+        let plugins = try pluginService.loadPlugins(at: path)
+
         // Load all manifests
-        let manifests = try recursiveManifestLoader.loadProject(at: path)
+        let manifests = try recursiveManifestLoader.loadProject(at: path, plugins: plugins)
 
         // Lint Manifests
         try manifests.projects.flatMap {
             manifestLinter.lint(project: $0.value)
         }.printAndThrowIfNeeded()
-
-        // Load config
-        let config = try graphLoader.loadConfig(path: path)
 
         // Convert to models
         let projects = try convert(manifests: manifests)
@@ -222,6 +226,9 @@ class Generator: Generating {
         let workspaceName = manifests.projects[path]?.name ?? "Workspace"
         let workspace = Workspace(path: path, name: workspaceName, projects: [])
         let models = (workspace: workspace, projects: projects)
+
+        // Load config
+        let config = try graphLoader.loadConfig(path: path)
 
         // Apply any registered model mappers
         let workspaceMapper = workspaceMapperProvider.mapper(config: config)
@@ -232,7 +239,7 @@ class Generator: Generating {
         // Load Graph
         let cachedModelLoader = CachedModelLoader(projects: updatedModels.projects)
         let cachedGraphLoader = GraphLoader(modelLoader: cachedModelLoader)
-        let (graph, project) = try cachedGraphLoader.loadProject(path: path)
+        let (graph, project) = try cachedGraphLoader.loadProject(path: path, plugins: plugins)
 
         // Apply graph mappers
         let (updatedGraph, graphMapperSideEffects) = try graphMapperProvider.mapper(config: config).map(graph: graph)
@@ -247,21 +254,23 @@ class Generator: Generating {
         )
     }
 
-    // swiftlint:disable:next large_tuple
     private func loadWorkspace(path: AbsolutePath) throws -> (Graph, [SideEffectDescriptor]) {
+        // Fetch & load plugins
+        let plugins = try pluginService.loadPlugins(at: path)
+
         // Load all manifests
-        let manifests = try recursiveManifestLoader.loadWorkspace(at: path)
+        let manifests = try recursiveManifestLoader.loadWorkspace(at: path, plugins: plugins)
 
         // Lint Manifests
         try manifests.projects.flatMap {
             manifestLinter.lint(project: $0.value)
         }.printAndThrowIfNeeded()
 
-        // Load config
-        let config = try graphLoader.loadConfig(path: path)
-
         // Convert to models
         let models = try convert(manifests: manifests)
+
+        // Load config
+        let config = try graphLoader.loadConfig(path: path)
 
         // Apply model mappers
         let workspaceMapper = workspaceMapperProvider.mapper(config: config)
@@ -272,7 +281,7 @@ class Generator: Generating {
         // Load Graph
         let cachedModelLoader = CachedModelLoader(workspace: [updatedModels.workspace], projects: updatedModels.projects)
         let cachedGraphLoader = GraphLoader(modelLoader: cachedModelLoader)
-        let graph = try cachedGraphLoader.loadWorkspace(path: path)
+        let graph = try cachedGraphLoader.loadWorkspace(path: path, plugins: plugins)
 
         // Apply graph mappers
         let (mappedGraph, graphMapperSideEffects) = try graphMapperProvider.mapper(config: config).map(graph: graph)

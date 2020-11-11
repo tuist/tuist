@@ -31,7 +31,7 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
 
         subject = createSubject()
 
-        manifestLoader.loadProjectStub = { [unowned self] path in
+        manifestLoader.loadProjectStub = { [unowned self] path, _ in
             guard let manifest = self.projectManifests[path] else {
                 throw ManifestLoaderError.manifestNotFound(.project, path)
             }
@@ -64,7 +64,7 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
         try stub(manifest: project, at: path)
 
         // When
-        let result = try subject.loadProject(at: path)
+        let result = try subject.loadProject(at: path, plugins: .none)
 
         // Then
         XCTAssertEqual(result, project)
@@ -78,10 +78,10 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
         try stub(manifest: project, at: path)
 
         // When
-        _ = try subject.loadProject(at: path)
-        _ = try subject.loadProject(at: path)
-        _ = try subject.loadProject(at: path)
-        let result = try subject.loadProject(at: path)
+        _ = try subject.loadProject(at: path, plugins: .none)
+        _ = try subject.loadProject(at: path, plugins: .none)
+        _ = try subject.loadProject(at: path, plugins: .none)
+        let result = try subject.loadProject(at: path, plugins: .none)
 
         // Then
         XCTAssertEqual(result, project)
@@ -93,12 +93,12 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
         let path = try temporaryPath().appending(component: "App")
         let originalProject = Project.test(name: "Original")
         try stub(manifest: originalProject, at: path)
-        _ = try subject.loadProject(at: path)
+        _ = try subject.loadProject(at: path, plugins: .none)
 
         // When
         let modifiedProject = Project.test(name: "Modified")
         try stub(manifest: modifiedProject, at: path)
-        let result = try subject.loadProject(at: path)
+        let result = try subject.loadProject(at: path, plugins: .none)
 
         // Then
         XCTAssertEqual(result, modifiedProject)
@@ -112,12 +112,12 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
         try stub(manifest: project, at: path)
         try stubHelpers(withHash: "hash")
 
-        _ = try subject.loadProject(at: path)
+        _ = try subject.loadProject(at: path, plugins: .none)
 
         // When
         try stubHelpers(withHash: "updatedHash")
         subject = createSubject() // we need to re-create the subject as it internally caches hashes
-        _ = try subject.loadProject(at: path)
+        _ = try subject.loadProject(at: path, plugins: .none)
 
         // Then
         XCTAssertEqual(recordedLoadProjectCalls, 2)
@@ -131,10 +131,10 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
         environment.manifestLoadingVariables = ["NAME": "A"]
 
         // When
-        _ = try subject.loadProject(at: path)
-        _ = try subject.loadProject(at: path)
-        _ = try subject.loadProject(at: path)
-        let result = try subject.loadProject(at: path)
+        _ = try subject.loadProject(at: path, plugins: .none)
+        _ = try subject.loadProject(at: path, plugins: .none)
+        _ = try subject.loadProject(at: path, plugins: .none)
+        let result = try subject.loadProject(at: path, plugins: .none)
 
         // Then
         XCTAssertEqual(result, project)
@@ -147,11 +147,11 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
         let project = Project.test(name: "App")
         try stub(manifest: project, at: path)
         environment.manifestLoadingVariables = ["NAME": "A"]
-        _ = try subject.loadProject(at: path)
+        _ = try subject.loadProject(at: path, plugins: .none)
 
         // When
         environment.manifestLoadingVariables = ["NAME": "B"]
-        _ = try subject.loadProject(at: path)
+        _ = try subject.loadProject(at: path, plugins: .none)
 
         // Then
         XCTAssertEqual(recordedLoadProjectCalls, 2)
@@ -163,11 +163,11 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
         let project = Project.test(name: "App")
         try stub(manifest: project, at: path)
         subject = createSubject(tuistVersion: "1.0")
-        _ = try subject.loadProject(at: path)
+        _ = try subject.loadProject(at: path, plugins: .none)
 
         // When
         subject = createSubject(tuistVersion: "1.0")
-        _ = try subject.loadProject(at: path)
+        _ = try subject.loadProject(at: path, plugins: .none)
 
         // Then
         XCTAssertEqual(recordedLoadProjectCalls, 1)
@@ -179,11 +179,11 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
         let project = Project.test(name: "App")
         try stub(manifest: project, at: path)
         subject = createSubject(tuistVersion: "1.0")
-        _ = try subject.loadProject(at: path)
+        _ = try subject.loadProject(at: path, plugins: .none)
 
         // When
         subject = createSubject(tuistVersion: "2.0")
-        _ = try subject.loadProject(at: path)
+        _ = try subject.loadProject(at: path, plugins: .none)
 
         // Then
         XCTAssertEqual(recordedLoadProjectCalls, 2)
@@ -194,11 +194,11 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
         let path = try temporaryPath().appending(component: "App")
         let project = Project.test(name: "App")
         try stub(manifest: project, at: path)
-        _ = try subject.loadProject(at: path)
+        _ = try subject.loadProject(at: path, plugins: .none)
 
         // When
         try corruptFiles(at: cacheDirectory)
-        let result = try subject.loadProject(at: path)
+        let result = try subject.loadProject(at: path, plugins: .none)
 
         // Then
         XCTAssertEqual(result, project)
@@ -210,7 +210,7 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
         let path = try temporaryPath().appending(component: "App")
 
         // When / Then
-        XCTAssertThrowsSpecific(try subject.loadProject(at: path),
+        XCTAssertThrowsSpecific(try subject.loadProject(at: path, plugins: .none),
                                 ManifestLoaderError.manifestNotFound(.project, path))
     }
 

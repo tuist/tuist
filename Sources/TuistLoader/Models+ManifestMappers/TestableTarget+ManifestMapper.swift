@@ -2,12 +2,13 @@ import Foundation
 import ProjectDescription
 import TSCBasic
 import TuistCore
+import TuistSupport
 
 extension TuistCore.TestableTarget {
     /// Maps a ProjectDescription.TestableTarget instance into a TuistCore.TestableTarget instance.
     /// - Parameters:
     ///   - manifest: Manifest representation of testable target model.
-    ///   - generatorPaths: Generator paths.
+    ///   - pathResolver: A path resolver
     static func from(manifest: ProjectDescription.TestableTarget,
                      generatorPaths: GeneratorPaths) throws -> TuistCore.TestableTarget
     {

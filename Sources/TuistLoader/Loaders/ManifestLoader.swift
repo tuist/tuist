@@ -3,6 +3,7 @@ import ProjectDescription
 import RxBlocking
 import RxSwift
 import TSCBasic
+import TuistCore
 import TuistSupport
 
 public enum ManifestLoaderError: FatalError, Equatable {
@@ -66,25 +67,38 @@ public protocol ManifestLoading {
     func loadConfig(at path: AbsolutePath) throws -> ProjectDescription.Config
 
     /// Loads the Project.swift in the given directory.
-    /// - Parameter path: Path to the directory that contains the Project.swift.
-    func loadProject(at path: AbsolutePath) throws -> ProjectDescription.Project
+    /// - Parameters:
+    ///   - path: Path to the directory that contains the Project.swift.
+    ///   - plugins: The plugins to use to while loading the project.
+    func loadProject(at path: AbsolutePath, plugins: Plugins) throws -> ProjectDescription.Project
 
     /// Loads the Workspace.swift in the given directory.
-    /// - Parameter path: Path to the directory that contains the Workspace.swift
-    func loadWorkspace(at path: AbsolutePath) throws -> ProjectDescription.Workspace
+    /// - Parameters:
+    ///   - path: Path to the directory that contains the Workspace.swift
+    ///   - plugins: The plugins to use to while loading the workspace.
+    func loadWorkspace(at path: AbsolutePath, plugins: Plugins) throws -> ProjectDescription.Workspace
 
     /// Loads the Setup.swift in the given directory.
-    /// - Parameter path: Path to the directory that contains the Setup.swift.
-    func loadSetup(at path: AbsolutePath) throws -> [Upping]
+    /// - Parameters:
+    ///     -  path: Path to the directory that contains the Setup.swift.
+    ///     - plugins: The plugins to use while loading the manifest.
+    func loadSetup(at path: AbsolutePath, plugins: Plugins) throws -> [Upping]
 
     /// Loads the name_of_template.swift in the given directory.
     /// - Parameters:
     ///     - path: Path to the directory that contains the name_of_template.swift
-    func loadTemplate(at path: AbsolutePath) throws -> ProjectDescription.Template
+    ///     - plugins: The plugins to use while loading the manifest.
+    func loadTemplate(at path: AbsolutePath, plugins: Plugins) throws -> ProjectDescription.Template
 
     /// Loads the Dependencies.swift in the given directory
-    /// - Parameter path: Path to the directory that containst Dependencies.swift
-    func loadDependencies(at path: AbsolutePath) throws -> ProjectDescription.Dependencies
+    /// - Parameters:
+    ///     -  path: Path to the directory that contains Dependencies.swift
+    ///     - plugins: The plugins to use while loading the manifest.
+    func loadDependencies(at path: AbsolutePath, plugins: Plugins) throws -> ProjectDescription.Dependencies
+
+    /// Loads the Plugin.swift in the given directory.
+    /// - Parameter path: Path to the directory that contains Plugin.swift
+    func loadPlugin(at path: AbsolutePath) throws -> ProjectDescription.Plugin
 
     /// List all the manifests in the given directory.
     /// - Parameter path: Path to the directory whose manifest files will be returend.
@@ -128,25 +142,29 @@ public class ManifestLoader: ManifestLoading {
         try loadManifest(.config, at: path)
     }
 
-    public func loadProject(at path: AbsolutePath) throws -> ProjectDescription.Project {
-        try loadManifest(.project, at: path)
+    public func loadProject(at path: AbsolutePath, plugins: Plugins) throws -> ProjectDescription.Project {
+        try loadManifest(.project, at: path, plugins: plugins)
     }
 
-    public func loadWorkspace(at path: AbsolutePath) throws -> ProjectDescription.Workspace {
-        try loadManifest(.workspace, at: path)
+    public func loadWorkspace(at path: AbsolutePath, plugins: Plugins) throws -> ProjectDescription.Workspace {
+        try loadManifest(.workspace, at: path, plugins: plugins)
     }
 
-    public func loadTemplate(at path: AbsolutePath) throws -> ProjectDescription.Template {
-        try loadManifest(.template, at: path)
+    public func loadTemplate(at path: AbsolutePath, plugins: Plugins) throws -> ProjectDescription.Template {
+        try loadManifest(.template, at: path, plugins: plugins)
     }
 
-    public func loadSetup(at path: AbsolutePath) throws -> [Upping] {
+    public func loadPlugin(at path: AbsolutePath) throws -> ProjectDescription.Plugin {
+        try loadManifest(.plugin, at: path)
+    }
+
+    public func loadSetup(at path: AbsolutePath, plugins: Plugins) throws -> [Upping] {
         let setupPath = path.appending(component: Manifest.setup.fileName(path))
         guard FileHandler.shared.exists(setupPath) else {
             throw ManifestLoaderError.manifestNotFound(.setup, path)
         }
 
-        let setup = try loadManifestData(at: setupPath)
+        let setup = try loadDataForManifest(.setup, at: setupPath, plugins: plugins)
         let setupJson = try JSON(data: setup)
         let actionsJson: [JSON] = try setupJson.get("actions")
         return try actionsJson.compactMap {
@@ -155,13 +173,13 @@ public class ManifestLoader: ManifestLoading {
         }
     }
 
-    public func loadDependencies(at path: AbsolutePath) throws -> ProjectDescription.Dependencies {
+    public func loadDependencies(at path: AbsolutePath, plugins: Plugins) throws -> ProjectDescription.Dependencies {
         let dependencyPath = path.appending(component: Manifest.dependencies.fileName(path))
         guard FileHandler.shared.exists(dependencyPath) else {
             throw ManifestLoaderError.manifestNotFound(.dependencies, path)
         }
 
-        let dependenciesData = try loadManifestData(at: dependencyPath)
+        let dependenciesData = try loadDataForManifest(.dependencies, at: dependencyPath, plugins: plugins)
         let decoder = JSONDecoder()
 
         return try decoder.decode(Dependencies.self, from: dependenciesData)
@@ -169,7 +187,11 @@ public class ManifestLoader: ManifestLoading {
 
     // MARK: - Private
 
-    private func loadManifest<T: Decodable>(_ manifest: Manifest, at path: AbsolutePath) throws -> T {
+    private func loadManifest<T: Decodable>(
+        _ manifest: Manifest,
+        at path: AbsolutePath,
+        plugins: Plugins = .none
+    ) throws -> T {
         var fileNames = [manifest.fileName(path)]
         if let deprecatedFileName = manifest.deprecatedFileName {
             fileNames.insert(deprecatedFileName, at: 0)
@@ -178,7 +200,7 @@ public class ManifestLoader: ManifestLoading {
         for fileName in fileNames {
             let manifestPath = path.appending(component: fileName)
             if !FileHandler.shared.exists(manifestPath) { continue }
-            let data = try loadManifestData(at: manifestPath)
+            let data = try loadDataForManifest(manifest, at: manifestPath, plugins: plugins)
             if Environment.shared.isVerbose {
                 let string = String(data: data, encoding: .utf8)
                 logger.debug("Trying to load the manifest represented by the following JSON representation:\n\(string ?? "")")
@@ -189,10 +211,16 @@ public class ManifestLoader: ManifestLoading {
         throw ManifestLoaderError.manifestNotFound(manifest, path)
     }
 
-    private func loadManifestData(at path: AbsolutePath) throws -> Data {
+    private func loadDataForManifest(
+        _ manifest: Manifest,
+        at path: AbsolutePath,
+        plugins: Plugins = .none
+    ) throws -> Data {
+        var arguments = [String]()
         let projectDescriptionPath = try resourceLocator.projectDescription()
         let searchPaths = ProjectDescriptionSearchPaths.paths(for: projectDescriptionPath)
-        var arguments: [String] = [
+
+        arguments.append(contentsOf: [
             "/usr/bin/xcrun",
             "swiftc",
             "--driver-mode=swift",
@@ -202,25 +230,31 @@ public class ManifestLoader: ManifestLoading {
             "-F", searchPaths.frameworkSearchPath.pathString,
             "-lProjectDescription",
             "-framework", "ProjectDescription",
-        ]
+        ])
 
-        // Helpers
-        let projectDesciptionHelpersModulePath = try projectDescriptionHelpersBuilder.build(at: path, projectDescriptionSearchPaths: searchPaths)
-        if let projectDesciptionHelpersModulePath = projectDesciptionHelpersModulePath {
-            arguments.append(contentsOf: [
-                "-I", projectDesciptionHelpersModulePath.parentDirectory.pathString,
-                "-L", projectDesciptionHelpersModulePath.parentDirectory.pathString,
-                "-F", projectDesciptionHelpersModulePath.parentDirectory.pathString,
-                "-lProjectDescriptionHelpers",
-            ])
+        let canLoadProjectDescriptionHelpers = manifest != .config && manifest != .plugin
+        if canLoadProjectDescriptionHelpers {
+            let projectDescriptionHelperModules = try projectDescriptionHelpersBuilder.build(
+                at: path,
+                projectDescriptionSearchPaths: searchPaths,
+                customProjectDescriptionHelpers: plugins.projectDescriptionHelpers
+            )
+
+            projectDescriptionHelperModules.forEach {
+                arguments.append(contentsOf: [
+                    "-I", $0.path.parentDirectory.pathString,
+                    "-L", $0.path.parentDirectory.pathString,
+                    "-F", $0.path.parentDirectory.pathString,
+                    "-l\($0.name)",
+                ])
+            }
         }
 
         arguments.append(path.pathString)
         arguments.append("--tuist-dump")
 
-        let result = System.shared.observable(arguments,
-                                              verbose: false,
-                                              environment: environment.manifestLoadingVariables)
+        let result = System.shared
+            .observable(arguments, verbose: false, environment: environment.manifestLoadingVariables)
             .toBlocking()
             .materialize()
 
@@ -228,7 +262,24 @@ public class ManifestLoader: ManifestLoading {
         case let .completed(elements):
             return elements.filter { $0.isStandardOutput }.map(\.value).reduce(into: Data()) { $0.append($1) }
         case let .failed(_, error):
+            handleUnexpectedImportError(in: path, error: error, manifest: manifest, plugins: plugins)
             throw error
         }
+    }
+
+    /// Logs a help message to the user if attempting to import modules that
+    /// are disallowed from certain manifests.
+    private func handleUnexpectedImportError(in path: AbsolutePath, error: Error, manifest: Manifest, plugins: Plugins) {
+        guard case let TuistSupport.SystemError.terminated(command, _, standardError) = error,
+            manifest == .config || manifest == .plugin,
+            command == "swiftc",
+            let errorMessage = String(data: standardError, encoding: .utf8) else { return }
+
+        let defaultHelpersName = ProjectDescriptionHelpersBuilder.defaultHelpersName
+        let helperModules = [defaultHelpersName] + plugins.projectDescriptionHelpers.map(\.name)
+        let hasImportedUnexpectedModule = helperModules.reduce(false) { $0 || errorMessage.contains($1) }
+        guard hasImportedUnexpectedModule else { return }
+
+        logger.error("Can't import \(defaultHelpersName) or plugins in \(manifest.fileName(path))")
     }
 }

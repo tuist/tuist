@@ -41,7 +41,7 @@ final class ListServiceTests: TuistUnitTestCase {
             try expectedTemplates.map(self.temporaryPath().appending)
         }
 
-        templateLoader.loadTemplateStub = { _ in
+        templateLoader.loadTemplateStub = { _, _ in
             Template(description: "description")
         }
 
@@ -72,7 +72,7 @@ final class ListServiceTests: TuistUnitTestCase {
             try expectedTemplates.map(self.temporaryPath().appending)
         }
 
-        templateLoader.loadTemplateStub = { _ in
+        templateLoader.loadTemplateStub = { _, _ in
             Template(description: "description")
         }
 

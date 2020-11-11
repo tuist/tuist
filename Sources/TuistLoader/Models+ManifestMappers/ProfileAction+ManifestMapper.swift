@@ -2,6 +2,7 @@ import Foundation
 import ProjectDescription
 import TSCBasic
 import TuistCore
+import TuistSupport
 
 extension TuistCore.ProfileAction {
     static func from(manifest: ProjectDescription.ProfileAction,

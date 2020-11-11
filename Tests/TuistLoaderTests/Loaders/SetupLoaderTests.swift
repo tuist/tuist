@@ -46,13 +46,13 @@ final class SetupLoaderTests: TuistUnitTestCase {
         manifestFilesLocator.locateSetupStub = setupPath
 
         var receivedPaths = [String]()
-        manifestLoader.loadSetupStub = { gotPath in
+        manifestLoader.loadSetupStub = { gotPath, _ in
             receivedPaths.append(gotPath.pathString)
             return []
         }
 
         // when / then
-        XCTAssertNoThrow(try subject.meet(at: projectPath))
+        XCTAssertNoThrow(try subject.meet(at: projectPath, plugins: .none))
 
         XCTAssertEqual(receivedPaths, [projectPath.pathString])
         XCTAssertEqual(upLinter.lintCount, 0)
@@ -69,10 +69,10 @@ final class SetupLoaderTests: TuistUnitTestCase {
         mockUp2.isMetStub = { _ in false }
         var lintedUps = [Upping]()
         upLinter.lintStub = { up in lintedUps.append(up); return [] }
-        manifestLoader.loadSetupStub = { _ in [mockUp1, mockUp2] }
+        manifestLoader.loadSetupStub = { _, _ in [mockUp1, mockUp2] }
 
         // when / then
-        XCTAssertNoThrow(try subject.meet(at: projectPath))
+        XCTAssertNoThrow(try subject.meet(at: projectPath, plugins: .none))
 
         XCTAssertEqual(mockUp1.meetCallCount, 0)
         XCTAssertEqual(mockUp2.meetCallCount, 1)
@@ -95,10 +95,10 @@ final class SetupLoaderTests: TuistUnitTestCase {
         mockUp2.isMetStub = { _ in false }
         var lintedUps = [Upping]()
         upLinter.lintStub = { up in lintedUps.append(up); return [] }
-        manifestLoader.loadSetupStub = { _ in [mockUp1, mockUp2] }
+        manifestLoader.loadSetupStub = { _, _ in [mockUp1, mockUp2] }
 
         // when / then
-        XCTAssertNoThrow(try subject.meet(at: projectPath))
+        XCTAssertNoThrow(try subject.meet(at: projectPath, plugins: .none))
 
         XCTAssertEqual(mockUp1.meetCallCount, 0)
         XCTAssertEqual(mockUp2.meetCallCount, 1)
@@ -113,10 +113,10 @@ final class SetupLoaderTests: TuistUnitTestCase {
         // given
         let projectPath = try temporaryPath()
         manifestFilesLocator.locateSetupStub = projectPath.appending(component: Manifest.setup.fileName(projectPath))
-        manifestLoader.loadSetupStub = { _ in throw ManifestLoaderError.manifestNotFound(.setup, projectPath) }
+        manifestLoader.loadSetupStub = { _, _ in throw ManifestLoaderError.manifestNotFound(.setup, projectPath) }
 
         // when / then
-        XCTAssertThrowsSpecific(try subject.meet(at: projectPath),
+        XCTAssertThrowsSpecific(try subject.meet(at: projectPath, plugins: .none),
                                 ManifestLoaderError.manifestNotFound(.setup, projectPath))
     }
 }

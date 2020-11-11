@@ -61,7 +61,7 @@ public final class URLSessionScheduler: URLSessionScheduling {
             error = sessionError
             semaphore.signal()
         }.resume()
-        _ = semaphore.wait()
+        semaphore.wait()
         return (error: error, data: data)
     }
 

@@ -30,7 +30,7 @@ final class UpServiceTests: TuistUnitTestCase {
         // given
         let temporaryPath = try self.temporaryPath()
         var receivedPaths = [String]()
-        setupLoader.meetStub = { path in
+        setupLoader.meetStub = { path, _ in
             receivedPaths.append(path.pathString)
         }
 
@@ -46,7 +46,7 @@ final class UpServiceTests: TuistUnitTestCase {
         // given
         let path = AbsolutePath("/path")
         var receivedPaths = [String]()
-        setupLoader.meetStub = { path in
+        setupLoader.meetStub = { path, _ in
             receivedPaths.append(path.pathString)
         }
 

@@ -38,13 +38,14 @@ final class ProjectDescriptionHelpersBuilderIntegrationTests: TuistTestCase {
         let searchPaths = ProjectDescriptionSearchPaths.paths(for: projectDescriptionPath)
 
         // When
-        let paths = try (0 ..< 3).map { _ in try subject.build(at: path, projectDescriptionSearchPaths: searchPaths) }
+        let paths = try (0 ..< 3).map { _ in try subject.build(at: path, projectDescriptionSearchPaths: searchPaths, customProjectDescriptionHelpers: []) }
 
         // Then
         XCTAssertEqual(Set(paths).count, 1)
         XCTAssertNotNil(FileHandler.shared.glob(path, glob: "*/*/ProjectDescriptionHelpers.swiftmodule").first)
         XCTAssertNotNil(FileHandler.shared.glob(path, glob: "*/*/libProjectDescriptionHelpers.dylib").first)
         XCTAssertNotNil(FileHandler.shared.glob(path, glob: "*/*/ProjectDescriptionHelpers.swiftdoc").first)
-        XCTAssertTrue(FileHandler.shared.exists(paths.first!!))
+        let helpersModule = try XCTUnwrap(paths.first?.first)
+        XCTAssertTrue(FileHandler.shared.exists(helpersModule.path))
     }
 }

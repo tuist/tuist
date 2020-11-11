@@ -14,16 +14,19 @@ public protocol GeneratorModelLoading {
     ///
     /// - Parameters:
     ///   - path: The absolute path for the project model to load.
+    ///   - plugins: The plugins to load alongside the project.
     /// - Returns: The Project loaded from the specified path
     /// - Throws: Error encountered during the loading process (e.g. Missing project)
-    func loadProject(at path: AbsolutePath) throws -> Project
+    func loadProject(at path: AbsolutePath, plugins: Plugins) throws -> Project
 
     /// Load a Workspace model at the specified path
     ///
-    /// - Parameter path: The absolute path for the workspace model to load
+    /// - Parameters:
+    ///   - path: The absolute path for the workspace model to load
+    ///   - plugins: The plugins to load alongside the project.
     /// - Returns: The workspace loaded from the specified path
     /// - Throws: Error encountered during the loading process (e.g. Missing workspace)
-    func loadWorkspace(at path: AbsolutePath) throws -> Workspace
+    func loadWorkspace(at path: AbsolutePath, plugins: Plugins) throws -> Workspace
 
     /// Load a Config model at the specified path
     ///
@@ -31,4 +34,11 @@ public protocol GeneratorModelLoading {
     /// - Returns: The config loaded from the specified path
     /// - Throws: Error encountered during the loading process (e.g. Missing Config file)
     func loadConfig(at path: AbsolutePath) throws -> Config
+
+    /// Load a Plugin model at the specified path
+    ///
+    /// - Parameter path: The absolute path for the Plugin model to load
+    /// - Returns: The Plugin loaded from the specified path
+    /// - Throws: Error encountered during the loading process (e.g. Missing Plugin file)
+    func loadPlugin(at path: AbsolutePath) throws -> Plugin
 }

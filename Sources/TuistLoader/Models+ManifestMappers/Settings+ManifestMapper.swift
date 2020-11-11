@@ -2,6 +2,7 @@ import Foundation
 import ProjectDescription
 import TSCBasic
 import TuistCore
+import TuistSupport
 
 extension TuistCore.Settings {
     typealias BuildConfigurationTuple = (TuistCore.BuildConfiguration, TuistCore.Configuration?)
@@ -9,7 +10,7 @@ extension TuistCore.Settings {
     /// Maps a ProjectDescription.Settings instance into a TuistCore.Settings instance.
     /// - Parameters:
     ///   - manifest: Manifest representation of  the settings.
-    ///   - generatorPaths: Generator paths.
+    ///   - pathResolver: A path resolver.
     static func from(manifest: ProjectDescription.Settings, generatorPaths: GeneratorPaths) throws -> TuistCore.Settings {
         let base = manifest.base.mapValues(TuistCore.SettingValue.from)
         let configurations = try manifest.configurations

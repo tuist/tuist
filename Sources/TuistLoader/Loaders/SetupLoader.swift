@@ -1,5 +1,6 @@
 import Foundation
 import TSCBasic
+import TuistCore
 import TuistSupport
 
 enum SetupLoaderError: FatalError {
@@ -24,9 +25,11 @@ enum SetupLoaderError: FatalError {
 public protocol SetupLoading {
     /// It runs meet on each command if it is not met.
     ///
-    /// - Parameter path: Path to the project.
+    /// - Parameters:
+    ///     - path: Path to the project.
+    ///     - plugins: The plugins used to load the manifest.
     /// - Throws: An error if any of the commands exit unsuccessfully.
-    func meet(at path: AbsolutePath) throws
+    func meet(at path: AbsolutePath, plugins: Plugins) throws
 }
 
 public class SetupLoader: SetupLoading {
@@ -64,16 +67,18 @@ public class SetupLoader: SetupLoading {
 
     /// It runs meet on each command if it is not met.
     ///
-    /// - Parameter path: Path to the project.
+    /// - Parameters:
+    ///     - path: Path to the project.
+    ///     - plugins: The plugins used to load the manifest.
     /// - Throws: An error if any of the commands exit unsuccessfully
     ///           or if there isn't a `Setup.swift` file within the project path.
-    public func meet(at path: AbsolutePath) throws {
+    public func meet(at path: AbsolutePath, plugins: Plugins) throws {
         guard let setupPath = manifestFilesLocator.locateSetup(at: path) else { throw SetupLoaderError.setupNotFound(path) }
         logger.info("Setting up the environment defined in \(setupPath).pathString)")
 
         let setupParentPath = setupPath.parentDirectory
 
-        let setup = try manifestLoader.loadSetup(at: setupParentPath)
+        let setup = try manifestLoader.loadSetup(at: setupParentPath, plugins: plugins)
         try setup.map { command in upLinter.lint(up: command) }
             .flatMap { $0 }
             .printAndThrowIfNeeded()

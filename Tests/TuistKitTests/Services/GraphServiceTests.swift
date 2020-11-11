@@ -19,8 +19,7 @@ final class GraphServiceTests: TuistUnitTestCase {
         super.setUp()
         graphVizGenerator = MockGraphVizGenerator()
         manifestLoader = MockManifestLoader()
-        subject = GraphService(graphVizGenerator: graphVizGenerator,
-                               manifestLoader: manifestLoader)
+        subject = GraphService(manifestLoader: manifestLoader, graphVizGenerator: graphVizGenerator)
     }
 
     override func tearDown() {

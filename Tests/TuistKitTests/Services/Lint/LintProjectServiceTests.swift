@@ -23,7 +23,7 @@ final class LintProjectServiceTests: TuistUnitTestCase {
         graphLoader = MockGraphLoader()
         subject = LintProjectService(graphLinter: graphLinter,
                                      environmentLinter: environmentLinter,
-                                     manifestLoading: manifestLoader,
+                                     manifestLoader: manifestLoader,
                                      graphLoader: graphLoader)
         super.setUp()
     }

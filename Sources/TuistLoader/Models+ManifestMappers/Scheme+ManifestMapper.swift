@@ -2,12 +2,13 @@ import Foundation
 import ProjectDescription
 import TSCBasic
 import TuistCore
+import TuistSupport
 
 extension TuistCore.Scheme {
     /// Maps a ProjectDescription.Scheme instance into a TuistCore.Scheme instance.
     /// - Parameters:
     ///   - manifest: Manifest representation of build action model.
-    ///   - generatorPaths: Generator paths.
+    ///   - pathResolver: A path resolver.
     static func from(manifest: ProjectDescription.Scheme, generatorPaths: GeneratorPaths) throws -> TuistCore.Scheme {
         let name = manifest.name
         let shared = manifest.shared

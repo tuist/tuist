@@ -4,6 +4,7 @@ import TSCBasic
 import TuistCore
 import TuistGenerator
 import TuistLoader
+import TuistPlugin
 import TuistSupport
 
 enum LintCodeServiceError: FatalError, Equatable {
@@ -38,18 +39,40 @@ enum LintCodeServiceError: FatalError, Equatable {
 final class LintCodeService {
     private let rootDirectoryLocator: RootDirectoryLocating
     private let codeLinter: CodeLinting
+    private let manifestLoader: ManifestLoading
+    private let modelLoader: GeneratorModelLoading
     private let graphLoader: GraphLoading
-    private let manifestLoading: ManifestLoading
+    private let pluginService: PluginServicing
 
-    init(rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator(),
-         codeLinter: CodeLinting = CodeLinter(),
-         manifestLoading: ManifestLoading = ManifestLoader(),
-         graphLoader: GraphLoading = GraphLoader(modelLoader: GeneratorModelLoader(manifestLoader: ManifestLoader(),
-                                                                                   manifestLinter: AnyManifestLinter())))
-    {
+    convenience init(
+        rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator(),
+        codeLinter: CodeLinting = CodeLinter(),
+        manifestLoader: ManifestLoading = ManifestLoader(),
+        manifestLinter: ManifestLinting = AnyManifestLinter()
+    ) {
+        let modelLoader = GeneratorModelLoader(manifestLoader: manifestLoader, manifestLinter: manifestLinter)
+        self.init(
+            rootDirectoryLocator: rootDirectoryLocator,
+            codeLinter: codeLinter,
+            manifestLoader: manifestLoader,
+            modelLoader: modelLoader,
+            graphLoader: GraphLoader(modelLoader: modelLoader)
+        )
+    }
+
+    init(
+        rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator(),
+        codeLinter: CodeLinting = CodeLinter(),
+        manifestLoader: ManifestLoading = ManifestLoader(),
+        modelLoader: GeneratorModelLoading = GeneratorModelLoader(manifestLoader: ManifestLoader(), manifestLinter: AnyManifestLinter()),
+        pluginService: PluginServicing = PluginService(),
+        graphLoader: GraphLoading
+    ) {
         self.rootDirectoryLocator = rootDirectoryLocator
         self.codeLinter = codeLinter
-        self.manifestLoading = manifestLoading
+        self.manifestLoader = manifestLoader
+        self.modelLoader = modelLoader
+        self.pluginService = pluginService
         self.graphLoader = graphLoader
     }
 
@@ -79,16 +102,18 @@ final class LintCodeService {
     // MARK: - Load dependency graph
 
     private func loadDependencyGraph(at path: AbsolutePath) throws -> Graph {
-        let manifests = manifestLoading.manifests(at: path)
+        let manifests = manifestLoader.manifests(at: path)
+
+        let plugins = try pluginService.loadPlugins(at: path)
 
         logger.notice("Loading the dependency graph")
         if manifests.contains(.workspace) {
             logger.notice("Loading workspace at \(path.pathString)")
-            let graph = try graphLoader.loadWorkspace(path: path)
+            let graph = try graphLoader.loadWorkspace(path: path, plugins: plugins)
             return graph
         } else if manifests.contains(.project) {
             logger.notice("Loading project at \(path.pathString)")
-            let (graph, _) = try graphLoader.loadProject(path: path)
+            let (graph, _) = try graphLoader.loadProject(path: path, plugins: plugins)
             return graph
         } else {
             throw LintCodeServiceError.manifestNotFound(path)

@@ -4,32 +4,44 @@ import GraphViz
 import TSCBasic
 import TuistGenerator
 import TuistLoader
+import TuistPlugin
 import TuistSupport
 
 final class GraphService {
-    /// Dot graph generator.
-    private let graphVizGenerator: GraphVizGenerating
-
     /// Manifest loader.
     private let manifestLoader: ManifestLoading
 
-    init(graphVizGenerator: GraphVizGenerating = GraphVizGenerator(modelLoader: GeneratorModelLoader(manifestLoader: ManifestLoader(),
-                                                                                                     manifestLinter: ManifestLinter())),
-    manifestLoader: ManifestLoading = ManifestLoader()) {
-        self.graphVizGenerator = graphVizGenerator
+    /// Plugin service for loading plugins.
+    private let pluginService: PluginServicing
+
+    /// Dot graph generator.
+    private let graphVizGenerator: GraphVizGenerating
+
+    init(
+        manifestLoader: ManifestLoading = ManifestLoader(),
+        pluginService: PluginServicing = PluginService(),
+        graphVizGenerator: GraphVizGenerating = GraphVizGenerator(modelLoader: GeneratorModelLoader(manifestLoader: ManifestLoader(),
+                                                                                                    manifestLinter: ManifestLinter()))
+    ) {
         self.manifestLoader = manifestLoader
+        self.pluginService = pluginService
+        self.graphVizGenerator = graphVizGenerator
     }
 
-    func run(format: GraphFormat,
-             layoutAlgorithm: GraphViz.LayoutAlgorithm,
-             skipTestTargets: Bool,
-             skipExternalDependencies: Bool,
-             path: String?) throws
-    {
-        let graphVizGraph = try graphVizGenerator.generate(at: FileHandler.shared.currentPath,
+    func run(
+        format: GraphFormat,
+        layoutAlgorithm: GraphViz.LayoutAlgorithm,
+        skipTestTargets: Bool,
+        skipExternalDependencies: Bool,
+        path: String?
+    ) throws {
+        let genPath = FileHandler.shared.currentPath
+        let plugins = try pluginService.loadPlugins(at: genPath)
+        let graphVizGraph = try graphVizGenerator.generate(at: genPath,
                                                            manifestLoader: manifestLoader,
                                                            skipTestTargets: skipTestTargets,
-                                                           skipExternalDependencies: skipExternalDependencies)
+                                                           skipExternalDependencies: skipExternalDependencies,
+                                                           plugins: plugins)
         let filePath = makeAbsolutePath(from: path).appending(component: "graph.\(format.rawValue)")
         if FileHandler.shared.exists(filePath) {
             logger.notice("Deleting existing graph at \(filePath.pathString)")

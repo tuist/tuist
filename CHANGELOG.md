@@ -4,14 +4,15 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Changed
+
+-  Added `Plugin` manifest which adds ability to extend Tuist. `Plugin` can be `helpers` which allow adding functionality to `ProjectDescription`. Plugins can be remote or local. [#2026](https://github.com/tuist/tuist/pull/2026), RFC: [#2021](https://github.com/tuist/tuist/issues/2021) by [@luispadron](https://github.com/luispadron).
+
 ## 1.26.0 - New World
 
 ### Added
 
 - Extend the tree-shaking logic to include workspace projects and targets [#2056](https://github.com/tuist/tuist/pull/2056) by [@pepibumur](https://github.com/pepibumur).
-
-### Changed
-
 - Change `launchArguments` of `Target` and `RunAction` to ordered array so order can be preserved [#2052](https://github.com/tuist/tuist/pull/2052) by [@olejnjak](https://github.com/olejnjak).
 - Added `Package.swift` to some subdirectories to prevent Xcode from including them in the generated Xcode project [#2058](https://github.com/tuist/tuist/pull/2058) by [@pepibumur](https://github.com/pepibumur).
 

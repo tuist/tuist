@@ -170,3 +170,9 @@ extension Dependencies {
         Dependencies([.carthage(name: name, requirement: requirement, platforms: [.iOS])])
     }
 }
+
+extension Plugin {
+    public static func test(type: PluginType = .helper(name: "TestPlugin")) -> Plugin {
+        Plugin(type: type)
+    }
+}

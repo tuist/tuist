@@ -6,7 +6,7 @@ extension TuistCore.SDKStatus {
     /// Maps a ProjectDescription.SDKStatus instance into a TuistCore.SDKStatus instance.
     /// - Parameters:
     ///   - manifest: Manifest representation of SDK status model.
-    ///   - generatorPaths: Generator paths.
+    ///   - pathResolver: Generator paths.
     static func from(manifest: ProjectDescription.SDKStatus) -> TuistCore.SDKStatus {
         switch manifest {
         case .required:

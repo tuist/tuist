@@ -1,6 +1,7 @@
 import Foundation
 import ProjectDescription
 import TSCBasic
+import TuistCore
 import TuistSupport
 
 /// Cached Manifest Loader
@@ -49,36 +50,42 @@ public class CachedManifestLoader: ManifestLoading {
         self.tuistVersion = tuistVersion
     }
 
-    public func loadConfig(at path: AbsolutePath) throws -> Config {
+    public func loadConfig(at path: AbsolutePath) throws -> ProjectDescription.Config {
         try load(manifest: .config, at: path) {
             try manifestLoader.loadConfig(at: path)
         }
     }
 
-    public func loadProject(at path: AbsolutePath) throws -> Project {
+    public func loadProject(at path: AbsolutePath, plugins: Plugins) throws -> ProjectDescription.Project {
         try load(manifest: .project, at: path) {
-            try manifestLoader.loadProject(at: path)
+            try manifestLoader.loadProject(at: path, plugins: plugins)
         }
     }
 
-    public func loadWorkspace(at path: AbsolutePath) throws -> Workspace {
+    public func loadWorkspace(at path: AbsolutePath, plugins: Plugins) throws -> ProjectDescription.Workspace {
         try load(manifest: .workspace, at: path) {
-            try manifestLoader.loadWorkspace(at: path)
+            try manifestLoader.loadWorkspace(at: path, plugins: plugins)
         }
     }
 
-    public func loadSetup(at path: AbsolutePath) throws -> [Upping] {
-        try manifestLoader.loadSetup(at: path)
+    public func loadSetup(at path: AbsolutePath, plugins: Plugins) throws -> [Upping] {
+        try manifestLoader.loadSetup(at: path, plugins: plugins)
     }
 
-    public func loadTemplate(at path: AbsolutePath) throws -> Template {
+    public func loadTemplate(at path: AbsolutePath, plugins: Plugins) throws -> ProjectDescription.Template {
         try load(manifest: .template, at: path) {
-            try manifestLoader.loadTemplate(at: path)
+            try manifestLoader.loadTemplate(at: path, plugins: plugins)
         }
     }
 
-    public func loadDependencies(at path: AbsolutePath) throws -> Dependencies {
-        try manifestLoader.loadDependencies(at: path)
+    public func loadPlugin(at path: AbsolutePath) throws -> ProjectDescription.Plugin {
+        try load(manifest: .plugin, at: path) {
+            try manifestLoader.loadPlugin(at: path)
+        }
+    }
+
+    public func loadDependencies(at path: AbsolutePath, plugins: Plugins) throws -> Dependencies {
+        try manifestLoader.loadDependencies(at: path, plugins: plugins)
     }
 
     public func manifests(at path: AbsolutePath) -> Set<Manifest> {

@@ -8,7 +8,7 @@ extension TuistCore.Workspace {
     /// Maps a ProjectDescription.Workspace instance into a TuistCore.Workspace model.
     /// - Parameters:
     ///   - manifest: Manifest representation of  workspace.
-    ///   - generatorPaths: Generator paths.
+    ///   - pathResolver: A path resolver.
     static func from(manifest: ProjectDescription.Workspace,
                      path: AbsolutePath,
                      generatorPaths: GeneratorPaths,

@@ -38,7 +38,7 @@ final class TestModelGenerator {
                                       xcframeworkNodeLoader: xcframeworkNodeLoader,
                                       libraryNodeLoader: libraryNodeLoader)
 
-        return try graphLoader.loadWorkspace(path: rootPath)
+        return try graphLoader.loadWorkspace(path: rootPath, plugins: .none)
     }
 
     private func createModelLoader() throws -> GeneratorModelLoading {

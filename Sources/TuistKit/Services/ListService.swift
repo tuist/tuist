@@ -2,6 +2,7 @@ import Foundation
 import TSCBasic
 import TuistLoader
 import TuistScaffold
+import TuistPlugin
 import TuistSupport
 
 class ListService {
@@ -14,20 +15,25 @@ class ListService {
 
     private let templatesDirectoryLocator: TemplatesDirectoryLocating
     private let templateLoader: TemplateLoading
+    private let pluginService: PluginServicing
 
-    init(templatesDirectoryLocator: TemplatesDirectoryLocating = TemplatesDirectoryLocator(),
-         templateLoader: TemplateLoading = TemplateLoader())
-    {
+    init(
+        templatesDirectoryLocator: TemplatesDirectoryLocating = TemplatesDirectoryLocator(),
+        templateLoader: TemplateLoading = TemplateLoader(),
+        pluginService: PluginServicing = PluginService()
+    ) {
         self.templatesDirectoryLocator = templatesDirectoryLocator
         self.templateLoader = templateLoader
+        self.pluginService = pluginService
     }
 
     func run(path: String?, outputFormat format: OutputFormat) throws {
         let path = self.path(path)
-
         let templateDirectories = try templatesDirectoryLocator.templateDirectories(at: path)
+        let plugins = try pluginService.loadPlugins(at: path)
+
         let templates: [PrintableTemplate] = try templateDirectories.map { path in
-            let template = try templateLoader.loadTemplate(at: path)
+            let template = try templateLoader.loadTemplate(at: path, plugins: plugins)
             return PrintableTemplate(name: path.basename, description: template.description)
         }
 

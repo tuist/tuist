@@ -8,7 +8,7 @@ extension TuistCore.TargetAction {
     /// Maps a ProjectDescription.TargetAction instance into a TuistCore.TargetAction model.
     /// - Parameters:
     ///   - manifest: Manifest representation of target action.
-    ///   - generatorPaths: Generator paths.
+    ///   - pathResolver: A path resolver.
     static func from(manifest: ProjectDescription.TargetAction, generatorPaths: GeneratorPaths) throws -> TuistCore.TargetAction {
         let name = manifest.name
         let tool = manifest.tool
@@ -37,7 +37,7 @@ extension TuistCore.TargetAction.Order {
     /// Maps a ProjectDescription.TargetAction.Order instance into a TuistCore.TargetAction.Order model.
     /// - Parameters:
     ///   - manifest: Manifest representation of target action order.
-    ///   - generatorPaths: Generator paths.
+    ///   - pathResolver: Generator paths.
     static func from(manifest: ProjectDescription.TargetAction.Order) -> TuistCore.TargetAction.Order {
         switch manifest {
         case .pre:

@@ -37,7 +37,7 @@ final class ScaffoldServiceTests: TuistUnitTestCase {
 
     func test_load_template_options() throws {
         // Given
-        templateLoader.loadTemplateStub = { _ in
+        templateLoader.loadTemplateStub = { _, _ in
             Template(description: "test",
                      attributes: [
                          .required("required"),
@@ -68,7 +68,7 @@ final class ScaffoldServiceTests: TuistUnitTestCase {
 
     func test_fails_when_required_attribute_not_provided() throws {
         // Given
-        templateLoader.loadTemplateStub = { _ in
+        templateLoader.loadTemplateStub = { _, _ in
             Template.test(attributes: [.required("required")])
         }
 
@@ -83,7 +83,7 @@ final class ScaffoldServiceTests: TuistUnitTestCase {
 
     func test_optional_attribute_is_taken_from_template() throws {
         // Given
-        templateLoader.loadTemplateStub = { _ in
+        templateLoader.loadTemplateStub = { _, _ in
             Template.test(attributes: [.optional("optional", default: "optionalValue")])
         }
 
@@ -106,7 +106,7 @@ final class ScaffoldServiceTests: TuistUnitTestCase {
 
     func test_attributes_are_passed_to_generator() throws {
         // Given
-        templateLoader.loadTemplateStub = { _ in
+        templateLoader.loadTemplateStub = { _, _ in
             Template.test(attributes: [.optional("optional", default: ""),
                                        .required("required")])
         }

@@ -1,22 +1,23 @@
 import Foundation
 import ProjectDescription
 import TSCBasic
+import TuistCore
 import TuistSupport
 
 /// A component that can load a manifest and all its (transitive) manifest dependencies
 public protocol RecursiveManifestLoading {
-    func loadProject(at path: AbsolutePath) throws -> LoadedProjects
-    func loadWorkspace(at path: AbsolutePath) throws -> LoadedWorkspace
+    func loadProject(at path: AbsolutePath, plugins: Plugins) throws -> LoadedProjects
+    func loadWorkspace(at path: AbsolutePath, plugins: Plugins) throws -> LoadedWorkspace
 }
 
 public struct LoadedProjects {
-    public var projects: [AbsolutePath: Project]
+    public var projects: [AbsolutePath: ProjectDescription.Project]
 }
 
 public struct LoadedWorkspace {
     public var path: AbsolutePath
-    public var workspace: Workspace
-    public var projects: [AbsolutePath: Project]
+    public var workspace: ProjectDescription.Workspace
+    public var projects: [AbsolutePath: ProjectDescription.Project]
 }
 
 public class RecursiveManifestLoader: RecursiveManifestLoading {
@@ -29,12 +30,12 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
         self.fileHandler = fileHandler
     }
 
-    public func loadProject(at path: AbsolutePath) throws -> LoadedProjects {
-        try loadProjects(paths: [path])
+    public func loadProject(at path: AbsolutePath, plugins: Plugins) throws -> LoadedProjects {
+        try loadProjects(paths: [path], plugins: plugins)
     }
 
-    public func loadWorkspace(at path: AbsolutePath) throws -> LoadedWorkspace {
-        let workspace = try manifestLoader.loadWorkspace(at: path)
+    public func loadWorkspace(at path: AbsolutePath, plugins: Plugins) throws -> LoadedWorkspace {
+        let workspace = try manifestLoader.loadWorkspace(at: path, plugins: plugins)
 
         let generatorPaths = GeneratorPaths(manifestDirectory: path)
         let projectPaths = try workspace.projects.map {
@@ -47,16 +48,14 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
             manifestLoader.manifests(at: $0).contains(.project)
         }
 
-        let projects = try loadProjects(paths: projectPaths)
-        return LoadedWorkspace(path: path,
-                               workspace: workspace,
-                               projects: projects.projects)
+        let projects = try loadProjects(paths: projectPaths, plugins: plugins)
+        return LoadedWorkspace(path: path, workspace: workspace, projects: projects.projects)
     }
 
     // MARK: - Private
 
-    private func loadProjects(paths: [AbsolutePath]) throws -> LoadedProjects {
-        var cache = [AbsolutePath: Project]()
+    private func loadProjects(paths: [AbsolutePath], plugins: Plugins) throws -> LoadedProjects {
+        var cache = [AbsolutePath: ProjectDescription.Project]()
 
         var paths = paths
         while let path = paths.popLast() {
@@ -64,7 +63,7 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
                 continue
             }
 
-            let project = try manifestLoader.loadProject(at: path)
+            let project = try manifestLoader.loadProject(at: path, plugins: plugins)
             cache[path] = project
             paths.append(contentsOf: try dependencyPaths(for: project, path: path))
         }
@@ -72,7 +71,7 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
         return LoadedProjects(projects: cache)
     }
 
-    private func dependencyPaths(for project: Project, path: AbsolutePath) throws -> [AbsolutePath] {
+    private func dependencyPaths(for project: ProjectDescription.Project, path: AbsolutePath) throws -> [AbsolutePath] {
         let generatorPaths = GeneratorPaths(manifestDirectory: path)
         let paths: [AbsolutePath] = try project.targets.flatMap {
             try $0.dependencies.compactMap {

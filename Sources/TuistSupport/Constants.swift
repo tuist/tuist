@@ -34,6 +34,10 @@ public struct Constants {
         public static let signingKeychain = "signing.keychain"
     }
 
+    public enum PluginDirectory {
+        public static let name = "Plugins"
+    }
+
     public struct AsyncQueue {
         public static let directoryName: String = "Queue"
     }

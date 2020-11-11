@@ -8,7 +8,7 @@ extension TuistCore.SettingValue {
     /// Maps a ProjectDescription.SettingValue instance into a TuistCore.SettingValue model.
     /// - Parameters:
     ///   - manifest: Manifest representation of setting value.
-    ///   - generatorPaths: Generator paths.
+    ///   - pathResolver: Generator paths.
     static func from(manifest: ProjectDescription.SettingValue) -> TuistCore.SettingValue {
         switch manifest {
         case let .string(value):
