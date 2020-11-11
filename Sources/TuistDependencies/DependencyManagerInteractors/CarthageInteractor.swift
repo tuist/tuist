@@ -2,6 +2,9 @@ import TSCBasic
 import TuistSupport
 import RxBlocking
 
+#warning("Is it a correct import?")
+import ProjectDescription
+
 // MARK: - Carthage Interactor Errors
 
 enum CarthageInteractorError: FatalError, Equatable {
@@ -27,7 +30,16 @@ enum CarthageInteractorError: FatalError, Equatable {
 
 // MARK: - Carthage Interacting
 
-public protocol CarthageInteracting: DependencyManagerInteracting {
+public protocol CarthageInteracting {
+    /// Installes `Carthage` dependencies.
+    /// - Parameter path: Directory whose project's dependencies will be installed.
+    /// - Parameter method: Installation method.
+    /// - Parameter dependencies: List of `Carthage` dependencies to intall.
+    func install(
+        at path: AbsolutePath,
+        method: InstallDependenciesMethod,
+        dependencies: [ProjectDescription.Dependency]
+    ) throws
 }
 
 // MARK: - Carthage Interactor
@@ -45,12 +57,14 @@ public final class CarthageInteractor: CarthageInteracting {
         self.dependenciesDirectoryController = dependenciesDirectoryController
     }
     
-    #warning("TODO: The hardes part here will be knowing whether we need to recompile the frameworks (Cartfile.resolved)")
-    public func install(at path: AbsolutePath, method: InstallDependenciesMethod) throws {
+    #warning("TODO: The hardes part here will be knowing whether we need to recompile the frameworks")
+    public func install(
+        at path: AbsolutePath,
+        method: InstallDependenciesMethod,
+        dependencies: [ProjectDescription.Dependency]
+    ) throws {
         #warning("TODO: How to determine platforms?")
         let platoforms: Set<CarthageCommandBuilder.Platform> = [.macOS, .watchOS]
-        #warning("TODO: Replace stubbed values with reals.")
-        let dependencies: [CartfileContentBuilder.Dependency] = [.github(name: "Alamofire/Alamofire", version: "5.0.4")]
         
         try withTemporaryDirectory { temporaryDirectoryPath in
             // create `carthage` shell command
@@ -80,7 +94,7 @@ public final class CarthageInteractor: CarthageInteracting {
     
     // MARK: - Helpers
     
-    private func buildCarfileContent(for dependnecies: [CartfileContentBuilder.Dependency]) -> String {
+    private func buildCarfileContent(for dependnecies: [ProjectDescription.Dependency]) -> String {
         CartfileContentBuilder(dependencies: dependnecies)
             .build()
     }

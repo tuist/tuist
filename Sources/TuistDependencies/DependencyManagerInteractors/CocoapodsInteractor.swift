@@ -25,7 +25,7 @@ public enum CocoapodsInteractorError: FatalError {
 
 // MARK: - Cocoapods Interacting
 
-public protocol CocoapodsInteracting: DependencyManagerInteracting {
+public protocol CocoapodsInteracting {
 }
 
 // MARK: - Cocoapods Interactor

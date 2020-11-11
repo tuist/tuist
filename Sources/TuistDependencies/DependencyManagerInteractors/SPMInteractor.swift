@@ -25,7 +25,7 @@ public enum SPMInteractorError: FatalError {
 
 // MARK: - SPM Interacting
 
-public protocol SPMInteracting: DependencyManagerInteracting {
+public protocol SPMInteracting {
 }
 
 // MARK: - SPM Interactor

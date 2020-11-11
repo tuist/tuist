@@ -36,7 +36,12 @@ public protocol DependenciesControlling {
     /// Installes dependencies.
     /// - Parameter path: Directory whose project's dependencies will be installed.
     /// - Parameter method: Installation method.
-    func install(at path: AbsolutePath, method: InstallDependenciesMethod) throws
+    /// - Parameter dependencies: List of dependencies to intall.
+    func install(
+        at path: AbsolutePath,
+        method: InstallDependenciesMethod,
+        dependencies: [ProjectDescription.Dependency]
+    ) throws
 }
 
 // MARK: - Dependencies Controller
@@ -47,18 +52,22 @@ public final class DependenciesController: DependenciesControlling {
     private let cocoapodsInteractor: CocoapodsInteracting
     private let spmInteractor: SPMInteracting
     
-    public init(carthageInteractor: CarthageInteracting = CarthageInteractor(),
-                cocoapodsInteractor: CocoapodsInteracting = CocoapodsInteractor(),
-                spmInteractor: SPMInteracting = SPMInteractor()) {
+    public init(
+        carthageInteractor: CarthageInteracting = CarthageInteractor(),
+        cocoapodsInteractor: CocoapodsInteracting = CocoapodsInteractor(),
+        spmInteractor: SPMInteracting = SPMInteractor()
+    ) {
         self.carthageInteractor = carthageInteractor
         self.cocoapodsInteractor = cocoapodsInteractor
         self.spmInteractor = spmInteractor
     }
     
-    public func install(at path: AbsolutePath, method: InstallDependenciesMethod) throws {
-        logger.notice("Start installing depednencies.")
-        
-        #warning("TODO: Pass depednecies via method's argument or read depednecies from `./Tuist/Dependencies/*`.")
-        try carthageInteractor.install(at: path, method: method)
+    public func install(
+        at path: AbsolutePath,
+        method: InstallDependenciesMethod,
+        dependencies: [ProjectDescription.Dependency]
+    ) throws {
+        let carthageDependencies = dependencies.filter { $0.manager == .carthage }
+        try carthageInteractor.install(at: path, method: method, dependencies: carthageDependencies)
     }
 }
