@@ -82,7 +82,7 @@ public enum TargetDependency: Codable, Equatable {
     public static func sdk(name: String) -> TargetDependency {
         .sdk(name: name, status: .required)
     }
-    
+
     public static func package(product: String) -> TargetDependency {
         .package(product: product, type: .staticLibrary)
     }

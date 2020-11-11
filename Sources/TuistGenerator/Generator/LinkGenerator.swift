@@ -160,12 +160,12 @@ final class LinkGenerator: LinkGenerating {
                                     sourceRootPath: sourceRootPath)
     }
 
-    func generatePackages(target: Target,
+    func generatePackages(target _: Target,
                           pbxTarget: PBXTarget,
                           embeddableFrameworks: [GraphDependencyReference],
                           linkableModules: [GraphDependencyReference],
                           fileElements: ProjectFileElements,
-                          pbxproj: PBXProj) throws
+                          pbxproj _: PBXProj) throws
     {
         let extractPackageProduct: (GraphDependencyReference) -> (name: String, path: AbsolutePath)? = {
             switch $0 {
@@ -175,11 +175,11 @@ final class LinkGenerator: LinkGenerating {
                 return nil
             }
         }
-        
+
         let packageProducts = Set(embeddableFrameworks + linkableModules)
             .sorted()
             .compactMap(extractPackageProduct)
-        
+
         try packageProducts.forEach { packageProduct in
             guard let product = fileElements.packageProduct(name: packageProduct.name, path: packageProduct.path) else {
                 throw LinkGeneratorError.missingProduct(name: packageProduct.name)
@@ -238,7 +238,7 @@ final class LinkGenerator: LinkGenerating {
                 guard let packageProduct = fileElements.packageProduct(name: product, path: path) else {
                     throw LinkGeneratorError.missingProduct(name: product)
                 }
-                
+
                 let buildFile = PBXBuildFile(product: packageProduct,
                                              settings: ["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]])
                 pbxproj.add(object: buildFile)

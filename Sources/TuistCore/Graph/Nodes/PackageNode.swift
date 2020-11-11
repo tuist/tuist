@@ -8,7 +8,7 @@ public class PackageProductNode: GraphNode {
     public let productType: PackageProductType
     public init(product: String, type: PackageProductType, path: AbsolutePath) {
         self.product = product
-        self.productType = type
+        productType = type
         super.init(path: path, name: product)
     }
 }

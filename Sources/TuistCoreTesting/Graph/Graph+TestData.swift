@@ -132,7 +132,7 @@ public extension Graph {
                 }
                 return nil
             }
-            
+
             node.dependencies.append(contentsOf: packageDependencies.map {
                 PackageProductNode(product: $0.0, type: $0.1, path: node.path)
             })

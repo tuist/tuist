@@ -25,7 +25,7 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let app = Target.test(name: "App")
         let framework = Target.test(name: "Framework", product: .framework)
         let project = Project.test(path: "/tmp/app", name: "AppProject", targets: [app])
-        let package = PackageProductNode(product: "PackageLibrary", type:.staticLibrary, path: "/tmp/packageLibrary")
+        let package = PackageProductNode(product: "PackageLibrary", type: .staticLibrary, path: "/tmp/packageLibrary")
         let frameworkNode = TargetNode(project: project, target: framework, dependencies: [package])
         let appNode = TargetNode(project: project, target: app, dependencies: [package, frameworkNode])
         let graph = Graph.test(entryNodes: [appNode, frameworkNode, package],

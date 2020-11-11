@@ -251,13 +251,13 @@ public class Graph: Encodable, Equatable {
         if targetNode.target.canLinkStaticProducts() {
             var staticLibraryTargetNodes = transitiveStaticTargetNodes(for: targetNode)
             var transitivePackageNodes = Set(targetNode.packages + staticLibraryTargetNodes.flatMap(\.packages))
-            
+
             // Exclude any static products linked in a host application
             if targetNode.target.product == .unitTests {
                 if let hostApp = hostApplication(for: targetNode) {
                     let hostAppTransitiveStaticTargetNodes = transitiveStaticTargetNodes(for: hostApp)
                     staticLibraryTargetNodes.subtract(hostAppTransitiveStaticTargetNodes)
-                    
+
                     let hostAppTransitivePackages = Set(hostAppTransitiveStaticTargetNodes.flatMap(\.packages))
                     transitivePackageNodes.subtract(hostAppTransitivePackages)
                 }
@@ -270,7 +270,7 @@ public class Graph: Encodable, Equatable {
                     .filter(or(isFramework, isDynamicLibrary))
                     .map(productDependencyReference)
             }
-            
+
             let packageLibraries = transitivePackageNodes.map(packageProductDependencyReference)
 
             references = references.union(staticLibraries + staticDependenciesDynamicLibraries + packageLibraries)
@@ -283,15 +283,15 @@ public class Graph: Encodable, Equatable {
             .map(productDependencyReference)
 
         references = references.union(dynamicLibrariesAndFrameworks)
-        
+
         // Link dynamic package products
-        
+
         let dynamicPackageProducts = targetNode.packages
             .filter { $0.productType == .dynamicLibrary }
             .map(packageProductDependencyReference)
-        
+
         references = references.union(dynamicPackageProducts)
-        
+
         return Array(references).sorted()
     }
 
@@ -391,18 +391,18 @@ public class Graph: Encodable, Equatable {
 
         /// Other targets
         let otherTargets = findAll(targetNode: targetNode, test: isFramework, skip: canEmbedProducts)
-            
+
         /// Other targets' frameworks.
         let otherTargetFrameworks = otherTargets.map(productDependencyReference)
-        
+
         references.formUnion(otherTargetFrameworks)
-        
+
         /// Other targets' packages.
         let dynamicSwiftPackageLibraries = ([targetNode] + otherTargets)
             .flatMap(\.packages)
             .filter(isDynamicLibrary)
             .map(packageProductDependencyReference)
-        
+
         references.formUnion(dynamicSwiftPackageLibraries)
 
         // Exclude any products embed in unit test host apps
@@ -689,7 +689,7 @@ public class Graph: Encodable, Equatable {
     fileprivate func productDependencyReference(for targetNode: TargetNode) -> GraphDependencyReference {
         .product(target: targetNode.target.name, productName: targetNode.target.productNameWithExtension)
     }
-    
+
     fileprivate func packageProductDependencyReference(for productNode: PackageProductNode) -> GraphDependencyReference {
         .package(
             product: productNode.product,
@@ -709,7 +709,7 @@ public class Graph: Encodable, Equatable {
     fileprivate func isFramework(targetNode: TargetNode) -> Bool {
         targetNode.target.product == .framework
     }
-    
+
     fileprivate func isDynamicLibrary(productNode: PackageProductNode) -> Bool {
         switch productNode.productType {
         case .dynamicLibrary: return true

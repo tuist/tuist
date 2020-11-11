@@ -32,6 +32,7 @@ class ProjectFileElements {
     var knownRegions: Set<String> = Set([])
 
     // MARK: - Private
+
     private var packageProducts: [AbsolutePath: [String: XCSwiftPackageProductDependency]] = [:]
     private let playgrounds: Playgrounding
 
@@ -476,16 +477,17 @@ class ProjectFileElements {
         toGroup.children.append(file)
         sdks[sdkNodePath] = file
     }
-    
+
     private func addPackageProduct(productName: String,
                                    path: AbsolutePath,
-                                   pbxproj: PBXProj) {
+                                   pbxproj: PBXProj)
+    {
         guard packageProduct(name: productName, path: path) == nil else {
             return
         }
         let product = XCSwiftPackageProductDependency(productName: productName)
         packageProducts[path, default: [:]][productName] = product
-        
+
         pbxproj.add(object: product)
     }
 
@@ -504,9 +506,9 @@ class ProjectFileElements {
     func file(path: AbsolutePath) -> PBXFileReference? {
         elements[path] as? PBXFileReference
     }
-    
+
     func packageProduct(name: String, path: AbsolutePath) -> XCSwiftPackageProductDependency? {
-        return packageProducts[path]?[name]
+        packageProducts[path]?[name]
     }
 
     func isLocalized(path: AbsolutePath) -> Bool {

@@ -37,14 +37,12 @@ extension TuistCore.Dependency {
 }
 
 extension TuistCore.PackageProductType {
-        
     static func from(manifest: ProjectDescription.PackageProductType) -> TuistCore.PackageProductType {
-            switch manifest {
-            case .dynamicLibrary:
-                return .dynamicLibrary
-            case .staticLibrary:
-                return .staticLibrary
-            }
+        switch manifest {
+        case .dynamicLibrary:
+            return .dynamicLibrary
+        case .staticLibrary:
+            return .staticLibrary
         }
-    
+    }
 }
