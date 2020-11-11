@@ -525,10 +525,14 @@ final class GraphTests: TuistUnitTestCase {
         let subject = createGraphWithPackageDependencies(projects: [project])
 
         // When
-        let result = try subject.linkableDependencies(path: project.path, name: app.name)
+        let resultFramework = try subject.linkableDependencies(path: project.path, name: framework.name)
+        let resultApp = try subject.linkableDependencies(path: project.path, name: app.name)
 
         // Then
-        XCTAssertEqual(Set(result), Set([
+        XCTAssertEqual(Set(resultFramework), Set([
+            .package(product: "LibraryA", type: .staticLibrary, path: project.path),
+        ]))
+        XCTAssertEqual(Set(resultApp), Set([
             .product(target: framework.name, productName: framework.productNameWithExtension),
             .package(product: "LibraryA", type: .staticLibrary, path: project.path),
         ]))
@@ -569,12 +573,72 @@ final class GraphTests: TuistUnitTestCase {
         let subject = createGraphWithPackageDependencies(projects: [project])
 
         // When
-        let result = try subject.linkableDependencies(path: project.path, name: app.name)
+        let resultFramework = try subject.linkableDependencies(path: project.path, name: framework.name)
+        let resultApp = try subject.linkableDependencies(path: project.path, name: app.name)
 
         // Then
-        XCTAssertEqual(Set(result), Set([
+        XCTAssertEqual(Set(resultFramework), Set([
+            .package(product: "LibraryA", type: .dynamicLibrary, path: project.path),
+        ]))
+        XCTAssertEqual(Set(resultApp), Set([
             .product(target: framework.name, productName: framework.productNameWithExtension),
             .package(product: "LibraryA", type: .dynamicLibrary, path: project.path),
+        ]))
+    }
+
+    func test_linkableDependencies_whenTransitiveDynamicFrameworkAndDynamicSwiftPackageLibrary() throws {
+        // Given
+        let framework = Target.test(name: "Framework",
+                                    product: .framework,
+                                    dependencies: [
+                                        .package(product: "LibraryA", type: .dynamicLibrary),
+                                    ])
+        let app = Target.test(name: "App",
+                              product: .app,
+                              dependencies: [
+                                  .target(name: "Framework"),
+                              ])
+        let project = Project.test(targets: [app, framework])
+        let subject = createGraphWithPackageDependencies(projects: [project])
+
+        // When
+        let resultFramework = try subject.linkableDependencies(path: project.path, name: framework.name)
+        let resultApp = try subject.linkableDependencies(path: project.path, name: app.name)
+
+        // Then
+        XCTAssertEqual(Set(resultFramework), Set([
+            .package(product: "LibraryA", type: .dynamicLibrary, path: project.path),
+        ]))
+        XCTAssertEqual(Set(resultApp), Set([
+            .product(target: framework.name, productName: framework.productNameWithExtension),
+        ]))
+    }
+
+    func test_linkableDependencies_whenAppAndUnitTests() throws {
+        // Given
+        let app = Target.test(name: "App",
+                              product: .app,
+                              dependencies: [
+                                  .package(product: "LibraryA", type: .staticLibrary),
+                              ])
+        let appTests = Target.test(name: "AppTests",
+                                   product: .unitTests,
+                                   dependencies: [
+                                       .target(name: "App"),
+                                       .package(product: "LibraryA", type: .staticLibrary),
+                                   ])
+        let project = Project.test(targets: [app, appTests])
+        let subject = createGraphWithPackageDependencies(projects: [project])
+
+        // When
+        let resultApp = try subject.linkableDependencies(path: project.path, name: app.name)
+        let resultAppTests = try subject.linkableDependencies(path: project.path, name: appTests.name)
+
+        // Then
+        XCTAssertEqual(Set(resultApp), Set([
+            .package(product: "LibraryA", type: .staticLibrary, path: project.path),
+        ]))
+        XCTAssertEqual(Set(resultAppTests), Set([
         ]))
     }
 

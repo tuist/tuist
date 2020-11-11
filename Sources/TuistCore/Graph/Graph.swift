@@ -258,7 +258,7 @@ public class Graph: Encodable, Equatable {
                     let hostAppTransitiveStaticTargetNodes = transitiveStaticTargetNodes(for: hostApp)
                     staticLibraryTargetNodes.subtract(hostAppTransitiveStaticTargetNodes)
 
-                    let hostAppTransitivePackages = Set(hostAppTransitiveStaticTargetNodes.flatMap(\.packages))
+                    let hostAppTransitivePackages = Set(hostApp.packages + hostAppTransitiveStaticTargetNodes.flatMap(\.packages))
                     transitivePackageNodes.subtract(hostAppTransitivePackages)
                 }
             }
@@ -274,6 +274,20 @@ public class Graph: Encodable, Equatable {
             let packageLibraries = transitivePackageNodes.map(packageProductDependencyReference)
 
             references = references.union(staticLibraries + staticDependenciesDynamicLibraries + packageLibraries)
+        } else {
+            // Static Swift packages still need to be linked against Static Frameworks & Libraries
+            // otherwise building those standalone will fail. Sadly the existing trick/workaround
+            // we do for native static library / framework targets by adding a copy products
+            // build phase to force Xcode to build them ahead of building the current target
+            // doesn't work for Swift Packages.
+            //
+            // see `copyProductDependencies`
+
+            let staticPackageProducts = targetNode.packages
+                .filter { $0.productType == .staticLibrary }
+                .map(packageProductDependencyReference)
+
+            references = references.union(staticPackageProducts)
         }
 
         // Link dynamic libraries and frameworks

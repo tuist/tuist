@@ -33,3 +33,15 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         print(LibraryBClass().text)
     }
 }
+
+
+class MyAppClass {
+    private let libraryAClass: LibraryAClass
+    init(a: LibraryAClass) {
+        self.libraryAClass = a
+    }
+
+    func text() -> String {
+        return "MyAppClass.\(libraryAClass.text)"
+    }
+}

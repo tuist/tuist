@@ -27,6 +27,7 @@ let project = Project(name: "App",
                                infoPlist: "Support/Tests.plist",
                                sources: "Tests/**",
                                dependencies: [
-                                    .target(name: "App")
+                                    .target(name: "App"),
+                                    .package(product: "LibraryA"),
                                ])
                       ])
