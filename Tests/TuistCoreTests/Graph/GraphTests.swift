@@ -489,88 +489,88 @@ final class GraphTests: TuistUnitTestCase {
         // Then
         XCTAssertTrue(result.isEmpty)
     }
-    
+
     func test_linkableDependencies_whenDirectStaticSwiftPackageLibrary() throws {
         // Given
         let framework = Target.test(name: "Framework",
                                     product: .framework,
                                     dependencies: [
-                                        .package(product: "LibraryA", type: .staticLibrary)
+                                        .package(product: "LibraryA", type: .staticLibrary),
                                     ])
         let project = Project.test(targets: [framework])
         let subject = createGraphWithPackageDependencies(projects: [project])
-        
+
         // When
-        let result = subject.linkableDependencies(path: project.path, name: framework.name)
-        
+        let result = try subject.linkableDependencies(path: project.path, name: framework.name)
+
         // Then
         XCTAssertEqual(result, [
-            .package(product: "LibraryA", type: .staticLibrary, path: project.path)
+            .package(product: "LibraryA", type: .staticLibrary, path: project.path),
         ])
     }
-    
+
     func test_linkableDependencies_whenTransitiveStaticSwiftPackageLibrary() throws {
         // Given
         let framework = Target.test(name: "Framework",
                                     product: .staticFramework,
                                     dependencies: [
-                                        .package(product: "LibraryA", type: .staticLibrary)
+                                        .package(product: "LibraryA", type: .staticLibrary),
                                     ])
         let app = Target.test(name: "App",
                               product: .app,
                               dependencies: [
-                                .target(name: "Framework")
+                                  .target(name: "Framework"),
                               ])
         let project = Project.test(targets: [app, framework])
         let subject = createGraphWithPackageDependencies(projects: [project])
-        
+
         // When
-        let result = subject.linkableDependencies(path: project.path, name: app.name)
-        
+        let result = try subject.linkableDependencies(path: project.path, name: app.name)
+
         // Then
         XCTAssertEqual(Set(result), Set([
             .product(target: framework.name, productName: framework.productNameWithExtension),
             .package(product: "LibraryA", type: .staticLibrary, path: project.path),
         ]))
     }
-    
+
     func test_linkableDependencies_whenDirectDynamicSwiftPackageLibrary() throws {
         // Given
         let framework = Target.test(name: "Framework",
                                     product: .framework,
                                     dependencies: [
-                                        .package(product: "LibraryA", type: .dynamicLibrary)
+                                        .package(product: "LibraryA", type: .dynamicLibrary),
                                     ])
         let project = Project.test(targets: [framework])
         let subject = createGraphWithPackageDependencies(projects: [project])
-        
+
         // When
-        let result = subject.linkableDependencies(path: project.path, name: framework.name)
-        
+        let result = try subject.linkableDependencies(path: project.path, name: framework.name)
+
         // Then
         XCTAssertEqual(result, [
-            .package(product: "LibraryA", type: .dynamicLibrary, path: project.path)
+            .package(product: "LibraryA", type: .dynamicLibrary, path: project.path),
         ])
     }
-    
+
     func test_linkableDependencies_whenTransitiveDynamicSwiftPackageLibrary() throws {
         // Given
         let framework = Target.test(name: "Framework",
                                     product: .staticFramework,
                                     dependencies: [
-                                        .package(product: "LibraryA", type: .dynamicLibrary)
+                                        .package(product: "LibraryA", type: .dynamicLibrary),
                                     ])
         let app = Target.test(name: "App",
                               product: .app,
                               dependencies: [
-                                .target(name: "Framework")
+                                  .target(name: "Framework"),
                               ])
         let project = Project.test(targets: [app, framework])
         let subject = createGraphWithPackageDependencies(projects: [project])
-        
+
         // When
-        let result = subject.linkableDependencies(path: project.path, name: app.name)
-        
+        let result = try subject.linkableDependencies(path: project.path, name: app.name)
+
         // Then
         XCTAssertEqual(Set(result), Set([
             .product(target: framework.name, productName: framework.productNameWithExtension),
@@ -917,92 +917,92 @@ final class GraphTests: TuistUnitTestCase {
         // Then
         XCTAssertTrue(result.isEmpty)
     }
-    
+
     func test_embeddableDependencies_whenDirectStaticSwiftPackageLibrary() throws {
         // Given
         let app = Target.test(name: "App",
                               product: .app,
                               dependencies: [
-                                .package(product: "LibraryA", type: .staticLibrary)
+                                  .package(product: "LibraryA", type: .staticLibrary),
                               ])
         let project = Project.test(targets: [app])
         let subject = createGraphWithPackageDependencies(projects: [project])
-        
+
         // When
         let result = try subject.embeddableFrameworks(path: project.path, name: app.name)
-        
+
         // Then
         XCTAssertTrue(result.isEmpty)
     }
-    
+
     func test_embeddableDependencies_whenTransitiveStaticSwiftPackageLibrary() throws {
         // Given
         let framework = Target.test(name: "Framework",
                                     product: .framework,
                                     dependencies: [
-                                        .package(product: "LibraryA", type: .staticLibrary)
+                                        .package(product: "LibraryA", type: .staticLibrary),
                                     ])
         let app = Target.test(name: "App",
                               product: .app,
                               dependencies: [
-                                .target(name: "Framework")
+                                  .target(name: "Framework"),
                               ])
         let project = Project.test(targets: [app, framework])
         let subject = createGraphWithPackageDependencies(projects: [project])
-        
+
         // When
         let result = try subject.embeddableFrameworks(path: project.path, name: app.name)
-        
+
         // Then
         XCTAssertEqual(Set(result), Set([
             .product(target: framework.name, productName: framework.productNameWithExtension),
         ]))
     }
-    
+
     func test_embeddableDependencies_whenDirectDynamicSwiftPackageLibrary() throws {
         // Given
         let app = Target.test(name: "App",
                               product: .app,
                               dependencies: [
-                                .package(product: "LibraryA", type: .dynamicLibrary)
+                                  .package(product: "LibraryA", type: .dynamicLibrary),
                               ])
         let project = Project.test(targets: [app])
         let subject = createGraphWithPackageDependencies(projects: [project])
-        
+
         // When
         let result = try subject.embeddableFrameworks(path: project.path, name: app.name)
-        
+
         // Then
         XCTAssertEqual(Set(result), Set([
             .package(product: "LibraryA", type: .dynamicLibrary, path: project.path),
         ]))
     }
-    
+
     func test_embeddableDependencies_whenTransitiveDynamicSwiftPackageLibrary() throws {
         // Given
         let framework = Target.test(name: "Framework",
                                     product: .framework,
                                     dependencies: [
-                                        .package(product: "LibraryA", type: .dynamicLibrary)
+                                        .package(product: "LibraryA", type: .dynamicLibrary),
                                     ])
         let app = Target.test(name: "App",
                               product: .app,
                               dependencies: [
-                                .target(name: "Framework")
+                                  .target(name: "Framework"),
                               ])
         let project = Project.test(targets: [app, framework])
         let subject = createGraphWithPackageDependencies(projects: [project])
-        
+
         // When
         let result = try subject.embeddableFrameworks(path: project.path, name: app.name)
-        
+
         // Then
         XCTAssertEqual(Set(result), Set([
             .product(target: framework.name, productName: framework.productNameWithExtension),
             .package(product: "LibraryA", type: .dynamicLibrary, path: project.path),
         ]))
     }
-    
+
     func test_embeddableDependencies_whenCommonTransitiveDynamicSwiftPackageLibrary() throws {
         // Given
         let projectAPath = AbsolutePath("/ProjectA")
@@ -1010,23 +1010,23 @@ final class GraphTests: TuistUnitTestCase {
         let framework = Target.test(name: "Framework",
                                     product: .framework,
                                     dependencies: [
-                                        .package(product: "LibraryA", type: .dynamicLibrary)
+                                        .package(product: "LibraryA", type: .dynamicLibrary),
                                     ])
         let app = Target.test(name: "App",
                               product: .app,
                               dependencies: [
-                                .project(target: "Framework", path: projectBPath),
-                                .package(product: "LibraryA", type: .dynamicLibrary)
+                                  .project(target: "Framework", path: projectBPath),
+                                  .package(product: "LibraryA", type: .dynamicLibrary),
                               ])
         let projectA = Project.test(path: projectAPath, targets: [app])
         let projectB = Project.test(path: projectBPath, targets: [framework])
         let subject = createGraphWithPackageDependencies(projects: [projectA, projectB])
-        
+
         // When
         let result = try subject.embeddableFrameworks(path: projectA.path, name: app.name)
-        
+
         // Then
-        
+
         // TODO: we need to find a way to ensure the same library isn't duplicated
         // when referenced by two projects.
         // it seems project path where its defined is used as the path of the package node as opposed
@@ -1445,10 +1445,10 @@ final class GraphTests: TuistUnitTestCase {
             return nil
         }
     }
-    
+
     private func createGraphWithPackageDependencies(projects: [Project], entryProject: Project? = nil) -> Graph {
         let graphLoaderCache = GraphLoaderCache()
-        
+
         // Construct all nodes
         let targetNodes = projects.flatMap { project in
             project.targets.map { target in
@@ -1457,11 +1457,11 @@ final class GraphTests: TuistUnitTestCase {
                            dependencies: [])
             }
         }
-        
+
         targetNodes.forEach {
             graphLoaderCache.add(targetNode: $0)
         }
-        
+
         // Create dependencies
         targetNodes.forEach { targetNode in
             targetNode.target.dependencies.forEach { dependency in
@@ -1491,10 +1491,14 @@ final class GraphTests: TuistUnitTestCase {
                 Array($0.values)
             }
         }
+        let workspace = Workspace(path: entryProject?.path ?? "/Workspace",
+                                  name: "Workspace",
+                                  projects: projects.map(\.path))
         return Graph(name: "Test",
                      entryPath: entryProject?.path ?? "/Test",
                      cache: graphLoaderCache,
-                     entryNodes: entryNodes ?? [])
+                     entryNodes: entryNodes ?? [],
+                     workspace: workspace)
     }
 }
 
