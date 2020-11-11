@@ -23,6 +23,12 @@ final class GraphDependencyReferenceTests: TuistUnitTestCase {
             .testFramework(path: "/frameworks/B.framework"),
             .testXCFramework(path: "/xcframeworks/A.xcframework"),
             .testXCFramework(path: "/xcframeworks/B.xcframework"),
+            .package(product: "MyDynamicLibraryA", type: .dynamicLibrary, path: "/Packages/MyLibrary"),
+            .package(product: "MyDynamicLibraryB", type: .dynamicLibrary, path: "/Packages/MyLibrary"),
+            .package(product: "MyDynamicLibraryA", type: .dynamicLibrary, path: "/Packages/MyOtherLibrary"),
+            .package(product: "MyDynamicLibraryB", type: .dynamicLibrary, path: "/Packages/MyOtherLibrary"),
+            .package(product: "MyLibraryA", type: .staticLibrary, path: "/Packages/MyLibrary"),
+            .package(product: "MyLibraryB", type: .staticLibrary, path: "/Packages/MyLibrary"),
         ])
     }
 
@@ -38,7 +44,7 @@ final class GraphDependencyReferenceTests: TuistUnitTestCase {
         XCTAssertTrue(unstable.isEmpty)
     }
 
-    func makeReferences() -> [GraphDependencyReference] {
+    private func makeReferences() -> [GraphDependencyReference] {
         [
             .testXCFramework(path: "/xcframeworks/A.xcframework"),
             .testXCFramework(path: "/xcframeworks/B.xcframework"),
@@ -50,6 +56,12 @@ final class GraphDependencyReferenceTests: TuistUnitTestCase {
             .product(target: "B", productName: "B.framework"),
             .sdk(path: "/A.framework", status: .required, source: .developer),
             .sdk(path: "/B.framework", status: .optional, source: .developer),
+            .package(product: "MyLibraryA", type: .staticLibrary, path: "/Packages/MyLibrary"),
+            .package(product: "MyLibraryB", type: .staticLibrary, path: "/Packages/MyLibrary"),
+            .package(product: "MyDynamicLibraryA", type: .dynamicLibrary, path: "/Packages/MyLibrary"),
+            .package(product: "MyDynamicLibraryB", type: .dynamicLibrary, path: "/Packages/MyLibrary"),
+            .package(product: "MyDynamicLibraryA", type: .dynamicLibrary, path: "/Packages/MyOtherLibrary"),
+            .package(product: "MyDynamicLibraryB", type: .dynamicLibrary, path: "/Packages/MyOtherLibrary"),
         ]
     }
 }

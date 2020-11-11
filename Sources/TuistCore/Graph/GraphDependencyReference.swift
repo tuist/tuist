@@ -107,6 +107,10 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
             return lhsTarget < rhsTarget
         case let (.sdk(lhsPath, _, _), .sdk(rhsPath, _, _)):
             return lhsPath < rhsPath
+        case let (.package(lhsProduct, lhsType, lhsPath), .package(rhsProduct, rhsType, rhsPath)):
+            let lhsSortIdentifier = "\(lhsType)-\(lhsPath)-\(lhsProduct)"
+            let rhsSortIdentifier = "\(rhsType)-\(rhsPath)-\(rhsProduct)"
+            return lhsSortIdentifier < rhsSortIdentifier
         case (.sdk, .framework):
             return true
         case (.sdk, .xcframework):
@@ -115,17 +119,27 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
             return true
         case (.sdk, .library):
             return true
+        case (.sdk, .package):
+            return true
         case (.product, .framework):
             return true
         case (.product, .xcframework):
             return true
         case (.product, .library):
             return true
+        case (.product, .package):
+            return true
         case (.library, .framework):
             return true
         case (.library, .xcframework):
             return true
+        case (.library, .package):
+            return true
         case (.framework, .xcframework):
+            return true
+        case (.framework, .package):
+            return true
+        case (.xcframework, .package):
             return true
         default:
             return false
