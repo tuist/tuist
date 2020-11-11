@@ -144,7 +144,7 @@ final class TestService {
                     .sorted()
                     .first
             }
-            let device = try simulatorController.findAvailableDevice(
+            let deviceAndRuntime = try simulatorController.findAvailableDevice(
                 platform: buildableTarget.platform,
                 version: version,
                 minVersion: minVersion,
@@ -152,7 +152,7 @@ final class TestService {
             )
             .toBlocking()
             .single()
-            destination = .device(device.udid)
+            destination = .device(deviceAndRuntime.device.udid)
         case .macOS:
             destination = .mac
         }
@@ -163,7 +163,7 @@ final class TestService {
             scheme: scheme.name,
             clean: clean,
             destination: destination,
-            arguments: buildGraphInspector.buildArguments(target: buildableTarget, configuration: configuration)
+            arguments: buildGraphInspector.buildArguments(target: buildableTarget, configuration: configuration, skipSigning: true)
         )
         .printFormattedOutput()
         .toBlocking()

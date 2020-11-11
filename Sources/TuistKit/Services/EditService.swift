@@ -39,7 +39,7 @@ final class EditService {
         let path = self.path(path)
 
         if !permanent {
-            try withTemporaryDirectory { generationDirectory in
+            try withTemporaryDirectory(removeTreeOnDeinit: true) { generationDirectory in
                 EditService.temporaryDirectory = generationDirectory
 
                 Signals.trap(signals: [.int, .abrt]) { _ in
@@ -53,7 +53,7 @@ final class EditService {
                 }
                 let xcodeprojPath = try projectEditor.edit(at: path, in: generationDirectory)
                 logger.pretty("Opening Xcode to edit the project. Press \(.keystroke("CTRL + C")) once you are done editing")
-                try opener.open(path: xcodeprojPath, application: selectedXcode.path)
+                try opener.open(path: xcodeprojPath, application: selectedXcode.path, wait: true)
             }
         } else {
             let xcodeprojPath = try projectEditor.edit(at: path, in: path)

@@ -113,8 +113,8 @@ public final class CacheXCFrameworkBuilder: CacheArtifactBuilding {
                                              archivePath: archivePath,
                                              arguments: [
                                                  .sdk(target.platform.xcodeDeviceSDK),
-                                                 .buildSetting("SKIP_INSTALL", "NO"),
-                                                 .buildSetting("BUILD_LIBRARY_FOR_DISTRIBUTION", "YES"),
+                                                 .xcarg("SKIP_INSTALL", "NO"),
+                                                 .xcarg("BUILD_LIBRARY_FOR_DISTRIBUTION", "YES"),
                                              ])
             .printFormattedOutput()
             .do(onSubscribed: {
@@ -137,8 +137,8 @@ public final class CacheXCFrameworkBuilder: CacheArtifactBuilding {
                                              archivePath: archivePath,
                                              arguments: [
                                                  .sdk(target.platform.xcodeSimulatorSDK!),
-                                                 .buildSetting("SKIP_INSTALL", "NO"),
-                                                 .buildSetting("BUILD_LIBRARY_FOR_DISTRIBUTION", "YES"),
+                                                 .xcarg("SKIP_INSTALL", "NO"),
+                                                 .xcarg("BUILD_LIBRARY_FOR_DISTRIBUTION", "YES"),
                                              ])
             .printFormattedOutput()
             .do(onSubscribed: {

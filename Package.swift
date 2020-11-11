@@ -41,7 +41,7 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-argument-parser", .upToNextMajor(from: "0.3.1")),
         .package(url: "https://github.com/marmelroy/Zip.git", .upToNextMinor(from: "2.1.1")),
         .package(url: "https://github.com/tuist/GraphViz.git", .branch("tuist")),
-        .package(url: "https://github.com/fortmarek/SwiftGen", .branch("stable")),
+        .package(url: "https://github.com/fortmarek/SwiftGen", .revision("ef8d6b186a03622cec8d228b18f0e2b3bb20b81c")),
         .package(url: "https://github.com/fortmarek/StencilSwiftKit.git", .branch("stable")),
         .package(url: "https://github.com/FabrizioBrancati/Queuer.git", .upToNextMajor(from: "2.0.0")),
     ],

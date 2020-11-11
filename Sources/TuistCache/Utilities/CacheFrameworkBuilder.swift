@@ -125,9 +125,9 @@ public final class CacheFrameworkBuilder: CacheArtifactBuilding {
                 [
                     .sdk(sdk),
                     .configuration(configuration),
-                    .buildSetting("DEBUG_INFORMATION_FORMAT", "dwarf-with-dsym"),
-                    .buildSetting("GCC_GENERATE_DEBUGGING_SYMBOLS", "YES"),
-                    .buildSetting(target.targetLocatorBuildPhaseVariable, builtProductsDirFingerprint),
+                    .xcarg("DEBUG_INFORMATION_FORMAT", "dwarf-with-dsym"),
+                    .xcarg("GCC_GENERATE_DEBUGGING_SYMBOLS", "YES"),
+                    .xcarg(target.targetLocatorBuildPhaseVariable, builtProductsDirFingerprint),
                     .destination(destination),
                 ]
             }
@@ -146,19 +146,9 @@ public final class CacheFrameworkBuilder: CacheArtifactBuilding {
         case .macOS: return .just("platform=OS X,arch=x86_64")
         }
 
-        return simulatorController.devicesAndRuntimes()
-            .map { (simulatorsAndRuntimes) -> [SimulatorDevice] in
-                simulatorsAndRuntimes
-                    .filter { $0.runtime.isAvailable && $0.runtime.name.contains(platform.caseValue) }
-                    .map { $0.device }
-            }
-            .flatMap { (devices) -> Single<String> in
-                if let device = devices.first {
-                    let destination = "platform=\(platform.caseValue) Simulator,name=\(device.name),OS=latest"
-                    return .just(destination)
-                } else {
-                    return .error(CacheFrameworkBuilderError.deviceNotFound(platform: target.platform.caseValue))
-                }
+        return simulatorController.findAvailableDevice(platform: target.platform)
+            .flatMap { (deviceAndRuntime) -> Single<String> in
+                .just("id=\(deviceAndRuntime.device.udid)")
             }
     }
 

@@ -97,7 +97,7 @@ final class BuildService {
         _ = try xcodebuildController.build(.workspace(workspacePath),
                                            scheme: scheme.name,
                                            clean: clean,
-                                           arguments: buildGraphInspector.buildArguments(target: buildableTarget, configuration: configuration))
+                                           arguments: buildGraphInspector.buildArguments(target: buildableTarget, configuration: configuration, skipSigning: false))
             .printFormattedOutput()
             .toBlocking()
             .last()
