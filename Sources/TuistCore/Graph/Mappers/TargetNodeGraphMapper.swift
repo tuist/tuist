@@ -24,10 +24,16 @@ public class TargetNodeGraphMapper: GraphMapping {
             map(node: $0, mappedCache: &mappedCache, cache: cache)
         }
 
-        return (Graph(name: graph.name,
-                      entryPath: graph.entryPath,
-                      cache: cache,
-                      entryNodes: updatedNodes), [])
+        return (
+            Graph(
+                name: graph.name,
+                entryPath: graph.entryPath,
+                cache: cache,
+                entryNodes: updatedNodes,
+                workspace: graph.workspace
+            ),
+            []
+        )
     }
 
     // MARK: - Private

@@ -28,17 +28,17 @@ public protocol FrameworkNodeLoading {
     func load(path: AbsolutePath) throws -> FrameworkNode
 }
 
-final class FrameworkNodeLoader: FrameworkNodeLoading {
+public final class FrameworkNodeLoader: FrameworkNodeLoading {
     /// Framework metadata provider.
     fileprivate let frameworkMetadataProvider: FrameworkMetadataProviding
 
     /// Initializes the loader with its attributes.
     /// - Parameter frameworkMetadataProvider: Framework metadata provider.
-    init(frameworkMetadataProvider: FrameworkMetadataProviding = FrameworkMetadataProvider()) {
+    public init(frameworkMetadataProvider: FrameworkMetadataProviding = FrameworkMetadataProvider()) {
         self.frameworkMetadataProvider = frameworkMetadataProvider
     }
 
-    func load(path: AbsolutePath) throws -> FrameworkNode {
+    public func load(path: AbsolutePath) throws -> FrameworkNode {
         guard FileHandler.shared.exists(path) else {
             throw FrameworkNodeLoaderError.frameworkNotFound(path)
         }

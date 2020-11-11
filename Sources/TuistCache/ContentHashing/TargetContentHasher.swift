@@ -4,7 +4,7 @@ import TuistCore
 import TuistSupport
 
 public protocol TargetContentHashing {
-    func contentHash(for target: TargetNode) throws -> String
+    func contentHash(for target: TargetNode, cacheOutputType: CacheOutputType) throws -> String
 }
 
 /// `TargetContentHasher`
@@ -14,6 +14,7 @@ public final class TargetContentHasher: TargetContentHashing {
     private let coreDataModelsContentHasher: CoreDataModelsContentHashing
     private let sourceFilesContentHasher: SourceFilesContentHashing
     private let targetActionsContentHasher: TargetActionsContentHashing
+    private let targetScriptsContentHasher: TargetScriptsContentHashing
     private let resourcesContentHasher: ResourcesContentHashing
     private let headersContentHasher: HeadersContentHashing
     private let deploymentTargetContentHasher: DeploymentTargetContentHashing
@@ -23,11 +24,12 @@ public final class TargetContentHasher: TargetContentHashing {
 
     // MARK: - Init
 
-    public convenience init(contentHasher: ContentHashing = CacheContentHasher()) {
+    public convenience init(contentHasher: ContentHashing) {
         self.init(
             contentHasher: contentHasher,
             sourceFilesContentHasher: SourceFilesContentHasher(contentHasher: contentHasher),
             targetActionsContentHasher: TargetActionsContentHasher(contentHasher: contentHasher),
+            targetScriptsContentHasher: TargetScriptsContentHasher(contentHasher: contentHasher),
             coreDataModelsContentHasher: CoreDataModelsContentHasher(contentHasher: contentHasher),
             resourcesContentHasher: ResourcesContentHasher(contentHasher: contentHasher),
             headersContentHasher: HeadersContentHasher(contentHasher: contentHasher),
@@ -42,6 +44,7 @@ public final class TargetContentHasher: TargetContentHashing {
         contentHasher: ContentHashing,
         sourceFilesContentHasher: SourceFilesContentHashing,
         targetActionsContentHasher: TargetActionsContentHashing,
+        targetScriptsContentHasher: TargetScriptsContentHashing,
         coreDataModelsContentHasher: CoreDataModelsContentHashing,
         resourcesContentHasher: ResourcesContentHashing,
         headersContentHasher: HeadersContentHashing,
@@ -54,6 +57,7 @@ public final class TargetContentHasher: TargetContentHashing {
         self.sourceFilesContentHasher = sourceFilesContentHasher
         self.coreDataModelsContentHasher = coreDataModelsContentHasher
         self.targetActionsContentHasher = targetActionsContentHasher
+        self.targetScriptsContentHasher = targetScriptsContentHasher
         self.resourcesContentHasher = resourcesContentHasher
         self.headersContentHasher = headersContentHasher
         self.deploymentTargetContentHasher = deploymentTargetContentHasher
@@ -64,12 +68,13 @@ public final class TargetContentHasher: TargetContentHashing {
 
     // MARK: - TargetContentHashing
 
-    public func contentHash(for targetNode: TargetNode) throws -> String {
+    public func contentHash(for targetNode: TargetNode, cacheOutputType: CacheOutputType) throws -> String {
         let target = targetNode.target
         let sourcesHash = try sourceFilesContentHasher.hash(sources: target.sources)
         let resourcesHash = try resourcesContentHasher.hash(resources: target.resources)
         let coreDataModelHash = try coreDataModelsContentHasher.hash(coreDataModels: target.coreDataModels)
         let targetActionsHash = try targetActionsContentHasher.hash(targetActions: target.actions)
+        let targetScriptsHash = try targetScriptsContentHasher.hash(targetScripts: target.scripts)
         let dependenciesHash = try dependenciesContentHasher.hash(dependencies: target.dependencies)
         let environmentHash = try contentHasher.hash(target.environment)
         var stringsToHash = [target.name,
@@ -82,6 +87,7 @@ public final class TargetContentHasher: TargetContentHashing {
                              resourcesHash,
                              coreDataModelHash,
                              targetActionsHash,
+                             targetScriptsHash,
                              environmentHash]
         if let headers = target.headers {
             let headersHash = try headersContentHasher.hash(headers: headers)
@@ -104,6 +110,7 @@ public final class TargetContentHasher: TargetContentHashing {
             stringsToHash.append(settingsHash)
         }
 
+        stringsToHash.append(cacheOutputType.description)
         return try contentHasher.hash(stringsToHash)
     }
 }

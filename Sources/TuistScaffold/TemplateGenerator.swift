@@ -1,5 +1,5 @@
 import Foundation
-import func StencilSwiftKit.stencilSwiftEnvironment
+import StencilSwiftKit
 import TSCBasic
 import TuistCore
 import TuistSupport
@@ -43,7 +43,19 @@ public final class TemplateGenerator: TemplateGenerating {
         attributes.reduce(template.files) { files, attribute in
             files.map {
                 let path = RelativePath($0.path.pathString.replacingOccurrences(of: "{{ \(attribute.key) }}", with: attribute.value))
-                return Template.File(path: path, contents: $0.contents)
+
+                var contents = $0.contents
+                if case let Template.Contents.file(path) = contents {
+                    contents = .file(
+                        AbsolutePath(
+                            path.pathString.replacingOccurrences(
+                                of: "{{ \(attribute.key) }}", with: attribute.value
+                            )
+                        )
+                    )
+                }
+
+                return Template.File(path: path, contents: contents)
             }
         }
     }

@@ -43,7 +43,7 @@ final class SettingsContentHasherTests: TuistUnitTestCase {
         let hash = try subject.hash(settings: settings)
 
         // Then
-        XCTAssertEqual(hash, "CURRENT_PROJECT_VERSION:string(\"1\");devdebugSWIFT_VERSION:string(\"5\")xconfigHash;recommended")
+        XCTAssertEqual(hash, "CURRENT_PROJECT_VERSION:string(\"1\")-hash;devdebugSWIFT_VERSION:string(\"5\")-hashxconfigHash;recommended")
     }
 
     func test_hash_whenEssential_withoutXCConfig_callsContentHasherWithExpectedStrings() throws {
@@ -62,6 +62,6 @@ final class SettingsContentHasherTests: TuistUnitTestCase {
         let hash = try subject.hash(settings: settings)
 
         // Then
-        XCTAssertEqual(hash, "CURRENT_PROJECT_VERSION:string(\"2\");prodreleaseSWIFT_VERSION:string(\"5\");essential")
+        XCTAssertEqual(hash, "CURRENT_PROJECT_VERSION:string(\"2\")-hash;prodreleaseSWIFT_VERSION:string(\"5\")-hash;essential")
     }
 }

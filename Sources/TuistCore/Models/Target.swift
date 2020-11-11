@@ -16,9 +16,6 @@ public enum TargetError: FatalError, Equatable {
 }
 
 public struct Target: Equatable, Hashable, Comparable {
-    public typealias SourceFile = (path: AbsolutePath, compilerFlags: String?)
-    public typealias SourceFileGlob = (glob: String, excluding: [String], compilerFlags: String?)
-
     // MARK: - Static
 
     public static let validSourceExtensions: [String] = ["m", "swift", "mm", "cpp", "c", "d", "intentdefinition", "xcmappingmodel", "metal"]
@@ -47,6 +44,7 @@ public struct Target: Equatable, Hashable, Comparable {
     public var environment: [String: String]
     public var launchArguments: [String: Bool]
     public var filesGroup: ProjectGroup
+    public var scripts: [TargetScript]
 
     // MARK: - Init
 
@@ -67,7 +65,8 @@ public struct Target: Equatable, Hashable, Comparable {
                 environment: [String: String] = [:],
                 launchArguments: [String: Bool] = [:],
                 filesGroup: ProjectGroup,
-                dependencies: [Dependency] = [])
+                dependencies: [Dependency] = [],
+                scripts: [TargetScript] = [])
     {
         self.name = name
         self.product = product
@@ -87,6 +86,7 @@ public struct Target: Equatable, Hashable, Comparable {
         self.launchArguments = launchArguments
         self.filesGroup = filesGroup
         self.dependencies = dependencies
+        self.scripts = scripts
     }
 
     /// Target can be included in the link phase of other targets
@@ -116,6 +116,17 @@ public struct Target: Equatable, Hashable, Comparable {
         ].contains(product)
     }
 
+    /// It returns the name of the variable that should be used to create an empty file
+    /// in the $BUILT_PRODUCTS_DIR directory that is used after builds to reliably locate the
+    /// directories where the products have been exported into.
+    public var targetLocatorBuildPhaseVariable: String {
+        let upperCasedSnakeCasedProductName = productName
+            .camelCaseToSnakeCase()
+            .components(separatedBy: .whitespaces).joined(separator: "_")
+            .uppercased()
+        return "\(upperCasedSnakeCasedProductName)_LOCATE_HASH"
+    }
+
     /// Returns the product name including the extension.
     public var productNameWithExtension: String {
         switch product {
@@ -123,6 +134,16 @@ public struct Target: Equatable, Hashable, Comparable {
             return "lib\(productName).\(product.xcodeValue.fileExtension!)"
         case _:
             return "\(productName).\(product.xcodeValue.fileExtension!)"
+        }
+    }
+
+    /// Returns true if the target supports having a headers build phase..
+    public var shouldIncludeHeadersBuildPhase: Bool {
+        switch product {
+        case .framework, .staticFramework, .staticLibrary, .dynamicLibrary:
+            return true
+        default:
+            return false
         }
     }
 
@@ -146,6 +167,14 @@ public struct Target: Equatable, Hashable, Comparable {
         }
     }
 
+    /// Returns true if the target is an AppClip
+    public var isAppClip: Bool {
+        if case .appClip = product {
+            return true
+        }
+        return false
+    }
+
     /// Returns true if the file at the given path is a resource.
     /// - Parameter path: Path to the file to be checked.
     public static func isResource(path: AbsolutePath) -> Bool {
@@ -162,8 +191,8 @@ public struct Target: Equatable, Hashable, Comparable {
     /// This method unfolds the source file globs subtracting the paths that are excluded and ignoring
     /// the files that don't have a supported source extension.
     /// - Parameter sources: List of source file glob to be unfolded.
-    public static func sources(targetName: String, sources: [SourceFileGlob]) throws -> [TuistCore.Target.SourceFile] {
-        var sourceFiles: [AbsolutePath: TuistCore.Target.SourceFile] = [:]
+    public static func sources(targetName: String, sources: [SourceFileGlob]) throws -> [TuistCore.SourceFile] {
+        var sourceFiles: [AbsolutePath: TuistCore.SourceFile] = [:]
         var invalidGlobs: [InvalidGlob] = []
 
         try sources.forEach { source in
@@ -194,7 +223,7 @@ public struct Target: Equatable, Hashable, Comparable {
                         return true
                     }
                     return false
-                }.forEach { sourceFiles[$0] = (path: $0, compilerFlags: source.compilerFlags) }
+                }.forEach { sourceFiles[$0] = SourceFile(path: $0, compilerFlags: source.compilerFlags) }
         }
 
         if !invalidGlobs.isEmpty {
@@ -263,8 +292,8 @@ extension Sequence where Element == Target {
         filter { $0.product.testsBundle }
     }
 
-    /// Filters and returns only the targets that are apps.
+    /// Filters and returns only the targets that are apps and app clips.
     var apps: [Target] {
-        filter { $0.product == .app }
+        filter { $0.product == .app || $0.product == .appClip }
     }
 }

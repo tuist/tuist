@@ -162,3 +162,11 @@ extension Arguments {
                   launchArguments: launchArguments)
     }
 }
+
+extension Dependencies {
+    public static func test(name: String = "Any Dependency",
+                            requirement: Dependency.Requirement = .exact("1.4.0")) -> Dependencies
+    {
+        Dependencies([.carthage(name: name, requirement: requirement)])
+    }
+}

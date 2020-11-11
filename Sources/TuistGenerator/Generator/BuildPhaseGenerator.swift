@@ -62,7 +62,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                              fileElements: ProjectFileElements,
                              pbxproj: PBXProj) throws
     {
-        if let headers = target.headers {
+        if target.shouldIncludeHeadersBuildPhase, let headers = target.headers {
             try generateHeadersBuildPhase(headers: headers,
                                           pbxTarget: pbxTarget,
                                           fileElements: fileElements,
@@ -95,6 +95,17 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                                          pbxTarget: pbxTarget,
                                          fileElements: fileElements,
                                          pbxproj: pbxproj)
+
+        generateScripts(target.scripts,
+                        pbxTarget: pbxTarget,
+                        pbxproj: pbxproj)
+
+        try generateEmbedAppClipsBuildPhase(path: path,
+                                            target: target,
+                                            graphTraverser: graphTraverser,
+                                            pbxTarget: pbxTarget,
+                                            fileElements: fileElements,
+                                            pbxproj: pbxproj)
     }
 
     func generateActions(actions: [TargetAction],
@@ -114,12 +125,34 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                                                           shellPath: "/bin/sh",
                                                           shellScript: action.shellScript(sourceRootPath: sourceRootPath),
                                                           showEnvVarsInLog: action.showEnvVarsInLog)
+            if let basedOnDependencyAnalysis = action.basedOnDependencyAnalysis {
+                // Force the script to run in all incremental builds, if we
+                // are NOT running it based on dependency analysis. Otherwise
+                // leave it at the default value.
+                buildPhase.alwaysOutOfDate = !basedOnDependencyAnalysis
+            }
+
             pbxproj.add(object: buildPhase)
             pbxTarget.buildPhases.append(buildPhase)
         }
     }
 
-    func generateSourcesBuildPhase(files: [Target.SourceFile],
+    func generateScripts(_ scripts: [TargetScript],
+                         pbxTarget: PBXTarget,
+                         pbxproj: PBXProj)
+    {
+        scripts.forEach { script in
+            let buildPhase = PBXShellScriptBuildPhase(files: [],
+                                                      name: script.name,
+                                                      shellPath: "/bin/sh",
+                                                      shellScript: script.script,
+                                                      showEnvVarsInLog: script.showEnvVarsInLog)
+            pbxproj.add(object: buildPhase)
+            pbxTarget.buildPhases.append(buildPhase)
+        }
+    }
+
+    func generateSourcesBuildPhase(files: [SourceFile],
                                    coreDataModels: [CoreDataModel],
                                    pbxTarget: PBXTarget,
                                    fileElements: ProjectFileElements,
@@ -349,5 +382,33 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
             pbxproj.add(object: pbxBuildFile)
             embedWatchAppBuildPhase.files?.append(pbxBuildFile)
         }
+    }
+
+    func generateEmbedAppClipsBuildPhase(path: AbsolutePath,
+                                         target: Target,
+                                         graphTraverser: GraphTraversing,
+                                         pbxTarget: PBXTarget,
+                                         fileElements: ProjectFileElements,
+                                         pbxproj: PBXProj) throws
+    {
+        guard target.product == .app else {
+            return
+        }
+
+        guard let appClips = graphTraverser.appClipsDependency(path: path, name: target.name) else {
+            return
+        }
+
+        let embedAppClipsBuildPhase = PBXCopyFilesBuildPhase(dstPath: "$(CONTENTS_FOLDER_PATH)/AppClips",
+                                                             dstSubfolderSpec: .productsDirectory,
+                                                             name: "Embed App Clips")
+        pbxproj.add(object: embedAppClipsBuildPhase)
+        pbxTarget.buildPhases.append(embedAppClipsBuildPhase)
+
+        let refs = fileElements.product(target: appClips.name)
+
+        let pbxBuildFile = PBXBuildFile(file: refs, settings: ["ATTRIBUTES": ["RemoveHeadersOnCopy"]])
+        pbxproj.add(object: pbxBuildFile)
+        embedAppClipsBuildPhase.files?.append(pbxBuildFile)
     }
 }

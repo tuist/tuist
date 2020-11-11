@@ -18,6 +18,7 @@ extension TuistCore.TargetAction {
         let inputFileListPaths = try manifest.inputFileListPaths.map { try generatorPaths.resolve(path: $0) }
         let outputPaths = try manifest.outputPaths.map { try generatorPaths.resolve(path: $0) }
         let outputFileListPaths = try manifest.outputFileListPaths.map { try generatorPaths.resolve(path: $0) }
+        let basedOnDependencyAnalysis = manifest.basedOnDependencyAnalysis
         let path = try manifest.path.map { try generatorPaths.resolve(path: $0) }
         return TargetAction(name: name,
                             order: order,
@@ -27,7 +28,8 @@ extension TuistCore.TargetAction {
                             inputPaths: inputPaths,
                             inputFileListPaths: inputFileListPaths,
                             outputPaths: outputPaths,
-                            outputFileListPaths: outputFileListPaths)
+                            outputFileListPaths: outputFileListPaths,
+                            basedOnDependencyAnalysis: basedOnDependencyAnalysis)
     }
 }
 

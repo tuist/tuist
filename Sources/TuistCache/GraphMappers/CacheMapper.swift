@@ -17,7 +17,7 @@ public class CacheMapper: GraphMapping {
     /// Cache graph mapper.
     private let cacheGraphMutator: CacheGraphMutating
 
-    /// Configuration object
+    /// Configuration object.
     private let config: Config
 
     /// List of targets that will be generated as sources instead of pre-compiled targets from the cache.
@@ -26,22 +26,29 @@ public class CacheMapper: GraphMapping {
     /// Dispatch queue.
     private let queue: DispatchQueue
 
+    /// The type of artifact that the hasher is configured with.
+    private let cacheOutputType: CacheOutputType
+
     // MARK: - Init
 
     public convenience init(config: Config,
                             cacheStorageProvider: CacheStorageProviding,
-                            sources: Set<String>)
+                            sources: Set<String>,
+                            cacheOutputType: CacheOutputType,
+                            contentHasher: ContentHashing)
     {
         self.init(config: config,
                   cache: Cache(storageProvider: cacheStorageProvider),
-                  graphContentHasher: GraphContentHasher(),
-                  sources: sources)
+                  graphContentHasher: GraphContentHasher(contentHasher: contentHasher),
+                  sources: sources,
+                  cacheOutputType: cacheOutputType)
     }
 
     init(config: Config,
          cache: CacheStoring,
          graphContentHasher: GraphContentHashing,
          sources: Set<String>,
+         cacheOutputType: CacheOutputType,
          cacheGraphMutator: CacheGraphMutating = CacheGraphMutator(),
          queue: DispatchQueue = CacheMapper.dispatchQueue())
     {
@@ -51,6 +58,7 @@ public class CacheMapper: GraphMapping {
         self.queue = queue
         self.cacheGraphMutator = cacheGraphMutator
         self.sources = sources
+        self.cacheOutputType = cacheOutputType
     }
 
     // MARK: - GraphMapping
@@ -70,7 +78,8 @@ public class CacheMapper: GraphMapping {
     fileprivate func hashes(graph: Graph) -> Single<[TargetNode: String]> {
         Single.create { (observer) -> Disposable in
             do {
-                let hashes = try self.graphContentHasher.contentHashes(for: graph)
+                let hashes = try self.graphContentHasher.contentHashes(for: graph,
+                                                                       cacheOutputType: self.cacheOutputType)
                 observer(.success(hashes))
             } catch {
                 observer(.error(error))
@@ -83,7 +92,7 @@ public class CacheMapper: GraphMapping {
     fileprivate func map(graph: Graph, hashes: [TargetNode: String], sources: Set<String>) -> Single<Graph> {
         fetch(hashes: hashes).map { xcframeworkPaths in
             try self.cacheGraphMutator.map(graph: graph,
-                                           xcframeworks: xcframeworkPaths,
+                                           precompiledFrameworks: xcframeworkPaths,
                                            sources: sources)
         }
     }

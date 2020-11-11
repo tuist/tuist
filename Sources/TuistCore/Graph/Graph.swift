@@ -33,7 +33,10 @@ public class Graph: Encodable, Equatable {
     /// The entry nodes of the graph.
     public let entryNodes: [GraphNode]
 
-    /// Dictionary whose keys are paths to directories where projects are defined, and the values are the representation of the projects.
+    /// Workspace of the graph
+    public let workspace: Workspace
+
+    /// Projects of the graph
     public let projects: [Project]
 
     /// Dictionary whose keys are paths to directories where projects are defined, and the values are the CocoaPods nodes define in them.
@@ -54,31 +57,48 @@ public class Graph: Encodable, Equatable {
     /// Dictionary whose keys are path to directories where projects are defined, and the values are target nodes defined in them.
     public let targets: [AbsolutePath: [TargetNode]]
 
-    // MARK: - Init
-
-    convenience init(name: String, entryPath: AbsolutePath, cache: GraphLoaderCaching, entryNodes: [GraphNode]) {
-        self.init(name: name,
-                  entryPath: entryPath,
-                  entryNodes: entryNodes,
-                  projects: Array(cache.projects.values),
-                  cocoapods: Array(cache.cocoapodsNodes.values),
-                  packages: Array(cache.packages.flatMap { $0.value }),
-                  precompiled: Array(cache.precompiledNodes.values),
-                  targets: cache.targetNodes.mapValues { Array($0.values) })
+    /// Schemes of the graph
+    public var schemes: [Scheme] {
+        projects.flatMap(\.schemes) + workspace.schemes
     }
 
-    public init(name: String,
-                entryPath: AbsolutePath,
-                entryNodes: [GraphNode],
-                projects: [Project],
-                cocoapods: [CocoaPodsNode],
-                packages: [PackageNode],
-                precompiled: [PrecompiledNode],
-                targets: [AbsolutePath: [TargetNode]])
-    {
+    // MARK: - Init
+
+    convenience init(
+        name: String,
+        entryPath: AbsolutePath,
+        cache: GraphLoaderCaching,
+        entryNodes: [GraphNode],
+        workspace: Workspace
+    ) {
+        self.init(
+            name: name,
+            entryPath: entryPath,
+            entryNodes: entryNodes,
+            workspace: workspace,
+            projects: Array(cache.projects.values),
+            cocoapods: Array(cache.cocoapodsNodes.values),
+            packages: Array(cache.packages.flatMap { $0.value }),
+            precompiled: Array(cache.precompiledNodes.values),
+            targets: cache.targetNodes.mapValues { Array($0.values) }
+        )
+    }
+
+    public init(
+        name: String,
+        entryPath: AbsolutePath,
+        entryNodes: [GraphNode],
+        workspace: Workspace,
+        projects: [Project],
+        cocoapods: [CocoaPodsNode],
+        packages: [PackageNode],
+        precompiled: [PrecompiledNode],
+        targets: [AbsolutePath: [TargetNode]]
+    ) {
         self.name = name
         self.entryPath = entryPath
         self.entryNodes = entryNodes
+        self.workspace = workspace
         self.projects = projects
         self.cocoapods = cocoapods
         self.packages = packages
@@ -186,7 +206,7 @@ public class Graph: Encodable, Equatable {
     /// - Parameters:
     ///   - path: Path to the directory where the project that defines the target is located.
     ///   - name: Name of the target.
-    public func linkableDependencies(path: AbsolutePath, name: String) -> [GraphDependencyReference] {
+    public func linkableDependencies(path: AbsolutePath, name: String) throws -> [GraphDependencyReference] {
         guard let targetNode = findTargetNode(path: path, name: name) else {
             return []
         }
@@ -203,6 +223,13 @@ public class Graph: Encodable, Equatable {
             }
 
             references = references.union(transitiveSystemLibraries)
+        }
+
+        if targetNode.target.isAppClip {
+            let path = try SDKNode.appClip(status: .required).path
+            references.insert(GraphDependencyReference.sdk(path: path,
+                                                           status: .required,
+                                                           source: .system))
         }
 
         let directSystemLibrariesAndFrameworks = targetNode.sdkDependencies.map {
@@ -413,7 +440,7 @@ public class Graph: Encodable, Equatable {
     /// - Parameter project: Project whose dependency references will be returned.
     public func allDependencyReferences(for project: Project) throws -> [GraphDependencyReference] {
         let linkableDependencies = try project.targets.flatMap {
-            self.linkableDependencies(path: project.path, name: $0.name)
+            try self.linkableDependencies(path: project.path, name: $0.name)
         }
 
         let embeddableDependencies = try project.targets.flatMap {
@@ -443,6 +470,14 @@ public class Graph: Encodable, Equatable {
 
         return targetNode.targetDependencies
             .filter { validProducts.contains($0.target.product) }
+    }
+
+    public func appClipsDependency(path: AbsolutePath, name: String) -> TargetNode? {
+        guard let targetNode = findTargetNode(path: path, name: name) else {
+            return nil
+        }
+
+        return targetNode.targetDependencies.first { $0.target.product == .appClip }
     }
 
     /// Depth-first search (DFS) is an algorithm for traversing graph data structures. It starts at a source node
@@ -501,7 +536,7 @@ public class Graph: Encodable, Equatable {
                     stack.push(child)
                 }
             } else if let frameworkNode = node as? FrameworkNode {
-                for child in frameworkNode.dependencies where !visited.contains(child) {
+                for child in frameworkNode.dependencies.map(\.node) where !visited.contains(child) {
                     stack.push(child)
                 }
             }
@@ -557,31 +592,60 @@ public class Graph: Encodable, Equatable {
         } ?? nil
     }
 
+    /// - Returns: Host application for a given `targetNode`, if it exists
+    public func hostApplication(for targetNode: TargetNode) -> TargetNode? {
+        targetDependencies(path: targetNode.path, name: targetNode.name)
+            .first(where: { $0.target.product == .app })
+    }
+
     /// Returns a copy of the graph with the given projects set.
     /// - Parameter projects: Projects to be set to the copy.
     public func with(projects: [Project]) -> Graph {
-        Graph(name: name,
-              entryPath: entryPath,
-              entryNodes: entryNodes,
-              projects: projects,
-              cocoapods: cocoapods,
-              packages: packages,
-              precompiled: precompiled,
-              targets: targets)
+        Graph(
+            name: name,
+            entryPath: entryPath,
+            entryNodes: entryNodes,
+            workspace: workspace,
+            projects: projects,
+            cocoapods: cocoapods,
+            packages: packages,
+            precompiled: precompiled,
+            targets: targets
+        )
     }
 
     /// Returns a copy of the graph with the given targets.
     /// - Parameter targets: Targets to be set to the copy.
     /// - Returns: New graph with the given targets.
     public func with(targets: [AbsolutePath: [TargetNode]]) -> Graph {
-        Graph(name: name,
-              entryPath: entryPath,
-              entryNodes: entryNodes,
-              projects: projects,
-              cocoapods: cocoapods,
-              packages: packages,
-              precompiled: precompiled,
-              targets: targets)
+        Graph(
+            name: name,
+            entryPath: entryPath,
+            entryNodes: entryNodes,
+            workspace: workspace,
+            projects: projects,
+            cocoapods: cocoapods,
+            packages: packages,
+            precompiled: precompiled,
+            targets: targets
+        )
+    }
+
+    /// Returns a copy of the graph with a given workspace.
+    /// - Parameter workspace: Workspace to be set to the copy.
+    /// - Returns: New graph with a given workspace.
+    public func with(workspace: Workspace) -> Graph {
+        Graph(
+            name: name,
+            entryPath: entryPath,
+            entryNodes: entryNodes,
+            workspace: workspace,
+            projects: projects,
+            cocoapods: cocoapods,
+            packages: packages,
+            precompiled: precompiled,
+            targets: targets
+        )
     }
 
     public func forEach(closure: (GraphNode) -> Void) {
@@ -613,8 +677,8 @@ public class Graph: Encodable, Equatable {
                     stack.push(child)
                 }
             } else if let frameworkNode = node as? FrameworkNode {
-                for child in frameworkNode.dependencies where !visited.contains(child) {
-                    stack.push(child)
+                for child in frameworkNode.dependencies where !visited.contains(child.node) {
+                    stack.push(child.node)
                 }
             }
         }
@@ -632,11 +696,6 @@ public class Graph: Encodable, Equatable {
             type: productNode.productType,
             path: productNode.path
         )
-    }
-
-    fileprivate func hostApplication(for targetNode: TargetNode) -> TargetNode? {
-        targetDependencies(path: targetNode.path, name: targetNode.name)
-            .first(where: { $0.target.product == .app })
     }
 
     fileprivate func isStaticLibrary(targetNode: TargetNode) -> Bool {

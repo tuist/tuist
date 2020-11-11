@@ -2,6 +2,7 @@ import Foundation
 import RxBlocking
 import Signals
 import TSCBasic
+import TuistCache
 import TuistCore
 import TuistDoc
 import TuistSupport
@@ -16,7 +17,7 @@ enum DocServiceError: FatalError, Equatable {
     var description: String {
         switch self {
         case let .targetNotFound(name):
-            return "The target \(name) is not visible in the current project."
+            return "The target \(name) was not found."
         case .documentationNotGenerated:
             return "The documentation was not generated. Problably the provided target does not have public symbols."
         case let .invalidHostURL(url, port):
@@ -47,7 +48,7 @@ protocol DocServicing {
 final class DocService {
     private static var temporaryDirectory: AbsolutePath?
 
-    private let projectGenerator: ProjectGenerating
+    private let generator: Generating
     private let swiftDocController: SwiftDocControlling
     private let swiftDocServer: SwiftDocServing
 
@@ -59,14 +60,14 @@ final class DocService {
     /// Semaphore to block the execution
     private let semaphore: Semaphoring
 
-    init(projectGenerator: ProjectGenerating = ProjectGenerator(),
+    init(generator: Generating = Generator(contentHasher: CacheContentHasher()),
          swiftDocController: SwiftDocControlling = SwiftDocController(),
          swiftDocServer: SwiftDocServing = SwiftDocServer(),
          fileHandler: FileHandling = FileHandler.shared,
          opener: Opening = Opener(),
          semaphore: Semaphoring = Semaphore())
     {
-        self.projectGenerator = projectGenerator
+        self.generator = generator
         self.swiftDocController = swiftDocController
         self.swiftDocServer = swiftDocServer
         self.fileHandler = fileHandler
@@ -75,9 +76,10 @@ final class DocService {
     }
 
     func run(project path: AbsolutePath, target targetName: String) throws {
-        let (_, graph, _) = try projectGenerator.loadProject(path: path)
+        let graph = try generator.load(path: path)
 
-        let targets = graph.targets(at: path)
+        let targets = graph.targets
+            .flatMap(\.value)
             .filter { !$0.dependsOnXCTest }
             .map { $0.target }
 

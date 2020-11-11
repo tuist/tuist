@@ -136,7 +136,7 @@ final class TargetLinterTests: TuistUnitTestCase {
         let bundle = Target.empty(platform: .iOS,
                                   product: .bundle,
                                   sources: [
-                                      (path: "/path/to/some/source.swift", compilerFlags: nil),
+                                      SourceFile(path: "/path/to/some/source.swift"),
                                   ],
                                   resources: [])
 
@@ -220,7 +220,7 @@ final class TargetLinterTests: TuistUnitTestCase {
 
         // Then
         XCTContainsLintingIssue(got, .init(
-            reason: "Target \(target.name) has duplicate '\(testDependency)' dependency specified",
+            reason: "Target '\(target.name)' has duplicate sdk dependency specified: 'libc++.tbd'",
             severity: .warning
         ))
     }

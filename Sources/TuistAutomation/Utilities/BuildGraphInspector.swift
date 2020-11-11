@@ -7,7 +7,8 @@ public protocol BuildGraphInspecting {
     /// Returns the build arguments to be used with the given target.
     /// - Parameter target: Target whose build arguments will be returned.
     /// - Parameter configuration: The configuration to be built. When nil, it defaults to the configuration specified in the scheme.
-    func buildArguments(target: Target, configuration: String?) -> [XcodeBuildArgument]
+    /// - Parameter skipSigning: Skip code signing during build that is not required to be signed (eg. build for testing on iOS Simulator)
+    func buildArguments(target: Target, configuration: String?, skipSigning: Bool) -> [XcodeBuildArgument]
 
     /// Given a directory, it returns the first .xcworkspace found.
     /// - Parameter path: Found .xcworkspace.
@@ -19,6 +20,12 @@ public protocol BuildGraphInspecting {
     ///   - graph: Dependency graph.
     func buildableTarget(scheme: Scheme, graph: Graph) -> Target?
 
+    ///  From the list of testable targets of the given scheme, it returns the first one.
+    /// - Parameters:
+    ///   - scheme: Scheme in which to look up the target.
+    ///   - graph: Dependency graph.
+    func testableTarget(scheme: Scheme, graph: Graph) -> Target?
+
     /// Given a graph, it returns a list of buildable schemes.
     /// - Parameter graph: Dependency graph.
     func buildableSchemes(graph: Graph) -> [Scheme]
@@ -27,12 +34,20 @@ public protocol BuildGraphInspecting {
     /// - Parameters:
     ///     - graph: Dependency graph
     func buildableEntrySchemes(graph: Graph) -> [Scheme]
+
+    /// Given a graph, it returns a list of test schemes (those that include only one test target).
+    /// - Parameter graph: Dependency graph.
+    func testSchemes(graph: Graph) -> [Scheme]
+
+    /// Given a graph, it returns a list of testable schemes.
+    /// - Parameter graph: Dependency graph.
+    func testableSchemes(graph: Graph) -> [Scheme]
 }
 
 public class BuildGraphInspector: BuildGraphInspecting {
     public init() {}
 
-    public func buildArguments(target: Target, configuration: String?) -> [XcodeBuildArgument] {
+    public func buildArguments(target: Target, configuration: String?, skipSigning: Bool) -> [XcodeBuildArgument] {
         var arguments: [XcodeBuildArgument]
         if target.platform == .macOS {
             arguments = [.sdk(target.platform.xcodeDeviceSDK)]
@@ -49,23 +64,42 @@ public class BuildGraphInspector: BuildGraphInspecting {
             }
         }
 
+        // Signing
+        if skipSigning {
+            arguments += [
+                .xcarg("CODE_SIGN_IDENTITY", ""),
+                .xcarg("CODE_SIGNING_REQUIRED", "NO"),
+                .xcarg("CODE_SIGN_ENTITLEMENTS", ""),
+                .xcarg("CODE_SIGNING_ALLOWED", "NO"),
+            ]
+        }
+
         return arguments
     }
 
     public func buildableTarget(scheme: Scheme, graph: Graph) -> Target? {
-        if scheme.buildAction?.targets.count == 0 {
+        guard
+            scheme.buildAction?.targets.isEmpty == false,
+            let buildTarget = scheme.buildAction?.targets.first
+        else {
             return nil
         }
-        let buildTarget = scheme.buildAction!.targets.first!
-        return graph.target(path: buildTarget.projectPath, name: buildTarget.name)!.target
+
+        return graph.target(path: buildTarget.projectPath, name: buildTarget.name)?.target
+    }
+
+    public func testableTarget(scheme: Scheme, graph: Graph) -> Target? {
+        if scheme.testAction?.targets.count == 0 {
+            return nil
+        }
+        let testTarget = scheme.testAction!.targets.first!
+        return graph.target(path: testTarget.target.projectPath, name: testTarget.target.name)!.target
     }
 
     public func buildableSchemes(graph: Graph) -> [Scheme] {
-        graph.targets.values.flatMap {
-            $0.flatMap { $0.project.schemes }
-        }
-        .filter { $0.buildAction?.targets.isEmpty == false }
-        .sorted(by: { $0.name < $1.name })
+        graph.schemes
+            .filter { $0.buildAction?.targets.isEmpty == false }
+            .sorted(by: { $0.name < $1.name })
     }
 
     public func buildableEntrySchemes(graph: Graph) -> [Scheme] {
@@ -74,6 +108,25 @@ public class BuildGraphInspector: BuildGraphInspecting {
             .flatMap { $0.schemes }
             .filter { $0.buildAction?.targets.isEmpty == false }
             .sorted(by: { $0.name < $1.name })
+    }
+
+    public func testableSchemes(graph: Graph) -> [Scheme] {
+        graph.schemes
+            .filter { $0.testAction?.targets.isEmpty == false }
+            .sorted(by: { $0.name < $1.name })
+    }
+
+    public func testSchemes(graph: Graph) -> [Scheme] {
+        graph.targets.values.flatMap { target -> [Scheme] in
+            target
+                .filter { $0.target.product == .unitTests || $0.target.product == .uiTests }
+                .flatMap { target -> [Scheme] in
+                    target.project.schemes
+                        .filter { $0.targetDependencies().map(\.name) == [target.name] }
+                }
+        }
+        .filter { $0.testAction?.targets.isEmpty == false }
+        .sorted(by: { $0.name < $1.name })
     }
 
     public func workspacePath(directory: AbsolutePath) throws -> AbsolutePath? {

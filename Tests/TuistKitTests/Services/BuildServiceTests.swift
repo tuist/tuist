@@ -23,24 +23,24 @@ final class BuildServiceErrorTests: TuistUnitTestCase {
 }
 
 final class BuildServiceTests: TuistUnitTestCase {
-    var projectGenerator: MockProjectGenerator!
+    var generator: MockGenerator!
     var xcodebuildController: MockXcodeBuildController!
     var buildgraphInspector: MockBuildGraphInspector!
     var subject: BuildService!
 
     override func setUp() {
         super.setUp()
-        projectGenerator = MockProjectGenerator()
+        generator = MockGenerator()
         xcodebuildController = MockXcodeBuildController()
         buildgraphInspector = MockBuildGraphInspector()
-        subject = BuildService(projectGenerator: projectGenerator,
+        subject = BuildService(generator: generator,
                                xcodebuildController: xcodebuildController,
                                buildGraphInspector: buildgraphInspector)
     }
 
     override func tearDown() {
         super.tearDown()
-        projectGenerator = nil
+        generator = nil
         xcodebuildController = nil
         buildgraphInspector = nil
         subject = nil
@@ -54,8 +54,9 @@ final class BuildServiceTests: TuistUnitTestCase {
         let scheme = Scheme.test()
         let target = Target.test()
         let buildArguments: [XcodeBuildArgument] = [.sdk("iphoneos")]
+        let skipSigning = false
 
-        projectGenerator.generateWithGraphStub = { _path, _projectOnly in
+        generator.generateWithGraphStub = { _path, _projectOnly in
             XCTAssertEqual(_path, path)
             XCTAssertFalse(_projectOnly)
             return (path, graph)
@@ -71,8 +72,9 @@ final class BuildServiceTests: TuistUnitTestCase {
             XCTAssertEqual(_path, path)
             return workspacePath
         }
-        buildgraphInspector.buildArgumentsStub = { _target, _ in
+        buildgraphInspector.buildArgumentsStub = { _target, _, _skipSigning in
             XCTAssertEqual(_target, target)
+            XCTAssertEqual(_skipSigning, skipSigning)
             return buildArguments
         }
         xcodebuildController.buildStub = { _target, _scheme, _clean, _arguments in
@@ -98,8 +100,9 @@ final class BuildServiceTests: TuistUnitTestCase {
         let scheme = Scheme.test()
         let target = Target.test()
         let buildArguments: [XcodeBuildArgument] = [.sdk("iphoneos")]
+        let skipSigning = false
 
-        projectGenerator.loadStub = { _path in
+        generator.loadStub = { _path in
             XCTAssertEqual(_path, path)
             return graph
         }
@@ -114,8 +117,9 @@ final class BuildServiceTests: TuistUnitTestCase {
             XCTAssertEqual(_path, path)
             return workspacePath
         }
-        buildgraphInspector.buildArgumentsStub = { _target, _ in
+        buildgraphInspector.buildArgumentsStub = { _target, _, _skipSigning in
             XCTAssertEqual(_target, target)
+            XCTAssertEqual(_skipSigning, skipSigning)
             return buildArguments
         }
         xcodebuildController.buildStub = { _target, _scheme, _clean, _arguments in
@@ -143,8 +147,9 @@ final class BuildServiceTests: TuistUnitTestCase {
         let targetA = Target.test(name: "A")
         let targetB = Target.test(name: "B")
         let buildArguments: [XcodeBuildArgument] = [.sdk("iphoneos")]
+        let skipSigning = false
 
-        projectGenerator.loadStub = { _path in
+        generator.loadStub = { _path in
             XCTAssertEqual(_path, path)
             return graph
         }
@@ -160,8 +165,9 @@ final class BuildServiceTests: TuistUnitTestCase {
             XCTAssertEqual(_path, path)
             return workspacePath
         }
-        buildgraphInspector.buildArgumentsStub = { _, _ in
-            buildArguments
+        buildgraphInspector.buildArgumentsStub = { _, _, _skipSigning in
+            XCTAssertEqual(_skipSigning, skipSigning)
+            return buildArguments
         }
         xcodebuildController.buildStub = { _target, _scheme, _clean, _arguments in
             XCTAssertEqual(_target, .workspace(workspacePath))
@@ -196,8 +202,9 @@ final class BuildServiceTests: TuistUnitTestCase {
         let targetA = Target.test(name: "A")
         let targetB = Target.test(name: "B")
         let buildArguments: [XcodeBuildArgument] = [.sdk("iphoneos")]
+        let skipSigning = false
 
-        projectGenerator.loadStub = { _path in
+        generator.loadStub = { _path in
             XCTAssertEqual(_path, path)
             return graph
         }
@@ -213,8 +220,9 @@ final class BuildServiceTests: TuistUnitTestCase {
             XCTAssertEqual(_path, path)
             return workspacePath
         }
-        buildgraphInspector.buildArgumentsStub = { _, _ in
-            buildArguments
+        buildgraphInspector.buildArgumentsStub = { _, _, _skipSigning in
+            XCTAssertEqual(_skipSigning, skipSigning)
+            return buildArguments
         }
         xcodebuildController.buildStub = { _target, _scheme, _clean, _arguments in
             XCTAssertEqual(_target, .workspace(workspacePath))
@@ -243,7 +251,7 @@ final class BuildServiceTests: TuistUnitTestCase {
         let graph = Graph.test()
         let schemeA = Scheme.test(name: "A")
         let schemeB = Scheme.test(name: "B")
-        projectGenerator.loadStub = { _path in
+        generator.loadStub = { _path in
             XCTAssertEqual(_path, path)
             return graph
         }
@@ -260,8 +268,7 @@ final class BuildServiceTests: TuistUnitTestCase {
 
         // When
         try subject.testRun(
-            path: path,
-            listSchemes: true
+            path: path
         )
 
         // Then
@@ -277,8 +284,7 @@ private extension BuildService {
         generate: Bool = false,
         clean: Bool = true,
         configuration: String? = nil,
-        path: AbsolutePath,
-        listSchemes _: Bool = true
+        path: AbsolutePath
     ) throws {
         try run(
             schemeName: schemeName,

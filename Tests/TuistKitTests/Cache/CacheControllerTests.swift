@@ -1,5 +1,6 @@
 import Foundation
 import TSCBasic
+import TuistCache
 import TuistCacheTesting
 import TuistCore
 import TuistCoreTesting
@@ -8,28 +9,52 @@ import TuistLoaderTesting
 import TuistSupport
 import XCTest
 
+@testable import TuistCore
 @testable import TuistKit
 @testable import TuistSupportTesting
 
+final class CacheControllerProjectMapperProviderTests: TuistUnitTestCase {
+    var subject: CacheControllerProjectMapperProvider!
+
+    override func setUp() {
+        subject = CacheControllerProjectMapperProvider(contentHasher: ContentHasher())
+    }
+
+    func test_mapper_includes_the_cache_build_phase_project_mapper() throws {
+        // Given
+        let config = Config.test()
+
+        // When
+        let got = subject.mapper(config: config)
+
+        // Then
+        let sequentialMapper = try XCTUnwrap(got as? SequentialProjectMapper)
+        XCTAssertTrue(sequentialMapper.mappers.last is CacheBuildPhaseProjectMapper)
+    }
+}
+
 final class CacheControllerTests: TuistUnitTestCase {
-    var generator: MockProjectGenerator!
+    var generator: MockGenerator!
     var graphContentHasher: MockGraphContentHasher!
-    var xcframeworkBuilder: MockXCFrameworkBuilder!
+    var artifactBuilder: MockCacheArtifactBuilder!
     var manifestLoader: MockManifestLoader!
     var cache: MockCacheStorage!
     var subject: CacheController!
+    var projectGeneratorProvider: MockCacheControllerProjectGeneratorProvider!
     var config: Config!
 
     override func setUp() {
-        generator = MockProjectGenerator()
-        xcframeworkBuilder = MockXCFrameworkBuilder()
+        generator = MockGenerator()
+        artifactBuilder = MockCacheArtifactBuilder()
         cache = MockCacheStorage()
         manifestLoader = MockManifestLoader()
         graphContentHasher = MockGraphContentHasher()
         config = .test()
+        projectGeneratorProvider = MockCacheControllerProjectGeneratorProvider()
+        projectGeneratorProvider.stubbedGeneratorResult = generator
         subject = CacheController(cache: cache,
-                                  generator: generator,
-                                  xcframeworkBuilder: xcframeworkBuilder,
+                                  artifactBuilder: artifactBuilder,
+                                  projectGeneratorProvider: projectGeneratorProvider,
                                   graphContentHasher: graphContentHasher)
 
         super.setUp()
@@ -38,7 +63,7 @@ final class CacheControllerTests: TuistUnitTestCase {
     override func tearDown() {
         super.tearDown()
         generator = nil
-        xcframeworkBuilder = nil
+        artifactBuilder = nil
         graphContentHasher = nil
         manifestLoader = nil
         cache = nil
@@ -53,10 +78,10 @@ final class CacheControllerTests: TuistUnitTestCase {
         let project = Project.test(path: path, name: "Cache")
         let aTarget = Target.test(name: "A")
         let bTarget = Target.test(name: "B")
-        let axcframeworkPath = path.appending(component: "A.xcframework")
-        let bxcframeworkPath = path.appending(component: "B.xcframework")
-        try FileHandler.shared.createFolder(axcframeworkPath)
-        try FileHandler.shared.createFolder(bxcframeworkPath)
+        let aFrameworkPath = path.appending(component: "A.framework")
+        let bFrameworkPath = path.appending(component: "B.framework")
+        try FileHandler.shared.createFolder(aFrameworkPath)
+        try FileHandler.shared.createFolder(bFrameworkPath)
 
         let nodeWithHashes = [
             TargetNode.test(project: project, target: aTarget): "A_HASH",
@@ -73,24 +98,18 @@ final class CacheControllerTests: TuistUnitTestCase {
             XCTAssertEqual(loadPath, path)
             return (xcworkspacePath, graph)
         }
-        graphContentHasher.contentHashesStub = nodeWithHashes
+        graphContentHasher.stubbedContentHashesResult = nodeWithHashes
+        artifactBuilder.stubbedCacheOutputType = .xcframework
 
-        xcframeworkBuilder.buildWorkspaceStub = { _xcworkspacePath, target in
-            switch (_xcworkspacePath, target) {
-            case (xcworkspacePath, aTarget): return .success(axcframeworkPath)
-            case (xcworkspacePath, bTarget): return .success(bxcframeworkPath)
-            default: return .failure(TestError("Received invalid Xcode project path or target"))
-            }
-        }
-
-        try subject.cache(path: path, includeDeviceArch: true)
+        try subject.cache(path: path)
 
         // Then
         XCTAssertPrinterOutputContains("""
         Hashing cacheable frameworks
-        All cacheable frameworks have been cached successfully
+        Building cacheable frameworks as xcframeworks
+        All cacheable frameworks have been cached successfully as xcframeworks
         """)
-        XCTAssertFalse(FileHandler.shared.exists(axcframeworkPath))
-        XCTAssertFalse(FileHandler.shared.exists(bxcframeworkPath))
+        XCTAssertEqual(artifactBuilder.invokedBuildWorkspacePathParametersList.first?.target, aTarget)
+        XCTAssertEqual(artifactBuilder.invokedBuildWorkspacePathParametersList.last?.target, bTarget)
     }
 }

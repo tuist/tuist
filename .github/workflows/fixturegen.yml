@@ -2,24 +2,21 @@ name: Fixture Generator
 
 on:
   push:
-    paths:
-      - tools/fixturegen/**/*
-      - Sources/ProjectDescription/**/*
-      - .github/workflows/fixturegen.yml
+    branches:
+      - main
   pull_request:
-    paths:
-      - tools/fixturegen/**/*
-      - Sources/ProjectDescription/**/*
-      - .github/workflows/fixturegen.yml
 
 jobs:
   test:
-    name: Test
+    name: Test fixturegen with Xcode ${{ matrix.xcode }}
     runs-on: macOS-latest
+    strategy:
+      matrix:
+        xcode: ['11.5', '12.1']
     steps:
       - uses: actions/checkout@v1
-      - name: Select Xcode 11.5
-        run: sudo xcode-select -switch /Applications/Xcode_11.5.app
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_${{ matrix.xcode }}.app
       - name: Build Package
         working-directory: ./tools/fixturegen
         run: swift build

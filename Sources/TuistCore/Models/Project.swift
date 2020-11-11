@@ -9,6 +9,7 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
             lhs.xcodeProjPath == rhs.xcodeProjPath &&
             lhs.name == rhs.name &&
             lhs.organizationName == rhs.organizationName &&
+            lhs.developmentRegion == rhs.developmentRegion &&
             lhs.targets == rhs.targets &&
             lhs.packages == rhs.packages &&
             lhs.schemes == rhs.schemes &&
@@ -33,6 +34,9 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
 
     /// Organization name.
     public var organizationName: String?
+
+    /// Development region code e.g. `en`.
+    public var developmentRegion: String?
 
     /// Project targets.
     public var targets: [Target]
@@ -62,6 +66,7 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
     ///   - xcodeProjPath: Path to the Xcode project that will be generated.
     ///   - name: Project name.
     ///   - organizationName: Organization name.
+    ///   - developmentRegion: Development region.
     ///   - settings: The settings to apply at the project level
     ///   - filesGroup: The root group to place project files within
     ///   - targets: The project targets
@@ -72,6 +77,7 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
                 xcodeProjPath: AbsolutePath,
                 name: String,
                 organizationName: String?,
+                developmentRegion: String?,
                 settings: Settings,
                 filesGroup: ProjectGroup,
                 targets: [Target],
@@ -84,6 +90,7 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
         self.xcodeProjPath = xcodeProjPath
         self.name = name
         self.organizationName = organizationName
+        self.developmentRegion = developmentRegion
         self.targets = targets
         self.packages = packages
         self.schemes = schemes
@@ -155,6 +162,7 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
                 xcodeProjPath: xcodeProjPath,
                 name: name,
                 organizationName: organizationName,
+                developmentRegion: developmentRegion,
                 settings: settings,
                 filesGroup: filesGroup,
                 targets: targets,
@@ -171,6 +179,7 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
                 xcodeProjPath: xcodeProjPath,
                 name: name,
                 organizationName: organizationName,
+                developmentRegion: developmentRegion,
                 settings: settings,
                 filesGroup: filesGroup,
                 targets: targets,

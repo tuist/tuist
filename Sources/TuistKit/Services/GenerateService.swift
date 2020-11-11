@@ -1,15 +1,22 @@
 import TSCBasic
+import TuistCache
+import TuistCore
 import TuistGenerator
 import TuistLoader
 import TuistSupport
 
 protocol GenerateServiceProjectGeneratorFactorying {
-    func generator() -> ProjectGenerating
+    func generator() -> Generating
 }
 
 final class GenerateServiceProjectGeneratorFactory: GenerateServiceProjectGeneratorFactorying {
-    func generator() -> ProjectGenerating {
-        ProjectGenerator(graphMapperProvider: GraphMapperProvider(cache: false, sources: Set()))
+    func generator() -> Generating {
+        let contentHasher = CacheContentHasher()
+        let projectMapperProvider = ProjectMapperProvider(contentHasher: contentHasher)
+        return Generator(projectMapperProvider: projectMapperProvider,
+                         graphMapperProvider: GraphMapperProvider(),
+                         workspaceMapperProvider: WorkspaceMapperProvider(contentHasher: contentHasher),
+                         manifestLoaderFactory: ManifestLoaderFactory())
     }
 }
 

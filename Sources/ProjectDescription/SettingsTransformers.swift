@@ -78,7 +78,7 @@ public extension SettingsDictionary {
         merging(["VERSIONING_SYSTEM": "apple-generic"])
     }
 
-    /// Sets "VERSION_INFO_PREFIX" to `version`. If `prefix` and `suffix` are not `nil`, they're used as `"VERSION_INFO_PREFIX"` and `"VERSION_INFO_SUFFIX"` respectively.
+    /// Sets "VERSION_INFO_STRING" to `version`. If `prefix` and `suffix` are not `nil`, they're used as `"VERSION_INFO_PREFIX"` and `"VERSION_INFO_SUFFIX"` respectively.
     func versionInfo(_ version: String, prefix: String? = nil, suffix: String? = nil) -> SettingsDictionary {
         var versionSettings: SettingsDictionary = ["VERSION_INFO_STRING": SettingValue(version)]
         versionSettings["VERSION_INFO_PREFIX"] = prefix.map { SettingValue($0) }

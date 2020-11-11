@@ -26,6 +26,7 @@ final class ProjectGroupsTests: XCTestCase {
                           xcodeProjPath: path.appending(component: "Project.xcodeproj"),
                           name: "Project",
                           organizationName: nil,
+                          developmentRegion: nil,
                           settings: .default,
                           filesGroup: .group(name: "Project"),
                           targets: [

@@ -2,22 +2,21 @@ name: Tuist Benchmark
 
 on:
   push:
-    paths:
-      - tools/tuistbench/**/*
-      - .github/workflows/tuistbench.yml
+    branches:
+      - main
   pull_request:
-    paths:
-      - tools/tuistbench/**/*
-      - .github/workflows/tuistbench.yml
 
 jobs:
   test:
-    name: Build
+    name: Build tuistbench with Xcode ${{ matrix.xcode }}
     runs-on: macOS-latest
+    strategy:
+      matrix:
+        xcode: ['11.5', '12.1']
     steps:
       - uses: actions/checkout@v1
-      - name: Select Xcode 11.5
-        run: sudo xcode-select -switch /Applications/Xcode_11.5.app
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_${{ matrix.xcode }}.app
       - name: Build Package
         working-directory: ./tools/tuistbench
         run: swift build

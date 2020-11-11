@@ -13,6 +13,15 @@ protocol ProjectMapperProviding {
 }
 
 final class ProjectMapperProvider: ProjectMapperProviding {
+    /// Content hasher.
+    private let contentHasher: ContentHashing
+
+    /// Initializes the project mapper provider.
+    /// - Parameter contentHasher: Content hasher.
+    init(contentHasher: ContentHashing) {
+        self.contentHasher = contentHasher
+    }
+
     func mapper(config: Config) -> ProjectMapping {
         var mappers: [ProjectMapping] = []
 
@@ -26,7 +35,7 @@ final class ProjectMapperProvider: ProjectMapperProviding {
 
         // Namespace generator
         if !config.generationOptions.contains(.disableSynthesizedResourceAccessors) {
-            mappers.append(SynthesizedResourceInterfaceProjectMapper())
+            mappers.append(SynthesizedResourceInterfaceProjectMapper(contentHasher: contentHasher))
         }
 
         // Logfile noise suppression
@@ -42,8 +51,11 @@ final class ProjectMapperProvider: ProjectMapperProviding {
         // Info Plist
         mappers.append(GenerateInfoPlistProjectMapper())
 
-        // Project name mapper
+        // Project name and organization
         mappers.append(ProjectNameAndOrganizationMapper(config: config))
+
+        // Development region
+        mappers.append(ProjectDevelopmentRegionMapper(config: config))
 
         // Signing
         mappers.append(SigningMapper())

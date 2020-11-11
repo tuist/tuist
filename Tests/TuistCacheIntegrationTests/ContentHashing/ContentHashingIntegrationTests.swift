@@ -1,5 +1,6 @@
 import Foundation
 import TSCBasic
+import TuistCore
 import TuistCoreTesting
 import TuistSupport
 import XCTest
@@ -11,10 +12,10 @@ import XCTest
 final class ContentHashingIntegrationTests: TuistTestCase {
     var subject: GraphContentHasher!
     var temporaryDirectoryPath: String!
-    var source1: Target.SourceFile!
-    var source2: Target.SourceFile!
-    var source3: Target.SourceFile!
-    var source4: Target.SourceFile!
+    var source1: SourceFile!
+    var source2: SourceFile!
+    var source3: SourceFile!
+    var source4: SourceFile!
     var resourceFile1: FileElement!
     var resourceFile2: FileElement!
     var resourceFolderReference1: FileElement!
@@ -42,7 +43,7 @@ final class ContentHashingIntegrationTests: TuistTestCase {
         } catch {
             XCTFail("Error while creating files for stub project")
         }
-        subject = GraphContentHasher()
+        subject = GraphContentHasher(contentHasher: CacheContentHasher())
     }
 
     override func tearDown() {
@@ -72,7 +73,7 @@ final class ContentHashingIntegrationTests: TuistTestCase {
         ])
 
         // When
-        let contentHash = try subject.contentHashes(for: graph)
+        let contentHash = try subject.contentHashes(for: graph, cacheOutputType: .framework)
 
         // Then
         XCTAssertEqual(contentHash[framework1], contentHash[framework2])
@@ -88,7 +89,7 @@ final class ContentHashingIntegrationTests: TuistTestCase {
         ])
 
         // When
-        let contentHash = try subject.contentHashes(for: graph)
+        let contentHash = try subject.contentHashes(for: graph, cacheOutputType: .framework)
 
         // Then
         XCTAssertNotEqual(contentHash[framework1], contentHash[framework2])
@@ -104,11 +105,29 @@ final class ContentHashingIntegrationTests: TuistTestCase {
         ])
 
         // When
-        let contentHash = try subject.contentHashes(for: graph)
+        let contentHash = try subject.contentHashes(for: graph, cacheOutputType: .framework)
 
         // Then
-        XCTAssertEqual(contentHash[framework1], "959a33d298f7d1815d8f747e557240f7")
-        XCTAssertEqual(contentHash[framework2], "95d3a5a751b713a854957b4b30d996eb")
+        XCTAssertEqual(contentHash[framework1], "cb93cd96c5af9deb87fad78fd14b5664")
+        XCTAssertEqual(contentHash[framework2], "f224c9df7a44ce5c7849f10e58142718")
+    }
+
+    func test_contentHashes_hashChangesWithCacheOutputType() throws {
+        // Given
+        let temporaryDirectoryPath = try temporaryPath()
+        let framework1 = makeFramework(named: "f1", sources: [source1, source2])
+        let framework2 = makeFramework(named: "f2", sources: [source3, source4])
+        let graph = Graph.test(targets: [
+            temporaryDirectoryPath: [framework1, framework2],
+        ])
+
+        // When
+        let contentFrameworkHash = try subject.contentHashes(for: graph, cacheOutputType: .framework)
+        let contentXCFrameworkHash = try subject.contentHashes(for: graph, cacheOutputType: .xcframework)
+
+        // Then
+        XCTAssertNotEqual(contentFrameworkHash[framework1], contentXCFrameworkHash[framework1])
+        XCTAssertNotEqual(contentFrameworkHash[framework2], contentXCFrameworkHash[framework2])
     }
 
     // MARK: - Resources
@@ -123,7 +142,7 @@ final class ContentHashingIntegrationTests: TuistTestCase {
         ])
 
         // When
-        let contentHash = try subject.contentHashes(for: graph)
+        let contentHash = try subject.contentHashes(for: graph, cacheOutputType: .framework)
 
         // Then
         XCTAssertNotEqual(contentHash[framework1], contentHash[framework2])
@@ -139,7 +158,7 @@ final class ContentHashingIntegrationTests: TuistTestCase {
         ])
 
         // When
-        let contentHash = try subject.contentHashes(for: graph)
+        let contentHash = try subject.contentHashes(for: graph, cacheOutputType: .framework)
 
         // Then
         XCTAssertNotEqual(contentHash[framework1], contentHash[framework2])
@@ -156,7 +175,7 @@ final class ContentHashingIntegrationTests: TuistTestCase {
         ])
 
         // When
-        let contentHash = try subject.contentHashes(for: graph)
+        let contentHash = try subject.contentHashes(for: graph, cacheOutputType: .framework)
 
         // Then
         XCTAssertEqual(contentHash[framework1], contentHash[framework2])
@@ -174,7 +193,7 @@ final class ContentHashingIntegrationTests: TuistTestCase {
         ])
 
         // When
-        let contentHash = try subject.contentHashes(for: graph)
+        let contentHash = try subject.contentHashes(for: graph, cacheOutputType: .framework)
 
         // Then
         XCTAssertNotEqual(contentHash[framework1], contentHash[framework2])
@@ -190,7 +209,7 @@ final class ContentHashingIntegrationTests: TuistTestCase {
         ])
 
         // When
-        let contentHash = try subject.contentHashes(for: graph)
+        let contentHash = try subject.contentHashes(for: graph, cacheOutputType: .framework)
 
         // Then
         XCTAssertEqual(contentHash[framework1], contentHash[framework2])
@@ -210,7 +229,7 @@ final class ContentHashingIntegrationTests: TuistTestCase {
         ])
 
         // When
-        let contentHash = try subject.contentHashes(for: graph)
+        let contentHash = try subject.contentHashes(for: graph, cacheOutputType: .framework)
 
         XCTAssertNotEqual(contentHash[framework1], contentHash[framework2])
     }
@@ -227,18 +246,18 @@ final class ContentHashingIntegrationTests: TuistTestCase {
         ])
 
         // When
-        let contentHash = try subject.contentHashes(for: graph)
+        let contentHash = try subject.contentHashes(for: graph, cacheOutputType: .framework)
 
         XCTAssertNotEqual(contentHash[framework1], contentHash[framework2])
     }
 
     // MARK: - Private helpers
 
-    private func createTemporarySourceFile(on temporaryDirectoryPath: AbsolutePath, name: String, content: String) throws -> Target.SourceFile {
+    private func createTemporarySourceFile(on temporaryDirectoryPath: AbsolutePath, name: String, content: String) throws -> SourceFile {
         let filePath = temporaryDirectoryPath.appending(component: name)
         try FileHandler.shared.touch(filePath)
         try FileHandler.shared.write(content, path: filePath, atomically: true)
-        return Target.SourceFile(path: filePath, compilerFlags: nil)
+        return SourceFile(path: filePath, compilerFlags: nil)
     }
 
     private func createTemporaryResourceFile(on temporaryDirectoryPath: AbsolutePath, name: String, content: String) throws -> FileElement {
@@ -258,7 +277,7 @@ final class ContentHashingIntegrationTests: TuistTestCase {
     private func makeFramework(named: String,
                                platform: Platform = .iOS,
                                productName: String? = nil,
-                               sources: [Target.SourceFile] = [],
+                               sources: [SourceFile] = [],
                                resources: [FileElement] = [],
                                coreDataModels: [CoreDataModel] = [],
                                targetActions: [TargetAction] = []) -> TargetNode

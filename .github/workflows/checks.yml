@@ -4,27 +4,20 @@ name: Checks
 on:
   push:
     branches:
-      - master
-    paths:
-      - Sources/**/*
-      - Tests/**/*
-      - fixtures/**/*
-      - .github/workflows/checks.yml
+      - main
   pull_request:
-    paths:
-      - Sources/**/*
-      - Tests/**/*
-      - fixtures/**/*
-      - .github/workflows/checks.yml
 
 jobs:
   swiftformat:
-    name: SwiftFormat
-    runs-on: macOS-latest
+    name: SwiftFormat with Xcode ${{ matrix.xcode }}
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        xcode: ['11.5', '12.1']
     steps:
       - uses: actions/checkout@v1
-      - name: Select Xcode 11.5
-        run: sudo xcode-select -switch /Applications/Xcode_11.5.app
+      - name: Select Xcode ${{ matrix.xcode }}
+        run: sudo xcode-select -switch /Applications/Xcode_${{ matrix.xcode }}.app
       - uses: actions/setup-ruby@v1
         with:
           ruby-version: '2.x'
@@ -35,12 +28,15 @@ jobs:
       - name: Run swiftformat
         run: bundle exec rake swift_format
   swiftlint:
-    name: Swiftlint
+    name: Swiftlint with Xcode ${{ matrix.xcode }}
     runs-on: macOS-latest
+    strategy:
+      matrix:
+        xcode: ['11.5', '12.1']
     steps:
       - uses: actions/checkout@v1
-      - name: Select Xcode 11.5
-        run: sudo xcode-select -switch /Applications/Xcode_11.5.app
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_${{ matrix.xcode }}.app
       - uses: actions/setup-ruby@v1
         with:
           ruby-version: '2.x'
