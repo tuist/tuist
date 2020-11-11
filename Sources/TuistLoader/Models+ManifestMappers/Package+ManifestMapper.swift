@@ -4,7 +4,7 @@ import TSCBasic
 import TuistCore
 import TuistSupport
 
-extension TuistCore.Package {
+extension TuistCore.PackageRequirement {
     /// Maps a ProjectDescription.Package instance into a TuistCore.Package model.
     /// - Parameters:
     ///   - manifest: Manifest representation of Package.
@@ -19,12 +19,12 @@ extension TuistCore.Package {
     }
 }
 
-extension TuistCore.Requirement {
+extension TuistCore.PackageRequirement {
     /// Maps a ProjectDescription.Package.Requirement instance into a TuistCore.Package.Requirement model.
     /// - Parameters:
     ///   - manifest: Manifest representation of Package.
     ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.Package.Requirement) -> TuistCore.Requirement {
+    static func from(manifest: ProjectDescription.Package.Requirement) -> TuistCore.PackageRequirement {
         switch manifest {
         case let .branch(branch):
             return .branch(branch)

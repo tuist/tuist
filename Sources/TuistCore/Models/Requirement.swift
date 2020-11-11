@@ -1,7 +1,7 @@
 import Foundation
 import XcodeProj
 
-public enum Requirement: Equatable {
+public enum PackageRequirement: Equatable {
     case upToNextMajor(String)
     case upToNextMinor(String)
     case range(from: String, to: String)
