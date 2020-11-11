@@ -4,6 +4,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+## 1.24.0 - Sol y sombra
+
 ### Added
 
 - Synthesize accessors for stringsdict [#1993](https://github.com/tuist/tuist/pull/1993) by [@fortmarek](https://githubl.com/fortmarek)
@@ -16,7 +18,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Block the process while editing the project and remove the project after the edition finishes [#1999](https://github.com/tuist/tuist/pull/1999) by [@pepibumur](https://github.com/pepibumur).
 - Use the simulator udid when building the frameworks for the cache instead of `os=latest` [#2016](https://github.com/tuist/tuist/pull/2016) by [@pepibumur](https://github.com/pepibumur).
 
-## 1.23.0
+## 1.23.0 - Automaton
 
 ### Added
 
