@@ -42,6 +42,8 @@ extension TuistCore.Config.GenerationOption {
             return .disableSynthesizedResourceAccessors
         case .disableShowEnvironmentVarsInScriptPhases:
             return .disableShowEnvironmentVarsInScriptPhases
+        case .enableCodeCoverage:
+            return .enableCodeCoverage
         }
     }
 }
