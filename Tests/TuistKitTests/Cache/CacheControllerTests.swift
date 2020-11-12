@@ -42,6 +42,7 @@ final class CacheControllerTests: TuistUnitTestCase {
     var subject: CacheController!
     var projectGeneratorProvider: MockCacheControllerProjectGeneratorProvider!
     var config: Config!
+    var cacheGraphLinter: MockCacheGraphLinter!
 
     override func setUp() {
         generator = MockGenerator()
@@ -52,10 +53,12 @@ final class CacheControllerTests: TuistUnitTestCase {
         config = .test()
         projectGeneratorProvider = MockCacheControllerProjectGeneratorProvider()
         projectGeneratorProvider.stubbedGeneratorResult = generator
+        cacheGraphLinter = MockCacheGraphLinter()
         subject = CacheController(cache: cache,
                                   artifactBuilder: artifactBuilder,
                                   projectGeneratorProvider: projectGeneratorProvider,
-                                  graphContentHasher: graphContentHasher)
+                                  graphContentHasher: graphContentHasher,
+                                  cacheGraphLinter: cacheGraphLinter)
 
         super.setUp()
     }
@@ -105,10 +108,11 @@ final class CacheControllerTests: TuistUnitTestCase {
 
         // Then
         XCTAssertPrinterOutputContains("""
-        Hashing cacheable frameworks
-        Building cacheable frameworks as xcframeworks
-        All cacheable frameworks have been cached successfully as xcframeworks
+        Hashing cacheable targets
+        Building cacheable targets
+        All cacheable targets have been cached successfully as xcframeworks
         """)
+        XCTAssertEqual(cacheGraphLinter.invokedLintCount, 1)
         XCTAssertEqual(artifactBuilder.invokedBuildWorkspacePathParametersList.first?.target, aTarget)
         XCTAssertEqual(artifactBuilder.invokedBuildWorkspacePathParametersList.last?.target, bTarget)
     }

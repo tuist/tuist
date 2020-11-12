@@ -22,8 +22,12 @@ final class CacheWarmService {
         let cache = Cache(storageProvider: CacheStorageProvider(config: config))
         let cacheControllerFactory = CacheControllerFactory(cache: cache)
         let contentHasher = CacheContentHasher()
-        let cacheController = xcframeworks ? cacheControllerFactory.makeForXCFramework(contentHasher: contentHasher)
-            : cacheControllerFactory.makeForSimulatorFramework(contentHasher: contentHasher)
+        let cacheController: CacheControlling
+        if xcframeworks {
+            cacheController = cacheControllerFactory.makeForXCFramework(contentHasher: contentHasher)
+        } else {
+            cacheController = cacheControllerFactory.makeForSimulatorFramework(contentHasher: contentHasher)
+        }
         try cacheController.cache(path: path)
     }
 

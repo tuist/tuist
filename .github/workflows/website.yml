@@ -1,6 +1,10 @@
 name: Website
 
-on: ['push']
+on:
+  push:
+    branches:
+      - main
+  pull_request:
 
 jobs:
   build:

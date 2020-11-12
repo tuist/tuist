@@ -16,6 +16,12 @@ public protocol SimulatorControlling {
     /// - Returns: the list of simulator devices and runtimes.
     func devicesAndRuntimes() -> Single<[SimulatorDeviceAndRuntime]>
 
+    /// Find an available device for the given platform.
+    /// Available devices are sorted by their runtime version, meaning the ones with higher runtime
+    /// will be preferred over the ones with a lower runtime.
+    /// - Parameter platform: Platform.
+    func findAvailableDevice(platform: Platform) -> Single<SimulatorDeviceAndRuntime>
+
     /// Finds first available device defined by given parameters
     /// - Parameters:
     ///     - platform: Given platform
@@ -27,7 +33,7 @@ public protocol SimulatorControlling {
         version: Version?,
         minVersion: Version?,
         deviceName: String?
-    ) -> Single<SimulatorDevice>
+    ) -> Single<SimulatorDeviceAndRuntime>
 }
 
 public enum SimulatorControllerError: FatalError {
@@ -129,10 +135,11 @@ public final class SimulatorController: SimulatorControlling {
         version: Version?,
         minVersion: Version?,
         deviceName: String?
-    ) -> Single<SimulatorDevice> {
+    ) -> Single<SimulatorDeviceAndRuntime> {
         devicesAndRuntimes()
             .flatMap { devicesAndRuntimes in
                 let availableDevices = devicesAndRuntimes
+                    .sorted(by: { $0.runtime.version >= $1.runtime.version })
                     .filter { simulatorDeviceAndRuntime in
                         let nameComponents = simulatorDeviceAndRuntime.runtime.name.components(separatedBy: " ")
                         guard nameComponents.first == platform.caseValue else { return false }
@@ -147,12 +154,17 @@ public final class SimulatorController: SimulatorControlling {
                         }
                         return true
                     }
-                    .map(\.device)
                 guard
-                    let device = availableDevices.first(where: { !$0.isShutdown }) ?? availableDevices.first
+                    let device = availableDevices.first(where: { !$0.device.isShutdown }) ?? availableDevices.first
                 else { return .error(SimulatorControllerError.deviceNotFound(platform, version, deviceName, devicesAndRuntimes)) }
 
                 return .just(device)
             }
+    }
+}
+
+public extension SimulatorControlling {
+    func findAvailableDevice(platform: Platform) -> Single<SimulatorDeviceAndRuntime> {
+        self.findAvailableDevice(platform: platform, version: nil, minVersion: nil, deviceName: nil)
     }
 }

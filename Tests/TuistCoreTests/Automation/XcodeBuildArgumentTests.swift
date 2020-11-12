@@ -39,9 +39,9 @@ final class XcodeBuildArgumentTests: TuistUnitTestCase {
         XCTAssertEqual(got, ["-derivedDataPath", path.pathString])
     }
 
-    func test_arguments_returns_the_right_value_when_buildSetting() {
+    func test_arguments_returns_the_right_value_when_xcarg() {
         // Given
-        let subject = XcodeBuildArgument.buildSetting("key", "value")
+        let subject = XcodeBuildArgument.xcarg("key", "value")
 
         // When
         let got = subject.arguments
@@ -50,9 +50,9 @@ final class XcodeBuildArgumentTests: TuistUnitTestCase {
         XCTAssertEqual(got, ["key=value"])
     }
 
-    func test_arguments_returns_the_right_value_when_buildSetting_with_spaces() {
+    func test_arguments_returns_the_right_value_when_xcarg_with_spaces() {
         // Given
-        let subject = XcodeBuildArgument.buildSetting("key", "value with spaces")
+        let subject = XcodeBuildArgument.xcarg("key", "value with spaces")
 
         // When
         let got = subject.arguments

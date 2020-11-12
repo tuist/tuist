@@ -61,6 +61,16 @@ final class SimulatorControllerIntegrationTests: TuistTestCase {
         .single()
 
         // Then
-        XCTAssertTrue(got.isAvailable)
+        XCTAssertTrue(got.device.isAvailable)
+    }
+
+    func test_findAvailableDeviceForPlatform() throws {
+        // When
+        let got = try subject.findAvailableDevice(platform: .iOS)
+            .toBlocking()
+            .single()
+
+        // Then
+        XCTAssertTrue(got.device.isAvailable)
     }
 }

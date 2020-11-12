@@ -15,8 +15,8 @@ public enum XcodeBuildArgument: Equatable, CustomStringConvertible {
     /// Specifies the directory where build products and other derived data will go.
     case derivedDataPath(AbsolutePath)
 
-    /// To override build settings.
-    case buildSetting(String, String)
+    /// To pass additional arguments
+    case xcarg(String, String)
 
     /// It returns the bash arguments that represent this xcodebuild argument.
     public var arguments: [String] {
@@ -29,7 +29,7 @@ public enum XcodeBuildArgument: Equatable, CustomStringConvertible {
             return ["-destination", "\(destination)"]
         case let .derivedDataPath(path):
             return ["-derivedDataPath", path.pathString]
-        case let .buildSetting(key, value):
+        case let .xcarg(key, value):
             return ["\(key)=\(value.spm_shellEscaped())"]
         }
     }
@@ -45,8 +45,8 @@ public enum XcodeBuildArgument: Equatable, CustomStringConvertible {
             return "Xcodebuild's destination argument: \(destination)"
         case let .derivedDataPath(path):
             return "Xcodebuild's derivedDataPath argument: \(path.pathString)"
-        case let .buildSetting(key, value):
-            return "Xcodebuild's additional build setting: \(key)=\(value)"
+        case let .xcarg(key, value):
+            return "Xcodebuild's additional argument: \(key)=\(value)"
         }
     }
 }
