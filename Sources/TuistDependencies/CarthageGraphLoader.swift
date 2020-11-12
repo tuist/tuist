@@ -3,7 +3,7 @@ import TuistCore
 import TSCBasic
 
 public protocol CarthageGraphLoading {
-    func load(dependencies: ProjectDescription.Dependencies, atPath path: AbsolutePath) throws -> DependencyGraph
+    func load(dependencies: [CarthageDependency], atPath path: AbsolutePath) throws -> DependencyGraph
 }
 
 public struct CarthageGraphLoader: CarthageGraphLoading {
@@ -18,7 +18,8 @@ public struct CarthageGraphLoader: CarthageGraphLoading {
         self.otoolController = otoolController
         self.frameworkNodeLoader = frameworkNodeLoader
     }
-    func load(dependencies: [CarthageDependency], atPath path: AbsolutePath) throws -> DependencyGraph {
+
+    public func load(dependencies: [CarthageDependency], atPath path: AbsolutePath) throws -> DependencyGraph {
         DependencyGraph(entryNodes: try dependencies.map { try load(dependency: $0, at: path) })
     }
 
