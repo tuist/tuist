@@ -18,7 +18,7 @@ extension TuistCore.Project {
         let targets = try manifest.targets.map { try TuistCore.Target.from(manifest: $0, generatorPaths: generatorPaths) }
         let schemes = try manifest.schemes.map { try TuistCore.Scheme.from(manifest: $0, generatorPaths: generatorPaths) }
         let additionalFiles = try manifest.additionalFiles.flatMap { try TuistCore.FileElement.from(manifest: $0, generatorPaths: generatorPaths) }
-        let packages = try manifest.packages.map { try TuistCore.PackageRequirement.from(manifest: $0, generatorPaths: generatorPaths) }
+        let packages = try manifest.packages.map { try TuistCore.Package.from(manifest: $0, generatorPaths: generatorPaths) }
         return Project(path: generatorPaths.manifestDirectory,
                        sourceRootPath: generatorPaths.manifestDirectory,
                        xcodeProjPath: generatorPaths.manifestDirectory.appending(component: "\(name).xcodeproj"),
