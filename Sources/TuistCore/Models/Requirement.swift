@@ -1,8 +1,6 @@
 import Foundation
 import XcodeProj
 
-public typealias Requirement = TuistCore.Requirement
-
 public enum Requirement: Equatable {
     case upToNextMajor(String)
     case upToNextMinor(String)
