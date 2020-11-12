@@ -3,7 +3,7 @@ import Foundation
 /// Dependency contains the description of any kind of dependency of your Xcode project.
 public struct Dependency: Codable, Equatable {
     /// Name of the dependency
-    public let name: String
+    let name: String
 
     /// Type of requirement for the given dependency
     let requirement: Dependency.Requirement

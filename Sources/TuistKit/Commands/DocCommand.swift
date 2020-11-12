@@ -2,7 +2,6 @@ import ArgumentParser
 import Foundation
 import TSCBasic
 import TuistSupport
-import TuistDependencies
 
 // MARK: - DocCommand
 
