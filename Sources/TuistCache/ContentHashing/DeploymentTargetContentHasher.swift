@@ -25,6 +25,10 @@ public final class DeploymentTargetContentHasher: DeploymentTargetContentHashing
             stringToHash = "iOS-\(version)-\(device.rawValue)"
         case let .macOS(version):
             stringToHash = "macOS-\(version)"
+        case let .watchOS(version):
+            stringToHash = "watchOS-\(version)"
+        case let .tvOS(version):
+            stringToHash = "tvOS-\(version)"
         }
         return try contentHasher.hash(stringToHash)
     }

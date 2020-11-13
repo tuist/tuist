@@ -282,6 +282,66 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         assert(config: releaseConfig, contains: expectedSettings)
     }
 
+    func test_generateTargetWithDeploymentTarget_whenWatch() throws {
+        // Given
+        let project = Project.test()
+        let target = Target.test(deploymentTarget: .watchOS("6.0"))
+        let graph = ValueGraph.test(path: project.path)
+        let graphTraverser = ValueGraphTraverser(graph: graph)
+
+        // When
+        try subject.generateTargetConfig(target,
+                                         project: project,
+                                         pbxTarget: pbxTarget,
+                                         pbxproj: pbxproj,
+                                         projectSettings: .default,
+                                         fileElements: ProjectFileElements(),
+                                         graphTraverser: graphTraverser,
+                                         sourceRootPath: AbsolutePath("/project"))
+
+        // Then
+        let configurationList = pbxTarget.buildConfigurationList
+        let debugConfig = configurationList?.configuration(name: "Debug")
+        let releaseConfig = configurationList?.configuration(name: "Release")
+
+        let expectedSettings = [
+            "WATCHOS_DEPLOYMENT_TARGET": "6.0",
+        ]
+
+        assert(config: debugConfig, contains: expectedSettings)
+        assert(config: releaseConfig, contains: expectedSettings)
+    }
+
+    func test_generateTargetWithDeploymentTarget_whenTV() throws {
+        // Given
+        let project = Project.test()
+        let target = Target.test(deploymentTarget: .tvOS("14.0"))
+        let graph = ValueGraph.test(path: project.path)
+        let graphTraverser = ValueGraphTraverser(graph: graph)
+
+        // When
+        try subject.generateTargetConfig(target,
+                                         project: project,
+                                         pbxTarget: pbxTarget,
+                                         pbxproj: pbxproj,
+                                         projectSettings: .default,
+                                         fileElements: ProjectFileElements(),
+                                         graphTraverser: graphTraverser,
+                                         sourceRootPath: AbsolutePath("/project"))
+
+        // Then
+        let configurationList = pbxTarget.buildConfigurationList
+        let debugConfig = configurationList?.configuration(name: "Debug")
+        let releaseConfig = configurationList?.configuration(name: "Release")
+
+        let expectedSettings = [
+            "TVOS_DEPLOYMENT_TARGET": "14.0",
+        ]
+
+        assert(config: debugConfig, contains: expectedSettings)
+        assert(config: releaseConfig, contains: expectedSettings)
+    }
+
     func test_generateProjectConfig_defaultConfigurationName() throws {
         // Given
         let settings = Settings(configurations: [
