@@ -133,4 +133,19 @@ final class SigningLinterTests: TuistUnitTestCase {
             )]
         )
     }
+    
+    func test_lint_when_bundle_id_is_derived_from_build_settings() {
+        // Given
+        let provisioningProfile = ProvisioningProfile.test(
+            teamId: "team",
+            appId: "team.io.tuist"
+        )
+        let target = Target.test(bundleId: "$(PRODUCT_BUNDLE_IDENTIFIER)")
+
+        // When
+        let got = subject.lint(provisioningProfile: provisioningProfile, target: target)
+
+        // Then
+        XCTAssertEmpty(got)
+    }
 }
