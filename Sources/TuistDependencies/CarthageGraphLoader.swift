@@ -1,13 +1,16 @@
 import Foundation
-import TuistCore
 import TSCBasic
+import TuistCore
 
 public protocol CarthageGraphLoading {
+    /// Loads the given dependencies at the given path.
+    /// - Parameter dependencies: Array of dependencies to be fetched with carthage
+    /// - Parameter path: Path to the platform directory inside Carthage Build folder.
+    /// - Returns DependencyGraph with transitive dependencies
     func load(dependencies: [CarthageDependency], atPath path: AbsolutePath) throws -> DependencyGraph
 }
 
 public struct CarthageGraphLoader: CarthageGraphLoading {
-
     private let otoolController: OtoolControlling
     private let frameworkNodeLoader: FrameworkNodeLoading
 

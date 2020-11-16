@@ -17,6 +17,7 @@ struct DocCommand: ParsableCommand {
     var options: DocCommand.Options
 
     // MARK: - Run
+
     func run() throws {
         let absolutePath: AbsolutePath
         if let path = options.path {

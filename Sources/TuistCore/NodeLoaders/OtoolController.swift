@@ -4,13 +4,15 @@ import TuistSupport
 
 /// Otool controller protocol passed in initializers for dependency injection
 public protocol OtoolControlling {
+    /// Returns the paths to dlyb dependencies.
+    /// - Parameter path: Path to the given dependency
+    /// - Returns Array of dependencies returned by the command.
     func dlybDependenciesPath(forBinaryAt path: AbsolutePath) throws -> [String]
 }
 
 /// OtoolController
 /// Used to find out against which dynamic libraries a certain binary is linked.
 public struct OtoolController: OtoolControlling {
-
     private let system: Systeming
 
     public init(system: Systeming = System.shared) {
@@ -34,7 +36,4 @@ public struct OtoolController: OtoolControlling {
         let frameworkName = frameworkPath.basename.replacingOccurrences(of: ".framework", with: "")
         return frameworkPath.appending(component: frameworkName)
     }
-
 }
-
-

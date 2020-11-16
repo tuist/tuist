@@ -38,7 +38,8 @@ public final class FrameworkNodeLoader: FrameworkNodeLoading {
     /// Initializes the loader with its attributes.
     /// - Parameter frameworkMetadataProvider: Framework metadata provider.
     public init(frameworkMetadataProvider: FrameworkMetadataProviding = FrameworkMetadataProvider(),
-                otoolController: OtoolControlling = OtoolController()) {
+                otoolController: OtoolControlling = OtoolController())
+    {
         self.frameworkMetadataProvider = frameworkMetadataProvider
         self.otoolController = otoolController
     }
@@ -54,7 +55,6 @@ public final class FrameworkNodeLoader: FrameworkNodeLoading {
         let linking = try frameworkMetadataProvider.linking(binaryPath: binaryPath)
         let architectures = try frameworkMetadataProvider.architectures(binaryPath: binaryPath)
 
-
         let folderPath = path.removingLastComponent()
 
         let dependencies: [PrecompiledNode.Dependency] = try otoolController
@@ -67,7 +67,7 @@ public final class FrameworkNodeLoader: FrameworkNodeLoading {
 
                 let tPath = folderPath.appending(RelativePath("\(name)"))
                 guard let node = try? load(path: tPath) else { return nil }
-                
+
                 return PrecompiledNode.Dependency.framework(node)
             }
 
@@ -78,6 +78,4 @@ public final class FrameworkNodeLoader: FrameworkNodeLoading {
                              architectures: architectures,
                              dependencies: dependencies)
     }
-
-    
 }
