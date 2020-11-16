@@ -91,6 +91,7 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
   </tr>
   <tr>
     <td align="center"><a href="https://github.com/yurapriv"><img src="https://avatars2.githubusercontent.com/u/7814127?v=4" width="100px;" alt=""/><br /><sub><b>Privezentsev Yura</b></sub></a><br /><a href="https://github.com/tuist/tuist/commits?author=yurapriv" title="Code">💻</a></td>
+    <td align="center"><a href="http://ferologics.github.io"><img src="https://avatars2.githubusercontent.com/u/5576161?v=4" width="100px;" alt=""/><br /><sub><b>Fero</b></sub></a><br /><a href="https://github.com/tuist/tuist/commits?author=ferologics" title="Code">💻</a></td>
   </tr>
 </table>
 
