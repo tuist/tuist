@@ -235,7 +235,7 @@ final class ConfigGenerator: ConfigGenerating {
         settings["TEST_TARGET_NAME"] = .string("\(app.name)")
         if target.product == .unitTests {
             var testHostPath = "$(BUILT_PRODUCTS_DIR)/\(app.productNameWithExtension)"
-            
+
             if target.platform == .macOS {
                 testHostPath += "/Contents/MacOS"
             }
