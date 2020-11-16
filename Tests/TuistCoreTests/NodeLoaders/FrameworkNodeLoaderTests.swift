@@ -34,11 +34,15 @@ final class FrameworkNodeLoaderErrorTests: TuistUnitTestCase {
 
 final class FrameworkNodeLoaderTests: TuistUnitTestCase {
     var frameworkMetadataProvider: MockFrameworkMetadataProvider!
+    var otoolController: MockOtoolController!
+
     var subject: FrameworkNodeLoader!
 
     override func setUp() {
         frameworkMetadataProvider = MockFrameworkMetadataProvider()
-        subject = FrameworkNodeLoader(frameworkMetadataProvider: frameworkMetadataProvider)
+        otoolController = MockOtoolController()
+        subject = FrameworkNodeLoader(frameworkMetadataProvider: frameworkMetadataProvider,
+                                      otoolController: otoolController)
         super.setUp()
     }
 
@@ -57,7 +61,7 @@ final class FrameworkNodeLoaderTests: TuistUnitTestCase {
         XCTAssertThrowsSpecific(try subject.load(path: frameworkPath), FrameworkNodeLoaderError.frameworkNotFound(frameworkPath))
     }
 
-    func test_oad_when_the_framework_exists() throws {
+    func test_load_when_the_framework_exists() throws {
         // Given
         let path = try temporaryPath()
         let frameworkPath = path.appending(component: "tuist.framework")
