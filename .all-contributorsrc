@@ -141,6 +141,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "ferologics",
+      "name": "Fero",
+      "avatar_url": "https://avatars2.githubusercontent.com/u/5576161?v=4",
+      "profile": "http://ferologics.github.io",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,

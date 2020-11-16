@@ -4,8 +4,7 @@ import TSCBasic
 import TuistCore
 import TuistSupport
 
-extension TuistCore.Package
-{
+extension TuistCore.Package {
     /// Maps a ProjectDescription.Package instance into a TuistCore.Package model.
     /// - Parameters:
     ///   - manifest: Manifest representation of Package.
