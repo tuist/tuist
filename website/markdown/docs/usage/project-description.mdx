@@ -842,6 +842,14 @@ Alternatively, when leveraging custom configurations, the configuration name can
 
 ### Test Action
 
+You can create a test action with either a set of test targets or test plans.
+
+<Message
+  info
+  title="Test Plans"
+  description="Test plans do not support all properties (those are part of the plan itself). Use the `testPlans` factory method instead of the initializer to create a test action using test plans instead of test targets (details below)."
+/>
+
 <PropertiesTable
   properties={[
     {
@@ -939,6 +947,29 @@ Alternatively, when leveraging custom configurations, the configuration name can
       type: 'String',
       optional: false,
       default: '',
+    },
+  ]}
+/>
+
+When using test plans:
+
+<PropertiesTable
+  properties={[
+    {
+      name: 'Default',
+      description: 'Path to a xctestplan file',
+      type: 'Path',
+      typeLink: '#path',
+      optional: false,
+      default: 'nil',
+    },
+    {
+      name: 'Other',
+      description: 'Paths to other xctestplan files',
+      type: '[Path]',
+      typeLink: '#path',
+      optional: true,
+      default: '[]',
     },
   ]}
 />
