@@ -1,5 +1,6 @@
 import Foundation
 import TSCBasic
+import TuistCore
 import TuistSupport
 
 public protocol DependenciesDirectoryControlling {
@@ -148,12 +149,5 @@ extension DependenciesDirectoryController {
         let name: String
         let linking: String
         let swiftToolchainVersion: String
-    }
-    
-    enum Platform: String {
-        case iOS
-        case macOS
-        case watchOS
-        case tvOS
     }
 }

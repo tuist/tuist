@@ -5,7 +5,7 @@ import TuistDependencies
 import TuistLoader
 import TuistSupport
 
-final class DependenciesUpdateService {
+final class DependenciesService {
     private let dependenciesController: DependenciesControlling
     private let manifestLoader: ManifestLoading
 
@@ -15,19 +15,23 @@ final class DependenciesUpdateService {
         self.manifestLoader = manifestLoader
     }
 
-    func run(path: String?) throws {
-        logger.notice("Start updating dependencies.")
+    func run(path: String?, method: InstallDependenciesMethod) throws {
+        logger.notice("Start installing dependencies.")
         
         let path = self.path(path)
         
         let dependencies = try manifestLoader.loadDependencies(at: path).dependencies
-        try dependenciesController.install(at: path, method: .update, dependencies: dependencies)
+        let carthageDependencies = dependencies
+            .filter { $0.manager == .carthage }
+            .map { CarthageDependency }
         
-        logger.notice("Successfully updated dependencies.", metadata: .success)
+        try dependenciesController.install(at: path, method: method, carthageDependencies: carthageDependencies)
+        
+        logger.notice("Successfully installed dependencies.", metadata: .success)
     }
 
     // MARK: - Helpers
-
+    
     private func path(_ path: String?) -> AbsolutePath {
         if let path = path {
             return AbsolutePath(path, relativeTo: FileHandler.shared.currentPath)

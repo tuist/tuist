@@ -1,19 +1,11 @@
 import TSCBasic
+import TuistCore
 import TuistSupport
 
 // MARK: - Carthage Command Builder
 
 #warning("Add unit test!")
 final class CarthageCommandBuilder {
-    
-    // MARK: - Models
-
-    enum Platform: String {
-        case iOS = "iOS"
-        case macOS = "macOS"
-        case tvOS = "tvOS"
-        case watchOS = "watchOS"
-    }
     
     // MARK: - State
     
@@ -86,7 +78,7 @@ final class CarthageCommandBuilder {
             commandComponents.append("--platform")
             commandComponents.append(
                 platforms
-                    .map { $0.rawValue }
+                    .map { $0.caseValue }
                     .joined(separator: ",")
             )
         }

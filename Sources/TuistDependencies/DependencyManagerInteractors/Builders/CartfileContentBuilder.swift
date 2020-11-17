@@ -1,8 +1,6 @@
 import TSCBasic
+import TuistCore
 import TuistSupport
-
-#warning("Is it a correct import?")
-import ProjectDescription
 
 // MARK: - Cartfile Content Builder
 
@@ -11,11 +9,11 @@ final class CartfileContentBuilder {
     
     // MARK: - State
     
-    private let dependencies: [Dependency]
+    private let dependencies: [CarthageDependency]
     
     // MARK: - Init
     
-    init(dependencies: [Dependency]) {
+    init(dependencies: [CarthageDependency]) {
         self.dependencies = dependencies
     }
     
@@ -28,17 +26,22 @@ final class CartfileContentBuilder {
     }
 }
 
-fileprivate extension ProjectDescription.Dependency {
+fileprivate extension CarthageDependency {
     func toString() -> String {
-        "github \(name) \(requirement.toString())"
-    }
-}
-
-fileprivate extension ProjectDescription.Dependency.Requirement {
-    func toString() -> String {
-        switch self {
+        switch requirement {
         case .exact(let version):
-            return "= \(version.description)"
+            return #"github "\#(name)" == \#(version)"#
+        case .upToNextMajor(let version):
+            return #"github "\#(name)" ~> \#(version)"#
+        case .upToNextMinor(let version):
+            return #"github "\#(name)" ~> \#(version)"#
+        case .range(let fromVersion, let toVersion):
+            #warning("Im not sure if it is possible to handle in cartfile.")
+            fatalError("How to handle it?")
+        case .branch(let branch):
+            return #"github "\#(name)" "\#(branch)""#
+        case .revision(let revision):
+            return #"github "\#(name)" "\#(revision)""#
         }
     }
 }

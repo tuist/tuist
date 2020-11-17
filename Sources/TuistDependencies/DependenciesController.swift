@@ -1,46 +1,23 @@
 import TSCBasic
+import TuistCore
 import TuistSupport
-
-#warning("Is it a correct import?")
-import ProjectDescription
-
-// MARK: - Dependencies Controller Errors
-
-public enum DependenciesControllerError: FatalError {
-    case unimplemented
-
-    /// Error type.
-    public var type: ErrorType {
-        switch self {
-        case .unimplemented:
-            return .abort
-        }
-    }
-
-    /// Description.
-    public var description: String {
-        switch self {
-        case .unimplemented:
-            return "A standard approach for managing third-party dependencies is being worked on and it'll be available soon."
-        }
-    }
-}
 
 // MARK: - Dependencies Controlling
 
 /// `DependenciesControlling` controls:
 ///     1. Fetching/updating dependencies defined in `./Tuist/Dependencies.swift` by running appropriate dependencies managers (`Cocoapods`, `Carthage`, `SPM`).
 ///     2. Compiling fetched/updated depedencies into `.framework.`/`.xcframework.`.
-///     3. Saving compiled frameworks uder `./Tuist/Dependencies/*`.
+///     3. Saving compiled frameworks under `./Tuist/Dependencies/*`.
+///     4. Generating dependencies graph under `./Tuist/Dependencies/graph.json`.
 public protocol DependenciesControlling {
     /// Installes dependencies.
     /// - Parameter path: Directory whose project's dependencies will be installed.
     /// - Parameter method: Installation method.
-    /// - Parameter dependencies: List of dependencies to intall.
+    /// - Parameter carthageDependencies: List of dependencies to intall using `Carthage`.
     func install(
         at path: AbsolutePath,
         method: InstallDependenciesMethod,
-        dependencies: [ProjectDescription.Dependency]
+        carthageDependencies: [CarthageDependency]
     ) throws
 }
 
@@ -65,9 +42,8 @@ public final class DependenciesController: DependenciesControlling {
     public func install(
         at path: AbsolutePath,
         method: InstallDependenciesMethod,
-        dependencies: [ProjectDescription.Dependency]
+        carthageDependencies: [CarthageDependency]
     ) throws {
-        let carthageDependencies = dependencies.filter { $0.manager == .carthage }
         try carthageInteractor.install(at: path, method: method, dependencies: carthageDependencies)
     }
 }

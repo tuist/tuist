@@ -1,9 +1,7 @@
 import TSCBasic
+import TuistCore
 import TuistSupport
 import RxBlocking
-
-#warning("Is it a correct import?")
-import ProjectDescription
 
 // MARK: - Carthage Interactor Errors
 
@@ -34,11 +32,11 @@ public protocol CarthageInteracting {
     /// Installes `Carthage` dependencies.
     /// - Parameter path: Directory whose project's dependencies will be installed.
     /// - Parameter method: Installation method.
-    /// - Parameter dependencies: List of `Carthage` dependencies to intall.
+    /// - Parameter dependencies: List of dependencies to intall using `Carthage`.
     func install(
         at path: AbsolutePath,
         method: InstallDependenciesMethod,
-        dependencies: [ProjectDescription.Dependency]
+        dependencies: [CarthageDependency]
     ) throws
 }
 
@@ -61,10 +59,10 @@ public final class CarthageInteractor: CarthageInteracting {
     public func install(
         at path: AbsolutePath,
         method: InstallDependenciesMethod,
-        dependencies: [ProjectDescription.Dependency]
+        dependencies: [CarthageDependency]
     ) throws {
         #warning("TODO: How to determine platforms?")
-        let platoforms: Set<CarthageCommandBuilder.Platform> = [.macOS, .watchOS]
+        let platoforms: Set<Platform> = [.macOS, .watchOS]
         
         try withTemporaryDirectory { temporaryDirectoryPath in
             // create `carthage` shell command
@@ -94,12 +92,12 @@ public final class CarthageInteractor: CarthageInteracting {
     
     // MARK: - Helpers
     
-    private func buildCarfileContent(for dependnecies: [ProjectDescription.Dependency]) -> String {
-        CartfileContentBuilder(dependencies: dependnecies)
+    private func buildCarfileContent(for dependencies: [CarthageDependency]) -> String {
+        CartfileContentBuilder(dependencies: dependencies)
             .build()
     }
 
-    private func buildCarthageCommand(for method: InstallDependenciesMethod, platforms: Set<CarthageCommandBuilder.Platform>, path: AbsolutePath) throws -> [String] {
+    private func buildCarthageCommand(for method: InstallDependenciesMethod, platforms: Set<Platform>, path: AbsolutePath) throws -> [String] {
         let canUseBundler = canUseCarthageThroughBundler()
         let canUseSystem = canUseSystemCarthage()
         
