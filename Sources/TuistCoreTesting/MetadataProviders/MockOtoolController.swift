@@ -1,10 +1,3 @@
-//
-//  File.swift
-//  
-//
-//  Created by Facundo Menzella on 16/11/2020.
-//
-
 import Foundation
 import TSCBasic
 @testable import TuistCore
