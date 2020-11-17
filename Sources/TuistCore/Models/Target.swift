@@ -42,7 +42,7 @@ public struct Target: Equatable, Hashable, Comparable {
     public var coreDataModels: [CoreDataModel]
     public var actions: [TargetAction]
     public var environment: [String: String]
-    public var launchArguments: [String: Bool]
+    public var launchArguments: [LaunchArgument]
     public var filesGroup: ProjectGroup
     public var scripts: [TargetScript]
 
@@ -63,7 +63,48 @@ public struct Target: Equatable, Hashable, Comparable {
                 coreDataModels: [CoreDataModel] = [],
                 actions: [TargetAction] = [],
                 environment: [String: String] = [:],
-                launchArguments: [String: Bool] = [:],
+                launchArguments: [String: Bool],
+                filesGroup: ProjectGroup,
+                dependencies: [Dependency] = [],
+                scripts: [TargetScript] = [])
+    {
+        self.name = name
+        self.product = product
+        self.platform = platform
+        self.bundleId = bundleId
+        self.productName = productName ?? name.replacingOccurrences(of: "-", with: "_")
+        self.deploymentTarget = deploymentTarget
+        self.infoPlist = infoPlist
+        self.entitlements = entitlements
+        self.settings = settings
+        self.sources = sources
+        self.resources = resources
+        self.headers = headers
+        self.coreDataModels = coreDataModels
+        self.actions = actions
+        self.environment = environment
+        self.launchArguments = .init(launchArguments: launchArguments)
+        self.filesGroup = filesGroup
+        self.dependencies = dependencies
+        self.scripts = scripts
+    }
+    
+    public init(name: String,
+                platform: Platform,
+                product: Product,
+                productName: String?,
+                bundleId: String,
+                deploymentTarget: DeploymentTarget? = nil,
+                infoPlist: InfoPlist? = nil,
+                entitlements: AbsolutePath? = nil,
+                settings: Settings? = nil,
+                sources: [SourceFile] = [],
+                resources: [FileElement] = [],
+                headers: Headers? = nil,
+                coreDataModels: [CoreDataModel] = [],
+                actions: [TargetAction] = [],
+                environment: [String: String] = [:],
+                launchArguments: [LaunchArgument] = [],
                 filesGroup: ProjectGroup,
                 dependencies: [Dependency] = [],
                 scripts: [TargetScript] = [])
