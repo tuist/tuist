@@ -7,12 +7,12 @@ import TuistSupport
 
 final class DependenciesService {
     private let dependenciesController: DependenciesControlling
-    private let manifestLoader: ManifestLoading
+    private let dependenciesModelLoader: DependenciesModelLoading
 
     init(dependenciesController: DependenciesControlling = DependenciesController(),
-         manifestLoader: ManifestLoading = ManifestLoader()) {
+         dependenciesModelLoader: DependenciesModelLoading = DependenciesModelLoader()) {
         self.dependenciesController = dependenciesController
-        self.manifestLoader = manifestLoader
+        self.dependenciesModelLoader = dependenciesModelLoader
     }
 
     func run(path: String?, method: InstallDependenciesMethod) throws {
@@ -20,11 +20,7 @@ final class DependenciesService {
         
         let path = self.path(path)
         
-        let dependencies = try manifestLoader.loadDependencies(at: path).dependencies
-        let carthageDependencies = dependencies
-            .filter { $0.manager == .carthage }
-            .map { CarthageDependency }
-        
+        let carthageDependencies = try dependenciesModelLoader.loadDependencies(at: path)
         try dependenciesController.install(at: path, method: method, carthageDependencies: carthageDependencies)
         
         logger.notice("Successfully installed dependencies.", metadata: .success)
