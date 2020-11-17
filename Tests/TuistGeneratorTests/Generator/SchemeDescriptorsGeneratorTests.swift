@@ -421,7 +421,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         XCTAssertEqual(buildableReference.blueprintName, "App")
         XCTAssertEqual(buildableReference.buildableIdentifier, "primary")
     }
-    
+
     func test_schemeLaunchAction_argumentsOrder() throws {
         // Given
         let projectPath = AbsolutePath("/somepath/Workspace/Projects/Project")

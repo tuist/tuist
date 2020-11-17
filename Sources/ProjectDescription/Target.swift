@@ -130,7 +130,7 @@ public struct Target: Codable, Equatable {
         self.launchArguments = .init(launchArguments: launchArguments)
         self.deploymentTarget = deploymentTarget
     }
-    
+
     /// Initializes the target.
     ///
     /// - Parameters:

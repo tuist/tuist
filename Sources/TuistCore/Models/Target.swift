@@ -88,7 +88,7 @@ public struct Target: Equatable, Hashable, Comparable {
         self.dependencies = dependencies
         self.scripts = scripts
     }
-    
+
     public init(name: String,
                 platform: Platform,
                 product: Product,

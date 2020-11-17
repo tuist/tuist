@@ -15,7 +15,7 @@ public struct Arguments: Equatable {
         self.launchArguments = launchArguments.map(LaunchArgument.init)
             .sorted { $0.name < $1.name }
     }
-    
+
     public init(environment: [String: String] = [:],
                 launchArguments: [LaunchArgument] = [])
     {
