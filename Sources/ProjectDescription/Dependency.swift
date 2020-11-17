@@ -17,7 +17,8 @@ public struct Dependency: Codable, Equatable {
     public init(name: String,
                 requirement: Dependency.Requirement,
                 manager: Dependency.Manager,
-                platforms: [Platform]) {
+                platforms: [Platform])
+    {
         self.name = name
         self.requirement = requirement
         self.manager = manager
@@ -30,8 +31,9 @@ public struct Dependency: Codable, Equatable {
     /// - Returns Dependency
     public static func carthage(name: String,
                                 requirement: Dependency.Requirement,
-                                platforms: [Platform]) -> Dependency {
-        Dependency(name: name, requirement: requirement, manager: .carthage, platforms: Set(platforms))
+                                platforms: [Platform]) -> Dependency
+    {
+        Dependency(name: name, requirement: requirement, manager: .carthage, platforms: platforms)
     }
 
     public static func == (lhs: Dependency, rhs: Dependency) -> Bool {
