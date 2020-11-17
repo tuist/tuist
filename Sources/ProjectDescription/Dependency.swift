@@ -17,11 +17,11 @@ public struct Dependency: Codable, Equatable {
     public init(name: String,
                 requirement: Dependency.Requirement,
                 manager: Dependency.Manager,
-                platforms: Set<Platform>) {
+                platforms: [Platform]) {
         self.name = name
         self.requirement = requirement
         self.manager = manager
-        self.platforms = platforms
+        self.platforms = Set(platforms)
     }
 
     /// Carthage dependency initailizer

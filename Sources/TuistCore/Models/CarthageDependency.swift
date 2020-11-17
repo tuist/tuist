@@ -9,5 +9,5 @@ struct CarthageDependency {
     let requirement: Requirement
 
     /// Set of platforms for  the given dependency
-    let platoforms: Set<Platform>
+    let platforms: Set<Platform>
 }
