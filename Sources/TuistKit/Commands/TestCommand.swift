@@ -16,11 +16,6 @@ struct TestCommand: ParsableCommand {
     var scheme: String?
 
     @Flag(
-        help: "Force the generation of the project before testing."
-    )
-    var generate: Bool = false
-
-    @Flag(
         help: "When passed, it cleans the project before testing it."
     )
     var clean: Bool = false
@@ -58,7 +53,6 @@ struct TestCommand: ParsableCommand {
         }
         try TestService().run(
             schemeName: scheme,
-            generate: generate,
             clean: clean,
             configuration: configuration,
             path: absolutePath,

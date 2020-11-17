@@ -197,7 +197,6 @@ private extension TestService {
     ) throws {
         try run(
             schemeName: schemeName,
-            generate: generate,
             clean: clean,
             configuration: configuration,
             path: path,

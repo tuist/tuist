@@ -43,6 +43,10 @@ public class MockEnvironment: Environmenting {
         cacheDirectory.appending(component: "ProjectDescriptionHelpers")
     }
 
+    public var projectsCacheDirectory: AbsolutePath {
+        cacheDirectory.appending(component: "Projects")
+    }
+    
     public var buildCacheDirectory: AbsolutePath {
         cacheDirectory.appending(component: "BuildCache")
     }

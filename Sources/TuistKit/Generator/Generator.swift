@@ -33,19 +33,24 @@ class Generator: Generating {
     private let projectMapperProvider: ProjectMapperProviding
     private let workspaceMapperProvider: WorkspaceMapperProviding
     private let manifestLoader: ManifestLoading
-
-    convenience init(contentHasher: ContentHashing) {
-        self.init(projectMapperProvider: ProjectMapperProvider(contentHasher: contentHasher),
-                  graphMapperProvider: GraphMapperProvider(),
-                  workspaceMapperProvider: WorkspaceMapperProvider(contentHasher: contentHasher),
-                  manifestLoaderFactory: ManifestLoaderFactory())
+    
+    convenience init(
+        contentHasher: ContentHashing
+    ) {
+        self.init(
+            projectMapperProvider: ProjectMapperProvider(contentHasher: contentHasher),
+            graphMapperProvider: GraphMapperProvider(),
+            workspaceMapperProvider: WorkspaceMapperProvider(contentHasher: contentHasher),
+            manifestLoaderFactory: ManifestLoaderFactory()
+        )
     }
 
-    init(projectMapperProvider: ProjectMapperProviding,
-         graphMapperProvider: GraphMapperProviding,
-         workspaceMapperProvider: WorkspaceMapperProviding,
-         manifestLoaderFactory: ManifestLoaderFactory)
-    {
+    init(
+        projectMapperProvider: ProjectMapperProviding,
+        graphMapperProvider: GraphMapperProviding,
+        workspaceMapperProvider: WorkspaceMapperProviding,
+        manifestLoaderFactory: ManifestLoaderFactory
+    ) {
         let manifestLoader = manifestLoaderFactory.createManifestLoader()
         recursiveManifestLoader = RecursiveManifestLoader(manifestLoader: manifestLoader)
         let modelLoader = GeneratorModelLoader(manifestLoader: manifestLoader,

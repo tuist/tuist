@@ -99,17 +99,17 @@ final class WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
         })
 
         // Workspace structure
-        let structure = workspaceStructureGenerator.generateStructure(path: graph.entryPath,
+        let structure = workspaceStructureGenerator.generateStructure(path: graph.workspace.path,
                                                                       workspace: graph.workspace,
                                                                       fileHandler: FileHandler.shared)
 
-        let workspacePath = graph.entryPath.appending(component: workspaceName)
+        let workspacePath = graph.workspace.path.appending(component: workspaceName)
         let workspaceData = XCWorkspaceData(children: [])
         let xcWorkspace = XCWorkspace(data: workspaceData)
         try workspaceData.children = structure.contents.map {
             try recursiveChildElement(generatedProjects: generatedProjects,
                                       element: $0,
-                                      path: graph.entryPath)
+                                      path: graph.workspace.path)
         }
 
         // Schemes
@@ -118,7 +118,7 @@ final class WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
                                                                               graph: graph)
 
         return WorkspaceDescriptor(
-            path: graph.entryPath,
+            path: graph.workspace.path,
             xcworkspacePath: workspacePath,
             xcworkspace: xcWorkspace,
             projectDescriptors: projects,

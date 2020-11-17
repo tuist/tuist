@@ -6,6 +6,7 @@ import TuistAutomation
 import TuistCache
 import TuistCore
 import TuistSupport
+import TuistLoader
 
 enum TestServiceError: FatalError {
     case schemeNotFound(scheme: String, existing: [String])
@@ -46,7 +47,12 @@ final class TestService {
     let simulatorController: SimulatorControlling
 
     init(
-        generator: Generating = Generator(contentHasher: ContentHasher()),
+        generator: Generating = Generator(
+            projectMapperProvider: AutomationProjectMapperProvider(),
+            graphMapperProvider: GraphMapperProvider(),
+            workspaceMapperProvider: AutomationWorkspaceMapperProvider(),
+            manifestLoaderFactory: ManifestLoaderFactory()
+        ),
         xcodebuildController: XcodeBuildControlling = XcodeBuildController(),
         buildGraphInspector: BuildGraphInspecting = BuildGraphInspector(),
         simulatorController: SimulatorControlling = SimulatorController()
@@ -59,20 +65,16 @@ final class TestService {
 
     func run(
         schemeName: String?,
-        generate: Bool,
         clean: Bool,
         configuration: String?,
         path: AbsolutePath,
         deviceName: String?,
         osVersion: String?
     ) throws {
-        let graph: Graph
-        if try (generate || buildGraphInspector.workspacePath(directory: path) == nil) {
-            graph = try generator.generateWithGraph(path: path, projectOnly: false).1
-        } else {
-            graph = try generator.load(path: path)
-        }
-
+        let graph: Graph = try generator.generateWithGraph(
+            path: path,
+            projectOnly: false
+        ).1
         let version = osVersion?.version()
 
         let testableSchemes = buildGraphInspector.testableSchemes(graph: graph)
@@ -157,7 +159,7 @@ final class TestService {
             destination = .mac
         }
 
-        let workspacePath = try buildGraphInspector.workspacePath(directory: path)!
+        let workspacePath = try buildGraphInspector.workspacePath(directory: graph.workspace.path)!
         _ = try xcodebuildController.test(
             .workspace(workspacePath),
             scheme: scheme.name,
