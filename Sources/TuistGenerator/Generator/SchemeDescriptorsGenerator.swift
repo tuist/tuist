@@ -600,10 +600,10 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
     /// - Parameters:
     ///     - environments: commandline argument keys.
     /// - Returns: XCScheme.CommandLineArguments.CommandLineArgument.
-    private func commandlineArgruments(_ arguments: [String: Bool]) -> [XCScheme.CommandLineArguments.CommandLineArgument] {
-        arguments.map { key, enabled in
-            XCScheme.CommandLineArguments.CommandLineArgument(name: key, enabled: enabled)
-        }.sorted { $0.name < $1.name }
+    private func commandlineArgruments(_ arguments: [LaunchArgument]) -> [XCScheme.CommandLineArguments.CommandLineArgument] {
+        arguments.map {
+            XCScheme.CommandLineArguments.CommandLineArgument(name: $0.name, enabled: $0.isEnabled)
+        }
     }
 
     /// Returns the scheme environment variables

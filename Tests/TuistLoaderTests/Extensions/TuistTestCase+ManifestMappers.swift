@@ -157,7 +157,11 @@ extension TuistTestCase {
                 line: UInt = #line)
     {
         XCTAssertEqual(arguments.environment, manifest.environment, file: file, line: line)
-        XCTAssertEqual(arguments.launchArguments, manifest.launchArguments, file: file, line: line)
+        
+        let rawArguments = arguments.launchArguments.reduce(into: [:]) { $0[$1.name] = $1.isEnabled }
+        let rawManifest = manifest.launchArguments.reduce(into: [:]) { $0[$1.name] = $1.isEnabled }
+        
+        XCTAssertEqual(rawArguments, rawManifest, file: file, line: line)
     }
 
     fileprivate func optionalAssert<A, B>(_ optionalA: A?,
