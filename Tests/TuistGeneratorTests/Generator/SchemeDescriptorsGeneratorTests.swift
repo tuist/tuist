@@ -421,6 +421,43 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         XCTAssertEqual(buildableReference.blueprintName, "App")
         XCTAssertEqual(buildableReference.buildableIdentifier, "primary")
     }
+    
+    func test_schemeLaunchAction_argumentsOrder() throws {
+        // Given
+        let projectPath = AbsolutePath("/somepath/Workspace/Projects/Project")
+        let launchArguments = [
+            LaunchArgument(name: "arg4", isEnabled: true),
+            LaunchArgument(name: "arg2", isEnabled: false),
+            LaunchArgument(name: "arg1", isEnabled: false),
+            LaunchArgument(name: "arg3", isEnabled: false),
+        ]
+
+        let runAction = RunAction.test(configurationName: "Release",
+                                       executable: TargetReference(projectPath: projectPath, name: "App"),
+                                       arguments: Arguments(launchArguments: launchArguments))
+        let scheme = Scheme.test(runAction: runAction)
+
+        let app = Target.test(name: "App", product: .app)
+
+        let project = Project.test(path: projectPath, targets: [app])
+        let graph = Graph.create(dependencies: [(project: project, target: app, dependencies: [])])
+
+        // When
+        let got = try subject.schemeLaunchAction(scheme: scheme,
+                                                 graph: graph,
+                                                 rootPath: AbsolutePath("/somepath/Workspace"),
+                                                 generatedProjects: createGeneratedProjects(projects: [project]))
+
+        // Then
+        let result = try XCTUnwrap(got)
+
+        XCTAssertEqual(result.commandlineArguments, XCScheme.CommandLineArguments(arguments: [
+            XCScheme.CommandLineArguments.CommandLineArgument(name: "arg4", enabled: true),
+            XCScheme.CommandLineArguments.CommandLineArgument(name: "arg2", enabled: false),
+            XCScheme.CommandLineArguments.CommandLineArgument(name: "arg1", enabled: false),
+            XCScheme.CommandLineArguments.CommandLineArgument(name: "arg3", enabled: false),
+        ]))
+    }
 
     func test_schemeLaunchAction_when_notRunnableTarget() throws {
         // Given
