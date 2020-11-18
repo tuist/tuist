@@ -94,6 +94,7 @@ public struct Target: Codable, Equatable {
     ///   - coreDataModels: CoreData models.
     ///   - environment: Environment variables to be exposed to the target.
     ///   - launchArguments: Launch arguments that are passwd to target.
+    @available(*, deprecated, message: "Use init with `launchArguments: [LaunchArgument]` instead")
     public init(name: String,
                 platform: Platform,
                 product: Product,

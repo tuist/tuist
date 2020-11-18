@@ -4,7 +4,7 @@ public struct Arguments: Equatable, Codable {
     public let environment: [String: String]
     public let launchArguments: [LaunchArgument]
 
-    @available(*, deprecated, message: "Use init with [LaunchArgument] instead")
+    @available(*, deprecated, message: "Use init with `launchArguments: [LaunchArgument]` instead")
     public init(environment: [String: String] = [:],
                 launchArguments: [String: Bool])
     {
