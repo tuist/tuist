@@ -373,7 +373,12 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         // Given
         let projectPath = AbsolutePath("/somepath/Workspace/Projects/Project")
         let environment = ["env1": "1", "env2": "2", "env3": "3", "env4": "4"]
-        let launchArguments = ["arg1": true, "arg2": true, "arg3": false, "arg4": true]
+        let launchArguments = [
+            LaunchArgument(name: "arg1", isEnabled: true),
+            LaunchArgument(name: "arg2", isEnabled: true),
+            LaunchArgument(name: "arg3", isEnabled: false),
+            LaunchArgument(name: "arg4", isEnabled: true),
+        ]
 
         let buildAction = BuildAction.test(targets: [TargetReference(projectPath: projectPath, name: "App")])
         let runAction = RunAction.test(configurationName: "Release",
@@ -608,7 +613,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         let projectPath = AbsolutePath("/somepath/Project")
         let target = Target.test(name: "App", platform: .iOS, product: .app)
 
-        let scheme = makeProfileActionScheme(Arguments(launchArguments: ["something": true]))
+        let scheme = makeProfileActionScheme(Arguments(launchArguments: [LaunchArgument(name: "something", isEnabled: true)]))
         let project = Project.test(path: projectPath, targets: [target])
         let graph = Graph.create(dependencies: [(project: project, target: target, dependencies: [])])
 

@@ -7,15 +7,7 @@ public struct Arguments: Equatable {
     public let launchArguments: [LaunchArgument]
 
     // MARK: - Init
-
-    public init(environment: [String: String] = [:],
-                launchArguments: [String: Bool] = [:])
-    {
-        self.environment = environment
-        self.launchArguments = launchArguments.map(LaunchArgument.init)
-            .sorted { $0.name < $1.name }
-    }
-
+    
     public init(environment: [String: String] = [:],
                 launchArguments: [LaunchArgument] = [])
     {
