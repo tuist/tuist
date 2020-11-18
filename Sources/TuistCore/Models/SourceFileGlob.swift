@@ -18,7 +18,8 @@ public struct SourceFileGlob: Equatable {
     ///   - compilerFlags: Compiler flags.
     public init(glob: String,
                 excluding: [String] = [],
-                compilerFlags: String? = nil) {
+                compilerFlags: String? = nil)
+    {
         self.glob = glob
         self.excluding = excluding
         self.compilerFlags = compilerFlags

@@ -10,7 +10,8 @@ final class CacheWarmService {
     private let generatorModelLoader: GeneratorModelLoader
 
     init(manifestLoader: ManifestLoader = ManifestLoader(),
-         manifestLinter: ManifestLinter = ManifestLinter()) {
+         manifestLinter: ManifestLinter = ManifestLinter())
+    {
         generatorModelLoader = GeneratorModelLoader(manifestLoader: manifestLoader,
                                                     manifestLinter: manifestLinter)
     }

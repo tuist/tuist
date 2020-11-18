@@ -22,7 +22,8 @@ public extension Target {
                      environment: [String: String] = [:],
                      filesGroup: ProjectGroup = .group(name: "Project"),
                      dependencies: [Dependency] = [],
-                     scripts: [TargetScript] = []) -> Target {
+                     scripts: [TargetScript] = []) -> Target
+    {
         Target(name: name,
                platform: platform,
                product: product,
@@ -61,7 +62,8 @@ public extension Target {
                       environment: [String: String] = [:],
                       filesGroup: ProjectGroup = .group(name: "Project"),
                       dependencies: [Dependency] = [],
-                      scripts: [TargetScript] = []) -> Target {
+                      scripts: [TargetScript] = []) -> Target
+    {
         Target(name: name,
                platform: platform,
                product: product,

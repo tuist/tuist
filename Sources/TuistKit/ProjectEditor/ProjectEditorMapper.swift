@@ -27,7 +27,8 @@ final class ProjectEditorMapper: ProjectEditorMapping {
              manifests: [AbsolutePath],
              helpers: [AbsolutePath],
              templates: [AbsolutePath],
-             projectDescriptionPath: AbsolutePath) throws -> (Project, Graph) {
+             projectDescriptionPath: AbsolutePath) throws -> (Project, Graph)
+    {
         // Settings
         let projectSettings = Settings(base: [:],
                                        configurations: Settings.default.configurations,

@@ -14,7 +14,8 @@ public struct ExecutionAction: Equatable {
     public init(title: String,
                 scriptText: String,
                 target: TargetReference?,
-                showEnvVarsInLog: Bool = true) {
+                showEnvVarsInLog: Bool = true)
+    {
         self.title = title
         self.scriptText = scriptText
         self.target = target

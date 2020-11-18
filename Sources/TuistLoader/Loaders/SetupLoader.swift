@@ -55,7 +55,8 @@ public class SetupLoader: SetupLoading {
     ///   - manifestFilesLocator: Locator for `Setup.swift` file
     init(upLinter: UpLinting,
          manifestLoader: ManifestLoading,
-         manifestFilesLocator: ManifestFilesLocating) {
+         manifestFilesLocator: ManifestFilesLocating)
+    {
         self.upLinter = upLinter
         self.manifestLoader = manifestLoader
         self.manifestFilesLocator = manifestFilesLocator

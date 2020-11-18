@@ -50,7 +50,8 @@ final class CloudSessionService: CloudSessionServicing {
     }
 
     init(cloudSessionController: CloudSessionControlling,
-         generatorModelLoader: GeneratorModelLoading) {
+         generatorModelLoader: GeneratorModelLoading)
+    {
         self.cloudSessionController = cloudSessionController
         self.generatorModelLoader = generatorModelLoader
     }

@@ -19,7 +19,8 @@ class UpHomebrewCask: Up, GraphInitiatable {
     ///   - projects: List of projects to be installed with cask.
     ///   - upHomebrew: Up homebrew for installing Homebrew.
     init(projects: [String],
-         upHomebrew: Upping = UpHomebrew(packages: [])) {
+         upHomebrew: Upping = UpHomebrew(packages: []))
+    {
         self.projects = projects
         self.upHomebrew = upHomebrew
         super.init(name: UpHomebrewCask.name)

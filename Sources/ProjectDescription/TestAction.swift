@@ -45,7 +45,8 @@ public struct TestAction: Equatable, Codable {
                  postActions: [ExecutionAction],
                  diagnosticsOptions: [SchemeDiagnosticsOption],
                  language: String?,
-                 region: String?) {
+                 region: String?)
+    {
         self.testPlans = testPlans
         self.targets = targets
         self.arguments = arguments
@@ -80,7 +81,8 @@ public struct TestAction: Equatable, Codable {
                 postActions: [ExecutionAction] = [],
                 diagnosticsOptions: [SchemeDiagnosticsOption] = [],
                 language: String? = nil,
-                region: String? = nil) {
+                region: String? = nil)
+    {
         self.init(testPlans: nil,
                   targets: targets,
                   arguments: arguments,
@@ -115,7 +117,8 @@ public struct TestAction: Equatable, Codable {
                 postActions: [ExecutionAction] = [],
                 diagnosticsOptions: [SchemeDiagnosticsOption] = [],
                 language: String? = nil,
-                region: String? = nil) {
+                region: String? = nil)
+    {
         self.init(testPlans: nil,
                   targets: targets,
                   arguments: arguments,
@@ -138,7 +141,8 @@ public struct TestAction: Equatable, Codable {
     public static func testPlans(_ testPlans: Path...,
                                  config: PresetBuildConfiguration = .debug,
                                  preActions: [ExecutionAction] = [],
-                                 postActions: [ExecutionAction] = []) -> Self {
+                                 postActions: [ExecutionAction] = []) -> Self
+    {
         Self(testPlans: testPlans,
              targets: [],
              arguments: nil,
@@ -161,7 +165,8 @@ public struct TestAction: Equatable, Codable {
     public static func testPlans(_ testPlans: Path...,
                                  configurationName: String,
                                  preActions: [ExecutionAction] = [],
-                                 postActions: [ExecutionAction] = []) -> Self {
+                                 postActions: [ExecutionAction] = []) -> Self
+    {
         Self(testPlans: testPlans,
              targets: [],
              arguments: nil,

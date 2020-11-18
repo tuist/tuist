@@ -28,7 +28,8 @@ public struct TestAction: Equatable {
                 diagnosticsOptions: Set<SchemeDiagnosticsOption>,
                 language: String? = nil,
                 region: String? = nil,
-                testPlans: [TestPlan]? = nil) {
+                testPlans: [TestPlan]? = nil)
+    {
         self.testPlans = testPlans
         self.targets = targets
         self.arguments = arguments

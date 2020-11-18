@@ -35,7 +35,8 @@ final class EmbedScriptGenerator: EmbedScriptGenerating {
 
     func script(sourceRootPath: AbsolutePath,
                 frameworkReferences: [GraphDependencyReference],
-                includeSymbolsInFileLists: Bool) throws -> EmbedScript {
+                includeSymbolsInFileLists: Bool) throws -> EmbedScript
+    {
         var script = baseScript()
         script.append("\n")
 
@@ -51,7 +52,8 @@ final class EmbedScriptGenerator: EmbedScriptGenerating {
 
     fileprivate func frameworksScript(sourceRootPath: AbsolutePath,
                                       frameworkReferences: [GraphDependencyReference],
-                                      includeSymbolsInFileLists: Bool) throws -> FrameworkScript {
+                                      includeSymbolsInFileLists: Bool) throws -> FrameworkScript
+    {
         var script = ""
         var inputPaths: [RelativePath] = []
         var outputPaths: [String] = []

@@ -31,7 +31,8 @@ class CacheGraphMutator: CacheGraphMutating {
     /// Initializes the graph mapper with its attributes.
     /// - Parameter xcframeworkLoader: Utility to parse an .xcframework from the filesystem and load it into memory.
     init(frameworkLoader: FrameworkNodeLoading = FrameworkNodeLoader(),
-         xcframeworkLoader: XCFrameworkNodeLoading = XCFrameworkNodeLoader()) {
+         xcframeworkLoader: XCFrameworkNodeLoading = XCFrameworkNodeLoader())
+    {
         self.frameworkLoader = frameworkLoader
         self.xcframeworkLoader = xcframeworkLoader
     }
@@ -66,7 +67,8 @@ class CacheGraphMutator: CacheGraphMutating {
                            sources: Set<String>,
                            sourceTargets: inout Set<TargetNode>,
                            visitedPrecompiledFrameworkPaths: inout [TargetNode: VisitedPrecompiledFramework?],
-                           loadedPrecompiledNodes: inout [AbsolutePath: PrecompiledNode]) throws {
+                           loadedPrecompiledNodes: inout [AbsolutePath: PrecompiledNode]) throws
+    {
         sourceTargets.formUnion([targetNode])
         targetNode.dependencies = try mapDependencies(targetNode.dependencies,
                                                       precompiledFrameworks: precompiledFrameworks,
@@ -82,7 +84,8 @@ class CacheGraphMutator: CacheGraphMutating {
                                      sources: Set<String>,
                                      sourceTargets: inout Set<TargetNode>,
                                      visitedPrecompiledFrameworkPaths: inout [TargetNode: VisitedPrecompiledFramework?],
-                                     loadedPrecompiledFrameworks: inout [AbsolutePath: PrecompiledNode]) throws -> [GraphNode] {
+                                     loadedPrecompiledFrameworks: inout [AbsolutePath: PrecompiledNode]) throws -> [GraphNode]
+    {
         var newDependencies: [GraphNode] = []
         try dependencies.forEach { dependency in
             // If the dependency is not a target node we keep it.
@@ -145,7 +148,8 @@ class CacheGraphMutator: CacheGraphMutating {
 
     fileprivate func precompiledFrameworkPath(target: TargetNode,
                                               precompiledFrameworks: [TargetNode: AbsolutePath],
-                                              visitedPrecompiledFrameworkPaths: inout [TargetNode: VisitedPrecompiledFramework?]) -> AbsolutePath? {
+                                              visitedPrecompiledFrameworkPaths: inout [TargetNode: VisitedPrecompiledFramework?]) -> AbsolutePath?
+    {
         // Already visited
         if let visited = visitedPrecompiledFrameworkPaths[target] { return visited?.path }
 
@@ -158,7 +162,8 @@ class CacheGraphMutator: CacheGraphMutating {
         else if let path = precompiledFrameworks[target],
             target.targetDependencies.allSatisfy({ precompiledFrameworkPath(target: $0,
                                                                             precompiledFrameworks: precompiledFrameworks,
-                                                                            visitedPrecompiledFrameworkPaths: &visitedPrecompiledFrameworkPaths) != nil }) {
+                                                                            visitedPrecompiledFrameworkPaths: &visitedPrecompiledFrameworkPaths) != nil })
+        {
             visitedPrecompiledFrameworkPaths[target] = VisitedPrecompiledFramework(path: path)
             return path
         } else {

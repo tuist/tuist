@@ -54,7 +54,8 @@ public final class DescriptorGenerator: DescriptorGenerating {
     }
 
     init(workspaceDescriptorGenerator: WorkspaceDescriptorGenerating,
-         projectDescriptorGenerator: ProjectDescriptorGenerating) {
+         projectDescriptorGenerator: ProjectDescriptorGenerating)
+    {
         self.workspaceDescriptorGenerator = workspaceDescriptorGenerator
         self.projectDescriptorGenerator = projectDescriptorGenerator
     }

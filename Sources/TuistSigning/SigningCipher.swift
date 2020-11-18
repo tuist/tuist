@@ -59,7 +59,8 @@ public final class SigningCipher: SigningCiphering {
     }
 
     init(rootDirectoryLocator: RootDirectoryLocating,
-         signingFilesLocator: SigningFilesLocating) {
+         signingFilesLocator: SigningFilesLocating)
+    {
         self.rootDirectoryLocator = rootDirectoryLocator
         self.signingFilesLocator = signingFilesLocator
     }
@@ -139,7 +140,8 @@ public final class SigningCipher: SigningCiphering {
 
     /// - Returns: Files that are already correctly encrypted
     private func correctlyEncryptedSigningFiles(at path: AbsolutePath,
-                                                masterKey: Data) throws -> [(unencrypted: AbsolutePath, encrypted: AbsolutePath)] {
+                                                masterKey: Data) throws -> [(unencrypted: AbsolutePath, encrypted: AbsolutePath)]
+    {
         try locateUnencryptedSigningFiles(at: path).compactMap { unencryptedFile in
             let encryptedFile = AbsolutePath(unencryptedFile.pathString + "." + Constants.encryptedExtension)
             guard FileHandler.shared.exists(encryptedFile) else { return nil }

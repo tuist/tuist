@@ -25,7 +25,8 @@ public class AsyncQueue: AsyncQueuing {
     // MARK: - Init
 
     public convenience init(dispatchers: [AsyncQueueDispatching],
-                            executionBlock: @escaping () throws -> Void) throws {
+                            executionBlock: @escaping () throws -> Void) throws
+    {
         try self.init(queue: Queuer.shared,
                       executionBlock: executionBlock,
                       ciChecker: CIChecker(),
@@ -38,7 +39,8 @@ public class AsyncQueue: AsyncQueuing {
          ciChecker: CIChecking,
          persistor: AsyncQueuePersisting,
          dispatchers: [AsyncQueueDispatching],
-         persistedEventsSchedulerType: SchedulerType = AsyncQueue.schedulerType()) throws {
+         persistedEventsSchedulerType: SchedulerType = AsyncQueue.schedulerType()) throws
+    {
         self.queue = queue
         self.executionBlock = executionBlock
         self.ciChecker = ciChecker
@@ -96,7 +98,8 @@ public class AsyncQueue: AsyncQueuing {
     }
 
     private func persistedDispatchOperation(event: AsyncQueueEventTuple,
-                                            dispatcher: AsyncQueueDispatching) -> Operation {
+                                            dispatcher: AsyncQueueDispatching) -> Operation
+    {
         ConcurrentOperation(name: event.id.uuidString) { _ in
             /// After the dispatching operation finishes, we delete the event locally.
             defer { self.deletePersistedEvent(filename: event.filename) }

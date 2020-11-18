@@ -8,7 +8,8 @@ public extension XCFrameworkNode {
                      infoPlist: XCFrameworkInfoPlist = .test(),
                      primaryBinaryPath: AbsolutePath = "/MyFramework/MyFramework.xcframework/binary",
                      linking: BinaryLinking = .dynamic,
-                     dependencies: [PrecompiledNode.Dependency] = []) -> XCFrameworkNode {
+                     dependencies: [PrecompiledNode.Dependency] = []) -> XCFrameworkNode
+    {
         XCFrameworkNode(path: path,
                         infoPlist: infoPlist,
                         primaryBinaryPath: primaryBinaryPath,

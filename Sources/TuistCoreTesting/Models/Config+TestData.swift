@@ -6,7 +6,8 @@ public extension Config {
     static func test(compatibleXcodeVersions: CompatibleXcodeVersions = .all,
                      cloud: Cloud? = Cloud.test(),
                      generationOptions: [GenerationOption] = [],
-                     path: AbsolutePath? = nil) -> Config {
+                     path: AbsolutePath? = nil) -> Config
+    {
         Config(compatibleXcodeVersions: compatibleXcodeVersions,
                cloud: cloud,
                generationOptions: generationOptions,

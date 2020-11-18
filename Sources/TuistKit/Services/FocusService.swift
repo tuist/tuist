@@ -36,7 +36,8 @@ final class FocusService {
 
     init(manifestLoader: ManifestLoading = ManifestLoader(),
          opener: Opening = Opener(),
-         projectGeneratorFactory: FocusServiceProjectGeneratorFactorying = FocusServiceProjectGeneratorFactory()) {
+         projectGeneratorFactory: FocusServiceProjectGeneratorFactorying = FocusServiceProjectGeneratorFactory())
+    {
         self.manifestLoader = manifestLoader
         self.opener = opener
         self.projectGeneratorFactory = projectGeneratorFactory

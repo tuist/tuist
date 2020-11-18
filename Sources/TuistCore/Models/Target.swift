@@ -66,7 +66,8 @@ public struct Target: Equatable, Hashable, Comparable {
                 launchArguments: [LaunchArgument] = [],
                 filesGroup: ProjectGroup,
                 dependencies: [Dependency] = [],
-                scripts: [TargetScript] = []) {
+                scripts: [TargetScript] = [])
+    {
         self.name = name
         self.product = product
         self.platform = platform

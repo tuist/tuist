@@ -52,7 +52,8 @@ final class LibraryNodeLoader: LibraryNodeLoading {
 
     func load(path: AbsolutePath,
               publicHeaders: AbsolutePath,
-              swiftModuleMap: AbsolutePath?) throws -> LibraryNode {
+              swiftModuleMap: AbsolutePath?) throws -> LibraryNode
+    {
         if !FileHandler.shared.exists(path) {
             throw LibraryNodeLoaderError.libraryNotFound(path)
         }

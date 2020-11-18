@@ -39,7 +39,8 @@ public class FrameworkNode: PrecompiledNode {
          bcsymbolmapPaths: [AbsolutePath],
          linking: BinaryLinking,
          architectures: [BinaryArchitecture] = [],
-         dependencies: [Dependency] = []) {
+         dependencies: [Dependency] = [])
+    {
         self.dsymPath = dsymPath
         self.bcsymbolmapPaths = bcsymbolmapPaths
         self.linking = linking
