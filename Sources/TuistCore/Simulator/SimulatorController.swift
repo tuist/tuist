@@ -1,5 +1,6 @@
 import Foundation
 import RxSwift
+import TSCBasic
 import struct TSCUtility.Version
 import TuistSupport
 
@@ -34,6 +35,15 @@ public protocol SimulatorControlling {
         minVersion: Version?,
         deviceName: String?
     ) -> Single<SimulatorDeviceAndRuntime>
+
+    /// Boots a given simulator
+    func bootSimulator(_ simulatorDevice: SimulatorDeviceAndRuntime) -> Observable<SystemEvent<XcodeBuildOutput>>
+
+    /// Installs an app on a given simulator
+    func installAppBuilt(appPath: AbsolutePath) -> Observable<SystemEvent<XcodeBuildOutput>>
+
+    /// Launches an app on a booted simulator
+    func launchApp(bundleId: String) -> Observable<SystemEvent<XcodeBuildOutput>>
 }
 
 public enum SimulatorControllerError: FatalError {
@@ -159,6 +169,42 @@ public final class SimulatorController: SimulatorControlling {
                 else { return .error(SimulatorControllerError.deviceNotFound(platform, version, deviceName, devicesAndRuntimes)) }
 
                 return .just(device)
+            }
+    }
+
+    public func bootSimulator(_ simulatorDevice: SimulatorDeviceAndRuntime) -> Observable<SystemEvent<XcodeBuildOutput>> {
+        return run(command: ["/usr/bin/xcrun", "simctl", "boot", "\(simulatorDevice.device.udid)"])
+    }
+
+    public func installAppBuilt(appPath: AbsolutePath) -> Observable<SystemEvent<XcodeBuildOutput>> {
+        return run(command: ["/usr/bin/xcrun", "simctl", "install", "booted", "\(appPath)"])
+    }
+
+    public func launchApp(bundleId: String) -> Observable<SystemEvent<XcodeBuildOutput>> {
+        return run(command: ["/usr/bin/xcrun", "simctl", "launch", "booted", bundleId])
+    }
+
+    private func run(command: [String]) -> Observable<SystemEvent<XcodeBuildOutput>> {
+        return System.shared.observable(command)
+            .flatMap { event -> Observable<SystemEvent<XcodeBuildOutput>> in
+                switch event {
+                case .standardOutput(let outputData):
+                    guard let line = String(data: outputData, encoding: .utf8) else {
+                        return Observable.empty()
+                    }
+                    let output = line.split(separator: "\n").map { line -> SystemEvent<XcodeBuildOutput> in
+                        return SystemEvent.standardOutput(XcodeBuildOutput(raw: "\(String(line))", formatted: nil))
+                    }
+                    return Observable.from(output)
+                case .standardError(let errorData):
+                    guard let line = String(data: errorData, encoding: .utf8) else {
+                        return Observable.empty()
+                    }
+                    let output = line.split(separator: "\n").map { line -> SystemEvent<XcodeBuildOutput> in
+                        return SystemEvent.standardError(XcodeBuildOutput(raw: "\(String(line))", formatted: nil))
+                    }
+                    return Observable.from(output)
+                }
             }
     }
 }

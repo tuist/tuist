@@ -30,6 +30,7 @@ public struct TuistCommand: ParsableCommand {
                                  CleanCommand.self,
                                  DocCommand.self,
                                  DependenciesCommand.self,
+                                 RunCommand.self,
                              ])
     }
 

@@ -1,5 +1,6 @@
 import Foundation
 import RxSwift
+import TSCBasic
 import struct TSCUtility.Version
 import TuistCore
 import TuistSupport
@@ -56,5 +57,21 @@ public final class MockSimulatorController: SimulatorControlling {
     public var findAvailableDeviceStub: ((Platform, Version?, Version?, String?) -> Single<SimulatorDeviceAndRuntime>)?
     public func findAvailableDevice(platform: Platform, version: Version?, minVersion: Version?, deviceName: String?) -> Single<SimulatorDeviceAndRuntime> {
         findAvailableDeviceStub?(platform, version, minVersion, deviceName) ?? .just(SimulatorDeviceAndRuntime.test())
+    }
+
+    var bootStub: ((_ simulatorDevice: SimulatorDeviceAndRuntime) -> Void)?
+    public func bootSimulator(_ simulatorDevice: SimulatorDeviceAndRuntime) -> Observable<SystemEvent<XcodeBuildOutput>> {
+        if let bootStub = bootStub {
+            bootStub(simulatorDevice)
+        }
+        return Observable.empty()
+    }
+
+    public func installAppBuilt(appPath: AbsolutePath) -> Observable<SystemEvent<XcodeBuildOutput>> {
+        return Observable.empty()
+    }
+
+    public func launchApp(bundleId: String) -> Observable<SystemEvent<XcodeBuildOutput>> {
+        return Observable.empty()
     }
 }
