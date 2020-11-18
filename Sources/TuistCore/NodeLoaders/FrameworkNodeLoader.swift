@@ -1,6 +1,8 @@
 import Foundation
 import TSCBasic
 import TuistSupport
+import RxSwift
+import RxBlocking
 
 enum FrameworkNodeLoaderError: FatalError, Equatable {
     case frameworkNotFound(AbsolutePath)
@@ -55,21 +57,7 @@ public final class FrameworkNodeLoader: FrameworkNodeLoading {
         let linking = try frameworkMetadataProvider.linking(binaryPath: binaryPath)
         let architectures = try frameworkMetadataProvider.architectures(binaryPath: binaryPath)
 
-        let folderPath = path.removingLastComponent()
-
-        let dependencies: [PrecompiledNode.Dependency] = try otoolController
-            .dlybDependenciesPath(forBinaryAt: binaryPath)
-            .filter { $0.contains("@rpath") }
-            .map { String($0.dropFirst(7)) } // dropping @rpath/
-            .compactMap { (dependencyPath: String) in
-                let name = String(dependencyPath.split(separator: "/").first ?? "")
-                guard !path.pathString.contains(name) else { return nil }
-
-                let tPath = folderPath.appending(RelativePath("\(name)"))
-                guard let node = try? load(path: tPath) else { return nil }
-
-                return PrecompiledNode.Dependency.framework(node)
-            }
+        let dependencies = try dlybDependenciesPath(forBinaryAt: binaryPath)
 
         return FrameworkNode(path: path,
                              dsymPath: dsymsPath,
@@ -77,5 +65,19 @@ public final class FrameworkNodeLoader: FrameworkNodeLoading {
                              linking: linking,
                              architectures: architectures,
                              dependencies: dependencies)
+    }
+
+    private func dlybDependenciesPath(forBinaryAt binaryPath: AbsolutePath) throws -> [PrecompiledNode.Dependency] {
+        return try otoolController
+            .dlybDependenciesPath(forBinaryAt: binaryPath)
+            .toBlocking()
+            .first()?
+            .filter { $0 != binaryPath }
+            .map { $0.removingLastComponent() }
+            .compactMap { dependencyPath -> PrecompiledNode.Dependency? in
+                guard let node = try? load(path: dependencyPath) else { return nil }
+                return PrecompiledNode.Dependency.framework(node)
+            } ?? []
+
     }
 }

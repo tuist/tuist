@@ -48,7 +48,7 @@ let package = Package(
     targets: [
         .target(
             name: "TuistCore",
-            dependencies: ["SwiftToolsSupport-auto", "TuistSupport", "XcodeProj", "Checksum"]
+            dependencies: ["SwiftToolsSupport-auto", "TuistSupport", "XcodeProj", "Checksum", "RxSwift", "RxBlocking"]
         ),
         .target(
             name: "TuistCoreTesting",
