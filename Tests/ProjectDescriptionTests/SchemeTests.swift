@@ -20,7 +20,7 @@ final class SchemeTests: XCTestCase {
                                                       postActions: buildAction),
                              testAction: TestAction(targets: [.init(target: .init(projectPath: nil, target: "target"))],
                                                     arguments: Arguments(environment: ["test": "b"],
-                                                                         launchArguments: ["test": true]),
+                                                                         launchArguments: [LaunchArgument(name: "test", isEnabled: true)]),
                                                     config: .debug,
                                                     coverage: true,
                                                     preActions: testAction,
@@ -28,7 +28,7 @@ final class SchemeTests: XCTestCase {
                              runAction: RunAction(config: .debug,
                                                   executable: .init(projectPath: nil, target: "executable"),
                                                   arguments: Arguments(environment: ["run": "b"],
-                                                                       launchArguments: ["run": true])))
+                                                                       launchArguments: [LaunchArgument(name: "run", isEnabled: true)])))
 
         // When
         let encoded = try encoder.encode(subject)
@@ -50,7 +50,7 @@ final class SchemeTests: XCTestCase {
                                                       postActions: buildAction),
                              testAction: TestAction(targets: [.init(target: .init(projectPath: nil, target: "target"))],
                                                     arguments: Arguments(environment: ["test": "b"],
-                                                                         launchArguments: ["test": true]),
+                                                                         launchArguments: [LaunchArgument(name: "test", isEnabled: true)]),
                                                     config: .debug,
                                                     coverage: true,
                                                     preActions: testAction,
@@ -58,7 +58,7 @@ final class SchemeTests: XCTestCase {
                              runAction: RunAction(config: .release,
                                                   executable: .init(projectPath: nil, target: "executable"),
                                                   arguments: Arguments(environment: ["run": "b"],
-                                                                       launchArguments: ["run": true])))
+                                                                       launchArguments: [LaunchArgument(name: "run", isEnabled: true)])))
 
         // Then
         XCTAssertEqual(subject.runAction?.configurationName, "Release")

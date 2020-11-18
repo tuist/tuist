@@ -289,9 +289,9 @@ Each target in the list of project targets can be initialized with the following
       name: 'LaunchArguments',
       description:
         'List of launch arguments that will be set to the scheme that Tuist automatically generates for the target.',
-      type: '[String: Bool]',
+      type: '[LaunchArgument]',
       optional: true,
-      default: '[:]',
+      default: '[]',
     },
   ]}
 />
@@ -1058,10 +1058,10 @@ Arguments contain commandline arguments passed on launch and Environment variabl
     {
       name: 'LaunchArguments',
       description:
-        "Commandline launch arguments where the key is a launch argument and the value is a boolean indicating if it's enabled.",
-      type: '[String: Bool]',
+        "Commandline launch arguments that are passed by the scheme when running a scheme action.",
+      type: '[LaunchArgument]',
       optional: true,
-      default: '[:]',
+      default: '[]',
     },
   ]}
 />
