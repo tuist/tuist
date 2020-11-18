@@ -11,8 +11,7 @@ public struct ProfileAction: Equatable {
 
     public init(configurationName: String,
                 executable: TargetReference? = nil,
-                arguments: Arguments? = nil)
-    {
+                arguments: Arguments? = nil) {
         self.configurationName = configurationName
         self.executable = executable
         self.arguments = arguments

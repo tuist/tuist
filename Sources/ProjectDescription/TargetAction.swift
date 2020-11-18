@@ -75,8 +75,7 @@ public struct TargetAction: Codable, Equatable {
          inputFileListPaths: [Path] = [],
          outputPaths: [Path] = [],
          outputFileListPaths: [Path] = [],
-         basedOnDependencyAnalysis: Bool? = nil)
-    {
+         basedOnDependencyAnalysis: Bool? = nil) {
         self.name = name
         self.path = path
         self.tool = tool
@@ -108,8 +107,7 @@ public struct TargetAction: Codable, Equatable {
                            inputFileListPaths: [Path] = [],
                            outputPaths: [Path] = [],
                            outputFileListPaths: [Path] = [],
-                           basedOnDependencyAnalysis: Bool? = nil) -> TargetAction
-    {
+                           basedOnDependencyAnalysis: Bool? = nil) -> TargetAction {
         TargetAction(name: name,
                      tool: tool,
                      path: nil,
@@ -141,8 +139,7 @@ public struct TargetAction: Codable, Equatable {
                            inputFileListPaths: [Path] = [],
                            outputPaths: [Path] = [],
                            outputFileListPaths: [Path] = [],
-                           basedOnDependencyAnalysis: Bool? = nil) -> TargetAction
-    {
+                           basedOnDependencyAnalysis: Bool? = nil) -> TargetAction {
         TargetAction(name: name,
                      tool: tool,
                      path: nil,
@@ -174,8 +171,7 @@ public struct TargetAction: Codable, Equatable {
                            inputFileListPaths: [Path] = [],
                            outputPaths: [Path] = [],
                            outputFileListPaths: [Path] = [],
-                           basedOnDependencyAnalysis: Bool? = nil) -> TargetAction
-    {
+                           basedOnDependencyAnalysis: Bool? = nil) -> TargetAction {
         TargetAction(name: name,
                      tool: nil,
                      path: path,
@@ -207,8 +203,7 @@ public struct TargetAction: Codable, Equatable {
                            inputFileListPaths: [Path] = [],
                            outputPaths: [Path] = [],
                            outputFileListPaths: [Path] = [],
-                           basedOnDependencyAnalysis: Bool? = nil) -> TargetAction
-    {
+                           basedOnDependencyAnalysis: Bool? = nil) -> TargetAction {
         TargetAction(name: name,
                      tool: nil,
                      path: path,
@@ -240,8 +235,7 @@ public struct TargetAction: Codable, Equatable {
                             inputFileListPaths: [Path] = [],
                             outputPaths: [Path] = [],
                             outputFileListPaths: [Path] = [],
-                            basedOnDependencyAnalysis: Bool? = nil) -> TargetAction
-    {
+                            basedOnDependencyAnalysis: Bool? = nil) -> TargetAction {
         TargetAction(name: name,
                      tool: tool,
                      path: nil,
@@ -273,8 +267,7 @@ public struct TargetAction: Codable, Equatable {
                             inputFileListPaths: [Path] = [],
                             outputPaths: [Path] = [],
                             outputFileListPaths: [Path] = [],
-                            basedOnDependencyAnalysis: Bool? = nil) -> TargetAction
-    {
+                            basedOnDependencyAnalysis: Bool? = nil) -> TargetAction {
         TargetAction(name: name,
                      tool: tool,
                      path: nil,
@@ -306,8 +299,7 @@ public struct TargetAction: Codable, Equatable {
                             inputFileListPaths: [Path] = [],
                             outputPaths: [Path] = [],
                             outputFileListPaths: [Path] = [],
-                            basedOnDependencyAnalysis: Bool? = nil) -> TargetAction
-    {
+                            basedOnDependencyAnalysis: Bool? = nil) -> TargetAction {
         TargetAction(name: name,
                      tool: nil,
                      path: path,
@@ -339,8 +331,7 @@ public struct TargetAction: Codable, Equatable {
                             inputFileListPaths: [Path] = [],
                             outputPaths: [Path] = [],
                             outputFileListPaths: [Path] = [],
-                            basedOnDependencyAnalysis: Bool? = nil) -> TargetAction
-    {
+                            basedOnDependencyAnalysis: Bool? = nil) -> TargetAction {
         TargetAction(name: name,
                      tool: nil,
                      path: path,

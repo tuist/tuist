@@ -40,8 +40,7 @@ public class TargetNodeGraphMapper: GraphMapping {
 
     private func map(node: GraphNode,
                      mappedCache: inout [GraphNodeMapKey: GraphNode],
-                     cache: GraphLoaderCache) -> GraphNode
-    {
+                     cache: GraphLoaderCache) -> GraphNode {
         if let cached = mappedCache[node.mapperCacheKey] {
             return cached
         }
@@ -70,8 +69,7 @@ public class TargetNodeGraphMapper: GraphMapping {
 
     private func map(targetNode: TargetNode,
                      mappedCache: inout [GraphNodeMapKey: GraphNode],
-                     cache: GraphLoaderCache) -> TargetNode
-    {
+                     cache: GraphLoaderCache) -> TargetNode {
         var updated = TargetNode(project: targetNode.project,
                                  target: targetNode.target,
                                  dependencies: targetNode.dependencies)

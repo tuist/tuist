@@ -88,8 +88,7 @@ final class LinkGenerator: LinkGenerating {
                        fileElements: ProjectFileElements,
                        path: AbsolutePath,
                        sourceRootPath: AbsolutePath,
-                       graph: Graph) throws
-    {
+                       graph: Graph) throws {
         let embeddableFrameworks = try graph.embeddableFrameworks(path: path, name: target.name)
         let linkableModules = try graph.linkableDependencies(path: path, name: target.name)
 
@@ -129,8 +128,7 @@ final class LinkGenerator: LinkGenerating {
                                             sourceRootPath: AbsolutePath,
                                             path: AbsolutePath,
                                             graph: Graph,
-                                            linkableModules: [GraphDependencyReference]) throws
-    {
+                                            linkableModules: [GraphDependencyReference]) throws {
         let headersSearchPaths = graph.librariesPublicHeadersFolders(path: path, name: target.name)
         let librarySearchPaths = graph.librariesSearchPaths(path: path, name: target.name)
         let swiftIncludePaths = graph.librariesSwiftIncludePaths(path: path, name: target.name)
@@ -159,8 +157,7 @@ final class LinkGenerator: LinkGenerating {
 
     func generatePackages(target: Target,
                           pbxTarget: PBXTarget,
-                          pbxproj: PBXProj) throws
-    {
+                          pbxproj: PBXProj) throws {
         for dependency in target.dependencies {
             switch dependency {
             case let .package(product: product):
@@ -176,8 +173,7 @@ final class LinkGenerator: LinkGenerating {
                             pbxTarget: PBXTarget,
                             pbxproj: PBXProj,
                             fileElements: ProjectFileElements,
-                            sourceRootPath: AbsolutePath) throws
-    {
+                            sourceRootPath: AbsolutePath) throws {
         let precompiledEmbedPhase = PBXShellScriptBuildPhase(name: "Embed Precompiled Frameworks")
         let embedPhase = PBXCopyFilesBuildPhase(dstSubfolderSpec: .frameworks,
                                                 name: "Embed Frameworks")
@@ -235,8 +231,7 @@ final class LinkGenerator: LinkGenerating {
 
     func setupFrameworkSearchPath(dependencies: [GraphDependencyReference],
                                   pbxTarget: PBXTarget,
-                                  sourceRootPath: AbsolutePath) throws
-    {
+                                  sourceRootPath: AbsolutePath) throws {
         let precompiledPaths = dependencies.compactMap { $0.precompiledPath }
             .map { LinkGeneratorPath.absolutePath($0.removingLastComponent()) }
         let sdkPaths = dependencies.compactMap { (dependency: GraphDependencyReference) -> LinkGeneratorPath? in
@@ -256,8 +251,7 @@ final class LinkGenerator: LinkGenerating {
 
     func setupHeadersSearchPath(_ paths: [AbsolutePath],
                                 pbxTarget: PBXTarget,
-                                sourceRootPath: AbsolutePath) throws
-    {
+                                sourceRootPath: AbsolutePath) throws {
         try setup(setting: "HEADER_SEARCH_PATHS",
                   paths: paths.map(LinkGeneratorPath.absolutePath),
                   pbxTarget: pbxTarget,
@@ -266,8 +260,7 @@ final class LinkGenerator: LinkGenerating {
 
     func setupLibrarySearchPaths(_ paths: [AbsolutePath],
                                  pbxTarget: PBXTarget,
-                                 sourceRootPath: AbsolutePath) throws
-    {
+                                 sourceRootPath: AbsolutePath) throws {
         try setup(setting: "LIBRARY_SEARCH_PATHS",
                   paths: paths.map(LinkGeneratorPath.absolutePath),
                   pbxTarget: pbxTarget,
@@ -276,8 +269,7 @@ final class LinkGenerator: LinkGenerating {
 
     func setupSwiftIncludePaths(_ paths: [AbsolutePath],
                                 pbxTarget: PBXTarget,
-                                sourceRootPath: AbsolutePath) throws
-    {
+                                sourceRootPath: AbsolutePath) throws {
         try setup(setting: "SWIFT_INCLUDE_PATHS",
                   paths: paths.map(LinkGeneratorPath.absolutePath),
                   pbxTarget: pbxTarget,
@@ -286,8 +278,7 @@ final class LinkGenerator: LinkGenerating {
 
     func setupRunPathSearchPaths(_ paths: [AbsolutePath],
                                  pbxTarget: PBXTarget,
-                                 sourceRootPath: AbsolutePath) throws
-    {
+                                 sourceRootPath: AbsolutePath) throws {
         try setup(setting: "LD_RUNPATH_SEARCH_PATHS",
                   paths: paths.map(LinkGeneratorPath.absolutePath),
                   pbxTarget: pbxTarget,
@@ -297,8 +288,7 @@ final class LinkGenerator: LinkGenerating {
     private func setup(setting name: String,
                        paths: [LinkGeneratorPath],
                        pbxTarget: PBXTarget,
-                       sourceRootPath: AbsolutePath) throws
-    {
+                       sourceRootPath: AbsolutePath) throws {
         guard let configurationList = pbxTarget.buildConfigurationList else {
             throw LinkGeneratorError.missingConfigurationList(targetName: pbxTarget.name)
         }
@@ -317,8 +307,7 @@ final class LinkGenerator: LinkGenerating {
     func generateLinkingPhase(dependencies: [GraphDependencyReference],
                               pbxTarget: PBXTarget,
                               pbxproj: PBXProj,
-                              fileElements: ProjectFileElements) throws
-    {
+                              fileElements: ProjectFileElements) throws {
         let buildPhase = PBXFrameworksBuildPhase()
         pbxproj.add(object: buildPhase)
         pbxTarget.buildPhases.append(buildPhase)
@@ -366,8 +355,7 @@ final class LinkGenerator: LinkGenerating {
                                         graph: Graph,
                                         pbxTarget: PBXTarget,
                                         pbxproj: PBXProj,
-                                        fileElements: ProjectFileElements) throws
-    {
+                                        fileElements: ProjectFileElements) throws {
         // If the current target, which is non-shared (e.g., static lib), depends on other focused targets which
         // include Swift code, we must ensure those are treated as dependencies so that Xcode builds the targets
         // in the correct order. Unfortunately, those deps can be part of other projects which would require
@@ -397,8 +385,7 @@ final class LinkGenerator: LinkGenerating {
     private func generateDependenciesBuildPhase(dependencies: [GraphDependencyReference],
                                                 pbxTarget: PBXTarget,
                                                 pbxproj: PBXProj,
-                                                fileElements: ProjectFileElements) throws
-    {
+                                                fileElements: ProjectFileElements) throws {
         var files: [PBXBuildFile] = []
 
         for case let .product(target, _) in dependencies.sorted() {

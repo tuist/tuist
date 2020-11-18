@@ -111,8 +111,7 @@ public struct Target: Codable, Equatable {
                 settings: Settings? = nil,
                 coreDataModels: [CoreDataModel] = [],
                 environment: [String: String] = [:],
-                launchArguments: [String: Bool])
-    {
+                launchArguments: [String: Bool]) {
         self.name = name
         self.platform = platform
         self.bundleId = bundleId
@@ -166,8 +165,7 @@ public struct Target: Codable, Equatable {
                 settings: Settings? = nil,
                 coreDataModels: [CoreDataModel] = [],
                 environment: [String: String] = [:],
-                launchArguments: [LaunchArgument] = [])
-    {
+                launchArguments: [LaunchArgument] = []) {
         self.name = name
         self.platform = platform
         self.bundleId = bundleId

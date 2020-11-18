@@ -70,8 +70,7 @@ public struct TargetAction: Equatable {
                 outputPaths: [AbsolutePath] = [],
                 outputFileListPaths: [AbsolutePath] = [],
                 showEnvVarsInLog: Bool = true,
-                basedOnDependencyAnalysis: Bool? = nil)
-    {
+                basedOnDependencyAnalysis: Bool? = nil) {
         self.name = name
         self.order = order
         self.tool = tool

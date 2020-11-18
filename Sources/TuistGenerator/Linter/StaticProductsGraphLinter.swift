@@ -53,8 +53,7 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
     ///   from the unlinked bucket and places them in the linked bucket in format of _staticNode > [linkingNode]_.
     ///
     private func buildStaticProductsMap(visiting node: GraphNode,
-                                        cache: Cache) -> StaticProducts
-    {
+                                        cache: Cache) -> StaticProducts {
         if let cachedResult = cache.results(for: node) {
             return cachedResult
         }
@@ -89,8 +88,7 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
     }
 
     private func staticDependencyWarning(staticProduct: GraphNode,
-                                         linkedBy: Set<TargetNode>) -> [StaticDependencyWarning]
-    {
+                                         linkedBy: Set<TargetNode>) -> [StaticDependencyWarning] {
         // Common dependencies between test bundles and their host apps are automatically omitted
         // during generation - as such those shouldn't be flagged
         //
@@ -187,8 +185,7 @@ extension StaticProductsGraphLinter {
         }
 
         static func < (lhs: StaticDependencyWarning,
-                       rhs: StaticDependencyWarning) -> Bool
-        {
+                       rhs: StaticDependencyWarning) -> Bool {
             lhs.stringDescription < rhs.stringDescription
         }
     }
@@ -217,8 +214,7 @@ extension StaticProductsGraphLinter {
         }
 
         func cache(results: StaticProducts,
-                   for node: GraphNode)
-        {
+                   for node: GraphNode) {
             cachedResults[node] = results
         }
     }

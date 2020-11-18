@@ -24,8 +24,7 @@ public struct TargetScript: Equatable {
     public init(name: String,
                 script: String,
                 showEnvVarsInLog: Bool,
-                hashable: Bool)
-    {
+                hashable: Bool) {
         self.name = name
         self.script = script
         self.showEnvVarsInLog = showEnvVarsInLog

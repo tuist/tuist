@@ -113,8 +113,7 @@ public class ValueGraphTraverser: GraphTraversing {
     ///   - skip: If the closure returns false, the traversing logic doesn't traverse the dependencies from that dependency.
     public func filterDependencies(from rootDependency: ValueGraphDependency,
                                    test: (ValueGraphDependency) -> Bool = { _ in true },
-                                   skip: (ValueGraphDependency) -> Bool = { _ in false }) -> Set<ValueGraphDependency>
-    {
+                                   skip: (ValueGraphDependency) -> Bool = { _ in false }) -> Set<ValueGraphDependency> {
         var stack = Stack<ValueGraphDependency>()
 
         stack.push(rootDependency)

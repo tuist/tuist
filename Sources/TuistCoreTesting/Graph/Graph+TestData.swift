@@ -34,8 +34,7 @@ public extension Graph {
     ///       All targets need to be listed even if they don't have any dependencies.
     static func create(project: Project,
                        dependencies: [(target: Target, dependencies: [Target])],
-                       packages: [PackageNode] = []) -> Graph
-    {
+                       packages: [PackageNode] = []) -> Graph {
         create(project: project,
                entryNodes: dependencies.map(\.target),
                dependencies: dependencies,
@@ -45,8 +44,7 @@ public extension Graph {
     static func create(project: Project,
                        entryNodes: [Target],
                        dependencies: [(target: Target, dependencies: [Target])],
-                       packages: [PackageNode] = []) -> Graph
-    {
+                       packages: [PackageNode] = []) -> Graph {
         let dependenciesWithProject = dependencies.map { (
             project: project,
             target: $0.target,
@@ -80,8 +78,7 @@ public extension Graph {
     ///       All targets need to be listed even if they don't have any dependencies.
     static func create(projects: [Project] = [],
                        entryNodes: [Target]? = nil,
-                       dependencies: [(project: Project, target: Target, dependencies: [Target])]) -> Graph
-    { // swiftlint:disable:this large_tuple
+                       dependencies: [(project: Project, target: Target, dependencies: [Target])]) -> Graph { // swiftlint:disable:this large_tuple
         let targetNodes = createTargetNodes(dependencies: dependencies)
 
         let entryNodes = entryNodes.map { entryNodes in

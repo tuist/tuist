@@ -37,8 +37,7 @@ public struct SwiftDocController: SwiftDocControlling {
                          moduleName: String,
                          baseURL: String,
                          outputDirectory: String,
-                         sourcesPaths paths: [AbsolutePath]) throws
-    {
+                         sourcesPaths paths: [AbsolutePath]) throws {
         let swiftDocPath = try binaryLocator.swiftDocPath()
 
         var arguments = [swiftDocPath.pathString,

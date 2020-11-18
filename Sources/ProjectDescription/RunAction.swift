@@ -23,8 +23,7 @@ public struct RunAction: Equatable, Codable {
     public init(configurationName: String,
                 executable: TargetReference? = nil,
                 arguments: Arguments? = nil,
-                diagnosticsOptions: [SchemeDiagnosticsOption] = [])
-    {
+                diagnosticsOptions: [SchemeDiagnosticsOption] = []) {
         self.configurationName = configurationName
         self.executable = executable
         self.arguments = arguments
@@ -40,8 +39,7 @@ public struct RunAction: Equatable, Codable {
     public init(config: PresetBuildConfiguration = .debug,
                 executable: TargetReference? = nil,
                 arguments: Arguments? = nil,
-                diagnosticsOptions: [SchemeDiagnosticsOption] = [])
-    {
+                diagnosticsOptions: [SchemeDiagnosticsOption] = []) {
         self.init(configurationName: config.name,
                   executable: executable,
                   arguments: arguments,

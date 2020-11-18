@@ -27,8 +27,8 @@ final class SchemeManifestMapperTests: TuistUnitTestCase {
         // Given
         let arguments = ProjectDescription.Arguments.test(environment: ["FOO": "BAR", "FIZ": "BUZZ"],
                                                           launchArguments: [
-                                                            LaunchArgument(name: "--help", isEnabled: true),
-                                                            LaunchArgument(name: "subcommand", isEnabled: false),
+                                                              LaunchArgument(name: "--help", isEnabled: true),
+                                                              LaunchArgument(name: "subcommand", isEnabled: false),
                                                           ])
 
         let projectPath = AbsolutePath("/somepath")

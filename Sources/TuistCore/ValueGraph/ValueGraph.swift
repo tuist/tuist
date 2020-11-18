@@ -29,8 +29,7 @@ public struct ValueGraph: Equatable {
                 projects: [AbsolutePath: Project],
                 packages: [AbsolutePath: [String: Package]],
                 targets: [AbsolutePath: [String: Target]],
-                dependencies: [ValueGraphDependency: Set<ValueGraphDependency>])
-    {
+                dependencies: [ValueGraphDependency: Set<ValueGraphDependency>]) {
         self.name = name
         self.path = path
         self.projects = projects

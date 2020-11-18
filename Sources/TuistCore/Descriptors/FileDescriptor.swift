@@ -29,8 +29,7 @@ public struct FileDescriptor: Equatable {
     ///   - state: The desired state of the file (`.present` creates a fiile, `.absent` deletes a file)
     public init(path: AbsolutePath,
                 contents: Data? = nil,
-                state: FileDescriptor.State = .present)
-    {
+                state: FileDescriptor.State = .present) {
         self.path = path
         self.contents = contents
         self.state = state

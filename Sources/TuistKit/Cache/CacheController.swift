@@ -74,8 +74,7 @@ final class CacheController: CacheControlling {
 
     convenience init(cache: CacheStoring,
                      artifactBuilder: CacheArtifactBuilding,
-                     contentHasher: ContentHashing)
-    {
+                     contentHasher: ContentHashing) {
         self.init(cache: cache,
                   artifactBuilder: artifactBuilder,
                   projectGeneratorProvider: CacheControllerProjectGeneratorProvider(contentHasher: contentHasher),
@@ -87,8 +86,7 @@ final class CacheController: CacheControlling {
          artifactBuilder: CacheArtifactBuilding,
          projectGeneratorProvider: CacheControllerProjectGeneratorProviding,
          graphContentHasher: GraphContentHashing,
-         cacheGraphLinter: CacheGraphLinting)
-    {
+         cacheGraphLinter: CacheGraphLinting) {
         self.cache = cache
         self.projectGeneratorProvider = projectGeneratorProvider
         self.artifactBuilder = artifactBuilder
@@ -137,8 +135,7 @@ final class CacheController: CacheControlling {
     ///   - hash: Hash of the target.
     fileprivate func buildAndCacheFramework(path: AbsolutePath,
                                             target: TargetNode,
-                                            hash: String) throws
-    {
+                                            hash: String) throws {
         let outputDirectory = try FileHandler.shared.temporaryDirectory()
         defer {
             try? FileHandler.shared.delete(outputDirectory)

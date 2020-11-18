@@ -7,10 +7,9 @@ public struct Arguments: Equatable {
     public let launchArguments: [LaunchArgument]
 
     // MARK: - Init
-    
+
     public init(environment: [String: String] = [:],
-                launchArguments: [LaunchArgument] = [])
-    {
+                launchArguments: [LaunchArgument] = []) {
         self.environment = environment
         self.launchArguments = launchArguments
     }

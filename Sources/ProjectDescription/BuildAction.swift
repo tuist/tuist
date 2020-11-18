@@ -7,8 +7,7 @@ public struct BuildAction: Equatable, Codable {
 
     public init(targets: [TargetReference],
                 preActions: [ExecutionAction] = [],
-                postActions: [ExecutionAction] = [])
-    {
+                postActions: [ExecutionAction] = []) {
         self.targets = targets
         self.preActions = preActions
         self.postActions = postActions

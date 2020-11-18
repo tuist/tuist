@@ -13,8 +13,7 @@ public struct XcodeBuildSettings {
 
     public init(_ settings: DictionaryType,
                 target: String,
-                configuration: String)
-    {
+                configuration: String) {
         self.settings = settings
         self.target = target
         self.configuration = configuration

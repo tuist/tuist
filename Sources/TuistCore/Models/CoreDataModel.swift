@@ -13,8 +13,7 @@ public struct CoreDataModel: Equatable {
 
     public init(path: AbsolutePath,
                 versions: [AbsolutePath],
-                currentVersion: String)
-    {
+                currentVersion: String) {
         self.path = path
         self.versions = versions
         self.currentVersion = currentVersion

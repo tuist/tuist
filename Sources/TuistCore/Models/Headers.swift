@@ -17,8 +17,7 @@ public struct Headers: Equatable {
 
     public init(public: [AbsolutePath],
                 private: [AbsolutePath],
-                project: [AbsolutePath])
-    {
+                project: [AbsolutePath]) {
         self.public = `public`
         self.private = `private`
         self.project = project

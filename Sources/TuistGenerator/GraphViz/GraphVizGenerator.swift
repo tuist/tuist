@@ -42,8 +42,7 @@ public final class GraphVizGenerator: GraphVizGenerating {
     ///   - graphLoader: Graph loader instance.
     ///   - graphToDotGraphMapper: Mapper to map the graph into a dot graph.
     init(graphLoader: GraphLoading,
-         graphToGraphVizMapper: GraphToGraphVizMapping)
-    {
+         graphToGraphVizMapper: GraphToGraphVizMapping) {
         self.graphLoader = graphLoader
         self.graphToGraphVizMapper = graphToGraphVizMapper
     }

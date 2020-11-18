@@ -29,8 +29,7 @@ public final class CloudHTTPRequestAuthenticator: CloudHTTPRequestAuthenticating
 
     init(ciChecker: CIChecking,
          environmentVariables: @escaping () -> [String: String],
-         credentialsStore: CredentialsStoring)
-    {
+         credentialsStore: CredentialsStoring) {
         self.ciChecker = ciChecker
         self.environmentVariables = environmentVariables
         self.credentialsStore = credentialsStore

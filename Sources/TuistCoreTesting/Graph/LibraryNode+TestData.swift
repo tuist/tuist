@@ -8,8 +8,7 @@ public extension LibraryNode {
                      publicHeaders: AbsolutePath = "/Library/TestHeaders/",
                      architectures: [BinaryArchitecture] = [.arm64],
                      linking: BinaryLinking = .static,
-                     swiftModuleMap: AbsolutePath? = nil) -> LibraryNode
-    {
+                     swiftModuleMap: AbsolutePath? = nil) -> LibraryNode {
         LibraryNode(path: path,
                     publicHeaders: publicHeaders,
                     architectures: architectures,

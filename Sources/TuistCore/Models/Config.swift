@@ -44,8 +44,7 @@ public struct Config: Equatable, Hashable {
     public init(compatibleXcodeVersions: CompatibleXcodeVersions,
                 cloud: Cloud?,
                 generationOptions: [GenerationOption],
-                path: AbsolutePath?)
-    {
+                path: AbsolutePath?) {
         self.compatibleXcodeVersions = compatibleXcodeVersions
         self.cloud = cloud
         self.generationOptions = generationOptions
