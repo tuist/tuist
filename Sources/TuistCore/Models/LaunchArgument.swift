@@ -13,10 +13,3 @@ public struct LaunchArgument: Equatable, Codable {
         self.isEnabled = isEnabled
     }
 }
-
-internal extension Array where Element == LaunchArgument {
-    init(launchArguments: [String: Bool]) {
-        self = launchArguments.map(LaunchArgument.init)
-            .sorted { $0.name < $1.name }
-    }
-}
