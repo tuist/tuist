@@ -156,7 +156,7 @@ extension ExecutionAction {
 
 extension Arguments {
     public static func test(environment: [String: String] = [:],
-                            launchArguments: [String: Bool] = [:]) -> Arguments
+                            launchArguments: [LaunchArgument] = []) -> Arguments
     {
         Arguments(environment: environment,
                   launchArguments: launchArguments)
