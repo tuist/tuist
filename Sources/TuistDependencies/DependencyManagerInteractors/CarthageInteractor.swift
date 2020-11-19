@@ -69,7 +69,7 @@ public final class CarthageInteractor: CarthageInteracting {
             let commnad = try buildCarthageCommand(for: method, platforms: platoforms, path: temporaryDirectoryPath)
             
             // create `Cartfile`
-            let cartfileContent = buildCarfileContent(for: dependencies)
+            let cartfileContent = try buildCarfileContent(for: dependencies)
             let cartfilePath = temporaryDirectoryPath.appending(component: "Cartfile")
             try fileHandler.touch(cartfilePath)
             try fileHandler.write(cartfileContent, path: cartfilePath, atomically: true)
@@ -92,8 +92,8 @@ public final class CarthageInteractor: CarthageInteracting {
     
     // MARK: - Helpers
     
-    private func buildCarfileContent(for dependencies: [CarthageDependency]) -> String {
-        CartfileContentBuilder(dependencies: dependencies)
+    private func buildCarfileContent(for dependencies: [CarthageDependency]) throws -> String {
+        try CartfileContentBuilder(dependencies: dependencies)
             .build()
     }
 
