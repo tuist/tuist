@@ -11,9 +11,9 @@ public class MockDependenciesModelLoader: DependenciesModelLoading {
     var invokedLoadDependenciesCount = 0
     var invokedLoadDependenciesParameters: AbsolutePath?
     var invokedLoadDependenciesParemetersList = [AbsolutePath]()
-    var loadDependenciesStub: ((AbsolutePath) throws -> [CarthageDependency])?
+    var loadDependenciesStub: ((AbsolutePath) throws -> Dependencies)?
     
-    public func loadDependencies(at path: AbsolutePath) throws -> [CarthageDependency] {
+    public func loadDependencies(at path: AbsolutePath) throws -> Dependencies {
         invokedLoadDependencies = true
         invokedLoadDependenciesCount += 1
         invokedLoadDependenciesParameters = (path)
@@ -22,7 +22,7 @@ public class MockDependenciesModelLoader: DependenciesModelLoading {
         if let stub = loadDependenciesStub {
             return try stub(path)
         } else {
-            return []
+            return Dependencies(carthageDependencies: [])
         }
     }
 }

@@ -9,7 +9,7 @@ public struct CarthageDependency: Equatable {
     public let requirement: Requirement
     
     /// Set of platforms for  the given dependency
-    let platforms: Set<Platform>
+    public let platforms: Set<Platform>
     
     /// Initializes the carthage dependency with its attributes.
     ///

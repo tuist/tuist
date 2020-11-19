@@ -33,19 +33,21 @@ final class DependenciesModelLoaderTests: TuistUnitTestCase {
         let stubbedPath = try temporaryPath()
         manifestLoader.loadDependenciesStub = { _ in
             Dependencies([
-                .carthage(name: "Dependency1", requirement: .exact("1.1.1")),
-                .carthage(name: "Dependency2", requirement: .exact("2.3.4")),
+                .carthage(name: "Dependency1", requirement: .exact("1.1.1"), platforms: [.iOS]),
+                .carthage(name: "Dependency2", requirement: .exact("2.3.4"), platforms: [.macOS, .tvOS]),
             ])
         }
         
         // When
-        let models = try subject.loadDependencies(at: stubbedPath)
-        let expectedModels: [CarthageDependency] = [
-            CarthageDependency(name: "Dependency1", requirement: .exact("1.1.1")),
-            CarthageDependency(name: "Dependency2", requirement: .exact("2.3.4"))
-        ]
+        let model = try subject.loadDependencies(at: stubbedPath)
         
         // Then
-        XCTAssertEqual(models, expectedModels)
+        let expectedCarthageModels: [CarthageDependency] = [
+            CarthageDependency(name: "Dependency1", requirement: .exact("1.1.1"), platforms: Set([.iOS])),
+            CarthageDependency(name: "Dependency2", requirement: .exact("2.3.4"), platforms: Set([.macOS, .tvOS]))
+        ]
+        let expectedDependenciesModel = TuistCore.Dependencies(carthageDependencies: expectedCarthageModels)
+        
+        XCTAssertEqual(model, expectedDependenciesModel)
     }
 }

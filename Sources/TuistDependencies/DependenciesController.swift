@@ -13,12 +13,8 @@ public protocol DependenciesControlling {
     /// Installes dependencies.
     /// - Parameter path: Directory whose project's dependencies will be installed.
     /// - Parameter method: Installation method.
-    /// - Parameter carthageDependencies: List of dependencies to intall using `Carthage`.
-    func install(
-        at path: AbsolutePath,
-        method: InstallDependenciesMethod,
-        carthageDependencies: [CarthageDependency]
-    ) throws
+    /// - Parameter dependencies: List of dependencies to intall.
+    func install(at path: AbsolutePath, method: InstallDependenciesMethod, dependencies: Dependencies) throws
 }
 
 // MARK: - Dependencies Controller
@@ -39,11 +35,7 @@ public final class DependenciesController: DependenciesControlling {
         self.spmInteractor = spmInteractor
     }
     
-    public func install(
-        at path: AbsolutePath,
-        method: InstallDependenciesMethod,
-        carthageDependencies: [CarthageDependency]
-    ) throws {
-        try carthageInteractor.install(at: path, method: method, dependencies: carthageDependencies)
+    public func install(at path: AbsolutePath, method: InstallDependenciesMethod, dependencies: Dependencies) throws {
+        try carthageInteractor.install(at: path, method: method, dependencies: dependencies.carthageDependencies)
     }
 }

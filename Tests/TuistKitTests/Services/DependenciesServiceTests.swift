@@ -37,10 +37,12 @@ final class DependenciesServiceTests: TuistUnitTestCase {
     func test_run_fetch() throws {
         // Given
         let stubbedPath = try temporaryPath()
-        let stubbedCarthageDependencies = [CarthageDependency(name: "Dependency1", requirement: .exact("1.1.1"))]
-        dependenciesModelLoader.loadDependenciesStub = { _ in
-            stubbedCarthageDependencies
-        }
+        let stubbedDependencies = Dependencies(
+            carthageDependencies: [
+                CarthageDependency(name: "Dependency1", requirement: .exact("1.1.1"), platforms: [.iOS, .macOS])
+            ]
+        )
+        dependenciesModelLoader.loadDependenciesStub = { _ in stubbedDependencies }
 
         // When
         try subject.run(path: stubbedPath.pathString, method: .fetch)
@@ -50,7 +52,7 @@ final class DependenciesServiceTests: TuistUnitTestCase {
         XCTAssertEqual(dependenciesController.invokedInstallCount, 1)
         XCTAssertEqual(dependenciesController.invokedInstallParameters?.path, stubbedPath)
         XCTAssertEqual(dependenciesController.invokedInstallParameters?.method, .fetch)
-        XCTAssertEqual(dependenciesController.invokedInstallParameters?.carthageDependencies, stubbedCarthageDependencies)
+        XCTAssertEqual(dependenciesController.invokedInstallParameters?.dependencies, stubbedDependencies)
         
         XCTAssertTrue(dependenciesModelLoader.invokedLoadDependencies)
         XCTAssertEqual(dependenciesModelLoader.invokedLoadDependenciesCount, 1)
@@ -60,11 +62,12 @@ final class DependenciesServiceTests: TuistUnitTestCase {
     func test_run_update() throws {
         // Given
         let stubbedPath = try temporaryPath()
-        let stubbedCarthageDependencies = [CarthageDependency(name: "Dependency1", requirement: .exact("1.1.1"))]
-        dependenciesModelLoader.loadDependenciesStub = { _ in
-            stubbedCarthageDependencies
-        }
-
+        let stubbedDependencies = Dependencies(
+            carthageDependencies: [
+                CarthageDependency(name: "Dependency1", requirement: .exact("1.1.1"), platforms: [.iOS, .macOS])
+            ]
+        )
+        dependenciesModelLoader.loadDependenciesStub = { _ in stubbedDependencies }
         // When
         try subject.run(path: stubbedPath.pathString, method: .update)
 
@@ -73,7 +76,7 @@ final class DependenciesServiceTests: TuistUnitTestCase {
         XCTAssertEqual(dependenciesController.invokedInstallCount, 1)
         XCTAssertEqual(dependenciesController.invokedInstallParameters?.path, stubbedPath)
         XCTAssertEqual(dependenciesController.invokedInstallParameters?.method, .update)
-        XCTAssertEqual(dependenciesController.invokedInstallParameters?.carthageDependencies, stubbedCarthageDependencies)
+        XCTAssertEqual(dependenciesController.invokedInstallParameters?.dependencies, stubbedDependencies)
         
         XCTAssertTrue(dependenciesModelLoader.invokedLoadDependencies)
         XCTAssertEqual(dependenciesModelLoader.invokedLoadDependenciesCount, 1)

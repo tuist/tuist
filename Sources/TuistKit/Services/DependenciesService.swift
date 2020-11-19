@@ -20,8 +20,8 @@ final class DependenciesService {
         
         let path = self.path(path)
         
-        let carthageDependencies = try dependenciesModelLoader.loadDependencies(at: path)
-        try dependenciesController.install(at: path, method: method, carthageDependencies: carthageDependencies)
+        let dependencies = try dependenciesModelLoader.loadDependencies(at: path)
+        try dependenciesController.install(at: path, method: method, dependencies: dependencies)
         
         logger.notice("Successfully installed dependencies.", metadata: .success)
     }
