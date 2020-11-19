@@ -61,8 +61,8 @@ public final class CarthageInteractor: CarthageInteracting {
         method: InstallDependenciesMethod,
         dependencies: [CarthageDependency]
     ) throws {
-        #warning("TODO: How to determine platforms?")
-        let platoforms: Set<Platform> = [.macOS, .watchOS]
+        let platoforms: Set<Platform> = dependencies
+            .reduce(Set<Platform>(), { platforms, dependency in return platforms.union(dependency.platforms) })
         
         try withTemporaryDirectory { temporaryDirectoryPath in
             // create `carthage` shell command
