@@ -3,7 +3,7 @@ import TuistSupport
 
 // MARK: - Cocoapods Interactor Errors
 
-public enum CocoapodsInteractorError: FatalError {
+enum CocoapodsInteractorError: FatalError {
     case unimplemented
 
     /// Error type.
@@ -30,7 +30,6 @@ public protocol CocoapodsInteracting {
 
 // MARK: - Cocoapods Interactor
 
-#warning("TODO: Add unit test!")
 public final class CocoapodsInteractor: CocoapodsInteracting {
     public init() { }
     
