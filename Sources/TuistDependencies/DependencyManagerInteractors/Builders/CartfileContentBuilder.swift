@@ -27,7 +27,6 @@ enum CartfileContentBuilderError: FatalError, Equatable {
 
 // MARK: - Cartfile Content Builder
 
-#warning("TODO: Add unit test!")
 final class CartfileContentBuilder {
     
     // MARK: - State

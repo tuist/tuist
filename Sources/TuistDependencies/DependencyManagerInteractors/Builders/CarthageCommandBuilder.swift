@@ -4,7 +4,6 @@ import TuistSupport
 
 // MARK: - Carthage Command Builder
 
-#warning("Add unit test!")
 final class CarthageCommandBuilder {
     
     // MARK: - State
