@@ -7,4 +7,7 @@ struct CarthageDependency {
 
     /// Type of requirement for the given dependency
     let requirement: Requirement
+
+    /// Set of platforms for  the given dependency
+    let platforms: Set<Platform>
 }
