@@ -30,7 +30,6 @@ public protocol SPMInteracting {
 
 // MARK: - SPM Interactor
 
-#warning("Add unit test!")
 public final class SPMInteractor: SPMInteracting {
     public init() { }
     
