@@ -42,7 +42,7 @@ public struct Target: Equatable, Hashable, Comparable {
     public var coreDataModels: [CoreDataModel]
     public var actions: [TargetAction]
     public var environment: [String: String]
-    public var launchArguments: [String: Bool]
+    public var launchArguments: [LaunchArgument]
     public var filesGroup: ProjectGroup
     public var scripts: [TargetScript]
 
@@ -63,7 +63,7 @@ public struct Target: Equatable, Hashable, Comparable {
                 coreDataModels: [CoreDataModel] = [],
                 actions: [TargetAction] = [],
                 environment: [String: String] = [:],
-                launchArguments: [String: Bool] = [:],
+                launchArguments: [LaunchArgument] = [],
                 filesGroup: ProjectGroup,
                 dependencies: [Dependency] = [],
                 scripts: [TargetScript] = [])

@@ -156,7 +156,7 @@ extension ExecutionAction {
 
 extension Arguments {
     public static func test(environment: [String: String] = [:],
-                            launchArguments: [String: Bool] = [:]) -> Arguments
+                            launchArguments: [LaunchArgument] = []) -> Arguments
     {
         Arguments(environment: environment,
                   launchArguments: launchArguments)
@@ -167,6 +167,6 @@ extension Dependencies {
     public static func test(name: String = "Any Dependency",
                             requirement: Dependency.Requirement = .exact("1.4.0")) -> Dependencies
     {
-        Dependencies([.carthage(name: name, requirement: requirement)])
+        Dependencies([.carthage(name: name, requirement: requirement, platforms: [.iOS])])
     }
 }
