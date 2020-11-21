@@ -237,7 +237,7 @@ public class Graph: Encodable, Equatable {
         }
 
         references = references.union(directSystemLibrariesAndFrameworks)
-        
+
         // Precompiled libraries and frameworks
 
         let precompiledLibrariesAndFrameworks = findAll(
