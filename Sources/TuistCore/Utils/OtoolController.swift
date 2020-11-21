@@ -1,7 +1,7 @@
 import Foundation
+import RxSwift
 import TSCBasic
 import TuistSupport
-import RxSwift
 
 enum OtoolErrors: FatalError, Equatable {
     case invalidOutput
@@ -14,7 +14,7 @@ enum OtoolErrors: FatalError, Equatable {
 
     var type: ErrorType {
         switch self {
-            case .invalidOutput: return .abort
+        case .invalidOutput: return .abort
         }
     }
 }

@@ -1,8 +1,8 @@
 import Foundation
+import RxBlocking
+import RxSwift
 import TSCBasic
 import TuistSupport
-import RxSwift
-import RxBlocking
 
 enum FrameworkNodeLoaderError: FatalError, Equatable {
     case frameworkNotFound(AbsolutePath)
@@ -68,16 +68,15 @@ public final class FrameworkNodeLoader: FrameworkNodeLoading {
     }
 
     private func dlybDependenciesPath(forBinaryAt binaryPath: AbsolutePath) throws -> [PrecompiledNode.Dependency] {
-        return try otoolController
+        try otoolController
             .dlybDependenciesPath(forBinaryAt: binaryPath)
             .toBlocking()
             .first()?
             .filter { $0 != binaryPath }
             .map { $0.removingLastComponent() }
             .compactMap { dependencyPath -> PrecompiledNode.Dependency? in
-                guard let node = try? load(path: dependencyPath) else { return nil }
+                let node = try load(path: dependencyPath)
                 return PrecompiledNode.Dependency.framework(node)
             } ?? []
-
     }
 }
