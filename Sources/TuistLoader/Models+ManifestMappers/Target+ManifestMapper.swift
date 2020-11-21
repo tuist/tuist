@@ -76,7 +76,7 @@ extension TuistCore.Target {
         }
 
         let environment = manifest.environment
-        let launchArguments = manifest.launchArguments
+        let launchArguments = manifest.launchArguments.map(LaunchArgument.from)
 
         return TuistCore.Target(name: name,
                                 platform: platform,

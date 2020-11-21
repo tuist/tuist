@@ -1,0 +1,18 @@
+{
+  "configurations" : [
+    {
+      "id" : "C22A912B-3B01-40F3-BD6E-FD9604541640",
+      "name" : "Configuration 1",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+
+  },
+  "testTargets" : [
+
+  ],
+  "version" : 1
+}
