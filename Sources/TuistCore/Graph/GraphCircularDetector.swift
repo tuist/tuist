@@ -62,7 +62,7 @@ public final class GraphCircularDetector: GraphCircularDetecting {
 
         if currentPath.contains(node) {
             let cyclePath = currentPath + [node]
-            throw GraphLoadingError.circularDependency(cyclePath.map { $0.element })
+            throw GraphLoadingError.circularDependency(cyclePath.map(\.element))
         }
 
         var currentPath = currentPath

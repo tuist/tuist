@@ -13,6 +13,6 @@ let package = Package(
     products: [],
     dependencies: [],
     targets: [
-      .target(name: "website")
+        .target(name: "website"),
     ]
 )

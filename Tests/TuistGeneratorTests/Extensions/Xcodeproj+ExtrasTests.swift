@@ -18,7 +18,7 @@ class XcodeprojExtrasTests: XCTestCase {
         let sorted = elements.sorted(by: PBXFileElement.filesBeforeGroupsSort)
 
         // Then
-        XCTAssertEqual(sorted.map { $0.nameOrPath }, [
+        XCTAssertEqual(sorted.map(\.nameOrPath), [
             // Files
             "c",
             "d",

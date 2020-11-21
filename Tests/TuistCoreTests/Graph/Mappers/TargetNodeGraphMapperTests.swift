@@ -80,7 +80,7 @@ class TargetNodeGraphMapperTests: XCTestCase {
         let (results, _) = subject.map(graph: graph)
 
         // Then
-        XCTAssertEqual(results.targets.flatMap { $0.value }.count, 1)
+        XCTAssertEqual(results.targets.flatMap(\.value).count, 1)
         XCTAssertEqual(results.projects.count, 1)
     }
 
@@ -107,7 +107,7 @@ class TargetNodeGraphMapperTests: XCTestCase {
         _ = subject.map(graph: graph)
 
         // Then
-        XCTAssertEqual(graph.targets.flatMap { $0.value }.count, 3)
+        XCTAssertEqual(graph.targets.flatMap(\.value).count, 3)
         XCTAssertEqual(graph.projects.count, 2)
     }
 }

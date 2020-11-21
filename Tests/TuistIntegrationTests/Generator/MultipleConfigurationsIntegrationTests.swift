@@ -406,7 +406,7 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
             return
         }
 
-        let configurationNames = Set(nativeTarget.buildConfigurationList?.buildConfigurations.map { $0.name } ?? [])
+        let configurationNames = Set(nativeTarget.buildConfigurationList?.buildConfigurations.map(\.name) ?? [])
         XCTAssertEqual(configurationNames, expectedConfigurations, file: file, line: line)
     }
 
@@ -424,7 +424,7 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
             return
         }
 
-        let configurationNames = Set(rootProject?.buildConfigurationList?.buildConfigurations.map { $0.name } ?? [])
+        let configurationNames = Set(rootProject?.buildConfigurationList?.buildConfigurations.map(\.name) ?? [])
         XCTAssertEqual(configurationNames, expectedConfigurations, file: file, line: line)
     }
 }

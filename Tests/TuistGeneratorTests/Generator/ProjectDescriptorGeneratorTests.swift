@@ -260,7 +260,7 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
         // Then
         let pbxproj = got.xcodeProj.pbxproj
         let rootGroup = try XCTUnwrap(pbxproj.rootGroup())
-        let paths = rootGroup.children.compactMap { $0.path }
+        let paths = rootGroup.children.compactMap(\.path)
         XCTAssertEqual(paths, [
             "../Packages/LocalPackageA",
         ])

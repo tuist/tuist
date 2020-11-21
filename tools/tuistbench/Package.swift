@@ -21,7 +21,7 @@ let package = Package(
         .target(
             name: "TuistBenchmark",
             dependencies: [
-               .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
+                .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
             ]
         ),
     ]

@@ -50,7 +50,7 @@ public struct TuistCommand: ParsableCommand {
     private static func parse() throws -> [String]? {
         let arguments = Array(processArguments().dropFirst())
         guard let firstArgument = arguments.first else { return nil }
-        let containsCommand = configuration.subcommands.map { $0.configuration.commandName }.contains(firstArgument)
+        let containsCommand = configuration.subcommands.map(\.configuration.commandName).contains(firstArgument)
         if containsCommand {
             return arguments
         }
