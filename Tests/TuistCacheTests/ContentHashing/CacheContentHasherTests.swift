@@ -26,12 +26,12 @@ final class CacheContentHasherTests: TuistUnitTestCase {
 
     func test_hashString_callsContentHasherWithExpectedString() throws {
         // When
-        _ = try subject.hash("foo")
         var hashedStrings: [String] = []
         mockContentHashing.hashStub = {
             hashedStrings.append($0)
             return $0
         }
+        _ = try subject.hash("foo")
 
         // Then
         XCTAssertEqual(
