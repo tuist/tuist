@@ -4,7 +4,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
-- Fixed signing linter for target with bundle identifier derived from build settings [#2031] by [@leszko11](https://github.com/leszko11).
+- Fixed signing linter for target with bundle identifier derived from build settings [#2031](https://github.com/tuist/tuist/pull/2031) by [@leszko11](https://github.com/leszko11).
 ### Changed
 
 - Change `launchArguments` of `Target` and `RunAction` to ordered array so order can be preserved [#2052](https://github.com/tuist/tuist/pull/2052) by [@olejnjak](https://github.com/olejnjak).
