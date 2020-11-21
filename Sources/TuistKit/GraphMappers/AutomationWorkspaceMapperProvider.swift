@@ -9,7 +9,9 @@ final class AutomationWorkspaceMapperProvider: WorkspaceMapperProviding {
     private let workspaceMapperProvider: WorkspaceMapperProviding
 
     init(
-        workspaceMapperProvider: WorkspaceMapperProviding = WorkspaceMapperProvider()
+        workspaceMapperProvider: WorkspaceMapperProviding = WorkspaceMapperProvider(
+            projectMapperProvider: AutomationProjectMapperProvider()
+        )
     ) {
         self.workspaceMapperProvider = workspaceMapperProvider
     }
