@@ -244,6 +244,24 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         XCTAssertEqual(result.testables.count, 0)
     }
 
+    func test_schemeTestAction_when_usingTestPlans() throws {
+        // Given
+        let project = Project.test()
+        let planPath = AbsolutePath(project.path, "folder/Plan.xctestplan")
+        let planList = [TestPlan(path: planPath, isDefault: true)]
+        let scheme = Scheme.test(testAction: TestAction.test(testPlans: planList))
+        let generatedProject = GeneratedProject.test()
+        let graph = Graph.create(dependencies: [])
+
+        // Then
+        let got = try subject.schemeTestAction(scheme: scheme, graph: graph, rootPath: project.path, generatedProjects: [project.path: generatedProject])
+
+        // When
+        let result = try XCTUnwrap(got)
+        XCTAssertEqual(result.testPlans?.count, 1)
+        XCTAssertEqual(result.testPlans?.first?.reference, "container:folder/Plan.xctestplan")
+    }
+
     func test_schemeTestAction_with_testable_info() throws {
         // Given
         let target = Target.test(name: "App", product: .app)
@@ -355,7 +373,12 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         // Given
         let projectPath = AbsolutePath("/somepath/Workspace/Projects/Project")
         let environment = ["env1": "1", "env2": "2", "env3": "3", "env4": "4"]
-        let launchArguments = ["arg1": true, "arg2": true, "arg3": false, "arg4": true]
+        let launchArguments = [
+            LaunchArgument(name: "arg1", isEnabled: true),
+            LaunchArgument(name: "arg2", isEnabled: true),
+            LaunchArgument(name: "arg3", isEnabled: false),
+            LaunchArgument(name: "arg4", isEnabled: true),
+        ]
 
         let buildAction = BuildAction.test(targets: [TargetReference(projectPath: projectPath, name: "App")])
         let runAction = RunAction.test(configurationName: "Release",
@@ -402,6 +425,43 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         XCTAssertEqual(buildableReference.buildableName, "App.app")
         XCTAssertEqual(buildableReference.blueprintName, "App")
         XCTAssertEqual(buildableReference.buildableIdentifier, "primary")
+    }
+
+    func test_schemeLaunchAction_argumentsOrder() throws {
+        // Given
+        let projectPath = AbsolutePath("/somepath/Workspace/Projects/Project")
+        let launchArguments = [
+            LaunchArgument(name: "arg4", isEnabled: true),
+            LaunchArgument(name: "arg2", isEnabled: false),
+            LaunchArgument(name: "arg1", isEnabled: false),
+            LaunchArgument(name: "arg3", isEnabled: false),
+        ]
+
+        let runAction = RunAction.test(configurationName: "Release",
+                                       executable: TargetReference(projectPath: projectPath, name: "App"),
+                                       arguments: Arguments(launchArguments: launchArguments))
+        let scheme = Scheme.test(runAction: runAction)
+
+        let app = Target.test(name: "App", product: .app)
+
+        let project = Project.test(path: projectPath, targets: [app])
+        let graph = Graph.create(dependencies: [(project: project, target: app, dependencies: [])])
+
+        // When
+        let got = try subject.schemeLaunchAction(scheme: scheme,
+                                                 graph: graph,
+                                                 rootPath: AbsolutePath("/somepath/Workspace"),
+                                                 generatedProjects: createGeneratedProjects(projects: [project]))
+
+        // Then
+        let result = try XCTUnwrap(got)
+
+        XCTAssertEqual(result.commandlineArguments, XCScheme.CommandLineArguments(arguments: [
+            XCScheme.CommandLineArguments.CommandLineArgument(name: "arg4", enabled: true),
+            XCScheme.CommandLineArguments.CommandLineArgument(name: "arg2", enabled: false),
+            XCScheme.CommandLineArguments.CommandLineArgument(name: "arg1", enabled: false),
+            XCScheme.CommandLineArguments.CommandLineArgument(name: "arg3", enabled: false),
+        ]))
     }
 
     func test_schemeLaunchAction_when_notRunnableTarget() throws {
@@ -553,7 +613,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         let projectPath = AbsolutePath("/somepath/Project")
         let target = Target.test(name: "App", platform: .iOS, product: .app)
 
-        let scheme = makeProfileActionScheme(Arguments(launchArguments: ["something": true]))
+        let scheme = makeProfileActionScheme(Arguments(launchArguments: [LaunchArgument(name: "something", isEnabled: true)]))
         let project = Project.test(path: projectPath, targets: [target])
         let graph = Graph.create(dependencies: [(project: project, target: target, dependencies: [])])
 

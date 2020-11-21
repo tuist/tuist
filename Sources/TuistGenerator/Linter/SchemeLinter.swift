@@ -42,6 +42,14 @@ private extension SchemeLinter {
                                                    actionDescription: "the scheme's test action")
                 )
             }
+            testAction.testPlans?.forEach { testPlan in
+                if !FileHandler.shared.exists(testPlan.path) {
+                    issues.append(
+                        LintingIssue(reason: "Test Plan not found at path \(testPlan.path.pathString)",
+                                     severity: .warning)
+                    )
+                }
+            }
         }
 
         return issues
