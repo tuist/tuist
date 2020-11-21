@@ -121,7 +121,7 @@ final class ProjectGroupsTests: XCTestCase {
                                          playgrounds: playgrounds)
 
         // Then
-        let paths = subject.sortedMain.children.compactMap(\.nameOrPath)
+        let paths = subject.sortedMain.children.compactMap({ $0.nameOrPath })
         XCTAssertEqual(paths, [
             "P",
             "B",
