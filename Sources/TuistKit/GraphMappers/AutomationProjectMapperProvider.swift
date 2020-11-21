@@ -4,6 +4,8 @@ import TuistSupport
 import TuistGenerator
 import TuistAutomation
 
+/// Custom mapper provider for automation features
+/// It uses default `ProjectMapperProvider` but adds its own on top
 final class AutomationProjectMapperProvider: ProjectMapperProviding {
     private let projectMapperProvider: ProjectMapperProviding
     private let contentHasher: ContentHashing

@@ -3,6 +3,8 @@ import TuistCore
 import TuistAutomation
 import TuistGenerator
 
+/// Custom mapper provider for automation features
+/// It uses default `WorkspaceMapperProvider` but adds its own on top
 final class AutomationWorkspaceMapperProvider: WorkspaceMapperProviding {
     private let workspaceMapperProvider: WorkspaceMapperProviding
     

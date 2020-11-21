@@ -1,6 +1,7 @@
 import TuistCore
 import TuistSupport
 
+/// Updates path of project to point to where automation project should be generated
 public final class AutomationPathProjectMapper: ProjectMapping {
     private let contentHasher: ContentHashing
     
