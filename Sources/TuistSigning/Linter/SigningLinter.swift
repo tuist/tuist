@@ -41,9 +41,9 @@ final class SigningLinter: SigningLinting {
             severity: .error
         )
         let buildSettingRegex = "\\$[\\({](.*)[\\)}]"
-        
+
         var issues: [LintingIssue] = []
-        
+
         if target.bundleId.matches(pattern: buildSettingRegex) {
             return issues
         } else if provisioningProfile.appId.last == "*" {

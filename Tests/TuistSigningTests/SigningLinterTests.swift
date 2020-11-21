@@ -133,7 +133,7 @@ final class SigningLinterTests: TuistUnitTestCase {
             )]
         )
     }
-    
+
     func test_lint_when_bundle_id_is_derived_from_build_settings_using_parentheses_pattern() {
         // Given
         let provisioningProfile = ProvisioningProfile.test(
@@ -148,7 +148,7 @@ final class SigningLinterTests: TuistUnitTestCase {
         // Then
         XCTAssertEmpty(got)
     }
-    
+
     func test_lint_when_bundle_id_is_derived_from_build_settings_using_braces_pattern() {
         // Given
         let provisioningProfile = ProvisioningProfile.test(
