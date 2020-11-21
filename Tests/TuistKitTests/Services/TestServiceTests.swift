@@ -45,15 +45,21 @@ final class TestServiceTests: TuistUnitTestCase {
         // Given
         let path = try temporaryPath()
         let workspacePath = path.appending(component: "App.xcworkspace")
-        let graph = Graph.test()
-        let scheme = Scheme.test()
+        let graph = Graph.test(
+            workspace: .test(
+                path: workspacePath,
+                name: "App"
+            )
+        )
+        let scheme = Scheme.test(name: "App-Project")
         let target = Target.test()
         let buildArguments: [XcodeBuildArgument] = [.sdk("iphoneos")]
         let skipSigning = true
 
-        generator.loadStub = { _path in
+        generator.generateWithGraphStub = { _path, projectOnly in
             XCTAssertEqual(_path, path)
-            return graph
+            XCTAssertFalse(projectOnly)
+            return (_path, graph)
         }
         buildGraphInspector.testableSchemesStub = { _ in
             [scheme]
@@ -63,7 +69,7 @@ final class TestServiceTests: TuistUnitTestCase {
             return target
         }
         buildGraphInspector.workspacePathStub = { _path in
-            XCTAssertEqual(_path, path)
+            XCTAssertEqual(_path, workspacePath)
             return workspacePath
         }
         buildGraphInspector.buildArgumentsStub = { _target, _, _skipSigning in
@@ -93,11 +99,15 @@ final class TestServiceTests: TuistUnitTestCase {
         )
     }
 
-    func test_run_only_cleans_the_first_time() throws {
+    func test_run_only_when_scheme_specified() throws {
         // Given
         let path = try temporaryPath()
         let workspacePath = path.appending(component: "App.xcworkspace")
-        let graph = Graph.test()
+        let graph = Graph.test(
+            workspace: .test(
+                path: workspacePath
+            )
+        )
         let schemeA = Scheme.test(name: "A")
         let schemeB = Scheme.test(name: "B")
         let targetA = Target.test(name: "A")
@@ -105,11 +115,12 @@ final class TestServiceTests: TuistUnitTestCase {
         let buildArguments: [XcodeBuildArgument] = [.sdk("iphoneos")]
         let skipSigning = true
 
-        generator.loadStub = { _path in
+        generator.generateWithGraphStub = { _path, projectOnly in
             XCTAssertEqual(_path, path)
-            return graph
+            XCTAssertFalse(projectOnly)
+            return (_path, graph)
         }
-        buildGraphInspector.buildableSchemesStub = { _ in
+        buildGraphInspector.testableSchemesStub = { _ in
             [schemeA, schemeB]
         }
         buildGraphInspector.buildableTargetStub = { _scheme, _ in
@@ -118,7 +129,7 @@ final class TestServiceTests: TuistUnitTestCase {
             else { XCTFail("unexpected scheme"); return targetA }
         }
         buildGraphInspector.workspacePathStub = { _path in
-            XCTAssertEqual(_path, path)
+            XCTAssertEqual(_path, workspacePath)
             return workspacePath
         }
         buildGraphInspector.buildArgumentsStub = { _, _, _skipSigning in
@@ -128,22 +139,15 @@ final class TestServiceTests: TuistUnitTestCase {
         xcodebuildController.testStub = { _target, _scheme, _clean, _, _arguments in
             XCTAssertEqual(_target, .workspace(workspacePath))
             XCTAssertEqual(_arguments, buildArguments)
-
-            if _scheme == "A" {
-                XCTAssertEqual(_scheme, "A")
-                XCTAssertTrue(_clean)
-            } else if _scheme == "B" {
-                // When running the second scheme clean should be false
-                XCTAssertEqual(_scheme, "B")
-                XCTAssertFalse(_clean)
-            } else {
-                XCTFail("unexpected scheme \(_scheme)")
-            }
+            XCTAssertEqual(_scheme, "B")
+            XCTAssertTrue(_clean)
             return Observable.just(.standardOutput(.init(raw: "success", formatted: nil)))
         }
 
         // Then
         try subject.testRun(
+            schemeName: "B",
+            clean: true,
             path: path
         )
     }
@@ -152,19 +156,27 @@ final class TestServiceTests: TuistUnitTestCase {
         // Given
         let path = try temporaryPath()
         let workspacePath = path.appending(component: "App.xcworkspace")
-        let graph = Graph.test()
+        let graph = Graph.test(
+            workspace: .test(
+                path: workspacePath,
+                name: "App"
+            )
+        )
+        let scheme = Scheme.test(name: "App-Project")
         let schemeA = Scheme.test(name: "A")
         let schemeB = Scheme.test(name: "B")
-        generator.loadStub = { _path in
+        generator.generateWithGraphStub = { _path, projectOnly in
             XCTAssertEqual(_path, path)
-            return graph
+            XCTAssertFalse(projectOnly)
+            return (_path, graph)
         }
         buildGraphInspector.workspacePathStub = { _path in
-            XCTAssertEqual(_path, path)
+            XCTAssertEqual(_path, workspacePath)
             return workspacePath
         }
         buildGraphInspector.testableSchemesStub = { _ in
             [
+                scheme,
                 schemeA,
                 schemeB,
             ]
@@ -179,7 +191,7 @@ final class TestServiceTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertPrinterContains("Found the following testable schemes: A, B", at: .debug, ==)
+        XCTAssertPrinterContains("Found the following testable schemes: App-Project, A, B", at: .debug, ==)
     }
 }
 

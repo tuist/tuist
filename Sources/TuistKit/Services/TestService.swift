@@ -71,6 +71,7 @@ final class TestService {
         deviceName: String?,
         osVersion: String?
     ) throws {
+        logger.notice("Generating project for testing", metadata: .section)
         let graph: Graph = try generator.generateWithGraph(
             path: path,
             projectOnly: false
@@ -83,35 +84,29 @@ final class TestService {
             "Found the following testable schemes: \(testableSchemes.map(\.name).joined(separator: ", "))"
         )
 
+        let testScheme: Scheme
         if let schemeName = schemeName {
             guard let scheme = testableSchemes.first(where: { $0.name == schemeName }) else {
                 throw TestServiceError.schemeNotFound(scheme: schemeName, existing: testableSchemes.map(\.name))
             }
-            try testScheme(
-                scheme: scheme,
-                graph: graph,
-                path: path,
-                clean: clean,
-                configuration: configuration,
-                version: version,
-                deviceName: deviceName
-            )
+            testScheme = scheme
         } else {
-            var cleaned: Bool = false
-            let testSchemes = buildGraphInspector.testSchemes(graph: graph)
-            try testSchemes.forEach {
-                try testScheme(
-                    scheme: $0,
-                    graph: graph,
-                    path: path,
-                    clean: !cleaned && clean,
-                    configuration: configuration,
-                    version: version,
-                    deviceName: deviceName
-                )
-                cleaned = true
-            }
+            guard
+                let scheme = testableSchemes
+                    .first(where: { $0.name == "\(graph.workspace.name)-Project" })
+            else { throw TestServiceError.schemeNotFound(scheme: "\(graph.workspace.name)-Project", existing: testableSchemes.map(\.name)) }
+            testScheme = scheme
         }
+        
+        try self.testScheme(
+            scheme: testScheme,
+            graph: graph,
+            path: path,
+            clean: clean,
+            configuration: configuration,
+            version: version,
+            deviceName: deviceName
+        )
 
         logger.log(level: .notice, "The project tests ran successfully", metadata: .success)
     }

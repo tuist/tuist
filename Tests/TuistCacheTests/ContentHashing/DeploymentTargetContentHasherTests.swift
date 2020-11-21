@@ -10,11 +10,11 @@ import XCTest
 
 final class DeploymentTargetContentHasherTests: TuistUnitTestCase {
     private var subject: DeploymentTargetContentHasher!
-    private var mockContentHasher: MockContentHashing!
+    private var mockContentHasher: MockContentHasher!
 
     override func setUp() {
         super.setUp()
-        mockContentHasher = MockContentHashing()
+        mockContentHasher = MockContentHasher()
         subject = DeploymentTargetContentHasher(contentHasher: mockContentHasher)
     }
 

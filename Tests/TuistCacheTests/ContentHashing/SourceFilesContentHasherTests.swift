@@ -10,7 +10,7 @@ import XCTest
 
 final class SourceFilesContentHasherTests: TuistUnitTestCase {
     private var subject: SourceFilesContentHasher!
-    private var mockContentHasher: MockContentHashing!
+    private var mockContentHasher: MockContentHasher!
     private let sourceFile1Path = AbsolutePath("/file1")
     private let sourceFile2Path = AbsolutePath("/file2")
     private var sourceFile1: SourceFile!
@@ -18,7 +18,7 @@ final class SourceFilesContentHasherTests: TuistUnitTestCase {
 
     override func setUp() {
         super.setUp()
-        mockContentHasher = MockContentHashing()
+        mockContentHasher = MockContentHasher()
         subject = SourceFilesContentHasher(contentHasher: mockContentHasher)
         sourceFile1 = SourceFile(path: sourceFile1Path, compilerFlags: "-fno-objc-arc")
         sourceFile2 = SourceFile(path: sourceFile2Path, compilerFlags: "-print-objc-runtime-info")

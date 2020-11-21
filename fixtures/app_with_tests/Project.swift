@@ -1,4 +1,5 @@
 import ProjectDescription
+import ProjectDescriptionHelpers
 
 let project = Project(
     name: "App",
@@ -43,36 +44,5 @@ let project = Project(
                 .target(name: "tvOSFramework"),
             ]
         ),
-        Target(
-            name: "MacFramework",
-            platform: .macOS,
-            product: .framework,
-            bundleId: "io.tuist.MacFramework",
-            infoPlist: .default,
-            sources: "Targets/MacFramework/Sources/**",
-            settings: Settings(
-                base: [
-                    "CODE_SIGN_IDENTITY": "",
-                    "CODE_SIGNING_REQUIRED": "NO"
-                ]
-            )
-        ),
-        Target(
-            name: "MacFrameworkTests",
-            platform: .macOS,
-            product: .unitTests,
-            bundleId: "io.tuist.MacFrameworkTests",
-            infoPlist: .default,
-            sources: "Targets/MacFramework/Tests/**",
-            dependencies: [
-                .target(name: "MacFramework"),
-            ],
-            settings: Settings(
-                base: [
-                    "CODE_SIGN_IDENTITY": "",
-                    "CODE_SIGNING_REQUIRED": "NO"
-                ]
-            )
-        ),
-    ]
+    ] + macTargets
 )

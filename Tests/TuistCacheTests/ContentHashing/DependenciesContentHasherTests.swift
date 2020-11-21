@@ -10,14 +10,14 @@ import XCTest
 
 final class DependenciesContentHasherTests: TuistUnitTestCase {
     private var subject: DependenciesContentHasher!
-    private var mockContentHasher: MockContentHashing!
+    private var mockContentHasher: MockContentHasher!
     private let filePath1 = AbsolutePath("/file1")
     private let filePath2 = AbsolutePath("/file2")
     private let filePath3 = AbsolutePath("/file3")
 
     override func setUp() {
         super.setUp()
-        mockContentHasher = MockContentHashing()
+        mockContentHasher = MockContentHasher()
         subject = DependenciesContentHasher(contentHasher: mockContentHasher)
     }
 
