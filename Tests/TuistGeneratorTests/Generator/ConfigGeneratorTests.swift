@@ -102,7 +102,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         assert(config: customReleaseConfig, contains: releaseSettings)
     }
 
-    func test_generateTestTargetConfiguration() throws {
+    func test_generateTestTargetConfiguration_iOS() throws {
         // Given / When
         try generateTestTargetConfig(appName: "App")
 
@@ -112,6 +112,23 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
 
         let testHostSettings = [
             "TEST_HOST": "$(BUILT_PRODUCTS_DIR)/App.app/App",
+            "BUNDLE_LOADER": "$(TEST_HOST)",
+        ]
+
+        assert(config: debugConfig, contains: testHostSettings)
+        assert(config: releaseConfig, contains: testHostSettings)
+    }
+
+    func test_generateTestTargetConfiguration_macOS() throws {
+        // Given / When
+        try generateTestTargetConfig(appName: "App", platform: .macOS)
+
+        let configurationList = pbxTarget.buildConfigurationList
+        let debugConfig = configurationList?.configuration(name: "Debug")
+        let releaseConfig = configurationList?.configuration(name: "Release")
+
+        let testHostSettings = [
+            "TEST_HOST": "$(BUILT_PRODUCTS_DIR)/App.app/Contents/MacOS/App",
             "BUNDLE_LOADER": "$(TEST_HOST)",
         ]
 
@@ -426,17 +443,18 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
     }
 
     private func generateTestTargetConfig(appName: String = "App",
+                                          platform: Platform = .iOS,
                                           productName: String? = nil,
                                           uiTest: Bool = false) throws
     {
         let dir = try temporaryPath()
 
         let appTarget = Target.test(name: appName,
-                                    platform: .iOS,
+                                    platform: platform,
                                     product: .app,
                                     productName: productName)
 
-        let target = Target.test(name: "Test", product: uiTest ? .uiTests : .unitTests)
+        let target = Target.test(name: "Test", platform: platform, product: uiTest ? .uiTests : .unitTests)
         let project = Project.test(path: dir, name: "Project", targets: [target])
 
         let graph = ValueGraph.test(name: project.name,
