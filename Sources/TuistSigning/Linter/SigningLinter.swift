@@ -40,7 +40,7 @@ final class SigningLinter: SigningLinting {
             """,
             severity: .error
         )
-        let buildSettingRegex = "\\$\\((.*)\\)"
+        let buildSettingRegex = "\\$[\\({](.*)[\\)}]"
         
         var issues: [LintingIssue] = []
         

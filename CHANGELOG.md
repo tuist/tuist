@@ -4,6 +4,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+- Fixed signing linter for target with bundle identifier derived from build settings [#2031] by [@leszko11](https://github.com/leszko11).
 ### Changed
 
 - Change `launchArguments` of `Target` and `RunAction` to ordered array so order can be preserved [#2052](https://github.com/tuist/tuist/pull/2052) by [@olejnjak](https://github.com/olejnjak).
@@ -14,10 +15,6 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Add `enableCodeCoverage` generation option to enable code coverage in automatically generated schemes [#2020](https://github.com/tuist/tuist/pull/2020) by [@frijole](https://github.com/frijole).)
 - Add support for Command Line Tool targets [#1941](https://github.com/tuist/tuist/pull/1941) by [@olejnjak](https://github.com/olejnjak).
-
-### Fixed
-
-- Fixed signing linter for target with bundle identifier derived from build settings [#2031] by [@leszko11](https://github.com/leszko11).
 
 ## 1.24.0 - Sol y sombra
 
