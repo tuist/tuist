@@ -13,10 +13,11 @@ let argumentParserDependency: Target.Dependency = .product(name: "ArgumentParser
 let beautifyDependency: Target.Dependency = .product(name: "XcbeautifyLib", package: "xcbeautify")
 let swiftGenKitDependency: Target.Dependency = .product(name: "SwiftGenKit", package: "SwiftGen")
 let swifterDependency: Target.Dependency = .byName(name: "Swifter")
+let combineExtDependency: Target.Dependency = .byName(name: "CombineExt")
 
 let package = Package(
     name: "tuist",
-    platforms: [.macOS(.v10_12)],
+    platforms: [.macOS(.v10_15)],
     products: [
         .executable(name: "tuist", targets: ["tuist"]),
         .executable(name: "tuistenv", targets: ["tuistenv"]),
@@ -56,6 +57,7 @@ let package = Package(
         .package(url: "https://github.com/fortmarek/SwiftGen", .revision("ef8d6b186a03622cec8d228b18f0e2b3bb20b81c")),
         .package(url: "https://github.com/fortmarek/StencilSwiftKit.git", .branch("stable")),
         .package(url: "https://github.com/FabrizioBrancati/Queuer.git", .upToNextMajor(from: "2.0.0")),
+        .package(url: "https://github.com/CombineCommunity/CombineExt.git", .upToNextMajor(from: "1.2.0")),
     ],
     targets: [
         .target(
