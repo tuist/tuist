@@ -222,6 +222,11 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         var preActions: [XCScheme.ExecutionAction] = []
         var postActions: [XCScheme.ExecutionAction] = []
 
+        let testPlans: [XCScheme.TestPlanReference]? = testAction.testPlans?.map {
+            XCScheme.TestPlanReference(reference: "container:\($0.path.relative(to: rootPath))",
+                                       default: $0.isDefault)
+        }
+
         try testAction.targets.forEach { testableTarget in
             guard let reference = try createBuildableReference(targetReference: testableTarget.target,
                                                                graph: graph,
@@ -268,6 +273,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         return XCScheme.TestAction(buildConfiguration: testAction.configurationName,
                                    macroExpansion: nil,
                                    testables: testables,
+                                   testPlans: testPlans,
                                    preActions: preActions,
                                    postActions: postActions,
                                    shouldUseLaunchSchemeArgsEnv: shouldUseLaunchSchemeArgsEnv,
@@ -594,10 +600,10 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
     /// - Parameters:
     ///     - environments: commandline argument keys.
     /// - Returns: XCScheme.CommandLineArguments.CommandLineArgument.
-    private func commandlineArgruments(_ arguments: [String: Bool]) -> [XCScheme.CommandLineArguments.CommandLineArgument] {
-        arguments.map { key, enabled in
-            XCScheme.CommandLineArguments.CommandLineArgument(name: key, enabled: enabled)
-        }.sorted { $0.name < $1.name }
+    private func commandlineArgruments(_ arguments: [LaunchArgument]) -> [XCScheme.CommandLineArguments.CommandLineArgument] {
+        arguments.map {
+            XCScheme.CommandLineArguments.CommandLineArgument(name: $0.name, enabled: $0.isEnabled)
+        }
     }
 
     /// Returns the scheme environment variables

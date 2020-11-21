@@ -1,0 +1,44 @@
+{
+  "configurations" : [
+    {
+      "id" : "91BDB644-1AEA-4734-9E55-F6DA2F59DF74",
+      "name" : "Configuration 1",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "codeCoverage" : false,
+    "mainThreadCheckerEnabled" : false,
+    "targetForVariableExpansion" : {
+      "containerPath" : "container:App\/MainApp.xcodeproj",
+      "identifier" : "8359F535E312088875AB7F4E",
+      "name" : "App"
+    }
+  },
+  "testTargets" : [
+    {
+      "target" : {
+        "containerPath" : "container:App\/MainApp.xcodeproj",
+        "identifier" : "2ECC90040E978BD985E46417",
+        "name" : "AppTests"
+      }
+    },
+    {
+      "target" : {
+        "containerPath" : "container:Frameworks\/Framework1\/Framework1.xcodeproj",
+        "identifier" : "EFF0B5A15CBE7E069F225B51",
+        "name" : "Framework1Tests"
+      }
+    },
+    {
+      "target" : {
+        "containerPath" : "container:Frameworks\/Framework2\/Framework2.xcodeproj",
+        "identifier" : "F3682B21822ACCED34432D09",
+        "name" : "Framework2Tests"
+      }
+    }
+  ],
+  "version" : 1
+}
