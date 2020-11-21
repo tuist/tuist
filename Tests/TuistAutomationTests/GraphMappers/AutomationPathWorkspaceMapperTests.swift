@@ -5,8 +5,8 @@ import TuistSupport
 import XCTest
 
 @testable import TuistAutomation
-@testable import TuistSupportTesting
 @testable import TuistCoreTesting
+@testable import TuistSupportTesting
 
 final class AutomationPathWorkspaceMapperTests: TuistUnitTestCase {
     private var subject: AutomationPathWorkspaceMapper!
@@ -25,7 +25,7 @@ final class AutomationPathWorkspaceMapperTests: TuistUnitTestCase {
         contentHasher = nil
         subject = nil
     }
-    
+
     func test_map() throws {
         // Given
         let workspacePath = try temporaryPath()
@@ -38,7 +38,7 @@ final class AutomationPathWorkspaceMapperTests: TuistUnitTestCase {
         )
         let projectsDirectory = environment.projectsCacheDirectory
             .appending(component: "A-\(workspacePath.basename)")
-        
+
         // When
         let (gotWorkspaceWithProjects, gotSideEffects) = try subject.map(
             workspace: WorkspaceWithProjects(
@@ -46,7 +46,7 @@ final class AutomationPathWorkspaceMapperTests: TuistUnitTestCase {
                 projects: []
             )
         )
-        
+
         // Then
         XCTAssertEqual(
             gotWorkspaceWithProjects.workspace,

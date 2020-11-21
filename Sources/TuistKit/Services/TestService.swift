@@ -5,8 +5,8 @@ import struct TSCUtility.Version
 import TuistAutomation
 import TuistCache
 import TuistCore
-import TuistSupport
 import TuistLoader
+import TuistSupport
 
 enum TestServiceError: FatalError {
     case schemeNotFound(scheme: String, existing: [String])
@@ -93,11 +93,11 @@ final class TestService {
         } else {
             guard
                 let scheme = testableSchemes
-                    .first(where: { $0.name == "\(graph.workspace.name)-Project" })
+                .first(where: { $0.name == "\(graph.workspace.name)-Project" })
             else { throw TestServiceError.schemeNotFound(scheme: "\(graph.workspace.name)-Project", existing: testableSchemes.map(\.name)) }
             testScheme = scheme
         }
-        
+
         try self.testScheme(
             scheme: testScheme,
             graph: graph,
@@ -116,7 +116,7 @@ final class TestService {
     private func testScheme(
         scheme: Scheme,
         graph: Graph,
-        path: AbsolutePath,
+        path _: AbsolutePath,
         clean: Bool,
         configuration: String?,
         version: Version?,

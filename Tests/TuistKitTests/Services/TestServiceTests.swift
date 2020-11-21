@@ -200,7 +200,7 @@ final class TestServiceTests: TuistUnitTestCase {
 private extension TestService {
     func testRun(
         schemeName: String? = nil,
-        generate: Bool = false,
+        generate _: Bool = false,
         clean: Bool = false,
         configuration: String? = nil,
         path: AbsolutePath,

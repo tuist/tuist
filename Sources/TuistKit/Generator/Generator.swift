@@ -33,7 +33,7 @@ class Generator: Generating {
     private let projectMapperProvider: ProjectMapperProviding
     private let workspaceMapperProvider: WorkspaceMapperProviding
     private let manifestLoader: ManifestLoading
-    
+
     convenience init(
         contentHasher: ContentHashing
     ) {

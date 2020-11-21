@@ -4,13 +4,13 @@ import TuistSupport
 /// Updates path of project to point to where automation project should be generated
 public final class AutomationPathProjectMapper: ProjectMapping {
     private let contentHasher: ContentHashing
-    
+
     public init(
         contentHasher: ContentHashing = ContentHasher()
     ) {
         self.contentHasher = contentHasher
     }
-    
+
     public func map(project: Project) throws -> (Project, [SideEffectDescriptor]) {
         var project = project
         let pathHash = try contentHasher.hash(project.path.pathString)
