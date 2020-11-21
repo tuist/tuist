@@ -239,10 +239,13 @@ public class Graph: Encodable, Equatable {
         references = references.union(directSystemLibrariesAndFrameworks)
 
         // Precompiled libraries and frameworks
-
-        let precompiledLibrariesAndFrameworks = targetNode.recursivePrecompiledDependencies
-            .lazy
-            .map(GraphDependencyReference.init)
+        
+        let precompiledLibrariesAndFrameworks = findAll(
+            targetNode: targetNode
+        )
+        .compactMap { $0 as? PrecompiledNode }
+        .lazy
+        .map(GraphDependencyReference.init)
 
         references = references.union(precompiledLibrariesAndFrameworks)
 
