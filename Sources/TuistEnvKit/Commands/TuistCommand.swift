@@ -51,7 +51,7 @@ public struct TuistCommand: ParsableCommand {
         let arguments = Array(processArguments().dropFirst())
         guard let firstArgument = arguments.first else { return nil }
         // swiftformat:disable preferKeyPath
-        let containsCommand = configuration.subcommands.map { $0.commandName }.contains(firstArgument)
+        let containsCommand = configuration.subcommands.map { $0.configuration.commandName }.contains(firstArgument)
         // swiftformat:enable preferKeyPath
         if containsCommand {
             return arguments
