@@ -51,7 +51,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
             SourceFile(path: "/test/file2.swift"),
         ]
 
-        let fileElements = createFileElements(for: sources.map { $0.path })
+        let fileElements = createFileElements(for: sources.map(\.path))
 
         // When
         try subject.generateSourcesBuildPhase(files: sources,
@@ -146,7 +146,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let buildPhase = try target.sourcesBuildPhase()
         let buildFiles = buildPhase?.files ?? []
 
-        XCTAssertEqual(buildFiles.map { $0.file }, [
+        XCTAssertEqual(buildFiles.map(\.file), [
             fileElements.elements["/path/sources/OTTSiriExtension.intentdefinition"],
         ])
     }
@@ -312,7 +312,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
 
         // Then
         let buildPhase = nativeTarget.buildPhases.first
-        XCTAssertEqual(buildPhase?.files?.map { $0.file }, [
+        XCTAssertEqual(buildPhase?.files?.map(\.file), [
             fileElements.elements["/path/resources/Main.storyboard"],
             fileElements.elements["/path/resources/App.strings"],
         ])

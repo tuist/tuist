@@ -50,7 +50,7 @@ final class Carthage: Carthaging {
 
         if !platforms.isEmpty {
             command.append("--platform")
-            command.append(platforms.map { $0.caseValue }.joined(separator: ","))
+            command.append(platforms.map(\.caseValue).joined(separator: ","))
         }
 
         command.append(contentsOf: dependencies)

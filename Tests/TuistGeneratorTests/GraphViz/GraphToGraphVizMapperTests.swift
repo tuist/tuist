@@ -40,8 +40,8 @@ final class GraphToGraphVizMapperTests: XCTestCase {
         // When
         let got = subject.map(graph: graph, skipTestTargets: false, skipExternalDependencies: false)
         let expected = makeExpectedGraphViz()
-        let gotNodeIds = got.nodes.map { $0.id }.sorted()
-        let expectedNodeIds = expected.nodes.map { $0.id }.sorted()
+        let gotNodeIds = got.nodes.map(\.id).sorted()
+        let expectedNodeIds = expected.nodes.map(\.id).sorted()
         let gotEdgeIds = got.edges.map { $0.from + " -> " + $0.to }.sorted()
         let expectedEdgeIds = expected.edges.map { $0.from + " -> " + $0.to }.sorted()
         XCTAssertEqual(gotNodeIds, expectedNodeIds)
@@ -69,8 +69,8 @@ final class GraphToGraphVizMapperTests: XCTestCase {
         // When
         let got = subject.map(graph: graph, skipTestTargets: false, skipExternalDependencies: true)
         let expected = makeExpectedGraphViz(includeExternalDependencies: false)
-        let gotNodeIds = got.nodes.map { $0.id }.sorted()
-        let expectedNodeIds = expected.nodes.map { $0.id }.sorted()
+        let gotNodeIds = got.nodes.map(\.id).sorted()
+        let expectedNodeIds = expected.nodes.map(\.id).sorted()
         let gotEdgeIds = got.edges.map { $0.from + " -> " + $0.to }.sorted()
         let expectedEdgeIds = expected.edges.map { $0.from + " -> " + $0.to }.sorted()
 

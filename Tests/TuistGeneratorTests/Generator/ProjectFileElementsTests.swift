@@ -488,8 +488,8 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         let variantGroup = group.children.first as? PBXVariantGroup
         XCTAssertEqual(variantGroup?.name, "App.strings")
         XCTAssertNil(variantGroup?.path)
-        XCTAssertEqual(variantGroup?.children.map { $0.name }, ["en"])
-        XCTAssertEqual(variantGroup?.children.map { $0.path }, ["en.lproj/App.strings"])
+        XCTAssertEqual(variantGroup?.children.map(\.name), ["en"])
+        XCTAssertEqual(variantGroup?.children.map(\.path), ["en.lproj/App.strings"])
         XCTAssertEqual(variantGroup?.children.map { ($0 as? PBXFileReference)?.lastKnownFileType }, [
             Xcode.filetype(extension: "strings"),
         ])

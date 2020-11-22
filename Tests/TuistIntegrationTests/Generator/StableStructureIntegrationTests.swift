@@ -91,7 +91,7 @@ final class StableXcodeProjIntegrationTests: TuistTestCase {
 
 extension XCWorkspace {
     var projectPaths: [String] {
-        data.children.flatMap { $0.projectPaths }
+        data.children.flatMap(\.projectPaths)
     }
 }
 
@@ -102,7 +102,7 @@ extension XCWorkspaceDataElement {
             let path = file.location.path
             return path.hasSuffix(".xcodeproj") ? [path] : []
         case let .group(elements):
-            return elements.children.flatMap { $0.projectPaths }
+            return elements.children.flatMap(\.projectPaths)
         }
     }
 }
