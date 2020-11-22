@@ -81,7 +81,7 @@ final class DocService {
         let targets = graph.targets
             .flatMap(\.value)
             .filter { !$0.dependsOnXCTest }
-            .map { $0.target }
+            .map(\.target)
 
         guard let target = targets.first(where: { $0.name == targetName }) else {
             throw DocServiceError.targetNotFound(name: targetName)

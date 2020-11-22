@@ -35,7 +35,7 @@ final class Rome: Romeaging {
 
         if !platforms.isEmpty {
             command.append("--platform")
-            command.append(platforms.map { $0.caseValue }.joined(separator: ","))
+            command.append(platforms.map(\.caseValue).joined(separator: ","))
         }
 
         try System.shared.run(command)

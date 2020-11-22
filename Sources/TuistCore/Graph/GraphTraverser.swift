@@ -16,15 +16,15 @@ public final class GraphTraverser: GraphTraversing {
     }
 
     public func directTargetDependencies(path: AbsolutePath, name: String) -> [Target] {
-        graph.targetDependencies(path: path, name: name).map { $0.target }
+        graph.targetDependencies(path: path, name: name).map(\.target)
     }
 
     public func appExtensionDependencies(path: AbsolutePath, name: String) -> [Target] {
-        graph.appExtensionDependencies(path: path, name: name).map { $0.target }
+        graph.appExtensionDependencies(path: path, name: name).map(\.target)
     }
 
     public func resourceBundleDependencies(path: AbsolutePath, name: String) -> [Target] {
-        graph.resourceBundleDependencies(path: path, name: name).map { $0.target }
+        graph.resourceBundleDependencies(path: path, name: name).map(\.target)
     }
 
     public func testTargetsDependingOn(path: AbsolutePath, name: String) -> [Target] {
@@ -36,6 +36,6 @@ public final class GraphTraverser: GraphTraversing {
     }
 
     public func appClipsDependency(path: AbsolutePath, name: String) -> Target? {
-        graph.appClipsDependency(path: path, name: name).map { $0.target }
+        graph.appClipsDependency(path: path, name: name).map(\.target)
     }
 }

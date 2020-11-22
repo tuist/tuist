@@ -117,10 +117,10 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
             // Second criteria: Most dependent targets first.
             let secondDependencies = graph.targetDependencies(path: self.path, name: second.name)
                 .filter { $0.path == self.path }
-                .map { $0.target.name }
+                .map(\.target.name)
             let firstDependencies = graph.targetDependencies(path: self.path, name: first.name)
                 .filter { $0.path == self.path }
-                .map { $0.target.name }
+                .map(\.target.name)
 
             if secondDependencies.contains(first.name) {
                 return true

@@ -127,7 +127,7 @@ extension Dictionary where Key == BuildConfiguration, Value == Configuration? {
 
     public func xcconfigs() -> [AbsolutePath] {
         sortedByBuildConfigurationName()
-            .map { $0.value }
+            .map(\.value)
             .compactMap { $0?.xcconfig }
     }
 }
