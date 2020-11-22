@@ -26,23 +26,23 @@ final class CarthageFrameworksInteractorTests: TuistUnitTestCase {
         let rootPath = try temporaryPath()
         
         try createFiles([
-            "Temporary/Build/.Moya.version",
+            "Temporary/Carthage/Build/.Moya.version",
             
-            "Temporary/Build/iOS/Moya.framework/Info.plist",
-            "Temporary/Build/iOS/ReactiveMoya.framework/Info.plist",
-            "Temporary/Build/iOS/RxMoya.framework/Info.plist",
+            "Temporary/Carthage/Build/iOS/Moya.framework/Info.plist",
+            "Temporary/Carthage/Build/iOS/ReactiveMoya.framework/Info.plist",
+            "Temporary/Carthage/Build/iOS/RxMoya.framework/Info.plist",
             
-            "Temporary/Build/Mac/Moya.framework/Info.plist",
-            "Temporary/Build/Mac/ReactiveMoya.framework/Info.plist",
-            "Temporary/Build/Mac/RxMoya.framework/Info.plist",
+            "Temporary/Carthage/Build/Mac/Moya.framework/Info.plist",
+            "Temporary/Carthage/Build/Mac/ReactiveMoya.framework/Info.plist",
+            "Temporary/Carthage/Build/Mac/RxMoya.framework/Info.plist",
             
-            "Temporary/Build/watchOS/Moya.framework/Info.plist",
-            "Temporary/Build/watchOS/ReactiveMoya.framework/Info.plist",
-            "Temporary/Build/watchOS/RxMoya.framework/Info.plist",
+            "Temporary/Carthage/Build/watchOS/Moya.framework/Info.plist",
+            "Temporary/Carthage/Build/watchOS/ReactiveMoya.framework/Info.plist",
+            "Temporary/Carthage/Build/watchOS/RxMoya.framework/Info.plist",
             
-            "Temporary/Build/tvOS/Moya.framework/Info.plist",
-            "Temporary/Build/tvOS/ReactiveMoya.framework/Info.plist",
-            "Temporary/Build/tvOS/RxMoya.framework/Info.plist",
+            "Temporary/Carthage/Build/tvOS/Moya.framework/Info.plist",
+            "Temporary/Carthage/Build/tvOS/ReactiveMoya.framework/Info.plist",
+            "Temporary/Carthage/Build/tvOS/RxMoya.framework/Info.plist",
         ])
         
         try fileHandler.write(
@@ -131,7 +131,7 @@ final class CarthageFrameworksInteractorTests: TuistUnitTestCase {
               ]
             }
             """,
-            path: rootPath.appending(components: "Temporary", "Build", ".Moya.version"),
+            path: rootPath.appending(components: "Temporary", "Carthage", "Build", ".Moya.version"),
             atomically: true
         )
         

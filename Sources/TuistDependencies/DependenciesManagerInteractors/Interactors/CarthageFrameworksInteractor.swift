@@ -20,7 +20,7 @@ public final class CarthageFrameworksInteractor: CarthageFrameworksInteracting {
     }
     
     public func save(at path: AbsolutePath, temporaryDirectoryPath: AbsolutePath) throws {
-        let buildDirectoryPath = temporaryDirectoryPath.appending(component: "Build")
+        let buildDirectoryPath = temporaryDirectoryPath.appending(components: "Carthage", "Build")
         let dependenciesDirectoryPath = path.appending(components: Constants.tuistDirectoryName, Constants.DependenciesDirectory.name)
         
         let versionFiles = try readVersionFiles(at: buildDirectoryPath)

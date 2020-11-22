@@ -163,7 +163,6 @@ public class ManifestLoader: ManifestLoading {
 
         let dependenciesData = try loadManifestData(at: dependencyPath)
         let decoder = JSONDecoder()
-        print(String(data: dependenciesData, encoding: .utf8))
         return try decoder.decode(Dependencies.self, from: dependenciesData)
     }
 
