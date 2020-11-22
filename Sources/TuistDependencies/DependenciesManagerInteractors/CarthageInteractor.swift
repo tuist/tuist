@@ -1,7 +1,7 @@
+import RxBlocking
 import TSCBasic
 import TuistCore
 import TuistSupport
-import RxBlocking
 
 // MARK: - Carthage Interactor Errors
 
@@ -46,7 +46,7 @@ public final class CarthageInteractor: CarthageInteracting {
     private let fileHandler: FileHandling!
     private let cartfileResolvedInteractor: CartfileResolvedInteracting
     private let carthageFrameworksInteractor: CarthageFrameworksInteracting
-    
+
     public init(
         fileHandler: FileHandling = FileHandler.shared,
         cartfileResolvedInteractor: CartfileResolvedInteracting = CartfileResolvedInteractor(),
@@ -56,7 +56,7 @@ public final class CarthageInteractor: CarthageInteracting {
         self.cartfileResolvedInteractor = cartfileResolvedInteractor
         self.carthageFrameworksInteractor = carthageFrameworksInteractor
     }
-    
+
     #warning("TODO: The hardes part here will be knowing whether we need to recompile the frameworks")
     public func install(
         at path: AbsolutePath,
@@ -65,8 +65,8 @@ public final class CarthageInteractor: CarthageInteracting {
     ) throws {
         // determine platforms
         let platoforms: Set<Platform> = dependencies
-            .reduce(Set<Platform>(), { platforms, dependency in return platforms.union(dependency.platforms) })
-        
+            .reduce(Set<Platform>()) { platforms, dependency in platforms.union(dependency.platforms) }
+
         try fileHandler.inTemporaryDirectory { temporaryDirectoryPath in
             // create `carthage` shell command
             let commnad = try buildCarthageCommand(for: method, platforms: platoforms, path: temporaryDirectoryPath)
@@ -85,14 +85,14 @@ public final class CarthageInteractor: CarthageInteracting {
 
             // save `Cartfile.resolved`
             try cartfileResolvedInteractor.save(at: path, temporaryDirectoryPath: temporaryDirectoryPath)
-            
+
             // save installed frameworks
             try carthageFrameworksInteractor.save(at: path, temporaryDirectoryPath: temporaryDirectoryPath)
         }
     }
-    
+
     // MARK: - Helpers
-    
+
     private func buildCarfileContent(for dependencies: [CarthageDependency]) throws -> String {
         try CartfileContentBuilder(dependencies: dependencies)
             .build()
@@ -101,11 +101,11 @@ public final class CarthageInteractor: CarthageInteracting {
     private func buildCarthageCommand(for method: InstallDependenciesMethod, platforms: Set<Platform>, path: AbsolutePath) throws -> [String] {
         let canUseBundler = canUseCarthageThroughBundler()
         let canUseSystem = canUseSystemCarthage()
-        
+
         guard canUseBundler || canUseSystem else {
             throw CarthageInteractorError.carthageNotFound
         }
-        
+
         return CarthageCommandBuilder(method: method, path: path)
             .platforms(platforms)
             .throughBundler(canUseBundler)
@@ -113,7 +113,7 @@ public final class CarthageInteractor: CarthageInteracting {
             .newResolver(true)
             .build()
     }
-    
+
     /// Returns true if CocoaPods is accessible through Bundler,
     /// and shoudl be used instead of the global CocoaPods.
     /// - Returns: True if Bundler can execute CocoaPods.
@@ -125,7 +125,7 @@ public final class CarthageInteractor: CarthageInteracting {
             return false
         }
     }
-    
+
     /// Returns true if Carthage is avaiable in the environment.
     /// - Returns: True if Carthege is available globally in the system.
     private func canUseSystemCarthage() -> Bool {

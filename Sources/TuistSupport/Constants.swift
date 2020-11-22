@@ -21,12 +21,12 @@ public struct Constants {
     public static let twitterHandle: String = "tuistio"
     public static let joinSlackURL: String = "https://slack.tuist.io/"
     public static let tuistGeneratedFileName = ".tuist-generated"
-    
+
     public struct Vendor {
         public static let swiftLint = "swiftlint"
         public static let swiftDoc = "swift-doc"
     }
-    
+
     public struct DependenciesDirectory {
         public static let name = "Dependencies"
         public static let lockfilesDirectoryName = "Lockfiles"

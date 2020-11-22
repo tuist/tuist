@@ -25,15 +25,14 @@ public enum SPMInteractorError: FatalError {
 
 // MARK: - SPM Interacting
 
-public protocol SPMInteracting {
-}
+public protocol SPMInteracting {}
 
 // MARK: - SPM Interactor
 
 public final class SPMInteractor: SPMInteracting {
-    public init() { }
-    
-    public func install(at path: AbsolutePath, method: InstallDependenciesMethod) throws {
+    public init() {}
+
+    public func install(at _: AbsolutePath, method _: InstallDependenciesMethod) throws {
         throw SPMInteractorError.unimplemented
     }
 }

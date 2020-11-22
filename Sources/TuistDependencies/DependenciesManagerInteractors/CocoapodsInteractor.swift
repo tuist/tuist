@@ -25,15 +25,14 @@ enum CocoapodsInteractorError: FatalError {
 
 // MARK: - Cocoapods Interacting
 
-public protocol CocoapodsInteracting {
-}
+public protocol CocoapodsInteracting {}
 
 // MARK: - Cocoapods Interactor
 
 public final class CocoapodsInteractor: CocoapodsInteracting {
-    public init() { }
-    
-    public func install(at path: AbsolutePath, method: InstallDependenciesMethod) throws {
+    public init() {}
+
+    public func install(at _: AbsolutePath, method _: InstallDependenciesMethod) throws {
         throw CocoapodsInteractorError.unimplemented
     }
 }

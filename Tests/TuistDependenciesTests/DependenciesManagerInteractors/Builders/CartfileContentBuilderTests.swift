@@ -1,6 +1,6 @@
-import XCTest
 import TuistCore
 import TuistSupport
+import XCTest
 
 @testable import TuistDependencies
 @testable import TuistSupportTesting
@@ -11,22 +11,22 @@ final class CarfileContentBuilderTests: TuistUnitTestCase {
         XCTAssertEqual(
             try CartfileContentBuilder(dependencies: [])
                 .build(),
-            
+
             """
             """
         )
-        
+
         XCTAssertEqual(
             try CartfileContentBuilder(dependencies: [
-                .init(name: "Dependency/Dependency", requirement: .exact("1.1.1"), platforms: [.iOS])
+                .init(name: "Dependency/Dependency", requirement: .exact("1.1.1"), platforms: [.iOS]),
             ])
                 .build(),
-            
+
             """
             github "Dependency/Dependency" == 1.1.1
             """
         )
-        
+
         XCTAssertEqual(
             try CartfileContentBuilder(dependencies: [
                 .init(name: "Dependency/Dependency", requirement: .exact("2.1.1"), platforms: [.iOS]),
@@ -35,7 +35,7 @@ final class CarfileContentBuilderTests: TuistUnitTestCase {
                 .init(name: "XYZ/Bar", requirement: .upToNextMajor("1.1.1"), platforms: [.iOS]),
             ])
                 .build(),
-            
+
             """
             github "Dependency/Dependency" == 2.1.1
             github "XYZ/Foo" "revision"

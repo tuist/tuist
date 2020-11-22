@@ -4,9 +4,9 @@ import TuistCore
 import XCTest
 
 @testable import TuistCoreTesting
-@testable import TuistLoaderTesting
 @testable import TuistDependenciesTesting
 @testable import TuistKit
+@testable import TuistLoaderTesting
 @testable import TuistSupportTesting
 
 final class DependenciesServiceTests: TuistUnitTestCase {
@@ -33,13 +33,13 @@ final class DependenciesServiceTests: TuistUnitTestCase {
 
         super.tearDown()
     }
-    
+
     func test_run_fetch() throws {
         // Given
         let stubbedPath = try temporaryPath()
         let stubbedDependencies = Dependencies(
             carthageDependencies: [
-                CarthageDependency(name: "Dependency1", requirement: .exact("1.1.1"), platforms: [.iOS, .macOS])
+                CarthageDependency(name: "Dependency1", requirement: .exact("1.1.1"), platforms: [.iOS, .macOS]),
             ]
         )
         dependenciesModelLoader.loadDependenciesStub = { _ in stubbedDependencies }
@@ -53,18 +53,18 @@ final class DependenciesServiceTests: TuistUnitTestCase {
         XCTAssertEqual(dependenciesController.invokedInstallParameters?.path, stubbedPath)
         XCTAssertEqual(dependenciesController.invokedInstallParameters?.method, .fetch)
         XCTAssertEqual(dependenciesController.invokedInstallParameters?.dependencies, stubbedDependencies)
-        
+
         XCTAssertTrue(dependenciesModelLoader.invokedLoadDependencies)
         XCTAssertEqual(dependenciesModelLoader.invokedLoadDependenciesCount, 1)
         XCTAssertEqual(dependenciesModelLoader.invokedLoadDependenciesParameters, stubbedPath)
     }
-    
+
     func test_run_update() throws {
         // Given
         let stubbedPath = try temporaryPath()
         let stubbedDependencies = Dependencies(
             carthageDependencies: [
-                CarthageDependency(name: "Dependency1", requirement: .exact("1.1.1"), platforms: [.iOS, .macOS])
+                CarthageDependency(name: "Dependency1", requirement: .exact("1.1.1"), platforms: [.iOS, .macOS]),
             ]
         )
         dependenciesModelLoader.loadDependenciesStub = { _ in stubbedDependencies }
@@ -77,7 +77,7 @@ final class DependenciesServiceTests: TuistUnitTestCase {
         XCTAssertEqual(dependenciesController.invokedInstallParameters?.path, stubbedPath)
         XCTAssertEqual(dependenciesController.invokedInstallParameters?.method, .update)
         XCTAssertEqual(dependenciesController.invokedInstallParameters?.dependencies, stubbedDependencies)
-        
+
         XCTAssertTrue(dependenciesModelLoader.invokedLoadDependencies)
         XCTAssertEqual(dependenciesModelLoader.invokedLoadDependenciesCount, 1)
         XCTAssertEqual(dependenciesModelLoader.invokedLoadDependenciesParameters, stubbedPath)

@@ -15,11 +15,11 @@ public protocol DependenciesModelLoading {
 
 public class DependenciesModelLoader: DependenciesModelLoading {
     private let manifestLoader: ManifestLoading
-    
+
     public init(manifestLoader: ManifestLoading = ManifestLoader()) {
         self.manifestLoader = manifestLoader
     }
-    
+
     public func loadDependencies(at path: AbsolutePath) throws -> TuistCore.Dependencies {
         let manifest = try manifestLoader.loadDependencies(at: path)
         return try TuistCore.Dependencies.from(manifest: manifest)

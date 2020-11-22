@@ -1,50 +1,50 @@
-import XCTest
 import TSCBasic
 import TuistCore
 import TuistSupport
+import XCTest
 
 @testable import TuistDependencies
 @testable import TuistSupportTesting
 
 final class CarthageFrameworksInteractorTests: TuistUnitTestCase {
     private var subject: CarthageFrameworksInteractor!
-    
+
     override func setUp() {
         super.setUp()
-        
+
         subject = CarthageFrameworksInteractor()
     }
-    
+
     override func tearDown() {
         subject = nil
-        
+
         super.tearDown()
     }
-    
+
     func test_save() throws {
         // Given
         let rootPath = try temporaryPath()
-        
+
         try createFiles([
             "Temporary/Carthage/Build/.Moya.version",
-            
+
             "Temporary/Carthage/Build/iOS/Moya.framework/Info.plist",
             "Temporary/Carthage/Build/iOS/ReactiveMoya.framework/Info.plist",
             "Temporary/Carthage/Build/iOS/RxMoya.framework/Info.plist",
-            
+
             "Temporary/Carthage/Build/Mac/Moya.framework/Info.plist",
             "Temporary/Carthage/Build/Mac/ReactiveMoya.framework/Info.plist",
             "Temporary/Carthage/Build/Mac/RxMoya.framework/Info.plist",
-            
+
             "Temporary/Carthage/Build/watchOS/Moya.framework/Info.plist",
             "Temporary/Carthage/Build/watchOS/ReactiveMoya.framework/Info.plist",
             "Temporary/Carthage/Build/watchOS/RxMoya.framework/Info.plist",
-            
+
             "Temporary/Carthage/Build/tvOS/Moya.framework/Info.plist",
             "Temporary/Carthage/Build/tvOS/ReactiveMoya.framework/Info.plist",
             "Temporary/Carthage/Build/tvOS/RxMoya.framework/Info.plist",
         ])
-        
+
         try fileHandler.write(
             """
             {
@@ -134,23 +134,23 @@ final class CarthageFrameworksInteractorTests: TuistUnitTestCase {
             path: rootPath.appending(components: "Temporary", "Carthage", "Build", ".Moya.version"),
             atomically: true
         )
-        
+
         // When
         try subject.save(at: rootPath, temporaryDirectoryPath: rootPath.appending(component: "Temporary"))
-        
+
         // Then
         let dependenciesPath = rootPath.appending(components: Constants.tuistDirectoryName, Constants.DependenciesDirectory.name)
-        
+
         XCTAssertTrue(fileHandler.exists(dependenciesPath.appending(components: "Moya", "iOS", "Moya.framework")))
         XCTAssertTrue(fileHandler.exists(dependenciesPath.appending(components: "Moya", "tvOS", "Moya.framework")))
         XCTAssertTrue(fileHandler.exists(dependenciesPath.appending(components: "Moya", "macOS", "Moya.framework")))
         XCTAssertTrue(fileHandler.exists(dependenciesPath.appending(components: "Moya", "watchOS", "Moya.framework")))
-        
+
         XCTAssertTrue(fileHandler.exists(dependenciesPath.appending(components: "ReactiveMoya", "iOS", "ReactiveMoya.framework")))
         XCTAssertTrue(fileHandler.exists(dependenciesPath.appending(components: "ReactiveMoya", "tvOS", "ReactiveMoya.framework")))
         XCTAssertTrue(fileHandler.exists(dependenciesPath.appending(components: "ReactiveMoya", "macOS", "ReactiveMoya.framework")))
         XCTAssertTrue(fileHandler.exists(dependenciesPath.appending(components: "ReactiveMoya", "watchOS", "ReactiveMoya.framework")))
-        
+
         XCTAssertTrue(fileHandler.exists(dependenciesPath.appending(components: "RxMoya", "iOS", "RxMoya.framework")))
         XCTAssertTrue(fileHandler.exists(dependenciesPath.appending(components: "RxMoya", "tvOS", "RxMoya.framework")))
         XCTAssertTrue(fileHandler.exists(dependenciesPath.appending(components: "RxMoya", "macOS", "RxMoya.framework")))

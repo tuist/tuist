@@ -23,7 +23,7 @@ public final class DependenciesController: DependenciesControlling {
     private let carthageInteractor: CarthageInteracting
     private let cocoapodsInteractor: CocoapodsInteracting
     private let spmInteractor: SPMInteracting
-    
+
     public init(
         carthageInteractor: CarthageInteracting = CarthageInteractor(),
         cocoapodsInteractor: CocoapodsInteracting = CocoapodsInteractor(),
@@ -33,7 +33,7 @@ public final class DependenciesController: DependenciesControlling {
         self.cocoapodsInteractor = cocoapodsInteractor
         self.spmInteractor = spmInteractor
     }
-    
+
     public func install(at path: AbsolutePath, method: InstallDependenciesMethod, dependencies: Dependencies) throws {
         try carthageInteractor.install(at: path, method: method, dependencies: dependencies.carthageDependencies)
     }

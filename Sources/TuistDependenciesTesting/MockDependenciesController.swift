@@ -5,7 +5,7 @@ import TuistCore
 
 public final class MockDependenciesController: DependenciesControlling {
     public init() {}
-    
+
     var invokedInstall = false
     var invokedInstallCount = 0
     var invokedInstallParameters: (path: AbsolutePath, method: InstallDependenciesMethod, dependencies: Dependencies)?
