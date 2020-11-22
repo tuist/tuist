@@ -22,7 +22,7 @@ final class FrameworkMetadataProviderIntegrationTests: TuistTestCase {
     func test_bcsymbolmapPaths() throws {
         // Given
         let carthagePath = try temporaryFixture("Carthage/")
-        let frameworkPath = FileHandler.shared.glob(carthagePath, glob: "*.framework").first!
+        let frameworkPath = FileHandler.shared.glob(carthagePath, glob: "RxBlocking.framework").first!
 
         // When
         let got = try subject.bcsymbolmapPaths(frameworkPath: frameworkPath).sorted()

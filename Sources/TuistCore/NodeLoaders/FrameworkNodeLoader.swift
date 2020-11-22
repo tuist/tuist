@@ -74,7 +74,7 @@ public final class FrameworkNodeLoader: FrameworkNodeLoading {
             .first()?
             .filter { $0 != binaryPath }
             .map { $0.removingLastComponent() }
-            .compactMap { dependencyPath -> PrecompiledNode.Dependency? in
+            .map { dependencyPath -> PrecompiledNode.Dependency in
                 let node = try load(path: dependencyPath)
                 return PrecompiledNode.Dependency.framework(node)
             } ?? []
