@@ -15,6 +15,12 @@ final class CartfileResolvedInteractorTests: TuistUnitTestCase {
         subject = CartfileResolvedInteractor()
     }
     
+    override func tearDown() {
+        subject = nil
+        
+        super.tearDown()
+    }
+    
     func test_save_when_no_tuist_directory() throws {
         // Given
         let rootPath = try temporaryPath()

@@ -45,14 +45,17 @@ public protocol CarthageInteracting {
 #warning("TODO: Add unit test!")
 public final class CarthageInteractor: CarthageInteracting {
     private let fileHandler: FileHandling!
-    private let dependenciesDirectoryController: DependenciesDirectoryControlling!
+    private let cartfileResolvedInteractor: CartfileResolvedInteracting
+    private let carthageFrameworksInteractor: CarthageFrameworksInteracting
     
     public init(
         fileHandler: FileHandling = FileHandler.shared,
-        dependenciesDirectoryController: DependenciesDirectoryControlling = DependenciesDirectoryController()
+        cartfileResolvedInteractor: CartfileResolvedInteracting = CartfileResolvedInteractor(),
+        carthageFrameworksInteractor: CarthageFrameworksInteracting = CarthageFrameworksInteractor()
     ) {
         self.fileHandler = fileHandler
-        self.dependenciesDirectoryController = dependenciesDirectoryController
+        self.cartfileResolvedInteractor = cartfileResolvedInteractor
+        self.carthageFrameworksInteractor = carthageFrameworksInteractor
     }
     
     #warning("TODO: The hardes part here will be knowing whether we need to recompile the frameworks")
@@ -65,28 +68,28 @@ public final class CarthageInteractor: CarthageInteracting {
             .reduce(Set<Platform>(), { platforms, dependency in return platforms.union(dependency.platforms) })
         
         try withTemporaryDirectory { temporaryDirectoryPath in
-            // create `carthage` shell command
-            let commnad = try buildCarthageCommand(for: method, platforms: platoforms, path: temporaryDirectoryPath)
-            
-            // create `Cartfile`
-            let cartfileContent = try buildCarfileContent(for: dependencies)
-            let cartfilePath = temporaryDirectoryPath.appending(component: "Cartfile")
-            try fileHandler.touch(cartfilePath)
-            try fileHandler.write(cartfileContent, path: cartfilePath, atomically: true)
-            
-            // load `Cartfile.resolved` from previous run
-            try dependenciesDirectoryController.loadCartfileResolvedFile(from: path, temporaryDirectoryPath: temporaryDirectoryPath)
-            
-            // run `carthage`
-            try System.shared.runAndPrint(commnad)
-            
-            // save `Cartfile.resolved`
-            try dependenciesDirectoryController.saveCartfileResolvedFile(at: path, temporaryDirectoryPath: temporaryDirectoryPath)
-            
-            // save generated frameworks
-            let names = dependencies.map { $0.name }
-            #warning("TODO: dont pass names")
-            try dependenciesDirectoryController.saveCarthageFrameworks(at: path, temporaryDirectoryPath: temporaryDirectoryPath, names: names)
+//            // create `carthage` shell command
+//            let commnad = try buildCarthageCommand(for: method, platforms: platoforms, path: temporaryDirectoryPath)
+//            
+//            // create `Cartfile`
+//            let cartfileContent = try buildCarfileContent(for: dependencies)
+//            let cartfilePath = temporaryDirectoryPath.appending(component: "Cartfile")
+//            try fileHandler.touch(cartfilePath)
+//            try fileHandler.write(cartfileContent, path: cartfilePath, atomically: true)
+//            
+//            // load `Cartfile.resolved` from previous run
+//            try dependenciesDirectoryController.loadCartfileResolvedFile(from: path, temporaryDirectoryPath: temporaryDirectoryPath)
+//            
+//            // run `carthage`
+//            try System.shared.runAndPrint(commnad)
+//            
+//            // save `Cartfile.resolved`
+//            try dependenciesDirectoryController.saveCartfileResolvedFile(at: path, temporaryDirectoryPath: temporaryDirectoryPath)
+//            
+//            // save generated frameworks
+//            let names = dependencies.map { $0.name }
+//            #warning("TODO: dont pass names")
+//            try dependenciesDirectoryController.saveCarthageFrameworks(at: path, temporaryDirectoryPath: temporaryDirectoryPath, names: names)
         }
     }
     
