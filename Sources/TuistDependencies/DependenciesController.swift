@@ -19,7 +19,6 @@ public protocol DependenciesControlling {
 
 // MARK: - Dependencies Controller
 
-#warning("TODO: Add unit test!")
 public final class DependenciesController: DependenciesControlling {
     private let carthageInteractor: CarthageInteracting
     private let cocoapodsInteractor: CocoapodsInteracting
