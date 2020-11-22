@@ -15,7 +15,7 @@ public final class MockCartfileResolvedInteractor: CartfileResolvedInteracting {
     public func save(at path: AbsolutePath, temporaryDirectoryPath: AbsolutePath) throws {
         invokedSave = true
         invokedSaveCount += 1
-        invokedSaveParameters = (path,temporaryDirectoryPath)
+        invokedSaveParameters = (path, temporaryDirectoryPath)
         invokedSaveParametersList.append((path, temporaryDirectoryPath))
         if let error = stubbedSaveError {
             throw error
