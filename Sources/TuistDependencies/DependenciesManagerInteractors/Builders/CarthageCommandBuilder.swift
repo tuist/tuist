@@ -76,7 +76,7 @@ final class CarthageCommandBuilder {
             commandComponents.append("--platform")
             commandComponents.append(
                 platforms
-                    .map { $0.caseValue }
+                    .map(\.caseValue)
                     .joined(separator: ",")
             )
         }
