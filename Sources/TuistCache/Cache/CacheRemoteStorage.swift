@@ -77,7 +77,7 @@ public final class CacheRemoteStorage: CacheStoring {
             let resource = try CloudCacheResponse.fetchResource(hash: hash, cloud: cloudConfig)
             return cloudClient
                 .request(resource)
-                .map { $0.object.data.url }
+                .map(\.object.data.url)
                 .flatMap { (url: URL) in
                     self.fileClient.download(url: url)
                         .do(onSubscribed: { logger.info("Downloading cache artifact with hash \(hash).") })

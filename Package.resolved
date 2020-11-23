@@ -12,7 +12,7 @@
       },
       {
         "package": "Signals",
-        "repositoryURL": "https://github.com/IBM-Swift/BlueSignals",
+        "repositoryURL": "https://github.com/tuist/BlueSignals.git",
         "state": {
           "branch": null,
           "revision": "1f6c49e186c8a4eeef87ba14f2f97b8646559d13",
@@ -38,6 +38,15 @@
         }
       },
       {
+        "package": "CombineExt",
+        "repositoryURL": "https://github.com/CombineCommunity/CombineExt.git",
+        "state": {
+          "branch": null,
+          "revision": "6664678135c6aec049c887a51c9da2545f184882",
+          "version": "1.2.0"
+        }
+      },
+      {
         "package": "Commander",
         "repositoryURL": "https://github.com/kylef/Commander.git",
         "state": {
@@ -48,7 +57,7 @@
       },
       {
         "package": "CryptoSwift",
-        "repositoryURL": "https://github.com/krzyzanowskim/CryptoSwift",
+        "repositoryURL": "https://github.com/krzyzanowskim/CryptoSwift.git",
         "state": {
           "branch": null,
           "revision": "1e6c6eac11a071fef00f20e678947ec4e6358595",
@@ -78,8 +87,8 @@
         "repositoryURL": "https://github.com/tid-kijyun/Kanna.git",
         "state": {
           "branch": null,
-          "revision": "609367a2cd84827a33383cf7923cb4fe8f69ee0a",
-          "version": "5.2.2"
+          "revision": "4a80ebe93b6966d5083394fcaaaff57a2fcec935",
+          "version": "5.2.3"
         }
       },
       {
@@ -156,7 +165,7 @@
       },
       {
         "package": "swift-argument-parser",
-        "repositoryURL": "https://github.com/apple/swift-argument-parser",
+        "repositoryURL": "https://github.com/apple/swift-argument-parser.git",
         "state": {
           "branch": null,
           "revision": "92646c0cdbaca076c8d3d0207891785b3379cbff",
@@ -174,7 +183,7 @@
       },
       {
         "package": "swift-tools-support-core",
-        "repositoryURL": "https://github.com/apple/swift-tools-support-core",
+        "repositoryURL": "https://github.com/apple/swift-tools-support-core.git",
         "state": {
           "branch": null,
           "revision": "243beea77d20db46647a3de4765c96e2c801c7c7",
@@ -210,7 +219,7 @@
       },
       {
         "package": "XcodeProj",
-        "repositoryURL": "https://github.com/tuist/XcodeProj",
+        "repositoryURL": "https://github.com/tuist/XcodeProj.git",
         "state": {
           "branch": null,
           "revision": "82bf5efcaa27e94ed8c761c1eb3e397b6dea82b9",
@@ -222,8 +231,8 @@
         "repositoryURL": "https://github.com/jpsim/Yams.git",
         "state": {
           "branch": null,
-          "revision": "88caa2e6fffdbef2e91c2022d038576062042907",
-          "version": "4.0.0"
+          "revision": "138cf1b701cf825233b92ceac919152d5aba8a3f",
+          "version": "4.0.1"
         }
       },
       {

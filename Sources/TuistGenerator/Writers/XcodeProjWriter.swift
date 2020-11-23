@@ -58,7 +58,7 @@ public final class XcodeProjWriter: XcodeProjWriting {
         let xcodeProj = descriptor.xcodeProj
         let sharedData = xcodeProj.sharedData ?? XCSharedData(schemes: [])
 
-        sharedData.schemes.append(contentsOf: sharedSchemes.map { $0.xcScheme })
+        sharedData.schemes.append(contentsOf: sharedSchemes.map(\.xcScheme))
         xcodeProj.sharedData = sharedData
 
         return ProjectDescriptor(path: descriptor.path,

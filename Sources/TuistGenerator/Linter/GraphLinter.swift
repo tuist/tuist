@@ -111,7 +111,7 @@ public class GraphLinter: GraphLinting {
     }
 
     private func lintMismatchingConfigurations(graph: Graph) -> [LintingIssue] {
-        let entryNodeProjects = graph.entryNodes.compactMap { $0 as? TargetNode }.map { $0.project }
+        let entryNodeProjects = graph.entryNodes.compactMap { $0 as? TargetNode }.map(\.project)
 
         let knownConfigurations = entryNodeProjects.reduce(into: Set()) {
             $0.formUnion(Set($1.settings.configurations.keys))
