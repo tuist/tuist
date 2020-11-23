@@ -102,21 +102,21 @@ final class LintCodeService {
             return try getTargetSources(targetName: targetName, graph: graph)
         } else {
             return graph.targets
-                .flatMap { $0.value }
-                .flatMap { $0.target.sources }
-                .map { $0.path }
+                .flatMap(\.value)
+                .flatMap(\.target.sources)
+                .map(\.path)
         }
     }
 
     private func getTargetSources(targetName: String, graph: Graph) throws -> [AbsolutePath] {
-        guard let target = graph.targets.flatMap({ $0.value })
+        guard let target = graph.targets.flatMap(\.value)
             .map(\.target)
             .first(where: { $0.name == targetName })
         else {
             throw LintCodeServiceError.targetNotFound(targetName)
         }
 
-        let sources = target.sources.map { $0.path }
+        let sources = target.sources.map(\.path)
 
         if sources.isEmpty {
             throw LintCodeServiceError.lintableFilesForTargetNotFound(targetName)

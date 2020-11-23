@@ -1,4 +1,4 @@
-// swift-tools-version:5.1
+// swift-tools-version:5.2.0
 // The swift-tools-version declares the minimum version of Swift required to build this package.
 
 import PackageDescription
@@ -13,7 +13,7 @@ let package = Package(
     ],
     dependencies: [
         // Dependencies declare other packages that this package depends on.
-        .package(url: "https://github.com/apple/swift-tools-support-core", from: "0.0.1"),
+        .package(url: "https://github.com/apple/swift-tools-support-core", .upToNextMinor(from: "0.1.12")),
     ],
     targets: [
         // Targets are the basic building blocks of a package. A target can define a module or a test suite.
@@ -21,7 +21,7 @@ let package = Package(
         .target(
             name: "TuistBenchmark",
             dependencies: [
-                "SwiftToolsSupport",
+                .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
             ]
         ),
     ]

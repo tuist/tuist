@@ -45,7 +45,7 @@ final class TestModelGenerator {
         let modelLoader = MockGeneratorModelLoader(basePath: rootPath)
 
         let projects = try (0 ..< config.projects).map { try createProjectWithDependencies(name: "App\($0)") }
-        let workspace = try createWorkspace(path: rootPath, projects: projects.map { $0.name })
+        let workspace = try createWorkspace(path: rootPath, projects: projects.map(\.name))
         projects.forEach { project in
             modelLoader.mockProject(project.name) { _ in project }
         }

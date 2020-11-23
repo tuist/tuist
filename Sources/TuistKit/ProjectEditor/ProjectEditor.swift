@@ -119,7 +119,7 @@ final class ProjectEditor: ProjectEditing {
                                                            setupPath: setupPath,
                                                            configPath: configPath,
                                                            dependenciesPath: dependenciesPath,
-                                                           manifests: manifests.map { $0.1 },
+                                                           manifests: manifests.map(\.1),
                                                            helpers: helpers,
                                                            templates: templates,
                                                            projectDescriptionPath: projectDesciptionPath)

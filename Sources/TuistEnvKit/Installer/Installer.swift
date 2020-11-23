@@ -141,7 +141,7 @@ final class Installer: Installing {
                 .materialize()
 
             if case let .failed(elements, error) = gitCheckoutResult {
-                if elements.map({ $0.value }).first(where: { $0.contains("did not match any file(s) known to git") }) != nil {
+                if elements.map(\.value).first(where: { $0.contains("did not match any file(s) known to git") }) != nil {
                     throw InstallerError.versionNotFound(version)
                 } else {
                     throw error

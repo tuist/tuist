@@ -494,7 +494,7 @@ final class LinkGeneratorErrorTests: XCTestCase {
         let buildPhase = try pbxTarget.frameworksBuildPhase()
 
         XCTAssertNotNil(buildPhase)
-        XCTAssertEqual(buildPhase?.files?.map { $0.file }, [
+        XCTAssertEqual(buildPhase?.files?.map(\.file), [
             requiredFile,
             optionalFile,
         ])
