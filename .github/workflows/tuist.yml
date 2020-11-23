@@ -89,6 +89,7 @@ jobs:
             'cache-xcframeworks',
             'cache-frameworks',
             'precompiled',
+            'dependencies',
           ]
     steps:
       - uses: actions/checkout@v1
