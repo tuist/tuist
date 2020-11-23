@@ -18,7 +18,7 @@
     "@theme-ui/color": "^0.3.3",
     "@theme-ui/match-media": "^0.3.3",
     "@theme-ui/presets": "^0.3.0",
-    "@theme-ui/prism": "^0.3.0",
+    "@theme-ui/prism": "^0.3.4",
     "@theme-ui/sidenav": "^0.3.3",
     "@theme-ui/typography": "^0.3.0",
     "copy-text-to-clipboard": "^2.2.0",
