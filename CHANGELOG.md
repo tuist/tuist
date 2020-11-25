@@ -15,6 +15,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Fixed
 
+- Fix hashing preaction with path to nil [#2074](https://github.com/tuist/tuist/pull/2074) by [@fortmarek](https://github.com/fortmarek)
 - Correct the `TEST_HOST` path for the macOS Platform [#2034](https://github.com/tuist/tuist/pull/2034) by [@ferologics](https://github.com/ferologics)
 
 ## 1.25.0 - Charles
