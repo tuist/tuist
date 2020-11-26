@@ -43,7 +43,7 @@ public struct OtoolController: OtoolControlling {
             .mapToString()
             .collectAndMergeOutput()
             .map { try OtoolOutput(filePath: path, output: $0) }
-            .map { $0.paths }
+            .map(\.paths)
             .asSingle()
     }
 
