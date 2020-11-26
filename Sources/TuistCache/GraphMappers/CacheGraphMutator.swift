@@ -42,7 +42,7 @@ class CacheGraphMutator: CacheGraphMutating {
     public func map(graph: Graph, precompiledFrameworks: [TargetNode: AbsolutePath], sources: Set<String>) throws -> Graph {
         var visitedPrecompiledFrameworkPaths: [TargetNode: VisitedPrecompiledFramework?] = [:]
         var loadedPrecompiledNodes: [AbsolutePath: PrecompiledNode] = [:]
-        let userSpecifiedSourceTargets = graph.targets.flatMap { $0.value }.filter { sources.contains($0.target.name) }
+        let userSpecifiedSourceTargets = graph.targets.flatMap(\.value).filter { sources.contains($0.target.name) }
         let userSpecifiedSourceTestTargets = userSpecifiedSourceTargets.flatMap { graph.testTargetsDependingOn(path: $0.path, name: $0.name) }
         var sourceTargets: Set<TargetNode> = Set(userSpecifiedSourceTargets)
 

@@ -24,7 +24,7 @@ public final class CoreDataModelsContentHasher: CoreDataModelsContentHashing {
             let contentHash = try contentHasher.hash(path: cdModel.path)
             let currentVersionHash = try contentHasher.hash([cdModel.currentVersion])
             let cdModelHash = try contentHasher.hash([contentHash, currentVersionHash])
-            let versionsHash = try contentHasher.hash(cdModel.versions.map { $0.pathString })
+            let versionsHash = try contentHasher.hash(cdModel.versions.map(\.pathString))
             stringsToHash.append(cdModelHash)
             stringsToHash.append(versionsHash)
         }

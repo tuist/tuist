@@ -110,9 +110,9 @@ class ProjectFileElements {
 
     func targetFiles(target: Target) throws -> Set<GroupFileElement> {
         var files = Set<AbsolutePath>()
-        files.formUnion(target.sources.map { $0.path })
-        files.formUnion(target.coreDataModels.map { $0.path })
-        files.formUnion(target.coreDataModels.flatMap { $0.versions })
+        files.formUnion(target.sources.map(\.path))
+        files.formUnion(target.coreDataModels.map(\.path))
+        files.formUnion(target.coreDataModels.flatMap(\.versions))
 
         if let headers = target.headers {
             files.formUnion(headers.public)
