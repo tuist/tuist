@@ -53,4 +53,24 @@ final class DeploymentTargetContentHasherTests: TuistUnitTestCase {
         XCTAssertEqual(hash, "macOS-v2-hash")
         XCTAssertEqual(mockContentHasher.hashStringCallCount, 1)
     }
+
+    func test_hash_whenWatchOSV2_callsContentHasherWithExpectedStrings() throws {
+        // When
+        let deploymentTarget = DeploymentTarget.watchOS("v2")
+
+        // Then
+        let hash = try subject.hash(deploymentTarget: deploymentTarget)
+        XCTAssertEqual(hash, "watchOS-v2-hash")
+        XCTAssertEqual(mockContentHasher.hashStringCallCount, 1)
+    }
+
+    func test_hash_whentvOSV2_callsContentHasherWithExpectedStrings() throws {
+        // When
+        let deploymentTarget = DeploymentTarget.tvOS("v2")
+
+        // Then
+        let hash = try subject.hash(deploymentTarget: deploymentTarget)
+        XCTAssertEqual(hash, "tvOS-v2-hash")
+        XCTAssertEqual(mockContentHasher.hashStringCallCount, 1)
+    }
 }

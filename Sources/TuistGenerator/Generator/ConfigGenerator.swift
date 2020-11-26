@@ -269,6 +269,10 @@ final class ConfigGenerator: ConfigGenerating {
             }
         case let .macOS(version):
             settings["MACOSX_DEPLOYMENT_TARGET"] = .string(version)
+        case let .watchOS(version):
+            settings["WATCHOS_DEPLOYMENT_TARGET"] = .string(version)
+        case let .tvOS(version):
+            settings["TVOS_DEPLOYMENT_TARGET"] = .string(version)
         }
 
         return settings

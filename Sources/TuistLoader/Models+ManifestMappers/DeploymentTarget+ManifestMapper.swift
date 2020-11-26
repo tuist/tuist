@@ -13,6 +13,10 @@ extension TuistCore.DeploymentTarget {
             return .iOS(version, DeploymentDevice(rawValue: devices.rawValue))
         case let .macOS(version):
             return .macOS(version)
+        case let .watchOS(version):
+            return .watchOS(version)
+        case let .tvOS(version):
+            return .tvOS(version)
         }
     }
 }
