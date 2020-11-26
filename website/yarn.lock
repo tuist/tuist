@@ -2326,10 +2326,10 @@
     "@theme-ui/css" "^0.3.4"
     deepmerge "^4.2.2"
 
-"@theme-ui/css@^0.3.3":
-  version "0.3.3"
-  resolved "https://registry.yarnpkg.com/@theme-ui/css/-/css-0.3.3.tgz#d3f00ed40ece00af28cb271107b71f5f0bec041e"
-  integrity sha512-CJA1nKecrs0qnMNzuLryLZ9LdtbdjMHHRcHFw70i0xkp783d82M4bf1cfeIKcr3NUkq06gJ55KCJIY7rykkUWA==
+"@theme-ui/css@^0.3.3", "@theme-ui/css@^0.3.4":
+  version "0.3.4"
+  resolved "https://registry.yarnpkg.com/@theme-ui/css/-/css-0.3.4.tgz#26ff7696f8a0d80b2d9093ff04913e3046971aeb"
+  integrity sha512-/H9yxunPiAh2NENXp232OBTEnCzgz0N/KnF5RXgkncqNBeI6I1dzwMe/fE0GO4poH8sdzquc1nNRXuR3HgA3/w==
 
 "@theme-ui/css@^0.3.4":
   version "0.3.4"
