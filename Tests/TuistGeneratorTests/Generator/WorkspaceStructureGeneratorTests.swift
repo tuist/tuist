@@ -357,6 +357,10 @@ class WorkspaceStructureGeneratorTests: XCTestCase {
             cache[path] == .folder
         }
 
+        func isPackage(_ path: AbsolutePath) -> Bool {
+            false
+        }
+
         func locateDirectoryTraversingParents(from _: AbsolutePath, path _: String) -> AbsolutePath? {
             nil
         }

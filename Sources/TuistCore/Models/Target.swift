@@ -38,6 +38,7 @@ public struct Target: Equatable, Hashable, Comparable {
     public var dependencies: [Dependency]
     public var sources: [SourceFile]
     public var resources: [FileElement]
+    public var copyFiles: [CopyFilesAction]
     public var headers: Headers?
     public var coreDataModels: [CoreDataModel]
     public var actions: [TargetAction]
@@ -59,6 +60,7 @@ public struct Target: Equatable, Hashable, Comparable {
                 settings: Settings? = nil,
                 sources: [SourceFile] = [],
                 resources: [FileElement] = [],
+                copyFiles: [CopyFilesAction] = [],
                 headers: Headers? = nil,
                 coreDataModels: [CoreDataModel] = [],
                 actions: [TargetAction] = [],
@@ -79,6 +81,7 @@ public struct Target: Equatable, Hashable, Comparable {
         self.settings = settings
         self.sources = sources
         self.resources = resources
+        self.copyFiles = copyFiles
         self.headers = headers
         self.coreDataModels = coreDataModels
         self.actions = actions
@@ -181,7 +184,9 @@ public struct Target: Equatable, Hashable, Comparable {
     /// Returns true if the file at the given path is a resource.
     /// - Parameter path: Path to the file to be checked.
     public static func isResource(path: AbsolutePath) -> Bool {
-        if !FileHandler.shared.isFolder(path) {
+        if FileHandler.shared.isPackage(path) {
+            return true
+        } else if !FileHandler.shared.isFolder(path) {
             return true
             // We filter out folders that are not Xcode supported bundles such as .app or .framework.
         } else if let `extension` = path.extension, Target.validFolderExtensions.contains(`extension`) {

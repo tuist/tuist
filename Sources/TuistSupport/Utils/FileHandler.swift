@@ -66,6 +66,7 @@ public protocol FileHandling: AnyObject {
     func createFolder(_ path: AbsolutePath) throws
     func delete(_ path: AbsolutePath) throws
     func isFolder(_ path: AbsolutePath) -> Bool
+    func isPackage(_ path: AbsolutePath) -> Bool
     func touch(_ path: AbsolutePath) throws
     func contentsOfDirectory(_ path: AbsolutePath) throws -> [AbsolutePath]
     func md5(path: AbsolutePath) throws -> String
@@ -233,6 +234,12 @@ public class FileHandler: FileHandling {
         var isDirectory = ObjCBool(true)
         let exists = fileManager.fileExists(atPath: path.pathString, isDirectory: &isDirectory)
         return exists && isDirectory.boolValue
+    }
+
+    public func isPackage(_ path: AbsolutePath) -> Bool {
+        let resourceValues = try? path.asURL.resourceValues(forKeys: [.typeIdentifierKey])
+        guard let type = resourceValues?.typeIdentifier else { return false }
+        return UTTypeConformsTo(type as CFString, kUTTypePackage)
     }
 
     public func locateDirectoryTraversingParents(from: AbsolutePath, path: String) -> AbsolutePath? {

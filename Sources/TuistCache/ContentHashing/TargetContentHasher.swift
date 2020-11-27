@@ -15,6 +15,7 @@ public final class TargetContentHasher: TargetContentHashing {
     private let sourceFilesContentHasher: SourceFilesContentHashing
     private let targetActionsContentHasher: TargetActionsContentHashing
     private let resourcesContentHasher: ResourcesContentHashing
+    private let copyFilesContentHasher: CopyFilesContentHashing
     private let headersContentHasher: HeadersContentHashing
     private let deploymentTargetContentHasher: DeploymentTargetContentHashing
     private let infoPlistContentHasher: InfoPlistContentHashing
@@ -30,6 +31,7 @@ public final class TargetContentHasher: TargetContentHashing {
             targetActionsContentHasher: TargetActionsContentHasher(contentHasher: contentHasher),
             coreDataModelsContentHasher: CoreDataModelsContentHasher(contentHasher: contentHasher),
             resourcesContentHasher: ResourcesContentHasher(contentHasher: contentHasher),
+            copyFilesContentHasher: CopyFilesContentHasher(contentHasher: contentHasher),
             headersContentHasher: HeadersContentHasher(contentHasher: contentHasher),
             deploymentTargetContentHasher: DeploymentTargetContentHasher(contentHasher: contentHasher),
             infoPlistContentHasher: InfoPlistContentHasher(contentHasher: contentHasher),
@@ -44,6 +46,7 @@ public final class TargetContentHasher: TargetContentHashing {
         targetActionsContentHasher: TargetActionsContentHashing,
         coreDataModelsContentHasher: CoreDataModelsContentHashing,
         resourcesContentHasher: ResourcesContentHashing,
+        copyFilesContentHasher: CopyFilesContentHashing,
         headersContentHasher: HeadersContentHashing,
         deploymentTargetContentHasher: DeploymentTargetContentHashing,
         infoPlistContentHasher: InfoPlistContentHashing,
@@ -55,6 +58,7 @@ public final class TargetContentHasher: TargetContentHashing {
         self.coreDataModelsContentHasher = coreDataModelsContentHasher
         self.targetActionsContentHasher = targetActionsContentHasher
         self.resourcesContentHasher = resourcesContentHasher
+        self.copyFilesContentHasher = copyFilesContentHasher
         self.headersContentHasher = headersContentHasher
         self.deploymentTargetContentHasher = deploymentTargetContentHasher
         self.infoPlistContentHasher = infoPlistContentHasher
@@ -68,6 +72,7 @@ public final class TargetContentHasher: TargetContentHashing {
         let target = targetNode.target
         let sourcesHash = try sourceFilesContentHasher.hash(sources: target.sources)
         let resourcesHash = try resourcesContentHasher.hash(resources: target.resources)
+        let copyFilesHash = try copyFilesContentHasher.hash(copyFiles: target.copyFiles)
         let coreDataModelHash = try coreDataModelsContentHasher.hash(coreDataModels: target.coreDataModels)
         let targetActionsHash = try targetActionsContentHasher.hash(targetActions: target.actions)
         let dependenciesHash = try dependenciesContentHasher.hash(dependencies: target.dependencies)
@@ -80,6 +85,7 @@ public final class TargetContentHasher: TargetContentHashing {
                              dependenciesHash,
                              sourcesHash,
                              resourcesHash,
+                             copyFilesHash,
                              coreDataModelHash,
                              targetActionsHash,
                              environmentHash]

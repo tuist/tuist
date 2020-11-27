@@ -17,6 +17,30 @@ public enum GlobError: FatalError, Equatable {
     }
 }
 
+extension Array where Element == AbsolutePath {
+
+    /// Packages should be added as a whole folder not individually.
+    /// (e.g. bundled file formats recognized by the OS like .pages, .numbers...)
+    ///
+    /// Can we improve this implementation with a more efficient approach?
+    /// - Returns: List of clean `AbsolutePath`s
+    public func cleanPackages() -> [AbsolutePath] {
+        self.compactMap {
+            var filePath = $0
+            while !filePath.isRoot {
+                if filePath.parentDirectory.isPackage {
+                    return nil
+                } else if filePath.isPackage || filePath.isRoot {
+                    return filePath
+                } else {
+                    filePath = filePath.parentDirectory
+                }
+            }
+            return nil
+        }
+    }
+}
+
 extension AbsolutePath {
     /// Returns the current path.
     public static var current: AbsolutePath {
@@ -62,6 +86,13 @@ extension AbsolutePath {
         var isDirectory = ObjCBool(true)
         let exists = FileManager.default.fileExists(atPath: pathString, isDirectory: &isDirectory)
         return exists && isDirectory.boolValue
+    }
+
+    /// Returns true if the path is a package, recognized by having a UTI `com.apple.package`
+    public var isPackage: Bool {
+        let resourceValues = try? URL(fileURLWithPath: pathString).resourceValues(forKeys: [.typeIdentifierKey])
+        guard let type = resourceValues?.typeIdentifier else { return false }
+        return UTTypeConformsTo(type as CFString, kUTTypePackage)
     }
 
     /// Returns the path with the last component removed. For example, given the path

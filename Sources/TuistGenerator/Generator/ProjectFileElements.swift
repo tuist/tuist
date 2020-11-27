@@ -143,6 +143,14 @@ class ProjectFileElements {
                              isReference: $0.isReference)
         })
 
+        target.copyFiles.forEach {
+            elements.formUnion($0.files.map {
+                GroupFileElement(path: $0.path,
+                                 group: target.filesGroup,
+                                 isReference: $0.isReference)
+            })
+        }
+
         return elements
     }
 
