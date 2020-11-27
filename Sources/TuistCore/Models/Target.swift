@@ -184,7 +184,7 @@ public struct Target: Equatable, Hashable, Comparable {
     /// Returns true if the file at the given path is a resource.
     /// - Parameter path: Path to the file to be checked.
     public static func isResource(path: AbsolutePath) -> Bool {
-        if FileHandler.shared.isPackage(path) {
+        if path.isPackage {
             return true
         } else if !FileHandler.shared.isFolder(path) {
             return true
