@@ -30,13 +30,13 @@ extension Array where Element == AbsolutePath {
             while !filePath.isRoot {
                 if filePath.parentDirectory.isPackage {
                     return nil
-                } else if filePath.isPackage || filePath.isRoot {
+                } else if filePath.isPackage {
                     return filePath
                 } else {
                     filePath = filePath.parentDirectory
                 }
             }
-            return nil
+            return $0
         }
     }
 }
