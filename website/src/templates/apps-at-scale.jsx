@@ -142,23 +142,23 @@ const Page = ({
         }}
       />
 
-      <div class="h-64 relative">
+      <div className="h-64 relative">
         <img
           className="h-64 w-full object-cover"
           src={mdx.frontmatter.header_image}
         />
 
-        <div class="flex flex-row justify-center items-center bottom-0 inset-x-0 inset-y-0 absolute">
-          <div class="w-24 h-24 md:w-32 md:h-32">
+        <div className="flex flex-row justify-center items-center bottom-0 inset-x-0 inset-y-0 absolute">
+          <div className="w-24 h-24 md:w-32 md:h-32">
             <a
-              class="group w-full h-full rounded-full overflow-hidden shadow-inner text-center bg-purple table cursor-pointer border-4"
+              className="group w-full h-full rounded-full overflow-hidden shadow-inner text-center bg-purple table cursor-pointer border-4"
               target="__blank"
               href={`https://twitter.com/${mdx.frontmatter.interviewee_twitter_handle}`}
             >
               <img
                 src={mdx.frontmatter.interviewee_avatar}
                 alt={`${mdx.frontmatter.interviewee_name}'s avatar`}
-                class="object-cover object-center w-full h-full visible group-hover:hidden"
+                className="object-cover object-center w-full h-full visible group-hover:hidden"
               />
             </a>
           </div>
