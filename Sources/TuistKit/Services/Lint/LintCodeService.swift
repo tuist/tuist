@@ -3,9 +3,9 @@ import RxBlocking
 import TSCBasic
 import TuistCore
 import TuistGenerator
+import TuistLintCode
 import TuistLoader
 import TuistSupport
-import TuistLintCode
 
 enum LintCodeServiceError: FatalError, Equatable {
     /// Thrown when neither a workspace or a project is found in the given path.

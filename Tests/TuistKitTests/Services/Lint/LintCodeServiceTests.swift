@@ -6,9 +6,9 @@ import XCTest
 @testable import TuistCoreTesting
 @testable import TuistGeneratorTesting
 @testable import TuistKit
+@testable import TuistLintCodeTesting
 @testable import TuistLoaderTesting
 @testable import TuistSupportTesting
-@testable import TuistLintCodeTesting
 
 final class LintCodeServiceTests: TuistUnitTestCase {
     private var codeLinter: MockCodeLinter!

@@ -518,7 +518,7 @@ let package = Package(
         .target(
             name: "TuistLintCodeTesting",
             dependencies: [
-                "TuistLintCode"
+                "TuistLintCode",
             ]
         ),
         .testTarget(

@@ -17,7 +17,7 @@ public final class CodeLinter: CodeLinting {
     private let binaryLocator: BinaryLocating
 
     public init(rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator(),
-         binaryLocator: BinaryLocating = BinaryLocator())
+                binaryLocator: BinaryLocating = BinaryLocator())
     {
         self.rootDirectoryLocator = rootDirectoryLocator
         self.binaryLocator = binaryLocator
