@@ -18,7 +18,7 @@ enum CocoaPodsInteractorError: FatalError {
     public var description: String {
         switch self {
         case .unimplemented:
-            return "CocoaPods is not supported yet. We are being worked on and it'll be available soon."
+            return "CocoaPods is not supported yet. It's being worked on and it'll be available soon."
         }
     }
 }
