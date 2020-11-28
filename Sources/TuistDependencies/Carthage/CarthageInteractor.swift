@@ -21,7 +21,7 @@ enum CarthageInteractorError: FatalError, Equatable {
     var description: String {
         switch self {
         case .carthageNotFound:
-            return "Carthage was not found either in Bundler nor in the environment"
+            return "Carthage was not found either in Bundler nor in the environment."
         }
     }
 }
@@ -43,16 +43,19 @@ public protocol CarthageInteracting {
 // MARK: - Carthage Interactor
 
 public final class CarthageInteractor: CarthageInteracting {
-    private let fileHandler: FileHandling!
+    private let fileHandler: FileHandling
+    private let carthageCommandGenerator: CarthageCommandGenerating
     private let cartfileResolvedInteractor: CartfileResolvedInteracting
     private let carthageFrameworksInteractor: CarthageFrameworksInteracting
 
     public init(
         fileHandler: FileHandling = FileHandler.shared,
+        carthageCommandGenerator: CarthageCommandGenerating = CarthageCommandGenerator(),
         cartfileResolvedInteractor: CartfileResolvedInteracting = CartfileResolvedInteractor(),
         carthageFrameworksInteractor: CarthageFrameworksInteracting = CarthageFrameworksInteractor()
     ) {
         self.fileHandler = fileHandler
+        self.carthageCommandGenerator = carthageCommandGenerator
         self.cartfileResolvedInteractor = cartfileResolvedInteractor
         self.carthageFrameworksInteractor = carthageFrameworksInteractor
     }
@@ -63,13 +66,18 @@ public final class CarthageInteractor: CarthageInteracting {
         method: InstallDependenciesMethod,
         dependencies: [CarthageDependency]
     ) throws {
+        // check availability of `carthage`
+        guard canUseSystemCarthage() else {
+            throw CarthageInteractorError.carthageNotFound
+        }
+        
         // determine platforms
         let platoforms: Set<Platform> = dependencies
             .reduce(Set<Platform>()) { platforms, dependency in platforms.union(dependency.platforms) }
 
         try fileHandler.inTemporaryDirectory { temporaryDirectoryPath in
             // create `carthage` shell command
-            let commnad = try buildCarthageCommand(for: method, platforms: platoforms, path: temporaryDirectoryPath)
+            let command = carthageCommandGenerator.command(method: method, path: temporaryDirectoryPath, platforms: platoforms)
 
             // create `Cartfile`
             let cartfileContent = try buildCarfileContent(for: dependencies)
@@ -81,7 +89,7 @@ public final class CarthageInteractor: CarthageInteracting {
             try cartfileResolvedInteractor.loadIfExist(from: path, temporaryDirectoryPath: temporaryDirectoryPath)
 
             // run `carthage`
-            try System.shared.runAndPrint(commnad)
+            try System.shared.runAndPrint(command)
 
             // save `Cartfile.resolved`
             try cartfileResolvedInteractor.save(at: path, temporaryDirectoryPath: temporaryDirectoryPath)
@@ -95,18 +103,6 @@ public final class CarthageInteractor: CarthageInteracting {
 
     private func buildCarfileContent(for dependencies: [CarthageDependency]) throws -> String {
         try CartfileContentBuilder(dependencies: dependencies)
-            .build()
-    }
-
-    private func buildCarthageCommand(for method: InstallDependenciesMethod, platforms: Set<Platform>, path: AbsolutePath) throws -> [String] {
-        guard canUseSystemCarthage() else {
-            throw CarthageInteractorError.carthageNotFound
-        }
-
-        return CarthageCommandBuilder(method: method, path: path)
-            .platforms(platforms)
-            .cacheBuilds(true)
-            .newResolver(true)
             .build()
     }
 

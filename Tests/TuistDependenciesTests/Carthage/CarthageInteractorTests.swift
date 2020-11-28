@@ -11,6 +11,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
     private var subject: CarthageInteractor!
 
     private var fileHandlerMock: MockFileHandler!
+    private var carthageCommandGenerator: MockCarthageCommandGenerator!
     private var cartfileResolvedInteractor: MockCartfileResolvedInteractor!
     private var carthageFrameworksInteractor: MockCarthageFrameworksInteractor!
 
@@ -26,15 +27,18 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         }
 
         fileHandlerMock = MockFileHandler(temporaryDirectory: { self.temporaryDirectoryPath })
+        carthageCommandGenerator = MockCarthageCommandGenerator()
         cartfileResolvedInteractor = MockCartfileResolvedInteractor()
         carthageFrameworksInteractor = MockCarthageFrameworksInteractor()
 
         subject = CarthageInteractor(fileHandler: fileHandlerMock,
+                                     carthageCommandGenerator: carthageCommandGenerator,
                                      cartfileResolvedInteractor: cartfileResolvedInteractor,
                                      carthageFrameworksInteractor: carthageFrameworksInteractor)
     }
 
     override func tearDown() {
+        carthageCommandGenerator = nil
         cartfileResolvedInteractor = nil
         carthageFrameworksInteractor = nil
         fileHandlerMock = nil
@@ -53,14 +57,22 @@ final class CarthageInteractorTests: TuistUnitTestCase {
             CarthageDependency(name: "Moya", requirement: .exact("1.1.1"), platforms: [.iOS]),
             CarthageDependency(name: "RxSwift", requirement: .exact("2.0.0"), platforms: [.iOS]),
         ]
+        let stubbedCommand = ["carthage", "bootstrap", "--project-directory", temporaryDirectoryPath.pathString, "--platform iOS", "--cache-builds", "--new-resolver"]
+        
+        carthageCommandGenerator.commandStub = { _, _, _ in stubbedCommand }
 
         system.whichStub = { _ in "1.0.0" }
-        system.succeedCommand(["carthage", "bootstrap", "--project-directory", temporaryDirectoryPath.pathString, "--platform iOS", "--cache-builds", "--new-resolver"])
+        system.succeedCommand(stubbedCommand)
 
         // When
         try subject.install(at: rootPath, method: .fetch, dependencies: stubbedDependencies)
 
         // Then
+        XCTAssertTrue(carthageCommandGenerator.invokedCommand)
+        XCTAssertEqual(carthageCommandGenerator.invokedCommandParameters?.method, .fetch)
+        XCTAssertEqual(carthageCommandGenerator.invokedCommandParameters?.path, temporaryDirectoryPath)
+        XCTAssertEqual(carthageCommandGenerator.invokedCommandParameters?.platforms, [.iOS])
+        
         XCTAssertTrue(cartfileResolvedInteractor.invokedLoadIfExist)
         XCTAssertEqual(cartfileResolvedInteractor.invokedLoadIfExistParameters?.path, rootPath)
         XCTAssertEqual(cartfileResolvedInteractor.invokedLoadIfExistParameters?.temporaryDirectoryPath, temporaryDirectoryPath)
