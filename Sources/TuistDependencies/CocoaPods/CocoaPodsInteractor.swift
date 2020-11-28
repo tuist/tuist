@@ -1,9 +1,9 @@
 import TSCBasic
 import TuistSupport
 
-// MARK: - Cocoapods Interactor Errors
+// MARK: - CocoaPods Interactor Errors
 
-enum CocoapodsInteractorError: FatalError {
+enum CocoaPodsInteractorError: FatalError {
     case unimplemented
 
     /// Error type.
@@ -18,21 +18,21 @@ enum CocoapodsInteractorError: FatalError {
     public var description: String {
         switch self {
         case .unimplemented:
-            return "Cocoapods is not supported yet. We are being worked on and it'll be available soon."
+            return "CocoaPods is not supported yet. We are being worked on and it'll be available soon."
         }
     }
 }
 
-// MARK: - Cocoapods Interacting
+// MARK: - CocoaPods Interacting
 
-public protocol CocoapodsInteracting {}
+public protocol CocoaPodsInteracting {}
 
 // MARK: - Cocoapods Interactor
 
-public final class CocoapodsInteractor: CocoapodsInteracting {
+public final class CocoaPodsInteractor: CocoaPodsInteracting {
     public init() {}
 
     public func install(at _: AbsolutePath, method _: InstallDependenciesMethod) throws {
-        throw CocoapodsInteractorError.unimplemented
+        throw CocoaPodsInteractorError.unimplemented
     }
 }

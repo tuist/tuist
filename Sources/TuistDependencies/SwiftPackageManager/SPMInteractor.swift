@@ -1,9 +1,9 @@
 import TSCBasic
 import TuistSupport
 
-// MARK: - SPM Interactor Error
+// MARK: - Swift Package Manager Interactor Error
 
-public enum SPMInteractorError: FatalError {
+public enum SwiftPackageManagerInteractorError: FatalError {
     case unimplemented
 
     /// Error type.
@@ -23,16 +23,16 @@ public enum SPMInteractorError: FatalError {
     }
 }
 
-// MARK: - SPM Interacting
+// MARK: - Swift Package Manager Interacting
 
-public protocol SPMInteracting {}
+public protocol SwiftPackageManagerInteracting {}
 
-// MARK: - SPM Interactor
+// MARK: - Swift Package Manager Interactor
 
-public final class SPMInteractor: SPMInteracting {
+public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting {
     public init() {}
 
     public func install(at _: AbsolutePath, method _: InstallDependenciesMethod) throws {
-        throw SPMInteractorError.unimplemented
+        throw SwiftPackageManagerInteractorError.unimplemented
     }
 }

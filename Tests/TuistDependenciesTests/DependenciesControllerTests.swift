@@ -11,27 +11,27 @@ final class DependenciesControllerTests: TuistUnitTestCase {
     private var subject: DependenciesController!
 
     private var carthageInteractor: MockCarthageInteractor!
-    private var cocoapodsInteractor: MockCocoapodsInteractor!
-    private var spmInteractor: MockSPMInteractor!
+    private var cocoaPodsInteractor: MockCocoaPodsInteractor!
+    private var swiftPackageManagerInteractor: MockSwiftPackageManagerInteractor!
 
     override func setUp() {
         super.setUp()
 
         carthageInteractor = MockCarthageInteractor()
-        cocoapodsInteractor = MockCocoapodsInteractor()
-        spmInteractor = MockSPMInteractor()
+        cocoaPodsInteractor = MockCocoaPodsInteractor()
+        swiftPackageManagerInteractor = MockSwiftPackageManagerInteractor()
 
         subject = DependenciesController(carthageInteractor: carthageInteractor,
-                                         cocoapodsInteractor: cocoapodsInteractor,
-                                         spmInteractor: spmInteractor)
+                                         cocoaPodsInteractor: cocoaPodsInteractor,
+                                         swiftPackageManagerInteractor: swiftPackageManagerInteractor)
     }
 
     override func tearDown() {
         subject = nil
 
         carthageInteractor = nil
-        cocoapodsInteractor = nil
-        spmInteractor = nil
+        cocoaPodsInteractor = nil
+        swiftPackageManagerInteractor = nil
 
         super.tearDown()
     }

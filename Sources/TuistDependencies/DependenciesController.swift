@@ -21,17 +21,17 @@ public protocol DependenciesControlling {
 
 public final class DependenciesController: DependenciesControlling {
     private let carthageInteractor: CarthageInteracting
-    private let cocoapodsInteractor: CocoapodsInteracting
-    private let spmInteractor: SPMInteracting
+    private let cocoaPodsInteractor: CocoaPodsInteracting
+    private let swiftPackageManagerInteractor: SwiftPackageManagerInteracting
 
     public init(
         carthageInteractor: CarthageInteracting = CarthageInteractor(),
-        cocoapodsInteractor: CocoapodsInteracting = CocoapodsInteractor(),
-        spmInteractor: SPMInteracting = SPMInteractor()
+        cocoaPodsInteractor: CocoaPodsInteracting = CocoaPodsInteractor(),
+        swiftPackageManagerInteractor: SwiftPackageManagerInteracting = SwiftPackageManagerInteractor()
     ) {
         self.carthageInteractor = carthageInteractor
-        self.cocoapodsInteractor = cocoapodsInteractor
-        self.spmInteractor = spmInteractor
+        self.cocoaPodsInteractor = cocoaPodsInteractor
+        self.swiftPackageManagerInteractor = swiftPackageManagerInteractor
     }
 
     public func install(at path: AbsolutePath, method: InstallDependenciesMethod, dependencies: Dependencies) throws {

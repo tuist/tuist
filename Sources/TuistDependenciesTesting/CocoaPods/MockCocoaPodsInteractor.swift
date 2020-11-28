@@ -3,7 +3,7 @@ import TuistCore
 
 @testable import TuistDependencies
 
-public final class MockCocoapodsInteractor: CocoapodsInteracting {
+public final class MockCocoaPodsInteractor: CocoaPodsInteracting {
     public init() {}
 
     var invokedSave = false

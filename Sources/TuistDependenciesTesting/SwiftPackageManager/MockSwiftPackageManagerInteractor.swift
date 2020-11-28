@@ -3,7 +3,7 @@ import TuistCore
 
 @testable import TuistDependencies
 
-public final class MockSPMInteractor: SPMInteracting {
+public final class MockSwiftPackageManagerInteractor: SwiftPackageManagerInteracting {
     public init() {}
 
     var invokedSave = false

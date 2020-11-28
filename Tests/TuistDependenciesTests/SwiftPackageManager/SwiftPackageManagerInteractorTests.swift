@@ -5,12 +5,12 @@ import XCTest
 @testable import TuistDependencies
 @testable import TuistSupportTesting
 
-final class CocoapodsInteractorTests: TuistUnitTestCase {
-    private var subject: CocoapodsInteractor!
+final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
+    private var subject: SwiftPackageManagerInteractor!
 
     override func setUp() {
         super.setUp()
-        subject = CocoapodsInteractor()
+        subject = SwiftPackageManagerInteractor()
     }
 
     override func tearDown() {
@@ -23,7 +23,7 @@ final class CocoapodsInteractorTests: TuistUnitTestCase {
         let stubbedPath = try temporaryPath()
 
         // When/Then
-        XCTAssertThrowsSpecific(try subject.install(at: stubbedPath, method: .fetch), CocoapodsInteractorError.unimplemented)
+        XCTAssertThrowsSpecific(try subject.install(at: stubbedPath, method: .fetch), SwiftPackageManagerInteractorError.unimplemented)
     }
 
     func test_install_update() throws {
@@ -31,6 +31,6 @@ final class CocoapodsInteractorTests: TuistUnitTestCase {
         let stubbedPath = try temporaryPath()
 
         // When/Then
-        XCTAssertThrowsSpecific(try subject.install(at: stubbedPath, method: .update), CocoapodsInteractorError.unimplemented)
+        XCTAssertThrowsSpecific(try subject.install(at: stubbedPath, method: .update), SwiftPackageManagerInteractorError.unimplemented)
     }
 }
