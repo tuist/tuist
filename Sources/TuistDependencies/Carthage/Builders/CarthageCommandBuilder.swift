@@ -10,7 +10,6 @@ final class CarthageCommandBuilder {
     private let method: InstallDependenciesMethod
     private let path: AbsolutePath
     private var platforms: Set<Platform>?
-    private var throughBundler: Bool = false
     private var cacheBuilds: Bool = false
     private var newResolver: Bool = false
 
@@ -30,12 +29,6 @@ final class CarthageCommandBuilder {
     }
 
     @discardableResult
-    func throughBundler(_ throughBundler: Bool) -> Self {
-        self.throughBundler = throughBundler
-        return self
-    }
-
-    @discardableResult
     func cacheBuilds(_ cacheBuilds: Bool) -> Self {
         self.cacheBuilds = cacheBuilds
         return self
@@ -51,11 +44,6 @@ final class CarthageCommandBuilder {
 
     func build() -> [String] {
         var commandComponents: [String] = []
-
-        if throughBundler {
-            commandComponents.append("bundle")
-            commandComponents.append("exec")
-        }
         commandComponents.append("carthage")
 
         // Command

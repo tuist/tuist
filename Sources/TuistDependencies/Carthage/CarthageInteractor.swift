@@ -99,31 +99,15 @@ public final class CarthageInteractor: CarthageInteracting {
     }
 
     private func buildCarthageCommand(for method: InstallDependenciesMethod, platforms: Set<Platform>, path: AbsolutePath) throws -> [String] {
-        let canUseBundler = canUseCarthageThroughBundler()
-        let canUseSystem = canUseSystemCarthage()
-
-        guard canUseBundler || canUseSystem else {
+        guard canUseSystemCarthage() else {
             throw CarthageInteractorError.carthageNotFound
         }
 
         return CarthageCommandBuilder(method: method, path: path)
             .platforms(platforms)
-            .throughBundler(canUseBundler)
             .cacheBuilds(true)
             .newResolver(true)
             .build()
-    }
-
-    /// Returns true if CocoaPods is accessible through Bundler,
-    /// and shoudl be used instead of the global CocoaPods.
-    /// - Returns: True if Bundler can execute CocoaPods.
-    private func canUseCarthageThroughBundler() -> Bool {
-        do {
-            try System.shared.run(["bundle", "info", "carthage"])
-            return true
-        } catch {
-            return false
-        }
     }
 
     /// Returns true if Carthage is avaiable in the environment.
