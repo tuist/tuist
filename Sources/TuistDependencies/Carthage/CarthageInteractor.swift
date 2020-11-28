@@ -84,7 +84,6 @@ public final class CarthageInteractor: CarthageInteracting {
             // create `Cartfile`
             let cartfileContent = try cartfileContentGenerator.cartfileContent(for: dependencies)
             let cartfilePath = temporaryDirectoryPath.appending(component: "Cartfile")
-            try fileHandler.touch(cartfilePath)
             try fileHandler.write(cartfileContent, path: cartfilePath, atomically: true)
 
             // load `Cartfile.resolved` from previous run
