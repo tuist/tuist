@@ -525,7 +525,7 @@ public class Graph: Encodable, Equatable {
     ///   - name: Name of the target.
     public func findTargetNode(path: AbsolutePath, name: String) -> TargetNode? {
         func isPathAndNameEqual(node: TargetNode) -> Bool {
-            node.path == path && node.target.name == name
+            node.project.path == path && node.target.name == name
         }
 
         let targetNodes = entryNodes.compactMap { $0 as? TargetNode }
