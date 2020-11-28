@@ -75,12 +75,12 @@ public final class CarthageInteractor: CarthageInteracting {
         }
         
         // determine platforms
-        let platoforms: Set<Platform> = dependencies
+        let platforms: Set<Platform> = dependencies
             .reduce(Set<Platform>()) { platforms, dependency in platforms.union(dependency.platforms) }
 
         try fileHandler.inTemporaryDirectory { temporaryDirectoryPath in
             // create `carthage` shell command
-            let command = carthageCommandGenerator.command(method: method, path: temporaryDirectoryPath, platforms: platoforms)
+            let command = carthageCommandGenerator.command(method: method, path: temporaryDirectoryPath, platforms: platforms)
 
             // create `Cartfile`
             let cartfileContent = try cartfileContentGenerator.cartfileContent(for: dependencies)
