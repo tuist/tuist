@@ -19,8 +19,8 @@ enum CartfileContentBuilderError: FatalError, Equatable {
     /// Error description.
     var description: String {
         switch self {
-        case let .rangeRequirementNotSupported(dependencyName, _, _):
-            return "\(dependencyName) can not be installed. Carthage do not support versions range requirement in Cartfile."
+        case let .rangeRequirementNotSupported(dependencyName, fromVersion, toVersion):
+            return "\(dependencyName) in version between \(fromVersion) and \(toVersion) can not be installed. Carthage do not support versions range requirement in Cartfile."
         }
     }
 }
