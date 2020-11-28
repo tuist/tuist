@@ -63,7 +63,6 @@ public final class CarthageInteractor: CarthageInteracting {
         self.carthageFrameworksInteractor = carthageFrameworksInteractor
     }
 
-    #warning("TODO: The hardes part here will be knowing whether we need to recompile the frameworks")
     public func install(
         at path: AbsolutePath,
         method: InstallDependenciesMethod,
