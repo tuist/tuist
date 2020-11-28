@@ -8,7 +8,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Generate multiple `XXX-Project` schemes if there are multiple platforms [#2081](https://github.com/tuist/tuist/pull/2081) by [@fortmarek](https://github.com/fortmarek)
 
-## 1.26.0
+## 1.26.0 - New World
 
 ### Added
 
