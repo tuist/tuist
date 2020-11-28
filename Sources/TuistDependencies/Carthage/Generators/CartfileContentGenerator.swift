@@ -2,9 +2,9 @@ import TSCBasic
 import TuistCore
 import TuistSupport
 
-// MARK: - Cartfile Content Builder Error
+// MARK: - Cartfile Content Generator Error
 
-enum CartfileContentBuilderError: FatalError, Equatable {
+enum CartfileContentGeneratorError: FatalError, Equatable {
     /// Thrown when `Requirement.range` has been used for `carthage`'s dependency.
     case rangeRequirementNotSupported(dependencyName: String, fromVersion: String, toVersion: String)
 
@@ -25,22 +25,20 @@ enum CartfileContentBuilderError: FatalError, Equatable {
     }
 }
 
-// MARK: - Cartfile Content Builder
+// MARK: - Cartfile Content Generating Error
 
-final class CartfileContentBuilder {
-    // MARK: - State
+public protocol CartfileContentGenerating {
+    /// Generates content for `Cartfile`.
+    /// - Parameter dependencies: The dependencies whose will be installed.
+    func cartfileContent(for dependencies: [CarthageDependency]) throws -> String
+}
 
-    private let dependencies: [CarthageDependency]
+// MARK: - Cartfile Content Generator
 
-    // MARK: - Init
-
-    init(dependencies: [CarthageDependency]) {
-        self.dependencies = dependencies
-    }
-
-    // MARK: - Build
-
-    func build() throws -> String {
+public final class CartfileContentGenerator: CartfileContentGenerating {
+    public init() { }
+    
+    public func cartfileContent(for dependencies: [CarthageDependency]) throws -> String {
         try dependencies
             .map { try $0.toString() }
             .joined(separator: "\n")
@@ -57,7 +55,7 @@ private extension CarthageDependency {
         case let .upToNextMinor(version):
             return #"github "\#(name)" ~> \#(version)"#
         case let .range(fromVersion, toVersion):
-            throw CartfileContentBuilderError.rangeRequirementNotSupported(dependencyName: name, fromVersion: fromVersion, toVersion: toVersion)
+            throw CartfileContentGeneratorError.rangeRequirementNotSupported(dependencyName: name, fromVersion: fromVersion, toVersion: toVersion)
         case let .branch(branch):
             return #"github "\#(name)" "\#(branch)""#
         case let .revision(revision):

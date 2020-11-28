@@ -45,17 +45,20 @@ public protocol CarthageInteracting {
 public final class CarthageInteractor: CarthageInteracting {
     private let fileHandler: FileHandling
     private let carthageCommandGenerator: CarthageCommandGenerating
+    private let cartfileContentGenerator: CartfileContentGenerating
     private let cartfileResolvedInteractor: CartfileResolvedInteracting
     private let carthageFrameworksInteractor: CarthageFrameworksInteracting
 
     public init(
         fileHandler: FileHandling = FileHandler.shared,
         carthageCommandGenerator: CarthageCommandGenerating = CarthageCommandGenerator(),
+        cartfileContentGenerator: CartfileContentGenerating = CartfileContentGenerator(),
         cartfileResolvedInteractor: CartfileResolvedInteracting = CartfileResolvedInteractor(),
         carthageFrameworksInteractor: CarthageFrameworksInteracting = CarthageFrameworksInteractor()
     ) {
         self.fileHandler = fileHandler
         self.carthageCommandGenerator = carthageCommandGenerator
+        self.cartfileContentGenerator = cartfileContentGenerator
         self.cartfileResolvedInteractor = cartfileResolvedInteractor
         self.carthageFrameworksInteractor = carthageFrameworksInteractor
     }
@@ -80,7 +83,7 @@ public final class CarthageInteractor: CarthageInteracting {
             let command = carthageCommandGenerator.command(method: method, path: temporaryDirectoryPath, platforms: platoforms)
 
             // create `Cartfile`
-            let cartfileContent = try buildCarfileContent(for: dependencies)
+            let cartfileContent = try cartfileContentGenerator.cartfileContent(for: dependencies)
             let cartfilePath = temporaryDirectoryPath.appending(component: "Cartfile")
             try fileHandler.touch(cartfilePath)
             try fileHandler.write(cartfileContent, path: cartfilePath, atomically: true)
@@ -100,11 +103,6 @@ public final class CarthageInteractor: CarthageInteracting {
     }
 
     // MARK: - Helpers
-
-    private func buildCarfileContent(for dependencies: [CarthageDependency]) throws -> String {
-        try CartfileContentBuilder(dependencies: dependencies)
-            .build()
-    }
 
     /// Returns true if Carthage is avaiable in the environment.
     /// - Returns: True if Carthege is available globally in the system.

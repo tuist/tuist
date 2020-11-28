@@ -12,6 +12,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
 
     private var fileHandlerMock: MockFileHandler!
     private var carthageCommandGenerator: MockCarthageCommandGenerator!
+    private var cartfileContentGenerator: MockCartfileContentGenerator!
     private var cartfileResolvedInteractor: MockCartfileResolvedInteractor!
     private var carthageFrameworksInteractor: MockCarthageFrameworksInteractor!
 
@@ -28,17 +29,20 @@ final class CarthageInteractorTests: TuistUnitTestCase {
 
         fileHandlerMock = MockFileHandler(temporaryDirectory: { self.temporaryDirectoryPath })
         carthageCommandGenerator = MockCarthageCommandGenerator()
+        cartfileContentGenerator = MockCartfileContentGenerator()
         cartfileResolvedInteractor = MockCartfileResolvedInteractor()
         carthageFrameworksInteractor = MockCarthageFrameworksInteractor()
 
         subject = CarthageInteractor(fileHandler: fileHandlerMock,
                                      carthageCommandGenerator: carthageCommandGenerator,
+                                     cartfileContentGenerator: cartfileContentGenerator,
                                      cartfileResolvedInteractor: cartfileResolvedInteractor,
                                      carthageFrameworksInteractor: carthageFrameworksInteractor)
     }
 
     override func tearDown() {
         carthageCommandGenerator = nil
+        cartfileContentGenerator = nil
         cartfileResolvedInteractor = nil
         carthageFrameworksInteractor = nil
         fileHandlerMock = nil
@@ -72,6 +76,9 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         XCTAssertEqual(carthageCommandGenerator.invokedCommandParameters?.method, .fetch)
         XCTAssertEqual(carthageCommandGenerator.invokedCommandParameters?.path, temporaryDirectoryPath)
         XCTAssertEqual(carthageCommandGenerator.invokedCommandParameters?.platforms, [.iOS])
+        
+        XCTAssertTrue(cartfileContentGenerator.invokedCartfileContent)
+        XCTAssertEqual(cartfileContentGenerator.invokedCartfileContentParameters, stubbedDependencies)
         
         XCTAssertTrue(cartfileResolvedInteractor.invokedLoadIfExist)
         XCTAssertEqual(cartfileResolvedInteractor.invokedLoadIfExistParameters?.path, rootPath)
