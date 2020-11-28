@@ -6,11 +6,14 @@ import TuistSupport
 
 enum FrameworkNodeLoaderError: FatalError, Equatable {
     case frameworkNotFound(AbsolutePath)
+    case invalidDependencyPath(AbsolutePath)
 
     /// Error type.
     var type: ErrorType {
         switch self {
         case .frameworkNotFound:
+            return .abort
+        case .invalidDependencyPath:
             return .abort
         }
     }
@@ -20,6 +23,8 @@ enum FrameworkNodeLoaderError: FatalError, Equatable {
         switch self {
         case let .frameworkNotFound(path):
             return "Couldn't find framework at \(path.pathString)"
+        case let .invalidDependencyPath(path):
+            return "Couldn't find dependency at \(path.pathString)"
         }
     }
 }
@@ -75,7 +80,9 @@ public final class FrameworkNodeLoader: FrameworkNodeLoading {
             .filter { $0 != binaryPath }
             .map { $0.removingLastComponent() }
             .map { dependencyPath -> PrecompiledNode.Dependency in
-                let node = try load(path: dependencyPath)
+                guard let node = try? load(path: dependencyPath) else {
+                    throw FrameworkNodeLoaderError.invalidDependencyPath(dependencyPath)
+                }
                 return PrecompiledNode.Dependency.framework(node)
             } ?? []
     }

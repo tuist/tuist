@@ -1,6 +1,26 @@
 import Foundation
 import TSCBasic
-import TuistCore
+import TuistSupport
+
+public enum CarthageGraphLoaderError: FatalError, Equatable {
+    case invalidPath(AbsolutePath)
+
+    /// Error type.
+    public var type: ErrorType {
+        switch self {
+        case .invalidPath:
+            return .abort
+        }
+    }
+
+    /// Error description
+    public var description: String {
+        switch self {
+        case let .invalidPath(path):
+            return "The path: \(path) is not a valid Carthage path."
+        }
+    }
+}
 
 public protocol CarthageGraphLoading {
     /// Loads the given dependencies at the given path.
@@ -23,7 +43,10 @@ public struct CarthageGraphLoader: CarthageGraphLoading {
     }
 
     public func load(dependencies: [CarthageDependency], atPath path: AbsolutePath) throws -> DependencyGraph {
-        DependencyGraph(entryNodes: try dependencies.map { try load(dependency: $0, at: path) })
+        guard path.pathString.contains("Carthage/Build") else {
+            throw CarthageGraphLoaderError.invalidPath(path)
+        }
+        return DependencyGraph(entryNodes: try dependencies.map { try load(dependency: $0, at: path) })
     }
 
     private func load(dependency: CarthageDependency, at path: AbsolutePath) throws -> FrameworkNode {

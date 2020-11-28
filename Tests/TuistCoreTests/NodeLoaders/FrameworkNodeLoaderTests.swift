@@ -61,9 +61,66 @@ final class FrameworkNodeLoaderTests: TuistUnitTestCase {
         XCTAssertThrowsSpecific(try subject.load(path: frameworkPath), FrameworkNodeLoaderError.frameworkNotFound(frameworkPath))
     }
 
-    func test_load_when_the_framework_exists() throws {
-        // Given
+    func test_load_unexistent_dependency_throws() throws {
         let path = try temporaryPath()
+
+        let (
+            frameworkPath,
+            _,
+            _,
+            _,
+            _
+        ) = try prepareValidFrameworkLoad(atPath: path)
+
+
+        let invalidPath = path.appending(RelativePath("Unexistent.framework/Unexistent"))
+        var isFirstRecursiveCall = false
+        otoolController.dlybDependenciesPathStub = { absolutePath in
+            guard !isFirstRecursiveCall else { return .just([]) }
+            isFirstRecursiveCall = true
+            return .just([
+                invalidPath
+            ])
+        }
+
+        XCTAssertThrowsSpecific(
+            try subject.load(path: frameworkPath),
+            FrameworkNodeLoaderError.invalidDependencyPath(invalidPath.removingLastComponent())
+        )
+
+    }
+
+    func test_load_when_the_framework_exists() throws {
+        let path = try temporaryPath()
+
+        let (
+            frameworkPath,
+            dsymPath,
+            bcsymbolmapPaths,
+            linking,
+            architectures
+        ) = try prepareValidFrameworkLoad(atPath: path)
+
+        // When
+        let got = try subject.load(path: frameworkPath)
+
+        // Then
+        XCTAssertEqual(got, FrameworkNode(path: frameworkPath,
+                                          dsymPath: dsymPath,
+                                          bcsymbolmapPaths: bcsymbolmapPaths,
+                                          linking: linking,
+                                          architectures: architectures,
+                                          dependencies: []))
+    }
+
+    private func prepareValidFrameworkLoad(atPath path: AbsolutePath) throws -> (
+        frameworkPath: AbsolutePath,
+        dsymPath: AbsolutePath,
+        bcsymbolmapPaths: [AbsolutePath],
+        linking: BinaryLinking,
+        architectures: [BinaryArchitecture]
+    ) {
+        // Given
         let frameworkPath = path.appending(component: "tuist.framework")
         let dsymPath = path.appending(component: "tuist.dSYM")
         let bcsymbolmapPaths = [path.appending(component: "tuist.bcsymbolmap")]
@@ -89,15 +146,6 @@ final class FrameworkNodeLoaderTests: TuistUnitTestCase {
             return architectures
         }
 
-        // When
-        let got = try subject.load(path: frameworkPath)
-
-        // Then
-        XCTAssertEqual(got, FrameworkNode(path: frameworkPath,
-                                          dsymPath: dsymPath,
-                                          bcsymbolmapPaths: bcsymbolmapPaths,
-                                          linking: linking,
-                                          architectures: architectures,
-                                          dependencies: []))
+        return (frameworkPath, dsymPath, bcsymbolmapPaths, linking, architectures)
     }
 }

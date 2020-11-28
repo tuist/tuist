@@ -10,4 +10,10 @@ public struct CarthageDependency {
 
     /// Set of platforms for  the given dependency
     public let platforms: Set<Platform>
+
+    public init(name: String, requirement: Requirement, platforms: Set<Platform>) {
+        self.name = name
+        self.requirement = requirement
+        self.platforms = platforms
+    }
 }

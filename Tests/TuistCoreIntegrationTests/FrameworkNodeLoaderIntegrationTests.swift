@@ -25,7 +25,7 @@ final class FrameworkNodeLoaderIntegrationTests: TuistTestCase {
     func test_loading_AlamofireImage_loads_Alamofire() throws {
         // Given
         let carthagePath = try temporaryFixture("Carthage/")
-        let frameworkPath = FileHandler.shared.glob(carthagePath, glob: "AlamofireImage.framework").first!
+        let frameworkPath = FileHandler.shared.glob(carthagePath, glob: "**/AlamofireImage.framework").first!
 
         // When
         let node = try subject.load(path: frameworkPath)
@@ -41,7 +41,7 @@ final class FrameworkNodeLoaderIntegrationTests: TuistTestCase {
     func test_loading_RxBlocking_fails_RxSwift_not_found() throws {
         // Given
         let carthagePath = try temporaryFixture("Carthage/")
-        let frameworkPath = FileHandler.shared.glob(carthagePath, glob: "RxBlocking.framework").first!
+        let frameworkPath = FileHandler.shared.glob(carthagePath, glob: "**/RxBlocking.framework").first!
 
         // Then
         XCTAssertThrowsError(
@@ -51,7 +51,7 @@ final class FrameworkNodeLoaderIntegrationTests: TuistTestCase {
     }
 }
 
-private extension PrecompiledNode.Dependency {
+extension PrecompiledNode.Dependency {
     var frameworkNode: FrameworkNode? {
         switch self {
         case let .framework(node): return node
