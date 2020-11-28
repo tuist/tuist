@@ -45,18 +45,42 @@ final class TestService {
 
     /// Simulator controller
     let simulatorController: SimulatorControlling
+    
+    private let temporaryDirectory: TemporaryDirectory
 
+    convenience init (
+        xcodebuildController: XcodeBuildControlling = XcodeBuildController(),
+        buildGraphInspector: BuildGraphInspecting = BuildGraphInspector(),
+        simulatorController: SimulatorControlling = SimulatorController()
+    ) throws {
+        let temporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
+        self.init(
+            temporaryDirectory: temporaryDirectory,
+            generator: Generator(
+                projectMapperProvider: AutomationProjectMapperProvider(
+                    temporaryDirectory: AbsolutePath("/Users/marekfort/Downloads/tmp")
+                ),
+                graphMapperProvider: GraphMapperProvider(
+//                    temporaryDirectory: AbsolutePath("/Users/marekfort/Downloads/tmp")
+//                    temporaryDirectory: temporaryDirectory.path
+                ),
+                workspaceMapperProvider: AutomationWorkspaceMapperProvider(
+//                    temporaryDirectory: temporaryDirectory.path
+                    temporaryDirectory: AbsolutePath("/Users/marekfort/Downloads/tmp")
+                ),
+                manifestLoaderFactory: ManifestLoaderFactory()
+            )
+        )
+    }
+    
     init(
-        generator: Generating = Generator(
-            projectMapperProvider: AutomationProjectMapperProvider(),
-            graphMapperProvider: GraphMapperProvider(),
-            workspaceMapperProvider: AutomationWorkspaceMapperProvider(),
-            manifestLoaderFactory: ManifestLoaderFactory()
-        ),
+        temporaryDirectory: TemporaryDirectory,
+        generator: Generating,
         xcodebuildController: XcodeBuildControlling = XcodeBuildController(),
         buildGraphInspector: BuildGraphInspecting = BuildGraphInspector(),
         simulatorController: SimulatorControlling = SimulatorController()
     ) {
+        self.temporaryDirectory = temporaryDirectory
         self.generator = generator
         self.xcodebuildController = xcodebuildController
         self.buildGraphInspector = buildGraphInspector
@@ -127,7 +151,35 @@ final class TestService {
             throw TestServiceError.schemeWithoutTestableTargets(scheme: scheme.name)
         }
 
-        let destination: XcodeBuildDestination
+        let destination = try findDestination(
+            buildableTarget: buildableTarget,
+            scheme: scheme,
+            graph: graph,
+            version: version,
+            deviceName: deviceName
+        )
+        let workspacePath = try buildGraphInspector.workspacePath(directory: graph.workspace.path)!
+        _ = try xcodebuildController.test(
+            .workspace(workspacePath),
+            scheme: scheme.name,
+            clean: clean,
+            destination: destination,
+            arguments: buildGraphInspector.buildArguments(target: buildableTarget, configuration: configuration, skipSigning: true)
+        )
+        .printFormattedOutput()
+        .toBlocking()
+        .last()
+    }
+    
+    private func findDestination(
+        buildableTarget: Target,
+        scheme: Scheme,
+        graph: Graph,
+        version: Version?,
+        deviceName: String?
+    ) throws -> XcodeBuildDestination {
+        // If user does not specify device, we return `.unspecified`
+        guard version != nil || deviceName != nil else { return .unspecified }
         switch buildableTarget.platform {
         case .iOS, .tvOS, .watchOS:
             let minVersion: Version?
@@ -149,21 +201,9 @@ final class TestService {
             )
             .toBlocking()
             .single()
-            destination = .device(deviceAndRuntime.device.udid)
+            return .device(deviceAndRuntime.device.udid)
         case .macOS:
-            destination = .mac
+            return .mac
         }
-
-        let workspacePath = try buildGraphInspector.workspacePath(directory: graph.workspace.path)!
-        _ = try xcodebuildController.test(
-            .workspace(workspacePath),
-            scheme: scheme.name,
-            clean: clean,
-            destination: destination,
-            arguments: buildGraphInspector.buildArguments(target: buildableTarget, configuration: configuration, skipSigning: true)
-        )
-        .printFormattedOutput()
-        .toBlocking()
-        .last()
     }
 }

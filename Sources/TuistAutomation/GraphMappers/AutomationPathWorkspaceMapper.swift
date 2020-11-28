@@ -1,29 +1,27 @@
 import Foundation
 import TuistCore
 import TuistSupport
+import TSCBasic
 
 /// Updates path of workspace to point to where automation workspace should be generated
 public final class AutomationPathWorkspaceMapper: WorkspaceMapping {
-    private let contentHasher: ContentHashing
+    private let temporaryDirectory: AbsolutePath
 
     public init(
-        contentHasher: ContentHashing = ContentHasher()
+        temporaryDirectory: AbsolutePath
     ) {
-        self.contentHasher = contentHasher
+        self.temporaryDirectory = temporaryDirectory
     }
 
     public func map(workspace: WorkspaceWithProjects) throws -> (WorkspaceWithProjects, [SideEffectDescriptor]) {
         var workspace = workspace
-        let pathHash = try contentHasher.hash(workspace.workspace.path.pathString)
-        let projectsDirectory = Environment.shared.projectsCacheDirectory
-            .appending(component: workspace.workspace.name + "-" + pathHash)
-        workspace.workspace.path = projectsDirectory
+        workspace.workspace.path = temporaryDirectory
         return (
             workspace,
             [
                 .directory(
                     DirectoryDescriptor(
-                        path: projectsDirectory,
+                        path: temporaryDirectory,
                         state: .present
                     )
                 ),
