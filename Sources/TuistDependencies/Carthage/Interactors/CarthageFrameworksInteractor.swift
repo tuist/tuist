@@ -28,7 +28,7 @@ public final class CarthageFrameworksInteractor: CarthageFrameworksInteracting {
         try Platform.allCases.forEach { platform in
             let carthagePlatfromBuildsDirectory = buildCarthagePlatfromBuildsDirectory(carthageBuildDirectory: carthageBuildDirectory, platform: platform)
             guard fileHandler.exists(carthagePlatfromBuildsDirectory) else { return }
-            
+
             let builtFrameworks: Set<String> = Set(try getBuiltFrameworks(carthagePlatfromBuildsDirectory: carthagePlatfromBuildsDirectory))
 
             try builtFrameworks.forEach { frameworkName in

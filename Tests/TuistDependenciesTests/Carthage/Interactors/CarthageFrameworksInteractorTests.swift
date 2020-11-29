@@ -64,7 +64,7 @@ final class CarthageFrameworksInteractorTests: TuistUnitTestCase {
         XCTAssertTrue(fileHandler.exists(dependenciesDirectory.appending(components: "RxMoya", "macOS", "RxMoya.framework")))
         XCTAssertTrue(fileHandler.exists(dependenciesDirectory.appending(components: "RxMoya", "watchOS", "RxMoya.framework")))
     }
-    
+
     func test_save_only_one_platform() throws {
         // Given
         let rootPath = try temporaryPath()
@@ -76,16 +76,16 @@ final class CarthageFrameworksInteractorTests: TuistUnitTestCase {
             "Temporary/Carthage/Build/iOS/ReactiveMoya.framework/Info.plist",
             "Temporary/Carthage/Build/iOS/RxMoya.framework/Info.plist",
         ])
-        
+
         // When
         try subject.copyFrameworks(carthageBuildDirectory: carthageBuildDirectory, dependenciesDirectory: dependenciesDirectory)
-        
+
         // Then
         XCTAssertTrue(fileHandler.exists(dependenciesDirectory.appending(components: "Moya", "iOS", "Moya.framework")))
         XCTAssertFalse(fileHandler.exists(dependenciesDirectory.appending(components: "Moya", "tvOS", "Moya.framework")))
         XCTAssertFalse(fileHandler.exists(dependenciesDirectory.appending(components: "Moya", "macOS", "Moya.framework")))
         XCTAssertFalse(fileHandler.exists(dependenciesDirectory.appending(components: "Moya", "watchOS", "Moya.framework")))
-        
+
         XCTAssertTrue(fileHandler.exists(dependenciesDirectory.appending(components: "ReactiveMoya", "iOS", "ReactiveMoya.framework")))
         XCTAssertFalse(fileHandler.exists(dependenciesDirectory.appending(components: "ReactiveMoya", "tvOS", "ReactiveMoya.framework")))
         XCTAssertFalse(fileHandler.exists(dependenciesDirectory.appending(components: "ReactiveMoya", "macOS", "ReactiveMoya.framework")))
