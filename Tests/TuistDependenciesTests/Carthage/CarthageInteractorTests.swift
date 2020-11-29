@@ -53,9 +53,11 @@ final class CarthageInteractorTests: TuistUnitTestCase {
     func test_install() throws {
         // Given
         let rootPath = try temporaryPath()
-        let dependenciesDirectoryPath = rootPath
+        let dependenciesDirectory = rootPath
             .appending(component: Constants.tuistDirectoryName)
             .appending(component: Constants.DependenciesDirectory.name)
+        let carthageBuildDirectory = temporaryDirectoryPath
+            .appending(components: "Carthage", "Build")
         
         try fileHandler.touch(temporaryDirectoryPath.appending(components: Constants.DependenciesDirectory.cartfileResolvedName))
         
@@ -71,12 +73,13 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         system.succeedCommand(stubbedCommand)
 
         // When
-        try subject.install(dependenciesDirectoryPath: dependenciesDirectoryPath, method: .fetch, dependencies: stubbedDependencies)
+        try subject.install(dependenciesDirectory: dependenciesDirectory, method: .fetch, dependencies: stubbedDependencies)
 
         // Then
-        let expectedCartfileResolvedPath = dependenciesDirectoryPath
+        let expectedCartfileResolvedPath = dependenciesDirectory
             .appending(component: Constants.DependenciesDirectory.lockfilesDirectoryName)
             .appending(component: Constants.DependenciesDirectory.cartfileResolvedName)
+        
         XCTAssertTrue(fileHandler.exists(expectedCartfileResolvedPath))
         
         XCTAssertTrue(carthageCommandGenerator.invokedCommand)
@@ -87,8 +90,8 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         XCTAssertTrue(cartfileContentGenerator.invokedCartfileContent)
         XCTAssertEqual(cartfileContentGenerator.invokedCartfileContentParameters, stubbedDependencies)
 
-        XCTAssertTrue(carthageFrameworksInteractor.invokedSave)
-        XCTAssertEqual(carthageFrameworksInteractor.invokedSaveParameters?.path, dependenciesDirectoryPath)
-        XCTAssertEqual(carthageFrameworksInteractor.invokedSaveParameters?.temporaryDirectoryPath, temporaryDirectoryPath)
+        XCTAssertTrue(carthageFrameworksInteractor.invokedCopyFrameworks)
+        XCTAssertEqual(carthageFrameworksInteractor.invokedCopyFrameworksParameters?.carthageBuildDirectory, carthageBuildDirectory)
+        XCTAssertEqual(carthageFrameworksInteractor.invokedCopyFrameworksParameters?.destinationDirectory, dependenciesDirectory)
     }
 }

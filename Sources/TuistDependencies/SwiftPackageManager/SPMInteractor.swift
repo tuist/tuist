@@ -29,7 +29,7 @@ public protocol SwiftPackageManagerInteracting {
     /// Installes `Swift Package Manager` dependencies.
     /// - Parameter dependenciesDirectoryPath: The path to the directory that contains the `Tuist/Dependencies/` directory.
     /// - Parameter method: Installation method.
-    func install(dependenciesDirectoryPath: AbsolutePath, method: InstallDependenciesMethod) throws
+    func install(dependenciesDirectory: AbsolutePath, method: InstallDependenciesMethod) throws
 }
 
 // MARK: - Swift Package Manager Interactor
@@ -37,7 +37,7 @@ public protocol SwiftPackageManagerInteracting {
 public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting {
     public init() {}
 
-    public func install(dependenciesDirectoryPath: AbsolutePath, method: InstallDependenciesMethod) throws {
+    public func install(dependenciesDirectory: AbsolutePath, method: InstallDependenciesMethod) throws {
         throw SwiftPackageManagerInteractorError.unimplemented
     }
 }

@@ -55,7 +55,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
 
         // Then
         XCTAssertTrue(carthageInteractor.invokedInstall)
-        XCTAssertEqual(carthageInteractor.invokedInstallParameters?.dependenciesDirectoryPath, dependenciesDirectoryPath)
+        XCTAssertEqual(carthageInteractor.invokedInstallParameters?.dependenciesDirectory, dependenciesDirectoryPath)
         XCTAssertEqual(carthageInteractor.invokedInstallParameters?.method, stubbedMethod)
         XCTAssertEqual(carthageInteractor.invokedInstallParameters?.dependencies, stubbedCarthageDependencies)
     }

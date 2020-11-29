@@ -8,15 +8,15 @@ public final class MockCarthageInteractor: CarthageInteracting {
 
     var invokedInstall = false
     var invokedInstallCount = 0
-    var invokedInstallParameters: (dependenciesDirectoryPath: AbsolutePath, method: InstallDependenciesMethod, dependencies: [CarthageDependency])?
-    var invokedInstallParametersList = [(dependenciesDirectoryPath: AbsolutePath, method: InstallDependenciesMethod, dependencies: [CarthageDependency])]()
+    var invokedInstallParameters: (dependenciesDirectory: AbsolutePath, method: InstallDependenciesMethod, dependencies: [CarthageDependency])?
+    var invokedInstallParametersList = [(dependenciesDirectory: AbsolutePath, method: InstallDependenciesMethod, dependencies: [CarthageDependency])]()
     var stubbedInstallError: Error?
 
-    public func install(dependenciesDirectoryPath: AbsolutePath, method: InstallDependenciesMethod, dependencies: [CarthageDependency]) throws {
+    public func install(dependenciesDirectory: AbsolutePath, method: InstallDependenciesMethod, dependencies: [CarthageDependency]) throws {
         invokedInstall = true
         invokedInstallCount += 1
-        invokedInstallParameters = (dependenciesDirectoryPath, method, dependencies)
-        invokedInstallParametersList.append((dependenciesDirectoryPath, method, dependencies))
+        invokedInstallParameters = (dependenciesDirectory, method, dependencies)
+        invokedInstallParametersList.append((dependenciesDirectory, method, dependencies))
         if let error = stubbedInstallError {
             throw error
         }

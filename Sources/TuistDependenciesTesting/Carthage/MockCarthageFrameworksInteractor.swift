@@ -6,18 +6,18 @@ import TuistCore
 public final class MockCarthageFrameworksInteractor: CarthageFrameworksInteracting {
     public init() {}
 
-    var invokedSave = false
-    var invokedSaveCount = 0
-    var invokedSaveParameters: (path: AbsolutePath, temporaryDirectoryPath: AbsolutePath)?
-    var invokedSaveParametersList = [(path: AbsolutePath, temporaryDirectoryPath: AbsolutePath)]()
-    var stubbedSaveError: Error?
+    var invokedCopyFrameworks = false
+    var invokedCopyFrameworksCount = 0
+    var invokedCopyFrameworksParameters: (carthageBuildDirectory: AbsolutePath, destinationDirectory: AbsolutePath)?
+    var invokedCopyFrameworksParametersList = [(carthageBuildDirectory: AbsolutePath, destinationDirectory: AbsolutePath)]()
+    var stubbedCopyFrameworksError: Error?
 
-    public func save(at path: AbsolutePath, temporaryDirectoryPath: AbsolutePath) throws {
-        invokedSave = true
-        invokedSaveCount += 1
-        invokedSaveParameters = (path, temporaryDirectoryPath)
-        invokedSaveParametersList.append((path, temporaryDirectoryPath))
-        if let error = stubbedSaveError {
+    public func copyFrameworks(carthageBuildDirectory: AbsolutePath, destinationDirectory: AbsolutePath) throws {
+        invokedCopyFrameworks = true
+        invokedCopyFrameworksCount += 1
+        invokedCopyFrameworksParameters = (carthageBuildDirectory, destinationDirectory)
+        invokedCopyFrameworksParametersList.append((carthageBuildDirectory, destinationDirectory))
+        if let error = stubbedCopyFrameworksError {
             throw error
         }
     }

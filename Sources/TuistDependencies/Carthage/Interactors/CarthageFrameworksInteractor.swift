@@ -7,9 +7,9 @@ import TuistSupport
 public protocol CarthageFrameworksInteracting {
     /// Saves frameworks installed using `carthage`.
     /// - Parameters:
-    ///   - path: Directory whose project's dependencies will be installed.
-    ///   - temporaryDirectoryPath: Folder where dependencies are being installed.
-    func save(at path: AbsolutePath, temporaryDirectoryPath: AbsolutePath) throws
+    ///   - carthageBuildDirectory: The path to the directory that contains the `Carthage/Build/` directory.
+    ///   - destinationDirectory: The path to the directory that contains the `Tuist/Dependencies/` directory.
+    func copyFrameworks(carthageBuildDirectory: AbsolutePath, destinationDirectory: AbsolutePath) throws
 }
 
 public final class CarthageFrameworksInteractor: CarthageFrameworksInteracting {
@@ -19,11 +19,8 @@ public final class CarthageFrameworksInteractor: CarthageFrameworksInteracting {
         self.fileHandler = fileHandler
     }
 
-    public func save(at path: AbsolutePath, temporaryDirectoryPath: AbsolutePath) throws {
-        let buildDirectoryPath = temporaryDirectoryPath.appending(components: "Carthage", "Build")
-        let dependenciesDirectoryPath = path.appending(components: Constants.tuistDirectoryName, Constants.DependenciesDirectory.name)
-
-        let versionFiles = try readVersionFiles(at: buildDirectoryPath)
+    public func copyFrameworks(carthageBuildDirectory: AbsolutePath, destinationDirectory: AbsolutePath) throws {
+        let versionFiles = try readVersionFiles(at: carthageBuildDirectory)
 
         var alreadyCopiediOSFramworks = Set<String>()
         var alreadyCopiedmacOSFramworks = Set<String>()
@@ -34,8 +31,8 @@ public final class CarthageFrameworksInteractor: CarthageFrameworksInteracting {
             try $0.iOS?.forEach {
                 guard !alreadyCopiediOSFramworks.contains($0.name) else { return }
 
-                let fromPath = buildDirectoryPath.appending(components: "iOS", "\($0.name).framework")
-                let toPath = dependenciesDirectoryPath.appending(components: $0.name, "iOS", "\($0.name).framework")
+                let fromPath = carthageBuildDirectory.appending(components: "iOS", "\($0.name).framework")
+                let toPath = destinationDirectory.appending(components: $0.name, "iOS", "\($0.name).framework")
                 try copyDirectory(from: fromPath, to: toPath)
 
                 alreadyCopiediOSFramworks.insert($0.name)
@@ -43,8 +40,8 @@ public final class CarthageFrameworksInteractor: CarthageFrameworksInteracting {
             try $0.macOS?.forEach {
                 guard !alreadyCopiedmacOSFramworks.contains($0.name) else { return }
 
-                let fromPath = buildDirectoryPath.appending(components: "Mac", "\($0.name).framework")
-                let toPath = dependenciesDirectoryPath.appending(components: $0.name, "macOS", "\($0.name).framework")
+                let fromPath = carthageBuildDirectory.appending(components: "Mac", "\($0.name).framework")
+                let toPath = destinationDirectory.appending(components: $0.name, "macOS", "\($0.name).framework")
                 try copyDirectory(from: fromPath, to: toPath)
 
                 alreadyCopiedmacOSFramworks.insert($0.name)
@@ -52,8 +49,8 @@ public final class CarthageFrameworksInteractor: CarthageFrameworksInteracting {
             try $0.tvOS?.forEach {
                 guard !alreadyCopiedtvOSFramworks.contains($0.name) else { return }
 
-                let fromPath = buildDirectoryPath.appending(components: "tvOS", "\($0.name).framework")
-                let toPath = dependenciesDirectoryPath.appending(components: $0.name, "tvOS", "\($0.name).framework")
+                let fromPath = carthageBuildDirectory.appending(components: "tvOS", "\($0.name).framework")
+                let toPath = destinationDirectory.appending(components: $0.name, "tvOS", "\($0.name).framework")
                 try copyDirectory(from: fromPath, to: toPath)
 
                 alreadyCopiedtvOSFramworks.insert($0.name)
@@ -61,8 +58,8 @@ public final class CarthageFrameworksInteractor: CarthageFrameworksInteracting {
             try $0.watchOS?.forEach {
                 guard !alreadyCopiedwatchOSFramworks.contains($0.name) else { return }
 
-                let fromPath = buildDirectoryPath.appending(components: "watchOS", "\($0.name).framework")
-                let toPath = dependenciesDirectoryPath.appending(components: $0.name, "watchOS", "\($0.name).framework")
+                let fromPath = carthageBuildDirectory.appending(components: "watchOS", "\($0.name).framework")
+                let toPath = destinationDirectory.appending(components: $0.name, "watchOS", "\($0.name).framework")
                 try copyDirectory(from: fromPath, to: toPath)
 
                 alreadyCopiedwatchOSFramworks.insert($0.name)
