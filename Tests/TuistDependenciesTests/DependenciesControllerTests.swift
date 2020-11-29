@@ -36,7 +36,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_install() throws {
+    func test_install_fetch() throws {
         // Given
         let rootPath = try temporaryPath()
         let dependenciesDirectoryPath = rootPath
