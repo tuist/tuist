@@ -496,15 +496,6 @@ let package = Package(
                 "TuistSupportTesting",
             ]
         ),
-        .testTarget(
-            name: "TuistDependenciesIntegrationTests",
-            dependencies: [
-                "TuistDependencies",
-                "TuistDependenciesTesting",
-                "TuistCoreTesting",
-                "TuistSupportTesting",
-            ]
-        ),
         .target(
             name: "TuistLintCode",
             dependencies: [
