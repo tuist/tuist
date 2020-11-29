@@ -21,7 +21,7 @@ final class CarthageFrameworksInteractorTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_save() throws {
+    func test_save_all_platforms() throws {
         // Given
         let rootPath = try temporaryPath()
         let carthageBuildDirectory = rootPath.appending(components: "Temporary", "Carthage", "Build")
@@ -63,6 +63,38 @@ final class CarthageFrameworksInteractorTests: TuistUnitTestCase {
         XCTAssertTrue(fileHandler.exists(dependenciesDirectory.appending(components: "RxMoya", "tvOS", "RxMoya.framework")))
         XCTAssertTrue(fileHandler.exists(dependenciesDirectory.appending(components: "RxMoya", "macOS", "RxMoya.framework")))
         XCTAssertTrue(fileHandler.exists(dependenciesDirectory.appending(components: "RxMoya", "watchOS", "RxMoya.framework")))
+    }
+    
+    func test_save_only_one_platform() throws {
+        // Given
+        let rootPath = try temporaryPath()
+        let carthageBuildDirectory = rootPath.appending(components: "Temporary", "Carthage", "Build")
+        let dependenciesDirectory = rootPath.appending(components: Constants.tuistDirectoryName, Constants.DependenciesDirectory.name)
+
+        try createFiles([
+            "Temporary/Carthage/Build/iOS/Moya.framework/Info.plist",
+            "Temporary/Carthage/Build/iOS/ReactiveMoya.framework/Info.plist",
+            "Temporary/Carthage/Build/iOS/RxMoya.framework/Info.plist",
+        ])
+        
+        // When
+        try subject.copyFrameworks(carthageBuildDirectory: carthageBuildDirectory, dependenciesDirectory: dependenciesDirectory)
+        
+        // Then
+        XCTAssertTrue(fileHandler.exists(dependenciesDirectory.appending(components: "Moya", "iOS", "Moya.framework")))
+        XCTAssertFalse(fileHandler.exists(dependenciesDirectory.appending(components: "Moya", "tvOS", "Moya.framework")))
+        XCTAssertFalse(fileHandler.exists(dependenciesDirectory.appending(components: "Moya", "macOS", "Moya.framework")))
+        XCTAssertFalse(fileHandler.exists(dependenciesDirectory.appending(components: "Moya", "watchOS", "Moya.framework")))
+        
+        XCTAssertTrue(fileHandler.exists(dependenciesDirectory.appending(components: "ReactiveMoya", "iOS", "ReactiveMoya.framework")))
+        XCTAssertFalse(fileHandler.exists(dependenciesDirectory.appending(components: "ReactiveMoya", "tvOS", "ReactiveMoya.framework")))
+        XCTAssertFalse(fileHandler.exists(dependenciesDirectory.appending(components: "ReactiveMoya", "macOS", "ReactiveMoya.framework")))
+        XCTAssertFalse(fileHandler.exists(dependenciesDirectory.appending(components: "ReactiveMoya", "watchOS", "ReactiveMoya.framework")))
+
+        XCTAssertTrue(fileHandler.exists(dependenciesDirectory.appending(components: "RxMoya", "iOS", "RxMoya.framework")))
+        XCTAssertFalse(fileHandler.exists(dependenciesDirectory.appending(components: "RxMoya", "tvOS", "RxMoya.framework")))
+        XCTAssertFalse(fileHandler.exists(dependenciesDirectory.appending(components: "RxMoya", "macOS", "RxMoya.framework")))
+        XCTAssertFalse(fileHandler.exists(dependenciesDirectory.appending(components: "RxMoya", "watchOS", "RxMoya.framework")))
     }
 
     func test_save_with_removing_unnecessary() throws {

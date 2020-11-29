@@ -26,19 +26,22 @@ public final class CarthageFrameworksInteractor: CarthageFrameworksInteracting {
         var newGraph = Graph.empty
 
         try Platform.allCases.forEach { platform in
-            let builtFrameworks: Set<String> = Set(try getBuiltFrameworks(carthageBuildDirectory: carthageBuildDirectory, platform: platform))
+            let carthagePlatfromBuildsDirectory = buildCarthagePlatfromBuildsDirectory(carthageBuildDirectory: carthageBuildDirectory, platform: platform)
+            guard fileHandler.exists(carthagePlatfromBuildsDirectory) else { return }
+            
+            let builtFrameworks: Set<String> = Set(try getBuiltFrameworks(carthagePlatfromBuildsDirectory: carthagePlatfromBuildsDirectory))
 
-            try builtFrameworks.forEach {
-                let carthageBuildFrameworkPath = buildCarthageBuildPath(frameworkName: $0, carthageBuildDirectory: carthageBuildDirectory, platform: platform)
-                let destinationFramemorekPath = buildDestinationPath(frameworkName: $0, dependenciesDirectory: dependenciesDirectory, platform: platform)
+            try builtFrameworks.forEach { frameworkName in
+                let carthageBuildFrameworkPath = carthagePlatfromBuildsDirectory.appending(component: "\(frameworkName).framework")
+                let destinationFramemorekPath = dependenciesDirectory.appending(components: frameworkName, platform.caseValue, "\(frameworkName).framework")
                 try copyDirectory(from: carthageBuildFrameworkPath, to: destinationFramemorekPath)
             }
 
             let existingFrameworks: Set<String> = Set(graph.dependencies(for: platform))
             let frameworksToDelete = existingFrameworks.subtracting(builtFrameworks)
 
-            try frameworksToDelete.forEach {
-                let destinationFrameworkPath = buildDestinationPath(frameworkName: $0, dependenciesDirectory: dependenciesDirectory, platform: platform)
+            try frameworksToDelete.forEach { frameworkName in
+                let destinationFrameworkPath = dependenciesDirectory.appending(components: frameworkName, platform.caseValue, "\(frameworkName).framework")
                 try deleteDirectory(at: destinationFrameworkPath)
             }
 
@@ -50,7 +53,7 @@ public final class CarthageFrameworksInteractor: CarthageFrameworksInteracting {
 
     // MARK: - Helpers
 
-    private func carthageBuildPathDirectory(carthageBuildDirectory: AbsolutePath, platform: Platform) -> AbsolutePath {
+    private func buildCarthagePlatfromBuildsDirectory(carthageBuildDirectory: AbsolutePath, platform: Platform) -> AbsolutePath {
         switch platform {
         case .iOS, .watchOS, .tvOS:
             return carthageBuildDirectory.appending(component: platform.caseValue)
@@ -59,19 +62,9 @@ public final class CarthageFrameworksInteractor: CarthageFrameworksInteracting {
         }
     }
 
-    private func buildCarthageBuildPath(frameworkName: String, carthageBuildDirectory: AbsolutePath, platform: Platform) -> AbsolutePath {
-        carthageBuildPathDirectory(carthageBuildDirectory: carthageBuildDirectory, platform: platform).appending(component: "\(frameworkName).framework")
-    }
-
-    private func buildDestinationPath(frameworkName: String, dependenciesDirectory: AbsolutePath, platform: Platform) -> AbsolutePath {
-        dependenciesDirectory.appending(components: frameworkName, platform.caseValue, "\(frameworkName).framework")
-    }
-
-    private func getBuiltFrameworks(carthageBuildDirectory: AbsolutePath, platform: Platform) throws -> [String] {
-        let carthageBuildPath = carthageBuildPathDirectory(carthageBuildDirectory: carthageBuildDirectory, platform: platform)
-
-        return try fileHandler
-            .contentsOfDirectory(carthageBuildPath)
+    private func getBuiltFrameworks(carthagePlatfromBuildsDirectory: AbsolutePath) throws -> [String] {
+        try fileHandler
+            .contentsOfDirectory(carthagePlatfromBuildsDirectory)
             .filter { $0.isFolder && $0.extension == "framework" }
             .compactMap { $0.components.last?.components(separatedBy: ".").first }
     }
