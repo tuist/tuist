@@ -39,6 +39,8 @@ final class DependenciesControllerTests: TuistUnitTestCase {
     func test_install() throws {
         // Given
         let rootPath = try temporaryPath()
+        let tuistDirectoryPath = rootPath.appending(components: Constants.tuistDirectoryName)
+        
         let stubbedCarthageDependencies = [
             CarthageDependency(name: "Moya", requirement: .exact("1.1.1"), platforms: [.iOS]),
             CarthageDependency(name: "RxSwift", requirement: .exact("2.0.0"), platforms: [.iOS]),
@@ -50,9 +52,9 @@ final class DependenciesControllerTests: TuistUnitTestCase {
         try subject.install(at: rootPath, method: stubbedMethod, dependencies: stubbedDependencies)
 
         // Then
-        XCTAssertTrue(carthageInteractor.invokedSave)
-        XCTAssertEqual(carthageInteractor.invokedSaveParameters?.path, rootPath)
-        XCTAssertEqual(carthageInteractor.invokedSaveParameters?.method, stubbedMethod)
-        XCTAssertEqual(carthageInteractor.invokedSaveParameters?.dependencies, stubbedCarthageDependencies)
+        XCTAssertTrue(carthageInteractor.invokedInstall)
+        XCTAssertEqual(carthageInteractor.invokedInstallParameters?.tuistDirectoryPath, tuistDirectoryPath)
+        XCTAssertEqual(carthageInteractor.invokedInstallParameters?.method, stubbedMethod)
+        XCTAssertEqual(carthageInteractor.invokedInstallParameters?.dependencies, stubbedCarthageDependencies)
     }
 }

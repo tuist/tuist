@@ -8,15 +8,15 @@ public final class MockCocoaPodsInteractor: CocoaPodsInteracting {
 
     var invokedSave = false
     var invokedSaveCount = 0
-    var invokedSaveParameters: (path: AbsolutePath, method: InstallDependenciesMethod)?
-    var invokedSaveParametersList = [(path: AbsolutePath, method: InstallDependenciesMethod)]()
+    var invokedSaveParameters: (tuistDirectoryPath: AbsolutePath, method: InstallDependenciesMethod)?
+    var invokedSaveParametersList = [(tuistDirectoryPath: AbsolutePath, method: InstallDependenciesMethod)]()
     var stubbedSaveError: Error?
 
-    public func install(at path: AbsolutePath, method: InstallDependenciesMethod) throws {
+    public func install(tuistDirectoryPath: AbsolutePath, method: InstallDependenciesMethod) throws {
         invokedSave = true
         invokedSaveCount += 1
-        invokedSaveParameters = (path, method)
-        invokedSaveParametersList.append((path, method))
+        invokedSaveParameters = (tuistDirectoryPath, method)
+        invokedSaveParametersList.append((tuistDirectoryPath, method))
         if let error = stubbedSaveError {
             throw error
         }

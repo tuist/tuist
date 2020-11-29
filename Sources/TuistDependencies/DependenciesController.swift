@@ -37,7 +37,8 @@ public final class DependenciesController: DependenciesControlling {
     public func install(at path: AbsolutePath, method: InstallDependenciesMethod, dependencies: Dependencies) throws {
         logger.notice("Start installing Carthage dependencies.")
         
-        try carthageInteractor.install(at: path, method: method, dependencies: dependencies.carthageDependencies)
+        let tuistDirectoryPath = path.appending(components: Constants.tuistDirectoryName)
+        try carthageInteractor.install(tuistDirectoryPath: tuistDirectoryPath, method: method, dependencies: dependencies.carthageDependencies)
         
         logger.notice("Successfully installed Carthage dependencies.", metadata: .success)
     }
