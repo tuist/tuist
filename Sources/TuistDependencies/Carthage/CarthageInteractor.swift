@@ -104,7 +104,7 @@ public final class CarthageInteractor: CarthageInteracting {
             }
 
             // save installed frameworks
-            try carthageFrameworksInteractor.copyFrameworks(carthageBuildDirectory: carthageBuildDirectory, destinationDirectory: dependenciesDirectory)
+            try carthageFrameworksInteractor.copyFrameworks(carthageBuildDirectory: carthageBuildDirectory, dependenciesDirectory: dependenciesDirectory)
         }
     }
 

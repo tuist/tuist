@@ -28,8 +28,6 @@ final class CarthageFrameworksInteractorTests: TuistUnitTestCase {
         let dependenciesDirectory = rootPath.appending(components: Constants.tuistDirectoryName, Constants.DependenciesDirectory.name)
 
         try createFiles([
-            "Temporary/Carthage/Build/.Moya.version",
-
             "Temporary/Carthage/Build/iOS/Moya.framework/Info.plist",
             "Temporary/Carthage/Build/iOS/ReactiveMoya.framework/Info.plist",
             "Temporary/Carthage/Build/iOS/RxMoya.framework/Info.plist",
@@ -47,98 +45,8 @@ final class CarthageFrameworksInteractorTests: TuistUnitTestCase {
             "Temporary/Carthage/Build/tvOS/RxMoya.framework/Info.plist",
         ])
 
-        try fileHandler.write(
-            """
-            {
-              "commitish" : "14.0.0",
-              "iOS" : [
-                {
-                  "hash" : "dd80e93acb1cc0cfc8755ab35e57b1905518ab01237448ef547edf71445a2285",
-                  "name" : "Moya",
-                  "linking" : "dynamic",
-                  "swiftToolchainVersion" : "5.3.1 (swiftlang-1200.0.41 clang-1200.0.32.8)"
-                },
-                {
-                  "hash" : "cd6f9910471d467e5dcb8025d2080fae14c4b587d2a9e3c231c230092c8e551c",
-                  "name" : "ReactiveMoya",
-                  "linking" : "dynamic",
-                  "swiftToolchainVersion" : "5.3.1 (swiftlang-1200.0.41 clang-1200.0.32.8)"
-                },
-                {
-                  "hash" : "0991d553a79f46174f70c7d620773de6f9062046fb3584f80ba91362305c8e6e",
-                  "name" : "RxMoya",
-                  "linking" : "dynamic",
-                  "swiftToolchainVersion" : "5.3.1 (swiftlang-1200.0.41 clang-1200.0.32.8)"
-                }
-              ],
-              "Mac" : [
-                {
-                  "hash" : "dd80e93acb1cc0cfc8755ab35e57b1905518ab01237448ef547edf71445a2285",
-                  "name" : "Moya",
-                  "linking" : "dynamic",
-                  "swiftToolchainVersion" : "5.3.1 (swiftlang-1200.0.41 clang-1200.0.32.8)"
-                },
-                {
-                  "hash" : "cd6f9910471d467e5dcb8025d2080fae14c4b587d2a9e3c231c230092c8e551c",
-                  "name" : "ReactiveMoya",
-                  "linking" : "dynamic",
-                  "swiftToolchainVersion" : "5.3.1 (swiftlang-1200.0.41 clang-1200.0.32.8)"
-                },
-                {
-                  "hash" : "0991d553a79f46174f70c7d620773de6f9062046fb3584f80ba91362305c8e6e",
-                  "name" : "RxMoya",
-                  "linking" : "dynamic",
-                  "swiftToolchainVersion" : "5.3.1 (swiftlang-1200.0.41 clang-1200.0.32.8)"
-                }
-              ],
-              "watchOS" : [
-                {
-                  "hash" : "dd80e93acb1cc0cfc8755ab35e57b1905518ab01237448ef547edf71445a2285",
-                  "name" : "Moya",
-                  "linking" : "dynamic",
-                  "swiftToolchainVersion" : "5.3.1 (swiftlang-1200.0.41 clang-1200.0.32.8)"
-                },
-                {
-                  "hash" : "cd6f9910471d467e5dcb8025d2080fae14c4b587d2a9e3c231c230092c8e551c",
-                  "name" : "ReactiveMoya",
-                  "linking" : "dynamic",
-                  "swiftToolchainVersion" : "5.3.1 (swiftlang-1200.0.41 clang-1200.0.32.8)"
-                },
-                {
-                  "hash" : "0991d553a79f46174f70c7d620773de6f9062046fb3584f80ba91362305c8e6e",
-                  "name" : "RxMoya",
-                  "linking" : "dynamic",
-                  "swiftToolchainVersion" : "5.3.1 (swiftlang-1200.0.41 clang-1200.0.32.8)"
-                }
-              ],
-              "tvOS" : [
-                {
-                  "hash" : "26ca97713f124c5f11233ee64403563bc963902136a90cfb7558398d913f0f4c",
-                  "name" : "Moya",
-                  "linking" : "dynamic",
-                  "swiftToolchainVersion" : "5.3.1 (swiftlang-1200.0.41 clang-1200.0.32.8)"
-                },
-                {
-                  "hash" : "6e12b5c40f36a38c1407b5039e308f651400ebb8589fef6358deaea3de7c0545",
-                  "name" : "ReactiveMoya",
-                  "linking" : "dynamic",
-                  "swiftToolchainVersion" : "5.3.1 (swiftlang-1200.0.41 clang-1200.0.32.8)"
-                },
-                {
-                  "hash" : "b64e08356a8befa60eab8bd8dcefa7b1222b473480d673e6f8de7ccf2119de82",
-                  "name" : "RxMoya",
-                  "linking" : "dynamic",
-                  "swiftToolchainVersion" : "5.3.1 (swiftlang-1200.0.41 clang-1200.0.32.8)"
-                }
-              ]
-            }
-            """,
-            path: rootPath.appending(components: "Temporary", "Carthage", "Build", ".Moya.version"),
-            atomically: true
-        )
-
         // When
-        try subject.copyFrameworks(carthageBuildDirectory: carthageBuildDirectory, destinationDirectory: dependenciesDirectory)
+        try subject.copyFrameworks(carthageBuildDirectory: carthageBuildDirectory, dependenciesDirectory: dependenciesDirectory)
 
         // Then
         XCTAssertTrue(fileHandler.exists(dependenciesDirectory.appending(components: "Moya", "iOS", "Moya.framework")))
@@ -155,5 +63,90 @@ final class CarthageFrameworksInteractorTests: TuistUnitTestCase {
         XCTAssertTrue(fileHandler.exists(dependenciesDirectory.appending(components: "RxMoya", "tvOS", "RxMoya.framework")))
         XCTAssertTrue(fileHandler.exists(dependenciesDirectory.appending(components: "RxMoya", "macOS", "RxMoya.framework")))
         XCTAssertTrue(fileHandler.exists(dependenciesDirectory.appending(components: "RxMoya", "watchOS", "RxMoya.framework")))
+    }
+    
+    func test_save_with_removing_unnecessary() throws {
+        // Given
+        let rootPath = try temporaryPath()
+        let carthageBuildDirectory = rootPath.appending(components: "Temporary", "Carthage", "Build")
+        let dependenciesDirectory = rootPath.appending(components: Constants.tuistDirectoryName, Constants.DependenciesDirectory.name)
+
+        // stub carthage build directory
+        try createFiles([
+            "Temporary/Carthage/Build/iOS/Moya.framework/Info.plist",
+            "Temporary/Carthage/Build/iOS/ReactiveMoya.framework/Info.plist",
+            "Temporary/Carthage/Build/iOS/RxMoya.framework/Info.plist",
+
+            "Temporary/Carthage/Build/Mac/Moya.framework/Info.plist",
+            "Temporary/Carthage/Build/Mac/ReactiveMoya.framework/Info.plist",
+            "Temporary/Carthage/Build/Mac/RxMoya.framework/Info.plist",
+
+            "Temporary/Carthage/Build/watchOS/Moya.framework/Info.plist",
+            "Temporary/Carthage/Build/watchOS/ReactiveMoya.framework/Info.plist",
+            "Temporary/Carthage/Build/watchOS/RxMoya.framework/Info.plist",
+
+            "Temporary/Carthage/Build/tvOS/Moya.framework/Info.plist",
+            "Temporary/Carthage/Build/tvOS/ReactiveMoya.framework/Info.plist",
+            "Temporary/Carthage/Build/tvOS/RxMoya.framework/Info.plist",
+        ])
+        
+        // stub `Tuist/Dependencies` directory
+        try createFiles([
+            "Tuist/Dependencies/RxSwift/iOS/RxSwift.framework/Info.plist",
+            "Tuist/Dependencies/RxSwift/macOS/RxSwift.framework/Info.plist",
+            "Tuist/Dependencies/RxSwift/watchOS/RxSwift.framework/Info.plist",
+            "Tuist/Dependencies/RxSwift/tvOS/RxSwift.framework/Info.plist",
+        ])
+        
+        // stub `Tuist/Dependencies/graph.json`
+        let graphPath = dependenciesDirectory.appending(component: Constants.DependenciesDirectory.graphName)
+        let graphContent = """
+        {
+            "iOSDependencies": ["RxSwift"],
+            "tvOSDependencies": ["RxSwift"],
+            "macOSDependencies": ["RxSwift"],
+            "watchOSDependencies": ["RxSwift"],
+        }
+        """
+        try fileHandler.write(graphContent, path: graphPath, atomically: true)
+
+        // When
+        try subject.copyFrameworks(carthageBuildDirectory: carthageBuildDirectory, dependenciesDirectory: dependenciesDirectory)
+
+        // Then
+        
+        // validate if frameworks were been copied
+        XCTAssertTrue(fileHandler.exists(dependenciesDirectory.appending(components: "Moya", "iOS", "Moya.framework")))
+        XCTAssertTrue(fileHandler.exists(dependenciesDirectory.appending(components: "Moya", "tvOS", "Moya.framework")))
+        XCTAssertTrue(fileHandler.exists(dependenciesDirectory.appending(components: "Moya", "macOS", "Moya.framework")))
+        XCTAssertTrue(fileHandler.exists(dependenciesDirectory.appending(components: "Moya", "watchOS", "Moya.framework")))
+        XCTAssertTrue(fileHandler.exists(dependenciesDirectory.appending(components: "ReactiveMoya", "iOS", "ReactiveMoya.framework")))
+        XCTAssertTrue(fileHandler.exists(dependenciesDirectory.appending(components: "ReactiveMoya", "tvOS", "ReactiveMoya.framework")))
+        XCTAssertTrue(fileHandler.exists(dependenciesDirectory.appending(components: "ReactiveMoya", "macOS", "ReactiveMoya.framework")))
+        XCTAssertTrue(fileHandler.exists(dependenciesDirectory.appending(components: "ReactiveMoya", "watchOS", "ReactiveMoya.framework")))
+        XCTAssertTrue(fileHandler.exists(dependenciesDirectory.appending(components: "RxMoya", "iOS", "RxMoya.framework")))
+        XCTAssertTrue(fileHandler.exists(dependenciesDirectory.appending(components: "RxMoya", "tvOS", "RxMoya.framework")))
+        XCTAssertTrue(fileHandler.exists(dependenciesDirectory.appending(components: "RxMoya", "macOS", "RxMoya.framework")))
+        XCTAssertTrue(fileHandler.exists(dependenciesDirectory.appending(components: "RxMoya", "watchOS", "RxMoya.framework")))
+        
+        // validate if unnecessary frameworks were been deleted
+        XCTAssertFalse(fileHandler.exists(dependenciesDirectory.appending(components: "RxSwift", "iOS", "RxSwift.framework")))
+        XCTAssertFalse(fileHandler.exists(dependenciesDirectory.appending(components: "RxSwift", "tvOS", "RxSwift.framework")))
+        XCTAssertFalse(fileHandler.exists(dependenciesDirectory.appending(components: "RxSwift", "macOS", "RxSwift.framework")))
+        XCTAssertFalse(fileHandler.exists(dependenciesDirectory.appending(components: "RxSwift", "watchOS", "RxSwift.framework")))
+        
+        // validate `Tuist/Dependencies/graph.json`
+        let expectedGraph = Graph(
+            iOSDependencies: ["ReactiveMoya", "RxMoya", "Moya"],
+            tvOSDependencies: ["ReactiveMoya", "RxMoya", "Moya"],
+            macOSDependencies: ["ReactiveMoya", "RxMoya", "Moya"],
+            watchOSDependencies: ["ReactiveMoya", "RxMoya", "Moya"]
+        )
+        let grapData = try fileHandler.readFile(graphPath)
+        let got = try JSONDecoder().decode(Graph.self, from: grapData)
+        XCTAssertEqual(Set(got.iOSDependencies), Set(expectedGraph.iOSDependencies))
+        XCTAssertEqual(Set(got.tvOSDependencies), Set(expectedGraph.tvOSDependencies))
+        XCTAssertEqual(Set(got.macOSDependencies), Set(expectedGraph.macOSDependencies))
+        XCTAssertEqual(Set(got.watchOSDependencies), Set(expectedGraph.watchOSDependencies))
     }
 }

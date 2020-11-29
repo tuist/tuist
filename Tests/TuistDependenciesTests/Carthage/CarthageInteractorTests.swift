@@ -92,6 +92,6 @@ final class CarthageInteractorTests: TuistUnitTestCase {
 
         XCTAssertTrue(carthageFrameworksInteractor.invokedCopyFrameworks)
         XCTAssertEqual(carthageFrameworksInteractor.invokedCopyFrameworksParameters?.carthageBuildDirectory, carthageBuildDirectory)
-        XCTAssertEqual(carthageFrameworksInteractor.invokedCopyFrameworksParameters?.destinationDirectory, dependenciesDirectory)
+        XCTAssertEqual(carthageFrameworksInteractor.invokedCopyFrameworksParameters?.dependenciesDirectory, dependenciesDirectory)
     }
 }
