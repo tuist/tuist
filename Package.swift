@@ -531,16 +531,6 @@ let package = Package(
                 rxBlockingDependency,
             ]
         ),
-        .testTarget(
-            name: "TuistLintCodeIntegrationTests",
-            dependencies: [
-                "TuistLintCode",
-                "TuistLintCodeTesting",
-                "TuistCoreTesting",
-                "TuistSupportTesting",
-                rxBlockingDependency,
-            ]
-        ),
         .target(
             name: "TuistMigration",
             dependencies: [
