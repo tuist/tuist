@@ -52,7 +52,7 @@ public struct CarthageDependency: Equatable {
         self.requirement = requirement
         self.platforms = platforms
     }
-    
+
     /// Returns `Cartfile` representation.
     public func cartfileValue() throws -> String {
         switch requirement {

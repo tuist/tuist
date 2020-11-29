@@ -37,7 +37,7 @@ public protocol SwiftPackageManagerInteracting {
 public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting {
     public init() {}
 
-    public func install(dependenciesDirectory: AbsolutePath, method: InstallDependenciesMethod) throws {
+    public func install(dependenciesDirectory _: AbsolutePath, method _: InstallDependenciesMethod) throws {
         throw SwiftPackageManagerInteractorError.unimplemented
     }
 }

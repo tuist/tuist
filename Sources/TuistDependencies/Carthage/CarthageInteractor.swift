@@ -65,7 +65,7 @@ public final class CarthageInteractor: CarthageInteracting {
         guard canUseSystemCarthage() else {
             throw CarthageInteractorError.carthageNotFound
         }
-        
+
         // determine platforms
         let platforms: Set<Platform> = dependencies
             .reduce(Set<Platform>()) { platforms, dependency in platforms.union(dependency.platforms) }
@@ -79,7 +79,7 @@ public final class CarthageInteractor: CarthageInteracting {
                 .appending(component: Constants.DependenciesDirectory.cartfileResolvedName)
             let carthageBuildDirectory = temporaryDirectoryPath
                 .appending(components: "Carthage", "Build")
-            
+
             // create `carthage` shell command
             let command = carthageCommandGenerator.command(method: method, path: temporaryDirectoryPath, platforms: platforms)
 
@@ -119,7 +119,7 @@ public final class CarthageInteractor: CarthageInteracting {
             try fileHandler.copy(from: fromPath, to: toPath)
         }
     }
-    
+
     /// Returns true if Carthage is avaiable in the environment.
     /// - Returns: True if Carthege is available globally in the system.
     private func canUseSystemCarthage() -> Bool {

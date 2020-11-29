@@ -64,7 +64,7 @@ final class CarthageFrameworksInteractorTests: TuistUnitTestCase {
         XCTAssertTrue(fileHandler.exists(dependenciesDirectory.appending(components: "RxMoya", "macOS", "RxMoya.framework")))
         XCTAssertTrue(fileHandler.exists(dependenciesDirectory.appending(components: "RxMoya", "watchOS", "RxMoya.framework")))
     }
-    
+
     func test_save_with_removing_unnecessary() throws {
         // Given
         let rootPath = try temporaryPath()
@@ -89,7 +89,7 @@ final class CarthageFrameworksInteractorTests: TuistUnitTestCase {
             "Temporary/Carthage/Build/tvOS/ReactiveMoya.framework/Info.plist",
             "Temporary/Carthage/Build/tvOS/RxMoya.framework/Info.plist",
         ])
-        
+
         // stub `Tuist/Dependencies` directory
         try createFiles([
             "Tuist/Dependencies/RxSwift/iOS/RxSwift.framework/Info.plist",
@@ -97,7 +97,7 @@ final class CarthageFrameworksInteractorTests: TuistUnitTestCase {
             "Tuist/Dependencies/RxSwift/watchOS/RxSwift.framework/Info.plist",
             "Tuist/Dependencies/RxSwift/tvOS/RxSwift.framework/Info.plist",
         ])
-        
+
         // stub `Tuist/Dependencies/graph.json`
         let graphPath = dependenciesDirectory.appending(component: Constants.DependenciesDirectory.graphName)
         let graphContent = """
@@ -114,7 +114,7 @@ final class CarthageFrameworksInteractorTests: TuistUnitTestCase {
         try subject.copyFrameworks(carthageBuildDirectory: carthageBuildDirectory, dependenciesDirectory: dependenciesDirectory)
 
         // Then
-        
+
         // validate if frameworks were been copied
         XCTAssertTrue(fileHandler.exists(dependenciesDirectory.appending(components: "Moya", "iOS", "Moya.framework")))
         XCTAssertTrue(fileHandler.exists(dependenciesDirectory.appending(components: "Moya", "tvOS", "Moya.framework")))
@@ -128,13 +128,13 @@ final class CarthageFrameworksInteractorTests: TuistUnitTestCase {
         XCTAssertTrue(fileHandler.exists(dependenciesDirectory.appending(components: "RxMoya", "tvOS", "RxMoya.framework")))
         XCTAssertTrue(fileHandler.exists(dependenciesDirectory.appending(components: "RxMoya", "macOS", "RxMoya.framework")))
         XCTAssertTrue(fileHandler.exists(dependenciesDirectory.appending(components: "RxMoya", "watchOS", "RxMoya.framework")))
-        
+
         // validate if unnecessary frameworks were been deleted
         XCTAssertFalse(fileHandler.exists(dependenciesDirectory.appending(components: "RxSwift", "iOS", "RxSwift.framework")))
         XCTAssertFalse(fileHandler.exists(dependenciesDirectory.appending(components: "RxSwift", "tvOS", "RxSwift.framework")))
         XCTAssertFalse(fileHandler.exists(dependenciesDirectory.appending(components: "RxSwift", "macOS", "RxSwift.framework")))
         XCTAssertFalse(fileHandler.exists(dependenciesDirectory.appending(components: "RxSwift", "watchOS", "RxSwift.framework")))
-        
+
         // validate `Tuist/Dependencies/graph.json`
         let expectedGraph = Graph(
             iOSDependencies: ["ReactiveMoya", "RxMoya", "Moya"],

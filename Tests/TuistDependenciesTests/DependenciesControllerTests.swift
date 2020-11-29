@@ -42,7 +42,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
         let dependenciesDirectoryPath = rootPath
             .appending(component: Constants.tuistDirectoryName)
             .appending(component: Constants.DependenciesDirectory.name)
-        
+
         let stubbedCarthageDependencies = [
             CarthageDependency(name: "Moya", requirement: .exact("1.1.1"), platforms: [.iOS]),
             CarthageDependency(name: "RxSwift", requirement: .exact("2.0.0"), platforms: [.iOS]),

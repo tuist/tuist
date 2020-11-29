@@ -14,7 +14,7 @@ public protocol CarthageFrameworksInteracting {
 
 public final class CarthageFrameworksInteractor: CarthageFrameworksInteracting {
     private let fileHandler: FileHandling
- 
+
     public init(fileHandler: FileHandling = FileHandler.shared) {
         self.fileHandler = fileHandler
     }
@@ -22,34 +22,34 @@ public final class CarthageFrameworksInteractor: CarthageFrameworksInteracting {
     public func copyFrameworks(carthageBuildDirectory: AbsolutePath, dependenciesDirectory: AbsolutePath) throws {
         let graphPath = dependenciesDirectory.appending(component: Constants.DependenciesDirectory.graphName)
         let graph = readGraph(graphPath: graphPath)
-        
+
         var newGraph = Graph.empty
-        
+
         try Platform.allCases.forEach { platform in
             let builtFrameworks: Set<String> = Set(try getBuiltFrameworks(carthageBuildDirectory: carthageBuildDirectory, platform: platform))
-            
+
             try builtFrameworks.forEach {
                 let carthageBuildFrameworkPath = buildCarthageBuildPath(frameworkName: $0, carthageBuildDirectory: carthageBuildDirectory, platform: platform)
                 let destinationFramemorekPath = buildDestinationPath(frameworkName: $0, dependenciesDirectory: dependenciesDirectory, platform: platform)
                 try copyDirectory(from: carthageBuildFrameworkPath, to: destinationFramemorekPath)
             }
-            
+
             let existingFrameworks: Set<String> = Set(graph.dependencies(for: platform))
             let frameworksToDelete = existingFrameworks.subtracting(builtFrameworks)
-            
+
             try frameworksToDelete.forEach {
                 let destinationFrameworkPath = buildDestinationPath(frameworkName: $0, dependenciesDirectory: dependenciesDirectory, platform: platform)
                 try deleteDirectory(at: destinationFrameworkPath)
             }
-            
+
             newGraph = newGraph.updatingDependencies(Array(builtFrameworks), for: platform)
         }
-        
+
         try saveGraph(graph: newGraph, graphPath: graphPath)
     }
 
     // MARK: - Helpers
-    
+
     private func carthageBuildPathDirectory(carthageBuildDirectory: AbsolutePath, platform: Platform) -> AbsolutePath {
         switch platform {
         case .iOS, .watchOS, .tvOS:
@@ -58,24 +58,24 @@ public final class CarthageFrameworksInteractor: CarthageFrameworksInteracting {
             return carthageBuildDirectory.appending(component: "Mac")
         }
     }
-    
+
     private func buildCarthageBuildPath(frameworkName: String, carthageBuildDirectory: AbsolutePath, platform: Platform) -> AbsolutePath {
         carthageBuildPathDirectory(carthageBuildDirectory: carthageBuildDirectory, platform: platform).appending(component: "\(frameworkName).framework")
     }
-    
+
     private func buildDestinationPath(frameworkName: String, dependenciesDirectory: AbsolutePath, platform: Platform) -> AbsolutePath {
         dependenciesDirectory.appending(components: frameworkName, platform.caseValue, "\(frameworkName).framework")
     }
-    
+
     private func getBuiltFrameworks(carthageBuildDirectory: AbsolutePath, platform: Platform) throws -> [String] {
         let carthageBuildPath = carthageBuildPathDirectory(carthageBuildDirectory: carthageBuildDirectory, platform: platform)
-        
+
         return try fileHandler
             .contentsOfDirectory(carthageBuildPath)
             .filter { $0.isFolder && $0.extension == "framework" }
             .compactMap { $0.components.last?.components(separatedBy: ".").first }
     }
-    
+
     private func readGraph(graphPath: AbsolutePath) -> Graph {
         do {
             let decoder = JSONDecoder()
@@ -85,7 +85,7 @@ public final class CarthageFrameworksInteractor: CarthageFrameworksInteracting {
             return .empty
         }
     }
-    
+
     private func saveGraph(graph: Graph, graphPath: AbsolutePath) throws {
         let encoder = JSONEncoder()
         let graphFileData = try encoder.encode(graph)
@@ -101,7 +101,7 @@ public final class CarthageFrameworksInteractor: CarthageFrameworksInteracting {
 
         try fileHandler.copy(from: fromPath, to: toPath)
     }
-    
+
     private func deleteDirectory(at path: AbsolutePath) throws {
         if fileHandler.exists(path) {
             try fileHandler.delete(path)

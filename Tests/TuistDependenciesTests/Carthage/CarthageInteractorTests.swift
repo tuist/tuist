@@ -58,15 +58,15 @@ final class CarthageInteractorTests: TuistUnitTestCase {
             .appending(component: Constants.DependenciesDirectory.name)
         let carthageBuildDirectory = temporaryDirectoryPath
             .appending(components: "Carthage", "Build")
-        
+
         try fileHandler.touch(temporaryDirectoryPath.appending(components: Constants.DependenciesDirectory.cartfileResolvedName))
-        
+
         let stubbedDependencies = [
             CarthageDependency(name: "Moya", requirement: .exact("1.1.1"), platforms: [.iOS]),
             CarthageDependency(name: "RxSwift", requirement: .exact("2.0.0"), platforms: [.iOS]),
         ]
         let stubbedCommand = ["carthage", "bootstrap", "--project-directory", temporaryDirectoryPath.pathString, "--platform iOS", "--cache-builds", "--new-resolver"]
-        
+
         carthageCommandGenerator.commandStub = { _, _, _ in stubbedCommand }
 
         system.whichStub = { _ in "1.0.0" }
@@ -79,14 +79,14 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         let expectedCartfileResolvedPath = dependenciesDirectory
             .appending(component: Constants.DependenciesDirectory.lockfilesDirectoryName)
             .appending(component: Constants.DependenciesDirectory.cartfileResolvedName)
-        
+
         XCTAssertTrue(fileHandler.exists(expectedCartfileResolvedPath))
-        
+
         XCTAssertTrue(carthageCommandGenerator.invokedCommand)
         XCTAssertEqual(carthageCommandGenerator.invokedCommandParameters?.method, .fetch)
         XCTAssertEqual(carthageCommandGenerator.invokedCommandParameters?.path, temporaryDirectoryPath)
         XCTAssertEqual(carthageCommandGenerator.invokedCommandParameters?.platforms, [.iOS])
-        
+
         XCTAssertTrue(cartfileContentGenerator.invokedCartfileContent)
         XCTAssertEqual(cartfileContentGenerator.invokedCartfileContentParameters, stubbedDependencies)
 

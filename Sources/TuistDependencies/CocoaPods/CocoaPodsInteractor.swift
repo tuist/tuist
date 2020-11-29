@@ -37,7 +37,7 @@ public protocol CocoaPodsInteracting {
 public final class CocoaPodsInteractor: CocoaPodsInteracting {
     public init() {}
 
-    public func install(dependenciesDirectory: AbsolutePath, method: InstallDependenciesMethod) throws {
+    public func install(dependenciesDirectory _: AbsolutePath, method _: InstallDependenciesMethod) throws {
         throw CocoaPodsInteractorError.unimplemented
     }
 }
