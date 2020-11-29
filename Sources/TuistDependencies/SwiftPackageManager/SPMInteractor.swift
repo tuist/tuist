@@ -25,14 +25,19 @@ public enum SwiftPackageManagerInteractorError: FatalError {
 
 // MARK: - Swift Package Manager Interacting
 
-public protocol SwiftPackageManagerInteracting {}
+public protocol SwiftPackageManagerInteracting {
+    /// Installes `Swift Package Manager` dependencies.
+    /// - Parameter dependenciesDirectoryPath: The path to the directory that contains the `Tuist/Dependencies/` directory.
+    /// - Parameter method: Installation method.
+    func install(dependenciesDirectoryPath: AbsolutePath, method: InstallDependenciesMethod) throws
+}
 
 // MARK: - Swift Package Manager Interactor
 
 public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting {
     public init() {}
 
-    public func install(tuistDirectoryPath: AbsolutePath, method _: InstallDependenciesMethod) throws {
+    public func install(dependenciesDirectoryPath: AbsolutePath, method: InstallDependenciesMethod) throws {
         throw SwiftPackageManagerInteractorError.unimplemented
     }
 }

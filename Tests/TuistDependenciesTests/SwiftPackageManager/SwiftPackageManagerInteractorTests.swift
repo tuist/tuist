@@ -23,7 +23,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         let stubbedPath = try temporaryPath()
 
         // When/Then
-        XCTAssertThrowsSpecific(try subject.install(tuistDirectoryPath: stubbedPath, method: .fetch), SwiftPackageManagerInteractorError.unimplemented)
+        XCTAssertThrowsSpecific(try subject.install(dependenciesDirectoryPath: stubbedPath, method: .fetch), SwiftPackageManagerInteractorError.unimplemented)
     }
 
     func test_install_update() throws {
@@ -31,6 +31,6 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         let stubbedPath = try temporaryPath()
 
         // When/Then
-        XCTAssertThrowsSpecific(try subject.install(tuistDirectoryPath: stubbedPath, method: .update), SwiftPackageManagerInteractorError.unimplemented)
+        XCTAssertThrowsSpecific(try subject.install(dependenciesDirectoryPath: stubbedPath, method: .update), SwiftPackageManagerInteractorError.unimplemented)
     }
 }

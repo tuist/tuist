@@ -25,14 +25,19 @@ enum CocoaPodsInteractorError: FatalError {
 
 // MARK: - CocoaPods Interacting
 
-public protocol CocoaPodsInteracting {}
+public protocol CocoaPodsInteracting {
+    /// Installes `CocoaPods` dependencies.
+    /// - Parameter dependenciesDirectoryPath: The path to the directory that contains the `Tuist/Dependencies/` directory.
+    /// - Parameter method: Installation method.
+    func install(dependenciesDirectoryPath: AbsolutePath, method: InstallDependenciesMethod) throws
+}
 
 // MARK: - Cocoapods Interactor
 
 public final class CocoaPodsInteractor: CocoaPodsInteracting {
     public init() {}
 
-    public func install(tuistDirectoryPath: AbsolutePath, method _: InstallDependenciesMethod) throws {
+    public func install(dependenciesDirectoryPath: AbsolutePath, method: InstallDependenciesMethod) throws {
         throw CocoaPodsInteractorError.unimplemented
     }
 }

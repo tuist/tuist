@@ -6,13 +6,15 @@ import TuistSupport
 // MARK: - Carthage Interactor Errors
 
 enum CarthageInteractorError: FatalError, Equatable {
-    /// Thrown when CocoaPods cannot be found.
+    /// Thrown when Carthage cannot be found.
     case carthageNotFound
+    /// Thrown when Carfile cannont be found in temporary directory after Carthage installation.
+    case cartfileNotFound
 
     /// Error type.
     var type: ErrorType {
         switch self {
-        case .carthageNotFound:
+        case .carthageNotFound, .cartfileNotFound:
             return .abort
         }
     }
@@ -22,6 +24,8 @@ enum CarthageInteractorError: FatalError, Equatable {
         switch self {
         case .carthageNotFound:
             return "Carthage was not found either in Bundler nor in the environment."
+        case .cartfileNotFound:
+            return "Cartfile was not found after Cartage installation."
         }
     }
 }
@@ -30,10 +34,10 @@ enum CarthageInteractorError: FatalError, Equatable {
 
 public protocol CarthageInteracting {
     /// Installes `Carthage` dependencies.
-    /// - Parameter tuistDirectoryPath: The path to the directory that contains the `Tuist/` directory.
+    /// - Parameter dependenciesDirectoryPath: The path to the directory that contains the `Tuist/Dependencies/` directory.
     /// - Parameter method: Installation method.
     /// - Parameter dependencies: List of dependencies to intall using `Carthage`.
-    func install(tuistDirectoryPath: AbsolutePath, method: InstallDependenciesMethod, dependencies: [CarthageDependency]) throws
+    func install(dependenciesDirectoryPath: AbsolutePath, method: InstallDependenciesMethod, dependencies: [CarthageDependency]) throws
 }
 
 // MARK: - Carthage Interactor
@@ -42,24 +46,21 @@ public final class CarthageInteractor: CarthageInteracting {
     private let fileHandler: FileHandling
     private let carthageCommandGenerator: CarthageCommandGenerating
     private let cartfileContentGenerator: CartfileContentGenerating
-    private let cartfileResolvedInteractor: CartfileResolvedInteracting
     private let carthageFrameworksInteractor: CarthageFrameworksInteracting
 
     public init(
         fileHandler: FileHandling = FileHandler.shared,
         carthageCommandGenerator: CarthageCommandGenerating = CarthageCommandGenerator(),
         cartfileContentGenerator: CartfileContentGenerating = CartfileContentGenerator(),
-        cartfileResolvedInteractor: CartfileResolvedInteracting = CartfileResolvedInteractor(),
         carthageFrameworksInteractor: CarthageFrameworksInteracting = CarthageFrameworksInteractor()
     ) {
         self.fileHandler = fileHandler
         self.carthageCommandGenerator = carthageCommandGenerator
         self.cartfileContentGenerator = cartfileContentGenerator
-        self.cartfileResolvedInteractor = cartfileResolvedInteractor
         self.carthageFrameworksInteractor = carthageFrameworksInteractor
     }
 
-    public func install(tuistDirectoryPath: AbsolutePath, method: InstallDependenciesMethod, dependencies: [CarthageDependency]) throws {
+    public func install(dependenciesDirectoryPath: AbsolutePath, method: InstallDependenciesMethod, dependencies: [CarthageDependency]) throws {
         // check availability of `carthage`
         guard canUseSystemCarthage() else {
             throw CarthageInteractorError.carthageNotFound
@@ -70,6 +71,13 @@ public final class CarthageInteractor: CarthageInteracting {
             .reduce(Set<Platform>()) { platforms, dependency in platforms.union(dependency.platforms) }
 
         try fileHandler.inTemporaryDirectory { temporaryDirectoryPath in
+            // prepare paths
+            let destionationCarfileResolvedPath = dependenciesDirectoryPath
+                .appending(component: Constants.DependenciesDirectory.lockfilesDirectoryName)
+                .appending(component: Constants.DependenciesDirectory.cartfileResolvedName)
+            let temporaryCarfileResolvedPath = temporaryDirectoryPath
+                .appending(component: Constants.DependenciesDirectory.cartfileResolvedName)
+            
             // create `carthage` shell command
             let command = carthageCommandGenerator.command(method: method, path: temporaryDirectoryPath, platforms: platforms)
 
@@ -78,17 +86,23 @@ public final class CarthageInteractor: CarthageInteracting {
             let cartfilePath = temporaryDirectoryPath.appending(component: "Cartfile")
             try fileHandler.write(cartfileContent, path: cartfilePath, atomically: true)
 
-            // load `Cartfile.resolved` from previous run
-            try cartfileResolvedInteractor.loadIfExist(from: tuistDirectoryPath, temporaryDirectoryPath: temporaryDirectoryPath)
+            // copy `Cartfile.resolved` from previous run if exist
+            if fileHandler.exists(destionationCarfileResolvedPath) {
+                try copyFile(from: destionationCarfileResolvedPath, to: temporaryCarfileResolvedPath)
+            }
 
             // run `carthage`
             try System.shared.runAndPrint(command)
 
             // save `Cartfile.resolved`
-            try cartfileResolvedInteractor.save(at: tuistDirectoryPath, temporaryDirectoryPath: temporaryDirectoryPath)
+            if fileHandler.exists(temporaryCarfileResolvedPath) {
+                try copyFile(from: temporaryCarfileResolvedPath, to: destionationCarfileResolvedPath)
+            } else {
+                throw CarthageInteractorError.cartfileNotFound
+            }
 
             // save installed frameworks
-            try carthageFrameworksInteractor.save(at: tuistDirectoryPath, temporaryDirectoryPath: temporaryDirectoryPath)
+            try carthageFrameworksInteractor.save(at: dependenciesDirectoryPath, temporaryDirectoryPath: temporaryDirectoryPath)
         }
     }
 

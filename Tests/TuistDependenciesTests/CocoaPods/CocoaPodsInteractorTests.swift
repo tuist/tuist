@@ -23,7 +23,7 @@ final class CocoaPodsInteractorTests: TuistUnitTestCase {
         let stubbedPath = try temporaryPath()
 
         // When/Then
-        XCTAssertThrowsSpecific(try subject.install(tuistDirectoryPath: stubbedPath, method: .fetch), CocoaPodsInteractorError.unimplemented)
+        XCTAssertThrowsSpecific(try subject.install(dependenciesDirectoryPath: stubbedPath, method: .fetch), CocoaPodsInteractorError.unimplemented)
     }
 
     func test_install_update() throws {
@@ -31,6 +31,6 @@ final class CocoaPodsInteractorTests: TuistUnitTestCase {
         let stubbedPath = try temporaryPath()
 
         // When/Then
-        XCTAssertThrowsSpecific(try subject.install(tuistDirectoryPath: stubbedPath, method: .update), CocoaPodsInteractorError.unimplemented)
+        XCTAssertThrowsSpecific(try subject.install(dependenciesDirectoryPath: stubbedPath, method: .update), CocoaPodsInteractorError.unimplemented)
     }
 }

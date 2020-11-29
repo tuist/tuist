@@ -8,15 +8,15 @@ public final class MockSwiftPackageManagerInteractor: SwiftPackageManagerInterac
 
     var invokedSave = false
     var invokedSaveCount = 0
-    var invokedSaveParameters: (tuistDirectoryPath: AbsolutePath, method: InstallDependenciesMethod)?
-    var invokedSaveParametersList = [(tuistDirectoryPath: AbsolutePath, method: InstallDependenciesMethod)]()
+    var invokedSaveParameters: (dependenciesDirectoryPath: AbsolutePath, method: InstallDependenciesMethod)?
+    var invokedSaveParametersList = [(dependenciesDirectoryPath: AbsolutePath, method: InstallDependenciesMethod)]()
     var stubbedSaveError: Error?
 
-    public func install(tuistDirectoryPath: AbsolutePath, method: InstallDependenciesMethod) throws {
+    public func install(dependenciesDirectoryPath: AbsolutePath, method: InstallDependenciesMethod) throws {
         invokedSave = true
         invokedSaveCount += 1
-        invokedSaveParameters = (tuistDirectoryPath, method)
-        invokedSaveParametersList.append((tuistDirectoryPath, method))
+        invokedSaveParameters = (dependenciesDirectoryPath, method)
+        invokedSaveParametersList.append((dependenciesDirectoryPath, method))
         if let error = stubbedSaveError {
             throw error
         }

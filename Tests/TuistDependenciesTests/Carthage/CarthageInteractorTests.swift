@@ -13,7 +13,6 @@ final class CarthageInteractorTests: TuistUnitTestCase {
     private var fileHandlerMock: MockFileHandler!
     private var carthageCommandGenerator: MockCarthageCommandGenerator!
     private var cartfileContentGenerator: MockCartfileContentGenerator!
-    private var cartfileResolvedInteractor: MockCartfileResolvedInteractor!
     private var carthageFrameworksInteractor: MockCarthageFrameworksInteractor!
 
     private var temporaryDirectoryPath: AbsolutePath!
@@ -30,20 +29,17 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         fileHandlerMock = MockFileHandler(temporaryDirectory: { self.temporaryDirectoryPath })
         carthageCommandGenerator = MockCarthageCommandGenerator()
         cartfileContentGenerator = MockCartfileContentGenerator()
-        cartfileResolvedInteractor = MockCartfileResolvedInteractor()
         carthageFrameworksInteractor = MockCarthageFrameworksInteractor()
 
         subject = CarthageInteractor(fileHandler: fileHandlerMock,
                                      carthageCommandGenerator: carthageCommandGenerator,
                                      cartfileContentGenerator: cartfileContentGenerator,
-                                     cartfileResolvedInteractor: cartfileResolvedInteractor,
                                      carthageFrameworksInteractor: carthageFrameworksInteractor)
     }
 
     override func tearDown() {
         carthageCommandGenerator = nil
         cartfileContentGenerator = nil
-        cartfileResolvedInteractor = nil
         carthageFrameworksInteractor = nil
         fileHandlerMock = nil
 
@@ -57,7 +53,11 @@ final class CarthageInteractorTests: TuistUnitTestCase {
     func test_install() throws {
         // Given
         let rootPath = try temporaryPath()
-        let tuistDirectoryPath = rootPath.appending(components: Constants.tuistDirectoryName)
+        let dependenciesDirectoryPath = rootPath
+            .appending(component: Constants.tuistDirectoryName)
+            .appending(component: Constants.DependenciesDirectory.name)
+        
+        try fileHandler.touch(temporaryDirectoryPath.appending(components: Constants.DependenciesDirectory.cartfileResolvedName))
         
         let stubbedDependencies = [
             CarthageDependency(name: "Moya", requirement: .exact("1.1.1"), platforms: [.iOS]),
@@ -71,9 +71,14 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         system.succeedCommand(stubbedCommand)
 
         // When
-        try subject.install(tuistDirectoryPath: tuistDirectoryPath, method: .fetch, dependencies: stubbedDependencies)
+        try subject.install(dependenciesDirectoryPath: dependenciesDirectoryPath, method: .fetch, dependencies: stubbedDependencies)
 
         // Then
+        let expectedCartfileResolvedPath = dependenciesDirectoryPath
+            .appending(component: Constants.DependenciesDirectory.lockfilesDirectoryName)
+            .appending(component: Constants.DependenciesDirectory.cartfileResolvedName)
+        XCTAssertTrue(fileHandler.exists(expectedCartfileResolvedPath))
+        
         XCTAssertTrue(carthageCommandGenerator.invokedCommand)
         XCTAssertEqual(carthageCommandGenerator.invokedCommandParameters?.method, .fetch)
         XCTAssertEqual(carthageCommandGenerator.invokedCommandParameters?.path, temporaryDirectoryPath)
@@ -81,17 +86,9 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         
         XCTAssertTrue(cartfileContentGenerator.invokedCartfileContent)
         XCTAssertEqual(cartfileContentGenerator.invokedCartfileContentParameters, stubbedDependencies)
-        
-        XCTAssertTrue(cartfileResolvedInteractor.invokedLoadIfExist)
-        XCTAssertEqual(cartfileResolvedInteractor.invokedLoadIfExistParameters?.path, tuistDirectoryPath)
-        XCTAssertEqual(cartfileResolvedInteractor.invokedLoadIfExistParameters?.temporaryDirectoryPath, temporaryDirectoryPath)
-
-        XCTAssertTrue(cartfileResolvedInteractor.invokedSave)
-        XCTAssertEqual(cartfileResolvedInteractor.invokedSaveParameters?.path, tuistDirectoryPath)
-        XCTAssertEqual(cartfileResolvedInteractor.invokedSaveParameters?.temporaryDirectoryPath, temporaryDirectoryPath)
 
         XCTAssertTrue(carthageFrameworksInteractor.invokedSave)
-        XCTAssertEqual(carthageFrameworksInteractor.invokedSaveParameters?.path, tuistDirectoryPath)
+        XCTAssertEqual(carthageFrameworksInteractor.invokedSaveParameters?.path, dependenciesDirectoryPath)
         XCTAssertEqual(carthageFrameworksInteractor.invokedSaveParameters?.temporaryDirectoryPath, temporaryDirectoryPath)
     }
 }
