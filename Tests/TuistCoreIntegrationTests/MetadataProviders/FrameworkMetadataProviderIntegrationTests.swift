@@ -27,7 +27,6 @@ final class FrameworkMetadataProviderIntegrationTests: TuistTestCase {
         // When
         let got = try subject.bcsymbolmapPaths(frameworkPath: frameworkPath).sorted()
 
-
         let iOSFolderPath = carthagePath
             .appending(RelativePath("Build"))
             .appending(RelativePath("iOS"))
@@ -46,7 +45,7 @@ final class FrameworkMetadataProviderIntegrationTests: TuistTestCase {
 
         // When
         let got = subject.dsymPath(frameworkPath: frameworkPath)
-        
+
         let iOSFolderPath = carthagePath
             .appending(RelativePath("Build"))
             .appending(RelativePath("iOS"))

@@ -52,7 +52,7 @@ final class CarthageGraphLoaderIntegrationTests: TuistTestCase {
 
         // When/Then
         XCTAssertThrowsSpecific(
-            try self.subject.load(dependencies: [alamofireDependency], atPath: carthagePath),
+            try subject.load(dependencies: [alamofireDependency], atPath: carthagePath),
             CarthageGraphLoaderError.invalidPath(carthagePath)
         )
     }

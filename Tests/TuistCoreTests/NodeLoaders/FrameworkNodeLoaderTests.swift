@@ -72,14 +72,13 @@ final class FrameworkNodeLoaderTests: TuistUnitTestCase {
             _
         ) = try prepareValidFrameworkLoad(atPath: path)
 
-
         let invalidPath = path.appending(RelativePath("Unexistent.framework/Unexistent"))
         var isFirstRecursiveCall = false
-        otoolController.dlybDependenciesPathStub = { absolutePath in
+        otoolController.dlybDependenciesPathStub = { _ in
             guard !isFirstRecursiveCall else { return .just([]) }
             isFirstRecursiveCall = true
             return .just([
-                invalidPath
+                invalidPath,
             ])
         }
 
@@ -87,7 +86,6 @@ final class FrameworkNodeLoaderTests: TuistUnitTestCase {
             try subject.load(path: frameworkPath),
             FrameworkNodeLoaderError.invalidDependencyPath(invalidPath.removingLastComponent())
         )
-
     }
 
     func test_load_when_the_framework_exists() throws {
