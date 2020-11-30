@@ -82,7 +82,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                                         fileElements: fileElements,
                                         pbxproj: pbxproj)
 
-        try generateCopyFilesBuildPhase(path: path,
+        try generateCopyFilesBuildPhases(path: path,
                                         target: target,
                                         graphTraverser: graphTraverser,
                                         pbxTarget: pbxTarget,
@@ -264,7 +264,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                                resourcesBuildPhase: resourcesBuildPhase)
     }
 
-    func generateCopyFilesBuildPhase(path: AbsolutePath,
+    func generateCopyFilesBuildPhases(path: AbsolutePath,
                                      target: Target,
                                      graphTraverser: GraphTraversing,
                                      pbxTarget: PBXTarget,

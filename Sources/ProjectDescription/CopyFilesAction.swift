@@ -6,17 +6,17 @@ public struct CopyFilesAction: Equatable, Codable {
     public var subpath: String
     public var files: [FileElement]
 
-    public enum Destination: UInt, Codable, Equatable {
-        case absolutePath = 0
-        case productsDirectory = 16
-        case wrapper = 1
-        case executables = 6
-        case resources = 7
-        case javaResources = 15
-        case frameworks = 10
-        case sharedFrameworks = 11
-        case sharedSupport = 12
-        case plugins = 13
+    public enum Destination: String, Codable, Equatable {
+        case absolutePath
+        case productsDirectory
+        case wrapper
+        case executables
+        case resources
+        case javaResources
+        case frameworks
+        case sharedFrameworks
+        case sharedSupport
+        case plugins
         case other
     }
 
