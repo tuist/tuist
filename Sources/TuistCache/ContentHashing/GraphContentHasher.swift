@@ -47,6 +47,11 @@ public final class GraphContentHasher: GraphContentHashing {
 
     fileprivate func isCacheable(_ target: TargetNode, visited: inout [TargetNode: Bool]) -> Bool {
         if let visitedValue = visited[target] { return visitedValue }
+        if target.target.product == .bundle {
+            visited[target] = true
+            return true
+        }
+        
         let isFramework = target.target.product == .framework || target.target.product == .staticFramework
         let noXCTestDependency = !target.dependsOnXCTest
         let allTargetDependenciesAreHasheable = target.targetDependencies.allSatisfy { isCacheable($0, visited: &visited) }
@@ -55,3 +60,6 @@ public final class GraphContentHasher: GraphContentHashing {
         return cacheable
     }
 }
+
+// return yes from isCachable for bundle targets (GraphContentHasher)
+// modify the graph to embed bundles directly in the app (CacheGraphMutator)
