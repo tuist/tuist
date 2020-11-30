@@ -20,7 +20,7 @@
     "@theme-ui/presets": "^0.3.0",
     "@theme-ui/prism": "^0.3.4",
     "@theme-ui/sidenav": "^0.3.4",
-    "@theme-ui/typography": "^0.3.0",
+    "@theme-ui/typography": "^0.3.4",
     "copy-text-to-clipboard": "^2.2.0",
     "focus-visible": "^5.2.0",
     "gatsby": "^2.26.1",
