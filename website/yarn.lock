@@ -2436,10 +2436,10 @@
     "@theme-ui/core" "^0.3.4"
     "@theme-ui/mdx" "^0.3.4"
 
-"@theme-ui/typography@^0.3.0":
-  version "0.3.0"
-  resolved "https://registry.yarnpkg.com/@theme-ui/typography/-/typography-0.3.0.tgz#4e9a33a9c42e7bfac3abed4f1d7f86232a4c4ec4"
-  integrity sha512-71xT7M73FbgqBLVISaSjjL65V8Tn75cnoIH9MAPfmLP7+YhH0BtzBWfGiuB4Rz6pHj111MNnnn1PmStgtmDYQw==
+"@theme-ui/typography@^0.3.4":
+  version "0.3.4"
+  resolved "https://registry.yarnpkg.com/@theme-ui/typography/-/typography-0.3.4.tgz#c8ef67dc578a3dec23c863d6d8f0a0234f7c5716"
+  integrity sha512-/Zx3Seu/y+VzEhY0DfTioOxcAOXOUI6qkNOOWsrMS2fkALtnNHivApCOnxbzBRkQzEfcbsS+b34gN3F5OYQErw==
   dependencies:
     compass-vertical-rhythm "^1.4.5"
     modularscale "^2.0.1"
