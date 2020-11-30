@@ -2295,10 +2295,10 @@
   resolved "https://registry.yarnpkg.com/@theme-ui/css/-/css-0.3.4.tgz#26ff7696f8a0d80b2d9093ff04913e3046971aeb"
   integrity sha512-/H9yxunPiAh2NENXp232OBTEnCzgz0N/KnF5RXgkncqNBeI6I1dzwMe/fE0GO4poH8sdzquc1nNRXuR3HgA3/w==
 
-"@theme-ui/match-media@^0.3.3":
-  version "0.3.3"
-  resolved "https://registry.yarnpkg.com/@theme-ui/match-media/-/match-media-0.3.3.tgz#1ae6f58eebced0891f9da9f2ade099baaa3ad9af"
-  integrity sha512-RoZWjhmKDy9cg+No+V12DdIf0KGWHibkf570r0Gx+1IKFazCghKM2Q2kxh5u7rxuFaHgxNCKBOqWJOpMGDRSqw==
+"@theme-ui/match-media@^0.3.4":
+  version "0.3.4"
+  resolved "https://registry.yarnpkg.com/@theme-ui/match-media/-/match-media-0.3.4.tgz#75a2f9b384e6c8c2df1596abf53bef1e07b65fea"
+  integrity sha512-um/bPUrmy8INcrXmnwEfsu1DapxNyC3uJBoLUxKPOm4NoWJOXriIZLU5p2vbVGpOj1sfmn62MYbyFWJGMYVSBg==
 
 "@theme-ui/mdx@^0.3.4":
   version "0.3.4"
