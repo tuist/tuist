@@ -58,15 +58,13 @@ final class TestService {
             temporaryDirectory: temporaryDirectory,
             generator: Generator(
                 projectMapperProvider: AutomationProjectMapperProvider(
-                    temporaryDirectory: AbsolutePath("/Users/marekfort/Downloads/tmp")
+//                    xcodeProjDirectory: temporaryDirectory.path
+                    xcodeProjDirectory: AbsolutePath("/Users/marekfort/Downloads/tmp")
                 ),
-                graphMapperProvider: GraphMapperProvider(
-//                    temporaryDirectory: AbsolutePath("/Users/marekfort/Downloads/tmp")
-//                    temporaryDirectory: temporaryDirectory.path
-                ),
+                graphMapperProvider: GraphMapperProvider(),
                 workspaceMapperProvider: AutomationWorkspaceMapperProvider(
-//                    temporaryDirectory: temporaryDirectory.path
-                    temporaryDirectory: AbsolutePath("/Users/marekfort/Downloads/tmp")
+//                    workspaceDirectory: temporaryDirectory.path
+                    workspaceDirectory: AbsolutePath("/Users/marekfort/Downloads/tmp")
                 ),
                 manifestLoaderFactory: ManifestLoaderFactory()
             )

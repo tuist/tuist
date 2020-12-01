@@ -4,25 +4,25 @@ import TSCBasic
 
 /// Updates path of project to point to where automation project should be generated
 public final class AutomationPathProjectMapper: ProjectMapping {
-    private let temporaryDirectory: AbsolutePath
+    private let xcodeProjDirectory: AbsolutePath
     
     public init(
-        temporaryDirectory: AbsolutePath
+        xcodeProjDirectory: AbsolutePath
     ) {
-        self.temporaryDirectory = temporaryDirectory
+        self.xcodeProjDirectory = xcodeProjDirectory
     }
     
     public func map(project: Project) throws -> (Project, [SideEffectDescriptor]) {
         var project = project
         let xcodeProjBasename = project.xcodeProjPath.basename
-        project.sourceRootPath = temporaryDirectory
-        project.xcodeProjPath = temporaryDirectory.appending(component: xcodeProjBasename)
+        project.sourceRootPath = xcodeProjDirectory
+        project.xcodeProjPath = xcodeProjDirectory.appending(component: xcodeProjBasename)
         return (
             project,
             [
                 .directory(
                     DirectoryDescriptor(
-                        path: temporaryDirectory,
+                        path: xcodeProjDirectory,
                         state: .present
                     )
                 ),

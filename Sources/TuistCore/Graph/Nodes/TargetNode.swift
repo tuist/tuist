@@ -33,7 +33,7 @@ public class TargetNode: GraphNode {
         self.target = target
         self.dependencies = dependencies
         self.prune = prune
-        super.init(path: project.xcodeProjPath.parentDirectory, name: target.name)
+        super.init(path: project.path, name: target.name)
     }
 
     // MARK: - Hashable

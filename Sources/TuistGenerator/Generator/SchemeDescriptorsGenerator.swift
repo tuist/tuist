@@ -521,7 +521,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
                                             generatedProject: GeneratedProject,
                                             rootPath: AbsolutePath) -> RelativePath
     {
-        let xcodeProjectPath = targetNode.path.appending(component: generatedProject.name)
+        let xcodeProjectPath = targetNode.project.xcodeProjPath.appending(component: generatedProject.name)
         return xcodeProjectPath.relative(to: rootPath)
     }
 
