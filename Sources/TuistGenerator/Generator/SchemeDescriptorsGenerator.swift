@@ -543,7 +543,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         guard let pbxTarget = generatedProject.targets[targetReference.name] else { return nil }
         let relativeXcodeProjectPath = resolveRelativeProjectPath(targetNode: target,
                                                                   generatedProject: generatedProject,
-                                                                  rootPath: rootPath)
+                                                                  rootPath: target.project.xcodeProjPath)
 
         return targetBuildableReference(target: target.target,
                                         pbxTarget: pbxTarget,
