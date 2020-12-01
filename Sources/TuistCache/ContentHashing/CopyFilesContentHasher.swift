@@ -22,7 +22,7 @@ public final class CopyFilesContentHasher: CopyFilesContentHashing {
         var stringsToHash: [String] = []
         for action in copyFiles {
             let fileHashes = try action.files.map { try contentHasher.hash(path: $0.path) }
-            stringsToHash.append(contentsOf: fileHashes + [action.name, action.subpath ?? "", "\(action.destination.rawValue)"])
+            stringsToHash.append(contentsOf: fileHashes + [action.name, action.destination.rawValue, action.subpath ?? ""])
         }
         return try contentHasher.hash(stringsToHash)
     }

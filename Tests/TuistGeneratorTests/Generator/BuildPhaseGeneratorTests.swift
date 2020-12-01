@@ -471,6 +471,53 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         ])
     }
 
+    func test_generateCopyFilesBuildPhases() throws {
+        // Given
+        let fonts: [FileElement] = [
+            .file(path: "/path/fonts/font1.ttf"),
+            .file(path: "/path/fonts/font2.ttf"),
+            .file(path: "/path/fonts/font3.ttf"),
+        ]
+
+        let templates: [FileElement] = [
+            .file(path: "/path/sharedSupport/tuist.rtfd"),
+            .file(path: "/path/sharedSupport/tuist.rtfd/TXT.rtf"),
+            .file(path: "/path/sharedSupport/tuist.rtfd/image.jpg"),
+        ]
+
+        let pbxproj = PBXProj()
+        let nativeTarget = PBXNativeTarget(name: "Test")
+        let fileElements = createFileElements(for: (fonts + templates).map(\.path))
+
+        let target = Target.test(copyFiles: [
+            CopyFilesAction(name: "Copy Fonts", destination: .resources, subpath: "Fonts", files: fonts),
+            CopyFilesAction(name: "Copy Templates", destination: .sharedSupport, subpath: "Templates", files: templates),
+        ])
+
+        // When
+        try subject.generateCopyFilesBuildPhases(target: target,
+                                                 pbxTarget: nativeTarget,
+                                                 fileElements: fileElements,
+                                                 pbxproj: pbxproj)
+
+        // Then
+        let firstBuildPhase = try XCTUnwrap(nativeTarget.buildPhases.first as? PBXCopyFilesBuildPhase)
+        XCTAssertEqual(firstBuildPhase.name, "Copy Fonts")
+        XCTAssertEqual(firstBuildPhase.dstSubfolderSpec, .resources)
+        XCTAssertEqual(firstBuildPhase.dstPath, "Fonts")
+        XCTAssertEqual(firstBuildPhase.files?.compactMap { $0.file?.nameOrPath }, [
+            "font1.ttf",
+            "font2.ttf",
+            "font3.ttf",
+        ])
+
+        let secondBuildPhase = try XCTUnwrap(nativeTarget.buildPhases.last as? PBXCopyFilesBuildPhase)
+        XCTAssertEqual(secondBuildPhase.name, "Copy Templates")
+        XCTAssertEqual(secondBuildPhase.dstSubfolderSpec, .sharedSupport)
+        XCTAssertEqual(secondBuildPhase.dstPath, "Templates")
+        XCTAssertEqual(secondBuildPhase.files?.compactMap { $0.file?.nameOrPath }, ["tuist.rtfd"])
+    }
+
     func test_generateAppExtensionsBuildPhase() throws {
         // Given
         let path = try temporaryPath()

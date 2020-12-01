@@ -82,12 +82,10 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                                         fileElements: fileElements,
                                         pbxproj: pbxproj)
 
-        try generateCopyFilesBuildPhases(path: path,
-                                        target: target,
-                                        graphTraverser: graphTraverser,
-                                        pbxTarget: pbxTarget,
-                                        fileElements: fileElements,
-                                        pbxproj: pbxproj)
+        try generateCopyFilesBuildPhases(target: target,
+                                         pbxTarget: pbxTarget,
+                                         fileElements: fileElements,
+                                         pbxproj: pbxproj)
 
         try generateAppExtensionsBuildPhase(path: path,
                                             target: target,
@@ -264,12 +262,10 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                                resourcesBuildPhase: resourcesBuildPhase)
     }
 
-    func generateCopyFilesBuildPhases(path: AbsolutePath,
-                                     target: Target,
-                                     graphTraverser: GraphTraversing,
-                                     pbxTarget: PBXTarget,
-                                     fileElements: ProjectFileElements,
-                                     pbxproj: PBXProj) throws
+    func generateCopyFilesBuildPhases(target: Target,
+                                      pbxTarget: PBXTarget,
+                                      fileElements: ProjectFileElements,
+                                      pbxproj: PBXProj) throws
     {
         try target.copyFiles.forEach { action in
             let copyFilesPhase = PBXCopyFilesBuildPhase(
