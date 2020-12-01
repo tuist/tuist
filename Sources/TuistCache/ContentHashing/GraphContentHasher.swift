@@ -60,6 +60,3 @@ public final class GraphContentHasher: GraphContentHashing {
         return cacheable
     }
 }
-
-// return yes from isCachable for bundle targets (GraphContentHasher)
-// modify the graph to embed bundles directly in the app (CacheGraphMutator)
