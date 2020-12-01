@@ -41,7 +41,7 @@ public struct Target: Codable, Equatable {
     /// Relative paths to the resources directory.
     public let resources: [FileElement]?
 
-    /// Copy files phases.
+    /// Copy files actions.
     public let copyFiles: [CopyFilesAction]?
 
     /// Headers.

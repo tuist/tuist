@@ -2,28 +2,36 @@ import Foundation
 import TSCBasic
 
 public struct CopyFilesAction: Equatable {
+    /// Name of the build phase when the project gets generated.
     public var name: String
+
+    /// Destination to copy files to.
     public var destination: Destination
-    public var subpath: String
+
+    /// Path to a folder inside the destination.
+    public var subpath: String?
+
+    /// Relative paths to the files to be copied.
     public var files: [FileElement]
 
-    public enum Destination: UInt, Equatable {
-        case absolutePath = 0
-        case productsDirectory = 16
-        case wrapper = 1
-        case executables = 6
-        case resources = 7
-        case javaResources = 15
-        case frameworks = 10
-        case sharedFrameworks = 11
-        case sharedSupport = 12
-        case plugins = 13
+    /// Destination path.
+    public enum Destination: String, Equatable {
+        case absolutePath
+        case productsDirectory
+        case wrapper
+        case executables
+        case resources
+        case javaResources
+        case frameworks
+        case sharedFrameworks
+        case sharedSupport
+        case plugins
         case other
     }
 
     public init(name: String,
                 destination: Destination,
-                subpath: String,
+                subpath: String? = nil,
                 files: [FileElement])
     {
         self.name = name

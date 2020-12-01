@@ -271,17 +271,17 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                                      fileElements: ProjectFileElements,
                                      pbxproj: PBXProj) throws
     {
-        try target.copyFiles.forEach { phase in
-            let copyFilesPhase =  PBXCopyFilesBuildPhase(
-                dstPath: phase.subpath,
-                dstSubfolderSpec: PBXCopyFilesBuildPhase.SubFolder.init(rawValue: phase.destination.rawValue),
-                name: phase.name)
+        try target.copyFiles.forEach { action in
+            let copyFilesPhase = PBXCopyFilesBuildPhase(
+                dstPath: action.subpath,
+                dstSubfolderSpec: action.destination.toXcodeprojSubFolder,
+                name: action.name)
 
             pbxproj.add(object: copyFilesPhase)
             pbxTarget.buildPhases.append(copyFilesPhase)
 
             var buildFilesCache = Set<AbsolutePath>()
-            let filePaths = phase.files
+            let filePaths = action.files
                 .map(\.path)
                 .sorted()
                 .cleanPackages()
