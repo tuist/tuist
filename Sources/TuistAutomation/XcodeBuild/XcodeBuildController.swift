@@ -80,7 +80,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
         switch destination {
         case let .device(udid):
             command.append(contentsOf: ["-destination", "id=\(udid)"])
-        case .mac, .unspecified:
+        case .mac:
             break
         }
 

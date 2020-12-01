@@ -6,8 +6,6 @@ import TuistSupport
 public enum XcodeBuildDestination: Equatable {
     case device(String)
     case mac
-    /// We let `xcodebuild` decide what device the command will run on
-    case unspecified
 }
 
 public protocol XcodeBuildControlling {

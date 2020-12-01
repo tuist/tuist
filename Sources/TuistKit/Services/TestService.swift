@@ -108,29 +108,30 @@ final class TestService {
             "Found the following testable schemes: \(testableSchemes.map(\.name).joined(separator: ", "))"
         )
 
-        let testScheme: Scheme
+        let testSchemes: [Scheme]
         if let schemeName = schemeName {
             guard let scheme = testableSchemes.first(where: { $0.name == schemeName }) else {
                 throw TestServiceError.schemeNotFound(scheme: schemeName, existing: testableSchemes.map(\.name))
             }
-            testScheme = scheme
+            testSchemes = [scheme]
         } else {
+            testSchemes = buildGraphInspector.projectSchemes(graph: graph)
             guard
-                let scheme = testableSchemes
-                .first(where: { $0.name == "\(graph.workspace.name)-Project" })
+                !testSchemes.isEmpty
             else { throw TestServiceError.schemeNotFound(scheme: "\(graph.workspace.name)-Project", existing: testableSchemes.map(\.name)) }
-            testScheme = scheme
         }
 
-        try self.testScheme(
-            scheme: testScheme,
-            graph: graph,
-            path: path,
-            clean: clean,
-            configuration: configuration,
-            version: version,
-            deviceName: deviceName
-        )
+        try testSchemes.forEach { testScheme in
+            try self.testScheme(
+                scheme: testScheme,
+                graph: graph,
+                path: path,
+                clean: clean,
+                configuration: configuration,
+                version: version,
+                deviceName: deviceName
+            )
+        }
 
         logger.log(level: .notice, "The project tests ran successfully", metadata: .success)
     }
@@ -164,12 +165,11 @@ final class TestService {
             scheme: scheme.name,
             clean: clean,
             destination: destination,
-            arguments: []
-//            arguments: buildGraphInspector.buildArguments(
-//                target: buildableTarget,
-//                configuration: configuration,
-//                skipSigning: true
-//            )
+            arguments: buildGraphInspector.buildArguments(
+                target: buildableTarget,
+                configuration: configuration,
+                skipSigning: true
+            )
         )
         .printFormattedOutput()
         .toBlocking()
@@ -183,8 +183,6 @@ final class TestService {
         version: Version?,
         deviceName: String?
     ) throws -> XcodeBuildDestination {
-        // If user does not specify device, we return `.unspecified`
-        guard version != nil || deviceName != nil else { return .unspecified }
         switch buildableTarget.platform {
         case .iOS, .tvOS, .watchOS:
             let minVersion: Version?
