@@ -93,7 +93,7 @@ public struct TextTable<T> {
     }
 
     private func render(cells: [Cell], in table: inout String) {
-        table += cells.map { $0.value }.joined(separator: "  ")
+        table += cells.map(\.value).joined(separator: "  ")
     }
 
     private func calculateWidths<C: Collection>(for data: C) -> [Int] where C.Iterator.Element == T {
@@ -101,7 +101,7 @@ public struct TextTable<T> {
 
         // Headers
         let headers = mapper(first)
-        var widths = headers.map { $0.title.count }
+        var widths = headers.map(\.title.count)
 
         // Data Rows
         for element in data {

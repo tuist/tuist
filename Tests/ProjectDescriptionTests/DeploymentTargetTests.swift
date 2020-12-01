@@ -16,4 +16,16 @@ final class DeploymentTargetTests: XCTestCase {
         let expected = "{\"kind\":\"macOS\",\"version\":\"10.15\"}"
         XCTAssertCodableEqualToJson(subject, expected)
     }
+
+    func test_toJSON_whenWatchOS() {
+        let subject = DeploymentTarget.watchOS(targetVersion: "6.0")
+        let expected = "{\"kind\":\"watchOS\",\"version\":\"6.0\"}"
+        XCTAssertCodableEqualToJson(subject, expected)
+    }
+
+    func test_toJSON_whenTVOS() {
+        let subject = DeploymentTarget.tvOS(targetVersion: "14.2")
+        let expected = "{\"kind\":\"tvOS\",\"version\":\"14.2\"}"
+        XCTAssertCodableEqualToJson(subject, expected)
+    }
 }

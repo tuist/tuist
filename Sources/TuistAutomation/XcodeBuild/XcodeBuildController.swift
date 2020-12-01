@@ -48,7 +48,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
         command.append(contentsOf: target.xcodebuildArguments)
 
         // Arguments
-        command.append(contentsOf: arguments.flatMap { $0.arguments })
+        command.append(contentsOf: arguments.flatMap(\.arguments))
 
         return run(command: command)
     }
@@ -75,7 +75,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
         command.append(contentsOf: target.xcodebuildArguments)
 
         // Arguments
-        command.append(contentsOf: arguments.flatMap { $0.arguments })
+        command.append(contentsOf: arguments.flatMap(\.arguments))
 
         switch destination {
         case let .device(udid):
@@ -111,7 +111,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
         command.append(contentsOf: ["-archivePath", archivePath.pathString])
 
         // Arguments
-        command.append(contentsOf: arguments.flatMap { $0.arguments })
+        command.append(contentsOf: arguments.flatMap(\.arguments))
 
         return run(command: command)
     }

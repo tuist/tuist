@@ -67,7 +67,7 @@ final class GraphTests: TuistUnitTestCase {
         let testDependencies = graph.testTargetsDependingOn(path: project.path, name: target.name)
 
         // then
-        let testDependenciesNames = try XCTUnwrap(testDependencies).map { $0.name }
+        let testDependenciesNames = try XCTUnwrap(testDependencies).map(\.name)
         XCTAssertEqual(testDependenciesNames.count, 3)
         XCTAssertEqual(testDependenciesNames, ["MainTests1", "MainTests2", "MainTests3"])
     }

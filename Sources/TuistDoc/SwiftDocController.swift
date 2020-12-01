@@ -47,7 +47,7 @@ public struct SwiftDocController: SwiftDocControlling {
                          "--module-name", moduleName,
                          "--base-url", baseURL,
                          "--output", outputDirectory]
-        arguments.append(contentsOf: Set(paths.map { $0.dirname }))
+        arguments.append(contentsOf: Set(paths.map(\.dirname)))
         logger.pretty("Generating documentation for \(.bold(.raw(moduleName))).")
 
         _ = try System.shared.observable(arguments)

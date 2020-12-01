@@ -35,7 +35,7 @@ final class TargetActionsContentHasherTests: TuistUnitTestCase {
     private func makeTargetAction(name: String = "1",
                                   order: TargetAction.Order = .pre,
                                   tool: String = "tool1",
-                                  path: AbsolutePath = AbsolutePath("/path1"),
+                                  path: AbsolutePath? = AbsolutePath("/path1"),
                                   arguments: [String] = ["arg1", "arg2"],
                                   inputPaths: [AbsolutePath] = [AbsolutePath("/inputPaths1")],
                                   inputFileListPaths: [AbsolutePath] = [AbsolutePath("/inputFileListPaths1")],
@@ -83,6 +83,36 @@ final class TargetActionsContentHasherTests: TuistUnitTestCase {
                         "pre",
                         "arg1",
                         "arg2"]
+        XCTAssertEqual(mockContentHasher.hashStringsSpy, expected)
+    }
+
+    func test_hash_targetAction_when_path_nil_callsMockHasherWithExpectedStrings() throws {
+        // Given
+        let inputPaths1Hash = "inputPaths1-hash"
+        let inputFileListPaths1 = "inputFileListPaths1-hash"
+        let outputPaths1 = "outputPaths1-hash"
+        let outputFileListPaths1 = "outputFileListPaths1-hash"
+        mockContentHasher.stubHashForPath[AbsolutePath("/inputPaths1")] = inputPaths1Hash
+        mockContentHasher.stubHashForPath[AbsolutePath("/inputFileListPaths1")] = inputFileListPaths1
+        mockContentHasher.stubHashForPath[AbsolutePath("/outputPaths1")] = outputPaths1
+        mockContentHasher.stubHashForPath[AbsolutePath("/outputFileListPaths1")] = outputFileListPaths1
+        let targetAction = makeTargetAction(path: nil)
+
+        // When
+        _ = try subject.hash(targetActions: [targetAction])
+
+        // Then
+        let expected = [
+            inputPaths1Hash,
+            inputFileListPaths1,
+            outputPaths1,
+            outputFileListPaths1,
+            "1",
+            "tool1",
+            "pre",
+            "arg1",
+            "arg2",
+        ]
         XCTAssertEqual(mockContentHasher.hashStringsSpy, expected)
     }
 

@@ -116,7 +116,7 @@ class Generator: Generating {
         let projectMapper = projectMapperProvider.mapper(config: config)
         let updatedModels = try models.map(projectMapper.map)
         let updatedProjects = updatedModels.map(\.0)
-        let modelMapperSideEffects = updatedModels.flatMap { $0.1 }
+        let modelMapperSideEffects = updatedModels.flatMap(\.1)
 
         // Load Graph
         let cachedModelLoader = CachedModelLoader(projects: updatedProjects)
@@ -243,7 +243,7 @@ class Generator: Generating {
         let (updatedGraph, graphMapperSideEffects) = try graphMapperProvider.mapper(config: config).map(graph: graph)
         let updatedWorkspace = updatedModels
             .workspace
-            .merging(projects: updatedGraph.projects.map { $0.path })
+            .merging(projects: updatedGraph.projects.map(\.path))
 
         return (
             project,
