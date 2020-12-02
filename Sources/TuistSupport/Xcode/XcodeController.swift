@@ -20,7 +20,7 @@ public protocol XcodeControlling {
     ///
     /// - Returns: `AbsolutePath` of the derived data
     /// - Throws: An error if it can't be obtained
-    func derivedDataPath() throws -> AbsolutePath
+    func derivedDataPath() throws -> String
 }
 
 public class XcodeController: XcodeControlling {
@@ -80,11 +80,13 @@ public class XcodeController: XcodeControlling {
         return version
     }
 
-    public func derivedDataPath() throws -> AbsolutePath {
-        guard let path = try? System.shared.capture(["defaults", "com.apple.dt.Xcode", "IDECustomDerivedDataLocation"]).spm_chomp() else {
-            return AbsolutePath("/~/Library/Developer/Xcode/DerivedData")
+    public func derivedDataPath() throws -> String {
+        guard let path = try? System.shared.capture(["defaults", "read", "com.apple.dt.Xcode", "IDECustomDerivedDataLocation"])
+            .spm_chomp()
+        else {
+            return "Library/Developer/Xcode/DerivedData"
         }
 
-        return AbsolutePath(path)
+        return String(path.drop { ($0 == "/") || ($0 == "~") })
     }
 }

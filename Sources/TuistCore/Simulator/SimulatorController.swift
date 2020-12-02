@@ -1,4 +1,5 @@
 import Foundation
+import Logging
 import RxSwift
 import TSCBasic
 import struct TSCUtility.Version
@@ -37,13 +38,16 @@ public protocol SimulatorControlling {
     ) -> Single<SimulatorDeviceAndRuntime>
 
     /// Boots a given simulator
-    func bootSimulator(_ simulatorDevice: SimulatorDeviceAndRuntime) -> Observable<SystemEvent<XcodeBuildOutput>>
+    func bootSimulator(_ simulatorDevice: SimulatorDeviceAndRuntime) -> Observable<SystemEvent<Data>>
 
     /// Installs an app on a given simulator
-    func installAppBuilt(appPath: AbsolutePath) -> Observable<SystemEvent<XcodeBuildOutput>>
+    func installAppBuilt(appPath: AbsolutePath) -> Observable<SystemEvent<Data>>
 
     /// Launches an app on a booted simulator
-    func launchApp(bundleId: String) -> Observable<SystemEvent<XcodeBuildOutput>>
+    func launchApp(bundleId: String) -> Observable<SystemEvent<Data>>
+
+    /// Shutdowns a given simulator
+    func shutdownSimulator(_ udid: String) -> Observable<SystemEvent<Data>>
 }
 
 public enum SimulatorControllerError: FatalError {
@@ -172,40 +176,24 @@ public final class SimulatorController: SimulatorControlling {
             }
     }
 
-    public func bootSimulator(_ simulatorDevice: SimulatorDeviceAndRuntime) -> Observable<SystemEvent<XcodeBuildOutput>> {
-        return run(command: ["/usr/bin/xcrun", "simctl", "boot", "\(simulatorDevice.device.udid)"])
+    public func bootSimulator(_ simulatorDevice: SimulatorDeviceAndRuntime) -> Observable<SystemEvent<Data>> {
+        logger.info("Booting \(simulatorDevice.device.name)")
+        return System.shared.observable(["/usr/bin/xcrun", "simctl", "boot", "\(simulatorDevice.device.udid)"])
     }
 
-    public func installAppBuilt(appPath: AbsolutePath) -> Observable<SystemEvent<XcodeBuildOutput>> {
-        return run(command: ["/usr/bin/xcrun", "simctl", "install", "booted", "\(appPath)"])
+    public func installAppBuilt(appPath: AbsolutePath) -> Observable<SystemEvent<Data>> {
+        logger.info("Installing \(appPath)")
+        return System.shared.observable(["/usr/bin/xcrun", "simctl", "install", "booted", "\(appPath)"])
     }
 
-    public func launchApp(bundleId: String) -> Observable<SystemEvent<XcodeBuildOutput>> {
-        return run(command: ["/usr/bin/xcrun", "simctl", "launch", "booted", bundleId])
+    public func launchApp(bundleId: String) -> Observable<SystemEvent<Data>> {
+        logger.info("Lanching \(bundleId)")
+        return System.shared.observable(["/usr/bin/xcrun", "simctl", "launch", "booted", bundleId])
     }
 
-    private func run(command: [String]) -> Observable<SystemEvent<XcodeBuildOutput>> {
-        return System.shared.observable(command)
-            .flatMap { event -> Observable<SystemEvent<XcodeBuildOutput>> in
-                switch event {
-                case .standardOutput(let outputData):
-                    guard let line = String(data: outputData, encoding: .utf8) else {
-                        return Observable.empty()
-                    }
-                    let output = line.split(separator: "\n").map { line -> SystemEvent<XcodeBuildOutput> in
-                        return SystemEvent.standardOutput(XcodeBuildOutput(raw: "\(String(line))", formatted: nil))
-                    }
-                    return Observable.from(output)
-                case .standardError(let errorData):
-                    guard let line = String(data: errorData, encoding: .utf8) else {
-                        return Observable.empty()
-                    }
-                    let output = line.split(separator: "\n").map { line -> SystemEvent<XcodeBuildOutput> in
-                        return SystemEvent.standardError(XcodeBuildOutput(raw: "\(String(line))", formatted: nil))
-                    }
-                    return Observable.from(output)
-                }
-            }
+    public func shutdownSimulator(_ udid: String) -> Observable<SystemEvent<Data>> {
+        logger.info("Shuting down simulator with UDID: \(udid)")
+        return System.shared.observable(["/usr/bin/xcrun", "simctl", "shutdown", udid])
     }
 }
 

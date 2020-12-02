@@ -8,7 +8,7 @@ struct RunCommand: ParsableCommand {
     }
 
     @Argument(
-    help: "The scheme to be run."
+        help: "The scheme to be run."
     )
     var scheme: String
 

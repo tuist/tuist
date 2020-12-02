@@ -44,7 +44,8 @@ final class RunService {
     init(simulatorController: SimulatorControlling = SimulatorController(),
          buildGraphInspector: BuildGraphInspecting = BuildGraphInspector(),
          generator: Generating = Generator(contentHasher: CacheContentHasher()),
-         xcodeBuildController: XcodeBuildControlling = XcodeBuildController()) {
+         xcodeBuildController: XcodeBuildControlling = XcodeBuildController())
+    {
         self.simulatorController = simulatorController
         self.buildGraphInspector = buildGraphInspector
         self.generator = generator
@@ -53,16 +54,29 @@ final class RunService {
 
     func run(schemeName: String) throws {
         _ = try Observable.combineLatest(buildScheme(schemeName),
-                                         findAndBootSimulator())
-            .flatMap({ _ in self.simulatorController.installAppBuilt(appPath: try self.findApp(for: self.buildableTarget!)) })
-            .flatMap({ _ in self.simulatorController.launchApp(bundleId: self.buildableTarget!.bundleId)})
+                                         findAndPrepareSimulator())
+            .toBlocking()
+            .last()
+
+        _ = try simulatorController.installAppBuilt(appPath: try findApp(for: buildableTarget!))
+            .toBlocking()
+            .last()
+
+        _ = try simulatorController.launchApp(bundleId: buildableTarget!.bundleId)
             .toBlocking()
             .last()
     }
 
-    private func findAndBootSimulator() -> Observable<SystemEvent<XcodeBuildOutput>> {
-        return simulatorController.findAvailableDevice(platform: Platform(rawValue: "ios")!).asObservable()
-            .flatMap({ return self.simulatorController.bootSimulator($0)})
+    private func findAndPrepareSimulator() -> Observable<SystemEvent<Data>> {
+        simulatorController.findAvailableDevice(platform: Platform(rawValue: "ios")!).asObservable()
+            .flatMap { simulatorAndRunTime -> Observable<SystemEvent<Data>> in
+                if simulatorAndRunTime.device.isShutdown {
+                    return self.simulatorController.bootSimulator(simulatorAndRunTime)
+                } else {
+                    return self.simulatorController.shutdownSimulator(simulatorAndRunTime.device.udid)
+                        .concat(self.simulatorController.bootSimulator(simulatorAndRunTime))
+                }
+            }
     }
 
     private func buildScheme(_ schemeName: String) -> Observable<SystemEvent<XcodeBuildOutput>> {
@@ -71,11 +85,10 @@ final class RunService {
             let schemes = buildGraphInspector.buildableSchemes(graph: graph)
             guard let scheme = schemes.first(where: { $0.name == schemeName }) else {
                 return Observable.error(RunServiceError.schemeNotFound(schemeName: schemeName, buildableSchemes: schemes.map { $0.name }))
-
             }
             buildableTarget = buildGraphInspector.buildableTarget(scheme: scheme, graph: graph)
             let workspacePath = try buildGraphInspector.workspacePath(directory: FileHandler.shared.currentPath)!
-            return self.xcodeBuildController.build(.workspace(workspacePath), scheme: schemeName, clean: false, arguments: self.buildGraphInspector.buildArguments(target: self.buildableTarget!, configuration: nil, skipSigning: true))
+            return xcodeBuildController.build(.workspace(workspacePath), scheme: schemeName, clean: false, arguments: buildGraphInspector.buildArguments(target: buildableTarget!, configuration: nil, skipSigning: true))
         } catch {
             return Observable.error(error)
         }
@@ -87,10 +100,8 @@ final class RunService {
         }
 
         let derivedDataPath = try XcodeController.shared.derivedDataPath()
-        let appLocation = FileHandler.shared.locateDirectory(String(derivedDataPath.pathString.drop { ($0 == "/") || ($0 == "~") }),
-                                                             traversingFrom: FileHandler.shared.currentPath)?
-            .glob("uFeatures-*/Build/Products/Debug-\(target.platform.xcodeSimulatorSDK!)/*.app")
-         guard let locations = appLocation else { throw RunServiceError.appNotFound(targetName: target.name) }
+        let appLocation = FileHandler.shared.locateDirectory(derivedDataPath, traversingFrom: FileHandler.shared.currentPath)?.glob("*-*/Build/Products/Debug-\(target.platform.xcodeSimulatorSDK!)/\(target.productName).app")
+        guard let locations = appLocation else { throw RunServiceError.appNotFound(targetName: target.name) }
         if locations.isEmpty {
             throw RunServiceError.appNotFound(targetName: target.name)
         } else {

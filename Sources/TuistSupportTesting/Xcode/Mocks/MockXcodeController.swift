@@ -24,7 +24,7 @@ public final class MockXcodeController: XcodeControlling {
         }
     }
 
-    public func derivedDataPath() throws -> AbsolutePath {
-        AbsolutePath(stringLiteral: "")
+    public func derivedDataPath() throws -> String {
+        "path/to/derived/data"
     }
 }

@@ -59,19 +59,19 @@ public final class MockSimulatorController: SimulatorControlling {
         findAvailableDeviceStub?(platform, version, minVersion, deviceName) ?? .just(SimulatorDeviceAndRuntime.test())
     }
 
-    var bootStub: ((_ simulatorDevice: SimulatorDeviceAndRuntime) -> Void)?
-    public func bootSimulator(_ simulatorDevice: SimulatorDeviceAndRuntime) -> Observable<SystemEvent<XcodeBuildOutput>> {
-        if let bootStub = bootStub {
-            bootStub(simulatorDevice)
-        }
-        return Observable.empty()
+    public func bootSimulator(_: SimulatorDeviceAndRuntime) -> Observable<SystemEvent<Data>> {
+        Observable.empty()
     }
 
-    public func installAppBuilt(appPath: AbsolutePath) -> Observable<SystemEvent<XcodeBuildOutput>> {
-        return Observable.empty()
+    public func shutdownSimulator(_: String) -> Observable<SystemEvent<Data>> {
+        Observable.empty()
     }
 
-    public func launchApp(bundleId: String) -> Observable<SystemEvent<XcodeBuildOutput>> {
-        return Observable.empty()
+    public func installAppBuilt(appPath _: AbsolutePath) -> Observable<SystemEvent<Data>> {
+        Observable.empty()
+    }
+
+    public func launchApp(bundleId _: String) -> Observable<SystemEvent<Data>> {
+        Observable.empty()
     }
 }
