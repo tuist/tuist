@@ -296,6 +296,15 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
                                      .file(path: AbsolutePath("/project/image.png")),
                                      .folderReference(path: AbsolutePath("/project/reference")),
                                  ],
+                                 copyFiles: [
+                                     CopyFilesAction(name: "Copy Templates",
+                                                     destination: .sharedSupport,
+                                                     subpath: "Templates",
+                                                     files: [
+                                                         .file(path: "/project/tuist.rtfd"),
+                                                         .file(path: "/project/tuist.rtfd/TXT.rtf"),
+                                                     ]),
+                                 ],
                                  coreDataModels: [CoreDataModel(path: AbsolutePath("/project/model.xcdatamodeld"),
                                                                 versions: [AbsolutePath("/project/model.xcdatamodeld/1.xcdatamodel")],
                                                                 currentVersion: "1")],
@@ -319,6 +328,8 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
             GroupFileElement(path: "/project/private.h", group: target.filesGroup),
             GroupFileElement(path: "/project/model.xcdatamodeld/1.xcdatamodel", group: target.filesGroup),
             GroupFileElement(path: "/project/model.xcdatamodeld", group: target.filesGroup),
+            GroupFileElement(path: "/project/tuist.rtfd", group: target.filesGroup),
+            GroupFileElement(path: "/project/tuist.rtfd/TXT.rtf", group: target.filesGroup),
         ]))
     }
 
