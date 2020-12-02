@@ -77,7 +77,7 @@ final class ProductTests: XCTestCase {
 
     func test_runnable() {
         Product.allCases.forEach { product in
-            if [.app, .appClip, .commandLineTool].contains(product) {
+            if [.app, .appClip, .commandLineTool, .watch2App].contains(product) {
                 XCTAssertTrue(product.runnable)
             } else {
                 XCTAssertFalse(product.runnable)
