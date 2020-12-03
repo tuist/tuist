@@ -150,6 +150,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "luispadron",
+      "name": "Luis Padron",
+      "avatar_url": "https://avatars3.githubusercontent.com/u/13840545?v=4",
+      "profile": "http://www.luispadron.com",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,
