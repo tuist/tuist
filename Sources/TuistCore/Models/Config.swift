@@ -17,6 +17,9 @@ public struct Config: Equatable, Hashable {
         case enableCodeCoverage
     }
 
+    /// List of `Plugin`s used to extend Tuist.
+    public let plugins: [PluginLocation]
+
     /// Generation options.
     public let generationOptions: [GenerationOption]
 
@@ -31,7 +34,7 @@ public struct Config: Equatable, Hashable {
 
     /// Returns the default Tuist configuration.
     public static var `default`: Config {
-        Config(compatibleXcodeVersions: .all, cloud: nil, generationOptions: [], path: nil)
+        Config(compatibleXcodeVersions: .all, cloud: nil, plugins: [], generationOptions: [], path: nil)
     }
 
     /// Initializes the tuist cofiguration.
@@ -39,15 +42,18 @@ public struct Config: Equatable, Hashable {
     /// - Parameters:
     ///   - compatibleXcodeVersions: List of Xcode versions the project or set of projects is compatible with.
     ///   - cloud: Cloud configuration.
+    ///   - plugins: List of locations to a `Plugin` manifest.
     ///   - generationOptions: Generation options.
     ///   - path: The path of the config file.
     public init(compatibleXcodeVersions: CompatibleXcodeVersions,
                 cloud: Cloud?,
+                plugins: [PluginLocation],
                 generationOptions: [GenerationOption],
                 path: AbsolutePath?)
     {
         self.compatibleXcodeVersions = compatibleXcodeVersions
         self.cloud = cloud
+        self.plugins = plugins
         self.generationOptions = generationOptions
         self.path = path
     }

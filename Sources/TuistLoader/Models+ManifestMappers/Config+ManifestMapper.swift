@@ -12,12 +12,16 @@ extension TuistCore.Config {
     static func from(manifest: ProjectDescription.Config, at path: AbsolutePath) throws -> TuistCore.Config {
         let generationOptions = try manifest.generationOptions.map { try TuistCore.Config.GenerationOption.from(manifest: $0) }
         let compatibleXcodeVersions = TuistCore.CompatibleXcodeVersions.from(manifest: manifest.compatibleXcodeVersions)
+        let generatorPaths = GeneratorPaths(manifestDirectory: path)
+        let plugins = try manifest.plugins.map { try PluginLocation.from(manifest: $0, generatorPaths: generatorPaths) }
+
         var cloud: TuistCore.Cloud?
         if let manifestCloud = manifest.cloud {
             cloud = try TuistCore.Cloud.from(manifest: manifestCloud)
         }
         return TuistCore.Config(compatibleXcodeVersions: compatibleXcodeVersions,
                                 cloud: cloud,
+                                plugins: plugins,
                                 generationOptions: generationOptions,
                                 path: path)
     }
@@ -44,6 +48,25 @@ extension TuistCore.Config.GenerationOption {
             return .disableShowEnvironmentVarsInScriptPhases
         case .enableCodeCoverage:
             return .enableCodeCoverage
+        }
+    }
+}
+
+private extension TuistCore.PluginLocation {
+    /// Convert from `ProjectDescription.PluginLocation` to `TuistCore.PluginLocation`
+    static func from(
+        manifest: ProjectDescription.PluginLocation,
+        generatorPaths: GeneratorPaths
+    ) throws -> TuistCore.PluginLocation {
+        switch manifest.type {
+        case let .local(path):
+            return .local(path: try generatorPaths.resolve(path: path).pathString)
+        case let .gitWithBranch(url, branch):
+            return .gitWithBranch(url: url, branch: branch)
+        case let .gitWithTag(url, tag):
+            return .gitWithTag(url: url, tag: tag)
+        case let .gitWithSha(url, sha):
+            return .gitWithSha(url: url, sha: sha)
         }
     }
 }
