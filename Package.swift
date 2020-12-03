@@ -77,6 +77,38 @@ let package = Package(
             dependencies: ["TuistCore", "TuistSupportTesting"]
         ),
         .target(
+            name: "TuistInspect",
+            dependencies: [
+                swiftToolsSupportDependency,
+                "TuistCore",
+                "TuistSupport",
+                signalsDependency,
+                rxBlockingDependency,
+            ]
+        ),
+        .target(
+            name: "TuistInspectTesting",
+            dependencies: [
+                "TuistInspect",
+                swiftToolsSupportDependency,
+                "TuistCore",
+                "TuistCoreTesting",
+                "TuistSupportTesting",
+            ]
+        ),
+        .testTarget(
+            name: "TuistInspectTests",
+            dependencies: [
+                "TuistInspect",
+                "TuistDocTesting",
+                swiftToolsSupportDependency,
+                "TuistSupportTesting",
+                "TuistCore",
+                "TuistCoreTesting",
+                "TuistSupport",
+            ]
+        ),
+        .target(
             name: "TuistDoc",
             dependencies: [
                 swiftToolsSupportDependency,

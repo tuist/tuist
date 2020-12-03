@@ -29,6 +29,7 @@ public struct TuistCommand: ParsableCommand {
                                  MigrationCommand.self,
                                  CleanCommand.self,
                                  DocCommand.self,
+                                 InspectCommand.self,
                                  DependenciesCommand.self,
                              ])
     }
