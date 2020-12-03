@@ -56,6 +56,21 @@ public class TargetNode: GraphNode {
         return path == otherTagetNode.path
             && name == otherTagetNode.name
     }
+    
+    // MARK: - CustomDebugStringConvertible
+    
+    override public var debugDescription: String {
+        if dependencies.isEmpty {
+            return name
+        }
+        var dependenciesDescriptions: [String] = []
+        let uniqueDependencies = Set<GraphNode>(dependencies)
+        uniqueDependencies.forEach { dependency in
+            dependenciesDescriptions.append(dependency.debugDescription)
+        }
+
+        return "\(name) --> [\(dependenciesDescriptions.joined(separator: ", "))]"
+    }
 
     // MARK: - Encodable
 
