@@ -592,6 +592,92 @@ final class CacheGraphMapperTests: TuistUnitTestCase {
         XCTAssertTrue(b.dependencies.contains(where: { $0.path == dFrameworkPath }))
         XCTAssertTrue(c.dependencies.contains(where: { $0.path == eXCFrameworkPath }))
     }
+    
+    // 10th scenario
+    //       +---->B (Framework)
+    //       |
+    //    App|
+    //       |
+    //       +---->C (Bundle)
+    func test_map_when_tenth_scenario() throws {
+        let path = try temporaryPath()
+        
+        // Given nodes
+        
+        // Given: C
+        let cBundle = TargetNode.test(target: .test(product: .bundle))
+        
+        // Given: B
+        let bFramework = Target.test(name: "B", platform: .iOS, product: .staticFramework)
+        let bProject = Project.test(path: path.appending(component: "B"), name: "B", targets: [bFramework])
+        let bFrameworkNode = TargetNode.test(project: bProject, target: bFramework, dependencies: [cBundle])
+        
+        // Given: App
+        let appProject = Project.test(path: path.appending(component: "App"), name: "App")
+        let appTargetNode = TargetNode.test(project: appProject, target: Target.test(name: "App", platform: .iOS, product: .app), dependencies: [bFrameworkNode])
+        
+        let targetNodes = [bFrameworkNode, appTargetNode]
+        let graph = Graph.test(entryNodes: [appTargetNode], projects: graphProjects(targetNodes), targets: graphTargets(targetNodes))
+                        
+        // When
+        let got = try subject.map(graph: graph, precompiledFrameworks: [:], sources: Set(["App"]))
+        
+        // Then
+        let app = try XCTUnwrap(got.entryNodes.first as? TargetNode)
+        _ = try XCTUnwrap(app.dependencies.compactMap { $0 as? TargetNode }.first(where: { $0 == bFrameworkNode }))
+        XCTAssertTrue(app.dependencies.contains(where: { $0 == cBundle }))
+    }
+    
+    // 11th scenario
+    //       +---->B (Cached Framework)
+    //       |
+    //    App|
+    //       |
+    //       +---->C (Bundle)
+    func test_map_when_eleventh_scenario() throws {
+        let path = try temporaryPath()
+        
+        // Given nodes
+        
+        // Given: C
+        let cBundle = TargetNode.test(target: .test(product: .bundle))
+        
+        // Given: B
+        let bFramework = Target.test(name: "B", platform: .iOS, product: .staticFramework)
+        let bProject = Project.test(path: path.appending(component: "B"), name: "B", targets: [bFramework])
+        let bFrameworkNode = TargetNode.test(project: bProject, target: bFramework, dependencies: [cBundle])
+        
+        // Given: App
+        let appProject = Project.test(path: path.appending(component: "App"), name: "App")
+        let appTargetNode = TargetNode.test(project: appProject, target: Target.test(name: "App", platform: .iOS, product: .app), dependencies: [bFrameworkNode])
+        
+        let targetNodes = [bFrameworkNode, appTargetNode]
+        let graph = Graph.test(entryNodes: [appTargetNode], projects: graphProjects(targetNodes), targets: graphTargets(targetNodes))
+        
+        // Given xcframeworks
+        let bCachedFrameworkPath = path.appending(component: "B.xcframework")
+        let bCachedFramework = FrameworkNode.test(path: bCachedFrameworkPath)
+        let frameworks = [
+            bFrameworkNode: bCachedFrameworkPath,
+        ]
+        
+        frameworkLoader.loadStub = { path in
+            if path == bCachedFrameworkPath { return bCachedFramework }
+            else { fatalError("Unexpected load call") }
+        }
+        
+        xcframeworkLoader.loadStub = { _ in
+            throw "Can't find an .xcframework here"
+        }
+        
+        // When
+        let got = try subject.map(graph: graph, precompiledFrameworks: frameworks, sources: Set(["App"]))
+        
+        // Then
+        let app = try XCTUnwrap(got.entryNodes.first as? TargetNode)
+        _ = try XCTUnwrap(app.dependencies.compactMap { $0 as? FrameworkNode }.first(where: { $0 == bCachedFramework }))
+        XCTAssertTrue(app.dependencies.contains(where: { $0 == cBundle }))
+    }
 
     fileprivate func graphProjects(_ targets: [TargetNode]) -> [Project] {
         let projects = targets.reduce(into: Set<Project>()) { acc, target in
