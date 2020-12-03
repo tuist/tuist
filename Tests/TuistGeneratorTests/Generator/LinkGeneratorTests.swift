@@ -15,7 +15,7 @@ final class LinkGeneratorPathTests: TuistUnitTestCase {
     }
 }
 
-final class LinkGeneratorErrorTests: XCTestCase {
+final class LinkGeneratorTests: XCTestCase {
     var embedScriptGenerator: MockEmbedScriptGenerator!
     var subject: LinkGenerator!
 
@@ -229,6 +229,7 @@ final class LinkGeneratorErrorTests: XCTestCase {
             GraphDependencyReference.testXCFramework(path: "/path/Dependencies/XCFrameworks/E.xcframework"),
             GraphDependencyReference.testSDK(path: "/libc++.tbd"),
             GraphDependencyReference.testSDK(path: "/CloudKit.framework"),
+            GraphDependencyReference.testSDK(path: "/XCTest.framework", source: .developer),
             GraphDependencyReference.testProduct(target: "Foo", productName: "Foo.framework"),
         ].shuffled()
         let sourceRootPath = AbsolutePath("/path")
@@ -243,8 +244,8 @@ final class LinkGeneratorErrorTests: XCTestCase {
         // Then
         let config = xcodeprojElements.config
         XCTAssertEqual(config.buildSettings["FRAMEWORK_SEARCH_PATHS"] as? [String], [
-            "$(DEVELOPER_FRAMEWORKS_DIR)",
             "$(inherited)",
+            "$(PLATFORM_DIR)/Developer/Library/Frameworks",
             "$(SRCROOT)/Dependencies/Frameworks",
             "$(SRCROOT)/Dependencies/Libraries",
             "$(SRCROOT)/Dependencies/XCFrameworks",
