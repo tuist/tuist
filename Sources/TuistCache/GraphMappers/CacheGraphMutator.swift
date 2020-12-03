@@ -112,7 +112,7 @@ class CacheGraphMutator: CacheGraphMutating {
         targetNode.dependencies = try mapDependencies(targetNode,
                                                       precompiledFrameworks: precompiledFrameworks,
                                                       sources: sources,
-                                                      sourceTargets: &sourceTargets,
+                                                      ignoreTargets: &sourceTargets,
                                                       visitedPrecompiledFrameworkPaths: &visitedPrecompiledFrameworkPaths,
                                                       loadedPrecompiledFrameworks: &loadedPrecompiledNodes)
     }
@@ -121,7 +121,7 @@ class CacheGraphMutator: CacheGraphMutating {
     fileprivate func mapDependencies(_ targetNode: TargetNode,
                                      precompiledFrameworks: [TargetNode: AbsolutePath],
                                      sources: Set<String>,
-                                     sourceTargets: inout Set<TargetNode>,
+                                     ignoreTargets: inout Set<TargetNode>,
                                      visitedPrecompiledFrameworkPaths: inout [TargetNode: VisitedPrecompiledFramework?],
                                      loadedPrecompiledFrameworks: inout [AbsolutePath: PrecompiledNode]) throws -> [GraphNode]
     {
@@ -144,11 +144,11 @@ class CacheGraphMutator: CacheGraphMutating {
                                                                                                                            precompiledFrameworks: precompiledFrameworks,
                                                                                                                            visitedPrecompiledFrameworkPaths: &visitedPrecompiledFrameworkPaths)
             else {
-                sourceTargets.formUnion([targetDependency])
+                ignoreTargets.formUnion([targetDependency])
                 targetDependency.dependencies = try mapDependencies(targetDependency,
                                                                     precompiledFrameworks: precompiledFrameworks,
                                                                     sources: sources,
-                                                                    sourceTargets: &sourceTargets,
+                                                                    ignoreTargets: &ignoreTargets,
                                                                     visitedPrecompiledFrameworkPaths: &visitedPrecompiledFrameworkPaths,
                                                                     loadedPrecompiledFrameworks: &loadedPrecompiledFrameworks)
                 newDependencies.append(targetDependency)
@@ -161,7 +161,7 @@ class CacheGraphMutator: CacheGraphMutating {
             try mapDependencies(targetDependency,
                                 precompiledFrameworks: precompiledFrameworks,
                                 sources: sources,
-                                sourceTargets: &sourceTargets,
+                                ignoreTargets: &ignoreTargets,
                                 visitedPrecompiledFrameworkPaths: &visitedPrecompiledFrameworkPaths,
                                 loadedPrecompiledFrameworks: &loadedPrecompiledFrameworks).forEach { dependency in
                 if let frameworkDependency = dependency as? FrameworkNode {
@@ -195,6 +195,11 @@ class CacheGraphMutator: CacheGraphMutating {
                                               precompiledFrameworks: [TargetNode: AbsolutePath],
                                               visitedPrecompiledFrameworkPaths: inout [TargetNode: VisitedPrecompiledFramework?]) -> AbsolutePath?
     {
+        // Ignore bundle targets until they can be properly cached
+        let isBundleTarget: (TargetNode) -> Bool = {
+            $0.target.product == .bundle
+        }
+        
         // Already visited
         if let visited = visitedPrecompiledFrameworkPaths[target] { return visited?.path }
 
@@ -205,9 +210,9 @@ class CacheGraphMutator: CacheGraphMutating {
         }
         // The target can be replaced
         else if let path = precompiledFrameworks[target],
-            target.targetDependencies.allSatisfy({ $0.target.product == .bundle || precompiledFrameworkPath(target: $0,
-                                                                                                            precompiledFrameworks: precompiledFrameworks,
-                                                                                                            visitedPrecompiledFrameworkPaths: &visitedPrecompiledFrameworkPaths) != nil })
+            target.targetDependencies.allSatisfy({ isBundleTarget($0) || precompiledFrameworkPath(target: $0,
+                                                                                                  precompiledFrameworks: precompiledFrameworks,
+                                                                                                  visitedPrecompiledFrameworkPaths: &visitedPrecompiledFrameworkPaths) != nil })
         {
             visitedPrecompiledFrameworkPaths[target] = VisitedPrecompiledFramework(path: path)
             return path
