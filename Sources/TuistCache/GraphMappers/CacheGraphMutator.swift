@@ -46,6 +46,10 @@ class CacheGraphMutator: CacheGraphMutating {
         let userSpecifiedSourceTestTargets = userSpecifiedSourceTargets.flatMap { graph.testTargetsDependingOn(path: $0.path, name: $0.name) }
         var sourceTargets: Set<TargetNode> = Set(userSpecifiedSourceTargets)
 
+        // keep a record of runnable targets that have resources
+        // via transitive static dependencies
+        let runnableTargetsResources = runnableTargetsToResources(in: graph)
+        
         try (userSpecifiedSourceTargets + userSpecifiedSourceTestTargets)
             .forEach { try visit(targetNode: $0,
                                  precompiledFrameworks: precompiledFrameworks,
@@ -58,8 +62,27 @@ class CacheGraphMutator: CacheGraphMutating {
         graph.targets.flatMap(\.value).forEach {
             if !sourceTargets.contains($0) { $0.prune = true }
         }
+        
+        addResourceTargets(to: runnableTargetsResources)
 
         return graph
+    }
+    
+    fileprivate func runnableTargetsToResources(in graph: Graph) -> [TargetNode: [TargetNode]] {
+        let runnable = graph.targets.flatMap(\.value).filter { $0.target.product.runnable }
+        let runnableToResources: [TargetNode: [TargetNode]] = runnable.reduce([:]) { acc, target in
+            let resources = graph.resourceBundleDependencies(path: target.path, name: target.name)
+            var acc = acc
+            acc[target] = resources
+            return acc
+        }
+        return runnableToResources
+    }
+    
+    fileprivate func addResourceTargets(to runnableTargets: [TargetNode: [TargetNode]]) {
+        for (runnableTarget, resources) in runnableTargets {
+            runnableTarget.dependencies = runnableTarget.dependencies + resources
+        }
     }
 
     fileprivate func visit(targetNode: TargetNode,
@@ -70,7 +93,7 @@ class CacheGraphMutator: CacheGraphMutating {
                            loadedPrecompiledNodes: inout [AbsolutePath: PrecompiledNode]) throws
     {
         sourceTargets.formUnion([targetNode])
-        targetNode.dependencies = try mapDependencies(targetNode.dependencies,
+        targetNode.dependencies = try mapDependencies(targetNode,
                                                       precompiledFrameworks: precompiledFrameworks,
                                                       sources: sources,
                                                       sourceTargets: &sourceTargets,
@@ -79,7 +102,7 @@ class CacheGraphMutator: CacheGraphMutating {
     }
 
     // swiftlint:disable line_length
-    fileprivate func mapDependencies(_ dependencies: [GraphNode],
+    fileprivate func mapDependencies(_ targetNode: TargetNode,
                                      precompiledFrameworks: [TargetNode: AbsolutePath],
                                      sources: Set<String>,
                                      sourceTargets: inout Set<TargetNode>,
@@ -87,24 +110,26 @@ class CacheGraphMutator: CacheGraphMutating {
                                      loadedPrecompiledFrameworks: inout [AbsolutePath: PrecompiledNode]) throws -> [GraphNode]
     {
         var newDependencies: [GraphNode] = []
-        try dependencies.forEach { dependency in
+        try targetNode.dependencies.forEach { dependency in
             // If the dependency is not a target node we keep it.
             guard let targetDependency = dependency as? TargetNode else {
                 newDependencies.append(dependency)
                 return
             }
+            
+            let isBundleOfStaticTarget = targetDependency.target.product == .bundle && targetNode.target.product.isStatic
 
             // Transitive bundles
             // get all the transitive bundles
             // declare them as direct dependencies.
 
             // If the target cannot be replaced with its associated .(xc)framework we return
-            guard !sources.contains(targetDependency.target.name), let precompiledFrameworkPath = precompiledFrameworkPath(target: targetDependency,
+            guard !sources.contains(targetDependency.target.name), !isBundleOfStaticTarget, let precompiledFrameworkPath = precompiledFrameworkPath(target: targetDependency,
                                                                                                                            precompiledFrameworks: precompiledFrameworks,
                                                                                                                            visitedPrecompiledFrameworkPaths: &visitedPrecompiledFrameworkPaths)
             else {
                 sourceTargets.formUnion([targetDependency])
-                targetDependency.dependencies = try mapDependencies(targetDependency.dependencies,
+                targetDependency.dependencies = try mapDependencies(targetDependency,
                                                                     precompiledFrameworks: precompiledFrameworks,
                                                                     sources: sources,
                                                                     sourceTargets: &sourceTargets,
@@ -117,7 +142,7 @@ class CacheGraphMutator: CacheGraphMutating {
             // We load the .framework (or fallback on .xcframework)
             let precompiledFramework: PrecompiledNode = try loadPrecompiledFramework(path: precompiledFrameworkPath, loadedPrecompiledFrameworks: &loadedPrecompiledFrameworks)
 
-            try mapDependencies(targetDependency.dependencies,
+            try mapDependencies(targetDependency,
                                 precompiledFrameworks: precompiledFrameworks,
                                 sources: sources,
                                 sourceTargets: &sourceTargets,
@@ -164,9 +189,9 @@ class CacheGraphMutator: CacheGraphMutating {
         }
         // The target can be replaced
         else if let path = precompiledFrameworks[target],
-            target.targetDependencies.allSatisfy({ precompiledFrameworkPath(target: $0,
-                                                                            precompiledFrameworks: precompiledFrameworks,
-                                                                            visitedPrecompiledFrameworkPaths: &visitedPrecompiledFrameworkPaths) != nil })
+            target.targetDependencies.allSatisfy({ $0.target.product == .bundle || precompiledFrameworkPath(target: $0,
+                                                                                                            precompiledFrameworks: precompiledFrameworks,
+                                                                                                            visitedPrecompiledFrameworkPaths: &visitedPrecompiledFrameworkPaths) != nil })
         {
             visitedPrecompiledFrameworkPaths[target] = VisitedPrecompiledFramework(path: path)
             return path
