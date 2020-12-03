@@ -183,11 +183,7 @@ public class Graph: Encodable, Equatable {
         guard let targetNode = findTargetNode(path: path, name: name) else {
             return []
         }
-
-        guard targetNode.target.supportsResources else {
-            return []
-        }
-
+        
         let canHostResources: (TargetNode) -> Bool = {
             $0.target.supportsResources
         }
