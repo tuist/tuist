@@ -271,7 +271,8 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
             let copyFilesPhase = PBXCopyFilesBuildPhase(
                 dstPath: action.subpath,
                 dstSubfolderSpec: action.destination.toXcodeprojSubFolder,
-                name: action.name)
+                name: action.name
+            )
 
             pbxproj.add(object: copyFilesPhase)
             pbxTarget.buildPhases.append(copyFilesPhase)
