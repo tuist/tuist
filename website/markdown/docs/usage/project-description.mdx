@@ -222,6 +222,14 @@ Each target in the list of project targets can be initialized with the following
       default: '[]',
     },
     {
+      name: 'Copy Files',
+      description: 'Copy files actions allow defining copy files build phases.',
+      type: '[CopyFilesAction]',
+      typeLink: '#copy-files-action',
+      optional: true,
+      default: '[]',
+    },
+    {
       name: 'Headers',
       description: 'The target headers',
       type: 'Headers',
@@ -367,6 +375,72 @@ It represents a glob pattern that refers to source files and the compiler flags 
     },
   ]}
 />
+
+## Copy Files Action
+
+Copy files actions, represented as target copy files build phases, are useful to associate project files and products of other targets with the target and copies them to a specified destination, typically a subfolder within a product. This action may be used multiple times per target.
+
+<EnumTable
+  cases={[
+    {
+      case:
+        '.productsDirectory(name: String, subpath: String?, files: [FileElement])',
+      description: 'A copy files action for the products directory.',
+    },
+    {
+      case:
+        '.wrapper(name: String, subpath: String?, files: [FileElement])',
+      description: 'A copy files action for the wrapper directory.',
+    },
+    {
+      case:
+        '.executables(name: String, subpath: String?, files: [FileElement])',
+      description: 'A copy files action for the executables directory.',
+    },
+    {
+      case:
+        '.resources(name: String, subpath: String?, files: [FileElement])',
+      description: 'A copy files action for the resources directory.',
+    },
+    {
+      case:
+        '.javaResources(name: String, subpath: String?, files: [FileElement])',
+      description: 'A copy files action for the java resources directory.',
+    },
+    {
+      case:
+        '.frameworks(name: String, subpath: String?, files: [FileElement])',
+      description: 'A copy files action for the frameworks directory.',
+    },
+    {
+      case:
+        '.sharedFrameworks(name: String, subpath: String?, files: [FileElement])',
+      description: 'A copy files action for the shared frameworks directory.',
+    },
+    {
+      case:
+        '.sharedSupport(name: String, subpath: String?, files: [FileElement])',
+      description: 'A copy files action for the shared support directory.',
+    },
+    {
+      case:
+        '.plugins(name: String, subpath: String?, files: [FileElement])',
+      description: 'A copy files action for the plugins directory.',
+    },
+  ]}
+/>
+
+The following example shows the definition of a copy files action that copy template files to the shared support directory and adds it inside a subfolder `Templates`:
+
+```swift
+.sharedSupport(name: "Copy Templates", subpath: "Templates", files: "MyTemplates/**")
+```
+
+The following example shows the definition of a copy files action that copy font files to the resources directory and adds it inside a subfolder `Fonts`:
+
+```swift
+.resources(name: "Copy Fonts", subpath: "Fonts", files: "MyFonts/**")
+```
 
 ## Headers
 
