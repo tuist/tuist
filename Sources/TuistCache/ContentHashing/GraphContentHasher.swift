@@ -47,6 +47,7 @@ public final class GraphContentHasher: GraphContentHashing {
 
     fileprivate func isCacheable(_ target: TargetNode, visited: inout [TargetNode: Bool]) -> Bool {
         if let visitedValue = visited[target] { return visitedValue }
+        // Ignore bundle targets until they can be properly cached
         if target.target.product == .bundle {
             visited[target] = true
             return true

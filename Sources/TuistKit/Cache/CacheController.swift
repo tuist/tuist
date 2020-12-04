@@ -111,9 +111,8 @@ final class CacheController: CacheControlling {
         logger.notice("Building cacheable targets")
 
         try cacheableTargets.sorted(by: { $0.key.target.name < $1.key.target.name }).forEach { target, hash in
-            if target.target.product != .bundle {
-                try self.buildAndCacheFramework(path: path, target: target, hash: hash)
-            }
+            if target.target.product == .bundle { return }
+            try self.buildAndCacheFramework(path: path, target: target, hash: hash)
         }
 
         logger.notice("All cacheable targets have been cached successfully as \(artifactBuilder.cacheOutputType.description)s", metadata: .success)

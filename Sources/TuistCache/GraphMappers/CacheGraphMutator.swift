@@ -74,6 +74,7 @@ class CacheGraphMutator: CacheGraphMutating {
     }
         
     fileprivate func runnableTargetsToResources(in graph: Graph) -> [TargetNode: [TargetNode]] {
+        /// We only want to copy bundle resources that belong to static targets
         let runnableToStatic = runnableTargetsToStaticDependencies(in: graph)
         var runnableToResources: [TargetNode: [TargetNode]] = [:]
         for (runnable, staticDependencies) in runnableToStatic {
@@ -108,7 +109,7 @@ class CacheGraphMutator: CacheGraphMutating {
                            loadedPrecompiledNodes: inout [AbsolutePath: PrecompiledNode]) throws
     {
         sourceTargets.formUnion([targetNode])
-        targetNode.dependencies = try mapDependencies(targetNode,
+        targetNode.dependencies = try mapDependencies(of: targetNode,
                                                       precompiledFrameworks: precompiledFrameworks,
                                                       sources: sources,
                                                       ignoreTargets: &sourceTargets,
@@ -117,7 +118,7 @@ class CacheGraphMutator: CacheGraphMutating {
     }
 
     // swiftlint:disable line_length
-    fileprivate func mapDependencies(_ targetNode: TargetNode,
+    fileprivate func mapDependencies(of targetNode: TargetNode,
                                      precompiledFrameworks: [TargetNode: AbsolutePath],
                                      sources: Set<String>,
                                      ignoreTargets: inout Set<TargetNode>,
@@ -140,7 +141,7 @@ class CacheGraphMutator: CacheGraphMutating {
                                                                                                                            visitedPrecompiledFrameworkPaths: &visitedPrecompiledFrameworkPaths)
             else {
                 ignoreTargets.formUnion([targetDependency])
-                targetDependency.dependencies = try mapDependencies(targetDependency,
+                targetDependency.dependencies = try mapDependencies(of: targetDependency,
                                                                     precompiledFrameworks: precompiledFrameworks,
                                                                     sources: sources,
                                                                     ignoreTargets: &ignoreTargets,
@@ -160,7 +161,7 @@ class CacheGraphMutator: CacheGraphMutating {
                 return dep.target.product != .bundle
             }
             
-            try mapDependencies(targetDependency,
+            try mapDependencies(of: targetDependency,
                                 precompiledFrameworks: precompiledFrameworks,
                                 sources: sources,
                                 ignoreTargets: &ignoreTargets,
