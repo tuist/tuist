@@ -174,6 +174,10 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Encodable {
         [.framework, .staticFramework].contains(self)
     }
 
+    public var isDynamic: Bool {
+        [.framework, .dynamicLibrary].contains(self)
+    }
+
     public var xcodeValue: PBXProductType {
         switch self {
         case .app:

@@ -198,7 +198,7 @@ class ProjectFileElements {
                 try generatePrecompiled(path)
             case let .framework(path, _, _, _, _, _, _, _):
                 try generatePrecompiled(path)
-            case let .library(path, _, _, _, _):
+            case let .library(path, _, _, _):
                 try generatePrecompiled(path)
             case let .sdk(sdkNodePath, _, _):
                 generateSDKFileElement(sdkNodePath: sdkNodePath,

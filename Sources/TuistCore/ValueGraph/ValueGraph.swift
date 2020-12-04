@@ -9,6 +9,9 @@ public struct ValueGraph: Equatable {
     /// The path where the graph has been loaded from.
     public let path: AbsolutePath
 
+    /// Graph's workspace.
+    public let workspace: Workspace
+
     /// A dictionary where the keys are the paths to the directories where the projects are defined,
     /// and the values are the projects defined in the directories.
     public let projects: [AbsolutePath: Project]
@@ -26,6 +29,7 @@ public struct ValueGraph: Equatable {
 
     public init(name: String,
                 path: AbsolutePath,
+                workspace: Workspace,
                 projects: [AbsolutePath: Project],
                 packages: [AbsolutePath: [String: Package]],
                 targets: [AbsolutePath: [String: Target]],
@@ -33,6 +37,7 @@ public struct ValueGraph: Equatable {
     {
         self.name = name
         self.path = path
+        self.workspace = workspace
         self.projects = projects
         self.packages = packages
         self.targets = targets
@@ -42,6 +47,7 @@ public struct ValueGraph: Equatable {
     public init(graph: Graph) {
         name = graph.name
         path = graph.entryPath
+        workspace = graph.workspace
         projects = graph.projects.reduce(into: [AbsolutePath: Project]()) { $0[$1.path] = $1 }
         packages = graph.packages.reduce(into: [AbsolutePath: [String: Package]]()) { acc, package in
             var packages = acc[package.path, default: [:]]
@@ -88,10 +94,12 @@ public struct ValueGraph: Equatable {
             return .target(name: node.name, path: node.path)
         case let node as FrameworkNode:
             return .framework(path: node.path,
+                              binaryPath: node.binaryPath,
                               dsymPath: node.dsymPath,
                               bcsymbolmapPaths: node.bcsymbolmapPaths,
                               linking: node.linking,
-                              architectures: node.architectures)
+                              architectures: node.architectures,
+                              isCarthage: node.isCarthage)
         case let node as XCFrameworkNode:
             return .xcframework(path: node.path,
                                 infoPlist: node.infoPlist,
