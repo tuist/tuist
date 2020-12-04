@@ -305,6 +305,7 @@ public class ValueGraphTraverser: GraphTraversing {
         return targets.values.compactMap { (target) -> ValueGraphTarget? in
             let dependencies = self.graph.dependencies[.target(name: target.name, path: path), default: Set()]
             let dependsOnTarget = dependencies.contains(where: { dependency in
+                // swiftlint:disable:next identifier_name
                 guard case let ValueGraphDependency.target(_name, _path) = dependency else { return false }
                 return _name == name && _path == path
             })
