@@ -174,13 +174,18 @@ public class Graph: Encodable, Equatable {
             .filter(isStaticLibrary)
             .map(productDependencyReference)
     }
-
+    
     /// Returns the transitive resource bundle dependencies for the given target.
     /// - Parameters:
     ///   - path: Path to the directory where the project that defines the target is located.
     ///   - name: Name of the target.
-    public func resourceBundleDependencies(path: AbsolutePath, name: String) -> [TargetNode] {
+    ///   - allowNonSupportingTargets: Allow to search non-supporting targets.
+    public func resourceBundleDependencies(path: AbsolutePath, name: String, allowNonSupportingTargets: Bool = false) -> [TargetNode] {
         guard let targetNode = findTargetNode(path: path, name: name) else {
+            return []
+        }
+        
+        guard targetNode.target.supportsResources || allowNonSupportingTargets else {
             return []
         }
         
