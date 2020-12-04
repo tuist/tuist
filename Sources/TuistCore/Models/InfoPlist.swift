@@ -13,7 +13,7 @@ public enum InfoPlist: Equatable {
         public var value: Any {
             switch self {
             case let .array(array):
-                return array.map { $0.value }
+                return array.map(\.value)
             case let .boolean(boolean):
                 return boolean
             case let .dictionary(dictionary):

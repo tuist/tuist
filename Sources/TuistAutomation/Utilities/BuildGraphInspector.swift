@@ -105,7 +105,7 @@ public class BuildGraphInspector: BuildGraphInspecting {
     public func buildableEntrySchemes(graph: Graph) -> [Scheme] {
         let projects = Set(graph.entryNodes.compactMap { ($0 as? TargetNode)?.project })
         return projects
-            .flatMap { $0.schemes }
+            .flatMap(\.schemes)
             .filter { $0.buildAction?.targets.isEmpty == false }
             .sorted(by: { $0.name < $1.name })
     }

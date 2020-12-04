@@ -78,7 +78,7 @@ public class Graph: Encodable, Equatable {
             workspace: workspace,
             projects: Array(cache.projects.values),
             cocoapods: Array(cache.cocoapodsNodes.values),
-            packages: Array(cache.packages.flatMap { $0.value }),
+            packages: Array(cache.packages.flatMap(\.value)),
             precompiled: Array(cache.precompiledNodes.values),
             targets: cache.targetNodes.mapValues { Array($0.values) }
         )

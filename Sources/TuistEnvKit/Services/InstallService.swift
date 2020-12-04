@@ -16,7 +16,7 @@ final class InstallService {
     }
 
     func run(version: String, force: Bool) throws {
-        let versions = versionsController.versions().map { $0.description }
+        let versions = versionsController.versions().map(\.description)
         if versions.contains(version) {
             logger.warning("Version \(version) already installed, skipping")
             return

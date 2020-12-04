@@ -13,7 +13,7 @@ public extension TuistTestCase {
     ///   - issue: Issue to be checked in the list. If it doesn't exist, the test will fail.
     func XCTContainsLintingIssue(_ issues: [LintingIssue], _ issue: LintingIssue, file: StaticString = #file, line: UInt = #line) {
         if !issues.contains(issue) {
-            XCTFail("The list doesn't contain the issue '\(issue)' and it shoud", file: file, line: line)
+            XCTFail("The list doesn't contain the issue '\(issue)' and it should", file: file, line: line)
         }
     }
 
@@ -23,7 +23,7 @@ public extension TuistTestCase {
     ///   - issue: Issue to be checked in the list. If it doesn't exist, the test will fail.
     func XCTDoesNotContainLintingIssue(_ issues: [LintingIssue], _ issue: LintingIssue, file: StaticString = #file, line: UInt = #line) {
         if issues.contains(issue) {
-            XCTFail("The list contains the issue '\(issue)' and it shoudn't", file: file, line: line)
+            XCTFail("The list contains the issue '\(issue)' and it shouldn't", file: file, line: line)
         }
     }
 }

@@ -121,7 +121,7 @@ public class ManifestLoader: ManifestLoading {
     }
 
     public func manifests(at path: AbsolutePath) -> Set<Manifest> {
-        Set(manifestFilesLocator.locateProjectManifests(at: path).map { $0.0 })
+        Set(manifestFilesLocator.locateProjectManifests(at: path).map(\.0))
     }
 
     public func loadConfig(at path: AbsolutePath) throws -> ProjectDescription.Config {
@@ -226,7 +226,7 @@ public class ManifestLoader: ManifestLoading {
 
         switch result {
         case let .completed(elements):
-            return elements.filter { $0.isStandardOutput }.map { $0.value }.reduce(into: Data()) { $0.append($1) }
+            return elements.filter { $0.isStandardOutput }.map(\.value).reduce(into: Data()) { $0.append($1) }
         case let .failed(_, error):
             throw error
         }

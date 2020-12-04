@@ -24,7 +24,8 @@ public final class TargetActionsContentHasher: TargetActionsContentHashing {
     public func hash(targetActions: [TargetAction]) throws -> String {
         var stringsToHash: [String] = []
         for targetAction in targetActions {
-            var pathsToHash: [AbsolutePath] = [targetAction.path ?? ""]
+            var pathsToHash: [AbsolutePath] = []
+            targetAction.path.map { pathsToHash.append($0) }
             pathsToHash.append(contentsOf: targetAction.inputPaths)
             pathsToHash.append(contentsOf: targetAction.inputFileListPaths)
             pathsToHash.append(contentsOf: targetAction.outputPaths)

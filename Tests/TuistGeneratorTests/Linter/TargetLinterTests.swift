@@ -190,6 +190,23 @@ final class TargetLinterTests: TuistUnitTestCase {
         }
     }
 
+    func test_lint_when_target_platform_and_deployment_target_property_mismatch() throws {
+        let invalidCombinations: [(Platform, DeploymentTarget)] = [(.iOS, .macOS("10.0.0")),
+                                                                   (.watchOS, .macOS("10.0.0")),
+                                                                   (.macOS, .watchOS("10.0.0")),
+                                                                   (.tvOS, .macOS("10.0.0"))]
+        for combinations in invalidCombinations {
+            // Given
+            let target = Target.test(platform: combinations.0, deploymentTarget: combinations.1)
+
+            // When
+            let got = subject.lint(target: target)
+
+            // Then
+            XCTContainsLintingIssue(got, LintingIssue(reason: "Found an inconsistency between a platform `\(combinations.0.caseValue)` and deployment target `\(combinations.1.platform)`", severity: .error))
+        }
+    }
+
     func test_lint_invalidProductPlatformCombinations() throws {
         // Given
         let invalidTargets: [Target] = [
