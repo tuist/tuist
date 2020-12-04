@@ -94,6 +94,10 @@ class CacheGraphMutator: CacheGraphMutating {
                 return
             }
 
+            // Transitive bundles
+            // get all the transitive bundles
+            // declare them as direct dependencies.
+
             // If the target cannot be replaced with its associated .(xc)framework we return
             guard !sources.contains(targetDependency.target.name), let precompiledFrameworkPath = precompiledFrameworkPath(target: targetDependency,
                                                                                                                            precompiledFrameworks: precompiledFrameworks,

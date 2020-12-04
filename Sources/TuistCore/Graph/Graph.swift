@@ -353,7 +353,7 @@ public class Graph: Encodable, Equatable {
     /// - Parameters:
     ///   - path: Path to the directory where the project that defines the target is located.
     ///   - name: Name of the target.
-    public func embeddableFrameworks(path: AbsolutePath, name: String) throws -> [GraphDependencyReference] {
+    public func embeddableFrameworks(path: AbsolutePath, name: String) -> [GraphDependencyReference] {
         guard let targetNode = findTargetNode(path: path, name: name),
             canEmbedProducts(targetNode: targetNode)
         else {
@@ -382,7 +382,7 @@ public class Graph: Encodable, Equatable {
         // Exclude any products embed in unit test host apps
         if targetNode.target.product == .unitTests {
             if let hostApp = hostApplication(for: targetNode) {
-                references.subtract(try embeddableFrameworks(path: hostApp.path, name: hostApp.name))
+                references.subtract(embeddableFrameworks(path: hostApp.path, name: hostApp.name))
             } else {
                 references = []
             }
@@ -417,8 +417,8 @@ public class Graph: Encodable, Equatable {
             try self.linkableDependencies(path: project.path, name: $0.name)
         }
 
-        let embeddableDependencies = try project.targets.flatMap {
-            try self.embeddableFrameworks(path: project.path, name: $0.name)
+        let embeddableDependencies = project.targets.flatMap {
+            self.embeddableFrameworks(path: project.path, name: $0.name)
         }
 
         let copyProductDependencies = project.targets.flatMap {
@@ -446,7 +446,7 @@ public class Graph: Encodable, Equatable {
             .filter { validProducts.contains($0.target.product) }
     }
 
-    public func appClipsDependency(path: AbsolutePath, name: String) -> TargetNode? {
+    public func appClipDependencies(path: AbsolutePath, name: String) -> TargetNode? {
         guard let targetNode = findTargetNode(path: path, name: name) else {
             return nil
         }

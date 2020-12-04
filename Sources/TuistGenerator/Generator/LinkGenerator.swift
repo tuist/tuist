@@ -338,7 +338,7 @@ final class LinkGenerator: LinkGenerating {
                 switch dependency {
                 case let .framework(path, _, _, _, _, _, _, _):
                     try addBuildFile(path)
-                case let .library(path, _, _, _, _):
+                case let .library(path, _, _, _):
                     try addBuildFile(path)
                 case let .xcframework(path, _, _, _):
                     try addBuildFile(path)
