@@ -89,32 +89,33 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
 <!-- markdownlint-disable -->
 <table>
   <tr>
-    <td align="center"><a href="https://github.com/kalkwarf"><img src="https://avatars1.githubusercontent.com/u/1033839?v=4" width="100px;" alt=""/><br /><sub><b>kalkwarf</b></sub></a><br /></td>
-    <td align="center"><a href="https://github.com/fortmarek"><img src="https://avatars0.githubusercontent.com/u/9371695?v=4" width="100px;" alt=""/><br /><sub><b>Marek Fořt</b></sub></a><br /></td>
-    <td align="center"><a href="http://www.luispadron.com"><img src="https://avatars3.githubusercontent.com/u/13840545?v=4" width="100px;" alt=""/><br /><sub><b>Luis Padron</b></sub></a><br /></td>
-    <td align="center"><a href="http://www.matrixprojects.net"><img src="https://avatars3.githubusercontent.com/u/11914919?v=4" width="100px;" alt=""/><br /><sub><b>Kas</b></sub></a><br /></td>
-    <td align="center"><a href="http://natanrolnik.me"><img src="https://avatars3.githubusercontent.com/u/1164565?v=4" width="100px;" alt=""/><br /><sub><b>Natan Rolnik</b></sub></a><br /></td>
-    <td align="center"><a href="https://github.com/svastven"><img src="https://avatars0.githubusercontent.com/u/42235915?v=4" width="100px;" alt=""/><br /><sub><b>svastven</b></sub></a><br /></td>
-    <td align="center"><a href="http://bhuemer.github.io"><img src="https://avatars2.githubusercontent.com/u/1212480?v=4" width="100px;" alt=""/><br /><sub><b>Bernhard Huemer</b></sub></a><br /></td>
+    <td align="center"><a href="https://github.com/kalkwarf"><img src="https://avatars1.githubusercontent.com/u/1033839?v=4" width="100px;" alt=""/><br /><sub><b>kalkwarf</b></sub></a></td>
+    <td align="center"><a href="https://github.com/fortmarek"><img src="https://avatars0.githubusercontent.com/u/9371695?v=4" width="100px;" alt=""/><br /><sub><b>Marek Fořt</b></sub></a></td>
+    <td align="center"><a href="https://github.com/fortmarek"><img src="https://avatars0.githubusercontent.com/u/9371695?v=4" width="100px;" alt=""/><br /><sub><b>Marek Fořt</b></sub></a></td>
+    <td align="center"><a href="http://www.matrixprojects.net"><img src="https://avatars3.githubusercontent.com/u/11914919?v=4" width="100px;" alt=""/><br /><sub><b>Kas</b></sub></a></td>
+    <td align="center"><a href="http://natanrolnik.me"><img src="https://avatars3.githubusercontent.com/u/1164565?v=4" width="100px;" alt=""/><br /><sub><b>Natan Rolnik</b></sub></a></td>
+    <td align="center"><a href="https://github.com/svastven"><img src="https://avatars0.githubusercontent.com/u/42235915?v=4" width="100px;" alt=""/><br /><sub><b>svastven</b></sub></a></td>
+    <td align="center"><a href="http://bhuemer.github.io"><img src="https://avatars2.githubusercontent.com/u/1212480?v=4" width="100px;" alt=""/><br /><sub><b>Bernhard Huemer</b></sub></a></td>
   </tr>
   <tr>
-    <td align="center"><a href="https://djankowski.dev"><img src="https://avatars0.githubusercontent.com/u/10795657?v=4" width="100px;" alt=""/><br /><sub><b>Daniel Jankowski</b></sub></a><br /></td>
-    <td align="center"><a href="https://github.com/facumenzella"><img src="https://avatars1.githubusercontent.com/u/1125252?v=4" width="100px;" alt=""/><br /><sub><b>Facundo Menzella</b></sub></td>
-    <td align="center"><a href="https://github.com/eito"><img src="https://avatars3.githubusercontent.com/u/775643?v=4" width="100px;" alt=""/><br /><sub><b>Eric Ito</b></sub></a><br /></td>
-    <td align="center"><a href="https://github.com/laxmorek"><img src="https://avatars2.githubusercontent.com/u/4774319?v=4" width="100px;" alt=""/><br /><sub><b>Kamil Harasimowicz</b></sub></a><br /></td>
-    <td align="center"><a href="https://github.com/olejnjak"><img src="https://avatars1.githubusercontent.com/u/3148214?v=4" width="100px;" alt=""/><br /><sub><b>Jakub Olejník</b></sub></a><br /></td>
-    <td align="center"><a href="https://github.com/lakpa"><img src="https://avatars0.githubusercontent.com/u/389328?v=4" width="100px;" alt=""/><br /><sub><b>ldindu</b></sub></a><br /></td>
-    <td align="center"><a href="https://github.com/gtsifrikas"><img src="https://avatars2.githubusercontent.com/u/8904378?v=4" width="100px;" alt=""/><br /><sub><b>George Tsifrikas</b></sub></a><br /></td>
+    <td align="center"><a href="https://djankowski.dev"><img src="https://avatars0.githubusercontent.com/u/10795657?v=4" width="100px;" alt=""/><br /><sub><b>Daniel Jankowski</b></sub></a></td>
+    <td align="center"><a href="https://github.com/facumenzella"><img src="https://avatars1.githubusercontent.com/u/1125252?v=4" width="100px;" alt=""/><br /><sub><b>Facundo Menzella</b></sub></a></td>
+    <td align="center"><a href="https://github.com/eito"><img src="https://avatars3.githubusercontent.com/u/775643?v=4" width="100px;" alt=""/><br /><sub><b>Eric Ito</b></sub></a></td>
+    <td align="center"><a href="https://github.com/laxmorek"><img src="https://avatars2.githubusercontent.com/u/4774319?v=4" width="100px;" alt=""/><br /><sub><b>Kamil Harasimowicz</b></sub></a></td>
+    <td align="center"><a href="https://github.com/olejnjak"><img src="https://avatars1.githubusercontent.com/u/3148214?v=4" width="100px;" alt=""/><br /><sub><b>Jakub Olejník</b></sub></a></td>
+    <td align="center"><a href="https://github.com/lakpa"><img src="https://avatars0.githubusercontent.com/u/389328?v=4" width="100px;" alt=""/><br /><sub><b>ldindu</b></sub></a></td>
+    <td align="center"><a href="https://github.com/gtsifrikas"><img src="https://avatars2.githubusercontent.com/u/8904378?v=4" width="100px;" alt=""/><br /><sub><b>George Tsifrikas</b></sub></a></td>
   </tr>
   <tr>
-    <td align="center"><a href="https://github.com/yurapriv"><img src="https://avatars2.githubusercontent.com/u/7814127?v=4" width="100px;" alt=""/><br /><sub><b>Privezentsev Yura</b></sub></a><br /></td>
-    <td align="center"><a href="http://ferologics.github.io"><img src="https://avatars2.githubusercontent.com/u/5576161?v=4" width="100px;" alt=""/><br /><sub><b>Fero</b></sub></a><br /></td>
+    <td align="center"><a href="https://github.com/yurapriv"><img src="https://avatars2.githubusercontent.com/u/7814127?v=4" width="100px;" alt=""/><br /><sub><b>Privezentsev Yura</b></sub></a></td>
+    <td align="center"><a href="http://ferologics.github.io"><img src="https://avatars2.githubusercontent.com/u/5576161?v=4" width="100px;" alt=""/><br /><sub><b>Fero</b></sub></a></td>
+    <td align="center"><a href="http://www.luispadron.com"><img src="https://avatars3.githubusercontent.com/u/13840545?v=4" width="100px;" alt=""/><br /><sub><b>Luis Padron</b></sub></a></td>
+    <td align="center"><a href="https://heberti.com"><img src="https://avatars0.githubusercontent.com/u/103670?v=4" width="100px;" alt=""/><br /><sub><b>Heberti Almeida</b></sub></a></td>
   </tr>
 </table>
 
 <!-- markdownlint-enable -->
 <!-- prettier-ignore-end -->
-
 <!-- ALL-CONTRIBUTORS-LIST:END -->
 
 This project follows the [all-contributors](https://github.com/all-contributors/all-contributors) specification. Contributions of any kind welcome!
