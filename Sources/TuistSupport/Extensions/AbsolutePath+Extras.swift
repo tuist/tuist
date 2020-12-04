@@ -17,29 +17,6 @@ public enum GlobError: FatalError, Equatable {
     }
 }
 
-extension Array where Element == AbsolutePath {
-    /// Packages should be added as a whole folder not individually.
-    /// (e.g. bundled file formats recognized by the OS like .pages, .numbers...)
-    ///
-    /// Can we improve this implementation with a more efficient approach?
-    /// - Returns: List of clean `AbsolutePath`s
-    public func cleanPackages() -> [AbsolutePath] {
-        compactMap {
-            var filePath = $0
-            while !filePath.isRoot {
-                if filePath.parentDirectory.isPackage {
-                    return nil
-                } else if filePath.isPackage {
-                    return filePath
-                } else {
-                    filePath = filePath.parentDirectory
-                }
-            }
-            return $0
-        }
-    }
-}
-
 extension AbsolutePath {
     /// Returns the current path.
     public static var current: AbsolutePath {

@@ -26,9 +26,10 @@ extension TuistCore.CopyFilesAction {
         var invalidResourceGlobs: [InvalidGlob] = []
         let files: [TuistCore.FileElement] = try manifest.files.flatMap { manifest -> [TuistCore.FileElement] in
             do {
-                return try TuistCore.FileElement.from(manifest: manifest,
-                                                      generatorPaths: generatorPaths,
-                                                      includeFiles: { TuistCore.Target.isResource(path: $0) })
+                let files = try TuistCore.FileElement.from(manifest: manifest,
+                                                           generatorPaths: generatorPaths,
+                                                           includeFiles: { TuistCore.Target.isResource(path: $0) })
+                return files.cleanPackages()
             } catch let GlobError.nonExistentDirectory(invalidGlob) {
                 invalidResourceGlobs.append(invalidGlob)
                 return []
@@ -76,6 +77,45 @@ extension TuistCore.CopyFilesAction.Destination {
             return .plugins
         case .other:
             return .other
+        }
+    }
+}
+
+// MARK: - Array Extension FileElement
+
+extension Array where Element == TuistCore.FileElement {
+    /// Packages should be added as a whole folder not individually.
+    /// (e.g. bundled file formats recognized by the OS like .pages, .numbers, .rtfd...)
+    ///
+    /// Given the input:
+    /// ```
+    /// /project/Templates/yellow.template/meta.json
+    /// /project/Templates/yellow.template/image.png
+    /// /project/Templates/blue.template/meta.json
+    /// /project/Templates/blue.template/image.png
+    /// /project/Fonts/somefont.ttf
+    /// ```
+    /// This is the output:
+    /// ```
+    /// /project/Templates/yellow.template
+    /// /project/Templates/blue.template
+    /// /project/Fonts/somefont.ttf
+    /// ```
+    ///
+    /// - Returns: List of clean `AbsolutePath`s
+    public func cleanPackages() -> [Self.Element] {
+        compactMap {
+            var filePath = $0.path
+            while !filePath.isRoot {
+                if filePath.parentDirectory.isPackage {
+                    return nil
+                } else if filePath.isPackage {
+                    return $0
+                } else {
+                    filePath = filePath.parentDirectory
+                }
+            }
+            return $0
         }
     }
 }

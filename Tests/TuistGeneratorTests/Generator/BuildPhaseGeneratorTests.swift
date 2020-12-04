@@ -481,8 +481,6 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
 
         let templates: [FileElement] = [
             .file(path: "/path/sharedSupport/tuist.rtfd"),
-            .file(path: "/path/sharedSupport/tuist.rtfd/TXT.rtf"),
-            .file(path: "/path/sharedSupport/tuist.rtfd/image.jpg"),
         ]
 
         let pbxproj = PBXProj()

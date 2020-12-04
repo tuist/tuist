@@ -277,10 +277,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
             pbxTarget.buildPhases.append(copyFilesPhase)
 
             var buildFilesCache = Set<AbsolutePath>()
-            let filePaths = action.files
-                .map(\.path)
-                .sorted()
-                .cleanPackages()
+            let filePaths = action.files.map(\.path).sorted()
 
             try filePaths.forEach {
                 guard let fileReference = fileElements.file(path: $0) else {
