@@ -626,6 +626,7 @@ final class CacheGraphMapperTests: TuistUnitTestCase {
         let app = try XCTUnwrap(got.entryNodes.first as? TargetNode)
         _ = try XCTUnwrap(app.dependencies.compactMap { $0 as? TargetNode }.first(where: { $0 == bFrameworkNode }))
         XCTAssertTrue(app.dependencies.contains(where: { $0 == cBundle }))
+        XCTAssertEqual(1, bFrameworkNode.dependencies.count)
     }
     
     // 11th scenario
@@ -677,6 +678,7 @@ final class CacheGraphMapperTests: TuistUnitTestCase {
         let app = try XCTUnwrap(got.entryNodes.first as? TargetNode)
         _ = try XCTUnwrap(app.dependencies.compactMap { $0 as? FrameworkNode }.first(where: { $0 == bCachedFramework }))
         XCTAssertTrue(app.dependencies.contains(where: { $0 == cBundle }))
+        XCTAssertEqual(0, bFrameworkNode.dependencies.count)
     }
 
     fileprivate func graphProjects(_ targets: [TargetNode]) -> [Project] {

@@ -156,7 +156,14 @@ class CacheGraphMutator: CacheGraphMutating {
 
             // We load the .framework (or fallback on .xcframework)
             let precompiledFramework: PrecompiledNode = try loadPrecompiledFramework(path: precompiledFrameworkPath, loadedPrecompiledFrameworks: &loadedPrecompiledFrameworks)
-
+            
+            // Remove bundle dependencies for precompiled nodes since they get added
+            // directly into runnable targets that need them
+            targetDependency.dependencies = targetDependency.dependencies.filter { dep in
+                guard let dep = dep as? TargetNode else { return true }
+                return dep.target.product != .bundle
+            }
+            
             try mapDependencies(targetDependency,
                                 precompiledFrameworks: precompiledFrameworks,
                                 sources: sources,
