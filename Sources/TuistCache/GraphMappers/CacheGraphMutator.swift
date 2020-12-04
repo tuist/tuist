@@ -46,9 +46,9 @@ class CacheGraphMutator: CacheGraphMutating {
         let userSpecifiedSourceTestTargets = userSpecifiedSourceTargets.flatMap { graph.testTargetsDependingOn(path: $0.path, name: $0.name) }
         var sourceTargets: Set<TargetNode> = Set(userSpecifiedSourceTargets)
 
-        // keep a record of runnable targets that have resources
-        // via transitive static dependencies before swapping out cached frameworks
-        let runnableTargetsResources = runnableTargetsToResources(in: graph)
+        // Add resource targets into runnable targets that depend on static
+        // libraries that have resource targets
+        addResourceTargetsToRunnables(in: graph)
         
         try (userSpecifiedSourceTargets + userSpecifiedSourceTestTargets)
             .forEach { try visit(targetNode: $0,
@@ -57,12 +57,7 @@ class CacheGraphMutator: CacheGraphMutating {
                                  sourceTargets: &sourceTargets,
                                  visitedPrecompiledFrameworkPaths: &visitedPrecompiledFrameworkPaths,
                                  loadedPrecompiledNodes: &loadedPrecompiledNodes) }
-        
-        // Add resource targets into runnable targets that need them
-        for (runnableTarget, resources) in runnableTargetsResources {
-            runnableTarget.dependencies = runnableTarget.dependencies + resources
-        }
-        
+                
         // We mark them to be pruned during the tree-shaking
         graph.targets.flatMap(\.value).forEach {
             if !sourceTargets.contains($0) { $0.prune = true }
@@ -70,17 +65,21 @@ class CacheGraphMutator: CacheGraphMutating {
 
         return graph
     }
+    
+    fileprivate func addResourceTargetsToRunnables(in graph: Graph) {
+        let runnableTargetsResources = runnableTargetsToResources(in: graph)
+        for (runnableTarget, resources) in runnableTargetsResources {
+            runnableTarget.dependencies = runnableTarget.dependencies + resources
+        }
+    }
         
     fileprivate func runnableTargetsToResources(in graph: Graph) -> [TargetNode: [TargetNode]] {
         let runnableToStatic = runnableTargetsToStaticDependencies(in: graph)
         var runnableToResources: [TargetNode: [TargetNode]] = [:]
-        var visitedStaticResources: [TargetNode: [TargetNode]] = [:]
         for (runnable, staticDependencies) in runnableToStatic {
             staticDependencies.forEach { dependency in
-                if visitedStaticResources[dependency] != nil { return }
                 if runnableToResources[runnable] == nil { runnableToResources[runnable] = [] }
-                let staticResources = graph.resourceBundleDependencies(path: dependency.path, name: dependency.name)
-                visitedStaticResources[dependency] = staticResources
+                let staticResources = graph.resourceBundleDependencies(path: dependency.path, name: dependency.name, allowNonSupportingTargets: true)
                 var accStaticResources = Set(runnableToResources[runnable]!)
                 accStaticResources.formUnion(staticResources)
                 runnableToResources[runnable] = Array(accStaticResources)
@@ -91,13 +90,13 @@ class CacheGraphMutator: CacheGraphMutating {
     
     fileprivate func runnableTargetsToStaticDependencies(in graph: Graph) -> [TargetNode: [TargetNode]] {
         let runnable = graph.targets.flatMap(\.value).filter { $0.target.product.runnable }
-        let runnableToResources: [TargetNode: [TargetNode]] = runnable.reduce([:]) { acc, target in
+        let runnableToStaticDependencies: [TargetNode: [TargetNode]] = runnable.reduce([:]) { acc, target in
             let staticDependencies = Array(graph.transitiveStaticTargetNodes(for: target))
             var acc = acc
             acc[target] = staticDependencies
             return acc
         }
-        return runnableToResources
+        return runnableToStaticDependencies
     }
 
     
