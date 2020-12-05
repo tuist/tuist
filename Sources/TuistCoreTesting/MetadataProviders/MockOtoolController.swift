@@ -4,12 +4,10 @@ import TSCBasic
 @testable import TuistCore
 
 final class MockOtoolController: OtoolControlling {
-    var dlybDependenciesPathStub: ((AbsolutePath) -> Single<[AbsolutePath]>)?
+
+    var stubbedDlybDependenciesPathResult: Single<[AbsolutePath]>!
 
     func dlybDependenciesPath(forBinaryAt path: AbsolutePath) throws -> Single<[AbsolutePath]> {
-        if let dlybDependenciesPathStub = dlybDependenciesPathStub {
-            return dlybDependenciesPathStub(path)
-        }
-        return .just([])
+        return stubbedDlybDependenciesPathResult
     }
 }
