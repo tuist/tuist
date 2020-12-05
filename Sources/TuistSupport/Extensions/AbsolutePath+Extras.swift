@@ -64,6 +64,13 @@ extension AbsolutePath {
         return exists && isDirectory.boolValue
     }
 
+    /// Returns true if the path is a package, recognized by having a UTI `com.apple.package`
+    public var isPackage: Bool {
+        let ext = URL(fileURLWithPath: pathString).pathExtension as CFString
+        guard let uti = UTTypeCreatePreferredIdentifierForTag(kUTTagClassFilenameExtension, ext, nil) else { return false }
+        return UTTypeConformsTo(uti.takeRetainedValue(), kUTTypePackage)
+    }
+
     /// Returns the path with the last component removed. For example, given the path
     /// /test/path/to/file it returns /test/path/to
     ///

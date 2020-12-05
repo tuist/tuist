@@ -82,6 +82,11 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                                         fileElements: fileElements,
                                         pbxproj: pbxproj)
 
+        try generateCopyFilesBuildPhases(target: target,
+                                         pbxTarget: pbxTarget,
+                                         fileElements: fileElements,
+                                         pbxproj: pbxproj)
+
         try generateAppExtensionsBuildPhase(path: path,
                                             target: target,
                                             graphTraverser: graphTraverser,
@@ -255,6 +260,39 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                                fileElements: fileElements,
                                pbxproj: pbxproj,
                                resourcesBuildPhase: resourcesBuildPhase)
+    }
+
+    func generateCopyFilesBuildPhases(target: Target,
+                                      pbxTarget: PBXTarget,
+                                      fileElements: ProjectFileElements,
+                                      pbxproj: PBXProj) throws
+    {
+        try target.copyFiles.forEach { action in
+            let copyFilesPhase = PBXCopyFilesBuildPhase(
+                dstPath: action.subpath,
+                dstSubfolderSpec: action.destination.toXcodeprojSubFolder,
+                name: action.name
+            )
+
+            pbxproj.add(object: copyFilesPhase)
+            pbxTarget.buildPhases.append(copyFilesPhase)
+
+            var buildFilesCache = Set<AbsolutePath>()
+            let filePaths = action.files.map(\.path).sorted()
+
+            try filePaths.forEach {
+                guard let fileReference = fileElements.file(path: $0) else {
+                    throw BuildPhaseGenerationError.missingFileReference($0)
+                }
+
+                if buildFilesCache.contains($0) == false {
+                    let pbxBuildFile = PBXBuildFile(file: fileReference)
+                    pbxproj.add(object: pbxBuildFile)
+                    copyFilesPhase.files?.append(pbxBuildFile)
+                    buildFilesCache.insert($0)
+                }
+            }
+        }
     }
 
     private func generateResourcesBuildFile(files: [AbsolutePath],

@@ -25,6 +25,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Added
 
 - Extend the tree-shaking logic to include workspace projects and targets [#2056](https://github.com/tuist/tuist/pull/2056) by [@pepibumur](https://github.com/pepibumur).
+- Add support for copy files phase [#2077](https://github.com/tuist/tuist/pull/2077) by [@hebertialmeida](https://github.com/hebertialmeida).
 
 ### Changed
 

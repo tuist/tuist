@@ -13,9 +13,17 @@ Scenario: The project is an macOS command line tool with static dependencies (co
     Then I copy the fixture command_line_tool_with_static_dependencies into the working directory
     Then tuist generates the project
     Then I should be able to build for macOS the scheme CommandLineTool
-    
+
 Scenario: The project is an macOS command line tool with dynamic dependencies (command_line_tool_with_dynamic_dependencies)
     Given that tuist is available
     And I have a working directory
     Then I copy the fixture command_line_tool_with_dynamic_dependencies into the working directory
     Then tuist lints the project and fails
+
+Scenario: The project is an macOS app without any dependencies (macos_app_with_copy_files)
+    Given that tuist is available
+    And I have a working directory
+    Then I copy the fixture macos_app_with_copy_files into the working directory
+    Then tuist generates the project
+    Then the target App should have the build phase Copy Templates
+    Then I should be able to build for macOS the scheme App
