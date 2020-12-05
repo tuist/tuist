@@ -29,7 +29,6 @@ public struct Constants {
 
     public struct DependenciesDirectory {
         public static let name = "Dependencies"
-        public static let graphName = "graph.json"
         public static let lockfilesDirectoryName = "Lockfiles"
         public static let cartfileResolvedName = "Cartfile.resolved"
     }

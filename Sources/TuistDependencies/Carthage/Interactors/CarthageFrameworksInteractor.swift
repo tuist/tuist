@@ -20,10 +20,10 @@ public final class CarthageFrameworksInteractor: CarthageFrameworksInteracting {
     }
 
     public func copyFrameworks(carthageBuildDirectory: AbsolutePath, dependenciesDirectory: AbsolutePath) throws {
-        let graphPath = dependenciesDirectory.appending(component: Constants.DependenciesDirectory.graphName)
-        let graph = readGraph(graphPath: graphPath)
+//        let graphPath = dependenciesDirectory.appending(component: Constants.DependenciesDirectory.graphName)
+//        let graph = readGraph(graphPath: graphPath)
 
-        var newGraph = Graph.empty
+//        var newGraph = Graph.empty
 
         try Platform.allCases.forEach { platform in
             let carthagePlatfromBuildsDirectory = carthageBuildDirectory.appending(component: platform.carthageDirectory)
@@ -37,7 +37,8 @@ public final class CarthageFrameworksInteractor: CarthageFrameworksInteracting {
                 try copyDirectory(from: carthageBuildFrameworkPath, to: destinationFramemorekPath)
             }
 
-            let existingFrameworks: Set<String> = Set(graph.dependencies(for: platform))
+//            let existingFrameworks: Set<String> = Set(graph.dependencies(for: platform))
+            let existingFrameworks = Set<String>()
             let frameworksToDelete = existingFrameworks.subtracting(builtFrameworks)
 
             try frameworksToDelete.forEach { frameworkName in
@@ -48,10 +49,10 @@ public final class CarthageFrameworksInteractor: CarthageFrameworksInteracting {
                 }
             }
 
-            newGraph = newGraph.updatingDependencies(Array(builtFrameworks), for: platform)
+//            newGraph = newGraph.updatingDependencies(Array(builtFrameworks), for: platform)
         }
 
-        try saveGraph(graph: newGraph, graphPath: graphPath)
+//        try saveGraph(graph: newGraph, graphPath: graphPath)
     }
 
     // MARK: - Helpers
@@ -61,22 +62,6 @@ public final class CarthageFrameworksInteractor: CarthageFrameworksInteracting {
             .contentsOfDirectory(carthagePlatfromBuildsDirectory)
             .filter { $0.isFolder && $0.extension == "framework" }
             .compactMap { $0.components.last?.components(separatedBy: ".").first }
-    }
-
-    private func readGraph(graphPath: AbsolutePath) -> Graph {
-        do {
-            let decoder = JSONDecoder()
-            let graphFileData = try fileHandler.readFile(graphPath)
-            return try decoder.decode(Graph.self, from: graphFileData)
-        } catch {
-            return .empty
-        }
-    }
-
-    private func saveGraph(graph: Graph, graphPath: AbsolutePath) throws {
-        let encoder = JSONEncoder()
-        let graphFileData = try encoder.encode(graph)
-        try fileHandler.write(String(data: graphFileData, encoding: .utf8) ?? "", path: graphPath, atomically: true)
     }
 
     private func copyDirectory(from fromPath: AbsolutePath, to toPath: AbsolutePath) throws {

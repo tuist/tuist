@@ -130,18 +130,6 @@ final class CarthageFrameworksInteractorTests: TuistUnitTestCase {
             "Tuist/Dependencies/RxSwift/tvOS/RxSwift.framework/Info.plist",
         ])
 
-        // stub `Tuist/Dependencies/graph.json`
-        let graphPath = dependenciesDirectory.appending(component: Constants.DependenciesDirectory.graphName)
-        let graphContent = """
-        {
-            "iOSDependencies": ["RxSwift"],
-            "tvOSDependencies": ["RxSwift"],
-            "macOSDependencies": ["RxSwift"],
-            "watchOSDependencies": ["RxSwift"],
-        }
-        """
-        try fileHandler.write(graphContent, path: graphPath, atomically: true)
-
         // When
         try subject.copyFrameworks(carthageBuildDirectory: carthageBuildDirectory, dependenciesDirectory: dependenciesDirectory)
 
@@ -166,19 +154,5 @@ final class CarthageFrameworksInteractorTests: TuistUnitTestCase {
         XCTAssertFalse(fileHandler.exists(dependenciesDirectory.appending(components: "RxSwift", "tvOS", "RxSwift.framework")))
         XCTAssertFalse(fileHandler.exists(dependenciesDirectory.appending(components: "RxSwift", "macOS", "RxSwift.framework")))
         XCTAssertFalse(fileHandler.exists(dependenciesDirectory.appending(components: "RxSwift", "watchOS", "RxSwift.framework")))
-
-        // validate `Tuist/Dependencies/graph.json`
-        let expectedGraph = Graph(
-            iOSDependencies: ["ReactiveMoya", "RxMoya", "Moya"],
-            tvOSDependencies: ["ReactiveMoya", "RxMoya", "Moya"],
-            macOSDependencies: ["ReactiveMoya", "RxMoya", "Moya"],
-            watchOSDependencies: ["ReactiveMoya", "RxMoya", "Moya"]
-        )
-        let grapData = try fileHandler.readFile(graphPath)
-        let got = try JSONDecoder().decode(Graph.self, from: grapData)
-        XCTAssertEqual(Set(got.iOSDependencies), Set(expectedGraph.iOSDependencies))
-        XCTAssertEqual(Set(got.tvOSDependencies), Set(expectedGraph.tvOSDependencies))
-        XCTAssertEqual(Set(got.macOSDependencies), Set(expectedGraph.macOSDependencies))
-        XCTAssertEqual(Set(got.watchOSDependencies), Set(expectedGraph.watchOSDependencies))
     }
 }
