@@ -42,7 +42,10 @@ public final class CarthageFrameworksInteractor: CarthageFrameworksInteracting {
 
             try frameworksToDelete.forEach { frameworkName in
                 let destinationFrameworkPath = dependenciesDirectory.appending(components: frameworkName, platform.caseValue, "\(frameworkName).framework")
-                try deleteDirectory(at: destinationFrameworkPath)
+                
+                if fileHandler.exists(destinationFrameworkPath) {
+                    try fileHandler.delete(destinationFrameworkPath)
+                }
             }
 
             newGraph = newGraph.updatingDependencies(Array(builtFrameworks), for: platform)
@@ -84,11 +87,5 @@ public final class CarthageFrameworksInteractor: CarthageFrameworksInteracting {
         }
 
         try fileHandler.copy(from: fromPath, to: toPath)
-    }
-
-    private func deleteDirectory(at path: AbsolutePath) throws {
-        if fileHandler.exists(path) {
-            try fileHandler.delete(path)
-        }
     }
 }
