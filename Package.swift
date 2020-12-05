@@ -212,6 +212,7 @@ let package = Package(
         .target(
             name: "TuistSupport",
             dependencies: [
+                combineExtDependency,
                 swiftToolsSupportDependency,
                 rxSwiftDependency,
                 rxRelayDependency,
