@@ -98,8 +98,12 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         XCTAssertEqual(carthageFrameworksInteractor.invokedCopyFrameworksParameters?.carthageBuildDirectory, carthageBuildDirectory)
         XCTAssertEqual(carthageFrameworksInteractor.invokedCopyFrameworksParameters?.dependenciesDirectory, dependenciesDirectory)
         
-        XCTAssertTrue(carthageVersionFilesInteractor.invokedCopyVersionFiles)
-        XCTAssertEqual(carthageVersionFilesInteractor.invokedCopyVersionFilesParameters?.carthageBuildDirectory, carthageBuildDirectory)
-        XCTAssertEqual(carthageVersionFilesInteractor.invokedCopyVersionFilesParameters?.dependenciesDirectory, dependenciesDirectory)
+        XCTAssertTrue(carthageVersionFilesInteractor.invokedLoadVersionFiles)
+        XCTAssertEqual(carthageVersionFilesInteractor.invokedLoadVersionFilesParameters?.carthageBuildDirectory, carthageBuildDirectory)
+        XCTAssertEqual(carthageVersionFilesInteractor.invokedLoadVersionFilesParameters?.dependenciesDirectory, dependenciesDirectory)
+        
+        XCTAssertTrue(carthageVersionFilesInteractor.invokedSaveVersionFiles)
+        XCTAssertEqual(carthageVersionFilesInteractor.invokedSaveVersionFilesParameters?.carthageBuildDirectory, carthageBuildDirectory)
+        XCTAssertEqual(carthageVersionFilesInteractor.invokedSaveVersionFilesParameters?.dependenciesDirectory, dependenciesDirectory)
     }
 }

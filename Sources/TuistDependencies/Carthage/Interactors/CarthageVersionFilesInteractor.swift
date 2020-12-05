@@ -10,7 +10,13 @@ public protocol CarthageVersionFilesInteracting {
     /// - Parameters:
     ///   - carthageBuildDirectory: The path to the directory that contains the `Carthage/Build/` directory.
     ///   - dependenciesDirectory: The path to the directory that contains the `Tuist/Dependencies/` directory.
-    func copyVersionFiles(carthageBuildDirectory: AbsolutePath, dependenciesDirectory: AbsolutePath) throws
+    func saveVersionFiles(carthageBuildDirectory: AbsolutePath, dependenciesDirectory: AbsolutePath) throws
+    
+    /// Copies `.*.version` files from `dependenciesDirectory` at `/.Derived/Carthage` into `carthageBuildDirectory`.
+    /// - Parameters:
+    ///   - carthageBuildDirectory: The path to the directory that contains the `Carthage/Build/` directory.
+    ///   - dependenciesDirectory: The path to the directory that contains the `Tuist/Dependencies/` directory.
+    func loadVersionFiles(carthageBuildDirectory: AbsolutePath, dependenciesDirectory: AbsolutePath) throws
 }
 
 public final class CarthageVersionFilesInteractor: CarthageVersionFilesInteracting {
@@ -20,7 +26,7 @@ public final class CarthageVersionFilesInteractor: CarthageVersionFilesInteracti
         self.fileHandler = fileHandler
     }
     
-    public func copyVersionFiles(carthageBuildDirectory: AbsolutePath, dependenciesDirectory: AbsolutePath) throws {
+    public func saveVersionFiles(carthageBuildDirectory: AbsolutePath, dependenciesDirectory: AbsolutePath) throws {
         let derivedDirectory = dependenciesDirectory
             .appending(component: Constants.DependenciesDirectory.derivedDirectoryName)
             .appending(component: "Carthage")
@@ -31,6 +37,21 @@ public final class CarthageVersionFilesInteractor: CarthageVersionFilesInteracti
                 .filter { $0.extension == "version" }
                 .forEach {
                     try copyFile(from: $0, to: derivedDirectory.appending(component: $0.basename))
+                }
+        }
+    }
+    
+    public func loadVersionFiles(carthageBuildDirectory: AbsolutePath, dependenciesDirectory: AbsolutePath) throws {
+        let derivedDirectory = dependenciesDirectory
+            .appending(component: Constants.DependenciesDirectory.derivedDirectoryName)
+            .appending(component: "Carthage")
+        
+        if fileHandler.exists(derivedDirectory) {
+            try fileHandler
+                .contentsOfDirectory(derivedDirectory)
+                .filter { $0.extension == "version" }
+                .forEach {
+                    try copyFile(from: $0, to: carthageBuildDirectory.appending(component: $0.basename))
                 }
         }
     }

@@ -95,6 +95,9 @@ public final class CarthageInteractor: CarthageInteracting {
             if fileHandler.exists(destinationCarfileResolvedPath) {
                 try copyFile(from: destinationCarfileResolvedPath, to: temporaryCarfileResolvedPath)
             }
+            
+            // copy `.*.version` files from previous run if exist
+            try carthageVersionFilesInteractor.loadVersionFiles(carthageBuildDirectory: carthageBuildDirectory, dependenciesDirectory: dependenciesDirectory)
 
             // run `carthage`
             try System.shared.runAndPrint(command)
@@ -110,7 +113,7 @@ public final class CarthageInteractor: CarthageInteracting {
             try carthageFrameworksInteractor.copyFrameworks(carthageBuildDirectory: carthageBuildDirectory, dependenciesDirectory: dependenciesDirectory)
             
             // save `.version` files
-            try carthageVersionFilesInteractor.copyVersionFiles(carthageBuildDirectory: carthageBuildDirectory, dependenciesDirectory: dependenciesDirectory)
+            try carthageVersionFilesInteractor.saveVersionFiles(carthageBuildDirectory: carthageBuildDirectory, dependenciesDirectory: dependenciesDirectory)
         }
     }
 
