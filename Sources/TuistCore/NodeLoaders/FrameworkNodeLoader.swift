@@ -74,16 +74,26 @@ public final class FrameworkNodeLoader: FrameworkNodeLoading {
 
     private func dlybDependenciesPath(forBinaryAt binaryPath: AbsolutePath) throws -> [PrecompiledNode.Dependency] {
         try otoolController
-            .dlybDependenciesPath(forBinaryAt: binaryPath)
+            .dylibDependenciesBinaryPath(forBinaryAt: binaryPath)
             .toBlocking()
             .first()?
             .filter { $0 != binaryPath }
             .map { $0.removingLastComponent() }
             .map { dependencyPath -> PrecompiledNode.Dependency in
-                guard let node = try? load(path: dependencyPath) else {
-                    throw FrameworkNodeLoaderError.invalidDependencyPath(dependencyPath)
+                if dependencyPath.isFrameworkPath {
+                    guard let node = try? load(path: dependencyPath) else {
+                        throw FrameworkNodeLoaderError.invalidDependencyPath(dependencyPath)
+                    }
+                    return PrecompiledNode.Dependency.framework(node)
+                } else {
+                    return PrecompiledNode.Dependency.framework(node)
                 }
-                return PrecompiledNode.Dependency.framework(node)
             } ?? []
+    }
+}
+
+private extension AbsolutePath {
+    var isFrameworkPath: Bool {
+        pathString.contains("framework")
     }
 }

@@ -74,13 +74,13 @@ final class FrameworkNodeLoaderTests: TuistUnitTestCase {
 
         let invalidPath = path.appending(RelativePath("Unexistent.framework/Unexistent"))
         var isFirstRecursiveCall = false
-        otoolController.dlybDependenciesPathStub = { _ in
-            guard !isFirstRecursiveCall else { return .just([]) }
-            isFirstRecursiveCall = true
-            return .just([
-                invalidPath,
-            ])
-        }
+//        otoolController.dlybDependenciesPathStub = { _ in
+//            guard !isFirstRecursiveCall else { return .just([]) }
+//            isFirstRecursiveCall = true
+//            return .just([
+//                invalidPath,
+//            ])
+//        }
 
         XCTAssertThrowsSpecific(
             try subject.load(path: frameworkPath),
