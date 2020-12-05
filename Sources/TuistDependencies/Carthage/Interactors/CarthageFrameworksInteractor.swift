@@ -20,49 +20,23 @@ public final class CarthageFrameworksInteractor: CarthageFrameworksInteracting {
     }
 
     public func copyFrameworks(carthageBuildDirectory: AbsolutePath, dependenciesDirectory: AbsolutePath) throws {
-//        let graphPath = dependenciesDirectory.appending(component: Constants.DependenciesDirectory.graphName)
-//        let graph = readGraph(graphPath: graphPath)
-
-//        var newGraph = Graph.empty
-
         try Platform.allCases.forEach { platform in
             let carthagePlatfromBuildsDirectory = carthageBuildDirectory.appending(component: platform.carthageDirectory)
             guard fileHandler.exists(carthagePlatfromBuildsDirectory) else { return }
 
-            let builtFrameworks: Set<String> = Set(try getBuiltFrameworks(carthagePlatfromBuildsDirectory: carthagePlatfromBuildsDirectory))
-
-            try builtFrameworks.forEach { frameworkName in
-                let carthageBuildFrameworkPath = carthagePlatfromBuildsDirectory.appending(component: "\(frameworkName).framework")
-                let destinationFramemorekPath = dependenciesDirectory.appending(components: frameworkName, platform.caseValue, "\(frameworkName).framework")
-                try copyDirectory(from: carthageBuildFrameworkPath, to: destinationFramemorekPath)
-            }
-
-//            let existingFrameworks: Set<String> = Set(graph.dependencies(for: platform))
-            let existingFrameworks = Set<String>()
-            let frameworksToDelete = existingFrameworks.subtracting(builtFrameworks)
-
-            try frameworksToDelete.forEach { frameworkName in
-                let destinationFrameworkPath = dependenciesDirectory.appending(components: frameworkName, platform.caseValue, "\(frameworkName).framework")
-                
-                if fileHandler.exists(destinationFrameworkPath) {
-                    try fileHandler.delete(destinationFrameworkPath)
+            try fileHandler
+                .contentsOfDirectory(carthagePlatfromBuildsDirectory)
+                .filter { $0.isFolder && $0.extension == "framework" }
+                .compactMap { $0.components.last?.components(separatedBy: ".").first }
+                .forEach { frameworkName in
+                    let carthageBuildFrameworkPath = carthagePlatfromBuildsDirectory.appending(component: "\(frameworkName).framework")
+                    let destinationFramemorekPath = dependenciesDirectory.appending(components: frameworkName, platform.caseValue, "\(frameworkName).framework")
+                    try copyDirectory(from: carthageBuildFrameworkPath, to: destinationFramemorekPath)
                 }
-            }
-
-//            newGraph = newGraph.updatingDependencies(Array(builtFrameworks), for: platform)
         }
-
-//        try saveGraph(graph: newGraph, graphPath: graphPath)
     }
 
     // MARK: - Helpers
-
-    private func getBuiltFrameworks(carthagePlatfromBuildsDirectory: AbsolutePath) throws -> [String] {
-        try fileHandler
-            .contentsOfDirectory(carthagePlatfromBuildsDirectory)
-            .filter { $0.isFolder && $0.extension == "framework" }
-            .compactMap { $0.components.last?.components(separatedBy: ".").first }
-    }
 
     private func copyDirectory(from fromPath: AbsolutePath, to toPath: AbsolutePath) throws {
         try fileHandler.createFolder(toPath.removingLastComponent())

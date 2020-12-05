@@ -14,7 +14,6 @@ final class CarthageInteractorTests: TuistUnitTestCase {
     private var carthageCommandGenerator: MockCarthageCommandGenerator!
     private var cartfileContentGenerator: MockCartfileContentGenerator!
     private var carthageFrameworksInteractor: MockCarthageFrameworksInteractor!
-    private var carthageVersionFilesInteractor: MockCarthageVersionFilesInteractor!
 
     private var temporaryDirectoryPath: AbsolutePath!
 
@@ -31,13 +30,11 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         carthageCommandGenerator = MockCarthageCommandGenerator()
         cartfileContentGenerator = MockCartfileContentGenerator()
         carthageFrameworksInteractor = MockCarthageFrameworksInteractor()
-        carthageVersionFilesInteractor = MockCarthageVersionFilesInteractor()
 
         subject = CarthageInteractor(fileHandler: fileHandlerMock,
                                      carthageCommandGenerator: carthageCommandGenerator,
                                      cartfileContentGenerator: cartfileContentGenerator,
-                                     carthageFrameworksInteractor: carthageFrameworksInteractor,
-                                     carthageVersionFilesInteractor: carthageVersionFilesInteractor)
+                                     carthageFrameworksInteractor: carthageFrameworksInteractor)
     }
 
     override func tearDown() {
@@ -45,7 +42,6 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         carthageCommandGenerator = nil
         cartfileContentGenerator = nil
         carthageFrameworksInteractor = nil
-        carthageVersionFilesInteractor = nil
 
         temporaryDirectoryPath = nil
 
@@ -64,6 +60,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
             .appending(components: "Carthage", "Build")
 
         try fileHandler.touch(temporaryDirectoryPath.appending(components: Constants.DependenciesDirectory.cartfileResolvedName))
+        try fileHandler.createFolder(temporaryDirectoryPath.appending(components: "Carthage", "Build"))
 
         let stubbedDependencies = [
             CarthageDependency(name: "Moya", requirement: .exact("1.1.1"), platforms: [.iOS]),
@@ -83,8 +80,12 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         let expectedCartfileResolvedPath = dependenciesDirectory
             .appending(component: Constants.DependenciesDirectory.lockfilesDirectoryName)
             .appending(component: Constants.DependenciesDirectory.cartfileResolvedName)
-
         XCTAssertTrue(fileHandler.exists(expectedCartfileResolvedPath))
+        
+        let expectedBuildDirectoryPath = dependenciesDirectory
+            .appending(component: Constants.DependenciesDirectory.derivedDirectoryName)
+            .appending(components: "Carthage", "Build")
+        XCTAssertTrue(fileHandler.exists(expectedBuildDirectoryPath))
 
         XCTAssertTrue(carthageCommandGenerator.invokedCommand)
         XCTAssertEqual(carthageCommandGenerator.invokedCommandParameters?.method, .fetch)
@@ -97,13 +98,5 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         XCTAssertTrue(carthageFrameworksInteractor.invokedCopyFrameworks)
         XCTAssertEqual(carthageFrameworksInteractor.invokedCopyFrameworksParameters?.carthageBuildDirectory, carthageBuildDirectory)
         XCTAssertEqual(carthageFrameworksInteractor.invokedCopyFrameworksParameters?.dependenciesDirectory, dependenciesDirectory)
-        
-        XCTAssertTrue(carthageVersionFilesInteractor.invokedLoadVersionFiles)
-        XCTAssertEqual(carthageVersionFilesInteractor.invokedLoadVersionFilesParameters?.carthageBuildDirectory, carthageBuildDirectory)
-        XCTAssertEqual(carthageVersionFilesInteractor.invokedLoadVersionFilesParameters?.dependenciesDirectory, dependenciesDirectory)
-        
-        XCTAssertTrue(carthageVersionFilesInteractor.invokedSaveVersionFiles)
-        XCTAssertEqual(carthageVersionFilesInteractor.invokedSaveVersionFilesParameters?.carthageBuildDirectory, carthageBuildDirectory)
-        XCTAssertEqual(carthageVersionFilesInteractor.invokedSaveVersionFilesParameters?.dependenciesDirectory, dependenciesDirectory)
     }
 }
