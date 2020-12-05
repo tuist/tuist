@@ -23,7 +23,7 @@ enum CarthageInteractorError: FatalError, Equatable {
     var description: String {
         switch self {
         case .carthageNotFound:
-            return "Carthage was not found either in Bundler nor in the environment."
+            return "Carthage was not found in the environment. It's possible that the tool is not installed or hasn't been exposed to your environment."
         case .cartfileNotFound:
             return "Cartfile was not found after Cartage installation."
         }
