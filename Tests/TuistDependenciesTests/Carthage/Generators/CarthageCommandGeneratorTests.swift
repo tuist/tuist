@@ -21,7 +21,7 @@ final class CarthageCommandGeneratorTests: TuistUnitTestCase {
     func test_command_fetch() throws {
         // Given
         let stubbedPath = try temporaryPath()
-        let expected = "carthage bootstrap --project-directory \(stubbedPath.pathString) --cache-builds --new-resolver"
+        let expected = "carthage bootstrap --project-directory \(stubbedPath.pathString) --use-netrc --cache-builds --new-resolver"
 
         // When
         let got = subject
@@ -35,7 +35,7 @@ final class CarthageCommandGeneratorTests: TuistUnitTestCase {
     func test_command_fetch_with_platforms() throws {
         // Given
         let stubbedPath = try temporaryPath()
-        let expected = "carthage bootstrap --project-directory \(stubbedPath.pathString) --platform iOS --cache-builds --new-resolver"
+        let expected = "carthage bootstrap --project-directory \(stubbedPath.pathString) --platform iOS --use-netrc --cache-builds --new-resolver"
 
         // When
         let got = subject
@@ -49,7 +49,7 @@ final class CarthageCommandGeneratorTests: TuistUnitTestCase {
     func test_command_update() throws {
         // Given
         let stubbedPath = try temporaryPath()
-        let expected = "carthage update --project-directory \(stubbedPath.pathString) --cache-builds --new-resolver"
+        let expected = "carthage update --project-directory \(stubbedPath.pathString) --use-netrc --cache-builds --new-resolver"
 
         // When
         let got = subject
@@ -63,7 +63,7 @@ final class CarthageCommandGeneratorTests: TuistUnitTestCase {
     func test_command_update_with_platforms() throws {
         // Given
         let stubbedPath = try temporaryPath()
-        let expected = "carthage update --project-directory \(stubbedPath.pathString) --platform iOS --cache-builds --new-resolver"
+        let expected = "carthage update --project-directory \(stubbedPath.pathString) --platform iOS --use-netrc --cache-builds --new-resolver"
 
         // When
         let got = subject
