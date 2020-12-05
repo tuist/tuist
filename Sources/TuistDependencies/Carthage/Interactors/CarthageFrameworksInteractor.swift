@@ -26,7 +26,7 @@ public final class CarthageFrameworksInteractor: CarthageFrameworksInteracting {
         var newGraph = Graph.empty
 
         try Platform.allCases.forEach { platform in
-            let carthagePlatfromBuildsDirectory = buildCarthagePlatfromBuildsDirectory(carthageBuildDirectory: carthageBuildDirectory, platform: platform)
+            let carthagePlatfromBuildsDirectory = carthageBuildDirectory.appending(component: platform.carthageDirectory)
             guard fileHandler.exists(carthagePlatfromBuildsDirectory) else { return }
 
             let builtFrameworks: Set<String> = Set(try getBuiltFrameworks(carthagePlatfromBuildsDirectory: carthagePlatfromBuildsDirectory))
@@ -52,15 +52,6 @@ public final class CarthageFrameworksInteractor: CarthageFrameworksInteracting {
     }
 
     // MARK: - Helpers
-
-    private func buildCarthagePlatfromBuildsDirectory(carthageBuildDirectory: AbsolutePath, platform: Platform) -> AbsolutePath {
-        switch platform {
-        case .iOS, .watchOS, .tvOS:
-            return carthageBuildDirectory.appending(component: platform.caseValue)
-        case .macOS:
-            return carthageBuildDirectory.appending(component: "Mac")
-        }
-    }
 
     private func getBuiltFrameworks(carthagePlatfromBuildsDirectory: AbsolutePath) throws -> [String] {
         try fileHandler
