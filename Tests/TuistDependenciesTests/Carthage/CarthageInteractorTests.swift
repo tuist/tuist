@@ -14,6 +14,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
     private var carthageCommandGenerator: MockCarthageCommandGenerator!
     private var cartfileContentGenerator: MockCartfileContentGenerator!
     private var carthageFrameworksInteractor: MockCarthageFrameworksInteractor!
+    private var carthageVersionFilesInteractor: MockCarthageVersionFilesInteractor!
 
     private var temporaryDirectoryPath: AbsolutePath!
 
@@ -30,18 +31,21 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         carthageCommandGenerator = MockCarthageCommandGenerator()
         cartfileContentGenerator = MockCartfileContentGenerator()
         carthageFrameworksInteractor = MockCarthageFrameworksInteractor()
+        carthageVersionFilesInteractor = MockCarthageVersionFilesInteractor()
 
         subject = CarthageInteractor(fileHandler: fileHandlerMock,
                                      carthageCommandGenerator: carthageCommandGenerator,
                                      cartfileContentGenerator: cartfileContentGenerator,
-                                     carthageFrameworksInteractor: carthageFrameworksInteractor)
+                                     carthageFrameworksInteractor: carthageFrameworksInteractor,
+                                     carthageVersionFilesInteractor: carthageVersionFilesInteractor)
     }
 
     override func tearDown() {
+        fileHandlerMock = nil
         carthageCommandGenerator = nil
         cartfileContentGenerator = nil
         carthageFrameworksInteractor = nil
-        fileHandlerMock = nil
+        carthageVersionFilesInteractor = nil
 
         temporaryDirectoryPath = nil
 
@@ -93,5 +97,9 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         XCTAssertTrue(carthageFrameworksInteractor.invokedCopyFrameworks)
         XCTAssertEqual(carthageFrameworksInteractor.invokedCopyFrameworksParameters?.carthageBuildDirectory, carthageBuildDirectory)
         XCTAssertEqual(carthageFrameworksInteractor.invokedCopyFrameworksParameters?.dependenciesDirectory, dependenciesDirectory)
+        
+        XCTAssertTrue(carthageVersionFilesInteractor.invokedCopyVersionFiles)
+        XCTAssertEqual(carthageVersionFilesInteractor.invokedCopyVersionFilesParameters?.carthageBuildDirectory, carthageBuildDirectory)
+        XCTAssertEqual(carthageVersionFilesInteractor.invokedCopyVersionFilesParameters?.dependenciesDirectory, dependenciesDirectory)
     }
 }

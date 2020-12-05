@@ -47,17 +47,20 @@ public final class CarthageInteractor: CarthageInteracting {
     private let carthageCommandGenerator: CarthageCommandGenerating
     private let cartfileContentGenerator: CartfileContentGenerating
     private let carthageFrameworksInteractor: CarthageFrameworksInteracting
+    private let carthageVersionFilesInteractor: CarthageVersionFilesInteracting
 
     public init(
         fileHandler: FileHandling = FileHandler.shared,
         carthageCommandGenerator: CarthageCommandGenerating = CarthageCommandGenerator(),
         cartfileContentGenerator: CartfileContentGenerating = CartfileContentGenerator(),
-        carthageFrameworksInteractor: CarthageFrameworksInteracting = CarthageFrameworksInteractor()
+        carthageFrameworksInteractor: CarthageFrameworksInteracting = CarthageFrameworksInteractor(),
+        carthageVersionFilesInteractor: CarthageVersionFilesInteracting = CarthageVersionFilesInteractor()
     ) {
         self.fileHandler = fileHandler
         self.carthageCommandGenerator = carthageCommandGenerator
         self.cartfileContentGenerator = cartfileContentGenerator
         self.carthageFrameworksInteractor = carthageFrameworksInteractor
+        self.carthageVersionFilesInteractor = carthageVersionFilesInteractor
     }
 
     public func install(dependenciesDirectory: AbsolutePath, method: InstallDependenciesMethod, dependencies: [CarthageDependency]) throws {
@@ -105,6 +108,9 @@ public final class CarthageInteractor: CarthageInteracting {
 
             // save installed frameworks
             try carthageFrameworksInteractor.copyFrameworks(carthageBuildDirectory: carthageBuildDirectory, dependenciesDirectory: dependenciesDirectory)
+            
+            // save `.version` files
+            try carthageVersionFilesInteractor.copyVersionFiles(carthageBuildDirectory: carthageBuildDirectory, dependenciesDirectory: dependenciesDirectory)
         }
     }
 
