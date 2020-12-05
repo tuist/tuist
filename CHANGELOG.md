@@ -7,6 +7,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Added
 
 - Add `Plugin.swift` manifest [#2095](https://github.com/tuist/tuist/pull/2095) by [@luispadron](https://github.com/luispadron)
+- Add Publisher-based methods to System's API [#2108](https://github.com/tuist/tuist/pull/2108) by [@pepibumur](https://github.com/pepibumur).
 
 ### Fixed
 
