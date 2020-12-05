@@ -10,3 +10,12 @@ Feature: Focuses projects with pre-compiled cached xcframeworks
     Then MyApp links the framework MyAppUI from the cache
     Then I should be able to build for iOS the scheme MyApp
     Then I should be able to test for iOS the scheme MyAppTests
+
+  Scenario: The project is an iOS application with a target dependency and transitive framework dependency (ios_app_with_transitive_project)
+    Given that tuist is available
+    And I have a working directory
+    Then I copy the fixture ios_app_with_transitive_project into the working directory
+    Then tuist warms the cache
+    When I remove derived data directory
+    When tuist focuses the target App
+    Then I should be able to build for iOS the scheme App
