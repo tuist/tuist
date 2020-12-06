@@ -32,8 +32,10 @@ final class StableXcodeProjIntegrationTests: TuistTestCase {
                                                             headers: 100)
             let modelGenerator = TestModelGenerator(rootPath: temporaryPath, config: config)
             let graph = try modelGenerator.generate()
+            let valueGraph = ValueGraph(graph: graph)
+            let graphTraverser = ValueGraphTraverser(graph: valueGraph)
 
-            let workspaceDescriptor = try subject.generateWorkspace(graph: graph)
+            let workspaceDescriptor = try subject.generateWorkspace(graphTraverser: graphTraverser)
 
             // Note: While we already have access to the `XcodeProj` models in `workspaceDescriptor`
             // unfortunately they are not equtable, however once serialized & deserialized back they are

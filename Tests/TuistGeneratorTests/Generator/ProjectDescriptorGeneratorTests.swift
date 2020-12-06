@@ -45,9 +45,11 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
         let graph = Graph.test(entryPath: temporaryPath,
                                entryNodes: [testTargetNode, appNode],
                                targets: [project.path: [testTargetNode, appNode]])
+        let valueGraph = ValueGraph(graph: graph)
+        let graphTraverser = ValueGraphTraverser(graph: valueGraph)
 
         // When
-        let generatedProject = try subject.generate(project: project, graph: graph)
+        let generatedProject = try subject.generate(project: project, graphTraverser: graphTraverser)
 
         // Then
         let pbxproj = generatedProject.xcodeProj.pbxproj
@@ -86,9 +88,11 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
                                                        dependencies: [packageProductNode])],
                                projects: [project],
                                packages: [packageNode])
+        let valueGraph = ValueGraph(graph: graph)
+        let graphTraverser = ValueGraphTraverser(graph: valueGraph)
 
         // When
-        let got = try subject.generate(project: project, graph: graph)
+        let got = try subject.generate(project: project, graphTraverser: graphTraverser)
 
         // Then
         let pbxproj = got.xcodeProj.pbxproj
@@ -105,9 +109,11 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
                                    name: "Project",
                                    targets: [])
         let graph = Graph.test(entryPath: temporaryPath)
+        let valueGraph = ValueGraph(graph: graph)
+        let graphTraverser = ValueGraphTraverser(graph: valueGraph)
 
         // When
-        let got = try subject.generate(project: project, graph: graph)
+        let got = try subject.generate(project: project, graphTraverser: graphTraverser)
 
         // Then
         let pbxproj = got.xcodeProj.pbxproj
@@ -124,9 +130,11 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
                                    name: "Project",
                                    targets: [])
         let graph = Graph.test(entryPath: temporaryPath)
+        let valueGraph = ValueGraph(graph: graph)
+        let graphTraverser = ValueGraphTraverser(graph: valueGraph)
 
         // When
-        let got = try subject.generate(project: project, graph: graph)
+        let got = try subject.generate(project: project, graphTraverser: graphTraverser)
 
         // Then
         let pbxproj = got.xcodeProj.pbxproj
@@ -138,6 +146,8 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
         // Given
         let path = try temporaryPath()
         let graph = Graph.test(entryPath: path)
+        let valueGraph = ValueGraph(graph: graph)
+        let graphTraverser = ValueGraphTraverser(graph: valueGraph)
         let resources = [
             "resources/en.lproj/App.strings",
             "resources/en.lproj/Extension.strings",
@@ -154,7 +164,7 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
                                    ])
 
         // When
-        let got = try subject.generate(project: project, graph: graph)
+        let got = try subject.generate(project: project, graphTraverser: graphTraverser)
 
         // Then
         let pbxProject = try XCTUnwrap(try got.xcodeProj.pbxproj.rootProject())
@@ -169,11 +179,13 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
         // Given
         let path = try temporaryPath()
         let graph = Graph.test(entryPath: path)
+        let valueGraph = ValueGraph(graph: graph)
+        let graphTraverser = ValueGraphTraverser(graph: valueGraph)
         let project = Project.test(path: path,
                                    targets: [])
 
         // When
-        let got = try subject.generate(project: project, graph: graph)
+        let got = try subject.generate(project: project, graphTraverser: graphTraverser)
 
         // Then
         let pbxProject = try XCTUnwrap(try got.xcodeProj.pbxproj.rootProject())
@@ -187,12 +199,14 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
         // Given
         let path = try temporaryPath()
         let graph = Graph.test(entryPath: path)
+        let valueGraph = ValueGraph(graph: graph)
+        let graphTraverser = ValueGraphTraverser(graph: valueGraph)
         let project = Project.test(path: path,
                                    organizationName: "tuist",
                                    targets: [])
 
         // When
-        let got = try subject.generate(project: project, graph: graph)
+        let got = try subject.generate(project: project, graphTraverser: graphTraverser)
 
         // Then
         let pbxProject = try XCTUnwrap(try got.xcodeProj.pbxproj.rootProject())
@@ -206,11 +220,13 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
         // Given
         let path = try temporaryPath()
         let graph = Graph.test(entryPath: path)
+        let valueGraph = ValueGraph(graph: graph)
+        let graphTraverser = ValueGraphTraverser(graph: valueGraph)
         let project = Project.test(path: path,
                                    targets: [])
 
         // When
-        let got = try subject.generate(project: project, graph: graph)
+        let got = try subject.generate(project: project, graphTraverser: graphTraverser)
 
         // Then
         let pbxProject = try XCTUnwrap(try got.xcodeProj.pbxproj.rootProject())
@@ -221,12 +237,14 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
         // Given
         let path = try temporaryPath()
         let graph = Graph.test(entryPath: path)
+        let valueGraph = ValueGraph(graph: graph)
+        let graphTraverser = ValueGraphTraverser(graph: valueGraph)
         let project = Project.test(path: path,
                                    developmentRegion: "de",
                                    targets: [])
 
         // When
-        let got = try subject.generate(project: project, graph: graph)
+        let got = try subject.generate(project: project, graphTraverser: graphTraverser)
 
         // Then
         let pbxProject = try XCTUnwrap(try got.xcodeProj.pbxproj.rootProject())
@@ -253,9 +271,11 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
                                                        dependencies: [packageProductNode])],
                                projects: [project],
                                packages: [packageNode])
+        let valueGraph = ValueGraph(graph: graph)
+        let graphTraverser = ValueGraphTraverser(graph: valueGraph)
 
         // When
-        let got = try subject.generate(project: project, graph: graph)
+        let got = try subject.generate(project: project, graphTraverser: graphTraverser)
 
         // Then
         let pbxproj = got.xcodeProj.pbxproj

@@ -112,4 +112,10 @@ public protocol GraphTraversing {
     ///     - path; Path to the directory where the project that defines the target
     ///     - name: Name of the target
     func hostTargetFor(path: AbsolutePath, name: String) -> ValueGraphTarget?
+
+    /// For the project at the given path, it returns all the dependencies that should
+    /// be referenced from the project. This method is intended to be used when generating
+    /// the groups.
+    /// - Parameter path: Path to the directory where the project is defined.
+    func allProjectDependencies(path: AbsolutePath) throws -> Set<GraphDependencyReference>
 }

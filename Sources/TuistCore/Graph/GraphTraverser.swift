@@ -91,4 +91,9 @@ public final class GraphTraverser: GraphTraversing {
         graph.hostTargetNodeFor(path: path, name: name)
             .map { ValueGraphTarget(path: $0.path, target: $0.target, project: $0.project) }
     }
+
+    public func allProjectDependencies(path: AbsolutePath) throws -> Set<GraphDependencyReference> {
+        guard let project = projects[path] else { return Set() }
+        return try Set(graph.allDependencyReferences(for: project))
+    }
 }

@@ -45,7 +45,7 @@ class ProjectFileElements {
     }
 
     func generateProjectFiles(project: Project,
-                              graph: Graph,
+                              graphTraverser: GraphTraversing,
                               groups: ProjectGroups,
                               pbxproj: PBXProj) throws
     {
@@ -79,7 +79,7 @@ class ProjectFileElements {
         }
 
         // Dependencies
-        let dependencies = try graph.allDependencyReferences(for: project)
+        let dependencies = try graphTraverser.allProjectDependencies(path: project.path).sorted()
 
         try generate(dependencyReferences: Set(directProducts + dependencies),
                      groups: groups,

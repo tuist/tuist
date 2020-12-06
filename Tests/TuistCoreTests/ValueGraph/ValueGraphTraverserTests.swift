@@ -650,7 +650,7 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         XCTAssertEqual(got?.target, app)
     }
 
-    func test_allDependencies() {
+    func test_allDependencies() throws {
         // Given
         // App -> StaticLibrary -> Bundle
         let project = Project.test()
@@ -674,12 +674,12 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         let subject = ValueGraphTraverser(graph: valueGraph)
 
         // When
-        let got = subject.allDependencies(path: project.path)
+        let got = try subject.allProjectDependencies(path: project.path).sorted()
 
         // Then
         XCTAssertEqual(Set(got), Set([
-            .target(name: bundle.name, path: project.path),
-            .target(name: staticLibrary.name, path: project.path),
+            .testProduct(target: bundle.name, productName: bundle.productName),
+            .testProduct(target: staticLibrary.name, productName: staticLibrary.productName),
         ]))
     }
 
