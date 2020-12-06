@@ -11,7 +11,7 @@ final class CarthageDependencyTests: TuistTestCase {
         let expected = #"github "Alamofire/Alamofire" == 1.2.3"#
 
         // When
-        let got = try dependency.cartfileValue()
+        let got = dependency.cartfileValue()
 
         // Then
         XCTAssertEqual(got, expected)
@@ -23,18 +23,9 @@ final class CarthageDependencyTests: TuistTestCase {
         let expected = #"github "RxSwift/RxSwift" ~> 3.0.1"#
 
         // When
-        let got = try dependency.cartfileValue()
+        let got = dependency.cartfileValue()
 
         // Then
         XCTAssertEqual(got, expected)
-    }
-
-    func test_cartfileValue_range() throws {
-        // Given
-        let dependency = CarthageDependency(name: "RxSwift/RxSwift", requirement: .range(from: "1.0.0", to: "2.0.0"), platforms: [.iOS])
-        let expectedError = CarthageDependencyError.rangeRequirementNotSupported(dependencyName: "RxSwift/RxSwift", fromVersion: "1.0.0", toVersion: "2.0.0")
-
-        // When / Then
-        XCTAssertThrowsSpecific(try dependency.cartfileValue(), expectedError)
     }
 }

@@ -110,7 +110,7 @@ public final class CarthageInteractor: CarthageInteracting {
         }
         
         // create `Cartfile`
-        let cartfileContent = try cartfileContentGenerator.cartfileContent(for: dependencies)
+        let cartfileContent = cartfileContentGenerator.cartfileContent(for: dependencies)
         let cartfilePath = pathsProvider.temporaryDirectoryPath.appending(component: "Cartfile")
         try fileHandler.write(cartfileContent, path: cartfilePath, atomically: true)
     }

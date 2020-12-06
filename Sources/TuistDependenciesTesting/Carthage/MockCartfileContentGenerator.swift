@@ -10,15 +10,15 @@ public final class MockCartfileContentGenerator: CartfileContentGenerating {
     var invokedCartfileContentCount = 0
     var invokedCartfileContentParameters: [CarthageDependency]?
     var invokedCartfileContentParametersList = [[CarthageDependency]]()
-    var cartfileContentStub: (([CarthageDependency]) throws -> String)?
+    var cartfileContentStub: (([CarthageDependency]) -> String)?
 
-    public func cartfileContent(for dependencies: [CarthageDependency]) throws -> String {
+    public func cartfileContent(for dependencies: [CarthageDependency]) -> String {
         invokedCartfileContent = true
         invokedCartfileContentCount += 1
         invokedCartfileContentParameters = dependencies
         invokedCartfileContentParametersList.append(dependencies)
         if let stub = cartfileContentStub {
-            return try stub(dependencies)
+            return stub(dependencies)
         } else {
             return ""
         }
