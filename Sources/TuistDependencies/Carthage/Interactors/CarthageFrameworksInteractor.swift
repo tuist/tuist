@@ -21,11 +21,11 @@ public final class CarthageFrameworksInteractor: CarthageFrameworksInteracting {
 
     public func copyFrameworks(carthageBuildDirectory: AbsolutePath, destinationDirectory: AbsolutePath) throws {
         let alreadyInstalledFrameworks: Set<String> = try getAlreadyInstalledFrameworkNames(at: destinationDirectory)
-        
+
         try Platform.allCases.forEach { platform in
             let carthagePlatfromBuildsDirectory = carthageBuildDirectory.appending(component: platform.carthageDirectory)
             guard fileHandler.exists(carthagePlatfromBuildsDirectory) else { return }
-            
+
             var newInstalledFrameworks = Set<String>()
 
             try fileHandler
@@ -36,10 +36,10 @@ public final class CarthageFrameworksInteractor: CarthageFrameworksInteracting {
                     let carthageBuildFrameworkPath = carthagePlatfromBuildsDirectory.appending(component: "\(frameworkName).framework")
                     let destinationFrameworkPath = destinationDirectory.appending(components: frameworkName, platform.caseValue, "\(frameworkName).framework")
                     try copyDirectory(from: carthageBuildFrameworkPath, to: destinationFrameworkPath)
-                    
+
                     newInstalledFrameworks.insert(frameworkName)
                 }
-            
+
             try alreadyInstalledFrameworks
                 .subtracting(newInstalledFrameworks)
                 .forEach { frameworkName in
@@ -61,14 +61,14 @@ public final class CarthageFrameworksInteractor: CarthageFrameworksInteracting {
 
     private func getAlreadyInstalledFrameworkNames(at destinationDirectory: AbsolutePath) throws -> Set<String> {
         guard fileHandler.exists(destinationDirectory) else { return Set<String>() }
-        
+
         return try fileHandler
             .contentsOfDirectory(destinationDirectory)
             .filter { $0.isFolder && $0.basename != "Build" }
-            .map { $0.basename }
+            .map(\.basename)
             .reduce(into: Set<String>()) { $0.insert($1) }
     }
-    
+
     private func copyDirectory(from fromPath: AbsolutePath, to toPath: AbsolutePath) throws {
         try fileHandler.createFolder(toPath.removingLastComponent())
 

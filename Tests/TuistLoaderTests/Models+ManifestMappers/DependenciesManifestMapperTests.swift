@@ -14,7 +14,7 @@ final class DependenciesManifestMapperTests: TuistUnitTestCase {
         let manifest: ProjectDescription.Dependencies = Dependencies(
             carthage: [
                 .init(name: "Dependency1", requirement: .exact("1.1.1"), platforms: [.iOS]),
-                .init(name: "Dependency2", requirement: .branch("BranchName"), platforms: [.macOS] ),
+                .init(name: "Dependency2", requirement: .branch("BranchName"), platforms: [.macOS]),
             ]
         )
 
@@ -24,7 +24,7 @@ final class DependenciesManifestMapperTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(model.carthageDependencies, [
             TuistCore.CarthageDependency(name: "Dependency1", requirement: .exact("1.1.1"), platforms: Set([.iOS])),
-            TuistCore.CarthageDependency(name: "Dependency2", requirement: .branch("BranchName"), platforms: Set([.macOS]))
+            TuistCore.CarthageDependency(name: "Dependency2", requirement: .branch("BranchName"), platforms: Set([.macOS])),
         ])
     }
 }

@@ -46,7 +46,7 @@ public final class CarthageCommandGenerator: CarthageCommandGenerating {
         }
 
         // Flags
-        
+
         commandComponents.append("--use-netrc")
         commandComponents.append("--cache-builds")
         commandComponents.append("--new-resolver")

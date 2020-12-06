@@ -85,7 +85,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         let expectedCarthageBuildDirectory = dependenciesDirectory
             .appending(component: Constants.DependenciesDirectory.carthageDirectoryName)
             .appending(component: "Build")
-        
+
         XCTAssertTrue(fileHandler.exists(expectedCartfileResolvedPath))
         XCTAssertTrue(fileHandler.exists(expectedCarthageDirectory))
         XCTAssertTrue(fileHandler.exists(expectedCarthageBuildDirectory))

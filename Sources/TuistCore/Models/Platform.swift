@@ -110,7 +110,7 @@ extension Platform {
         default: return nil
         }
     }
-    
+
     /// Returns the directory name whose Carthage uses to save frameworks.
     public var carthageDirectory: String {
         switch self {

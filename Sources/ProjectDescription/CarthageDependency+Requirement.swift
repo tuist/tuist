@@ -7,7 +7,7 @@ public extension CarthageDependency {
         case upToNextMinor(Version)
         case branch(String)
         case revision(String)
-        
+
         private enum Kind: String, Codable {
             case exact
             case upToNextMajor
@@ -15,14 +15,14 @@ public extension CarthageDependency {
             case branch
             case revision
         }
-        
+
         private enum CodingKeys: String, CodingKey {
             case kind
             case version
             case branch
             case revision
         }
-        
+
         public init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             let kind = try container.decode(Kind.self, forKey: .kind)
@@ -44,7 +44,7 @@ public extension CarthageDependency {
                 self = .revision(revision)
             }
         }
-        
+
         public func encode(to encoder: Encoder) throws {
             var container = encoder.container(keyedBy: CodingKeys.self)
             switch self {

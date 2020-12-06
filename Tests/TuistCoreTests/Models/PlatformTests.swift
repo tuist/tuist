@@ -35,7 +35,7 @@ final class PlatformTests: XCTestCase {
         XCTAssertTrue(Platform.watchOS.hasSimulators)
         XCTAssertTrue(Platform.tvOS.hasSimulators)
     }
-    
+
     func test_carthageDirectory() {
         XCTAssertEqual(Platform.tvOS.carthageDirectory, "tvOS")
         XCTAssertEqual(Platform.iOS.carthageDirectory, "iOS")

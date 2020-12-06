@@ -25,15 +25,15 @@ extension TuistCore.CarthageDependency {
 extension TuistCore.CarthageDependency.Requirement {
     static func from(manifest: ProjectDescription.CarthageDependency.Requirement) throws -> Self {
         switch manifest {
-        case .exact(let version):
+        case let .exact(version):
             return .exact(version.description)
-        case .upToNextMajor(let version):
+        case let .upToNextMajor(version):
             return .upToNextMajor(version.description)
-        case .upToNextMinor(let version):
+        case let .upToNextMinor(version):
             return .upToNextMinor(version.description)
-        case .branch(let branch):
+        case let .branch(branch):
             return .branch(branch)
-        case .revision(let revision):
+        case let .revision(revision):
             return .revision(revision)
         }
     }
