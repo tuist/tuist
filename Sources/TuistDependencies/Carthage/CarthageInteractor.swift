@@ -129,7 +129,8 @@ public final class CarthageInteractor: CarthageInteracting {
         // save build directory
         try copyDirectory(from: pathsProvider.temporaryCarthageBuildDirectory, to: pathsProvider.destinationCarthageBuildDirectory)
         // save installed frameworks
-        try carthageFrameworksInteractor.copyFrameworks(carthageBuildDirectory: pathsProvider.temporaryCarthageBuildDirectory, destinationDirectory: pathsProvider.destinationCarthageDirectory)
+        try carthageFrameworksInteractor.copyFrameworks(carthageBuildDirectory: pathsProvider.temporaryCarthageBuildDirectory,
+                                                        destinationDirectory: pathsProvider.destinationCarthageDirectory)
     }
 
     // MARK: - Helpers
