@@ -17,14 +17,14 @@ final class DependenciesService {
     }
 
     func run(path: String?, method: InstallDependenciesMethod) throws {
-        logger.notice("Start installing dependencies.")
+        logger.info("Start installing dependencies.", metadata: .section)
 
         let path = self.path(path)
 
         let dependencies = try dependenciesModelLoader.loadDependencies(at: path)
         try dependenciesController.install(at: path, method: method, dependencies: dependencies)
 
-        logger.notice("Successfully installed dependencies.", metadata: .success)
+        logger.info("Successfully installed dependencies.", metadata: .success)
     }
 
     // MARK: - Helpers

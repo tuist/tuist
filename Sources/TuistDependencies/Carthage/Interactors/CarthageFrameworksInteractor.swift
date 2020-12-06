@@ -7,8 +7,8 @@ import TuistSupport
 public protocol CarthageFrameworksInteracting {
     /// Saves frameworks installed using `carthage`.
     /// - Parameters:
-    ///   - carthageBuildDirectory: The path to the directory that contains the `Carthage/Build/` directory.
-    ///   - destinationDirectory: The path to the directory that contains the `Tuist/Dependencies/Carthage` directory.
+    ///   - carthageBuildDirectory: The path to the directory that contains frameworks built by Carthage.
+    ///   - destinationDirectory: The path to the directory where frameworks built by Carthage should be saved.
     func copyFrameworks(carthageBuildDirectory: AbsolutePath, destinationDirectory: AbsolutePath) throws
 }
 

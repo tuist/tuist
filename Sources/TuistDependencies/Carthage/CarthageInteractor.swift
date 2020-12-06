@@ -65,6 +65,8 @@ public final class CarthageInteractor: CarthageInteracting {
     }
 
     public func install(dependenciesDirectory: AbsolutePath, method: InstallDependenciesMethod, dependencies: [CarthageDependency]) throws {
+        logger.info("Start installing Carthage dependencies.", metadata: .subsection)
+        
         // check availability of `carthage`
         guard canUseSystemCarthage() else {
             throw CarthageInteractorError.carthageNotFound
@@ -73,39 +75,13 @@ public final class CarthageInteractor: CarthageInteracting {
         // determine platforms
         let platforms: Set<Platform> = dependencies
             .reduce(Set<Platform>()) { platforms, dependency in platforms.union(dependency.platforms) }
-        
-        // prepare destination paths
-        let destinationCarfileResolvedPath = dependenciesDirectory
-            .appending(component: Constants.DependenciesDirectory.lockfilesDirectoryName)
-            .appending(component: Constants.DependenciesDirectory.cartfileResolvedName)
-        let destinationCarthageDirectory = dependenciesDirectory
-            .appending(component: Constants.DependenciesDirectory.carthageDirectoryName)
-        let destinationCarthageBuildDirectory = dependenciesDirectory
-            .appending(component: Constants.DependenciesDirectory.carthageDirectoryName)
-            .appending(component: "Build")
 
         try fileHandler.inTemporaryDirectory { temporaryDirectoryPath in
-            // prepare temporary paths
-            let temporaryCarfileResolvedPath = temporaryDirectoryPath
-                .appending(component: Constants.DependenciesDirectory.cartfileResolvedName)
-            let temporaryCarthageBuildDirectory = temporaryDirectoryPath
-                .appending(component: Constants.DependenciesDirectory.carthageDirectoryName)
-                .appending(component: "Build")
+            // prepare paths
+            let pathsProvider = PathsProvider(dependenciesDirectory: dependenciesDirectory, temporaryDirectoryPath: temporaryDirectoryPath)
             
-            // copy build directory from previous run if exist
-            if fileHandler.exists(destinationCarthageBuildDirectory) {
-                try copyDirectory(from: destinationCarthageBuildDirectory, to: temporaryCarthageBuildDirectory)
-            }
-            
-            // copy `Cartfile.resolved` from previous run if exist
-            if fileHandler.exists(destinationCarfileResolvedPath) {
-                try copyFile(from: destinationCarfileResolvedPath, to: temporaryCarfileResolvedPath)
-            }
-            
-            // create `Cartfile`
-            let cartfileContent = try cartfileContentGenerator.cartfileContent(for: dependencies)
-            let cartfilePath = temporaryDirectoryPath.appending(component: "Cartfile")
-            try fileHandler.write(cartfileContent, path: cartfilePath, atomically: true)
+            // prepare for installation
+            try prepareForInstallation(pathsProvider: pathsProvider, dependencies: dependencies)
             
             // create `carthage` shell command
             let command = carthageCommandGenerator.command(method: method, path: temporaryDirectoryPath, platforms: platforms)
@@ -113,23 +89,47 @@ public final class CarthageInteractor: CarthageInteracting {
             // run `carthage`
             try System.shared.runAndPrint(command)
 
-            // save `Cartfile.resolved`
-            if fileHandler.exists(temporaryCarfileResolvedPath) {
-                try copyFile(from: temporaryCarfileResolvedPath, to: destinationCarfileResolvedPath)
-            } else {
-                throw CarthageInteractorError.cartfileNotFound
-            }
-
-            if fileHandler.exists(temporaryCarthageBuildDirectory) {
-                // save installed frameworks
-                try carthageFrameworksInteractor.copyFrameworks(carthageBuildDirectory: temporaryCarthageBuildDirectory, destinationDirectory: destinationCarthageDirectory)
-                
-                // save build directory
-                try copyDirectory(from: temporaryCarthageBuildDirectory, to: destinationCarthageBuildDirectory)
-            } else {
-                throw CarthageInteractorError.buildDirectoryNotFound
-            }
+            // post intallation actions
+            try postInstallationActions(pathsProvider: pathsProvider)
         }
+        
+        logger.info("Successfully installed Carthage dependencies.", metadata: .success)
+    }
+    
+    // MARK: - Installation
+    
+    private func prepareForInstallation(pathsProvider: PathsProvider, dependencies: [CarthageDependency]) throws {
+        // copy build directory from previous run if exist
+        if fileHandler.exists(pathsProvider.destinationCarthageBuildDirectory) {
+            try copyDirectory(from: pathsProvider.destinationCarthageBuildDirectory, to: pathsProvider.temporaryCarthageBuildDirectory)
+        }
+        
+        // copy `Cartfile.resolved` from previous run if exist
+        if fileHandler.exists(pathsProvider.destinationCarfileResolvedPath) {
+            try copyFile(from: pathsProvider.destinationCarfileResolvedPath, to: pathsProvider.temporaryCarfileResolvedPath)
+        }
+        
+        // create `Cartfile`
+        let cartfileContent = try cartfileContentGenerator.cartfileContent(for: dependencies)
+        let cartfilePath = pathsProvider.temporaryDirectoryPath.appending(component: "Cartfile")
+        try fileHandler.write(cartfileContent, path: cartfilePath, atomically: true)
+    }
+    
+    private func postInstallationActions(pathsProvider: PathsProvider) throws {
+        // validation
+        guard fileHandler.exists(pathsProvider.temporaryCarfileResolvedPath) else {
+            throw CarthageInteractorError.cartfileNotFound
+        }
+        guard fileHandler.exists(pathsProvider.temporaryCarthageBuildDirectory) else {
+            throw CarthageInteractorError.buildDirectoryNotFound
+        }
+        
+        // save `Cartfile.resolved`
+        try copyFile(from: pathsProvider.temporaryCarfileResolvedPath, to: pathsProvider.destinationCarfileResolvedPath)
+        // save build directory
+        try copyDirectory(from: pathsProvider.temporaryCarthageBuildDirectory, to: pathsProvider.destinationCarthageBuildDirectory)
+        // save installed frameworks
+        try carthageFrameworksInteractor.copyFrameworks(carthageBuildDirectory: pathsProvider.temporaryCarthageBuildDirectory, destinationDirectory: pathsProvider.destinationCarthageDirectory)
     }
 
     // MARK: - Helpers
@@ -162,6 +162,42 @@ public final class CarthageInteractor: CarthageInteracting {
             return true
         } catch {
             return false
+        }
+    }
+}
+
+// MARK: - PathsProvider
+
+private extension CarthageInteractor {
+    struct PathsProvider {
+        let dependenciesDirectory: AbsolutePath
+        let temporaryDirectoryPath: AbsolutePath
+        
+        let destinationCarfileResolvedPath: AbsolutePath
+        let destinationCarthageDirectory: AbsolutePath
+        let destinationCarthageBuildDirectory: AbsolutePath
+        
+        let temporaryCarfileResolvedPath: AbsolutePath
+        let temporaryCarthageBuildDirectory: AbsolutePath
+        
+        init(dependenciesDirectory: AbsolutePath, temporaryDirectoryPath: AbsolutePath) {
+            self.dependenciesDirectory = dependenciesDirectory
+            self.temporaryDirectoryPath = temporaryDirectoryPath
+            
+            destinationCarfileResolvedPath = dependenciesDirectory
+                .appending(component: Constants.DependenciesDirectory.lockfilesDirectoryName)
+                .appending(component: Constants.DependenciesDirectory.cartfileResolvedName)
+            destinationCarthageDirectory = dependenciesDirectory
+                .appending(component: Constants.DependenciesDirectory.carthageDirectoryName)
+            destinationCarthageBuildDirectory = dependenciesDirectory
+                .appending(component: Constants.DependenciesDirectory.carthageDirectoryName)
+                .appending(component: "Build")
+            
+            temporaryCarfileResolvedPath = temporaryDirectoryPath
+                .appending(component: Constants.DependenciesDirectory.cartfileResolvedName)
+            temporaryCarthageBuildDirectory = temporaryDirectoryPath
+                .appending(component: Constants.DependenciesDirectory.carthageDirectoryName)
+                .appending(component: "Build")
         }
     }
 }

@@ -35,14 +35,10 @@ public final class DependenciesController: DependenciesControlling {
     }
 
     public func install(at path: AbsolutePath, method: InstallDependenciesMethod, dependencies: Dependencies) throws {
-        logger.notice("Start installing Carthage dependencies.")
-
         let dependenciesDirectory = path
             .appending(component: Constants.tuistDirectoryName)
             .appending(component: Constants.DependenciesDirectory.name)
 
         try carthageInteractor.install(dependenciesDirectory: dependenciesDirectory, method: method, dependencies: dependencies.carthageDependencies)
-
-        logger.notice("Successfully installed Carthage dependencies.", metadata: .success)
     }
 }
