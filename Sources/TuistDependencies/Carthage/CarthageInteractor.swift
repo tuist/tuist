@@ -73,28 +73,28 @@ public final class CarthageInteractor: CarthageInteracting {
         // determine platforms
         let platforms: Set<Platform> = dependencies
             .reduce(Set<Platform>()) { platforms, dependency in platforms.union(dependency.platforms) }
+        
+        // prepare destination paths
+        let destinationCarfileResolvedPath = dependenciesDirectory
+            .appending(component: Constants.DependenciesDirectory.lockfilesDirectoryName)
+            .appending(component: Constants.DependenciesDirectory.cartfileResolvedName)
+        let destinationCarthageDirectory = dependenciesDirectory
+            .appending(component: Constants.DependenciesDirectory.carthageDirectoryName)
+        let destinationCarthageBuildDirectory = dependenciesDirectory
+            .appending(component: Constants.DependenciesDirectory.carthageDirectoryName)
+            .appending(component: "Build")
 
         try fileHandler.inTemporaryDirectory { temporaryDirectoryPath in
-            // prepare paths
-            let destinationCarfileResolvedPath = dependenciesDirectory
-                .appending(component: Constants.DependenciesDirectory.lockfilesDirectoryName)
-                .appending(component: Constants.DependenciesDirectory.cartfileResolvedName)
+            // prepare temporary paths
             let temporaryCarfileResolvedPath = temporaryDirectoryPath
                 .appending(component: Constants.DependenciesDirectory.cartfileResolvedName)
-            let carthageBuildDirectory = temporaryDirectoryPath
-                .appending(component: "Carthage")
+            let temporaryCarthageBuildDirectory = temporaryDirectoryPath
+                .appending(component: Constants.DependenciesDirectory.carthageDirectoryName)
                 .appending(component: "Build")
-            let derivedCarthageBuildDirectory = dependenciesDirectory
-                .appending(component: Constants.DependenciesDirectory.derivedDirectoryName)
-                .appending(component: "Carthage")
-                .appending(component: "Build")
-
-            // create `carthage` shell command
-            let command = carthageCommandGenerator.command(method: method, path: temporaryDirectoryPath, platforms: platforms)
             
             // copy build directory from previous run if exist
-            if fileHandler.exists(derivedCarthageBuildDirectory) {
-                try copyFile(from: derivedCarthageBuildDirectory, to: carthageBuildDirectory)
+            if fileHandler.exists(destinationCarthageBuildDirectory) {
+                try copyDirectory(from: destinationCarthageBuildDirectory, to: temporaryCarthageBuildDirectory)
             }
             
             // copy `Cartfile.resolved` from previous run if exist
@@ -106,6 +106,9 @@ public final class CarthageInteractor: CarthageInteracting {
             let cartfileContent = try cartfileContentGenerator.cartfileContent(for: dependencies)
             let cartfilePath = temporaryDirectoryPath.appending(component: "Cartfile")
             try fileHandler.write(cartfileContent, path: cartfilePath, atomically: true)
+            
+            // create `carthage` shell command
+            let command = carthageCommandGenerator.command(method: method, path: temporaryDirectoryPath, platforms: platforms)
 
             // run `carthage`
             try System.shared.runAndPrint(command)
@@ -117,15 +120,15 @@ public final class CarthageInteractor: CarthageInteracting {
                 throw CarthageInteractorError.cartfileNotFound
             }
 
-            // save installed frameworks
-            if fileHandler.exists(carthageBuildDirectory) {
-                try carthageFrameworksInteractor.copyFrameworks(carthageBuildDirectory: carthageBuildDirectory, dependenciesDirectory: dependenciesDirectory)
+            if fileHandler.exists(temporaryCarthageBuildDirectory) {
+                // save installed frameworks
+                try carthageFrameworksInteractor.copyFrameworks(carthageBuildDirectory: temporaryCarthageBuildDirectory, destinationDirectory: destinationCarthageDirectory)
+                
+                // save build directory
+                try copyDirectory(from: temporaryCarthageBuildDirectory, to: destinationCarthageBuildDirectory)
             } else {
                 throw CarthageInteractorError.buildDirectoryNotFound
             }
-            
-            // save build directory
-            try copyDirectory(from: carthageBuildDirectory, to: derivedCarthageBuildDirectory)
         }
     }
 

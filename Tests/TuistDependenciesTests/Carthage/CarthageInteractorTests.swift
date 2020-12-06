@@ -80,12 +80,15 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         let expectedCartfileResolvedPath = dependenciesDirectory
             .appending(component: Constants.DependenciesDirectory.lockfilesDirectoryName)
             .appending(component: Constants.DependenciesDirectory.cartfileResolvedName)
-        XCTAssertTrue(fileHandler.exists(expectedCartfileResolvedPath))
+        let expectedCarthageDirectory = dependenciesDirectory
+            .appending(component: Constants.DependenciesDirectory.carthageDirectoryName)
+        let expectedCarthageBuildDirectory = dependenciesDirectory
+            .appending(component: Constants.DependenciesDirectory.carthageDirectoryName)
+            .appending(component: "Build")
         
-        let expectedBuildDirectoryPath = dependenciesDirectory
-            .appending(component: Constants.DependenciesDirectory.derivedDirectoryName)
-            .appending(components: "Carthage", "Build")
-        XCTAssertTrue(fileHandler.exists(expectedBuildDirectoryPath))
+        XCTAssertTrue(fileHandler.exists(expectedCartfileResolvedPath))
+        XCTAssertTrue(fileHandler.exists(expectedCarthageDirectory))
+        XCTAssertTrue(fileHandler.exists(expectedCarthageBuildDirectory))
 
         XCTAssertTrue(carthageCommandGenerator.invokedCommand)
         XCTAssertEqual(carthageCommandGenerator.invokedCommandParameters?.method, .fetch)
@@ -97,6 +100,6 @@ final class CarthageInteractorTests: TuistUnitTestCase {
 
         XCTAssertTrue(carthageFrameworksInteractor.invokedCopyFrameworks)
         XCTAssertEqual(carthageFrameworksInteractor.invokedCopyFrameworksParameters?.carthageBuildDirectory, carthageBuildDirectory)
-        XCTAssertEqual(carthageFrameworksInteractor.invokedCopyFrameworksParameters?.dependenciesDirectory, dependenciesDirectory)
+        XCTAssertEqual(carthageFrameworksInteractor.invokedCopyFrameworksParameters?.destinationDirectory, expectedCarthageDirectory)
     }
 }

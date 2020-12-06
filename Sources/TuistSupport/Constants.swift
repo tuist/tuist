@@ -30,8 +30,8 @@ public struct Constants {
     public struct DependenciesDirectory {
         public static let name = "Dependencies"
         public static let lockfilesDirectoryName = "Lockfiles"
-        public static let derivedDirectoryName = ".Derived"
         public static let cartfileResolvedName = "Cartfile.resolved"
+        public static let carthageDirectoryName = "Carthage"
     }
 
     public struct DerivedDirectory {

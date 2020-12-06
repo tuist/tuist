@@ -46,7 +46,7 @@ final class CarthageFrameworksInteractorTests: TuistUnitTestCase {
         ])
 
         // When
-        try subject.copyFrameworks(carthageBuildDirectory: carthageBuildDirectory, dependenciesDirectory: dependenciesDirectory)
+        try subject.copyFrameworks(carthageBuildDirectory: carthageBuildDirectory, destinationDirectory: dependenciesDirectory)
 
         // Then
         XCTAssertTrue(fileHandler.exists(dependenciesDirectory.appending(components: "Moya", "iOS", "Moya.framework")))
@@ -78,7 +78,7 @@ final class CarthageFrameworksInteractorTests: TuistUnitTestCase {
         ])
 
         // When
-        try subject.copyFrameworks(carthageBuildDirectory: carthageBuildDirectory, dependenciesDirectory: dependenciesDirectory)
+        try subject.copyFrameworks(carthageBuildDirectory: carthageBuildDirectory, destinationDirectory: dependenciesDirectory)
 
         // Then
         XCTAssertTrue(fileHandler.exists(dependenciesDirectory.appending(components: "Moya", "iOS", "Moya.framework")))
@@ -131,7 +131,7 @@ final class CarthageFrameworksInteractorTests: TuistUnitTestCase {
         ])
 
         // When
-        try subject.copyFrameworks(carthageBuildDirectory: carthageBuildDirectory, dependenciesDirectory: dependenciesDirectory)
+        try subject.copyFrameworks(carthageBuildDirectory: carthageBuildDirectory, destinationDirectory: dependenciesDirectory)
 
         // Then
 

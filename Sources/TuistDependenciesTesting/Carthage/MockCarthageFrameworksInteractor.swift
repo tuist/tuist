@@ -8,15 +8,15 @@ public final class MockCarthageFrameworksInteractor: CarthageFrameworksInteracti
 
     var invokedCopyFrameworks = false
     var invokedCopyFrameworksCount = 0
-    var invokedCopyFrameworksParameters: (carthageBuildDirectory: AbsolutePath, dependenciesDirectory: AbsolutePath)?
-    var invokedCopyFrameworksParametersList = [(carthageBuildDirectory: AbsolutePath, dependenciesDirectory: AbsolutePath)]()
+    var invokedCopyFrameworksParameters: (carthageBuildDirectory: AbsolutePath, destinationDirectory: AbsolutePath)?
+    var invokedCopyFrameworksParametersList = [(carthageBuildDirectory: AbsolutePath, destinationDirectory: AbsolutePath)]()
     var stubbedCopyFrameworksError: Error?
 
-    public func copyFrameworks(carthageBuildDirectory: AbsolutePath, dependenciesDirectory: AbsolutePath) throws {
+    public func copyFrameworks(carthageBuildDirectory: AbsolutePath, destinationDirectory: AbsolutePath) throws {
         invokedCopyFrameworks = true
         invokedCopyFrameworksCount += 1
-        invokedCopyFrameworksParameters = (carthageBuildDirectory, dependenciesDirectory)
-        invokedCopyFrameworksParametersList.append((carthageBuildDirectory, dependenciesDirectory))
+        invokedCopyFrameworksParameters = (carthageBuildDirectory, destinationDirectory)
+        invokedCopyFrameworksParametersList.append((carthageBuildDirectory, destinationDirectory))
         if let error = stubbedCopyFrameworksError {
             throw error
         }
