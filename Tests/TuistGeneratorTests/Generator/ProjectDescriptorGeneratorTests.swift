@@ -44,6 +44,7 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
 
         let graph = Graph.test(entryPath: temporaryPath,
                                entryNodes: [testTargetNode, appNode],
+                               projects: [project],
                                targets: [project.path: [testTargetNode, appNode]])
         let valueGraph = ValueGraph(graph: graph)
         let graphTraverser = ValueGraphTraverser(graph: valueGraph)

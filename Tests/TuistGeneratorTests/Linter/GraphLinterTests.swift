@@ -135,7 +135,7 @@ final class GraphLinterTests: TuistUnitTestCase {
                                       name: "projectStaticFramework",
                                       targets: [staticFrameworkA, staticFrameworkB, staticLibrary])
 
-        let graph = Graph.create(dependencies: [
+        let graph = Graph.create(projects: [frameworks], dependencies: [
             (project: app, target: appTarget, dependencies: [staticFrameworkA, staticFrameworkB, staticLibrary]),
             (project: frameworks, target: staticFrameworkA, dependencies: [staticFrameworkB]),
             (project: frameworks, target: staticFrameworkB, dependencies: [staticLibrary]),
@@ -161,7 +161,7 @@ final class GraphLinterTests: TuistUnitTestCase {
                                       name: "projectStaticFramework",
                                       targets: [staticLibraryA, staticLibraryB, staticFramework])
 
-        let graph = Graph.create(dependencies: [
+        let graph = Graph.create(projects: [frameworks], dependencies: [
             (project: app, target: appTarget, dependencies: [staticLibraryA, staticLibraryB, staticFramework]),
             (project: frameworks, target: staticLibraryA, dependencies: [staticLibraryB]),
             (project: frameworks, target: staticLibraryB, dependencies: [staticFramework]),

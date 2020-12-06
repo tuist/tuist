@@ -655,7 +655,7 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         // App -> StaticLibrary -> Bundle
         let project = Project.test()
         let app = Target.test(name: "App", product: .app)
-        let staticLibrary = Target.test(name: "StaticLibrary", product: .staticLibrary)
+        let staticLibrary = Target.test(name: "StaticLibrary", product: .staticLibrary, productName: "StaticLibrary")
         let bundle = Target.test(name: "Bundle", product: .bundle)
 
         let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
@@ -678,8 +678,8 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(Set(got), Set([
-            .testProduct(target: bundle.name, productName: bundle.productName),
-            .testProduct(target: staticLibrary.name, productName: staticLibrary.productName),
+            .testProduct(target: bundle.name, productName: bundle.productNameWithExtension),
+            .testProduct(target: staticLibrary.name, productName: staticLibrary.productNameWithExtension),
         ]))
     }
 
