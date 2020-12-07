@@ -829,6 +829,127 @@ final class GraphTests: TuistUnitTestCase {
         // Then
         XCTAssertTrue(result.isEmpty)
     }
+    
+    func test_linkableAndEmbeddableDependencies_when_appDependensOnPrecompiledStaticBinaryWithPrecompiledStaticBinaryDependency() throws {
+        // Given
+        // App ---(depends on)---> Precompiled static binary (A) ---> Precompiled static binary (B)
+        
+        let precompiledStaticBinaryB = FrameworkNode.test(path: AbsolutePath("/test/StaticFrameworkB.framework"), linking: .static)
+        let precompiledStaticBinaryA = FrameworkNode.test(path: AbsolutePath("/test/StaticFrameworkA.framework"),
+                                                          linking: .static,
+                                                          dependencies: [.framework(precompiledStaticBinaryB)])
+        let target = Target.test(name: "Main")
+        
+        let project = Project.test(targets: [target])
+        let targetNode = TargetNode(project: project,
+                                    target: target,
+                                    dependencies: [precompiledStaticBinaryA])
+        let graph = Graph.test(targets: [targetNode.path: [targetNode]])
+        
+        // When
+        let linkable = try graph.linkableDependencies(path: project.path, name: target.name)
+        
+        // Then
+        XCTAssertEqual(linkable.first, GraphDependencyReference(precompiledNode: precompiledStaticBinaryA))
+        XCTAssertEqual(linkable.last, GraphDependencyReference(precompiledNode: precompiledStaticBinaryB))
+        
+        // When
+        let embeddable = try graph.embeddableFrameworks(path: project.path, name: target.name)
+        
+        // Then
+        XCTAssertTrue(embeddable.isEmpty)
+    }
+    
+    func test_linkableAndEmbeddableDependencies_when_appDependensOnPrecompiledDynamicBinaryWithPrecompiledDynamicBinaryDependency() throws {
+        // Given
+        // App ---(depends on)---> Precompiled dynamic binary (A) ----> Precompiled dynamic binary (B)
+        
+        let precompiledDynamicBinaryB = FrameworkNode.test(path: AbsolutePath("/test/DynamicFrameworkB.framework"))
+        let precompiledDynamicBinaryA = FrameworkNode.test(path: AbsolutePath("/test/DynamicFrameworkA.framework"),
+                                                           dependencies: [.framework(precompiledDynamicBinaryB)])
+        let target = Target.test(name: "Main")
+        
+        let project = Project.test(targets: [target])
+        let targetNode = TargetNode(project: project,
+                                    target: target,
+                                    dependencies: [precompiledDynamicBinaryA])
+        let graph = Graph.test(targets: [targetNode.path: [targetNode]])
+        
+        // When
+        let linkable = try graph.linkableDependencies(path: project.path, name: target.name)
+        
+        // Then
+        XCTAssertEqual(linkable.count, 1)
+        XCTAssertEqual(linkable.first, GraphDependencyReference(precompiledNode: precompiledDynamicBinaryA))
+        
+        // When
+        let embeddable = try graph.embeddableFrameworks(path: project.path, name: target.name)
+        
+        // Then
+        XCTAssertEqual(embeddable.first, GraphDependencyReference(precompiledNode: precompiledDynamicBinaryA))
+        XCTAssertEqual(embeddable.last, GraphDependencyReference(precompiledNode: precompiledDynamicBinaryB))
+    }
+    
+    func test_linkableAndEmbeddableDependencies_when_appDependensOnPrecompiledStaticBinaryWithPrecompiledDynamicBinaryDependency() throws {
+        // Given
+        // App ---(depends on)---> Precompiled static binary (A) ----> Precompiled dynamic binary (B)
+        
+        let precompiledDynamicBinaryB = FrameworkNode.test(path: AbsolutePath("/test/DynamicFrameworkB.framework"))
+        let precompiledStaticBinaryA = FrameworkNode.test(path: AbsolutePath("/test/StaticFrameworkA.framework"),
+                                                          linking: .static,
+                                                          dependencies: [.framework(precompiledDynamicBinaryB)])
+        let target = Target.test(name: "Main")
+        
+        let project = Project.test(targets: [target])
+        let targetNode = TargetNode(project: project,
+                                    target: target,
+                                    dependencies: [precompiledStaticBinaryA])
+        let graph = Graph.test(targets: [targetNode.path: [targetNode]])
+        
+        // When
+        let linkable = try graph.linkableDependencies(path: project.path, name: target.name)
+        
+        // Then
+        XCTAssertEqual(linkable.first, GraphDependencyReference(precompiledNode: precompiledStaticBinaryA))
+        XCTAssertEqual(linkable.last, GraphDependencyReference(precompiledNode: precompiledDynamicBinaryB))
+        
+        // When
+        let embeddable = try graph.embeddableFrameworks(path: project.path, name: target.name)
+        
+        // Then
+        XCTAssertEqual(embeddable.count, 1)
+        XCTAssertEqual(embeddable.first, GraphDependencyReference(precompiledNode: precompiledDynamicBinaryB))
+    }
+    
+    func test_linkableAndEmbeddableDependencies_when_appDependensOnPrecompiledDynamicBinaryWithPrecompiledStaticBinaryDependency() throws {
+        // Given
+        // App ---(depends on)---> Precompiled dynamic binary (A) ----> Precompiled static binary (B)
+        
+        let precompiledStaticBinaryB = FrameworkNode.test(path: AbsolutePath("/test/StaticFrameworkB.framework"), linking: .static)
+        let precompiledDynamicBinaryA = FrameworkNode.test(path: AbsolutePath("/test/DynamicFrameworkA.framework"),
+                                                           dependencies: [.framework(precompiledStaticBinaryB)])
+        let target = Target.test(name: "Main")
+        
+        let project = Project.test(targets: [target])
+        let targetNode = TargetNode(project: project,
+                                    target: target,
+                                    dependencies: [precompiledDynamicBinaryA])
+        let graph = Graph.test(targets: [targetNode.path: [targetNode]])
+        
+        // When
+        let linkable = try graph.linkableDependencies(path: project.path, name: target.name)
+        
+        // Then
+        XCTAssertEqual(linkable.count, 1)
+        XCTAssertEqual(linkable.first, GraphDependencyReference(precompiledNode: precompiledDynamicBinaryA))
+        
+        // When
+        let embeddable = try graph.embeddableFrameworks(path: project.path, name: target.name)
+        
+        // Then
+        XCTAssertEqual(embeddable.count, 1)
+        XCTAssertEqual(embeddable.first, GraphDependencyReference(precompiledNode: precompiledDynamicBinaryA))
+    }
 
     func test_runPathSearchPaths() throws {
         // Given
