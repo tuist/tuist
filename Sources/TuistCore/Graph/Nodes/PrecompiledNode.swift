@@ -27,6 +27,10 @@ public class PrecompiledNode: GraphNode {
 
     /// List of other precompiled artifacts this precompiled node depends on.
     public private(set) var dependencies: [Dependency]
+    
+    var nodeDependencies: [PrecompiledNode] {
+        dependencies.map { $0.node }
+    }
 
     public init(path: AbsolutePath, dependencies: [Dependency] = []) {
         /// Returns the name of the precompiled node removing the extension
