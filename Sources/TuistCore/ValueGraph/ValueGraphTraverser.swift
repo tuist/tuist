@@ -15,6 +15,17 @@ public class ValueGraphTraverser: GraphTraversing {
         self.graph = graph
     }
 
+    public func target(name: String) -> ValueGraphTarget? {
+        var project: Project?
+        var target: Target?
+        graph.targets.forEach({ (path, targets) in
+            
+        })
+        guard let project = project, let target = target else { return nil }
+        return ValueGraphTarget(path: p, target: <#T##Target#>, project: <#T##Project#>)
+        
+    }
+    
     public func target(path: AbsolutePath, name: String) -> ValueGraphTarget? {
         guard let project = graph.projects[path], let target = graph.targets[path]?[name] else { return nil }
         return ValueGraphTarget(path: path, target: target, project: project)

@@ -15,7 +15,7 @@ enum InspectServiceError: FatalError, Equatable {
     var description: String {
         switch self {
         case let .targetNotFound(name):
-            return "The target \(name) was not found."
+            return "The target '\(name)' was not found."
         }
     }
 
@@ -46,10 +46,13 @@ final class InspectService: InspectServicing {
 
     func run(path: AbsolutePath, target targetName: String) throws {
         let graph = try generator.load(path: path)
-
-        let targets = graph.targets
-            .flatMap(\.value)
-            .filter { !$0.dependsOnXCTest }
+        let valueGraph = ValueGraph(graph: graph)
+        let graphTraverser = ValueGraphTraverser(graph: valueGraph)
+        
+//        let targets = graphTraverser.tar
+//        let targets = graph.targets
+//            .flatMap(\.value)
+//            .filter { !$0.dependsOnXCTest }
 
         guard let target = targets.first(where: { $0.name == targetName }) else {
             throw InspectServiceError.targetNotFound(name: targetName)

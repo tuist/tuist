@@ -16,6 +16,10 @@ public protocol GraphTraversing {
 
     /// Returns the graph projects.
     var projects: [AbsolutePath: Project] { get }
+    
+    /// Finds and returns the taget with the given name.
+    /// - Parameter name: Name of the target.
+    func target(name: String) -> ValueGraphTarget?
 
     /// It returns the target with the given name in the project that is defined in the given directory path.
     /// - Parameters:
