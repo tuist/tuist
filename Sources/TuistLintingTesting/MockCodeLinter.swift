@@ -2,7 +2,7 @@ import Foundation
 import TSCBasic
 import TuistCore
 
-@testable import TuistLintCode
+@testable import TuistLinting
 
 final class MockCodeLinter: CodeLinting {
     var invokedLint = false

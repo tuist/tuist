@@ -127,7 +127,7 @@ let package = Package(
                 "TuistScaffold",
                 "TuistSigning",
                 "TuistDependencies",
-                "TuistLintCode",
+                "TuistLinting",
                 "TuistCloud",
                 "TuistDoc",
                 "GraphViz",
@@ -152,7 +152,7 @@ let package = Package(
                 "TuistAutomationTesting",
                 "TuistSigningTesting",
                 "TuistDependenciesTesting",
-                "TuistLintCodeTesting",
+                "TuistLintingTesting",
                 "TuistMigrationTesting",
                 "TuistDocTesting",
                 "TuistAsyncQueueTesting",
@@ -497,7 +497,7 @@ let package = Package(
             ]
         ),
         .target(
-            name: "TuistLintCode",
+            name: "TuistLinting",
             dependencies: [
                 "TuistCore",
                 "TuistSupport",
@@ -507,16 +507,16 @@ let package = Package(
             ]
         ),
         .target(
-            name: "TuistLintCodeTesting",
+            name: "TuistLintingTesting",
             dependencies: [
-                "TuistLintCode",
+                "TuistLinting",
             ]
         ),
         .testTarget(
-            name: "TuistLintCodeTests",
+            name: "TuistLintingTests",
             dependencies: [
-                "TuistLintCode",
-                "TuistLintCodeTesting",
+                "TuistLinting",
+                "TuistLintingTesting",
                 "TuistCoreTesting",
                 "TuistSupportTesting",
                 rxBlockingDependency,

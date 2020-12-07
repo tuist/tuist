@@ -4,8 +4,8 @@ import TuistSupport
 import XCTest
 
 @testable import TuistCoreTesting
-@testable import TuistLintCode
-@testable import TuistLintCodeTesting
+@testable import TuistLinting
+@testable import TuistLintingTesting
 @testable import TuistSupportTesting
 
 final class CodeLinterTests: TuistUnitTestCase {
