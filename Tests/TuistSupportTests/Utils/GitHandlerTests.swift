@@ -64,7 +64,7 @@ final class GitHandlerTests: TuistUnitTestCase {
             "--work-tree",
             path.pathString,
             "checkout",
-            id
+            id,
         ].joined(separator: " ")
 
         system.stubs[expectedCommand] = (stderror: nil, stdout: nil, exitstatus: 0)

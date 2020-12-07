@@ -32,7 +32,7 @@ public protocol GitHandling {
 }
 
 /// An implementation of `GitHandling`.
-/// Uses the system to execute git commands. 
+/// Uses the system to execute git commands.
 public final class GitHandler: GitHandling {
     private let system: Systeming
 
