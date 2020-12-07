@@ -63,7 +63,7 @@ public final class GitHandler: GitHandling {
     }
 
     private func performCheckout(id: String, in path: AbsolutePath) throws {
-        let gitDirectory = path.appending(.init(".git"))
+        let gitDirectory = path.appending(component: ".git")
 
         try system.runAndPrint(
             "git",
