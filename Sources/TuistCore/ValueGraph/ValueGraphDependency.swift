@@ -96,4 +96,13 @@ public enum ValueGraphDependency: Hashable {
         case .cocoapods: return false
         }
     }
+
+    var targetDependency: (name: String, path: AbsolutePath)? {
+        switch self {
+        case let .target(name: name, path: path):
+            return (name, path)
+        default:
+            return nil
+        }
+    }
 }

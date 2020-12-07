@@ -519,37 +519,37 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
     func test_generateAppExtensionsBuildPhase() throws {
         // Given
         let path = try temporaryPath()
-        let appExtension = Target.test(name: "AppExtension", product: .appExtension)
         let projectA = Project.test(path: "/path/a")
+        let appExtension = Target.test(name: "AppExtension", product: .appExtension)
         let stickerPackExtension = Target.test(name: "StickerPackExtension", product: .stickerPackExtension)
-        let projectB = Project.test(path: "/path/b")
         let app = Target.test(name: "App", product: .app)
-        let projectC = Project.test(path: "/path/c")
         let pbxproj = PBXProj()
         let nativeTarget = PBXNativeTarget(name: "Test")
         let fileElements = createProductFileElements(for: [appExtension, stickerPackExtension])
 
         let targets: [AbsolutePath: [String: Target]] = [
-            projectA.path: [appExtension.name: appExtension],
-            projectB.path: [stickerPackExtension.name: stickerPackExtension],
-            projectC.path: [app.name: app],
+            projectA.path: [
+                appExtension.name: appExtension,
+                stickerPackExtension.name: stickerPackExtension,
+                app.name: app,
+            ],
         ]
         let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
             .target(name: appExtension.name, path: projectA.path): Set(),
-            .target(name: stickerPackExtension.name, path: projectB.path): Set(),
-            .target(name: app.name, path: projectC.path): Set([.target(name: appExtension.name, path: projectA.path),
-                                                               .target(name: stickerPackExtension.name, path: projectB.path)]),
+            .target(name: stickerPackExtension.name, path: projectA.path): Set(),
+            .target(name: app.name, path: projectA.path): Set([
+                .target(name: appExtension.name, path: projectA.path),
+                .target(name: stickerPackExtension.name, path: projectA.path),
+            ]),
         ]
         let graph = ValueGraph.test(path: path,
-                                    projects: [projectA.path: projectA,
-                                               projectB.path: projectB,
-                                               projectC.path: projectC],
+                                    projects: [projectA.path: projectA],
                                     targets: targets,
                                     dependencies: dependencies)
         let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
-        try subject.generateAppExtensionsBuildPhase(path: projectC.path,
+        try subject.generateAppExtensionsBuildPhase(path: projectA.path,
                                                     target: app,
                                                     graphTraverser: graphTraverser,
                                                     pbxTarget: nativeTarget,
