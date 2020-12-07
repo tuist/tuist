@@ -13,6 +13,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Make watch targets runnable to fix schemes in Xcode 12 [#2096](https://github.com/tuist/tuist/pull/2096) by [@thedavidharris](https://github.com/thedavidharris)
 - Fix framework search paths for SDK dependencies [#2097](https://github.com/tuist/tuist/pull/2097) by [@kwridan](https://github.com/kwridan)
+- Fix `ValueGraphTraverser.directTargetDependencies` to return local targets only [#2111](https://github.com/tuist/tuist/pull/2111) by [@kwridan](https://github.com/kwridan)
+    - **Note:** This fixes an issue that previously allowed extension targets to be defined in a separate project (which isn't a supported dependency type)
 
 ### Changed
 

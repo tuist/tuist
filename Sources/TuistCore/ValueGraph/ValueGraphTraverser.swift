@@ -30,9 +30,14 @@ public class ValueGraphTraverser: GraphTraversing {
         guard let dependencies = graph.dependencies[.target(name: name, path: path)] else { return [] }
         guard let project = graph.projects[path] else { return Set() }
 
-        return Set(dependencies.flatMap { (dependency) -> [ValueGraphTarget] in
-            guard case let ValueGraphDependency.target(dependencyName, dependencyPath) = dependency else { return [] }
-            guard let projectDependencies = graph.targets[dependencyPath], let dependencyTarget = projectDependencies[dependencyName] else { return []
+        let localTargetDependencies = dependencies
+            .compactMap(\.targetDependency)
+            .filter { $0.path == path }
+        return Set(localTargetDependencies.flatMap { (dependencyName, dependencyPath) -> [ValueGraphTarget] in
+            guard let projectDependencies = graph.targets[dependencyPath],
+                let dependencyTarget = projectDependencies[dependencyName]
+            else {
+                return []
             }
             return [ValueGraphTarget(path: path, target: dependencyTarget, project: project)]
         })
