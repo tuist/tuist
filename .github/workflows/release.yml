@@ -34,5 +34,6 @@ jobs:
       - name: Create a new release
         uses: fortmarek/tapestry-action@0.1.1
         env:
+          GITHUB_ACTOR: xcoderobot
           GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
           SECRET_KEY: ${{ secrets.SECRET_KEY }}
