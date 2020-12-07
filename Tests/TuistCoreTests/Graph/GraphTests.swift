@@ -504,6 +504,51 @@ final class GraphTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(linkableModules, [.sdk(path: try SDKNode.appClip(status: .required).path, status: .required, source: .system)])
     }
+    
+    func test_linkableDependencies_when_dependencyIsAFramework() throws {
+        // Given
+        let frameworkPath = AbsolutePath("/test/test.framework")
+        let target = Target.test(name: "Main", platform: .iOS)
+        let frameworkNode = FrameworkNode.test(path: frameworkPath)
+        let project = Project.test(targets: [target])
+        let targetNode = TargetNode(project: project,
+                                    target: target,
+                                    dependencies: [frameworkNode])
+        let graph = Graph.test(projects: [project],
+                               precompiled: [frameworkNode],
+                               targets: [project.path: [targetNode]])
+
+        // When
+        let got = try graph.linkableDependencies(path: project.path, name: target.name)
+
+        // Then
+        XCTAssertEqual(got.count, 1)
+        XCTAssertEqual(got.first, GraphDependencyReference(precompiledNode: frameworkNode))
+    }
+    
+    func test_linkableFrameworks_when_precompiledStaticFramework() throws {
+        // Given
+        let target = Target.test(name: "Main")
+        let project = Project.test(targets: [target])
+
+        let frameworkNode = FrameworkNode.test(path: "/test/StaticFramework.framework", linking: .static)
+        let targetNode = TargetNode(
+            project: project,
+            target: target,
+            dependencies: [frameworkNode]
+        )
+
+        let graph = Graph.test(projects: [project],
+                               precompiled: [frameworkNode],
+                               targets: [project.path: [targetNode]])
+
+        // When
+        let got = try graph.linkableDependencies(path: project.path, name: target.name)
+
+        // Then
+        XCTAssertEqual(got.count, 1)
+        XCTAssertEqual(got.first, GraphDependencyReference(precompiledNode: frameworkNode))
+    }
 
     func test_librariesPublicHeaders() throws {
         let target = Target.test(name: "Main")
