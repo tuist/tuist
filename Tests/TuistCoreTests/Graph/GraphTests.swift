@@ -910,8 +910,8 @@ final class GraphTests: TuistUnitTestCase {
         let linkable = try graph.linkableDependencies(path: project.path, name: target.name)
         
         // Then
-        XCTAssertEqual(linkable.first, GraphDependencyReference(precompiledNode: precompiledStaticBinaryA))
-        XCTAssertEqual(linkable.last, GraphDependencyReference(precompiledNode: precompiledDynamicBinaryB))
+        XCTAssertEqual(linkable.first, GraphDependencyReference(precompiledNode: precompiledDynamicBinaryB))
+        XCTAssertEqual(linkable.last, GraphDependencyReference(precompiledNode: precompiledStaticBinaryA))
         
         // When
         let embeddable = try graph.embeddableFrameworks(path: project.path, name: target.name)
