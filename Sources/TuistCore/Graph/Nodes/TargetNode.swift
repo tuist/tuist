@@ -91,7 +91,7 @@ public class TargetNode: GraphNode {
     public var packages: [PackageProductNode] {
         dependencies.lazy.compactMap { $0 as? PackageProductNode }
     }
-    
+
     public var recursivePrecompiledDependencies: [PrecompiledNode] {
         let precompiledDependencies = dependencies.lazy.compactMap { $0 as? PrecompiledNode }
         return Array(Set(precompiledDependencies.flatMap(recursiveNodeDependencies)))
