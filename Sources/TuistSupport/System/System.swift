@@ -1,3 +1,5 @@
+import Combine
+import CombineExt
 import Foundation
 import RxSwift
 import TSCBasic
@@ -106,6 +108,17 @@ public protocol Systeming {
     ///   - arguments: Command.
     ///   - verbose: When true it prints the command that will be executed before executing it.
     func observable(_ arguments: [String], verbose: Bool) -> Observable<SystemEvent<Data>>
+
+    /// Runs a command in the shell and wraps the standard output and error in a publisher.
+    /// - Parameters:
+    ///   - arguments: Command.
+    func publisher(_ arguments: [String]) -> AnyPublisher<SystemEvent<Data>, Error>
+
+    /// Runs a command in the shell and wraps the standard output and error in a publisher.
+    /// - Parameters:
+    ///   - arguments: Command.
+    ///   - verbose: When true it prints the command that will be executed before executing it.
+    func publisher(_ arguments: [String], verbose: Bool) -> AnyPublisher<SystemEvent<Data>, Error>
 
     /// Runs a command in the shell and wraps the standard output and error in a observable.
     /// - Parameters:
@@ -515,5 +528,43 @@ public final class System: Systeming {
     /// - Throws: An error if which exits unsuccessfully.
     public func which(_ name: String) throws -> String {
         try capture("/usr/bin/env", "which", name).spm_chomp()
+    }
+}
+
+extension Systeming {
+    public func publisher(_ arguments: [String]) -> AnyPublisher<SystemEvent<Data>, Error> {
+        AnyPublisher.create { (subscriber) -> Cancellable in
+            let disposable = self.observable(arguments).subscribe { event in
+                switch event {
+                case .completed:
+                    subscriber.send(completion: .finished)
+                case let .error(error):
+                    subscriber.send(completion: .failure(error))
+                case let .next(event):
+                    subscriber.send(event)
+                }
+            }
+            return AnyCancellable {
+                disposable.dispose()
+            }
+        }
+    }
+
+    public func publisher(_ arguments: [String], verbose: Bool) -> AnyPublisher<SystemEvent<Data>, Error> {
+        AnyPublisher.create { (subscriber) -> Cancellable in
+            let disposable = self.observable(arguments, verbose: verbose).subscribe { event in
+                switch event {
+                case .completed:
+                    subscriber.send(completion: .finished)
+                case let .error(error):
+                    subscriber.send(completion: .failure(error))
+                case let .next(event):
+                    subscriber.send(event)
+                }
+            }
+            return AnyCancellable {
+                disposable.dispose()
+            }
+        }
     }
 }

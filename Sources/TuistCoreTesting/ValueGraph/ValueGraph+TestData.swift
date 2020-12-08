@@ -4,7 +4,8 @@ import TuistCore
 
 public extension ValueGraph {
     static func test(name: String = "graph",
-                     path: AbsolutePath,
+                     path: AbsolutePath = .root,
+                     workspace: Workspace = .test(),
                      projects: [AbsolutePath: Project] = [:],
                      packages: [AbsolutePath: [String: Package]] = [:],
                      targets: [AbsolutePath: [String: Target]] = [:],
@@ -12,6 +13,7 @@ public extension ValueGraph {
     {
         ValueGraph(name: name,
                    path: path,
+                   workspace: workspace,
                    projects: projects,
                    packages: packages,
                    targets: targets,

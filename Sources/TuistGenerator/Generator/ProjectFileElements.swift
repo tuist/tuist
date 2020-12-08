@@ -143,6 +143,14 @@ class ProjectFileElements {
                              isReference: $0.isReference)
         })
 
+        target.copyFiles.forEach {
+            elements.formUnion($0.files.map {
+                GroupFileElement(path: $0.path,
+                                 group: target.filesGroup,
+                                 isReference: $0.isReference)
+            })
+        }
+
         return elements
     }
 
@@ -198,7 +206,7 @@ class ProjectFileElements {
                 try generatePrecompiled(path)
             case let .framework(path, _, _, _, _, _, _, _):
                 try generatePrecompiled(path)
-            case let .library(path, _, _, _, _):
+            case let .library(path, _, _, _):
                 try generatePrecompiled(path)
             case let .sdk(sdkNodePath, _, _):
                 generateSDKFileElement(sdkNodePath: sdkNodePath,

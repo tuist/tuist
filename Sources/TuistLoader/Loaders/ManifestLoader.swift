@@ -205,12 +205,12 @@ public class ManifestLoader: ManifestLoading {
         ]
 
         // Helpers
-        let projectDesciptionHelpersModulePath = try projectDescriptionHelpersBuilder.build(at: path, projectDescriptionSearchPaths: searchPaths)
-        if let projectDesciptionHelpersModulePath = projectDesciptionHelpersModulePath {
+        let projectDescriptionHelpersModulePath = try projectDescriptionHelpersBuilder.build(at: path, projectDescriptionSearchPaths: searchPaths)
+        if let projectDescriptionHelpersModulePath = projectDescriptionHelpersModulePath {
             arguments.append(contentsOf: [
-                "-I", projectDesciptionHelpersModulePath.parentDirectory.pathString,
-                "-L", projectDesciptionHelpersModulePath.parentDirectory.pathString,
-                "-F", projectDesciptionHelpersModulePath.parentDirectory.pathString,
+                "-I", projectDescriptionHelpersModulePath.parentDirectory.pathString,
+                "-L", projectDescriptionHelpersModulePath.parentDirectory.pathString,
+                "-F", projectDescriptionHelpersModulePath.parentDirectory.pathString,
                 "-lProjectDescriptionHelpers",
             ])
         }

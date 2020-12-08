@@ -48,7 +48,7 @@ public struct TestingLogHandler: LogHandler {
 extension Dictionary where Key == Logger.Level, Value == [String] {
     public subscript(_ key: Key, _ comparison: (Key, Key) -> Bool) -> String {
         let level = [Key](repeating: key, count: keys.count)
-        return zip(level, keys)
+        return Swift.zip(level, keys)
             .lazy
             .filter(comparison)
             .compactMap { self[$1] }
