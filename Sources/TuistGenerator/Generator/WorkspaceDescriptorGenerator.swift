@@ -82,9 +82,11 @@ final class WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
         logger.notice("Generating workspace \(workspaceName)", metadata: .section)
 
         /// Projects
-        let projects = try Array(graphTraverser.projects.values).compactMap(context: config.projectGenerationContext) { project -> ProjectDescriptor? in
-            try projectDescriptorGenerator.generate(project: project, graphTraverser: graphTraverser)
-        }
+        let projects = try Array(graphTraverser.projects.values)
+            .sorted(by: { $0.path < $1.path })
+            .compactMap(context: config.projectGenerationContext) { project -> ProjectDescriptor? in
+                try projectDescriptorGenerator.generate(project: project, graphTraverser: graphTraverser)
+            }
 
         let generatedProjects: [AbsolutePath: GeneratedProject] = Dictionary(uniqueKeysWithValues: projects.map { project in
             let pbxproj = project.xcodeProj.pbxproj
