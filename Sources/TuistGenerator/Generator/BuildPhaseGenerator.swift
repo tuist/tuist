@@ -82,6 +82,11 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                                         fileElements: fileElements,
                                         pbxproj: pbxproj)
 
+        try generateCopyFilesBuildPhases(target: target,
+                                         pbxTarget: pbxTarget,
+                                         fileElements: fileElements,
+                                         pbxproj: pbxproj)
+
         try generateAppExtensionsBuildPhase(path: path,
                                             target: target,
                                             graphTraverser: graphTraverser,
@@ -257,6 +262,39 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                                resourcesBuildPhase: resourcesBuildPhase)
     }
 
+    func generateCopyFilesBuildPhases(target: Target,
+                                      pbxTarget: PBXTarget,
+                                      fileElements: ProjectFileElements,
+                                      pbxproj: PBXProj) throws
+    {
+        try target.copyFiles.forEach { action in
+            let copyFilesPhase = PBXCopyFilesBuildPhase(
+                dstPath: action.subpath,
+                dstSubfolderSpec: action.destination.toXcodeprojSubFolder,
+                name: action.name
+            )
+
+            pbxproj.add(object: copyFilesPhase)
+            pbxTarget.buildPhases.append(copyFilesPhase)
+
+            var buildFilesCache = Set<AbsolutePath>()
+            let filePaths = action.files.map(\.path).sorted()
+
+            try filePaths.forEach {
+                guard let fileReference = fileElements.file(path: $0) else {
+                    throw BuildPhaseGenerationError.missingFileReference($0)
+                }
+
+                if buildFilesCache.contains($0) == false {
+                    let pbxBuildFile = PBXBuildFile(file: fileReference)
+                    pbxproj.add(object: pbxBuildFile)
+                    copyFilesPhase.files?.append(pbxBuildFile)
+                    buildFilesCache.insert($0)
+                }
+            }
+        }
+    }
+
     private func generateResourcesBuildFile(files: [AbsolutePath],
                                             fileElements: ProjectFileElements,
                                             pbxproj: PBXProj,
@@ -325,8 +363,10 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                                         pbxproj: PBXProj,
                                         resourcesBuildPhase: PBXResourcesBuildPhase)
     {
-        let bundles = graphTraverser.resourceBundleDependencies(path: path, name: target.name)
-        let refs = bundles.compactMap { fileElements.product(target: $0.name) }
+        let bundles = graphTraverser
+            .resourceBundleDependencies(path: path, name: target.name)
+            .sorted()
+        let refs = bundles.compactMap { fileElements.product(target: $0.target.name) }
 
         refs.forEach {
             let pbxBuildFile = PBXBuildFile(file: $0)
@@ -342,14 +382,14 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                                          fileElements: ProjectFileElements,
                                          pbxproj: PBXProj) throws
     {
-        let appExtensions = graphTraverser.appExtensionDependencies(path: path, name: target.name)
+        let appExtensions = graphTraverser.appExtensionDependencies(path: path, name: target.name).sorted()
         guard !appExtensions.isEmpty else { return }
 
         let appExtensionsBuildPhase = PBXCopyFilesBuildPhase(dstSubfolderSpec: .plugins, name: "Embed App Extensions")
         pbxproj.add(object: appExtensionsBuildPhase)
         pbxTarget.buildPhases.append(appExtensionsBuildPhase)
 
-        let refs = appExtensions.compactMap { fileElements.product(target: $0.name) }
+        let refs = appExtensions.compactMap { fileElements.product(target: $0.target.name) }
 
         refs.forEach {
             let pbxBuildFile = PBXBuildFile(file: $0, settings: ["ATTRIBUTES": ["RemoveHeadersOnCopy"]])
@@ -366,7 +406,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                                       pbxproj: PBXProj) throws
     {
         let targetDependencies = graphTraverser.directTargetDependencies(path: path, name: target.name)
-        let watchApps = targetDependencies.filter { $0.product == .watch2App }
+        let watchApps = targetDependencies.filter { $0.target.product == .watch2App }
         guard !watchApps.isEmpty else { return }
 
         let embedWatchAppBuildPhase = PBXCopyFilesBuildPhase(dstPath: "$(CONTENTS_FOLDER_PATH)/Watch",
@@ -375,7 +415,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         pbxproj.add(object: embedWatchAppBuildPhase)
         pbxTarget.buildPhases.append(embedWatchAppBuildPhase)
 
-        let refs = watchApps.compactMap { fileElements.product(target: $0.name) }
+        let refs = watchApps.compactMap { fileElements.product(target: $0.target.name) }
 
         refs.forEach {
             let pbxBuildFile = PBXBuildFile(file: $0, settings: ["ATTRIBUTES": ["RemoveHeadersOnCopy"]])
@@ -395,7 +435,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
             return
         }
 
-        guard let appClips = graphTraverser.appClipsDependency(path: path, name: target.name) else {
+        guard let appClips = graphTraverser.appClipDependencies(path: path, name: target.name) else {
             return
         }
 
@@ -405,7 +445,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         pbxproj.add(object: embedAppClipsBuildPhase)
         pbxTarget.buildPhases.append(embedAppClipsBuildPhase)
 
-        let refs = fileElements.product(target: appClips.name)
+        let refs = fileElements.product(target: appClips.target.name)
 
         let pbxBuildFile = PBXBuildFile(file: refs, settings: ["ATTRIBUTES": ["RemoveHeadersOnCopy"]])
         pbxproj.add(object: pbxBuildFile)

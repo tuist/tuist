@@ -106,32 +106,40 @@ final class ValueGraphTests: TuistUnitTestCase {
         XCTAssertEqual(valueGraph.dependencies[.target(name: aTarget.name, path: aNode.path)]?
             .contains(.sdk(name: xctestNode.name, path: xctestNode.path, status: xctestNode.status, source: xctestNode.source)), true)
         // Then: A -> BFramework
-        XCTAssertEqual(valueGraph.dependencies[.target(name: aTarget.name, path: aNode.path)]?
-            .contains(.framework(path: bFrameworkNode.path,
+        XCTAssertEqual(valueGraph.dependencies[.target(name: aTarget.name, path: aNode.path), default: []]
+            .contains(.framework(path: bFrameworkPath,
+                                 binaryPath: bFrameworkNode.binaryPath,
                                  dsymPath: bFrameworkNode.dsymPath,
                                  bcsymbolmapPaths: bFrameworkNode.bcsymbolmapPaths,
                                  linking: bFrameworkNode.linking,
-                                 architectures: bFrameworkNode.architectures)), true)
+                                 architectures: bFrameworkNode.architectures,
+                                 isCarthage: bFrameworkNode.isCarthage)), true)
         // Then: A -> Package
         XCTAssertEqual(valueGraph.dependencies[.target(name: aTarget.name, path: aNode.path)]?
             .contains(.packageProduct(path: packageProduct.path, product: packageProduct.product)), true)
         // Then: BFramework -> AFramework
         XCTAssertEqual(valueGraph.dependencies[.framework(path: bFrameworkNode.path,
+                                                          binaryPath: bFrameworkNode.binaryPath,
                                                           dsymPath: bFrameworkNode.dsymPath,
                                                           bcsymbolmapPaths: bFrameworkNode.bcsymbolmapPaths,
                                                           linking: bFrameworkNode.linking,
-                                                          architectures: bFrameworkNode.architectures)]?
+                                                          architectures: bFrameworkNode.architectures,
+                                                          isCarthage: bFrameworkNode.isCarthage), default: []]
             .contains(.framework(path: aFrameworkNode.path,
+                                 binaryPath: aFrameworkNode.binaryPath,
                                  dsymPath: aFrameworkNode.dsymPath,
                                  bcsymbolmapPaths: aFrameworkNode.bcsymbolmapPaths,
                                  linking: aFrameworkNode.linking,
-                                 architectures: aFrameworkNode.architectures)), true)
+                                 architectures: aFrameworkNode.architectures,
+                                 isCarthage: aFrameworkNode.isCarthage)), true)
         // then: AFramework
         XCTAssertNotNil(valueGraph.dependencies[.framework(path: aFrameworkNode.path,
+                                                           binaryPath: aFrameworkNode.binaryPath,
                                                            dsymPath: aFrameworkNode.dsymPath,
                                                            bcsymbolmapPaths: aFrameworkNode.bcsymbolmapPaths,
                                                            linking: aFrameworkNode.linking,
-                                                           architectures: aFrameworkNode.architectures)])
+                                                           architectures: aFrameworkNode.architectures,
+                                                           isCarthage: aFrameworkNode.isCarthage)])
 
         // Then: XCTest
         XCTAssertNotNil(valueGraph.dependencies[.sdk(name: xctestNode.name, path: xctestNode.path, status: xctestNode.status, source: xctestNode.source)])

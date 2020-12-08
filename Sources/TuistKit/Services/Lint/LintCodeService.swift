@@ -3,6 +3,7 @@ import RxBlocking
 import TSCBasic
 import TuistCore
 import TuistGenerator
+import TuistLinting
 import TuistLoader
 import TuistSupport
 

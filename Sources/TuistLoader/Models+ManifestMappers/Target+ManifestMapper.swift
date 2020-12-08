@@ -65,6 +65,10 @@ extension TuistCore.Target {
             throw TargetManifestMapperError.invalidResourcesGlob(targetName: name, invalidGlobs: invalidResourceGlobs)
         }
 
+        let copyFiles = try (manifest.copyFiles ?? []).map {
+            try TuistCore.CopyFilesAction.from(manifest: $0, generatorPaths: generatorPaths)
+        }
+
         let headers = try manifest.headers.map { try TuistCore.Headers.from(manifest: $0, generatorPaths: generatorPaths) }
 
         let coreDataModels = try manifest.coreDataModels.map {
@@ -89,6 +93,7 @@ extension TuistCore.Target {
                                 settings: settings,
                                 sources: sources,
                                 resources: resources,
+                                copyFiles: copyFiles,
                                 headers: headers,
                                 coreDataModels: coreDataModels,
                                 actions: actions,

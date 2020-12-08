@@ -111,7 +111,7 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Encodable {
     /// Returns true if the target can be ran.
     public var runnable: Bool {
         switch self {
-        case .app, .appClip, .commandLineTool:
+        case .app, .appClip, .commandLineTool, .watch2App:
             return true
         default:
             return false
@@ -172,6 +172,10 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Encodable {
 
     public var isFramework: Bool {
         [.framework, .staticFramework].contains(self)
+    }
+
+    public var isDynamic: Bool {
+        [.framework, .dynamicLibrary].contains(self)
     }
 
     public var xcodeValue: PBXProductType {
