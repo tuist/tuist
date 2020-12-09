@@ -1592,13 +1592,17 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         
         // Then
         XCTAssertEqual(got, gotGraph)
-        XCTAssertEqual(gotGraph.first, GraphDependencyReference(precompiledNode: precompiledStaticBinaryA))
-        XCTAssertEqual(gotGraph.last, GraphDependencyReference(precompiledNode: precompiledStaticBinaryB))
+        XCTAssertEqual(gotGraph, [
+            GraphDependencyReference(precompiledNode: precompiledStaticBinaryA),
+            GraphDependencyReference(precompiledNode: precompiledStaticBinaryB),
+        ])
         
         // When
-        let embeddable = graphTraverser.embeddableFrameworks(path: project.path, name: target.name)
+        let embeddable = subject.embeddableFrameworks(path: project.path, name: target.name)
+        let embeddableGraph = graphTraverser.embeddableFrameworks(path: project.path, name: target.name)
         
         // Then
+        XCTAssertEqual(embeddable, embeddableGraph)
         XCTAssertTrue(embeddable.isEmpty)
     }
 
@@ -1668,13 +1672,17 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         
         // Then
         XCTAssertEqual(got, gotGraph)
-        XCTAssertEqual(gotGraph.first, GraphDependencyReference(precompiledNode: precompiledDynamicBinaryA))
-        XCTAssertEqual(gotGraph.last, GraphDependencyReference(precompiledNode: precompiledDynamicBinaryB))
+        XCTAssertEqual(gotGraph, [
+            GraphDependencyReference(precompiledNode: precompiledDynamicBinaryA),
+            GraphDependencyReference(precompiledNode: precompiledDynamicBinaryB),
+        ])
         
         // When
-        let embeddable = graphTraverser.embeddableFrameworks(path: project.path, name: target.name)
+        let embeddable = subject.embeddableFrameworks(path: project.path, name: target.name)
+        let embeddableGraph = graphTraverser.embeddableFrameworks(path: project.path, name: target.name)
         
         // Then
+        XCTAssertEqual(embeddable, embeddableGraph)
         XCTAssertEqual(embeddable, [
             GraphDependencyReference(precompiledNode: precompiledDynamicBinaryA),
             GraphDependencyReference(precompiledNode: precompiledDynamicBinaryB),
@@ -1747,15 +1755,20 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         
         // Then
         XCTAssertEqual(got, gotGraph)
-        XCTAssertEqual(gotGraph.first, GraphDependencyReference(precompiledNode: precompiledDynamicBinaryB))
-        XCTAssertEqual(gotGraph.last, GraphDependencyReference(precompiledNode: precompiledStaticBinaryA))
+        XCTAssertEqual(gotGraph, [
+            GraphDependencyReference(precompiledNode: precompiledDynamicBinaryB),
+            GraphDependencyReference(precompiledNode: precompiledStaticBinaryA),
+        ])
         
         // When
-        let embeddable = graphTraverser.embeddableFrameworks(path: project.path, name: target.name)
+        let embeddable = subject.embeddableFrameworks(path: project.path, name: target.name)
+        let embeddableGraph = graphTraverser.embeddableFrameworks(path: project.path, name: target.name)
         
         // Then
-        XCTAssertEqual(embeddable.count, 1)
-        XCTAssertEqual(embeddable.first, GraphDependencyReference(precompiledNode: precompiledDynamicBinaryB))
+        XCTAssertEqual(embeddable, embeddableGraph)
+        XCTAssertEqual(embeddable, [
+            GraphDependencyReference(precompiledNode: precompiledDynamicBinaryB)
+        ])
     }
 
     func test_linkableAndEmbeddableDependencies_when_appDependensOnPrecompiledDynamicBinaryWithPrecompiledStaticBinaryDependency() throws {
@@ -1824,15 +1837,20 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         
         // Then
         XCTAssertEqual(got, gotGraph)
-        XCTAssertEqual(gotGraph.first, GraphDependencyReference(precompiledNode: precompiledDynamicBinaryA))
-        XCTAssertEqual(gotGraph.last, GraphDependencyReference(precompiledNode: precompiledStaticBinaryB))
+        XCTAssertEqual(gotGraph, [
+            GraphDependencyReference(precompiledNode: precompiledDynamicBinaryA),
+            GraphDependencyReference(precompiledNode: precompiledStaticBinaryB),
+        ])
         
         // When
-        let embeddable = graphTraverser.embeddableFrameworks(path: project.path, name: target.name)
+        let embeddable = subject.embeddableFrameworks(path: project.path, name: target.name)
+        let embeddableGraph = graphTraverser.embeddableFrameworks(path: project.path, name: target.name)
         
         // Then
-        XCTAssertEqual(embeddable.count, 1)
-        XCTAssertEqual(embeddable.first, GraphDependencyReference(precompiledNode: precompiledDynamicBinaryA))
+        XCTAssertEqual(embeddable, embeddableGraph)
+        XCTAssertEqual(embeddable, [
+            GraphDependencyReference(precompiledNode: precompiledDynamicBinaryA)
+        ])
     }
 
     func test_linkableDependencies_whenALibraryTarget() throws {
