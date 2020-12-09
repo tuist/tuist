@@ -23,7 +23,8 @@ public extension Target {
                      environment: [String: String] = [:],
                      filesGroup: ProjectGroup = .group(name: "Project"),
                      dependencies: [Dependency] = [],
-                     scripts: [TargetScript] = []) -> Target
+                     scripts: [TargetScript] = [],
+                     launchArguments: [LaunchArgument] = []) -> Target
     {
         Target(name: name,
                platform: platform,
@@ -41,6 +42,7 @@ public extension Target {
                coreDataModels: coreDataModels,
                actions: actions,
                environment: environment,
+               launchArguments: launchArguments,
                filesGroup: filesGroup,
                dependencies: dependencies,
                scripts: scripts)
