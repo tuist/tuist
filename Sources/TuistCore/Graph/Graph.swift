@@ -240,7 +240,7 @@ public class Graph: Encodable, Equatable {
 
         // Precompiled libraries and frameworks
 
-        let precompiledLibrariesAndFrameworks = targetNode.precompiledDependencies
+        let precompiledLibrariesAndFrameworks = targetNode.recursivePrecompiledDependencies
             .lazy
             .map(GraphDependencyReference.init)
 
