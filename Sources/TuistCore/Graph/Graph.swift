@@ -625,7 +625,7 @@ public class Graph: Encodable, Equatable {
     public func forEach(closure: (GraphNode) -> Void) {
         var stack = Stack<GraphNode>()
 
-        entryNodes.forEach { stack.push($0) }
+        targets.flatMap(\.value).forEach { stack.push($0) }
 
         var visited: Set<GraphNode> = .init()
 

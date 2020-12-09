@@ -21,6 +21,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Changed
 
 - Generate multiple `XXX-Project` schemes if there are multiple platforms [#2081](https://github.com/tuist/tuist/pull/2081) by [@fortmarek](https://github.com/fortmarek)
+- Generators to take in the graph as `GraphTraversing` instead of `Graph` [#2110](https://github.com/tuist/tuist/pull/2110) by [@pepibumur](https://github.com/pepibumur)
 
 ## 1.26.0 - New World
 

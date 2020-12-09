@@ -40,10 +40,12 @@ final class WorkspaceGeneratorIntegrationTests: TuistTestCase {
                                  })
         let workspace = Workspace.test(path: temporaryPath, projects: projects.map(\.path))
         graph = graph.with(workspace: workspace)
+        let valueGraph = ValueGraph(graph: graph)
+        let graphTraverser = ValueGraphTraverser(graph: valueGraph)
 
         // When / Then
         try (0 ..< 50).forEach { _ in
-            _ = try subject.generate(graph: graph)
+            _ = try subject.generate(graphTraverser: graphTraverser)
         }
     }
 }

@@ -515,13 +515,15 @@ final class LinkGeneratorTests: XCTestCase {
                                      (target: target, dependencies: [staticDependency]),
                                      (target: staticDependency, dependencies: []),
                                  ])
+        let valueGraph = ValueGraph(graph: graph)
+        let graphTraverser = ValueGraphTraverser(graph: valueGraph)
         let fileElements = createProjectFileElements(for: [staticDependency])
         let xcodeProjElements = createXcodeprojElements()
 
         // When
         try subject.generateCopyProductsBuildPhase(path: path,
                                                    target: target,
-                                                   graph: graph,
+                                                   graphTraverser: graphTraverser,
                                                    pbxTarget: xcodeProjElements.pbxTarget,
                                                    pbxproj: xcodeProjElements.pbxproj,
                                                    fileElements: fileElements)
@@ -550,13 +552,15 @@ final class LinkGeneratorTests: XCTestCase {
                                      (target: target, dependencies: [staticDependency]),
                                      (target: staticDependency, dependencies: []),
                                  ])
+        let valueGraph = ValueGraph(graph: graph)
+        let graphTraverser = ValueGraphTraverser(graph: valueGraph)
         let fileElements = createProjectFileElements(for: [staticDependency])
         let xcodeProjElements = createXcodeprojElements()
 
         // When
         try subject.generateCopyProductsBuildPhase(path: path,
                                                    target: target,
-                                                   graph: graph,
+                                                   graphTraverser: graphTraverser,
                                                    pbxTarget: xcodeProjElements.pbxTarget,
                                                    pbxproj: xcodeProjElements.pbxproj,
                                                    fileElements: fileElements)
@@ -582,11 +586,13 @@ final class LinkGeneratorTests: XCTestCase {
                                  ])
         let fileElements = createProjectFileElements(for: [resourceBundle])
         let xcodeProjElements = createXcodeprojElements()
+        let valueGraph = ValueGraph(graph: graph)
+        let graphTraverser = ValueGraphTraverser(graph: valueGraph)
 
         // When
         try subject.generateCopyProductsBuildPhase(path: path,
                                                    target: target,
-                                                   graph: graph,
+                                                   graphTraverser: graphTraverser,
                                                    pbxTarget: xcodeProjElements.pbxTarget,
                                                    pbxproj: xcodeProjElements.pbxproj,
                                                    fileElements: fileElements)

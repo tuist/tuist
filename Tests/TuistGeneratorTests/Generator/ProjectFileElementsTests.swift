@@ -342,11 +342,13 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
             .test(name: "Library", product: .staticLibrary),
         ])
         let graph = Graph.test()
+        let valueGraph = ValueGraph(graph: graph)
+        let graphTraverser = ValueGraphTraverser(graph: valueGraph)
         let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj)
 
         // When
         try subject.generateProjectFiles(project: project,
-                                         graph: graph,
+                                         graphTraverser: graphTraverser,
                                          groups: groups,
                                          pbxproj: pbxproj)
 
@@ -376,11 +378,13 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
                                        xcodeProjPath: AbsolutePath.root.appending(component: "Project.xcodeproj"),
                                        targets: targets)
             let graph = Graph.test()
+            let valueGraph = ValueGraph(graph: graph)
+            let graphTraverser = ValueGraphTraverser(graph: valueGraph)
             let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj)
 
             // When
             try subject.generateProjectFiles(project: project,
-                                             graph: graph,
+                                             graphTraverser: graphTraverser,
                                              groups: groups,
                                              pbxproj: pbxproj)
 
@@ -406,11 +410,13 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
                                        .test(name: "App", product: .app),
                                    ])
         let graph = Graph.test()
+        let valueGraph = ValueGraph(graph: graph)
+        let graphTraverser = ValueGraphTraverser(graph: valueGraph)
         let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj)
 
         // When
         try subject.generateProjectFiles(project: project,
-                                         graph: graph,
+                                         graphTraverser: graphTraverser,
                                          groups: groups,
                                          pbxproj: pbxproj)
 
@@ -665,10 +671,12 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         let package = PackageProductNode(product: "A", path: "/packages/url")
 
         let graph = createGraph(project: project, target: target, dependencies: [package])
+        let valueGraph = ValueGraph(graph: graph)
+        let graphTraverser = ValueGraphTraverser(graph: valueGraph)
 
         // When
         try subject.generateProjectFiles(project: project,
-                                         graph: graph,
+                                         graphTraverser: graphTraverser,
                                          groups: groups,
                                          pbxproj: pbxproj)
 
