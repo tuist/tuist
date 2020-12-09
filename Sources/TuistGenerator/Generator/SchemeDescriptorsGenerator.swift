@@ -380,10 +380,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             }
         } else if let action = scheme.runAction, let executable = action.executable {
             target = executable
-            if let arguments = action.arguments {
-                commandlineArguments = XCScheme.CommandLineArguments(arguments: commandlineArgruments(arguments.launchArguments))
-                environments = environmentVariables(arguments.environment)
-            }
+            // arguments are inherited automatically from Launch Action (via `shouldUseLaunchSchemeArgsEnv`)
         }
 
         let shouldUseLaunchSchemeArgsEnv: Bool = commandlineArguments == nil && environments == nil

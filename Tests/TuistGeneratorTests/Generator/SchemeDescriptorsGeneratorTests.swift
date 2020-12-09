@@ -702,6 +702,55 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         XCTAssertEqual(result.enableTestabilityWhenProfilingTests, true)
     }
 
+    func test_defaultSchemeProfileAction_when_runActionIsSpecified() throws {
+        // Given
+        let projectPath = AbsolutePath("/somepath/Project")
+        let target = Target.test(name: "App", platform: .iOS, product: .app)
+        let appTargetReference = TargetReference(projectPath: projectPath, name: target.name)
+
+        let buildAction = BuildAction.test(targets: [appTargetReference])
+        let runAction = RunAction.test(
+            executable: appTargetReference,
+            arguments: Arguments(
+                environment: ["SOME": "ENV"],
+                launchArguments: [.init(name: "something", isEnabled: true)]
+            )
+        )
+        let scheme = Scheme(name: "Scheme", buildAction: buildAction, runAction: runAction, profileAction: nil)
+        let project = Project.test(path: projectPath, targets: [target])
+        let graph = Graph.create(projects: [project], dependencies: [(project: project, target: target, dependencies: [])])
+        let valueGraph = ValueGraph(graph: graph)
+        let graphTraverser = ValueGraphTraverser(graph: valueGraph)
+
+        // When
+        let got = try subject.schemeProfileAction(scheme: scheme,
+                                                  graphTraverser: graphTraverser,
+                                                  rootPath: projectPath,
+                                                  generatedProjects: createGeneratedProjects(projects: [project]))
+
+        // Then
+        let result = try XCTUnwrap(got)
+        let buildable = try XCTUnwrap(result.buildableProductRunnable?.buildableReference)
+
+        XCTAssertNil(result.macroExpansion)
+        XCTAssertEqual(result.buildableProductRunnable?.runnableDebuggingMode, "0")
+        XCTAssertEqual(buildable.referencedContainer, "container:Project.xcodeproj")
+        XCTAssertEqual(buildable.buildableName, target.productNameWithExtension)
+        XCTAssertEqual(buildable.blueprintName, target.name)
+        XCTAssertEqual(buildable.buildableIdentifier, "primary")
+
+        XCTAssertEqual(result.buildConfiguration, "Release")
+        XCTAssertEqual(result.preActions, [])
+        XCTAssertEqual(result.postActions, [])
+        XCTAssertEqual(result.shouldUseLaunchSchemeArgsEnv, true)
+        XCTAssertEqual(result.savedToolIdentifier, "")
+        XCTAssertEqual(result.ignoresPersistentStateOnLaunch, false)
+        XCTAssertEqual(result.useCustomWorkingDirectory, false)
+        XCTAssertEqual(result.debugDocumentVersioning, true)
+        XCTAssertNil(result.commandlineArguments)
+        XCTAssertNil(result.environmentVariables)
+    }
+
     // MARK: - Analyze Action Tests
 
     func test_schemeAnalyzeAction() throws {
