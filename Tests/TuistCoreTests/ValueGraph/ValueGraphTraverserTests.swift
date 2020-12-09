@@ -2616,9 +2616,9 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         
         // Then
         XCTAssertEqual(got, gotGraph)
-        
-        XCTAssertEqual(got.count, 1)
-        XCTAssertEqual(got.first, GraphDependencyReference(precompiledNode: frameworkNode))
+        XCTAssertEqual(got, [
+            GraphDependencyReference(precompiledNode: frameworkNode)
+        ])
     }
     
     func test_linkableFrameworks_when_precompiledStaticFramework() throws {
@@ -2665,9 +2665,9 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         
         // Then
         XCTAssertEqual(got, gotGraph)
-        
-        XCTAssertEqual(got.count, 1)
-        XCTAssertEqual(got.first, GraphDependencyReference(precompiledNode: frameworkNode))
+        XCTAssertEqual(got, [
+            GraphDependencyReference(precompiledNode: frameworkNode)
+        ])
     }
     
 
