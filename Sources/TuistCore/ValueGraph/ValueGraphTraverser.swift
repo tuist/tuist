@@ -193,13 +193,13 @@ public class ValueGraphTraverser: GraphTraversing {
         let precompiled = graph.dependencies[.target(name: name, path: path), default: []]
             .lazy
             .filter(\.isPrecompiled)
-            
+
         let precompiledDependencies = precompiled
             .flatMap { filterDependencies(from: $0) }
-        
+
         let precompiledLibrariesAndFrameworks = Set(precompiled + precompiledDependencies)
             .compactMap(dependencyReference)
-            
+
         references.formUnion(precompiledLibrariesAndFrameworks)
 
         // Static libraries and frameworks / Static libraries' dynamic libraries
