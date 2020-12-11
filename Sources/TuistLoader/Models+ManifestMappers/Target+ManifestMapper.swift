@@ -112,12 +112,11 @@ extension TuistCore.Target {
             return TuistCore.SourceFileGlob(glob: globPath, excluding: excluding, compilerFlags: glob.compilerFlags)
         } ?? [])
 
-        
         allSources.forEach { sourceFile in
-            if sourceFile.path.pathString.range(of: "\\.playground/Contents\\.swift$", options: .regularExpression) == nil {
+            if sourceFile.path.pathString.range(of: "\\.playground/.+$", options: .regularExpression) == nil {
                 sourcesWithoutPlaygrounds.append(sourceFile)
             } else {
-                playgrounds.insert(sourceFile.path.parentDirectory)
+                playgrounds.insert(sourceFile.path.upToComponentMatching(regex: ".+\\.playground"))
             }
         }
 

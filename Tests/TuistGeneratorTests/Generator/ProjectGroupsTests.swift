@@ -53,7 +53,7 @@ final class ProjectGroupsTests: XCTestCase {
         let main = subject.sortedMain
         XCTAssertNil(main.path)
         XCTAssertEqual(main.sourceTree, .group)
-        XCTAssertEqual(main.children.count, 5)
+        XCTAssertEqual(main.children.count, 4)
 
         XCTAssertNotNil(main.group(named: "Project"))
         XCTAssertNil(main.group(named: "Project")?.path)
@@ -97,7 +97,6 @@ final class ProjectGroupsTests: XCTestCase {
             "C",
             "A",
             "Frameworks",
-            "Playgrounds",
             "Products",
         ])
     }
