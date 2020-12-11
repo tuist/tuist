@@ -2,24 +2,6 @@
   "object": {
     "pins": [
       {
-        "package": "AEXML",
-        "repositoryURL": "https://github.com/tadija/AEXML",
-        "state": {
-          "branch": null,
-          "revision": "8623e73b193386909566a9ca20203e33a09af142",
-          "version": "4.5.0"
-        }
-      },
-      {
-        "package": "Signals",
-        "repositoryURL": "https://github.com/tuist/BlueSignals.git",
-        "state": {
-          "branch": null,
-          "revision": "1f6c49e186c8a4eeef87ba14f2f97b8646559d13",
-          "version": "1.0.200"
-        }
-      },
-      {
         "package": "Checksum",
         "repositoryURL": "https://github.com/rnine/Checksum.git",
         "state": {
@@ -53,15 +35,6 @@
           "branch": null,
           "revision": "4b6133c3071d521489a80c38fb92d7983f19d438",
           "version": "0.9.1"
-        }
-      },
-      {
-        "package": "CryptoSwift",
-        "repositoryURL": "https://github.com/krzyzanowskim/CryptoSwift.git",
-        "state": {
-          "branch": null,
-          "revision": "e2bc81be54d71d566a52ca17c3983d141c30aa70",
-          "version": "1.3.3"
         }
       },
       {
@@ -110,15 +83,6 @@
         }
       },
       {
-        "package": "Queuer",
-        "repositoryURL": "https://github.com/FabrizioBrancati/Queuer.git",
-        "state": {
-          "branch": null,
-          "revision": "52515108d0ac4616d9e15ffcc7ad986e300d31ff",
-          "version": "2.1.1"
-        }
-      },
-      {
         "package": "RxSwift",
         "repositoryURL": "https://github.com/ReactiveX/RxSwift.git",
         "state": {
@@ -134,15 +98,6 @@
           "branch": null,
           "revision": "f717bbce0e19f0129fc001b2b6bed43b70fd8b87",
           "version": "0.9.1"
-        }
-      },
-      {
-        "package": "Stencil",
-        "repositoryURL": "https://github.com/stencilproject/Stencil.git",
-        "state": {
-          "branch": "master",
-          "revision": "22440c53690c84603cea018a5204c0f1e770461d",
-          "version": null
         }
       },
       {
@@ -164,30 +119,12 @@
         }
       },
       {
-        "package": "swift-argument-parser",
-        "repositoryURL": "https://github.com/apple/swift-argument-parser.git",
-        "state": {
-          "branch": null,
-          "revision": "92646c0cdbaca076c8d3d0207891785b3379cbff",
-          "version": "0.3.1"
-        }
-      },
-      {
         "package": "swift-log",
         "repositoryURL": "https://github.com/apple/swift-log.git",
         "state": {
           "branch": null,
           "revision": "173f567a2dfec11d74588eea82cecea555bdc0bc",
           "version": "1.4.0"
-        }
-      },
-      {
-        "package": "swift-tools-support-core",
-        "repositoryURL": "https://github.com/apple/swift-tools-support-core.git",
-        "state": {
-          "branch": null,
-          "revision": "243beea77d20db46647a3de4765c96e2c801c7c7",
-          "version": "0.1.12"
         }
       },
       {
@@ -203,7 +140,7 @@
         "package": "SwiftGen",
         "repositoryURL": "https://github.com/fortmarek/SwiftGen",
         "state": {
-          "branch": null,
+          "branch": "stable",
           "revision": "ef8d6b186a03622cec8d228b18f0e2b3bb20b81c",
           "version": null
         }
@@ -215,15 +152,6 @@
           "branch": null,
           "revision": "fd7b0b6972809eead52b9016b383cf6d467e00b0",
           "version": "0.8.1"
-        }
-      },
-      {
-        "package": "XcodeProj",
-        "repositoryURL": "https://github.com/tuist/XcodeProj.git",
-        "state": {
-          "branch": null,
-          "revision": "82bf5efcaa27e94ed8c761c1eb3e397b6dea82b9",
-          "version": "7.18.0"
         }
       },
       {
@@ -240,8 +168,8 @@
         "repositoryURL": "https://github.com/marmelroy/Zip.git",
         "state": {
           "branch": null,
-          "revision": "bd19d974e8a38cc8d3a88c90c8a107386c3b8ccf",
-          "version": "2.1.1"
+          "revision": "80b1c3005ee25b4c7ce46c4029ac3347e8d5e37e",
+          "version": "2.0.0"
         }
       }
     ]

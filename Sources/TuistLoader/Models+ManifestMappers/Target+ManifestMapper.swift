@@ -38,11 +38,8 @@ extension TuistCore.Target {
         let entitlements = try manifest.entitlements.map { try generatorPaths.resolve(path: $0) }
 
         let settings = try manifest.settings.map { try TuistCore.Settings.from(manifest: $0, generatorPaths: generatorPaths) }
-        let sources = try TuistCore.Target.sources(targetName: name, sources: manifest.sources?.globs.map { (glob: ProjectDescription.SourceFileGlob) in
-            let globPath = try generatorPaths.resolve(path: glob.glob).pathString
-            let excluding: [String] = try glob.excluding.compactMap { try generatorPaths.resolve(path: $0).pathString }
-            return TuistCore.SourceFileGlob(glob: globPath, excluding: excluding, compilerFlags: glob.compilerFlags)
-        } ?? [])
+
+        let (sources, playgrounds) = try sourcesAndPlaygrounds(manifest: manifest, targetName: name, generatorPaths: generatorPaths)
 
         let resourceFilter = { (path: AbsolutePath) -> Bool in
             TuistCore.Target.isResource(path: path)
@@ -100,6 +97,29 @@ extension TuistCore.Target {
                                 environment: environment,
                                 launchArguments: launchArguments,
                                 filesGroup: .group(name: "Project"),
-                                dependencies: dependencies)
+                                dependencies: dependencies,
+                                playgrounds: playgrounds)
+    }
+
+    fileprivate static func sourcesAndPlaygrounds(manifest: ProjectDescription.Target, targetName: String, generatorPaths: GeneratorPaths) throws -> (sources: [TuistCore.Target.SourceFile], playgrounds: [AbsolutePath]) {
+        var sourcesWithoutPlaygrounds: [(path: AbsolutePath, compilerFlags: String?)] = []
+        var playgrounds: Set<AbsolutePath> = []
+
+        // Sources
+        let allSources = try TuistCore.Target.sources(targetName: targetName, sources: manifest.sources?.globs.map { (glob: ProjectDescription.SourceFileGlob) in
+            let globPath = try generatorPaths.resolve(path: glob.glob).pathString
+            let excluding: [String] = try glob.excluding.compactMap { try generatorPaths.resolve(path: $0).pathString }
+            return TuistCore.SourceFileGlob(glob: globPath, excluding: excluding, compilerFlags: glob.compilerFlags)
+        } ?? [])
+
+        allSources.forEach { path, compilerFlags in
+            if path.pathString.range(of: "\\.playground/Contents\\.swift$", options: .regularExpression) == nil {
+                sourcesWithoutPlaygrounds.append((path: path, compilerFlags: compilerFlags))
+            } else {
+                playgrounds.insert(path.parentDirectory)
+            }
+        }
+
+        return (sources: sourcesWithoutPlaygrounds, playgrounds: Array(playgrounds))
     }
 }

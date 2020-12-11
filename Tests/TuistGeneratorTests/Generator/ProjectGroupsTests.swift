@@ -10,7 +10,6 @@ import XCTest
 
 final class ProjectGroupsTests: XCTestCase {
     var subject: ProjectGroups!
-    var playgrounds: MockPlaygrounds!
     var sourceRootPath: AbsolutePath!
     var project: Project!
     var pbxproj: PBXProj!
@@ -19,7 +18,6 @@ final class ProjectGroupsTests: XCTestCase {
         super.setUp()
 
         let path = AbsolutePath("/test/")
-        playgrounds = MockPlaygrounds()
         sourceRootPath = AbsolutePath("/test/")
         project = Project(path: path,
                           sourceRootPath: path,
@@ -45,21 +43,12 @@ final class ProjectGroupsTests: XCTestCase {
         pbxproj = nil
         project = nil
         sourceRootPath = nil
-        playgrounds = nil
         subject = nil
     }
 
     func test_generate() {
-        playgrounds.pathsStub = { projectPath in
-            if projectPath == self.sourceRootPath {
-                return [self.sourceRootPath.appending(RelativePath("Playgrounds/Test.playground"))]
-            } else {
-                return []
-            }
-        }
         subject = ProjectGroups.generate(project: project,
-                                         pbxproj: pbxproj,
-                                         playgrounds: playgrounds)
+                                         pbxproj: pbxproj)
 
         let main = subject.sortedMain
         XCTAssertNil(main.path)
@@ -83,31 +72,10 @@ final class ProjectGroupsTests: XCTestCase {
         XCTAssertEqual(subject.products.name, "Products")
         XCTAssertNil(subject.products.path)
         XCTAssertEqual(subject.products.sourceTree, .group)
-
-        XCTAssertNotNil(subject.playgrounds)
-        XCTAssertTrue(main.children.contains(subject.playgrounds!))
-        XCTAssertEqual(subject.playgrounds?.path, "Playgrounds")
-        XCTAssertNil(subject.playgrounds?.name)
-        XCTAssertEqual(subject.playgrounds?.sourceTree, .group)
-    }
-
-    func test_generate_when_there_are_no_playgrounds() {
-        playgrounds.pathsStub = { _ in
-            []
-        }
-        subject = ProjectGroups.generate(project: project,
-                                         pbxproj: pbxproj,
-                                         playgrounds: playgrounds)
-
-        XCTAssertNil(subject.playgrounds)
     }
 
     func test_generate_groupsOrder() throws {
         // Given
-        playgrounds.pathsStub = { _ in
-            [AbsolutePath("/Playgrounds/Test.playground")]
-        }
-
         let target1 = Target.test(filesGroup: .group(name: "B"))
         let target2 = Target.test(filesGroup: .group(name: "C"))
         let target3 = Target.test(filesGroup: .group(name: "A"))
@@ -117,8 +85,7 @@ final class ProjectGroupsTests: XCTestCase {
 
         // When
         subject = ProjectGroups.generate(project: project,
-                                         pbxproj: pbxproj,
-                                         playgrounds: playgrounds)
+                                         pbxproj: pbxproj)
 
         // Then
         // swiftformat:disable preferKeyPath
@@ -137,8 +104,7 @@ final class ProjectGroupsTests: XCTestCase {
 
     func test_targetFrameworks() throws {
         subject = ProjectGroups.generate(project: project,
-                                         pbxproj: pbxproj,
-                                         playgrounds: playgrounds)
+                                         pbxproj: pbxproj)
 
         let got = try subject.targetFrameworks(target: "Test")
         XCTAssertEqual(got.name, "Test")
@@ -149,8 +115,7 @@ final class ProjectGroupsTests: XCTestCase {
     func test_projectGroup_unknownProjectGroups() throws {
         // Given
         subject = ProjectGroups.generate(project: project,
-                                         pbxproj: pbxproj,
-                                         playgrounds: playgrounds)
+                                         pbxproj: pbxproj)
 
         // When / Then
         XCTAssertThrowsSpecific(try subject.projectGroup(named: "abc"),
@@ -169,8 +134,7 @@ final class ProjectGroupsTests: XCTestCase {
                                    targets: [target1, target2, target3])
 
         subject = ProjectGroups.generate(project: project,
-                                         pbxproj: pbxproj,
-                                         playgrounds: playgrounds)
+                                         pbxproj: pbxproj)
 
         // When / Then
         XCTAssertNotNil(try? subject.projectGroup(named: "A"))

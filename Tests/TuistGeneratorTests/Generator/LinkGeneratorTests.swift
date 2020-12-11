@@ -638,7 +638,7 @@ final class LinkGeneratorTests: XCTestCase {
     }
 
     func createProjectFileElements(for targets: [Target]) -> ProjectFileElements {
-        let projectFileElements = ProjectFileElements(playgrounds: MockPlaygrounds())
+        let projectFileElements = ProjectFileElements()
         targets.forEach {
             projectFileElements.products[$0.name] = PBXFileReference(path: $0.productNameWithExtension)
         }
