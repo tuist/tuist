@@ -47,7 +47,6 @@ public extension Target {
                filesGroup: filesGroup,
                dependencies: dependencies,
                scripts: scripts,
-               launchArguments: launchArguments,
                playgrounds: playgrounds)
     }
 

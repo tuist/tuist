@@ -101,8 +101,8 @@ extension TuistCore.Target {
                                 playgrounds: playgrounds)
     }
 
-    fileprivate static func sourcesAndPlaygrounds(manifest: ProjectDescription.Target, targetName: String, generatorPaths: GeneratorPaths) throws -> (sources: [TuistCore.Target.SourceFile], playgrounds: [AbsolutePath]) {
-        var sourcesWithoutPlaygrounds: [(path: AbsolutePath, compilerFlags: String?)] = []
+    fileprivate static func sourcesAndPlaygrounds(manifest: ProjectDescription.Target, targetName: String, generatorPaths: GeneratorPaths) throws -> (sources: [TuistCore.SourceFile], playgrounds: [AbsolutePath]) {
+        var sourcesWithoutPlaygrounds: [TuistCore.SourceFile] = []
         var playgrounds: Set<AbsolutePath> = []
 
         // Sources
@@ -112,11 +112,12 @@ extension TuistCore.Target {
             return TuistCore.SourceFileGlob(glob: globPath, excluding: excluding, compilerFlags: glob.compilerFlags)
         } ?? [])
 
-        allSources.forEach { path, compilerFlags in
-            if path.pathString.range(of: "\\.playground/Contents\\.swift$", options: .regularExpression) == nil {
-                sourcesWithoutPlaygrounds.append((path: path, compilerFlags: compilerFlags))
+        
+        allSources.forEach { sourceFile in
+            if sourceFile.path.pathString.range(of: "\\.playground/Contents\\.swift$", options: .regularExpression) == nil {
+                sourcesWithoutPlaygrounds.append(sourceFile)
             } else {
-                playgrounds.insert(path.parentDirectory)
+                playgrounds.insert(sourceFile.path.parentDirectory)
             }
         }
 
