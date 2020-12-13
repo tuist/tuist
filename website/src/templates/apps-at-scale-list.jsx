@@ -1,7 +1,7 @@
 /** @jsx jsx */
 import { jsx, Styled, useThemeUI } from 'theme-ui'
 
-import Layout from '../components/layout'
+import OldLayout from '../components/old-layout'
 import { Link } from 'gatsby'
 import { graphql } from 'gatsby'
 import Main from '../components/main'
@@ -134,7 +134,7 @@ const AppsAtScaleList = ({
     'Learn how different companies in the industries are doing app development at scale through a series of interviews to industry leaders.'
 
   return (
-    <Layout>
+    <OldLayout>
       <BreadcrumbJsonLd itemListElements={breadcrumb} />
       <SEO title="Apps at scale" description={description} />
       <BlogJsonLd
@@ -171,7 +171,7 @@ const AppsAtScaleList = ({
         })}
         <PostsFooter {...pageContext} />
       </Main>
-    </Layout>
+    </OldLayout>
   )
 }
 

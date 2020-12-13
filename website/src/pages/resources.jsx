@@ -1,7 +1,7 @@
 /** @jsx jsx */
 import { jsx, Styled } from 'theme-ui'
 import { useStaticQuery, graphql } from 'gatsby'
-import Layout from '../components/layout'
+import OldLayout from '../components/old-layout'
 import Main from '../components/main'
 import { MDXRenderer } from 'gatsby-plugin-mdx'
 import { FAQJsonLd, GatsbySeo } from 'gatsby-plugin-next-seo'
@@ -161,7 +161,7 @@ export default () => {
     }
   `)
   return (
-    <Layout>
+    <OldLayout>
       <SEO title="Resources" />
       <GatsbySeo
         title="Resources"
@@ -185,6 +185,6 @@ export default () => {
         </Styled.p>
         <Table resources={resources} />
       </Main>
-    </Layout>
+    </OldLayout>
   )
 }

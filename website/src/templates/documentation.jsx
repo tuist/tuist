@@ -3,7 +3,7 @@ import { jsx } from 'theme-ui'
 import { useState, useRef } from 'react'
 import { MDXRenderer } from 'gatsby-plugin-mdx'
 import { graphql, Link, withPrefix } from 'gatsby'
-import Layout from '../components/layout'
+import OldLayout from '../components/old-layout'
 import { ArticleJsonLd, BreadcrumbJsonLd } from 'gatsby-plugin-next-seo'
 import urljoin from 'url-join'
 import moment from 'moment'
@@ -49,7 +49,7 @@ const DocumentationPage = (
   const page = mdx
   const [menuOpen, setMenuOpen] = useState(false)
   return (
-    <Layout menuOpen={menuOpen} setMenuOpen={setMenuOpen} menuRef={ref}>
+    <OldLayout menuOpen={menuOpen} setMenuOpen={setMenuOpen} menuRef={ref}>
       <SEO
         title={page.frontmatter.name}
         description={page.frontmatter.excerpt}
@@ -137,7 +137,7 @@ const DocumentationPage = (
           <MDXRenderer>{page.body}</MDXRenderer>
         </div>
       </div>
-    </Layout>
+    </OldLayout>
   )
 }
 

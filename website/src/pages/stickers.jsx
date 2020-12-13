@@ -1,7 +1,7 @@
 /** @jsx jsx */
 import { jsx, Styled } from 'theme-ui'
 import { useStaticQuery, graphql } from 'gatsby'
-import Layout from '../components/layout'
+import OldLayout from '../components/old-layout'
 import Main from '../components/main'
 import { GatsbySeo } from 'gatsby-plugin-next-seo'
 import SEO from '../components/SEO'
@@ -167,7 +167,7 @@ export default () => {
     }
   `)
   return (
-    <Layout>
+    <OldLayout>
       <SEO
         title="Stickers"
         openGraph={{
@@ -198,6 +198,6 @@ export default () => {
           <Form />
         </div>
       </Main>
-    </Layout>
+    </OldLayout>
   )
 }

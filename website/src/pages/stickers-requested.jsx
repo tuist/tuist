@@ -1,6 +1,6 @@
 /** @jsx jsx */
 import { jsx, Styled } from 'theme-ui'
-import Layout from '../components/layout'
+import OldLayout from '../components/old-layout'
 import Main from '../components/main'
 import { GatsbySeo } from 'gatsby-plugin-next-seo'
 import SEO from '../components/SEO'
@@ -8,7 +8,7 @@ import Stickers from '../../assets/stickers.svg'
 
 export default () => {
   return (
-    <Layout>
+    <OldLayout>
       <SEO title="Stickers" />
       <GatsbySeo
         title="Stickers requested"
@@ -25,6 +25,6 @@ export default () => {
           <Stickers sx={{ height: 200, width: 200, margin: 'auto' }} />
         </div>
       </Main>
-    </Layout>
+    </OldLayout>
   )
 }

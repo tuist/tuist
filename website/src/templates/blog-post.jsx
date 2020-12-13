@@ -2,7 +2,7 @@
 import { jsx, Styled, useThemeUI } from 'theme-ui'
 import { MDXRenderer } from 'gatsby-plugin-mdx'
 
-import Layout from '../components/layout'
+import OldLayout from '../components/old-layout'
 import { graphql } from 'gatsby'
 import moment from 'moment'
 import Main from '../components/main'
@@ -123,7 +123,7 @@ const IndexPage = ({
     },
   ]
   return (
-    <Layout>
+    <OldLayout>
       <BreadcrumbJsonLd itemListElements={breadcrumb} />
       <NewsArticleJsonLd
         url={urljoin(siteUrl, post.fields.slug)}
@@ -176,7 +176,7 @@ const IndexPage = ({
           title={post.frontmatter.title}
         />
       </Main>
-    </Layout>
+    </OldLayout>
   )
 }
 

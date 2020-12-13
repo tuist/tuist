@@ -1,7 +1,7 @@
 /** @jsx jsx */
 import { jsx, Styled, useThemeUI } from 'theme-ui'
 
-import Layout from '../components/layout'
+import OldLayout from '../components/old-layout'
 import { Link } from 'gatsby'
 import { graphql } from 'gatsby'
 import Main from '../components/main'
@@ -161,7 +161,7 @@ const BlogList = ({
     'Read about Tuist updates: new releases, engineering challenges, and road-map updates.'
 
   return (
-    <Layout>
+    <OldLayout>
       <BreadcrumbJsonLd itemListElements={breadcrumb} />
       <SEO title="Blog" description={description} />
       <BlogJsonLd
@@ -197,7 +197,7 @@ const BlogList = ({
         })}
         <PostsFooter {...pageContext} />
       </Main>
-    </Layout>
+    </OldLayout>
   )
 }
 

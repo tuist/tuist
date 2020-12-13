@@ -1,7 +1,7 @@
 /** @jsx jsx */
 import { jsx, Styled } from 'theme-ui'
 import { useStaticQuery, graphql } from 'gatsby'
-import Layout from '../components/layout'
+import OldLayout from '../components/old-layout'
 import Main from '../components/main'
 import { MDXRenderer } from 'gatsby-plugin-mdx'
 import { GatsbySeo } from 'gatsby-plugin-next-seo'
@@ -18,7 +18,7 @@ export default () => {
     }
   `)
   return (
-    <Layout>
+    <OldLayout>
       <SEO title="Privacy Policy" />
       <GatsbySeo
         title="Privacy Policy"
@@ -29,6 +29,6 @@ export default () => {
         <Styled.h1>Privacy Policy</Styled.h1>
         <MDXRenderer>{markdownBody}</MDXRenderer>
       </Main>
-    </Layout>
+    </OldLayout>
   )
 }
