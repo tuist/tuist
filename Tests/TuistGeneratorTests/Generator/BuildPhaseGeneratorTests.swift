@@ -644,6 +644,8 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         system.swiftVersionStub = { "5.2" }
         let fileElements = ProjectFileElements([:], playgrounds: MockPlaygrounds())
         let graph = Graph.test()
+        let valueGraph = ValueGraph(graph: graph)
+        let graphTraverser = ValueGraphTraverser(graph: valueGraph)
         let path = AbsolutePath("/test")
         let pbxproj = PBXProj()
         let pbxProject = createPbxProject(pbxproj: pbxproj)
@@ -658,7 +660,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
                                             pbxproj: pbxproj,
                                             playgrounds: MockPlaygrounds())
         try fileElements.generateProjectFiles(project: project,
-                                              graph: graph,
+                                              graphTraverser: graphTraverser,
                                               groups: groups,
                                               pbxproj: pbxproj)
 
@@ -670,7 +672,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
                                                              projectSettings: Settings.test(),
                                                              fileElements: fileElements,
                                                              path: path,
-                                                             graph: graph)
+                                                             graphTraverser: graphTraverser)
 
         // Then
         let preBuildPhase = try XCTUnwrap(pbxTarget.buildPhases.first as? PBXShellScriptBuildPhase)

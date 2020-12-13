@@ -137,7 +137,9 @@ class Generator: Generating {
         try lint(graph: graph)
 
         // Generate
-        let projectDescriptor = try generator.generateProject(project: project, graph: graph)
+        let valueGraph = ValueGraph(graph: graph)
+        let graphTraverser = ValueGraphTraverser(graph: valueGraph)
+        let projectDescriptor = try generator.generateProject(project: project, graphTraverser: graphTraverser)
 
         // Write
         try writer.write(project: projectDescriptor)
@@ -159,7 +161,9 @@ class Generator: Generating {
         try lint(graph: graph)
 
         // Generate
-        let workspaceDescriptor = try generator.generateWorkspace(graph: graph)
+        let valueGraph = ValueGraph(graph: graph)
+        let graphTraverser = ValueGraphTraverser(graph: valueGraph)
+        let workspaceDescriptor = try generator.generateWorkspace(graphTraverser: graphTraverser)
 
         // Write
         try writer.write(workspace: workspaceDescriptor)
@@ -181,7 +185,9 @@ class Generator: Generating {
         try lint(graph: graph)
 
         // Generate
-        let workspaceDescriptor = try generator.generateWorkspace(graph: graph)
+        let valueGraph = ValueGraph(graph: graph)
+        let graphTraverser = ValueGraphTraverser(graph: valueGraph)
+        let workspaceDescriptor = try generator.generateWorkspace(graphTraverser: graphTraverser)
 
         // Write
         try writer.write(workspace: workspaceDescriptor)

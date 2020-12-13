@@ -43,7 +43,9 @@ final class TuistGeneratorPerformanceTests: TuistTestCase {
 
                 // When
                 startMeasuring()
-                _ = try subject.generateWorkspace(graph: graph)
+                let valueGraph = ValueGraph(graph: graph)
+                let graphTraverser = ValueGraphTraverser(graph: valueGraph)
+                _ = try subject.generateWorkspace(graphTraverser: graphTraverser)
                 stopMeasuring()
 
             } catch {

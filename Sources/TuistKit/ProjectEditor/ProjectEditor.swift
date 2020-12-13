@@ -126,7 +126,9 @@ final class ProjectEditor: ProjectEditing {
 
         let (mappedProject, sideEffects) = try projectMapper.map(project: project)
         try sideEffectDescriptorExecutor.execute(sideEffects: sideEffects)
-        let descriptor = try generator.generateProject(project: mappedProject, graph: graph)
+        let valueGraph = ValueGraph(graph: graph)
+        let graphTraverser = ValueGraphTraverser(graph: valueGraph)
+        let descriptor = try generator.generateProject(project: mappedProject, graphTraverser: graphTraverser)
         try writer.write(project: descriptor)
         return descriptor.xcodeprojPath
     }

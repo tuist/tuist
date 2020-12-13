@@ -4,6 +4,11 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Fixed
+
+- Missing required module 'XXX' when building project with cached dependencies [#2051](https://github.com/tuist/tuist/pull/2051) by [@mollyIV](https://github.com/mollyIV).
+- Fix default generated scheme arguments [#2128](https://github.com/tuist/tuist/pull/2128) by [@kwridan](https://github.com/kwridan)
+
 ## 1.27.0 - Hawái
 
 ### Added
@@ -22,6 +27,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Use project generated for automation and always leverage `XXX-Scheme` [#2057](https://github.com/tuist/tuist/pull/2057) by [@fortmarek](https://github.com/fortmarek)
 - Generate multiple `XXX-Project` schemes if there are multiple platforms [#2081](https://github.com/tuist/tuist/pull/2081) by [@fortmarek](https://github.com/fortmarek)
+- Generators to take in the graph as `GraphTraversing` instead of `Graph` [#2110](https://github.com/tuist/tuist/pull/2110) by [@pepibumur](https://github.com/pepibumur)
 
 ## 1.26.0 - New World
 

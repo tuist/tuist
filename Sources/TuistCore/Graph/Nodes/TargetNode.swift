@@ -88,12 +88,13 @@ public class TargetNode: GraphNode {
         dependencies.lazy.compactMap { $0 as? TargetNode }
     }
 
-    public var precompiledDependencies: [PrecompiledNode] {
-        dependencies.lazy.compactMap { $0 as? PrecompiledNode }
-    }
-
     public var packages: [PackageProductNode] {
         dependencies.lazy.compactMap { $0 as? PackageProductNode }
+    }
+
+    public var recursivePrecompiledDependencies: [PrecompiledNode] {
+        let precompiledDependencies = dependencies.lazy.compactMap { $0 as? PrecompiledNode }
+        return Array(Set(precompiledDependencies.flatMap(recursiveNodeDependencies)))
     }
 
     public var libraryDependencies: [LibraryNode] {
@@ -112,4 +113,10 @@ public class TargetNode: GraphNode {
     public var dependsOnXCTest: Bool {
         sdkDependencies.contains(where: { $0.name == "XCTest" }) || target.product.testsBundle
     }
+}
+
+private func recursiveNodeDependencies(_ node: PrecompiledNode) -> [PrecompiledNode] {
+    var nodes: [PrecompiledNode] = [node]
+    nodes.append(contentsOf: node.nodeDependencies.flatMap(recursiveNodeDependencies))
+    return nodes
 }

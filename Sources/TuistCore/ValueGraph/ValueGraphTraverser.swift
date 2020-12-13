@@ -107,21 +107,6 @@ public class ValueGraphTraverser: GraphTraversing {
             .map { .product(target: $0.name, productName: $0.productNameWithExtension) } ?? [])
     }
 
-    /// It traverses the depdency graph and returns all the dependencies.
-    /// - Parameter path: Path to the project from where traverse the dependency tree.
-    public func allDependencies(path: AbsolutePath) -> Set<ValueGraphDependency> {
-        guard let targets = graph.targets[path]?.values else { return Set() }
-
-        var references = Set<ValueGraphDependency>()
-
-        targets.forEach { target in
-            let dependency = ValueGraphDependency.target(name: target.name, path: path)
-            references.formUnion(filterDependencies(from: dependency))
-        }
-
-        return references
-    }
-
     public func embeddableFrameworks(path: AbsolutePath, name: String) -> Set<GraphDependencyReference> {
         guard let target = self.target(path: path, name: name), canEmbedProducts(target: target.target) else { return Set() }
 
@@ -190,10 +175,16 @@ public class ValueGraphTraverser: GraphTraversing {
         references.formUnion(directSystemLibrariesAndFrameworks)
 
         // Precompiled libraries and frameworks
-        let precompiledLibrariesAndFrameworks = graph.dependencies[.target(name: name, path: path), default: []]
+        let precompiled = graph.dependencies[.target(name: name, path: path), default: []]
             .lazy
             .filter(\.isPrecompiled)
+
+        let precompiledDependencies = precompiled
+            .flatMap { filterDependencies(from: $0) }
+
+        let precompiledLibrariesAndFrameworks = Set(precompiled + precompiledDependencies)
             .compactMap(dependencyReference)
+
         references.formUnion(precompiledLibrariesAndFrameworks)
 
         // Static libraries and frameworks / Static libraries' dynamic libraries
@@ -317,6 +308,20 @@ public class ValueGraphTraverser: GraphTraversing {
             let valueGraphTarget = ValueGraphTarget(path: path, target: target, project: project)
             return dependsOnTarget ? valueGraphTarget : nil
         }.first
+    }
+
+    public func allProjectDependencies(path: AbsolutePath) throws -> Set<GraphDependencyReference> {
+        let targets = self.targets(at: path)
+        if targets.isEmpty { return Set() }
+        var references: Set<GraphDependencyReference> = Set()
+
+        // Linkable dependencies
+        try targets.forEach { target in
+            try references.formUnion(self.linkableDependencies(path: path, name: target.target.name))
+            references.formUnion(self.embeddableFrameworks(path: path, name: target.target.name))
+            references.formUnion(self.copyProductDependencies(path: path, name: target.target.name))
+        }
+        return references
     }
 
     // MARK: - Internal

@@ -280,4 +280,22 @@ final class MockGraphTraverser: GraphTraversing {
         invokedHostTargetForParametersList.append((path, name))
         return stubbedHostTargetForResult
     }
+
+    var invokedAllProjectDependencies = false
+    var invokedAllProjectDependenciesCount = 0
+    var invokedAllProjectDependenciesParameters: (path: AbsolutePath, Void)?
+    var invokedAllProjectDependenciesParametersList = [(path: AbsolutePath, Void)]()
+    var stubbedAllProjectDependenciesError: Error?
+    var stubbedAllProjectDependenciesResult: Set<GraphDependencyReference>! = []
+
+    func allProjectDependencies(path: AbsolutePath) throws -> Set<GraphDependencyReference> {
+        invokedAllProjectDependencies = true
+        invokedAllProjectDependenciesCount += 1
+        invokedAllProjectDependenciesParameters = (path, ())
+        invokedAllProjectDependenciesParametersList.append((path, ()))
+        if let error = stubbedAllProjectDependenciesError {
+            throw error
+        }
+        return stubbedAllProjectDependenciesResult
+    }
 }

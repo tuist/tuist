@@ -489,7 +489,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         let fileElements = ProjectFileElements()
         let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj)
         try fileElements.generateProjectFiles(project: project,
-                                              graph: graph,
+                                              graphTraverser: graphTraverser,
                                               groups: groups,
                                               pbxproj: pbxproj)
         _ = try subject.generateTargetConfig(target,
