@@ -13,10 +13,11 @@ final class AutomationWorkspaceMapperProviderTests: TuistUnitTestCase {
     private var subject: AutomationWorkspaceMapperProvider!
     private var workspaceMapperProvider: MockWorkspaceMapperProvider!
 
-    override func setUp() {
-        super.setUp()
+    override func setUpWithError() throws {
+        try super.setUpWithError()
         workspaceMapperProvider = .init()
         subject = AutomationWorkspaceMapperProvider(
+            workspaceDirectory: try temporaryPath(),
             workspaceMapperProvider: workspaceMapperProvider
         )
     }

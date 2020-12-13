@@ -12,11 +12,10 @@ final class AutomationPathProjectMapperTests: TuistUnitTestCase {
     private var subject: AutomationPathProjectMapper!
     private var contentHasher: MockContentHasher!
 
-    override func setUp() {
-        super.setUp()
-        contentHasher = .init()
+    override func setUpWithError() throws {
+        try super.setUpWithError()
         subject = .init(
-            contentHasher: contentHasher
+            xcodeProjDirectory: try temporaryPath()
         )
     }
 

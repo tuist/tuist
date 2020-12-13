@@ -9,7 +9,7 @@ public final class MockBuildGraphInspector: BuildGraphInspecting {
     public init() {}
     public var workspacePathStub: ((AbsolutePath) -> AbsolutePath?)?
     public func workspacePath(directory: AbsolutePath) -> AbsolutePath? {
-        workspacePathStub?(directory) ?? nil
+        workspacePathStub?(directory) ?? directory
     }
 
     public var buildableTargetStub: ((Scheme, Graph) -> Target?)?

@@ -14,13 +14,13 @@ final class AutomationProjectMapperProviderTests: TuistUnitTestCase {
     private var contentHasher: MockContentHasher!
     private var projectMapperProvider: MockProjectMapperProvider!
 
-    override func setUp() {
-        super.setUp()
+    override func setUpWithError() throws {
+        try super.setUpWithError()
         contentHasher = .init()
         projectMapperProvider = .init()
         subject = AutomationProjectMapperProvider(
-            projectMapperProvider: projectMapperProvider,
-            contentHasher: contentHasher
+            xcodeProjDirectory: try temporaryPath(),
+            projectMapperProvider: projectMapperProvider
         )
     }
 

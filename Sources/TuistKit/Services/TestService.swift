@@ -58,13 +58,11 @@ final class TestService {
             temporaryDirectory: temporaryDirectory,
             generator: Generator(
                 projectMapperProvider: AutomationProjectMapperProvider(
-//                    xcodeProjDirectory: temporaryDirectory.path
-                    xcodeProjDirectory: AbsolutePath("/Users/marekfort/Downloads/tmp")
+                    xcodeProjDirectory: temporaryDirectory.path
                 ),
                 graphMapperProvider: GraphMapperProvider(),
                 workspaceMapperProvider: AutomationWorkspaceMapperProvider(
-//                    workspaceDirectory: temporaryDirectory.path
-                    workspaceDirectory: AbsolutePath("/Users/marekfort/Downloads/tmp")
+                    workspaceDirectory: temporaryDirectory.path
                 ),
                 manifestLoaderFactory: ManifestLoaderFactory()
             )
@@ -108,15 +106,25 @@ final class TestService {
 
         let testSchemes: [Scheme]
         if let schemeName = schemeName {
-            guard let scheme = testableSchemes.first(where: { $0.name == schemeName }) else {
-                throw TestServiceError.schemeNotFound(scheme: schemeName, existing: testableSchemes.map(\.name))
+            guard
+                let scheme = testableSchemes.first(where: { $0.name == schemeName })
+            else {
+                throw TestServiceError.schemeNotFound(
+                    scheme: schemeName,
+                    existing: testableSchemes.map(\.name)
+                )
             }
             testSchemes = [scheme]
         } else {
             testSchemes = buildGraphInspector.projectSchemes(graph: graph)
             guard
                 !testSchemes.isEmpty
-            else { throw TestServiceError.schemeNotFound(scheme: "\(graph.workspace.name)-Project", existing: testableSchemes.map(\.name)) }
+            else {
+                throw TestServiceError.schemeNotFound(
+                    scheme: "\(graph.workspace.name)-Project",
+                    existing: testableSchemes.map(\.name)
+                )
+            }
         }
 
         try testSchemes.forEach { testScheme in
@@ -189,7 +197,10 @@ final class TestService {
             } else {
                 minVersion = scheme.targetDependencies()
                     .compactMap { graph.findTargetNode(path: $0.projectPath, name: $0.name) }
-                    .flatMap { $0.targetDependencies.compactMap { $0.target.deploymentTarget?.version } }
+                    .flatMap {
+                        $0.targetDependencies
+                            .compactMap { $0.target.deploymentTarget?.version }
+                    }
                     .compactMap { $0.version() }
                     .sorted()
                     .first

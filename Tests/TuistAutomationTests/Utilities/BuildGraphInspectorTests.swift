@@ -379,4 +379,54 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(got, workspacePath)
     }
+    
+    func test_projectSchemes_when_multiple_platforms() {
+        // Given
+        let graph: Graph = .test(
+            workspace: .test(
+                name: "WorkspaceName",
+                schemes: [
+                    .test(name: "WorkspaceName"),
+                    .test(name: "WorkspaceName-Project-iOS"),
+                    .test(name: "WorkspaceName-Project-macOS"),
+                ]
+            )
+        )
+        
+        // When
+        let got = subject.projectSchemes(graph: graph)
+        
+        // Then
+        XCTAssertEqual(
+            got,
+            [
+                .test(name: "WorkspaceName-Project-iOS"),
+                .test(name: "WorkspaceName-Project-macOS"),
+            ]
+        )
+    }
+    
+    func test_projectSchemes_when_single_platform() {
+        // Given
+        let graph: Graph = .test(
+            workspace: .test(
+                name: "WorkspaceName",
+                schemes: [
+                    .test(name: "WorkspaceName"),
+                    .test(name: "WorkspaceName-Project"),
+                ]
+            )
+        )
+        
+        // When
+        let got = subject.projectSchemes(graph: graph)
+        
+        // Then
+        XCTAssertEqual(
+            got,
+            [
+                .test(name: "WorkspaceName-Project"),
+            ]
+        )
+    }
 }
