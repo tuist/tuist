@@ -55,7 +55,7 @@
     "moment": "^2.29.1",
     "polished": "^4.0.5",
     "postcss": "^8.2.1",
-    "prettier": "^2.1.1",
+    "prettier": "^2.2.1",
     "prismjs": "^1.22.0",
     "prop-types": "^15.7.2",
     "react": "^16.14.0",
