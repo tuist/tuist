@@ -225,5 +225,6 @@ module.exports = {
         cookieDomain: 'tuist.io',
       },
     },
+    `gatsby-plugin-typescript`,
   ],
 }
