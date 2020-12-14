@@ -6,7 +6,9 @@
     "jsx": "react",
     "lib": ["ES2019"],
     "module": "commonjs",
-    "target": "ES2019"
+    "target": "ES2019",
+    "skipLibCheck": true,
+    "esModuleInterop": true
   },
   "include": ["./src/**/*"]
 }

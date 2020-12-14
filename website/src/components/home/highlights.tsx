@@ -1,6 +1,10 @@
 import React from 'react'
 
-const Highlight = ({ title, description }) => {
+type HighlightProps = {
+  title: string
+  description: string
+}
+const Highlight = ({ title, description }: HighlightProps) => {
   return (
     <article>
       <header>{title}</header>
@@ -9,7 +13,7 @@ const Highlight = ({ title, description }) => {
   )
 }
 
-const Highlights = () => {
+const Highlights = (): JSX.Element => {
   return (
     <div className="max-w-70 mx-auto flex flex-row">
       <Highlight
