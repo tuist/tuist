@@ -1,0 +1,32 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`Higlights renders the right HTML 1`] = `
+<div
+  className="max-w-70 mx-auto flex flex-row"
+>
+  <article>
+    <header>
+      Swift manifest
+    </header>
+    <div>
+      Define projects using a simple Swift DSL inside Xcode
+    </div>
+  </article>
+  <article>
+    <header>
+      Project description helpers
+    </header>
+    <div>
+      Create your own abstrations to make your projects consistent
+    </div>
+  </article>
+  <article>
+    <header>
+      Scaffold
+    </header>
+    <div>
+      Automate feature creation by generating a target pre-configured with everything you need
+    </div>
+  </article>
+</div>
+`;
