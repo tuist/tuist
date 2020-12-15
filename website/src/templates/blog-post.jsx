@@ -6,7 +6,6 @@ import Layout from '../components/layout'
 import { graphql } from 'gatsby'
 import moment from 'moment'
 import Main from '../components/main'
-import EditPage from '../components/edit-page'
 import Share from '../components/share'
 import urljoin from 'url-join'
 import SEO from '../components/SEO'
@@ -171,7 +170,6 @@ const IndexPage = ({
         <div sx={{ pb: 4 }}>
           <MDXRenderer>{post.body}</MDXRenderer>
         </div>
-        <EditPage path={post.fields.path} />
         <Share
           path={post.fields.slug}
           tags={post.frontmatter.categories}

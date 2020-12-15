@@ -1,5 +1,5 @@
 /** @jsx jsx */
-import { jsx, Styled } from 'theme-ui'
+import { jsx } from 'theme-ui'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faFolder, faFileCode } from '@fortawesome/free-regular-svg-icons'
 import { faSwift } from '@fortawesome/free-brands-svg-icons'
