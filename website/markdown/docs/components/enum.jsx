@@ -23,7 +23,7 @@ const EnumTable = ({ cases }) => {
             {cases.map((prop, index) => {
               return (
                 <tr key={index}>
-                  <td className={`${cellStyle}`}>
+                  <td className={cellStyle}>
                     <Styled.inlineCode>{prop.case}</Styled.inlineCode>
                     <div className="block mt-2 md:mt-0 md:hidden">
                       <ReactMarkdown source={prop.description} />

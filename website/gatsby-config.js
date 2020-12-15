@@ -71,7 +71,6 @@ module.exports = {
     },
     `gatsby-plugin-sharp`,
     `gatsby-plugin-sitemap`,
-    `gatsby-plugin-offline`,
     `gatsby-plugin-theme-ui`,
     `gatsby-transformer-yaml`,
     {

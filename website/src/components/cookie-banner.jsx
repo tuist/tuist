@@ -1,8 +1,6 @@
 /** @jsx jsx */
 import { jsx } from '@emotion/core'
-import React from 'react'
 import { Link } from 'gatsby'
-import tw from 'twin.macro'
 import { useCookies } from 'react-cookie'
 
 const CookieBanner = () => {
@@ -21,7 +19,7 @@ const CookieBanner = () => {
                 <p className="ml-3 font-medium text-white text-wrap">
                   <span className="inline">
                     By using this website, you agree to our{' '}
-                    <Link css={[tw`underline`, tw`text-white`]} to="/cookies">
+                    <Link className={`underline text-wite`} to="/cookies">
                       cookie policy
                     </Link>
                     .

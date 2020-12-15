@@ -2,7 +2,6 @@
 import { jsx, Styled } from 'theme-ui'
 import React from 'react'
 import ReactMarkdown from 'react-markdown'
-import tw from 'twin.macro'
 
 const Message = ({ title, description, info, warning }) => {
   let backgroundColor
@@ -10,25 +9,25 @@ const Message = ({ title, description, info, warning }) => {
   let titleColor
   let textColor
   if (info) {
-    backgroundColor = tw`bg-blue-100`
-    iconColor = tw`text-blue-400`
-    titleColor = tw`text-blue-800`
-    textColor = tw`text-blue-700`
+    backgroundColor = `bg-blue-100`
+    iconColor = `text-blue-400`
+    titleColor = `text-blue-800`
+    textColor = `text-blue-700`
   }
   if (warning) {
-    backgroundColor = tw`bg-yellow-100`
-    iconColor = tw`text-yellow-400`
-    titleColor = tw`text-yellow-800`
-    textColor = tw`text-yellow-700`
+    backgroundColor = `bg-yellow-100`
+    iconColor = `text-yellow-400`
+    titleColor = `text-yellow-800`
+    textColor = `text-yellow-700`
   }
 
   return (
-    <div css={[tw`my-6`]}>
-      <div css={[backgroundColor, tw`rounded-md p-4`]}>
-        <div css={[tw`flex`]}>
-          <div css={[tw`flex-shrink-0`]}>
+    <div className="my-6">
+      <div className={`${backgroundColor} rounded-md p-4`}>
+        <div className="flex">
+          <div className="flex-shrink-0">
             <svg
-              css={[iconColor, tw`h-5 w-5`, warning ? tw`block` : tw`hidden`]}
+              className={`${iconColor} h=5 w-5 ${warning ? 'block' : 'hidden'}`}
               viewBox="0 0 20 20"
               fill="currentColor"
             >
@@ -39,7 +38,7 @@ const Message = ({ title, description, info, warning }) => {
               />
             </svg>
             <svg
-              css={[iconColor, tw`h-5 w-5`, info ? tw`block` : tw`hidden`]}
+              className={`${iconColor} h-5 w-5 ${info ? 'block' : 'hidden'}`}
               viewBox="0 0 20 20"
               fill="currentColor"
             >
@@ -50,11 +49,11 @@ const Message = ({ title, description, info, warning }) => {
               />
             </svg>
           </div>
-          <div css={[tw`ml-3`]}>
-            <h3 css={[titleColor, tw`text-sm leading-5 font-medium`]}>
+          <div className="ml-3">
+            <h3 className={`${titleColor} text-sm leading-5 font-medium`}>
               {title}
             </h3>
-            <div css={[textColor, tw`mt-2 text-sm leading-5`]}>
+            <div className={`${textColor} mt-2 text-sm leading-5`}>
               <ReactMarkdown source={description} />
             </div>
           </div>
