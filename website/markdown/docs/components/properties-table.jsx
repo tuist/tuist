@@ -44,7 +44,7 @@ const PropertiesTable = ({ properties }) => {
                   key={index}
                   className={index % 2 == 0 ? `bg-white` : `bg-gray-100`}
                 >
-                  <td css={[cellStyle]}>
+                  <td className={cellStyle}>
                     <div className="font-bold pl-3 md:font-normal">
                       {prop.name}
                     </div>
