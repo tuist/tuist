@@ -113,10 +113,10 @@ extension TuistCore.Target {
         } ?? [])
 
         allSources.forEach { sourceFile in
-            if sourceFile.path.pathString.range(of: "\\.playground/.+$", options: .regularExpression) == nil {
-                sourcesWithoutPlaygrounds.append(sourceFile)
+            if sourceFile.path.pathString.contains(".playground/") {
+                playgrounds.insert(sourceFile.path.upToComponentMatching(extension: "playground"))
             } else {
-                playgrounds.insert(sourceFile.path.upToComponentMatching(regex: ".+\\.playground"))
+                sourcesWithoutPlaygrounds.append(sourceFile)
             }
         }
 

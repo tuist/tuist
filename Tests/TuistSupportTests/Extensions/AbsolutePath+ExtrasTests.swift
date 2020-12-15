@@ -63,12 +63,23 @@ final class AbsolutePathExtrasTests: TuistUnitTestCase {
         XCTAssertThrowsSpecific(try dir.throwingGlob("invalid/path/**/*"), GlobError.nonExistentDirectory(InvalidGlob(pattern: dir.appending(RelativePath("invalid/path/**/*")).pathString, nonExistentPath: dir.appending(RelativePath("invalid/path/")))))
     }
 
-    func test_upToComponentMatching() throws {
+    func test_upToComponentMatchingRegex() throws {
         // Given
         let path = AbsolutePath("/path/to/sources/Playground.playground/Content.swift")
 
         // When
         let got = path.upToComponentMatching(regex: ".+\\.playground")
+
+        // Then
+        XCTAssertEqual(got, "/path/to/sources/Playground.playground")
+    }
+
+    func test_upToComponentMatchingExtension() throws {
+        // Given
+        let path = AbsolutePath("/path/to/sources/Playground.playground/Content.swift")
+
+        // When
+        let got = path.upToComponentMatching(extension: "playground")
 
         // Then
         XCTAssertEqual(got, "/path/to/sources/Playground.playground")

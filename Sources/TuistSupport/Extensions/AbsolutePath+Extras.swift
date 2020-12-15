@@ -113,6 +113,15 @@ extension AbsolutePath {
         }
     }
 
+    public func upToComponentMatching(extension: String) -> AbsolutePath {
+        if isRoot { return self }
+        if self.extension == `extension` {
+            return self
+        } else {
+            return parentDirectory.upToComponentMatching(extension: `extension`)
+        }
+    }
+
     public var upToLastNonGlob: AbsolutePath {
         guard let index = components.firstIndex(where: { $0.isGlobComponent }) else {
             return self
