@@ -120,7 +120,7 @@ final class XcodeProjWriterTests: TuistTestCase {
 
         // Then
         let fileHandler = FileHandler.shared
-        let schemes = fileHandler.glob(xcodeProjPath, glob: "**/*.xcscheme").map { $0.basename }
+        let schemes = fileHandler.glob(xcodeProjPath, glob: "**/*.xcscheme").map(\.basename)
         XCTAssertEqual(schemes, [
             "SchemeA.xcscheme",
             "UserScheme.xcscheme",
@@ -141,7 +141,7 @@ final class XcodeProjWriterTests: TuistTestCase {
         let fileHandler = FileHandler.shared
         let username = NSUserName()
         let schemesPath = xcodeProjPath.appending(components: "xcuserdata", "\(username).xcuserdatad", "xcschemes")
-        let schemes = fileHandler.glob(schemesPath, glob: "*.xcscheme").map { $0.basename }
+        let schemes = fileHandler.glob(schemesPath, glob: "*.xcscheme").map(\.basename)
         XCTAssertEqual(schemes, [
             "UserScheme.xcscheme",
         ])

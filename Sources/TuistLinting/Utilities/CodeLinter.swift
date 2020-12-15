@@ -1,9 +1,10 @@
 import Foundation
+import RxBlocking
 import TSCBasic
 import TuistCore
 import TuistSupport
 
-protocol CodeLinting {
+public protocol CodeLinting {
     /// Lints source code in the given directory.
     /// - Parameters:
     ///   - sources: Directory in which source code will be linted.
@@ -11,12 +12,12 @@ protocol CodeLinting {
     func lint(sources: [AbsolutePath], path: AbsolutePath) throws
 }
 
-final class CodeLinter: CodeLinting {
+public final class CodeLinter: CodeLinting {
     private let rootDirectoryLocator: RootDirectoryLocating
     private let binaryLocator: BinaryLocating
 
-    init(rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator(),
-         binaryLocator: BinaryLocating = BinaryLocator())
+    public init(rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator(),
+                binaryLocator: BinaryLocating = BinaryLocator())
     {
         self.rootDirectoryLocator = rootDirectoryLocator
         self.binaryLocator = binaryLocator
@@ -24,7 +25,7 @@ final class CodeLinter: CodeLinting {
 
     // MARK: - CodeLinting
 
-    func lint(sources: [AbsolutePath], path: AbsolutePath) throws {
+    public func lint(sources: [AbsolutePath], path: AbsolutePath) throws {
         let swiftLintPath = try binaryLocator.swiftLintPath()
         let swiftLintConfigPath = self.swiftLintConfigPath(path: path)
         let swiftLintArguments = buildSwiftLintArguments(swiftLintPath: swiftLintPath,

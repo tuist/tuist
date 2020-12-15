@@ -1,13 +1,11 @@
-import Foundation
 import TSCBasic
 import TuistCore
 import TuistSupport
 import XCTest
 
 @testable import TuistCoreTesting
-@testable import TuistGeneratorTesting
-@testable import TuistKit
-@testable import TuistLoaderTesting
+@testable import TuistLinting
+@testable import TuistLintingTesting
 @testable import TuistSupportTesting
 
 final class CodeLinterTests: TuistUnitTestCase {

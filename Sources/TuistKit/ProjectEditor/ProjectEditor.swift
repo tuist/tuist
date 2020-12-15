@@ -119,14 +119,16 @@ final class ProjectEditor: ProjectEditing {
                                                            setupPath: setupPath,
                                                            configPath: configPath,
                                                            dependenciesPath: dependenciesPath,
-                                                           manifests: manifests.map { $0.1 },
+                                                           manifests: manifests.map(\.1),
                                                            helpers: helpers,
                                                            templates: templates,
                                                            projectDescriptionPath: projectDesciptionPath)
 
         let (mappedProject, sideEffects) = try projectMapper.map(project: project)
         try sideEffectDescriptorExecutor.execute(sideEffects: sideEffects)
-        let descriptor = try generator.generateProject(project: mappedProject, graph: graph)
+        let valueGraph = ValueGraph(graph: graph)
+        let graphTraverser = ValueGraphTraverser(graph: valueGraph)
+        let descriptor = try generator.generateProject(project: mappedProject, graphTraverser: graphTraverser)
         try writer.write(project: descriptor)
         return descriptor.xcodeprojPath
     }

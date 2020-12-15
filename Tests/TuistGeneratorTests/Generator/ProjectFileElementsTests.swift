@@ -296,6 +296,15 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
                                      .file(path: AbsolutePath("/project/image.png")),
                                      .folderReference(path: AbsolutePath("/project/reference")),
                                  ],
+                                 copyFiles: [
+                                     CopyFilesAction(name: "Copy Templates",
+                                                     destination: .sharedSupport,
+                                                     subpath: "Templates",
+                                                     files: [
+                                                         .file(path: "/project/tuist.rtfd"),
+                                                         .file(path: "/project/tuist.rtfd/TXT.rtf"),
+                                                     ]),
+                                 ],
                                  coreDataModels: [CoreDataModel(path: AbsolutePath("/project/model.xcdatamodeld"),
                                                                 versions: [AbsolutePath("/project/model.xcdatamodeld/1.xcdatamodel")],
                                                                 currentVersion: "1")],
@@ -319,6 +328,8 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
             GroupFileElement(path: "/project/private.h", group: target.filesGroup),
             GroupFileElement(path: "/project/model.xcdatamodeld/1.xcdatamodel", group: target.filesGroup),
             GroupFileElement(path: "/project/model.xcdatamodeld", group: target.filesGroup),
+            GroupFileElement(path: "/project/tuist.rtfd", group: target.filesGroup),
+            GroupFileElement(path: "/project/tuist.rtfd/TXT.rtf", group: target.filesGroup),
         ]))
     }
 
@@ -331,11 +342,13 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
             .test(name: "Library", product: .staticLibrary),
         ])
         let graph = Graph.test()
+        let valueGraph = ValueGraph(graph: graph)
+        let graphTraverser = ValueGraphTraverser(graph: valueGraph)
         let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj)
 
         // When
         try subject.generateProjectFiles(project: project,
-                                         graph: graph,
+                                         graphTraverser: graphTraverser,
                                          groups: groups,
                                          pbxproj: pbxproj)
 
@@ -365,11 +378,13 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
                                        xcodeProjPath: AbsolutePath.root.appending(component: "Project.xcodeproj"),
                                        targets: targets)
             let graph = Graph.test()
+            let valueGraph = ValueGraph(graph: graph)
+            let graphTraverser = ValueGraphTraverser(graph: valueGraph)
             let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj)
 
             // When
             try subject.generateProjectFiles(project: project,
-                                             graph: graph,
+                                             graphTraverser: graphTraverser,
                                              groups: groups,
                                              pbxproj: pbxproj)
 
@@ -395,11 +410,13 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
                                        .test(name: "App", product: .app),
                                    ])
         let graph = Graph.test()
+        let valueGraph = ValueGraph(graph: graph)
+        let graphTraverser = ValueGraphTraverser(graph: valueGraph)
         let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj)
 
         // When
         try subject.generateProjectFiles(project: project,
-                                         graph: graph,
+                                         graphTraverser: graphTraverser,
                                          groups: groups,
                                          pbxproj: pbxproj)
 
@@ -488,8 +505,8 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         let variantGroup = group.children.first as? PBXVariantGroup
         XCTAssertEqual(variantGroup?.name, "App.strings")
         XCTAssertNil(variantGroup?.path)
-        XCTAssertEqual(variantGroup?.children.map { $0.name }, ["en"])
-        XCTAssertEqual(variantGroup?.children.map { $0.path }, ["en.lproj/App.strings"])
+        XCTAssertEqual(variantGroup?.children.map(\.name), ["en"])
+        XCTAssertEqual(variantGroup?.children.map(\.path), ["en.lproj/App.strings"])
         XCTAssertEqual(variantGroup?.children.map { ($0 as? PBXFileReference)?.lastKnownFileType }, [
             Xcode.filetype(extension: "strings"),
         ])
@@ -654,10 +671,12 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         let package = PackageProductNode(product: "A", path: "/packages/url")
 
         let graph = createGraph(project: project, target: target, dependencies: [package])
+        let valueGraph = ValueGraph(graph: graph)
+        let graphTraverser = ValueGraphTraverser(graph: valueGraph)
 
         // When
         try subject.generateProjectFiles(project: project,
-                                         graph: graph,
+                                         graphTraverser: graphTraverser,
                                          groups: groups,
                                          pbxproj: pbxproj)
 

@@ -111,7 +111,7 @@ class Generator: Generating {
         let projectMapper = projectMapperProvider.mapper(config: config)
         let updatedModels = try models.map(projectMapper.map)
         let updatedProjects = updatedModels.map(\.0)
-        let modelMapperSideEffects = updatedModels.flatMap { $0.1 }
+        let modelMapperSideEffects = updatedModels.flatMap(\.1)
 
         // Load Graph
         let cachedModelLoader = CachedModelLoader(projects: updatedProjects)
@@ -132,7 +132,9 @@ class Generator: Generating {
         try lint(graph: graph)
 
         // Generate
-        let projectDescriptor = try generator.generateProject(project: project, graph: graph)
+        let valueGraph = ValueGraph(graph: graph)
+        let graphTraverser = ValueGraphTraverser(graph: valueGraph)
+        let projectDescriptor = try generator.generateProject(project: project, graphTraverser: graphTraverser)
 
         // Write
         try writer.write(project: projectDescriptor)
@@ -154,7 +156,9 @@ class Generator: Generating {
         try lint(graph: graph)
 
         // Generate
-        let workspaceDescriptor = try generator.generateWorkspace(graph: graph)
+        let valueGraph = ValueGraph(graph: graph)
+        let graphTraverser = ValueGraphTraverser(graph: valueGraph)
+        let workspaceDescriptor = try generator.generateWorkspace(graphTraverser: graphTraverser)
 
         // Write
         try writer.write(workspace: workspaceDescriptor)
@@ -176,7 +180,9 @@ class Generator: Generating {
         try lint(graph: graph)
 
         // Generate
-        let workspaceDescriptor = try generator.generateWorkspace(graph: graph)
+        let valueGraph = ValueGraph(graph: graph)
+        let graphTraverser = ValueGraphTraverser(graph: valueGraph)
+        let workspaceDescriptor = try generator.generateWorkspace(graphTraverser: graphTraverser)
 
         // Write
         try writer.write(workspace: workspaceDescriptor)
@@ -238,7 +244,7 @@ class Generator: Generating {
         let (updatedGraph, graphMapperSideEffects) = try graphMapperProvider.mapper(config: config).map(graph: graph)
         let updatedWorkspace = updatedModels
             .workspace
-            .merging(projects: updatedGraph.projects.map { $0.path })
+            .merging(projects: updatedGraph.projects.map(\.path))
 
         return (
             project,

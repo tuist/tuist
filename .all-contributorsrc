@@ -4,6 +4,8 @@
   ],
   "imageSize": 100,
   "commit": false,
+  "contributorTemplate": "<a href=\"<%= contributor.profile %>\"><img src=\"<%= contributor.avatar_url %>\" width=\"<%= options.imageSize %>px;\" alt=\"\"/><br /><sub><b><%= contributor.name %></b></sub></a>",
+  "commitConvention": "none",
   "contributors": [
     {
       "login": "kalkwarf",
@@ -149,6 +151,33 @@
       "profile": "http://ferologics.github.io",
       "contributions": [
         "code"
+      ]
+    },
+    {
+      "login": "luispadron",
+      "name": "Luis Padron",
+      "avatar_url": "https://avatars3.githubusercontent.com/u/13840545?v=4",
+      "profile": "http://www.luispadron.com",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "hebertialmeida",
+      "name": "Heberti Almeida",
+      "avatar_url": "https://avatars0.githubusercontent.com/u/103670?v=4",
+      "profile": "https://heberti.com",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "subdigital",
+      "name": "Ben Scheirman",
+      "avatar_url": "https://avatars0.githubusercontent.com/u/59140?v=4",
+      "profile": "http://benscheirman.com",
+      "contributions": [
+        "ideas"
       ]
     }
   ],

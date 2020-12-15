@@ -45,7 +45,7 @@ class ProjectFileElements {
     }
 
     func generateProjectFiles(project: Project,
-                              graph: Graph,
+                              graphTraverser: GraphTraversing,
                               groups: ProjectGroups,
                               pbxproj: PBXProj) throws
     {
@@ -79,7 +79,7 @@ class ProjectFileElements {
         }
 
         // Dependencies
-        let dependencies = try graph.allDependencyReferences(for: project)
+        let dependencies = try graphTraverser.allProjectDependencies(path: project.path).sorted()
 
         try generate(dependencyReferences: Set(directProducts + dependencies),
                      groups: groups,
@@ -110,9 +110,9 @@ class ProjectFileElements {
 
     func targetFiles(target: Target) throws -> Set<GroupFileElement> {
         var files = Set<AbsolutePath>()
-        files.formUnion(target.sources.map { $0.path })
-        files.formUnion(target.coreDataModels.map { $0.path })
-        files.formUnion(target.coreDataModels.flatMap { $0.versions })
+        files.formUnion(target.sources.map(\.path))
+        files.formUnion(target.coreDataModels.map(\.path))
+        files.formUnion(target.coreDataModels.flatMap(\.versions))
 
         if let headers = target.headers {
             files.formUnion(headers.public)
@@ -142,6 +142,14 @@ class ProjectFileElements {
                              group: target.filesGroup,
                              isReference: $0.isReference)
         })
+
+        target.copyFiles.forEach {
+            elements.formUnion($0.files.map {
+                GroupFileElement(path: $0.path,
+                                 group: target.filesGroup,
+                                 isReference: $0.isReference)
+            })
+        }
 
         return elements
     }
@@ -198,7 +206,7 @@ class ProjectFileElements {
                 try generatePrecompiled(path)
             case let .framework(path, _, _, _, _, _, _, _):
                 try generatePrecompiled(path)
-            case let .library(path, _, _, _, _):
+            case let .library(path, _, _, _):
                 try generatePrecompiled(path)
             case let .sdk(sdkNodePath, _, _):
                 generateSDKFileElement(sdkNodePath: sdkNodePath,

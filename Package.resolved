@@ -6,17 +6,17 @@
         "repositoryURL": "https://github.com/tadija/AEXML",
         "state": {
           "branch": null,
-          "revision": "e4d517844dd03dac557e35d77a8e9ab438de91a6",
-          "version": "4.4.0"
+          "revision": "8623e73b193386909566a9ca20203e33a09af142",
+          "version": "4.5.0"
         }
       },
       {
         "package": "Signals",
-        "repositoryURL": "https://github.com/IBM-Swift/BlueSignals",
+        "repositoryURL": "https://github.com/tuist/BlueSignals.git",
         "state": {
           "branch": null,
-          "revision": "b7331c8bef913f5f8b3cffa6ecfcce679f7c2531",
-          "version": "1.0.21"
+          "revision": "1f6c49e186c8a4eeef87ba14f2f97b8646559d13",
+          "version": "1.0.200"
         }
       },
       {
@@ -38,6 +38,15 @@
         }
       },
       {
+        "package": "CombineExt",
+        "repositoryURL": "https://github.com/CombineCommunity/CombineExt.git",
+        "state": {
+          "branch": null,
+          "revision": "6664678135c6aec049c887a51c9da2545f184882",
+          "version": "1.2.0"
+        }
+      },
+      {
         "package": "Commander",
         "repositoryURL": "https://github.com/kylef/Commander.git",
         "state": {
@@ -48,11 +57,11 @@
       },
       {
         "package": "CryptoSwift",
-        "repositoryURL": "https://github.com/krzyzanowskim/CryptoSwift",
+        "repositoryURL": "https://github.com/krzyzanowskim/CryptoSwift.git",
         "state": {
           "branch": null,
-          "revision": "39f08ac5269361a50c08ce1e2f41989bfc4b1ec8",
-          "version": "1.3.1"
+          "revision": "e2bc81be54d71d566a52ca17c3983d141c30aa70",
+          "version": "1.3.3"
         }
       },
       {
@@ -156,7 +165,7 @@
       },
       {
         "package": "swift-argument-parser",
-        "repositoryURL": "https://github.com/apple/swift-argument-parser",
+        "repositoryURL": "https://github.com/apple/swift-argument-parser.git",
         "state": {
           "branch": null,
           "revision": "92646c0cdbaca076c8d3d0207891785b3379cbff",
@@ -174,7 +183,7 @@
       },
       {
         "package": "swift-tools-support-core",
-        "repositoryURL": "https://github.com/apple/swift-tools-support-core",
+        "repositoryURL": "https://github.com/apple/swift-tools-support-core.git",
         "state": {
           "branch": null,
           "revision": "243beea77d20db46647a3de4765c96e2c801c7c7",
@@ -210,20 +219,11 @@
       },
       {
         "package": "XcodeProj",
-        "repositoryURL": "https://github.com/tuist/XcodeProj",
+        "repositoryURL": "https://github.com/tuist/XcodeProj.git",
         "state": {
           "branch": null,
-          "revision": "2ae8e322ddbed99655802533441bc52f9ae76f24",
-          "version": "7.17.0"
-        }
-      },
-      {
-        "package": "XcodeProjCExt",
-        "repositoryURL": "https://github.com/tuist/XcodeProjCExt",
-        "state": {
-          "branch": null,
-          "revision": "21a510c225ff2bc83d5920a21d902af4b1e7e218",
-          "version": "0.1.0"
+          "revision": "82bf5efcaa27e94ed8c761c1eb3e397b6dea82b9",
+          "version": "7.18.0"
         }
       },
       {

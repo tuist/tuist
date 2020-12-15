@@ -12,12 +12,12 @@ protocol TargetGenerating: AnyObject {
                         projectSettings: Settings,
                         fileElements: ProjectFileElements,
                         path: AbsolutePath,
-                        graph: Graph) throws -> PBXNativeTarget
+                        graphTraverser: GraphTraversing) throws -> PBXNativeTarget
 
     func generateTargetDependencies(path: AbsolutePath,
                                     targets: [Target],
                                     nativeTargets: [String: PBXNativeTarget],
-                                    graph: Graph) throws
+                                    graphTraverser: GraphTraversing) throws
 }
 
 final class TargetGenerator: TargetGenerating {
@@ -51,10 +51,8 @@ final class TargetGenerator: TargetGenerating {
                         projectSettings: Settings,
                         fileElements: ProjectFileElements,
                         path: AbsolutePath,
-                        graph: Graph) throws -> PBXNativeTarget
+                        graphTraverser: GraphTraversing) throws -> PBXNativeTarget
     {
-        let graphTraverser = GraphTraverser(graph: graph)
-
         /// Products reference.
         let productFileReference = fileElements.products[target.name]!
 
@@ -102,7 +100,7 @@ final class TargetGenerator: TargetGenerating {
                                         fileElements: fileElements,
                                         path: path,
                                         sourceRootPath: project.sourceRootPath,
-                                        graph: graph)
+                                        graphTraverser: graphTraverser)
 
         /// Post actions
         try buildPhaseGenerator.generateActions(actions: target.actions.postActions,
@@ -115,10 +113,10 @@ final class TargetGenerator: TargetGenerating {
     func generateTargetDependencies(path: AbsolutePath,
                                     targets: [Target],
                                     nativeTargets: [String: PBXNativeTarget],
-                                    graph: Graph) throws
+                                    graphTraverser: GraphTraversing) throws
     {
         try targets.forEach { targetSpec in
-            let dependencies = graph.targetDependencies(path: path, name: targetSpec.name)
+            let dependencies = graphTraverser.directTargetDependencies(path: path, name: targetSpec.name).sorted()
             try dependencies.forEach { dependency in
                 let target = nativeTargets[targetSpec.name]!
                 let dependency = nativeTargets[dependency.target.name]!

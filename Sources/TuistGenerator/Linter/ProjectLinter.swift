@@ -46,7 +46,7 @@ class ProjectLinter: ProjectLinting {
 
     private func lintNotDuplicatedTargets(project: Project) -> [LintingIssue] {
         var issues: [LintingIssue] = []
-        let duplicatedTargets = project.targets.map { $0.name }
+        let duplicatedTargets = project.targets.map(\.name)
             .reduce(into: [String: Int]()) { $0[$1] = ($0[$1] ?? 0) + 1 }
             .filter { $0.value > 1 }
             .keys

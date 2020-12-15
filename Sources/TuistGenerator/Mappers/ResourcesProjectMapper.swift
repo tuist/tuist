@@ -36,8 +36,10 @@ public class ResourcesProjectMapper: ProjectMapping {
                                          bundleId: "\(target.bundleId).resources",
                                          infoPlist: .extendingDefault(with: [:]),
                                          resources: target.resources,
+                                         copyFiles: target.copyFiles,
                                          filesGroup: target.filesGroup)
             modifiedTarget.resources = []
+            modifiedTarget.copyFiles = []
             modifiedTarget.dependencies.append(.target(name: bundleName))
             additionalTargets.append(resourcesTarget)
         }
