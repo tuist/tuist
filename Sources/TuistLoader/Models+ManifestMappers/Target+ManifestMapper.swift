@@ -94,7 +94,7 @@ extension TuistCore.Target {
     fileprivate static func resourcesAndPlaygrounds(manifest: ProjectDescription.Target,
                                                     generatorPaths: GeneratorPaths) throws -> (resources: [TuistCore.FileElement], playgrounds: [AbsolutePath], invalidResourceGlobs: [InvalidGlob])
     {
-    // swiftlint:enable line_length
+        // swiftlint:enable line_length
         let resourceFilter = { (path: AbsolutePath) -> Bool in
             TuistCore.Target.isResource(path: path)
         }
@@ -127,7 +127,7 @@ extension TuistCore.Target {
 
         return (resources: resourcesWithoutPlaygrounds, playgrounds: Array(playgrounds), invalidResourceGlobs: invalidResourceGlobs)
     }
-    
+
     // swiftlint:disable:next line_length
     fileprivate static func sourcesAndPlaygrounds(manifest: ProjectDescription.Target, targetName: String, generatorPaths: GeneratorPaths) throws -> (sources: [TuistCore.SourceFile], playgrounds: [AbsolutePath]) {
         var sourcesWithoutPlaygrounds: [TuistCore.SourceFile] = []

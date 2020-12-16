@@ -442,7 +442,8 @@ class ProjectFileElements {
         let file = PBXFileReference(sourceTree: .group,
                                     name: name,
                                     lastKnownFileType: lastKnownFileType,
-                                    path: fileRelativePath.pathString)
+                                    path: fileRelativePath.pathString,
+                                    xcLanguageSpecificationIdentifier: "xcode.lang.swift")
         pbxproj.add(object: file)
         toGroup.children.append(file)
         elements[fileAbsolutePath] = file
