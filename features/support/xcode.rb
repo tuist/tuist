@@ -107,6 +107,6 @@ module Xcode
     if device.nil?
       flunk("Couldn't find an available destination simulator for platform #{platform}")
     end
-    "platform=#{platform} Simulator,id=#{device.udid}"
+    "id=#{device.udid}"
   end
 end
