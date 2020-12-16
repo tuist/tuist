@@ -27,9 +27,9 @@ enum CarthageInteractorError: FatalError, Equatable {
         case .carthageNotFound:
             return "Carthage was not found in the environment. It's possible that the tool is not installed or hasn't been exposed to your environment."
         case .cartfileNotFound:
-            return "Cartfile was not found after Cartage installation."
+            return "Cartfile was not found after Carthage installation."
         case .buildDirectoryNotFound:
-            return "Carthage/Build directory was not found after Cartage installation."
+            return "Carthage/Build directory was not found after Carthage installation."
         }
     }
 }
@@ -62,7 +62,10 @@ public final class CarthageInteractor: CarthageInteracting {
     }
 
     public func install(dependenciesDirectory: AbsolutePath, method: InstallDependenciesMethod, dependencies: [CarthageDependency]) throws {
-        logger.info("Start installing Carthage dependencies.", metadata: .subsection)
+        switch method {
+        case .fetch: logger.info("Start fetching Carthage dependencies.", metadata: .section)
+        case .update: logger.info("Start updating Carthage dependencies.", metadata: .section)
+        }
 
         // check availability of `carthage`
         guard canUseSystemCarthage() else {
@@ -90,7 +93,10 @@ public final class CarthageInteractor: CarthageInteracting {
             try postInstallationActions(pathsProvider: pathsProvider)
         }
 
-        logger.info("Successfully installed Carthage dependencies.", metadata: .success)
+        switch method {
+        case .fetch: logger.info("Carthage dependencies were fetched successfully.", metadata: .success)
+        case .update: logger.info("Carthage dependencies were updated successfully.", metadata: .success)
+        }
     }
 
     // MARK: - Installation
