@@ -107,11 +107,6 @@ public final class CarthageInteractor: CarthageInteracting {
             try copyDirectory(from: pathsProvider.destinationCarthageDirectory, to: pathsProvider.temporaryCarthageBuildDirectory)
         }
 
-        // copy `Cartfile.resolved` from previous run if exist
-        if fileHandler.exists(pathsProvider.destinationCarfileResolvedPath) {
-            try copyFile(from: pathsProvider.destinationCarfileResolvedPath, to: pathsProvider.temporaryCarfileResolvedPath)
-        }
-
         // create `Cartfile`
         let cartfileContent = cartfileContentGenerator.cartfileContent(for: dependencies)
         let cartfilePath = pathsProvider.temporaryDirectoryPath.appending(component: "Cartfile")
