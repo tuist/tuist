@@ -46,6 +46,7 @@ public struct Target: Equatable, Hashable, Comparable {
     public var launchArguments: [LaunchArgument]
     public var filesGroup: ProjectGroup
     public var scripts: [TargetScript]
+    public var playgrounds: [AbsolutePath]
 
     // MARK: - Init
 
@@ -68,7 +69,8 @@ public struct Target: Equatable, Hashable, Comparable {
                 launchArguments: [LaunchArgument] = [],
                 filesGroup: ProjectGroup,
                 dependencies: [Dependency] = [],
-                scripts: [TargetScript] = [])
+                scripts: [TargetScript] = [],
+                playgrounds: [AbsolutePath] = [])
     {
         self.name = name
         self.product = product
@@ -90,6 +92,7 @@ public struct Target: Equatable, Hashable, Comparable {
         self.filesGroup = filesGroup
         self.dependencies = dependencies
         self.scripts = scripts
+        self.playgrounds = playgrounds
     }
 
     /// Target can be included in the link phase of other targets
