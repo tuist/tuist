@@ -25,6 +25,14 @@ Scenario: The project is an iOS application with remote Swift package (ios_app_w
     Then I should be able to build for iOS the scheme App
     Then I should be able to test for iOS the scheme AppTests
 
+Scenario: The project is an iOS application with remote binary Swift package (ios_app_with_remote_binary_swift_package)
+    Given that tuist is available
+    And I have a working directory
+    Then I copy the fixture ios_app_with_remote_binary_swift_package into the working directory
+    Then tuist generates the project
+    Then I should be able to build for iOS the scheme App
+    Then I should be able to test for iOS the scheme AppTests
+
 Scenario: The project is an iOS application with extensions (ios_app_with_extensions)
     Given that tuist is available
     And I have a working directory
