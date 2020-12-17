@@ -1,16 +1,17 @@
 import UIKit
-import Firebase
+import MyFramework
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
 
+    let myFrameworkClass = MyFrameworkClass()
     var window: UIWindow?
 
     func application(
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil
     ) -> Bool {
-        print("\(type(of: FirebaseApp.self))")
+        print(myFrameworkClass.name)
 
         window = UIWindow(frame: UIScreen.main.bounds)
         let viewController = UIViewController()
