@@ -1,12 +1,14 @@
 import React from 'react'
 import Highlights from '../components/home/highlights'
+import Layout from '../components/layout'
+import tw, { css, styled, theme } from 'twin.macro'
 
 const IndexPage = () => {
   return (
-    <div>
-      New page
+    <Layout>
+      <div>Whatever</div>
       <Highlights />
-    </div>
+    </Layout>
   )
 }
 
