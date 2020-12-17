@@ -179,7 +179,8 @@ final class LinkGenerator: LinkGenerating {
                             sourceRootPath: AbsolutePath) throws
     {
         let precompiledEmbedPhase = PBXShellScriptBuildPhase(name: "Embed Precompiled Frameworks")
-        let embedPhase = PBXCopyFilesBuildPhase(dstSubfolderSpec: .frameworks,
+        let embedPhase = PBXCopyFilesBuildPhase(dstPath: "",
+                                                dstSubfolderSpec: .frameworks,
                                                 name: "Embed Frameworks")
         pbxproj.add(object: precompiledEmbedPhase)
         pbxproj.add(object: embedPhase)
