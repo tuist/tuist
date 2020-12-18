@@ -56,7 +56,10 @@ public struct TuistCommand: ParsableCommand {
             _exit(exitCode(for: error).rawValue)
         }
         do {
-            try command.run()
+            var trackableCommand = TrackableCommand(command: command)
+            try trackableCommand.run(completion: { _ in
+                // TODO: this will be used to create a `CommandEvent` and tag it
+            })
             exit()
         } catch let error as FatalError {
             errorHandler.fatal(error: error)
