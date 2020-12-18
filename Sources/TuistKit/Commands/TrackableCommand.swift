@@ -1,12 +1,12 @@
-import Foundation
 import ArgumentParser
+import Foundation
 import TuistSupport
 
 protocol CommandRunning {
-    mutating func run(completion: (TrackableCommandCompletion)) throws
+    mutating func run(completion: TrackableCommandCompletion) throws
 }
 
-typealias TrackableCommandCompletion = (TrackableCommandInfo) -> ()
+typealias TrackableCommandCompletion = (TrackableCommandInfo) -> Void
 
 struct TrackableCommandInfo {
     let name: String
@@ -22,7 +22,7 @@ public struct TrackableCommand: CommandRunning {
     public init(command: ParsableCommand) {
         self.command = command
     }
-    
+
     mutating func run(completion: TrackableCommandCompletion) throws {
         let timer = clock.startTimer()
         try command.run()
@@ -30,11 +30,12 @@ public struct TrackableCommand: CommandRunning {
         let configuration = type(of: command).configuration
 
         let (name, subcommand) = extractCommandName(from: configuration)
-        let info = TrackableCommandInfo (
+        let info = TrackableCommandInfo(
             name: name,
             subcommand: subcommand,
             parameters: [:],
-            duration: duration)
+            duration: duration
+        )
         completion(info)
     }
 
