@@ -32,12 +32,10 @@ final class DependenciesModelLoaderTests: TuistUnitTestCase {
         // Given
         let stubbedPath = try temporaryPath()
         manifestLoader.loadDependenciesStub = { _ in
-            Dependencies(
-                carthage: [
-                    .init(name: "Dependency1", requirement: .exact("1.1.1"), platforms: [.iOS]),
-                    .init(name: "Dependency2", requirement: .exact("2.3.4"), platforms: [.macOS, .tvOS]),
-                ]
-            )
+            Dependencies([
+                .carthage(name: "Dependency1", requirement: .exact("1.1.1"), platforms: [.iOS]),
+                .carthage(name: "Dependency2", requirement: .exact("2.3.4"), platforms: [.macOS, .tvOS]),
+            ])
         }
 
         // When

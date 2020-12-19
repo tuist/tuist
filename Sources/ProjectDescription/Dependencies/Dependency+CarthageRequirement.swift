@@ -1,7 +1,7 @@
 import Foundation
 
-public extension CarthageDependency {
-    enum Requirement: Codable, Equatable {
+public extension Dependency {
+    enum CarthageRequirement: Codable, Equatable {
         case exact(Version)
         case upToNextMajor(Version)
         case upToNextMinor(Version)

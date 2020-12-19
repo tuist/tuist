@@ -164,13 +164,7 @@ extension Arguments {
 }
 
 extension Dependencies {
-    public static func test(carthage: [CarthageDependency] = []) -> Dependencies {
-        Dependencies(carthage: carthage)
-    }
-}
-
-extension CarthageDependency {
-    public static func test(name: String = "Any Dependency", requirement: CarthageDependency.Requirement = .exact("1.4.0")) -> CarthageDependency {
-        CarthageDependency(name: name, requirement: requirement, platforms: [.iOS])
+    public static func test(dependencies: [Dependency] = []) -> Dependencies {
+        Dependencies(dependencies)
     }
 }
