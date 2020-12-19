@@ -8,11 +8,48 @@ public class ValueGraphTraverser: GraphTraversing {
     public var path: AbsolutePath { graph.path }
     public var workspace: Workspace { graph.workspace }
     public var projects: [AbsolutePath: Project] { graph.projects }
+    public var targets: [AbsolutePath: [String: Target]] { graph.targets }
+    public var dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] { graph.dependencies }
 
     private let graph: ValueGraph
 
     public required init(graph: ValueGraph) {
         self.graph = graph
+    }
+
+    public func rootTargets() -> Set<ValueGraphTarget> {
+        Set(graph.workspace.projects.reduce(into: Set()) { result, path in
+            result.formUnion(targets(at: path))
+        })
+    }
+
+    public func rootProjects() -> Set<Project> {
+        Set(graph.workspace.projects.compactMap {
+            projects[$0]
+        })
+    }
+
+    public func precompiledFrameworksPaths() -> Set<AbsolutePath> {
+        let dependencies = graph.dependencies.reduce(into: Set<ValueGraphDependency>()) { acc, next in
+            acc.formUnion([next.key])
+            acc.formUnion(next.value)
+        }
+        return Set(dependencies.compactMap { dependency -> AbsolutePath? in
+            guard case let ValueGraphDependency.framework(path, _, _, _, _, _, _) = dependency else { return nil }
+            return path
+        })
+    }
+
+    public func targets(product: Product) -> Set<ValueGraphTarget> {
+        var filteredTargets: Set<ValueGraphTarget> = Set()
+        targets.forEach { path, projectTargets in
+            projectTargets.values.forEach { target in
+                guard target.product == product else { return }
+                guard let project = projects[path] else { return }
+                filteredTargets.formUnion([ValueGraphTarget(path: path, target: target, project: project)])
+            }
+        }
+        return filteredTargets
     }
 
     public func target(path: AbsolutePath, name: String) -> ValueGraphTarget? {

@@ -301,9 +301,9 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
         let graphLoader = GraphLoader(modelLoader: modelLoader)
 
         let graph = try graphLoader.loadWorkspace(path: temporaryPath)
-        try linter.lint(graph: graph).printAndThrowIfNeeded()
         let valueGraph = ValueGraph(graph: graph)
         let graphTraverser = ValueGraphTraverser(graph: valueGraph)
+        try linter.lint(graphTraverser: graphTraverser).printAndThrowIfNeeded()
         let descriptor = try subject.generateWorkspace(graphTraverser: graphTraverser)
         try writer.write(workspace: descriptor)
     }

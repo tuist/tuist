@@ -2,6 +2,7 @@ import Foundation
 import TSCBasic
 import TuistSupport
 
+@available(*, deprecated, message: "Package product nodes are deprecated. Dependencies should be usted instead with the ValueGraph.")
 /// Node specifying a product dependency on a swift package
 public class PackageProductNode: GraphNode {
     public let product: String
@@ -11,6 +12,7 @@ public class PackageProductNode: GraphNode {
     }
 }
 
+@available(*, deprecated, message: "Package nodes are deprecated. Dependencies should be usted instead with the ValueGraph.")
 /// Node specifying a swift package
 public class PackageNode: GraphNode {
     public let package: Package

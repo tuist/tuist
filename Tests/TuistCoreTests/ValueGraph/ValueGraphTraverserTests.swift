@@ -181,7 +181,7 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         let subject = ValueGraphTraverser(graph: valueGraph)
 
         // Given: Graph
-        let cNode = TargetNode.test(project: project, target: b)
+        let cNode = TargetNode.test(project: project, target: c)
         let bNode = TargetNode.test(project: project, target: b, dependencies: [cNode])
         let aNode = TargetNode.test(project: project, target: a, dependencies: [bNode])
 
@@ -2898,6 +2898,34 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(got, gotGraph)
         XCTAssertEqual(got?.target, watchApp)
+    }
+
+    func test_apps() {
+        // Given
+        let macosApp = Target.test(name: "MacOS", platform: .macOS, product: .app)
+        let tvosApp = Target.test(name: "tvOS", platform: .tvOS, product: .app)
+        let framework = Target.test(name: "Framework", platform: .iOS, product: .framework)
+        let project = Project.test(path: "/project")
+
+        // Given: Value Graph
+        let valueGraph = ValueGraph.test(projects: [project.path: project],
+                                         targets: [project.path: [macosApp.name: macosApp,
+                                                                  tvosApp.name: tvosApp,
+                                                                  framework.name: framework]],
+                                         dependencies: [
+                                             .target(name: macosApp.name, path: project.path): Set(),
+                                             .target(name: tvosApp.name, path: project.path): Set(),
+                                             .target(name: framework.name, path: project.path): Set(),
+                                         ])
+        let subject = ValueGraphTraverser(graph: valueGraph)
+
+        // When
+        let got = subject.apps()
+
+        // Then
+        XCTAssertEqual(got.count, 2)
+        XCTAssertTrue(got.contains(ValueGraphTarget(path: project.path, target: macosApp, project: project)))
+        XCTAssertTrue(got.contains(ValueGraphTarget(path: project.path, target: tvosApp, project: project)))
     }
 
     // MARK: - Helpers

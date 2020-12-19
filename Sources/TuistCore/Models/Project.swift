@@ -21,6 +21,7 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
     // MARK: - Attributes
 
     /// Path to the folder that contains the project manifest.
+    @available(*, deprecated, message: "The project path should be read from the graph.")
     public var path: AbsolutePath
 
     /// Path to the root of the project sources.
@@ -39,9 +40,11 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
     public var developmentRegion: String?
 
     /// Project targets.
+    @available(*, deprecated, message: "The targets that belong to a project should be obtained from the graph.")
     public var targets: [Target]
 
     /// Project swift packages.
+    @available(*, deprecated, message: "The packages that belong to a project should be obtained from the graph.")
     public var packages: [Package]
 
     /// Project schemes

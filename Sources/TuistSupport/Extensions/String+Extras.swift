@@ -124,30 +124,9 @@ extension String {
         let range = NSRange(location: 0, length: count)
         return regex?.stringByReplacingMatches(in: self, options: [], range: range, withTemplate: "$1_$2")
     }
-}
 
-private func inShellWhitelist(_ codeUnit: UInt8) -> Bool {
-    switch codeUnit {
-    case UInt8(ascii: "a") ... UInt8(ascii: "z"),
-         UInt8(ascii: "A") ... UInt8(ascii: "Z"),
-         UInt8(ascii: "0") ... UInt8(ascii: "9"),
-         UInt8(ascii: "-"),
-         UInt8(ascii: "_"),
-         UInt8(ascii: "/"),
-         UInt8(ascii: ":"),
-         UInt8(ascii: "@"),
-         UInt8(ascii: "%"),
-         UInt8(ascii: "+"),
-         UInt8(ascii: "="),
-         UInt8(ascii: "."),
-         UInt8(ascii: ","):
-        return true
-    default:
-        return false
-    }
-}
+    // MARK: - Shell
 
-extension String {
     /// Creates a shell escaped string. If the string does not need escaping, returns the original string.
     /// Otherwise escapes using single quotes. For example:
     /// hello -> hello, hello$world -> 'hello$world', input A -> 'input A'
@@ -183,5 +162,43 @@ extension String {
     /// Shell escapes the current string. This method is mutating version of shellEscaped().
     mutating func shellEscape() {
         self = shellEscaped()
+    }
+
+    private func inShellWhitelist(_ codeUnit: UInt8) -> Bool {
+        switch codeUnit {
+        case UInt8(ascii: "a") ... UInt8(ascii: "z"),
+             UInt8(ascii: "A") ... UInt8(ascii: "Z"),
+             UInt8(ascii: "0") ... UInt8(ascii: "9"),
+             UInt8(ascii: "-"),
+             UInt8(ascii: "_"),
+             UInt8(ascii: "/"),
+             UInt8(ascii: ":"),
+             UInt8(ascii: "@"),
+             UInt8(ascii: "%"),
+             UInt8(ascii: "+"),
+             UInt8(ascii: "="),
+             UInt8(ascii: "."),
+             UInt8(ascii: ","):
+            return true
+        default:
+            return false
+        }
+    }
+}
+
+public extension Array where Element: CustomStringConvertible {
+    /// Returns a sentence listing the elements contained in the array.
+    /// ["Framework"] results in "Framework"
+    /// ["Framework", "App"] results in "Framework and App"
+    /// ["Framework", "App", "Tests"] results in "Framework, App, and Tests"
+    /// - Returns: <#description#>
+    func listed() -> String {
+        if self.count == 0 { return "" }
+        if self.count == 1 { return self.first!.description }
+        if self.count == 2 { return "\(self[0]) and \(self[1])" } else {
+            var elements = self
+            let last = elements.popLast()!
+            return "\(elements.map(\.description).joined(separator: ", ")), and \(last.description)"
+        }
     }
 }

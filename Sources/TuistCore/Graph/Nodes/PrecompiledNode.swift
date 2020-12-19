@@ -2,6 +2,7 @@ import Foundation
 import TSCBasic
 import TuistSupport
 
+@available(*, deprecated, message: "Precompiled nodes are deprecated. Dependencies should be usted instead with the ValueGraph.")
 public class PrecompiledNode: GraphNode {
     /// It represents a dependency of a precompiled node, which can be either a framework, or another .xcframework.
     public enum Dependency: Equatable, Hashable {
