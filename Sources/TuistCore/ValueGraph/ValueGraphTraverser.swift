@@ -550,4 +550,5 @@ public class ValueGraphTraverser: GraphTraversing {
         }
     }
 }
+
 // swiftlint:enable type_body_length
