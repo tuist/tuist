@@ -2,6 +2,7 @@ import Foundation
 import TSCBasic
 import TuistSupport
 
+// swiftlint:disable type_body_length
 public class ValueGraphTraverser: GraphTraversing {
     public var name: String { graph.name }
     public var hasPackages: Bool { !graph.packages.flatMap(\.value).isEmpty }
@@ -549,3 +550,4 @@ public class ValueGraphTraverser: GraphTraversing {
         }
     }
 }
+// swiftlint:enable type_body_length
