@@ -54,7 +54,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
             .appending(component: "Build")
         let dependenciesDirectory = rootPath
             .appending(component: Constants.DependenciesDirectory.name)
-        
+
         try fileHandler.touch(temporaryDirectoryPath.appending(components: Constants.DependenciesDirectory.cartfileResolvedName))
         try fileHandler.touch(temporaryDependenciesDirectory.appending(components: "iOS", "Moya.framework", "Info.plist"))
         try fileHandler.touch(temporaryDependenciesDirectory.appending(components: "iOS", "ReactiveMoya.framework", "Info.plist"))
@@ -88,7 +88,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
             .appending(component: Constants.DependenciesDirectory.cartfileResolvedName)
         let expectedCarthageDirectory = dependenciesDirectory
             .appending(component: Constants.DependenciesDirectory.carthageDirectoryName)
-        
+
         XCTAssertTrue(fileHandler.exists(expectedCartfileResolvedPath))
         XCTAssertTrue(fileHandler.exists(expectedCarthageDirectory.appending(components: "iOS", "Moya.framework", "Info.plist")))
         XCTAssertTrue(fileHandler.exists(expectedCarthageDirectory.appending(components: "iOS", "ReactiveMoya.framework", "Info.plist")))
@@ -111,7 +111,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         XCTAssertTrue(cartfileContentGenerator.invokedCartfileContent)
         XCTAssertEqual(cartfileContentGenerator.invokedCartfileContentParameters, stubbedDependencies)
     }
-    
+
     func test_install_fetch_only_one_platform() throws {
         // Given
         let rootPath = try temporaryPath()
@@ -120,7 +120,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
             .appending(component: "Build")
         let dependenciesDirectory = rootPath
             .appending(component: Constants.DependenciesDirectory.name)
-        
+
         try fileHandler.touch(temporaryDirectoryPath.appending(components: Constants.DependenciesDirectory.cartfileResolvedName))
         try fileHandler.touch(temporaryDependenciesDirectory.appending(components: "iOS", "Moya.framework", "Info.plist"))
         try fileHandler.touch(temporaryDependenciesDirectory.appending(components: "iOS", "ReactiveMoya.framework", "Info.plist"))
@@ -145,7 +145,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
             .appending(component: Constants.DependenciesDirectory.cartfileResolvedName)
         let expectedCarthageDirectory = dependenciesDirectory
             .appending(component: Constants.DependenciesDirectory.carthageDirectoryName)
-        
+
         XCTAssertTrue(fileHandler.exists(expectedCartfileResolvedPath))
         XCTAssertTrue(fileHandler.exists(expectedCarthageDirectory.appending(components: "iOS", "Moya.framework", "Info.plist")))
         XCTAssertTrue(fileHandler.exists(expectedCarthageDirectory.appending(components: "iOS", "ReactiveMoya.framework", "Info.plist")))

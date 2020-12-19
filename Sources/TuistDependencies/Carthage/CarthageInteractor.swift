@@ -121,7 +121,7 @@ public final class CarthageInteractor: CarthageInteracting {
         guard fileHandler.exists(pathsProvider.temporaryCarthageBuildDirectory) else {
             throw CarthageInteractorError.buildDirectoryNotFound
         }
-        
+
         // save `Cartfile.resolved`
         try copyFile(from: pathsProvider.temporaryCarfileResolvedPath, to: pathsProvider.destinationCarfileResolvedPath)
         // save build directory

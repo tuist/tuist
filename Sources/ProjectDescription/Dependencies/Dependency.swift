@@ -2,18 +2,18 @@ import Foundation
 
 public enum Dependency: Codable, Equatable {
     case carthage(name: String, requirement: CarthageRequirement, platforms: Set<Platform>)
-    
+
     private enum Kind: String, Codable {
         case carthage
     }
-    
+
     private enum CodingKeys: String, CodingKey {
         case kind
         case name
         case requirement
         case platforms
     }
-    
+
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let kind = try container.decode(Kind.self, forKey: .kind)
@@ -25,7 +25,7 @@ public enum Dependency: Codable, Equatable {
             self = .carthage(name: name, requirement: requirement, platforms: platforms)
         }
     }
-    
+
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         switch self {
