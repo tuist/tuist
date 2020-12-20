@@ -6,6 +6,7 @@ import XCTest
 @testable import TuistCoreTesting
 @testable import TuistGeneratorTesting
 @testable import TuistKit
+@testable import TuistLintingTesting
 @testable import TuistLoaderTesting
 @testable import TuistSupportTesting
 

@@ -89,7 +89,7 @@ final class LintProjectServiceTests: TuistUnitTestCase {
         let path = try temporaryPath()
         manifestLoader.manifestsAtStub = { _ in Set([.workspace]) }
         environmentLinter.lintStub = [LintingIssue(reason: "environment", severity: .error)]
-        graphLinter.lintStub = [LintingIssue(reason: "graph", severity: .error)]
+        graphLinter.stubbedLintResult = [LintingIssue(reason: "graph", severity: .error)]
 
         // Then
         XCTAssertThrowsSpecific(try subject.run(path: path.pathString), LintingError())

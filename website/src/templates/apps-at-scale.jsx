@@ -6,7 +6,6 @@ import Layout from '../components/layout'
 import { graphql } from 'gatsby'
 import moment from 'moment'
 import Main from '../components/main'
-import EditPage from '../components/edit-page'
 import Share from '../components/share'
 import urljoin from 'url-join'
 import SEO from '../components/SEO'
@@ -174,7 +173,6 @@ const Page = ({
           <MDXRenderer>{mdx.body}</MDXRenderer>
         </div>
         <CommunityCard mdx={mdx} />
-        <EditPage path={mdx.fields.path} />
         <Share
           path={mdx.fields.slug}
           tags={mdx.frontmatter.categories}

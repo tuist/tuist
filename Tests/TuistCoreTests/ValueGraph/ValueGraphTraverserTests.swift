@@ -181,7 +181,7 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         let subject = ValueGraphTraverser(graph: valueGraph)
 
         // Given: Graph
-        let cNode = TargetNode.test(project: project, target: b)
+        let cNode = TargetNode.test(project: project, target: c)
         let bNode = TargetNode.test(project: project, target: b, dependencies: [cNode])
         let aNode = TargetNode.test(project: project, target: a, dependencies: [bNode])
 
@@ -197,6 +197,60 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(gotGraph, got)
         XCTAssertEqual(got.map(\.target), [b])
+    }
+
+    func test_directTargetDependencies_returnsLocalProjectTargetsOnly() {
+        // Given
+        // Project A: A1 -> A2
+        //               -> (Project B) B1
+        // Project B: B1
+        let projectA = Project.test(path: "/ProjectA", name: "ProjectA")
+        let projectB = Project.test(path: "/ProjectB", name: "ProjectB")
+        let a1 = Target.test(name: "A1")
+        let a2 = Target.test(name: "A2")
+        let b1 = Target.test(name: "B1")
+        let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
+            .target(name: a1.name, path: projectA.path): Set([
+                .target(name: a2.name, path: projectA.path),
+                .target(name: b1.name, path: projectB.path),
+            ]),
+        ]
+        let targets: [AbsolutePath: [String: Target]] = [
+            projectA.path: [
+                a1.name: a1,
+                a2.name: a2,
+            ],
+            projectB.path: [
+                b1.name: b1,
+            ],
+        ]
+        // Given: Value Graph
+        let valueGraph = ValueGraph.test(path: projectA.path,
+                                         projects: [projectA.path: projectA, projectB.path: projectB],
+                                         targets: targets,
+                                         dependencies: dependencies)
+        let subject = ValueGraphTraverser(graph: valueGraph)
+
+        // Given: Graph
+        let b1Node = TargetNode.test(project: projectB, target: b1)
+        let a2Node = TargetNode.test(project: projectA, target: a2)
+        let a1Node = TargetNode.test(project: projectA, target: a1, dependencies: [a2Node, b1Node])
+
+        let graph = Graph.test(entryPath: projectA.path,
+                               entryNodes: [a1Node, a2Node, b1Node],
+                               targets: [
+                                   projectA.path: [a1Node, a2Node],
+                                   projectB.path: [b1Node],
+                               ])
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.directTargetDependencies(path: projectA.path, name: a1.name).sorted()
+        let gotGraph = graphTraverser.directTargetDependencies(path: projectA.path, name: a1.name).sorted()
+
+        // Then
+        XCTAssertEqual(gotGraph, got)
+        XCTAssertEqual(got.map(\.target), [a2])
     }
 
     func test_resourceBundleDependencies_returns_an_empty_list_when_a_dependency_can_host_resources() {
@@ -596,12 +650,12 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         XCTAssertEqual(got?.target, app)
     }
 
-    func test_allDependencies() {
+    func test_allDependencies() throws {
         // Given
         // App -> StaticLibrary -> Bundle
         let project = Project.test()
         let app = Target.test(name: "App", product: .app)
-        let staticLibrary = Target.test(name: "StaticLibrary", product: .staticLibrary)
+        let staticLibrary = Target.test(name: "StaticLibrary", product: .staticLibrary, productName: "StaticLibrary")
         let bundle = Target.test(name: "Bundle", product: .bundle)
 
         let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
@@ -620,12 +674,12 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         let subject = ValueGraphTraverser(graph: valueGraph)
 
         // When
-        let got = subject.allDependencies(path: project.path)
+        let got = try subject.allProjectDependencies(path: project.path).sorted()
 
         // Then
         XCTAssertEqual(Set(got), Set([
-            .target(name: bundle.name, path: project.path),
-            .target(name: staticLibrary.name, path: project.path),
+            .testProduct(target: bundle.name, productName: bundle.productNameWithExtension),
+            .testProduct(target: staticLibrary.name, productName: staticLibrary.productNameWithExtension),
         ]))
     }
 
@@ -1472,6 +1526,333 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         XCTAssertEqual(gotGraph.first, GraphDependencyReference(precompiledNode: precompiledNode))
     }
 
+    func test_linkableAndEmbeddableDependencies_when_appDependensOnPrecompiledStaticBinaryWithPrecompiledStaticBinaryDependency() throws {
+        // App ---(depends on)---> Precompiled static binary (A) ---> Precompiled static binary (B)
+
+        // Given
+        let target = Target.test(name: "Main")
+        let project = Project.test(targets: [target])
+
+        // Given: Graph
+        let precompiledStaticBinaryB = FrameworkNode.test(
+            path: AbsolutePath("/test/StaticFrameworkB.framework"),
+            dsymPath: nil,
+            bcsymbolmapPaths: [],
+            linking: .static,
+            architectures: [.arm64]
+        )
+        let precompiledStaticBinaryA = FrameworkNode.test(
+            path: AbsolutePath("/test/StaticFrameworkA.framework"),
+            dsymPath: nil,
+            bcsymbolmapPaths: [],
+            linking: .static,
+            architectures: [.arm64],
+            dependencies: [.framework(precompiledStaticBinaryB)]
+        )
+
+        let targetNode = TargetNode(project: project,
+                                    target: target,
+                                    dependencies: [precompiledStaticBinaryA])
+        let graph = Graph.test(targets: [targetNode.path: [targetNode]])
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // Given: Value Graph
+        let dependencyPrecompiledStaticBinaryB = ValueGraphDependency.testFramework(
+            path: "/test/StaticFrameworkB.framework",
+            binaryPath: "/test/StaticFrameworkB.framework/StaticFrameworkB",
+            dsymPath: nil,
+            bcsymbolmapPaths: [],
+            linking: .static,
+            architectures: [.arm64],
+            isCarthage: false
+        )
+        let dependencyPrecompiledStaticBinaryA = ValueGraphDependency.testFramework(
+            path: "/test/StaticFrameworkA.framework",
+            binaryPath: "/test/StaticFrameworkA.framework/StaticFrameworkA",
+            dsymPath: nil,
+            bcsymbolmapPaths: [],
+            linking: .static,
+            architectures: [.arm64],
+            isCarthage: false
+        )
+
+        let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
+            .target(name: target.name, path: project.path): Set(arrayLiteral: dependencyPrecompiledStaticBinaryA),
+            dependencyPrecompiledStaticBinaryA:
+                Set(arrayLiteral: dependencyPrecompiledStaticBinaryB),
+        ]
+        let valueGraph = ValueGraph.test(projects: [project.path: project],
+                                         targets: [project.path: [target.name: target]],
+                                         dependencies: dependencies)
+        let subject = ValueGraphTraverser(graph: valueGraph)
+
+        // When
+        let got = try subject.linkableDependencies(path: project.path, name: target.name).sorted()
+        let gotGraph = try graphTraverser.linkableDependencies(path: project.path, name: target.name).sorted()
+
+        // Then
+        XCTAssertEqual(got, gotGraph)
+        XCTAssertEqual(gotGraph, [
+            GraphDependencyReference(precompiledNode: precompiledStaticBinaryA),
+            GraphDependencyReference(precompiledNode: precompiledStaticBinaryB),
+        ])
+
+        // When
+        let embeddable = subject.embeddableFrameworks(path: project.path, name: target.name)
+        let embeddableGraph = graphTraverser.embeddableFrameworks(path: project.path, name: target.name)
+
+        // Then
+        XCTAssertEqual(embeddable, embeddableGraph)
+        XCTAssertTrue(embeddable.isEmpty)
+    }
+
+    func test_linkableAndEmbeddableDependencies_when_appDependensOnPrecompiledDynamicBinaryWithPrecompiledDynamicBinaryDependency() throws {
+        // App ---(depends on)---> Precompiled dynamic binary (A) ----> Precompiled dynamic binary (B)
+
+        // Given
+        let target = Target.test(name: "Main")
+        let project = Project.test(targets: [target])
+
+        // Given: Graph
+        let precompiledDynamicBinaryB = FrameworkNode.test(
+            path: AbsolutePath("/test/DynamicFrameworkB.framework"),
+            dsymPath: nil,
+            bcsymbolmapPaths: [],
+            linking: .dynamic,
+            architectures: [.arm64]
+        )
+        let precompiledDynamicBinaryA = FrameworkNode.test(
+            path: AbsolutePath("/test/DynamicFrameworkA.framework"),
+            dsymPath: nil,
+            bcsymbolmapPaths: [],
+            linking: .dynamic,
+            architectures: [.arm64],
+            dependencies: [.framework(precompiledDynamicBinaryB)]
+        )
+
+        let targetNode = TargetNode(project: project,
+                                    target: target,
+                                    dependencies: [precompiledDynamicBinaryA])
+        let graph = Graph.test(targets: [targetNode.path: [targetNode]])
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // Given: Value Graph
+        let dependencyPrecompiledDynamicBinaryB = ValueGraphDependency.testFramework(
+            path: "/test/DynamicFrameworkB.framework",
+            binaryPath: "/test/DynamicFrameworkB.framework/DynamicFrameworkB",
+            dsymPath: nil,
+            bcsymbolmapPaths: [],
+            linking: .dynamic,
+            architectures: [.arm64],
+            isCarthage: false
+        )
+        let dependencyPrecompiledDynamicBinaryA = ValueGraphDependency.testFramework(
+            path: "/test/DynamicFrameworkA.framework",
+            binaryPath: "/test/DynamicFrameworkA.framework/DynamicFrameworkA",
+            dsymPath: nil,
+            bcsymbolmapPaths: [],
+            linking: .dynamic,
+            architectures: [.arm64],
+            isCarthage: false
+        )
+
+        let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
+            .target(name: target.name, path: project.path): Set(arrayLiteral: dependencyPrecompiledDynamicBinaryA),
+            dependencyPrecompiledDynamicBinaryA:
+                Set(arrayLiteral: dependencyPrecompiledDynamicBinaryB),
+        ]
+        let valueGraph = ValueGraph.test(projects: [project.path: project],
+                                         targets: [project.path: [target.name: target]],
+                                         dependencies: dependencies)
+        let subject = ValueGraphTraverser(graph: valueGraph)
+
+        // When
+        let got = try subject.linkableDependencies(path: project.path, name: target.name).sorted()
+        let gotGraph = try graphTraverser.linkableDependencies(path: project.path, name: target.name).sorted()
+
+        // Then
+        XCTAssertEqual(got, gotGraph)
+        XCTAssertEqual(gotGraph, [
+            GraphDependencyReference(precompiledNode: precompiledDynamicBinaryA),
+            GraphDependencyReference(precompiledNode: precompiledDynamicBinaryB),
+        ])
+
+        // When
+        let embeddable = subject.embeddableFrameworks(path: project.path, name: target.name)
+        let embeddableGraph = graphTraverser.embeddableFrameworks(path: project.path, name: target.name)
+
+        // Then
+        XCTAssertEqual(embeddable, embeddableGraph)
+        XCTAssertEqual(embeddable, [
+            GraphDependencyReference(precompiledNode: precompiledDynamicBinaryA),
+            GraphDependencyReference(precompiledNode: precompiledDynamicBinaryB),
+        ])
+    }
+
+    func test_linkableAndEmbeddableDependencies_when_appDependensOnPrecompiledStaticBinaryWithPrecompiledDynamicBinaryDependency() throws {
+        // App ---(depends on)---> Precompiled static binary (A) ----> Precompiled dynamic binary (B)
+
+        // Given
+        let target = Target.test(name: "Main")
+        let project = Project.test(targets: [target])
+
+        // Given: Graph
+        let precompiledDynamicBinaryB = FrameworkNode.test(
+            path: AbsolutePath("/test/DynamicFrameworkB.framework"),
+            dsymPath: nil,
+            bcsymbolmapPaths: [],
+            linking: .dynamic,
+            architectures: [.arm64]
+        )
+        let precompiledStaticBinaryA = FrameworkNode.test(
+            path: AbsolutePath("/test/StaticFrameworkA.framework"),
+            dsymPath: nil,
+            bcsymbolmapPaths: [],
+            linking: .static,
+            architectures: [.arm64],
+            dependencies: [.framework(precompiledDynamicBinaryB)]
+        )
+
+        let targetNode = TargetNode(project: project,
+                                    target: target,
+                                    dependencies: [precompiledStaticBinaryA])
+        let graph = Graph.test(targets: [targetNode.path: [targetNode]])
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // Given: Value Graph
+        let dependencyPrecompiledDynamicBinaryB = ValueGraphDependency.testFramework(
+            path: "/test/DynamicFrameworkB.framework",
+            binaryPath: "/test/DynamicFrameworkB.framework/DynamicFrameworkB",
+            dsymPath: nil,
+            bcsymbolmapPaths: [],
+            linking: .dynamic,
+            architectures: [.arm64],
+            isCarthage: false
+        )
+        let dependencyPrecompiledStaticBinaryA = ValueGraphDependency.testFramework(
+            path: "/test/StaticFrameworkA.framework",
+            binaryPath: "/test/StaticFrameworkA.framework/StaticFrameworkA",
+            dsymPath: nil,
+            bcsymbolmapPaths: [],
+            linking: .static,
+            architectures: [.arm64],
+            isCarthage: false
+        )
+
+        let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
+            .target(name: target.name, path: project.path): Set(arrayLiteral: dependencyPrecompiledStaticBinaryA),
+            dependencyPrecompiledStaticBinaryA:
+                Set(arrayLiteral: dependencyPrecompiledDynamicBinaryB),
+        ]
+        let valueGraph = ValueGraph.test(projects: [project.path: project],
+                                         targets: [project.path: [target.name: target]],
+                                         dependencies: dependencies)
+        let subject = ValueGraphTraverser(graph: valueGraph)
+
+        // When
+        let got = try subject.linkableDependencies(path: project.path, name: target.name).sorted()
+        let gotGraph = try graphTraverser.linkableDependencies(path: project.path, name: target.name).sorted()
+
+        // Then
+        XCTAssertEqual(got, gotGraph)
+        XCTAssertEqual(gotGraph, [
+            GraphDependencyReference(precompiledNode: precompiledDynamicBinaryB),
+            GraphDependencyReference(precompiledNode: precompiledStaticBinaryA),
+        ])
+
+        // When
+        let embeddable = subject.embeddableFrameworks(path: project.path, name: target.name)
+        let embeddableGraph = graphTraverser.embeddableFrameworks(path: project.path, name: target.name)
+
+        // Then
+        XCTAssertEqual(embeddable, embeddableGraph)
+        XCTAssertEqual(embeddable, [
+            GraphDependencyReference(precompiledNode: precompiledDynamicBinaryB),
+        ])
+    }
+
+    func test_linkableAndEmbeddableDependencies_when_appDependensOnPrecompiledDynamicBinaryWithPrecompiledStaticBinaryDependency() throws {
+        // App ---(depends on)---> Precompiled dynamic binary (A) ----> Precompiled static binary (B)
+
+        // Given
+        let target = Target.test(name: "Main")
+        let project = Project.test(targets: [target])
+
+        // Given: Graph
+        let precompiledStaticBinaryB = FrameworkNode.test(
+            path: AbsolutePath("/test/StaticFrameworkB.framework"),
+            dsymPath: nil,
+            bcsymbolmapPaths: [],
+            linking: .static,
+            architectures: [.arm64]
+        )
+        let precompiledDynamicBinaryA = FrameworkNode.test(
+            path: AbsolutePath("/test/DynamicFrameworkA.framework"),
+            dsymPath: nil,
+            bcsymbolmapPaths: [],
+            linking: .dynamic,
+            architectures: [.arm64],
+            dependencies: [.framework(precompiledStaticBinaryB)]
+        )
+
+        let targetNode = TargetNode(project: project,
+                                    target: target,
+                                    dependencies: [precompiledDynamicBinaryA])
+        let graph = Graph.test(targets: [targetNode.path: [targetNode]])
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // Given: Value Graph
+        let dependencyPrecompiledStaticBinaryB = ValueGraphDependency.testFramework(
+            path: "/test/StaticFrameworkB.framework",
+            binaryPath: "/test/StaticFrameworkB.framework/StaticFrameworkB",
+            dsymPath: nil,
+            bcsymbolmapPaths: [],
+            linking: .static,
+            architectures: [.arm64],
+            isCarthage: false
+        )
+        let dependencyPrecompiledDynamicBinaryA = ValueGraphDependency.testFramework(
+            path: "/test/DynamicFrameworkA.framework",
+            binaryPath: "/test/DynamicFrameworkA.framework/DynamicFrameworkA",
+            dsymPath: nil,
+            bcsymbolmapPaths: [],
+            linking: .dynamic,
+            architectures: [.arm64],
+            isCarthage: false
+        )
+
+        let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
+            .target(name: target.name, path: project.path): Set(arrayLiteral: dependencyPrecompiledDynamicBinaryA),
+            dependencyPrecompiledDynamicBinaryA:
+                Set(arrayLiteral: dependencyPrecompiledStaticBinaryB),
+        ]
+        let valueGraph = ValueGraph.test(projects: [project.path: project],
+                                         targets: [project.path: [target.name: target]],
+                                         dependencies: dependencies)
+        let subject = ValueGraphTraverser(graph: valueGraph)
+
+        // When
+        let got = try subject.linkableDependencies(path: project.path, name: target.name).sorted()
+        let gotGraph = try graphTraverser.linkableDependencies(path: project.path, name: target.name).sorted()
+
+        // Then
+        XCTAssertEqual(got, gotGraph)
+        XCTAssertEqual(gotGraph, [
+            GraphDependencyReference(precompiledNode: precompiledDynamicBinaryA),
+            GraphDependencyReference(precompiledNode: precompiledStaticBinaryB),
+        ])
+
+        // When
+        let embeddable = subject.embeddableFrameworks(path: project.path, name: target.name)
+        let embeddableGraph = graphTraverser.embeddableFrameworks(path: project.path, name: target.name)
+
+        // Then
+        XCTAssertEqual(embeddable, embeddableGraph)
+        XCTAssertEqual(embeddable, [
+            GraphDependencyReference(precompiledNode: precompiledDynamicBinaryA),
+        ])
+    }
+
     func test_linkableDependencies_whenALibraryTarget() throws {
         // Given
         let target = Target.test(name: "Main")
@@ -2193,6 +2574,102 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         XCTAssertEqual(got, [.sdk(path: try SDKNode.appClip(status: .required).path, status: .required, source: .system)])
     }
 
+    func test_linkableDependencies_when_dependencyIsAFramework() throws {
+        // Given
+        let frameworkPath = AbsolutePath("/test/test.framework")
+        let target = Target.test(name: "Main", platform: .iOS)
+        let frameworkNode = FrameworkNode.test(path: frameworkPath,
+                                               dsymPath: nil,
+                                               bcsymbolmapPaths: [],
+                                               linking: .dynamic,
+                                               architectures: [.arm64],
+                                               dependencies: [])
+        let project = Project.test(targets: [target])
+
+        // Given: Graph
+        let targetNode = TargetNode(project: project,
+                                    target: target,
+                                    dependencies: [frameworkNode])
+        let graph = Graph.test(projects: [project],
+                               precompiled: [frameworkNode],
+                               targets: [project.path: [targetNode]])
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // Given: Value Graph
+        let frameworkDependency = ValueGraphDependency.testFramework(path: frameworkPath,
+                                                                     binaryPath: frameworkPath.appending(component: "test"),
+                                                                     dsymPath: nil,
+                                                                     bcsymbolmapPaths: [],
+                                                                     linking: .dynamic,
+                                                                     architectures: [.arm64],
+                                                                     isCarthage: false)
+        let valueGraph = ValueGraph.test(projects: [project.path: project],
+                                         targets: [project.path: [target.name: target]],
+                                         dependencies: [
+                                             .target(name: target.name, path: project.path): Set(arrayLiteral: frameworkDependency),
+                                         ])
+        let subject = ValueGraphTraverser(graph: valueGraph)
+
+        // When
+        let got = try subject.linkableDependencies(path: project.path, name: target.name)
+        let gotGraph = try graphTraverser.linkableDependencies(path: project.path, name: target.name)
+
+        // Then
+        XCTAssertEqual(got, gotGraph)
+        XCTAssertEqual(got, [
+            GraphDependencyReference(precompiledNode: frameworkNode),
+        ])
+    }
+
+    func test_linkableFrameworks_when_precompiledStaticFramework() throws {
+        // Given
+        let target = Target.test(name: "Main")
+        let project = Project.test(targets: [target])
+
+        let frameworkNode = FrameworkNode.test(path: "/test/StaticFramework.framework",
+                                               dsymPath: nil,
+                                               bcsymbolmapPaths: [],
+                                               linking: .static,
+                                               architectures: [.arm64],
+                                               dependencies: [])
+        let targetNode = TargetNode(
+            project: project,
+            target: target,
+            dependencies: [frameworkNode]
+        )
+
+        // Given: Graph
+        let graph = Graph.test(projects: [project],
+                               precompiled: [frameworkNode],
+                               targets: [project.path: [targetNode]])
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // Given: Value Graph
+        let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
+            .target(name: target.name, path: project.path): Set(arrayLiteral: .testFramework(path: "/test/StaticFramework.framework",
+                                                                                             binaryPath: "/test/StaticFramework.framework/StaticFramework",
+                                                                                             dsymPath: nil,
+                                                                                             bcsymbolmapPaths: [],
+                                                                                             linking: .static,
+                                                                                             architectures: [.arm64],
+                                                                                             isCarthage: false)),
+        ]
+        let valueGraph = ValueGraph.test(projects: [project.path: project],
+                                         targets: [project.path: [target.name: target]],
+                                         dependencies: dependencies)
+        let subject = ValueGraphTraverser(graph: valueGraph)
+
+        // When
+        let got = try subject.linkableDependencies(path: project.path, name: target.name)
+        let gotGraph = try graphTraverser.linkableDependencies(path: project.path, name: target.name)
+
+        // Then
+        XCTAssertEqual(got, gotGraph)
+        XCTAssertEqual(got, [
+            GraphDependencyReference(precompiledNode: frameworkNode),
+        ])
+    }
+
     func test_librariesSwiftIncludePaths() throws {
         // Given
         let target = Target.test(name: "Main")
@@ -2421,6 +2898,34 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(got, gotGraph)
         XCTAssertEqual(got?.target, watchApp)
+    }
+
+    func test_apps() {
+        // Given
+        let macosApp = Target.test(name: "MacOS", platform: .macOS, product: .app)
+        let tvosApp = Target.test(name: "tvOS", platform: .tvOS, product: .app)
+        let framework = Target.test(name: "Framework", platform: .iOS, product: .framework)
+        let project = Project.test(path: "/project")
+
+        // Given: Value Graph
+        let valueGraph = ValueGraph.test(projects: [project.path: project],
+                                         targets: [project.path: [macosApp.name: macosApp,
+                                                                  tvosApp.name: tvosApp,
+                                                                  framework.name: framework]],
+                                         dependencies: [
+                                             .target(name: macosApp.name, path: project.path): Set(),
+                                             .target(name: tvosApp.name, path: project.path): Set(),
+                                             .target(name: framework.name, path: project.path): Set(),
+                                         ])
+        let subject = ValueGraphTraverser(graph: valueGraph)
+
+        // When
+        let got = subject.apps()
+
+        // Then
+        XCTAssertEqual(got.count, 2)
+        XCTAssertTrue(got.contains(ValueGraphTarget(path: project.path, target: macosApp, project: project)))
+        XCTAssertTrue(got.contains(ValueGraphTarget(path: project.path, target: tvosApp, project: project)))
     }
 
     // MARK: - Helpers

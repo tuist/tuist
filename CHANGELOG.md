@@ -4,6 +4,24 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Fixed
+
+- Fix "Embed Frameworks" build phase parameters [#2156](https://github.com/tuist/tuist/pull/2156) by [@kwridan](https://github.com/kwridan).
+
+## 1.28.0
+
+### Fixed
+
+- Missing required module 'XXX' when building project with cached dependencies [#2051](https://github.com/tuist/tuist/pull/2051) by [@mollyIV](https://github.com/mollyIV).
+- Fix default generated scheme arguments [#2128](https://github.com/tuist/tuist/pull/2128) by [@kwridan](https://github.com/kwridan)
+- Playground files matched by the sources wildcards are added as playgrounds and not groups [#2132](https://github.com/tuist/tuist/pull/2132) by [@pepibumur](https://github.com/pepibumur).
+
+### Removed
+
+- **Breaking** The implicit addition of playgrounds under `Playgrounds/` has been removed [#2132](https://github.com/tuist/tuist/pull/2132) by [@pepibumur](https://github.com/pepibumur).
+
+## 1.27.0 - Hawái
+
 ### Added
 
 - Add `Plugin.swift` manifest [#2095](https://github.com/tuist/tuist/pull/2095) by [@luispadron](https://github.com/luispadron)
@@ -12,14 +30,14 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Fixed
 
 - Make watch targets runnable to fix schemes in Xcode 12 [#2096](https://github.com/tuist/tuist/pull/2096) by [@thedavidharris](https://github.com/thedavidharris)
+- Fix framework search paths for SDK dependencies [#2097](https://github.com/tuist/tuist/pull/2097) by [@kwridan](https://github.com/kwridan)
+- Fix `ValueGraphTraverser.directTargetDependencies` to return local targets only [#2111](https://github.com/tuist/tuist/pull/2111) by [@kwridan](https://github.com/kwridan)
+  - **Note:** This fixes an issue that previously allowed extension targets to be defined in a separate project (which isn't a supported dependency type)
 
 ### Changed
 
 - Generate multiple `XXX-Project` schemes if there are multiple platforms [#2081](https://github.com/tuist/tuist/pull/2081) by [@fortmarek](https://github.com/fortmarek)
-
-### Fixed
-
-- Fix framework search paths for SDK dependencies [#2097](https://github.com/tuist/tuist/pull/2097) by [@kwridan](https://github.com/kwridan)
+- Generators to take in the graph as `GraphTraversing` instead of `Graph` [#2110](https://github.com/tuist/tuist/pull/2110) by [@pepibumur](https://github.com/pepibumur)
 
 ## 1.26.0 - New World
 

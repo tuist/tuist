@@ -17,6 +17,28 @@ public protocol GraphTraversing {
     /// Returns the graph projects.
     var projects: [AbsolutePath: Project] { get }
 
+    /// Returns all the targets of the graph.
+    var targets: [AbsolutePath: [String: Target]] { get }
+
+    /// Dependencies.
+    var dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] { get }
+
+    /// Returns all the apps from the graph.
+    func apps() -> Set<ValueGraphTarget>
+
+    /// Returns the targets from the project that lives in the directory from which the graph has been loaded.
+    func rootTargets() -> Set<ValueGraphTarget>
+
+    /// Returns the project from which the graph has been loaded.
+    func rootProjects() -> Set<Project>
+
+    /// Returns the list of all the pre-compiled frameworks that are part of the graph.
+    func precompiledFrameworksPaths() -> Set<AbsolutePath>
+
+    /// Returns all the targets of a given product.
+    /// - Parameter product: Product.
+    func targets(product: Product) -> Set<ValueGraphTarget>
+
     /// It returns the target with the given name in the project that is defined in the given directory path.
     /// - Parameters:
     ///   - path: Path to the directory that contains the definition of the project with the target is defined.
@@ -112,4 +134,16 @@ public protocol GraphTraversing {
     ///     - path; Path to the directory where the project that defines the target
     ///     - name: Name of the target
     func hostTargetFor(path: AbsolutePath, name: String) -> ValueGraphTarget?
+
+    /// For the project at the given path, it returns all the dependencies that should
+    /// be referenced from the project. This method is intended to be used when generating
+    /// the groups.
+    /// - Parameter path: Path to the directory where the project is defined.
+    func allProjectDependencies(path: AbsolutePath) throws -> Set<GraphDependencyReference>
+}
+
+public extension GraphTraversing {
+    func apps() -> Set<ValueGraphTarget> {
+        targets(product: .app)
+    }
 }

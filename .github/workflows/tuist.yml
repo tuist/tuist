@@ -12,7 +12,7 @@ jobs:
     runs-on: macOS-latest
     strategy:
       matrix:
-        xcode: ['11.5', '12.1']
+        xcode: ['11.5', '12.3']
     steps:
       - uses: actions/checkout@v1
       - name: Select Xcode
@@ -34,7 +34,7 @@ jobs:
     runs-on: macOS-latest
     strategy:
       matrix:
-        xcode: ['11.5', '12.1']
+        xcode: ['11.5', '12.3']
     steps:
       - uses: actions/checkout@v1
       - name: Select Xcode
@@ -54,7 +54,7 @@ jobs:
     runs-on: macos-latest
     strategy:
       matrix:
-        xcode: ['12.1']
+        xcode: ['12.3']
         feature:
           [
             'generate-1',
@@ -110,7 +110,7 @@ jobs:
     runs-on: macos-latest
     strategy:
       matrix:
-        xcode: ['12.1']
+        xcode: ['12.3']
     steps:
       - uses: actions/checkout@v1
       - name: Select Xcode

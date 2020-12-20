@@ -16,10 +16,6 @@ Then(/I should be able to (.+) for (iOS|macOS|tvOS|watchOS) the scheme (.+)/) do
     args.concat(["-project", @xcodeproj_path]) unless @xcodeproj_path.nil?
   end
 
-  if action == "test" && platform == "iOS"
-    args << "-destination\ \'name=iPhone 11\'"
-  end
-
   if action == "build" && platform == "iOS"
     args << "-sdk\ iphonesimulator"
   end
@@ -29,6 +25,7 @@ Then(/I should be able to (.+) for (iOS|macOS|tvOS|watchOS) the scheme (.+)/) do
   if action == "build" && platform == "tvOS"
     args << "-sdk\ appletvsimulator"
   end
+
   if ["iOS", "tvOS", "watchOS"].include?(platform)
     platform = "iOS" if platform == "watchOS"
     args << "-destination '#{Xcode.valid_simulator_destination_for_platform(platform)}'"

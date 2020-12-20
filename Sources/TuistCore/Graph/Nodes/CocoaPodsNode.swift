@@ -1,6 +1,7 @@
 import Foundation
 import TSCBasic
 
+@available(*, deprecated, message: "CocoaPods nodes are deprecated. Dependencies should be usted instead with the ValueGraph.")
 public class CocoaPodsNode: GraphNode {
     /// Path to the Podfile.
     public var podfilePath: AbsolutePath {

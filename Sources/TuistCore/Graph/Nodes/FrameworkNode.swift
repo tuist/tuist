@@ -2,6 +2,7 @@ import Foundation
 import TSCBasic
 import TuistSupport
 
+@available(*, deprecated, message: "Framework nodes are deprecated. Dependencies should be usted instead with the ValueGraph.")
 public class FrameworkNode: PrecompiledNode {
     /// Path to the associated .dSYM
     public let dsymPath: AbsolutePath?

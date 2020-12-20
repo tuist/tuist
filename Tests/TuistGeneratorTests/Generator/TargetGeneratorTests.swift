@@ -19,7 +19,7 @@ final class TargetGeneratorTests: XCTestCase {
         path = AbsolutePath("/test")
         pbxproj = PBXProj()
         pbxProject = createPbxProject(pbxproj: pbxproj)
-        fileElements = ProjectFileElements([:], playgrounds: MockPlaygrounds())
+        fileElements = ProjectFileElements([:])
 
         subject = TargetGenerator()
     }
@@ -56,11 +56,12 @@ final class TargetGeneratorTests: XCTestCase {
                                    xcodeProjPath: path.appending(component: "Test.xcodeproj"),
                                    targets: [target])
         let graph = Graph.test()
+        let valueGraph = ValueGraph(graph: graph)
+        let graphTraverser = ValueGraphTraverser(graph: valueGraph)
         let groups = ProjectGroups.generate(project: project,
-                                            pbxproj: pbxproj,
-                                            playgrounds: MockPlaygrounds())
+                                            pbxproj: pbxproj)
         try fileElements.generateProjectFiles(project: project,
-                                              graph: graph,
+                                              graphTraverser: graphTraverser,
                                               groups: groups,
                                               pbxproj: pbxproj)
 
@@ -72,7 +73,7 @@ final class TargetGeneratorTests: XCTestCase {
                                                          projectSettings: Settings.test(),
                                                          fileElements: fileElements,
                                                          path: path,
-                                                         graph: graph)
+                                                         graphTraverser: graphTraverser)
 
         // Then
         XCTAssertEqual(generatedTarget.productName, "MyFramework")
@@ -105,6 +106,8 @@ final class TargetGeneratorTests: XCTestCase {
                                     (target: targetA, dependencies: [targetB]),
                                     (target: targetB, dependencies: []),
                                 ])
+        let valueGraph = ValueGraph(graph: graph)
+        let graphTraverser = ValueGraphTraverser(graph: valueGraph)
 
         // When
         try subject.generateTargetDependencies(path: path,
@@ -113,7 +116,7 @@ final class TargetGeneratorTests: XCTestCase {
                                                    "TargetA": nativeTargetA,
                                                    "TargetB": nativeTargetB,
                                                ],
-                                               graph: graph)
+                                               graphTraverser: graphTraverser)
 
         // Then
         XCTAssertEqual(nativeTargetA.dependencies.map(\.name), [
@@ -124,6 +127,8 @@ final class TargetGeneratorTests: XCTestCase {
     func test_generateTarget_actions() throws {
         // Given
         let graph = Graph.test()
+        let valueGraph = ValueGraph(graph: graph)
+        let graphTraverser = ValueGraphTraverser(graph: valueGraph)
         let target = Target.test(sources: [],
                                  resources: [],
                                  actions: [
@@ -132,10 +137,9 @@ final class TargetGeneratorTests: XCTestCase {
                                  ])
         let project = Project.test(path: path, sourceRootPath: path, xcodeProjPath: path.appending(component: "Project.xcodeproj"), targets: [target])
         let groups = ProjectGroups.generate(project: project,
-                                            pbxproj: pbxproj,
-                                            playgrounds: MockPlaygrounds())
+                                            pbxproj: pbxproj)
         try fileElements.generateProjectFiles(project: project,
-                                              graph: graph,
+                                              graphTraverser: graphTraverser,
                                               groups: groups,
                                               pbxproj: pbxproj)
 
@@ -147,7 +151,7 @@ final class TargetGeneratorTests: XCTestCase {
                                                    projectSettings: Settings.test(),
                                                    fileElements: fileElements,
                                                    path: path,
-                                                   graph: graph)
+                                                   graphTraverser: graphTraverser)
 
         // Then
         let preBuildPhase = pbxTarget.buildPhases.first as? PBXShellScriptBuildPhase

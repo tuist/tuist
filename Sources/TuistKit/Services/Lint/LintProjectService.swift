@@ -62,6 +62,8 @@ final class LintProjectService {
         } else {
             throw LintProjectServiceError.manifestNotFound(path)
         }
+        let valueGraph = ValueGraph(graph: graph)
+        let graphTraverser = ValueGraphTraverser(graph: valueGraph)
 
         logger.notice("Running linters")
         let config = try graphLoader.loadConfig(path: path)
@@ -70,7 +72,7 @@ final class LintProjectService {
         logger.notice("Linting the environment")
         issues.append(contentsOf: try environmentLinter.lint(config: config))
         logger.notice("Linting the loaded dependency graph")
-        issues.append(contentsOf: graphLinter.lint(graph: graph))
+        issues.append(contentsOf: graphLinter.lint(graphTraverser: graphTraverser))
 
         if issues.isEmpty {
             logger.notice("No linting issues found", metadata: .success)

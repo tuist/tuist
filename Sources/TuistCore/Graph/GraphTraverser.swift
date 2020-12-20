@@ -1,17 +1,37 @@
 import Foundation
 import TSCBasic
 
-public final class GraphTraverser: GraphTraversing {
+public final class GraphTraverser {
     private let graph: Graph
     public var name: String { graph.name }
     public var hasPackages: Bool { !graph.packages.isEmpty }
     public var path: AbsolutePath { graph.entryPath }
     public var workspace: Workspace { graph.workspace }
-    public var projects: [AbsolutePath: Project]
+    public let projects: [AbsolutePath: Project]
+    public let targets: [AbsolutePath: [String: Target]]
 
     public init(graph: Graph) {
         self.graph = graph
         projects = Dictionary(uniqueKeysWithValues: graph.projects.map { ($0.path, $0) })
+        targets = graph.targets.mapValues { (targets: [TargetNode]) -> [String: Target] in
+            Dictionary(uniqueKeysWithValues: targets.map { ($0.name, $0.target) })
+        }
+    }
+
+    public func rootTargets() -> Set<ValueGraphTarget> {
+        Set(graph.entryNodes.compactMap { $0 as? TargetNode }
+            .map { ValueGraphTarget(path: $0.path, target: $0.target, project: $0.project) })
+    }
+
+    public func precompiledFrameworksPaths() -> Set<AbsolutePath> {
+        Set(graph.precompiled.compactMap { $0 as? FrameworkNode }.map(\.path))
+    }
+
+    public func targets(product: Product) -> Set<ValueGraphTarget> {
+        Set(graph.targets.flatMap(\.value).compactMap { (target: TargetNode) -> ValueGraphTarget? in
+            guard target.target.product == product else { return nil }
+            return ValueGraphTarget(path: target.path, target: target.target, project: target.project)
+        })
     }
 
     public func target(path: AbsolutePath, name: String) -> ValueGraphTarget? {
@@ -90,5 +110,10 @@ public final class GraphTraverser: GraphTraversing {
     public func hostTargetFor(path: AbsolutePath, name: String) -> ValueGraphTarget? {
         graph.hostTargetNodeFor(path: path, name: name)
             .map { ValueGraphTarget(path: $0.path, target: $0.target, project: $0.project) }
+    }
+
+    public func allProjectDependencies(path: AbsolutePath) throws -> Set<GraphDependencyReference> {
+        guard let project = projects[path] else { return Set() }
+        return try Set(graph.allDependencyReferences(for: project))
     }
 }
