@@ -193,12 +193,6 @@ public extension Array where Element: CustomStringConvertible {
     /// ["Framework", "App", "Tests"] results in "Framework, App, and Tests"
     /// - Returns: <#description#>
     func listed() -> String {
-        if self.count == 0 { return "" }
-        if self.count == 1 { return self.first!.description }
-        if self.count == 2 { return "\(self[0]) and \(self[1])" } else {
-            var elements = self
-            let last = elements.popLast()!
-            return "\(elements.map(\.description).joined(separator: ", ")), and \(last.description)"
-        }
+        ListFormatter().string(from: self) ?? ""
     }
 }

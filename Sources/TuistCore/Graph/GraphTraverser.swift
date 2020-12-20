@@ -23,10 +23,6 @@ public final class GraphTraverser {
             .map { ValueGraphTarget(path: $0.path, target: $0.target, project: $0.project) })
     }
 
-    public func rootProject() -> Project? {
-        projects[graph.entryPath]
-    }
-
     public func precompiledFrameworksPaths() -> Set<AbsolutePath> {
         Set(graph.precompiled.compactMap { $0 as? FrameworkNode }.map(\.path))
     }
