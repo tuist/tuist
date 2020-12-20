@@ -20,8 +20,13 @@ final class SecurityController: SecurityControlling {
             try importToKeychain(at: certificate.publicKey, keychainPath: keychainPath)
             logger.debug("Imported certificate at \(certificate.publicKey.pathString)")
         }
-        try importToKeychain(at: certificate.privateKey, keychainPath: keychainPath)
-        logger.debug("Imported certificate private key at \(certificate.privateKey.pathString)")
+        do {
+            // found no way to check for the presence of a private key in the keychain, but fortunately keychain takes care of duplicate private keys on its own
+            try importToKeychain(at: certificate.privateKey, keychainPath: keychainPath)
+            logger.debug("Imported certificate private key at \(certificate.privateKey.pathString)")
+        } catch {
+            logger.warning("Importing certificate private key at \(certificate.privateKey.pathString) failed")
+        }
     }
 
     func createKeychain(at path: AbsolutePath, password: String) throws {

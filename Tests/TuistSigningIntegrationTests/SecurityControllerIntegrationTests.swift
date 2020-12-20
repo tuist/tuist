@@ -57,16 +57,11 @@ final class SecurityControllerIntegrationTests: TuistTestCase {
         let keychainPath = try temporaryPath().appending(component: Constants.DerivedDirectory.signingKeychain)
 
         let currentDirectory = AbsolutePath(#file.replacingOccurrences(of: "file://", with: "")).removingLastComponent()
-        let publicKey = currentDirectory.appending(component: "Target.Debug.cer")
-        let privateKey = currentDirectory.appending(component: "Target.Debug.p12")
+        let certificateParser = CertificateParser()
+        let certificate = try! certificateParser.parse(publicKey: currentDirectory.appending(component: "Target.Debug.cer"), privateKey: currentDirectory.appending(component: "Target.Debug.p12"))
 
         try subject.createKeychain(at: keychainPath, password: "")
         try subject.unlockKeychain(at: keychainPath, password: "")
-
-        let certificate = Certificate.test(
-            publicKey: publicKey,
-            privateKey: privateKey
-        )
 
         // When
         try subject.importCertificate(certificate, keychainPath: keychainPath)
@@ -75,11 +70,6 @@ final class SecurityControllerIntegrationTests: TuistTestCase {
         // Then
         XCTAssertPrinterContains(
             "Skipping importing certificate at \(certificate.publicKey.pathString) because it is already present",
-            at: .debug,
-            ==
-        )
-        XCTAssertPrinterContains(
-            "Skipping importing private key at \(certificate.privateKey.pathString) because it is already present",
             at: .debug,
             ==
         )
