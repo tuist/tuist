@@ -4,7 +4,7 @@ import TuistCore
 import TuistSupport
 
 public protocol GraphLinting: AnyObject {
-    func lint(graph: Graph) -> [LintingIssue]
+    func lint(graphTraverser: GraphTraversing) -> [LintingIssue]
 }
 
 // swiftlint:disable type_body_length
@@ -32,61 +32,42 @@ public class GraphLinter: GraphLinting {
 
     // MARK: - GraphLinting
 
-    public func lint(graph: Graph) -> [LintingIssue] {
+    public func lint(graphTraverser: GraphTraversing) -> [LintingIssue] {
         var issues: [LintingIssue] = []
-        issues.append(contentsOf: graph.projects.flatMap { project -> [LintingIssue] in
-            projectLinter.lint(project)
+        issues.append(contentsOf: graphTraverser.projects.flatMap { project -> [LintingIssue] in
+            projectLinter.lint(project.value)
         })
-        issues.append(contentsOf: lintDependencies(graph: graph))
-        issues.append(contentsOf: lintMismatchingConfigurations(graph: graph))
-        issues.append(contentsOf: lintWatchBundleIndentifiers(graph: graph))
+        issues.append(contentsOf: lintDependencies(graphTraverser: graphTraverser))
+        issues.append(contentsOf: lintMismatchingConfigurations(graphTraverser: graphTraverser))
+        issues.append(contentsOf: lintWatchBundleIndentifiers(graphTraverser: graphTraverser))
 
         return issues
     }
 
     // MARK: - Fileprivate
 
-    func lintDependencies(graph: Graph) -> [LintingIssue] {
+    func lintDependencies(graphTraverser: GraphTraversing) -> [LintingIssue] {
         var issues: [LintingIssue] = []
-        var evaluatedNodes: [GraphNode] = []
-        graph.entryNodes.forEach {
-            issues.append(contentsOf: lintGraphNode(node: $0,
-                                                    evaluatedNodes: &evaluatedNodes))
-        }
-
-        issues.append(contentsOf: staticProductsLinter.lint(graph: graph))
-        issues.append(contentsOf: lintCarthageDependencies(graph: graph))
-        issues.append(contentsOf: lintCocoaPodsDependencies(graph: graph))
-        issues.append(contentsOf: lintPackageDependencies(graph: graph))
-        issues.append(contentsOf: lintAppClip(graph: graph))
-
-        return issues
-    }
-
-    private func lintGraphNode(node: GraphNode,
-                               evaluatedNodes: inout [GraphNode]) -> [LintingIssue]
-    {
-        var issues: [LintingIssue] = []
-        defer { evaluatedNodes.append(node) }
-
-        if evaluatedNodes.contains(node) { return issues }
-        guard let targetNode = node as? TargetNode else { return issues }
-
-        targetNode.dependencies.forEach { toNode in
-            if let toTargetNode = toNode as? TargetNode {
-                issues.append(contentsOf: lintDependency(from: targetNode,
-                                                         to: toTargetNode))
+        let dependencyIssues = graphTraverser.dependencies.flatMap { (fromDependency, toDependencies) -> [LintingIssue] in
+            toDependencies.flatMap { (toDependency) -> [LintingIssue] in
+                guard case let ValueGraphDependency.target(fromTargetName, fromTargetPath) = fromDependency else { return [] }
+                guard case let ValueGraphDependency.target(toTargetName, toTargetPath) = toDependency else { return [] }
+                guard let fromTarget = graphTraverser.target(path: fromTargetPath, name: fromTargetName) else { return [] }
+                guard let toTarget = graphTraverser.target(path: toTargetPath, name: toTargetName) else { return [] }
+                return lintDependency(from: fromTarget, to: toTarget)
             }
-            issues.append(contentsOf: lintGraphNode(node: toNode,
-                                                    evaluatedNodes: &evaluatedNodes))
         }
+
+        issues.append(contentsOf: dependencyIssues)
+        issues.append(contentsOf: staticProductsLinter.lint(graphTraverser: graphTraverser))
+        issues.append(contentsOf: lintPrecompiledFrameworkDependencies(graphTraverser: graphTraverser))
+        issues.append(contentsOf: lintPackageDependencies(graphTraverser: graphTraverser))
+        issues.append(contentsOf: lintAppClip(graphTraverser: graphTraverser))
 
         return issues
     }
 
-    private func lintDependency(from: TargetNode,
-                                to: TargetNode) -> [LintingIssue]
-    {
+    private func lintDependency(from: ValueGraphTarget, to: ValueGraphTarget) -> [LintingIssue] {
         var issues: [LintingIssue] = []
 
         let fromTarget = LintableTarget(platform: from.target.platform,
@@ -110,15 +91,15 @@ public class GraphLinter: GraphLinting {
         return issues
     }
 
-    private func lintMismatchingConfigurations(graph: Graph) -> [LintingIssue] {
-        let entryNodeProjects = graph.entryNodes.compactMap { $0 as? TargetNode }.map(\.project)
+    private func lintMismatchingConfigurations(graphTraverser: GraphTraversing) -> [LintingIssue] {
+        let rootProjects = graphTraverser.rootProjects()
 
-        let knownConfigurations = entryNodeProjects.reduce(into: Set()) {
+        let knownConfigurations = rootProjects.reduce(into: Set()) {
             $0.formUnion(Set($1.settings.configurations.keys))
         }
 
-        let projectBuildConfigurations = graph.projects.compactMap { project -> (name: String, buildConfigurations: Set<BuildConfiguration>)? in
-            (name: project.name, buildConfigurations: Set(project.settings.configurations.keys))
+        let projectBuildConfigurations = graphTraverser.projects.compactMap { project -> (name: String, buildConfigurations: Set<BuildConfiguration>)? in
+            (name: project.value.name, buildConfigurations: Set(project.value.settings.configurations.keys))
         }
 
         let mismatchingBuildConfigurations = projectBuildConfigurations.filter {
@@ -138,10 +119,8 @@ public class GraphLinter: GraphLinting {
     ///
     /// - Parameter graph: Project graph.
     /// - Returns: Linting issues.
-    private func lintPackageDependencies(graph: Graph) -> [LintingIssue] {
-        let containsPackageDependency = graph.packages.count > 0
-
-        guard containsPackageDependency else { return [] }
+    private func lintPackageDependencies(graphTraverser: GraphTraversing) -> [LintingIssue] {
+        guard graphTraverser.hasPackages else { return [] }
 
         let version: Version
         do {
@@ -151,43 +130,23 @@ public class GraphLinter: GraphLinting {
         }
 
         if version.major < 11 {
-            let reason = "The project contains a SwiftPM package dependency but the selected version of Xcode is not compatible. Need at least 11 but got \(version)"
+            let reason = "The project contains package dependencies but the selected version of Xcode is not compatible. Need at least 11 but got \(version)"
             return [LintingIssue(reason: reason, severity: .error)]
         }
 
         return []
     }
 
-    /// It verifies that the directory specified by the CocoaPods dependencies contains a Podfile file.
-    ///
-    /// - Parameter graph: Project graph.
-    /// - Returns: Linting issues.
-    private func lintCocoaPodsDependencies(graph: Graph) -> [LintingIssue] {
-        graph.cocoapods.compactMap { node in
-            let podfilePath = node.podfilePath
-            if !FileHandler.shared.exists(podfilePath) {
-                return LintingIssue(reason: "The Podfile at path \(podfilePath) referenced by some projects does not exist", severity: .error)
-            }
-            return nil
-        }
-    }
-
-    private func lintAppClip(graph: Graph) -> [LintingIssue] {
-        let apps = graph
-            .targets.values
-            .flatMap { targets -> [TargetNode] in
-                targets.compactMap { target in
-                    if target.target.product == .app { return target }
-                    return nil
-                }
-            }
+    private func lintAppClip(graphTraverser: GraphTraversing) -> [LintingIssue] {
+        let apps = graphTraverser.apps()
 
         let issues = apps.flatMap { app -> [LintingIssue] in
-            let appClips = products(ofType: .appClip, for: app, graph: graph)
+            let appClips = graphTraverser.directTargetDependencies(path: app.path, name: app.target.name)
+                .filter { $0.target.product == .appClip }
 
             if appClips.count > 1 {
                 return [
-                    LintingIssue(reason: "App '\(app)' cannot depend on more than one app clip -> \(appClips.map(\.name).joined(separator: ", "))",
+                    LintingIssue(reason: "\(app) cannot depend on more than one app clip: \(appClips.map(\.target.name).sorted().listed())",
                                  severity: .error),
                 ]
             }
@@ -200,40 +159,26 @@ public class GraphLinter: GraphLinting {
         return issues
     }
 
-    private func lintCarthageDependencies(graph: Graph) -> [LintingIssue] {
-        let frameworks = graph.frameworks
-        let carthageFrameworks = frameworks.filter { $0.isCarthage }
-        let nonCarthageFrameworks = frameworks.filter { !$0.isCarthage }
+    private func lintPrecompiledFrameworkDependencies(graphTraverser: GraphTraversing) -> [LintingIssue] {
+        let frameworks = graphTraverser.precompiledFrameworksPaths()
 
-        let carthageIssues = carthageFrameworks
-            .filter { !FileHandler.shared.exists($0.path) }
-            .map { LintingIssue(reason: "Framework not found at path \($0.path.pathString). The path might be wrong or Carthage dependencies not fetched", severity: .warning) }
-        let nonCarthageIssues = nonCarthageFrameworks
-            .filter { !FileHandler.shared.exists($0.path) }
-            .map { LintingIssue(reason: "Framework not found at path \($0.path.pathString)", severity: .error) }
-
-        var issues: [LintingIssue] = []
-        issues.append(contentsOf: carthageIssues)
-        issues.append(contentsOf: nonCarthageIssues)
-
-        return issues
+        return frameworks
+            .filter { !FileHandler.shared.exists($0) }
+            .map { LintingIssue(reason: "Framework not found at path \($0.pathString)", severity: .error) }
     }
 
-    private func lintWatchBundleIndentifiers(graph: Graph) -> [LintingIssue] {
-        let apps = graph
-            .targets.values
-            .flatMap { targets -> [TargetNode] in
-                targets.compactMap { target in
-                    if target.target.product == .app { return target }
-                    return nil
-                }
-            }
+    private func lintWatchBundleIndentifiers(graphTraverser: GraphTraversing) -> [LintingIssue] {
+        let apps = graphTraverser.apps()
 
         let issues = apps.flatMap { app -> [LintingIssue] in
-            let watchApps = products(ofType: .watch2App, for: app, graph: graph)
+            let watchApps = graphTraverser.directTargetDependencies(path: app.path, name: app.target.name)
+                .filter { $0.target.product == .watch2App }
+
             return watchApps.flatMap { watchApp -> [LintingIssue] in
                 let watchAppIssues = lint(watchApp: watchApp, parentApp: app)
-                let watchExtensions = products(ofType: .watch2Extension, for: watchApp, graph: graph)
+                let watchExtensions = graphTraverser.directTargetDependencies(path: watchApp.path, name: watchApp.target.name)
+                    .filter { $0.target.product == .watch2Extension }
+
                 let watchExtensionIssues = watchExtensions.flatMap { watchExtension in
                     lint(watchExtension: watchExtension, parentWatchApp: watchApp)
                 }
@@ -244,22 +189,22 @@ public class GraphLinter: GraphLinting {
         return issues
     }
 
-    private func lint(watchApp: TargetNode, parentApp: TargetNode) -> [LintingIssue] {
+    private func lint(watchApp: ValueGraphTarget, parentApp: ValueGraphTarget) -> [LintingIssue] {
         guard watchApp.target.bundleId.hasPrefix(parentApp.target.bundleId) else {
             return [
                 LintingIssue(reason: """
-                Watch app '\(watchApp.name)' bundleId: \(watchApp.target.bundleId) isn't prefixed with its parent's app '\(parentApp.target.bundleId)' bundleId '\(parentApp.target.bundleId)'
+                Watch app '\(watchApp.target.name)' bundleId: \(watchApp.target.bundleId) isn't prefixed with its parent's app '\(parentApp.target.bundleId)' bundleId '\(parentApp.target.bundleId)'
                 """, severity: .error),
             ]
         }
         return []
     }
 
-    private func lint(watchExtension: TargetNode, parentWatchApp: TargetNode) -> [LintingIssue] {
+    private func lint(watchExtension: ValueGraphTarget, parentWatchApp: ValueGraphTarget) -> [LintingIssue] {
         guard watchExtension.target.bundleId.hasPrefix(parentWatchApp.target.bundleId) else {
             return [
                 LintingIssue(reason: """
-                Watch extension '\(watchExtension.name)' bundleId: \(watchExtension.target.bundleId) isn't prefixed with its parent's watch app '\(parentWatchApp.target.bundleId)' bundleId '\(parentWatchApp.target.bundleId)'
+                Watch extension '\(watchExtension.target.name)' bundleId: \(watchExtension.target.bundleId) isn't prefixed with its parent's watch app '\(parentWatchApp.target.bundleId)' bundleId '\(parentWatchApp.target.bundleId)'
                 """, severity: .error),
             ]
         }
@@ -272,13 +217,13 @@ public class GraphLinter: GraphLinting {
             .filter { $0.target.product == type }
     }
 
-    private func lint(appClip: TargetNode, parentApp: TargetNode) -> [LintingIssue] {
+    private func lint(appClip: ValueGraphTarget, parentApp: ValueGraphTarget) -> [LintingIssue] {
         var foundIssues = [LintingIssue]()
 
         if !appClip.target.bundleId.hasPrefix(parentApp.target.bundleId) {
             foundIssues.append(
                 LintingIssue(reason: """
-                AppClip '\(appClip.name)' bundleId: \(appClip.target.bundleId) isn't prefixed with its parent's app '\(parentApp.name)' bundleId '\(parentApp.target.bundleId)'
+                AppClip '\(appClip.target.name)' bundleId: \(appClip.target.bundleId) isn't prefixed with its parent's app '\(parentApp.target.name)' bundleId '\(parentApp.target.bundleId)'
                 """, severity: .error))
         }
 

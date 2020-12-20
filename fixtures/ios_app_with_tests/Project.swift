@@ -55,6 +55,7 @@ let project = Project(
             platform: .macOS,
             product: .framework,
             bundleId: "io.tuist.MacFramework",
+            deploymentTarget: .macOS(targetVersion: "10.15"),
             infoPlist: .file(path: .relativeToManifest("Info.plist")),
             sources: .paths([.relativeToManifest("MacFramework/Sources/**")]),
             settings: Settings(base: ["CODE_SIGN_IDENTITY": "",
@@ -65,6 +66,7 @@ let project = Project(
             platform: .macOS,
             product: .unitTests,
             bundleId: "io.tuist.MacFrameworkTests",
+            deploymentTarget: .macOS(targetVersion: "10.15"),
             infoPlist: "Tests.plist",
             sources: "MacFramework/Tests/**",
             dependencies: [

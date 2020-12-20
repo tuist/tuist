@@ -17,6 +17,7 @@ public enum SDKSource {
     }
 }
 
+@available(*, deprecated, message: "SDK nodes are deprecated. Dependencies should be usted instead with the ValueGraph.")
 public class SDKNode: GraphNode {
     static let xctestFrameworkName = "XCTest.framework"
 
