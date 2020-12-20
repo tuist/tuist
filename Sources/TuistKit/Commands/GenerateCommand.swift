@@ -1,7 +1,9 @@
 import ArgumentParser
 import Foundation
 
-struct GenerateCommand: ParsableCommand {
+struct GenerateCommand: ParsableCommand, HasTrackableParameters {
+    static var analyticsDelegate: TrackableParametersDelegate?
+
     static var configuration: CommandConfiguration {
         CommandConfiguration(commandName: "generate",
                              abstract: "Generates an Xcode workspace to start working on the project.",
@@ -28,6 +30,7 @@ struct GenerateCommand: ParsableCommand {
     var open: Bool = false
 
     func run() throws {
+        GenerateCommand.analyticsDelegate?.willRun(withParamters: ["projectOnly": String(projectOnly), "open": String(open)])
         try GenerateService().run(path: path,
                                   projectOnly: projectOnly,
                                   open: open)

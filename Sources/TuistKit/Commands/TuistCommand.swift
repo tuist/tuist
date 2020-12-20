@@ -1,6 +1,7 @@
 import ArgumentParser
 import Foundation
 import TuistSupport
+import TuistAnalytics
 
 public struct TuistCommand: ParsableCommand {
     public init() {}
@@ -9,27 +10,27 @@ public struct TuistCommand: ParsableCommand {
         CommandConfiguration(commandName: "tuist",
                              abstract: "Generate, build and test your Xcode projects.",
                              subcommands: [
-                                 GenerateCommand.self,
-                                 UpCommand.self,
-                                 FocusCommand.self,
-                                 EditCommand.self,
-                                 SecretCommand.self,
-                                 DumpCommand.self,
-                                 GraphCommand.self,
-                                 LintCommand.self,
-                                 VersionCommand.self,
-                                 BuildCommand.self,
-                                 TestCommand.self,
-                                 CreateIssueCommand.self,
-                                 ScaffoldCommand.self,
-                                 InitCommand.self,
-                                 CloudCommand.self,
-                                 CacheCommand.self,
-                                 SigningCommand.self,
-                                 MigrationCommand.self,
-                                 CleanCommand.self,
-                                 DocCommand.self,
-                                 DependenciesCommand.self,
+                                GenerateCommand.self,
+                                UpCommand.self,
+                                FocusCommand.self,
+                                EditCommand.self,
+                                SecretCommand.self,
+                                DumpCommand.self,
+                                GraphCommand.self,
+                                LintCommand.self,
+                                VersionCommand.self,
+                                BuildCommand.self,
+                                TestCommand.self,
+                                CreateIssueCommand.self,
+                                ScaffoldCommand.self,
+                                InitCommand.self,
+                                CloudCommand.self,
+                                CacheCommand.self,
+                                SigningCommand.self,
+                                MigrationCommand.self,
+                                CleanCommand.self,
+                                DocCommand.self,
+                                DependenciesCommand.self,
                              ])
     }
 
@@ -56,10 +57,8 @@ public struct TuistCommand: ParsableCommand {
             _exit(exitCode(for: error).rawValue)
         }
         do {
-            var trackableCommand = TrackableCommand(command: command)
-            try trackableCommand.run(completion: { _ in
-                // TODO: this will be used to create a `CommandEvent` and tag it
-            })
+            let trackableCommand = TrackableCommand(command: command)
+            try trackableCommand.run()
             exit()
         } catch let error as FatalError {
             errorHandler.fatal(error: error)
