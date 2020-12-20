@@ -1,8 +1,8 @@
+import ArgumentParser
 import Foundation
+import TuistAnalytics
 import TuistSupport
 import XCTest
-import ArgumentParser
-import TuistAnalytics
 
 @testable import TuistKit
 @testable import TuistSupportTesting

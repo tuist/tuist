@@ -11,7 +11,7 @@ public struct TuistAnalyticsTagger: TuistAnalyticsTagging {
     // MARK: - TuistAnalyticsTagging
 
     /// Send analytics regarding the execution of a command, represented by `commandEvent`
-    public func tag(commandEvent: CommandEvent) {
+    public func tag(commandEvent _: CommandEvent) {
         // TODO: implement tag
     }
 }

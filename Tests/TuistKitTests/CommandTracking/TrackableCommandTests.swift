@@ -1,7 +1,7 @@
+import ArgumentParser
 import Foundation
 import TuistSupport
 import XCTest
-import ArgumentParser
 
 @testable import TuistKit
 @testable import TuistSupportTesting
@@ -33,10 +33,10 @@ final class TrackableCommandTests: TuistUnitTestCase {
         // Given
         makeSubject(flag: true)
         let expectedParams = ["flag": "true"]
-        
+
         // When
         try subject.run()
-        
+
         // Then
         XCTAssertEqual(mockCommandEventTagger.tagCommandCallCount, 1)
         let info = try XCTUnwrap(mockCommandEventTagger.infoSpy)
@@ -81,6 +81,6 @@ private struct TestCommand: ParsableCommand, HasTrackableParameters {
     static var analyticsDelegate: TrackableParametersDelegate?
 
     func run() throws {
-        TestCommand.analyticsDelegate?.willRun(withParamters: ["flag" : String(flag)])
+        TestCommand.analyticsDelegate?.willRun(withParamters: ["flag": String(flag)])
     }
 }

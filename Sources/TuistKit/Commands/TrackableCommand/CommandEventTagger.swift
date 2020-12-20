@@ -13,11 +13,12 @@ public final class CommandEventTagger: CommandEventTagging {
     private let machineEnvironment: MachineEnvironmentRetrieving
 
     public init(analyticsTagger: TuistAnalyticsTagging = TuistAnalyticsTagger(),
-                machineEnvironment: MachineEnvironmentRetrieving = MachineEnvironment.shared) {
+                machineEnvironment: MachineEnvironmentRetrieving = MachineEnvironment.shared)
+    {
         self.analyticsTagger = analyticsTagger
         self.machineEnvironment = machineEnvironment
     }
-    
+
     public func tagCommand(from info: TrackableCommandInfo) {
         let commandEvent = CommandEvent(
             name: info.name,

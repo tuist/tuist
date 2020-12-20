@@ -16,10 +16,11 @@ public class TrackableCommand: TrackableParametersDelegate {
     private let clock: Clock
     private let commandEventTagger: CommandEventTagging
     private var trackedParameters: [String: String] = [:]
-    
+
     public init(command: ParsableCommand,
                 commandEventTagger: CommandEventTagging = CommandEventTagger(),
-                clock: Clock = WallClock()) {
+                clock: Clock = WallClock())
+    {
         self.command = command
         self.clock = clock
         self.commandEventTagger = commandEventTagger

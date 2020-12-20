@@ -66,7 +66,7 @@ struct InitCommand: ParsableCommand, HasTrackableParameters {
     }
 
     func run() throws {
-        InitCommand.analyticsDelegate?.willRun(withParamters: ["platform" : platform ?? "unknown"])
+        InitCommand.analyticsDelegate?.willRun(withParamters: ["platform": platform ?? "unknown"])
         try InitService().run(name: name,
                               platform: platform,
                               path: path,

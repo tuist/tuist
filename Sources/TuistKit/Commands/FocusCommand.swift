@@ -69,9 +69,9 @@ struct FocusCommand: ParsableCommand, HasTrackableParameters {
             throw FocusCommandError.noSources
         }
         FocusCommand.analyticsDelegate?.willRun(withParamters: [
-            "xcframeworks" : String(xcframeworks),
+            "xcframeworks": String(xcframeworks),
             "no-cache": String(ignoreCache),
-            "n_targets": String(sources.count)
+            "n_targets": String(sources.count),
         ])
         try FocusService().run(path: path,
                                sources: Set(sources),
