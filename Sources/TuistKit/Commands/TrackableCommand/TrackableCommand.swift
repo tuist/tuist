@@ -2,41 +2,49 @@ import ArgumentParser
 import Foundation
 import TuistSupport
 
-protocol CommandRunning {
-    mutating func run(completion: TrackableCommandCompletion) throws
-}
-
-typealias TrackableCommandCompletion = (TrackableCommandInfo) -> Void
-
-struct TrackableCommandInfo {
+/// `TrackableCommandInfo` contains the information to report the execution of a command
+public struct TrackableCommandInfo {
     let name: String
     let subcommand: String?
     let parameters: [String: String]
     let duration: TimeInterval
 }
 
-public struct TrackableCommand: CommandRunning {
+/// A `TrackableCommand` wraps a `ParsableCommand` and reports its execution to an analytics provider
+public class TrackableCommand: TrackableParametersDelegate {
     private var command: ParsableCommand
-    private let clock = WallClock()
-
-    public init(command: ParsableCommand) {
+    private let clock: Clock
+    private let commandEventTagger: CommandEventTagging
+    private var trackedParameters: [String: String] = [:]
+    
+    public init(command: ParsableCommand,
+                commandEventTagger: CommandEventTagging = CommandEventTagger(),
+                clock: Clock = WallClock()) {
         self.command = command
+        self.clock = clock
+        self.commandEventTagger = commandEventTagger
     }
 
-    mutating func run(completion: TrackableCommandCompletion) throws {
+    func run() throws {
         let timer = clock.startTimer()
+        if let command = command as? HasTrackableParameters {
+            type(of: command).analyticsDelegate = self
+        }
         try command.run()
         let duration = timer.stop()
         let configuration = type(of: command).configuration
-
         let (name, subcommand) = extractCommandName(from: configuration)
         let info = TrackableCommandInfo(
             name: name,
             subcommand: subcommand,
-            parameters: [:],
+            parameters: trackedParameters,
             duration: duration
         )
-        completion(info)
+        commandEventTagger.tagCommand(from: info)
+    }
+
+    func willRun(withParamters parameters: [String: String]) {
+        trackedParameters = parameters
     }
 
     private func extractCommandName(from configuration: CommandConfiguration) -> (name: String, subcommand: String?) {
