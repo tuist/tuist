@@ -133,6 +133,7 @@ let package = Package(
                 "GraphViz",
                 "TuistMigration",
                 "TuistAsyncQueue",
+                "TuistAnalytics"
             ]
         ),
         .testTarget(
