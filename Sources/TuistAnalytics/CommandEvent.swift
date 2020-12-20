@@ -2,7 +2,7 @@ import Foundation
 
 /// A `CommandEvent` is the analytics event to track the execution of a Tuist command
 /// Stats are public and reported at https://stats.tuist.io/
-public struct CommandEvent: Codable {
+public struct CommandEvent: Codable, Equatable {
     public init(
         name: String,
         subcommand: String?,

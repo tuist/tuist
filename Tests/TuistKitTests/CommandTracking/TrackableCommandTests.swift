@@ -7,8 +7,8 @@ import ArgumentParser
 @testable import TuistSupportTesting
 
 final class TrackableCommandTests: TuistUnitTestCase {
-    var subject: TrackableCommand!
-    var mockCommandEventTagger: MockCommandEventTagging!
+    private var subject: TrackableCommand!
+    private var mockCommandEventTagger: MockCommandEventTagging!
 
     override func setUp() {
         super.setUp()
@@ -27,10 +27,13 @@ final class TrackableCommandTests: TuistUnitTestCase {
                                    clock: WallClock())
     }
 
+    // MARK: - Tests
+
     func test_whenFlagTrue_callsCommandEventTaggerWithExpectedParameters() throws {
         // Given
         makeSubject(flag: true)
         let expectedParams = ["flag": "true"]
+        
         // When
         try subject.run()
         
@@ -59,7 +62,7 @@ final class TrackableCommandTests: TuistUnitTestCase {
     }
 }
 
-final class MockCommandEventTagging: CommandEventTagging {
+private final class MockCommandEventTagging: CommandEventTagging {
     var infoSpy: TrackableCommandInfo?
     var tagCommandCallCount = 0
     func tagCommand(from info: TrackableCommandInfo) {
@@ -68,7 +71,7 @@ final class MockCommandEventTagging: CommandEventTagging {
     }
 }
 
-struct TestCommand: ParsableCommand, HasTrackableParameters {
+private struct TestCommand: ParsableCommand, HasTrackableParameters {
     static var configuration: CommandConfiguration {
         CommandConfiguration(commandName: "test")
     }
