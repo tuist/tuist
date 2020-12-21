@@ -4,4 +4,4 @@ describe('something', () => {
     });
 });
 
-export default undefined;
+module.exports = undefined;
