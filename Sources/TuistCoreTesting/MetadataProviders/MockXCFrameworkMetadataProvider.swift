@@ -3,6 +3,18 @@ import TSCBasic
 @testable import TuistCore
 
 public final class MockXCFrameworkMetadataProvider: MockPrecompiledMetadataProvider, XCFrameworkMetadataProviding {
+    public var loadMetadataStub: ((AbsolutePath) throws -> XCFrameworkMetadata)?
+    public func loadMetadata(at path: AbsolutePath) throws -> XCFrameworkMetadata {
+        if let loadMetadataStub = loadMetadataStub {
+            return try loadMetadataStub(path)
+        } else {
+            return XCFrameworkMetadata.test(
+                path: path,
+                primaryBinaryPath: path.appending(RelativePath("ios-arm64/binary"))
+            )
+        }
+    }
+
     public var infoPlistStub: ((AbsolutePath) throws -> XCFrameworkInfoPlist)?
     public func infoPlist(xcframeworkPath: AbsolutePath) throws -> XCFrameworkInfoPlist {
         if let infoPlistStub = infoPlistStub {
@@ -19,5 +31,21 @@ public final class MockXCFrameworkMetadataProvider: MockPrecompiledMetadataProvi
         } else {
             return AbsolutePath.root
         }
+    }
+}
+
+public extension XCFrameworkMetadata {
+    static func test(
+        path: AbsolutePath = "/XCFrameworks/XCFramework.xcframework",
+        infoPlist: XCFrameworkInfoPlist = .test(),
+        primaryBinaryPath: AbsolutePath = "/XCFrameworks/XCFramework.xcframework/ios-arm64/XCFramework",
+        linking: BinaryLinking = .dynamic
+    ) -> XCFrameworkMetadata {
+        XCFrameworkMetadata(
+            path: path,
+            infoPlist: infoPlist,
+            primaryBinaryPath: primaryBinaryPath,
+            linking: linking
+        )
     }
 }

@@ -5,6 +5,7 @@ import TuistSupport
 enum GraphLoadingError: FatalError, Equatable {
     case missingFile(AbsolutePath)
     case targetNotFound(String, AbsolutePath)
+    case missingProject(AbsolutePath)
     case manifestNotFound(AbsolutePath)
     case circularDependency([GraphCircularDetectorNode])
     case unexpected(String)
@@ -15,6 +16,8 @@ enum GraphLoadingError: FatalError, Equatable {
             return lhsPath == rhsPath
         case let (.targetNotFound(lhsName, lhsPath), .targetNotFound(rhsName, rhsPath)):
             return lhsPath == rhsPath && lhsName == rhsName
+        case let (.missingProject(lhsPath), .missingProject(rhsPath)):
+            return lhsPath == rhsPath
         case let (.manifestNotFound(lhsPath), .manifestNotFound(rhsPath)):
             return lhsPath == rhsPath
         case let (.unexpected(lhsMessage), .unexpected(rhsMessage)):
@@ -36,6 +39,8 @@ enum GraphLoadingError: FatalError, Equatable {
             return "Couldn't find manifest at path: '\(path.pathString)'"
         case let .targetNotFound(targetName, path):
             return "Couldn't find target '\(targetName)' at '\(path.pathString)'"
+        case let .missingProject(path):
+            return "Could not locate project at path: \(path.pathString)"
         case let .missingFile(path):
             return "Couldn't find file at path '\(path.pathString)'"
         case let .unexpected(message):
