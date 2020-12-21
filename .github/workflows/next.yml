@@ -1,4 +1,4 @@
-name: Website
+name: Next Website
 
 on:
   push:
@@ -27,14 +27,14 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-yarn-
       - name: Install dependencies
-        working-directory: ./new-website
+        working-directory: ./next
         run: yarn install --prod --pure-lockfile
       - name: Lint
-        working-directory: ./new-website
+        working-directory: ./next
         run: yarn lint
       - name: Test
-        working-directory: ./new-website
+        working-directory: ./next
         run: yarn test
       - name: Build
-        working-directory: ./new-website
+        working-directory: ./next
         run: yarn build
