@@ -2408,15 +2408,15 @@
     "@theme-ui/css" "0.3.5"
     deepmerge "^4.2.2"
 
-"@theme-ui/css@0.3.5", "@theme-ui/css@^0.3.4":
+"@theme-ui/css@0.3.5":
   version "0.3.5"
   resolved "https://registry.yarnpkg.com/@theme-ui/css/-/css-0.3.5.tgz#cfd228c74bcc7840a7fe9e507858486ee4d403dc"
   integrity sha512-XqsyXmifbnHOui1flSq4V7Lb3U+06Dbn2Q/leyr/cRd6Xgc0naiztdmD0MbXNvxgU51a2Ur9hyP4PnO5wE0yRg==
 
-"@theme-ui/match-media@^0.3.4":
-  version "0.3.4"
-  resolved "https://registry.yarnpkg.com/@theme-ui/match-media/-/match-media-0.3.4.tgz#75a2f9b384e6c8c2df1596abf53bef1e07b65fea"
-  integrity sha512-um/bPUrmy8INcrXmnwEfsu1DapxNyC3uJBoLUxKPOm4NoWJOXriIZLU5p2vbVGpOj1sfmn62MYbyFWJGMYVSBg==
+"@theme-ui/match-media@^0.3.5":
+  version "0.3.5"
+  resolved "https://registry.yarnpkg.com/@theme-ui/match-media/-/match-media-0.3.5.tgz#e676b9f74e1f58608cfdb48ae8be69c4b7517109"
+  integrity sha512-twhqy3H++jP7TqCZSRvSSc1/hxqjVokX+G/gf5S6lYQj4+zaksTO/AyzBzb/6iJLLkN2WeL9P2yjCeSTMxdJGw==
 
 "@theme-ui/mdx@0.3.5":
   version "0.3.5"
