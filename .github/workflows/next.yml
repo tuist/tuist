@@ -28,7 +28,7 @@ jobs:
             ${{ runner.os }}-yarn-
       - name: Install dependencies
         working-directory: ./next
-        run: yarn install --prod --pure-lockfile
+        run: yarn install --pure-lockfile
       - name: Lint
         working-directory: ./next
         run: yarn lint
