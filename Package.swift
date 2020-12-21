@@ -224,6 +224,7 @@ let package = Package(
                 swifterDependency,
                 signalsDependency,
                 "Zip",
+                "Checksum",
             ]
         ),
         .target(
