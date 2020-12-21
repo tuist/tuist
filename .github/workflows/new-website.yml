@@ -29,6 +29,12 @@ jobs:
       - name: Install dependencies
         working-directory: ./new-website
         run: yarn install --prod --pure-lockfile
+      - name: Lint
+        working-directory: ./new-website
+        run: yarn lint
+      - name: Test
+        working-directory: ./new-website
+        run: yarn test
       - name: Build
         working-directory: ./new-website
         run: yarn build
