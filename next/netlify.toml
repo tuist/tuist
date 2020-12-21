@@ -1,0 +1,4 @@
+[build]
+  command   = "yarn run build"
+  functions = "out_functions"
+  publish   = "out_publish"

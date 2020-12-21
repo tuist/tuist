@@ -1,5 +1,6 @@
 module.exports = {
     distDir: 'build',
+    target: 'serverless',
     publicRuntimeConfig: {
         // add your public runtime environment variables here with NEXT_PUBLIC_*** prefix
     },
