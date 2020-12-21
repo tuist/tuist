@@ -19,8 +19,7 @@ public class TrackableCommand: TrackableParametersDelegate {
 
     public init(command: ParsableCommand,
                 commandEventTagger: CommandEventTagging = CommandEventTagger(),
-                clock: Clock = WallClock())
-    {
+                clock: Clock = WallClock()) {
         self.command = command
         self.clock = clock
         self.commandEventTagger = commandEventTagger
