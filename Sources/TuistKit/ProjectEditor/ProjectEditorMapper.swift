@@ -30,7 +30,8 @@ final class ProjectEditorMapper: ProjectEditorMapping {
              projectDescriptionPath: AbsolutePath) throws -> (Project, Graph)
     {
         // Settings
-        let projectSettings = Settings(base: [:],
+        let projectSettings = Settings(base: ["ONLY_ACTIVE_ARCH": "NO",
+                                              "EXCLUDED_ARCHS": "arm64"],
                                        configurations: Settings.default.configurations,
                                        defaultSettings: .recommended)
 
