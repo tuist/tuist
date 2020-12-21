@@ -14,6 +14,7 @@ public protocol GraphMapping {
 
 public extension GraphMapping {
     func map(graph: ValueGraph) throws -> (ValueGraph, [SideEffectDescriptor]) {
+        // TODO: update to use ValueGraph
         return (graph, [])
     }
 }
