@@ -54,6 +54,7 @@ final class CertificateParser: CertificateParsing {
         let configurationName = publicKeyComponents[1]
 
         let subject = try self.subject(at: publicKey)
+        let fingerprint = try self.fingerprint(at: publicKey)
         let isRevoked = subject.contains("REVOKED")
 
         let nameRegex = try NSRegularExpression(
@@ -61,9 +62,9 @@ final class CertificateParser: CertificateParsing {
             options: []
         )
         guard
-            let result = nameRegex.firstMatch(in: subject, options: [], range: NSRange(location: 0, length: subject.count))
+            let nameResult = nameRegex.firstMatch(in: subject, options: [], range: NSRange(location: 0, length: subject.count))
         else { throw CertificateParserError.nameParsingFailed(publicKey, subject) }
-        let name = NSString(string: subject).substring(with: result.range(at: 1)).spm_chomp()
+        let name = NSString(string: subject).substring(with: nameResult.range(at: 1)).spm_chomp()
 
         let developmentTeamRegex = try NSRegularExpression(
             pattern: SubjectAttribute.organizationalUnit.rawValue + " *= *([^/,]+)",
@@ -77,6 +78,7 @@ final class CertificateParser: CertificateParsing {
         return Certificate(
             publicKey: publicKey,
             privateKey: privateKey,
+            fingerprint: fingerprint,
             developmentTeam: developmentTeam,
             name: name.sanitizeEncoding(),
             targetName: targetName,
@@ -85,11 +87,23 @@ final class CertificateParser: CertificateParsing {
         )
     }
 
+    func parseFingerPrint(developerCertificate: Data) throws -> String {
+        let temporaryFile = try FileHandler.shared.temporaryDirectory().appending(component: "developerCertificate.cer")
+        try developerCertificate.write(to: temporaryFile.asURL)
+
+        return try self.fingerprint(at: temporaryFile)
+    }
+
     // MARK: - Helpers
 
     private func subject(at path: AbsolutePath) throws -> String {
         try System.shared.capture("openssl", "x509", "-inform", "der", "-in", path.pathString, "-noout", "-subject")
     }
+
+    private func fingerprint(at path: AbsolutePath) throws -> String {
+        try System.shared.capture("openssl", "x509", "-inform", "der", "-in", path.pathString, "-noout", "-fingerprint").spm_chomp()
+    }
+
 }
 
 private extension String {

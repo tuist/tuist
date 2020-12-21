@@ -44,6 +44,11 @@ final class ProvisioningProfileParser: ProvisioningProfileParsing {
         let plistData = Data(unencryptedProvisioningProfile.utf8)
         let provisioningProfileContent = try PropertyListDecoder().decode(ProvisioningProfile.Content.self, from: plistData)
 
+        let developerCertificateFingerprints = try provisioningProfileContent.developerCertificates.map { (data) throws -> String in
+            let certificateParser = CertificateParser()
+            return try certificateParser.parseFingerPrint(developerCertificate: data)
+        }
+
         return ProvisioningProfile(path: path,
                                    name: provisioningProfileContent.name,
                                    targetName: targetName,
@@ -54,6 +59,7 @@ final class ProvisioningProfileParser: ProvisioningProfileParsing {
                                    appIdName: provisioningProfileContent.appIdName,
                                    applicationIdPrefix: provisioningProfileContent.applicationIdPrefix,
                                    platforms: provisioningProfileContent.platforms,
-                                   expirationDate: provisioningProfileContent.expirationDate)
+                                   expirationDate: provisioningProfileContent.expirationDate,
+                                   developerCertificateFingerprints: developerCertificateFingerprints)
     }
 }

@@ -5,6 +5,7 @@ import TSCBasic
 extension Certificate {
     static func test(publicKey: AbsolutePath = AbsolutePath("/"),
                      privateKey: AbsolutePath = AbsolutePath("/"),
+                     fingerprint: String = "",
                      developmentTeam: String = "",
                      name: String = "",
                      targetName: String = "",
@@ -13,6 +14,7 @@ extension Certificate {
     {
         Certificate(publicKey: publicKey,
                     privateKey: privateKey,
+                    fingerprint: fingerprint,
                     developmentTeam: developmentTeam,
                     name: name,
                     targetName: targetName,

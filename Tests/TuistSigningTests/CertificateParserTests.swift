@@ -27,6 +27,11 @@ final class CertificateParserTests: TuistUnitTestCase {
             "openssl", "x509", "-inform", "der", "-in", publicKey.pathString, "-noout", "-subject",
             output: subjectOutput
         )
+        let fingerprintOutput = "subject= /UID=VD55TKL3V6/CN=Apple Development: Name (54GSF6G47V)/OU=QH95ER52SG/O=Name/C=US\n"
+        system.succeedCommand(
+            "openssl", "x509", "-inform", "der", "-in", publicKey.pathString, "-noout", "-fingerprint",
+            output: fingerprintOutput
+        )
 
         // When
         XCTAssertThrowsSpecific(
@@ -43,6 +48,11 @@ final class CertificateParserTests: TuistUnitTestCase {
         system.succeedCommand(
             "openssl", "x509", "-inform", "der", "-in", publicKey.pathString, "-noout", "-subject",
             output: subjectOutput
+        )
+        let fingerprintOutput = "subject= /UID=VD55TKL3V6/CN=Apple Development: Name (54GSF6G47V)/OU=QH95ER52SG/O=Name/C=US\n"
+        system.succeedCommand(
+            "openssl", "x509", "-inform", "der", "-in", publicKey.pathString, "-noout", "-fingerprint",
+            output: fingerprintOutput
         )
 
         // When
@@ -73,9 +83,15 @@ final class CertificateParserTests: TuistUnitTestCase {
             "openssl", "x509", "-inform", "der", "-in", publicKey.pathString, "-noout", "-subject",
             output: subjectOutput
         )
+        let fingerprintOutput = "subject= /UID=VD55TKL3V6/CN=Apple Development: Name (54GSF6G47V)/OU=QH95ER52SG/O=Name/C=US\n"
+        system.succeedCommand(
+            "openssl", "x509", "-inform", "der", "-in", publicKey.pathString, "-noout", "-fingerprint",
+            output: fingerprintOutput
+        )
         let expectedCertificate = Certificate(
             publicKey: publicKey,
             privateKey: privateKey,
+            fingerprint: "subject= /UID=VD55TKL3V6/CN=Apple Development: Name (54GSF6G47V)/OU=QH95ER52SG/O=Name/C=US",
             developmentTeam: "QH95ER52SG",
             name: "Apple Development: Name (54GSF6G47V)",
             targetName: "Target",
@@ -99,9 +115,15 @@ final class CertificateParserTests: TuistUnitTestCase {
             "openssl", "x509", "-inform", "der", "-in", publicKey.pathString, "-noout", "-subject",
             output: subjectOutput
         )
+        let fingerprintOutput = "subject= /UID=VD55TKL3V6/CN=Apple Development: Name (54GSF6G47V)/OU=QH95ER52SG/O=Name/C=US\n"
+        system.succeedCommand(
+            "openssl", "x509", "-inform", "der", "-in", publicKey.pathString, "-noout", "-fingerprint",
+            output: fingerprintOutput
+        )
         let expectedCertificate = Certificate(
             publicKey: publicKey,
             privateKey: privateKey,
+            fingerprint: "subject= /UID=VD55TKL3V6/CN=Apple Development: Name (54GSF6G47V)/OU=QH95ER52SG/O=Name/C=US",
             developmentTeam: "QH95ER52SG",
             name: "Apple Development: Name (54GSF6G47V)",
             targetName: "Target",
