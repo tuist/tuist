@@ -7904,16 +7904,16 @@ gatsby-plugin-favicon@3.1.6:
     html-react-parser "^0.6.4"
     lodash "^4.17.11"
 
-gatsby-plugin-feed@^2.9.0:
-  version "2.9.0"
-  resolved "https://registry.yarnpkg.com/gatsby-plugin-feed/-/gatsby-plugin-feed-2.9.0.tgz#4ee7d0e91c344db00706c5dc735cfd9b6bf7b349"
-  integrity sha512-uLgeaWuXMuy24mJgbala61ce7NfzeGPaJGHtfB075WFfv4KqOcqFKXV/G6OTtBYMUmuiBpxtGYCR7QbLxHgHhw==
+gatsby-plugin-feed@^2.10.0:
+  version "2.10.0"
+  resolved "https://registry.yarnpkg.com/gatsby-plugin-feed/-/gatsby-plugin-feed-2.10.0.tgz#c11b5daacfdc5f51bdd77ced12eacd50ea2d7821"
+  integrity sha512-8Oppa3ZCOiKpbdWhbTHeT/vEu+wzkLkay2qUQHGpIL4iz+WQYNC7jz0onWhHRV56Wd6TKUI6UIvrkmvH0E8Uww==
   dependencies:
     "@babel/runtime" "^7.12.5"
     "@hapi/joi" "^15.1.1"
     common-tags "^1.8.0"
     fs-extra "^8.1.0"
-    gatsby-plugin-utils "^0.5.0"
+    gatsby-plugin-utils "^0.6.0"
     lodash.merge "^4.6.2"
     rss "^1.2.2"
 
@@ -8114,6 +8114,13 @@ gatsby-plugin-utils@^0.5.0:
   version "0.5.0"
   resolved "https://registry.yarnpkg.com/gatsby-plugin-utils/-/gatsby-plugin-utils-0.5.0.tgz#5d0c0b9589b673f422e09e3e2e80bafbe3457505"
   integrity sha512-Wvzt970TWr+cDdFdXjFmJ5rQEk9CbbbHzGo5GHOwfphXOTwp7/oKbTZoiGBm9M9Tf9Rdz6ph18j2ixdC0fy2Jw==
+  dependencies:
+    joi "^17.2.1"
+
+gatsby-plugin-utils@^0.6.0:
+  version "0.6.0"
+  resolved "https://registry.yarnpkg.com/gatsby-plugin-utils/-/gatsby-plugin-utils-0.6.0.tgz#ec40fe484e1a46e81175adbf9cc4d6eee9c5dd35"
+  integrity sha512-xoniyZtU1NLQJtb1JQaGQOjt7rriJcklfSaUnWfWojg0HmOxs+tm1ImpfHL9AOhNkVGim/YbQFXZqOQj/oUM+Q==
   dependencies:
     joi "^17.2.1"
 
