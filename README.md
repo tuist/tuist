@@ -112,6 +112,7 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
     <td align="center"><a href="http://www.luispadron.com"><img src="https://avatars3.githubusercontent.com/u/13840545?v=4" width="100px;" alt=""/><br /><sub><b>Luis Padron</b></sub></a></td>
     <td align="center"><a href="https://heberti.com"><img src="https://avatars0.githubusercontent.com/u/103670?v=4" width="100px;" alt=""/><br /><sub><b>Heberti Almeida</b></sub></a></td>
     <td align="center"><a href="http://benscheirman.com"><img src="https://avatars0.githubusercontent.com/u/59140?v=4" width="100px;" alt=""/><br /><sub><b>Ben Scheirman</b></sub></a></td>
+    <td align="center"><a href="https://jsorge.net"><img src="https://avatars3.githubusercontent.com/u/2585841?v=4" width="100px;" alt=""/><br /><sub><b>Jared Sorge</b></sub></a></td>
   </tr>
 </table>
 
