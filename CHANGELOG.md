@@ -12,6 +12,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Added
 
 - Fourier CLI tool to automate development tasks [#2196](https://github.com/tuist/tuist/pull/2196) by @pepibumur](https://github.com/pepibumur).
+- Add support for embedded scripts in a TargetAction. [#2192](https://github.com/tuist/tuist/pull/2192) by [@jsorge]
 - Support `.s` source files [#2199](https://github.com/tuist/tuist/pull/2199) by[ @dcvz](https://github.com/dcvz).
 
 ## 1.29.0 - Tutu
