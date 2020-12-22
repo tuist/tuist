@@ -1,7 +1,7 @@
 import Foundation
 import TSCBasic
 
-public enum FileElement: Equatable {
+public enum FileElement: Equatable, Hashable {
     case file(path: AbsolutePath)
     case folderReference(path: AbsolutePath)
 

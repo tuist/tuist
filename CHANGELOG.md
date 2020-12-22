@@ -6,12 +6,15 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Fixed
 
+- Fix import of multiple signing certificates [#2112](https://github.com/tuist/tuist/pull/2112) by [@rist](https://github.com/rist).
+
+## 1.29.0 - Tutu
+
+### Fixed
+
 - Fix "Embed Frameworks" build phase parameters [#2156](https://github.com/tuist/tuist/pull/2156) by [@kwridan](https://github.com/kwridan).
 - Adjust the project generated for editing to not build for the arm64 architecture [#2154](https://github.com/tuist/tuist/pull/2154) by [@pepibumur](https://github.com/pepibumur).
-
-### Added
-
-- Include the `arm64` architecture in Tuist's binaries and ProjectDescriptionHelpers framework [#2154](https://github.com/tuist/tuist/pull/2154) by [@pepibumur](https://github.com/pepibumur).
+- Project generation failing when the resources glob includes a bundle [#2183](https://github.com/tuist/tuist/pull/2183) by [@pepibumur](https://github.com/pepibumur).
 
 ## 1.28.0
 
