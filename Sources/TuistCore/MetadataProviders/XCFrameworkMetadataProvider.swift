@@ -2,13 +2,35 @@ import Foundation
 import TSCBasic
 import TuistSupport
 
-// MARK: - Metadata
+// MARK: - Provider Errors
 
-public struct XCFrameworkMetadata: Equatable {
-    public var path: AbsolutePath
-    public var infoPlist: XCFrameworkInfoPlist
-    public var primaryBinaryPath: AbsolutePath
-    public var linking: BinaryLinking
+enum XCFrameworkMetadataProviderError: FatalError, Equatable {
+    case xcframeworkNotFound(AbsolutePath)
+    case missingRequiredFile(AbsolutePath)
+    case supportedArchitectureReferencesNotFound(AbsolutePath)
+    case fileTypeNotRecognised(file: RelativePath, frameworkName: String)
+
+    // MARK: - FatalError
+
+    var description: String {
+        switch self {
+        case let .xcframeworkNotFound(path):
+            return "Couldn't find xcframework at \(path.pathString)"
+        case let .missingRequiredFile(path):
+            return "The .xcframework at path \(path.pathString) doesn't contain an Info.plist. It's possible that the .xcframework was not generated properly or that got corrupted. Please, double check with the author of the framework."
+        case let .supportedArchitectureReferencesNotFound(path):
+            return "Couldn't find any supported architecture references at \(path.pathString). It's possible that the .xcframework was not generated properly or that it got corrupted. Please, double check with the author of the framework."
+        case let .fileTypeNotRecognised(file, frameworkName):
+            return "The extension of the file `\(file)`, which was found while parsing the xcframework `\(frameworkName)`, is not supported."
+        }
+    }
+
+    var type: ErrorType {
+        switch self {
+        case .xcframeworkNotFound, .missingRequiredFile, .supportedArchitectureReferencesNotFound, .fileTypeNotRecognised:
+            return .abort
+        }
+    }
 }
 
 // MARK: - Provider
@@ -31,6 +53,10 @@ public protocol XCFrameworkMetadataProviding: PrecompiledMetadataProviding {
 // MARK: - Default Implementation
 
 public final class XCFrameworkMetadataProvider: PrecompiledMetadataProvider, XCFrameworkMetadataProviding {
+    override public init() {
+        super.init()
+    }
+
     public func loadMetadata(at path: AbsolutePath) throws -> XCFrameworkMetadata {
         let fileHandler = FileHandler.shared
         guard fileHandler.exists(path) else {
@@ -81,36 +107,5 @@ public final class XCFrameworkMetadataProvider: PrecompiledMetadataProvider, XCF
             throw XCFrameworkMetadataProviderError.fileTypeNotRecognised(file: library.path, frameworkName: xcframeworkPath.basename)
         }
         return binaryPath
-    }
-}
-
-// MARK: - Errors
-
-enum XCFrameworkMetadataProviderError: FatalError, Equatable {
-    case xcframeworkNotFound(AbsolutePath)
-    case missingRequiredFile(AbsolutePath)
-    case supportedArchitectureReferencesNotFound(AbsolutePath)
-    case fileTypeNotRecognised(file: RelativePath, frameworkName: String)
-
-    // MARK: - FatalError
-
-    var description: String {
-        switch self {
-        case let .xcframeworkNotFound(path):
-            return "Couldn't find xcframework at \(path.pathString)"
-        case let .missingRequiredFile(path):
-            return "The .xcframework at path \(path.pathString) doesn't contain an Info.plist. It's possible that the .xcframework was not generated properly or that got corrupted. Please, double check with the author of the framework."
-        case let .supportedArchitectureReferencesNotFound(path):
-            return "Couldn't find any supported architecture references at \(path.pathString). It's possible that the .xcframework was not generated properly or that it got corrupted. Please, double check with the author of the framework."
-        case let .fileTypeNotRecognised(file, frameworkName):
-            return "The extension of the file `\(file)`, which was found while parsing the xcframework `\(frameworkName)`, is not supported."
-        }
-    }
-
-    var type: ErrorType {
-        switch self {
-        case .xcframeworkNotFound, .missingRequiredFile, .supportedArchitectureReferencesNotFound, .fileTypeNotRecognised:
-            return .abort
-        }
     }
 }

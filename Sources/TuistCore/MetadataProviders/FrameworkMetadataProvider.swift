@@ -2,16 +2,26 @@ import Foundation
 import TSCBasic
 import TuistSupport
 
-// MARK: - Metadata
+// MARK: - Provider Errors
 
-public struct FrameworkMetadata: Equatable {
-    public var path: AbsolutePath
-    public var binaryPath: AbsolutePath
-    public var dsymPath: AbsolutePath?
-    public var bcsymbolmapPaths: [AbsolutePath]
-    public var linking: BinaryLinking
-    public var architectures: [BinaryArchitecture]
-    public var isCarthage: Bool
+enum FrameworkMetadataProviderError: FatalError, Equatable {
+    case frameworkNotFound(AbsolutePath)
+
+    // MARK: - FatalError
+
+    var description: String {
+        switch self {
+        case let .frameworkNotFound(path):
+            return "Couldn't find framework at \(path.pathString)"
+        }
+    }
+
+    var type: ErrorType {
+        switch self {
+        case .frameworkNotFound:
+            return .abort
+        }
+    }
 }
 
 // MARK: - Provider
@@ -39,6 +49,10 @@ public protocol FrameworkMetadataProviding: PrecompiledMetadataProviding {
 // MARK: - Default Implementation
 
 public final class FrameworkMetadataProvider: PrecompiledMetadataProvider, FrameworkMetadataProviding {
+    override public init() {
+        super.init()
+    }
+
     public func loadMetadata(at path: AbsolutePath) throws -> FrameworkMetadata {
         let fileHandler = FileHandler.shared
         guard fileHandler.exists(path) else {
@@ -88,27 +102,5 @@ public final class FrameworkMetadataProvider: PrecompiledMetadataProvider, Frame
 
     private func binaryPath(frameworkPath: AbsolutePath) -> AbsolutePath {
         frameworkPath.appending(component: frameworkPath.basenameWithoutExt)
-    }
-}
-
-// MARK: - Error
-
-enum FrameworkMetadataProviderError: FatalError, Equatable {
-    case frameworkNotFound(AbsolutePath)
-
-    // MARK: - FatalError
-
-    var description: String {
-        switch self {
-        case let .frameworkNotFound(path):
-            return "Couldn't find framework at \(path.pathString)"
-        }
-    }
-
-    var type: ErrorType {
-        switch self {
-        case .frameworkNotFound:
-            return .abort
-        }
     }
 }

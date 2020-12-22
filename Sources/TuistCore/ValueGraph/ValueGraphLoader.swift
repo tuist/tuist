@@ -24,7 +24,7 @@ public final class ValueGraphLoader: ValueGraphLoading {
         )
     }
 
-    init(
+    public init(
         frameworkMetadataProvider: FrameworkMetadataProviding,
         libraryMetadataProvider: LibraryMetadataProviding,
         xcframeworkMetadataProvider: XCFrameworkMetadataProviding,

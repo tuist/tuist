@@ -47,8 +47,6 @@ public protocol PrecompiledMetadataProviding {
 }
 
 public class PrecompiledMetadataProvider: PrecompiledMetadataProviding {
-    public init() {}
-
     public func architectures(binaryPath: AbsolutePath) throws -> [BinaryArchitecture] {
         let result = try System.shared.capture("/usr/bin/lipo", "-info", binaryPath.pathString).spm_chuzzle() ?? ""
         let regexes = [

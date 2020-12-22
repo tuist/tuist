@@ -2,14 +2,32 @@ import Foundation
 import TSCBasic
 import TuistSupport
 
-// MARK: - Metadata
+// MARK: - Provider Errors
 
-public struct LibraryMetadata: Equatable {
-    public var path: AbsolutePath
-    public var publicHeaders: AbsolutePath
-    public var swiftModuleMap: AbsolutePath?
-    public var architectures: [BinaryArchitecture]
-    public var linking: BinaryLinking
+enum LibraryMetadataProviderError: FatalError, Equatable {
+    case libraryNotFound(AbsolutePath)
+    case publicHeadersNotFound(libraryPath: AbsolutePath, headersPath: AbsolutePath)
+    case swiftModuleMapNotFound(libraryPath: AbsolutePath, moduleMapPath: AbsolutePath)
+
+    // MARK: - FatalError
+
+    var description: String {
+        switch self {
+        case let .libraryNotFound(path):
+            return "Couldn't find library at \(path.pathString)"
+        case let .publicHeadersNotFound(libraryPath: libraryPath, headersPath: headersPath):
+            return "Couldn't find the public headers at \(headersPath.pathString) for library \(libraryPath.pathString)"
+        case let .swiftModuleMapNotFound(libraryPath: libraryPath, moduleMapPath: moduleMapPath):
+            return "Couldn't find the public headers at \(moduleMapPath.pathString) for library \(libraryPath.pathString)"
+        }
+    }
+
+    var type: ErrorType {
+        switch self {
+        case .libraryNotFound, .publicHeadersNotFound, .swiftModuleMapNotFound:
+            return .abort
+        }
+    }
 }
 
 // MARK: - Provider
@@ -25,6 +43,10 @@ public protocol LibraryMetadataProviding: PrecompiledMetadataProviding {
 // MARK: - Default Implementation
 
 public final class LibraryMetadataProvider: PrecompiledMetadataProvider, LibraryMetadataProviding {
+    override public init() {
+        super.init()
+    }
+
     public func loadMetadata(at path: AbsolutePath,
                              publicHeaders: AbsolutePath,
                              swiftModuleMap: AbsolutePath?) throws -> LibraryMetadata
@@ -51,33 +73,5 @@ public final class LibraryMetadataProvider: PrecompiledMetadataProvider, Library
             architectures: architectures,
             linking: linking
         )
-    }
-}
-
-// MARK: - Error
-
-enum LibraryMetadataProviderError: FatalError, Equatable {
-    case libraryNotFound(AbsolutePath)
-    case publicHeadersNotFound(libraryPath: AbsolutePath, headersPath: AbsolutePath)
-    case swiftModuleMapNotFound(libraryPath: AbsolutePath, moduleMapPath: AbsolutePath)
-
-    // MARK: - FatalError
-
-    var description: String {
-        switch self {
-        case let .libraryNotFound(path):
-            return "Couldn't find library at \(path.pathString)"
-        case let .publicHeadersNotFound(libraryPath: libraryPath, headersPath: headersPath):
-            return "Couldn't find the public headers at \(headersPath.pathString) for library \(libraryPath.pathString)"
-        case let .swiftModuleMapNotFound(libraryPath: libraryPath, moduleMapPath: moduleMapPath):
-            return "Couldn't find the public headers at \(moduleMapPath.pathString) for library \(libraryPath.pathString)"
-        }
-    }
-
-    var type: ErrorType {
-        switch self {
-        case .libraryNotFound, .publicHeadersNotFound, .swiftModuleMapNotFound:
-            return .abort
-        }
     }
 }
