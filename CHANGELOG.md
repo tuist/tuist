@@ -12,10 +12,6 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Adjust the project generated for editing to not build for the arm64 architecture [#2154](https://github.com/tuist/tuist/pull/2154) by [@pepibumur](https://github.com/pepibumur).
 - Project generation failing when the resources glob includes a bundle [#2183](https://github.com/tuist/tuist/pull/2183) by [@pepibumur](https://github.com/pepibumur).
 
-### Added
-
-- Include the `arm64` architecture in Tuist's binaries and ProjectDescriptionHelpers framework [#2154](https://github.com/tuist/tuist/pull/2154) by [@pepibumur](https://github.com/pepibumur).
-
 ## 1.28.0
 
 ### Fixed
