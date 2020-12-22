@@ -39,7 +39,7 @@ final class DependenciesServiceTests: TuistUnitTestCase {
         let stubbedPath = try temporaryPath()
         let stubbedDependencies = Dependencies(
             carthageDependencies: [
-                CarthageDependency(name: "Dependency1", requirement: .exact("1.1.1"), platforms: [.iOS, .macOS]),
+                CarthageDependency(origin: .github(path: "Dependency1"), requirement: .exact("1.1.1"), platforms: [.iOS, .macOS]),
             ]
         )
         dependenciesModelLoader.loadDependenciesStub = { _ in stubbedDependencies }
@@ -64,7 +64,7 @@ final class DependenciesServiceTests: TuistUnitTestCase {
         let stubbedPath = try temporaryPath()
         let stubbedDependencies = Dependencies(
             carthageDependencies: [
-                CarthageDependency(name: "Dependency1", requirement: .exact("1.1.1"), platforms: [.iOS, .macOS]),
+                CarthageDependency(origin: .github(path: "Dependency1"), requirement: .exact("1.1.1"), platforms: [.iOS, .macOS]),
             ]
         )
         dependenciesModelLoader.loadDependenciesStub = { _ in stubbedDependencies }

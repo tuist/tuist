@@ -44,8 +44,8 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             .appending(component: Constants.DependenciesDirectory.name)
 
         let stubbedCarthageDependencies = [
-            CarthageDependency(name: "Moya", requirement: .exact("1.1.1"), platforms: [.iOS]),
-            CarthageDependency(name: "RxSwift", requirement: .exact("2.0.0"), platforms: [.iOS]),
+            CarthageDependency(origin: .github(path: "Moya"), requirement: .exact("1.1.1"), platforms: [.iOS]),
+            CarthageDependency(origin: .github(path: "RxSwift"), requirement: .exact("2.0.0"), platforms: [.iOS]),
         ]
         let stubbedDependencies = Dependencies(carthageDependencies: stubbedCarthageDependencies)
         let stubbedMethod = InstallDependenciesMethod.fetch

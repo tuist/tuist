@@ -33,8 +33,8 @@ final class DependenciesModelLoaderTests: TuistUnitTestCase {
         let stubbedPath = try temporaryPath()
         manifestLoader.loadDependenciesStub = { _ in
             Dependencies([
-                .carthage(name: "Dependency1", requirement: .exact("1.1.1"), platforms: [.iOS]),
-                .carthage(name: "Dependency2", requirement: .exact("2.3.4"), platforms: [.macOS, .tvOS]),
+                .carthage(origin: .github(path: "Dependency1"), requirement: .exact("1.1.1"), platforms: [.iOS]),
+                .carthage(origin: .git(path: "Dependency1"), requirement: .exact("2.3.4"), platforms: [.macOS, .tvOS]),
             ])
         }
 
@@ -43,8 +43,8 @@ final class DependenciesModelLoaderTests: TuistUnitTestCase {
 
         // Then
         let expectedCarthageModels: [TuistCore.CarthageDependency] = [
-            CarthageDependency(name: "Dependency1", requirement: .exact("1.1.1"), platforms: Set([.iOS])),
-            CarthageDependency(name: "Dependency2", requirement: .exact("2.3.4"), platforms: Set([.macOS, .tvOS])),
+            CarthageDependency(origin: .github(path: "Dependency1"), requirement: .exact("1.1.1"), platforms: Set([.iOS])),
+            CarthageDependency(origin: .git(path: "Dependency1"), requirement: .exact("2.3.4"), platforms: Set([.macOS, .tvOS])),
         ]
         let expectedDependenciesModel = TuistCore.Dependencies(carthageDependencies: expectedCarthageModels)
 

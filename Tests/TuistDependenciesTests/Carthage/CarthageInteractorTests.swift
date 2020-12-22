@@ -70,7 +70,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         try fileHandler.touch(temporaryDependenciesDirectory.appending(components: "tvOS", "RxMoya.framework", "Info.plist"))
 
         let stubbedDependencies = [
-            CarthageDependency(name: "Moya", requirement: .exact("1.1.1"), platforms: [.iOS]),
+            CarthageDependency(origin: .github(path: "Moya"), requirement: .exact("1.1.1"), platforms: [.iOS]),
         ]
         let stubbedCommand = ["carthage", "bootstrap", "--project-directory", temporaryDirectoryPath.pathString, "--platform iOS", "--cache-builds", "--new-resolver"]
 
@@ -127,7 +127,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         try fileHandler.touch(temporaryDependenciesDirectory.appending(components: "iOS", "RxMoya.framework", "Info.plist"))
 
         let stubbedDependencies = [
-            CarthageDependency(name: "Moya", requirement: .exact("1.1.1"), platforms: [.iOS]),
+            CarthageDependency(origin: .github(path: "Moya"), requirement: .exact("1.1.1"), platforms: [.iOS]),
         ]
         let stubbedCommand = ["carthage", "bootstrap", "--project-directory", temporaryDirectoryPath.pathString, "--platform iOS", "--cache-builds", "--new-resolver"]
 
