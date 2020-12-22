@@ -18,12 +18,13 @@ Tuist aims to solve all of the above pain points in a simple and _deterministic_
 
 ## How to Get Started
 
-As the first step, download all your provisioning profiles and certficates that you'll need.
-Once you download them, make sure to rename the files, so they abide by the following convention:
-`Target.Configuration.extension`
-Where `Target` should be a name of the target, `Configuration` a name of the configuration and leave the default extension
-that you downloaded the file with (eg. `p12` for certificate, etc.).
-Now you can put all those files in `Tuist/Signing` directory.
+As the first step, download all your provisioning profiles that you'll need.
+Once you downloaded them, make sure to rename the provisioning profiles, so they abide by the following convention:
+`Target.Configuration.mobileprovision`
+Where `Target` should be a name of the target, `Configuration` a name of the configuration. 
+Export the public (as .cer file) and private key (as .p12 file with an empty string as password) from your keychain. Use the same basename for these two file: `SomeName.cer` and `SomeName.p12` - this name doesn't need to match any target or configuration.
+If multiple provisioning profiles use the same certificate it's fine to have that .p12 and .cer file just once in the folder - Tuist will find the matching one based on information embedded into the provisioning profile.
+Now you can put all those files in `Tuist/Signing` directory within your project.
 To make it all work, create a secure password by running [tuist secret](/docs/commands/secret/) and place its contents into `Tuist/master.key` that will be used
 for encrypting and decrypting your files.
 
