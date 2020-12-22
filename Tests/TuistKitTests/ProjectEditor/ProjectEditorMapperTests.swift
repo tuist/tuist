@@ -126,7 +126,8 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         // Generated Project
         XCTAssertEqual(project.path, sourceRootPath)
         XCTAssertEqual(project.name, "Manifests")
-        XCTAssertEqual(project.settings, Settings(base: [:],
+        XCTAssertEqual(project.settings, Settings(base: ["ONLY_ACTIVE_ARCH": "NO",
+                                                         "EXCLUDED_ARCHS": "arm64"],
                                                   configurations: Settings.default.configurations,
                                                   defaultSettings: .recommended))
         XCTAssertEqual(project.filesGroup, .group(name: "Manifests"))
