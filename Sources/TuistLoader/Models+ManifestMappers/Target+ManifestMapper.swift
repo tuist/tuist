@@ -41,7 +41,8 @@ extension TuistCore.Target {
 
         let (sources, sourcesPlaygrounds) = try sourcesAndPlaygrounds(manifest: manifest, targetName: name, generatorPaths: generatorPaths)
 
-        let (resources, resourcesPlaygrounds, invalidResourceGlobs) = try resourcesAndPlaygrounds(manifest: manifest, generatorPaths: generatorPaths)
+        var (resources, resourcesPlaygrounds, invalidResourceGlobs) = try resourcesAndPlaygrounds(manifest: manifest, generatorPaths: generatorPaths)
+        resources = resourcesFlatteningBundles(resources: resources)
 
         if !invalidResourceGlobs.isEmpty {
             throw TargetManifestMapperError.invalidResourcesGlob(targetName: name, invalidGlobs: invalidResourceGlobs)
@@ -126,6 +127,21 @@ extension TuistCore.Target {
         }
 
         return (resources: resourcesWithoutPlaygrounds, playgrounds: Array(playgrounds), invalidResourceGlobs: invalidResourceGlobs)
+    }
+
+    fileprivate static func resourcesFlatteningBundles(resources: [TuistCore.FileElement]) -> [TuistCore.FileElement] {
+        Array(resources.reduce(into: Set<TuistCore.FileElement>()) { flattenedResources, resourceElement in
+            switch resourceElement {
+            case let .file(path):
+                if path.pathString.contains(".bundle/") {
+                    flattenedResources.formUnion([.file(path: path.upToComponentMatching(extension: "bundle"))])
+                } else {
+                    flattenedResources.formUnion([resourceElement])
+                }
+            case .folderReference:
+                flattenedResources.formUnion([resourceElement])
+            }
+        })
     }
 
     // swiftlint:disable:next line_length
