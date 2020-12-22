@@ -59,7 +59,7 @@ public class SigningMapper: ProjectMapping {
     private func map(target: Target,
                      project: Project,
                      keychainPath: AbsolutePath,
-                     certificates: [TargetName: [ConfigurationName: Certificate]],
+                     certificates: [Fingerprint: Certificate],
                      provisioningProfiles: [TargetName: [ConfigurationName: ProvisioningProfile]]) throws -> Target
     {
         var target = target
@@ -70,7 +70,7 @@ public class SigningMapper: ProjectMapping {
             .reduce(into: [:]) { dict, configurationPair in
                 guard
                     let provisioningProfile = provisioningProfiles[target.name]?[configurationPair.key.name],
-                    let certificate = certificates[target.name]?[configurationPair.key.name]
+                    let certificate = certificates.first(for: provisioningProfile)
                 else {
                     dict[configurationPair.key] = configurationPair.value
                     return
@@ -91,5 +91,13 @@ public class SigningMapper: ProjectMapping {
             defaultSettings: target.settings?.defaultSettings ?? .recommended
         )
         return target
+    }
+}
+
+extension Dictionary where Key == Fingerprint, Value == Certificate {
+    func first(for provisioningProfile: ProvisioningProfile) -> Certificate? {
+        first(where: { (key, _) -> Bool in
+            provisioningProfile.developerCertificateFingerprints.contains(key)
+        })?.value
     }
 }

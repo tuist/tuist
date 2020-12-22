@@ -7,7 +7,5 @@ struct Certificate: Equatable {
     let fingerprint: String
     let developmentTeam: String
     let name: String
-    let targetName: String
-    let configurationName: String
     let isRevoked: Bool
 }

@@ -214,6 +214,7 @@ GEM
 
 PLATFORMS
   ruby
+  universal-darwin-20
 
 DEPENDENCIES
   byebug (~> 11.1)
@@ -232,4 +233,4 @@ DEPENDENCIES
   xcodeproj (~> 1.19)
 
 BUNDLED WITH
-   2.1.4
+   2.2.2

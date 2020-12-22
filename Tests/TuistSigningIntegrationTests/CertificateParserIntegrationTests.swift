@@ -27,11 +27,9 @@ final class CertificateParserIntegrationTests: TuistTestCase {
         let expectedCertificate = Certificate(
             publicKey: publicKey,
             privateKey: privateKey,
-            fingerprint: "SHA1 Fingerprint=80:B8:6E:55:1D:8E:F2:38:CD:95:3C:7E:72:3B:DB:B1:A5:B0:5D:60\n",
+            fingerprint: "SHA1 Fingerprint=80:B8:6E:55:1D:8E:F2:38:CD:95:3C:7E:72:3B:DB:B1:A5:B0:5D:60",
             developmentTeam: "QH95ER52SG",
             name: "Apple Development: Marek Fort (54GSF6G47V)",
-            targetName: "Target",
-            configurationName: "Debug",
             isRevoked: false
         )
 

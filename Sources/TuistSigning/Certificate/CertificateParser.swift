@@ -48,11 +48,6 @@ private enum SubjectAttribute: String {
 
 final class CertificateParser: CertificateParsing {
     func parse(publicKey: AbsolutePath, privateKey: AbsolutePath) throws -> Certificate {
-        let publicKeyComponents = publicKey.basenameWithoutExt.components(separatedBy: ".")
-        guard publicKeyComponents.count == 2 else { throw CertificateParserError.invalidFormat(publicKey.pathString) }
-        let targetName = publicKeyComponents[0]
-        let configurationName = publicKeyComponents[1]
-
         let subject = try self.subject(at: publicKey)
         let fingerprint = try self.fingerprint(at: publicKey)
         let isRevoked = subject.contains("REVOKED")
@@ -81,8 +76,6 @@ final class CertificateParser: CertificateParsing {
             fingerprint: fingerprint,
             developmentTeam: developmentTeam,
             name: name.sanitizeEncoding(),
-            targetName: targetName,
-            configurationName: configurationName,
             isRevoked: isRevoked
         )
     }
@@ -91,7 +84,7 @@ final class CertificateParser: CertificateParsing {
         let temporaryFile = try FileHandler.shared.temporaryDirectory().appending(component: "developerCertificate.cer")
         try developerCertificate.write(to: temporaryFile.asURL)
 
-        return try self.fingerprint(at: temporaryFile)
+        return try fingerprint(at: temporaryFile)
     }
 
     // MARK: - Helpers
@@ -103,7 +96,6 @@ final class CertificateParser: CertificateParsing {
     private func fingerprint(at path: AbsolutePath) throws -> String {
         try System.shared.capture("openssl", "x509", "-inform", "der", "-in", path.pathString, "-noout", "-fingerprint").spm_chomp()
     }
-
 }
 
 extension String {

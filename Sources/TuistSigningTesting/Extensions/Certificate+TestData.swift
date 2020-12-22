@@ -8,8 +8,6 @@ extension Certificate {
                      fingerprint: String = "",
                      developmentTeam: String = "",
                      name: String = "",
-                     targetName: String = "",
-                     configurationName: String = "",
                      isRevoked: Bool = false) -> Certificate
     {
         Certificate(publicKey: publicKey,
@@ -17,8 +15,6 @@ extension Certificate {
                     fingerprint: fingerprint,
                     developmentTeam: developmentTeam,
                     name: name,
-                    targetName: targetName,
-                    configurationName: configurationName,
                     isRevoked: isRevoked)
     }
 }

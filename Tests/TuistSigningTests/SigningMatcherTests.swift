@@ -73,35 +73,30 @@ final class SigningMatcherTests: TuistUnitTestCase {
             ]
         }
         certificateParser.parseStub = { publicKey, privateKey in
-            let configurationName: String
+            let fingerprint: String
             if publicKey == publicKeyPath {
-                configurationName = debugConfiguration
+                fingerprint = "fingerprint"
             } else {
-                configurationName = releaseConfiguration
+                fingerprint = "otherFingerprint"
             }
             return Certificate.test(
                 publicKey: publicKey,
                 privateKey: privateKey,
-                targetName: targetName,
-                configurationName: configurationName
+                fingerprint: fingerprint
             )
         }
 
-        let expectedCertificates: [String: [String: Certificate]] = [
-            targetName: [
-                debugConfiguration: Certificate.test(
-                    publicKey: publicKeyPath,
-                    privateKey: privateKeyPath,
-                    targetName: targetName,
-                    configurationName: debugConfiguration
-                ),
-                releaseConfiguration: Certificate.test(
-                    publicKey: releasePublicKeyPath,
-                    privateKey: releasePrivateKeyPath,
-                    targetName: targetName,
-                    configurationName: releaseConfiguration
-                ),
-            ],
+        let expectedCertificates: [String: Certificate] = [
+            "fingerprint": Certificate.test(
+                publicKey: publicKeyPath,
+                privateKey: privateKeyPath,
+                fingerprint: "fingerprint"
+            ),
+            "otherFingerprint": Certificate.test(
+                publicKey: releasePublicKeyPath,
+                privateKey: releasePrivateKeyPath,
+                fingerprint: "otherFingerprint"
+            ),
         ]
 
         let debugProvisioningProfilePath = AbsolutePath("/\(targetName).\(debugConfiguration).mobileprovision")
