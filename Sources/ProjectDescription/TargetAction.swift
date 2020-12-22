@@ -10,20 +10,62 @@ public struct TargetAction: Codable, Equatable {
         case post
     }
 
+    /// How to execute the target action
+    ///
+    /// - file: Executes the tool, calling the script at the path. Tuist will look up the tool on the environment's PATH
+    /// - text: Executes the entered script. This should be a short command.
+    private enum Script: Equatable {
+        case file(_ tool: String?, _ path: Path?, _ args: [String])
+        case text(String)
+    }
+
     /// Name of the build phase when the project gets generated.
     public let name: String
 
+    /// The script to execute in the action
+    private let script: Script
+
+    public var isEmbeddedScript: Bool {
+        switch self.script {
+        case .file:
+            return false
+        case .text:
+            return true
+        }
+    }
+
     /// Name of the tool to execute. Tuist will look up the tool on the environment's PATH.
-    public let tool: String?
+    public var tool: String? {
+        switch script {
+        case .file(let tool, _, _):
+            return tool
+        case .text:
+            return nil
+        }
+    }
 
     /// Path to the script to execute.
-    public let path: Path?
+    public var path: Path? {
+        switch script {
+        case .file(_, let path, _):
+            return path
+        case .text:
+            return nil
+        }
+    }
 
     /// Target action order.
     public let order: Order
 
     /// Arguments that to be passed.
-    public let arguments: [String]
+    public var arguments: [String] {
+        switch script {
+        case .file(_, _, let args):
+            return args
+        case .text:
+            return []
+        }
+    }
 
     /// List of input file paths
     public let inputPaths: [Path]
@@ -44,6 +86,7 @@ public struct TargetAction: Codable, Equatable {
         case name
         case tool
         case path
+        case script
         case order
         case arguments
         case inputPaths
@@ -78,10 +121,38 @@ public struct TargetAction: Codable, Equatable {
          basedOnDependencyAnalysis: Bool? = nil)
     {
         self.name = name
-        self.path = path
-        self.tool = tool
+        self.script = .file(tool, path, arguments)
         self.order = order
-        self.arguments = arguments
+        self.inputPaths = inputPaths
+        self.inputFileListPaths = inputFileListPaths
+        self.outputPaths = outputPaths
+        self.outputFileListPaths = outputFileListPaths
+        self.basedOnDependencyAnalysis = basedOnDependencyAnalysis
+    }
+
+    /// Initializes the target action with its attributes.
+    ///
+    /// - Parameters:
+    ///   - name: Name of the build phase when the project gets generated.
+    ///   - script: The text of the script to run. This should be kept small.
+    ///   - order: Target action order.
+    ///   - inputPaths: List of input file paths.
+    ///   - inputFileListPaths: List of input filelist paths.
+    ///   - outputPaths: List of output file paths.
+    ///   - outputFileListPaths: List of output filelist paths.
+    ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
+    init(name: String,
+         script: String,
+         order: Order,
+         inputPaths: [Path] = [],
+         inputFileListPaths: [Path] = [],
+         outputPaths: [Path] = [],
+         outputFileListPaths: [Path] = [],
+         basedOnDependencyAnalysis: Bool? = nil)
+    {
+        self.name = name
+        self.script = .text(script)
+        self.order = order
         self.inputPaths = inputPaths
         self.inputFileListPaths = inputFileListPaths
         self.outputPaths = outputPaths
@@ -125,6 +196,36 @@ public struct TargetAction: Codable, Equatable {
     /// Returns a target action that gets executed before the sources and resources build phase.
     ///
     /// - Parameters:
+    ///   - script: The text of the script to run. This should be kept small.
+    ///   - arguments: Arguments that to be passed.
+    ///   - name: Name of the build phase when the project gets generated.
+    ///   - inputPaths: List of input file paths.
+    ///   - inputFileListPaths: List of input filelist paths.
+    ///   - outputPaths: List of output file paths.
+    ///   - outputFileListPaths: List of output filelist paths.
+    ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
+    /// - Returns: Target action.
+    public static func pre(script: String,
+                           name: String,
+                           inputPaths: [Path] = [],
+                           inputFileListPaths: [Path] = [],
+                           outputPaths: [Path] = [],
+                           outputFileListPaths: [Path] = [],
+                           basedOnDependencyAnalysis: Bool? = nil) -> TargetAction
+    {
+        TargetAction(name: name,
+                     script: script,
+                     order: .pre,
+                     inputPaths: inputPaths,
+                     inputFileListPaths: inputFileListPaths,
+                     outputPaths: outputPaths,
+                     outputFileListPaths: outputFileListPaths,
+                     basedOnDependencyAnalysis: basedOnDependencyAnalysis)
+    }
+
+    /// Returns a target action that gets executed before the sources and resources build phase.
+    ///
+    /// - Parameters:
     ///   - tool: Name of the tool to execute. Tuist will look up the tool on the environment's PATH.
     ///   - arguments: Arguments that to be passed.
     ///   - name: Name of the build phase when the project gets generated.
@@ -353,24 +454,56 @@ public struct TargetAction: Codable, Equatable {
                      basedOnDependencyAnalysis: basedOnDependencyAnalysis)
     }
 
+    /// Returns a target action that gets executed after the sources and resources build phase.
+    ///
+    /// - Parameters:
+    ///   - path: Path to the script to execute.
+    ///   - arguments: Arguments that to be passed.
+    ///   - name: Name of the build phase when the project gets generated.
+    ///   - inputPaths: List of input file paths.
+    ///   - inputFileListPaths: List of input filelist paths.
+    ///   - outputPaths: List of output file paths.
+    ///   - outputFileListPaths: List of output filelist paths.
+    ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
+    /// - Returns: Target action.
+    public static func post(script: String,
+                            name: String,
+                            inputPaths: [Path] = [],
+                            inputFileListPaths: [Path] = [],
+                            outputPaths: [Path] = [],
+                            outputFileListPaths: [Path] = [],
+                            basedOnDependencyAnalysis: Bool? = nil) -> TargetAction
+    {
+        TargetAction(name: name,
+                     script: script,
+                     order: .post,
+                     inputPaths: inputPaths,
+                     inputFileListPaths: inputFileListPaths,
+                     outputPaths: outputPaths,
+                     outputFileListPaths: outputFileListPaths,
+                     basedOnDependencyAnalysis: basedOnDependencyAnalysis)
+    }
+
     // MARK: - Codable
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         name = try container.decode(String.self, forKey: .name)
         order = try container.decode(Order.self, forKey: .order)
-        arguments = try container.decode([String].self, forKey: .arguments)
         inputPaths = try container.decodeIfPresent([Path].self, forKey: .inputPaths) ?? []
         inputFileListPaths = try container.decodeIfPresent([Path].self, forKey: .inputFileListPaths) ?? []
         outputPaths = try container.decodeIfPresent([Path].self, forKey: .outputPaths) ?? []
         outputFileListPaths = try container.decodeIfPresent([Path].self, forKey: .outputFileListPaths) ?? []
         basedOnDependencyAnalysis = try container.decodeIfPresent(Bool.self, forKey: .basedOnDependencyAnalysis)
-        if let path = try container.decodeIfPresent(Path.self, forKey: .path) {
-            self.path = path
-            tool = nil
+
+        let arguments: [String] = try container.decodeIfPresent([String].self, forKey: .arguments) ?? []
+        if let script = try container.decodeIfPresent(String.self, forKey: .script) {
+            self.script = .text(script)
+        } else if let path = try container.decodeIfPresent(Path.self, forKey: .path) {
+            self.script = .file(nil, path, arguments)
         } else {
-            path = nil
-            tool = try container.decode(String.self, forKey: .tool)
+            let tool = try container.decode(String.self, forKey: .tool)
+            self.script = .file(tool, nil, arguments)
         }
     }
 
@@ -391,6 +524,9 @@ public struct TargetAction: Codable, Equatable {
         }
         if let path = path {
             try container.encode(path, forKey: .path)
+        }
+        if case Script.text(let text) = script {
+            try container.encode(text, forKey: .script)
         }
     }
 }
