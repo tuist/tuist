@@ -96,8 +96,11 @@ public class SigningMapper: ProjectMapping {
 
 extension Dictionary where Key == Fingerprint, Value == Certificate {
     func first(for provisioningProfile: ProvisioningProfile) -> Certificate? {
-        first(where: { (key, _) -> Bool in
-            provisioningProfile.developerCertificateFingerprints.contains(key)
-        })?.value
+        for fingerprint in provisioningProfile.developerCertificateFingerprints {
+            if let certificate = self[fingerprint] {
+                return certificate
+            }
+        }
+        return nil
     }
 }
