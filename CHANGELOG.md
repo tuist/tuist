@@ -4,6 +4,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+## 1.29.0 - Tutu
+
 ### Fixed
 
 - Fix "Embed Frameworks" build phase parameters [#2156](https://github.com/tuist/tuist/pull/2156) by [@kwridan](https://github.com/kwridan).
