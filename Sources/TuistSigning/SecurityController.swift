@@ -19,13 +19,12 @@ final class SecurityController: SecurityControlling {
         if try !certificateExists(certificate, keychainPath: keychainPath) {
             try importToKeychain(at: certificate.publicKey, keychainPath: keychainPath)
             logger.debug("Imported certificate at \(certificate.publicKey.pathString)")
-        }
-        do {
+
             // found no way to check for the presence of a private key in the keychain, but fortunately keychain takes care of duplicate private keys on its own
             try importToKeychain(at: certificate.privateKey, keychainPath: keychainPath)
             logger.debug("Imported certificate private key at \(certificate.privateKey.pathString)")
-        } catch {
-            logger.warning("Importing certificate private key at \(certificate.privateKey.pathString) failed")
+        } else {
+            logger.debug("Skipping importing certificate at \(certificate.publicKey.pathString) because it is already present")
         }
     }
 
@@ -49,7 +48,6 @@ final class SecurityController: SecurityControlling {
     private func certificateExists(_ certificate: Certificate, keychainPath: AbsolutePath) throws -> Bool {
         do {
             let existingCertificates = try System.shared.capture("/usr/bin/security", "find-certificate", "-c", certificate.name, "-a", keychainPath.pathString)
-            logger.debug("Skipping importing certificate at \(certificate.publicKey.pathString) because it is already present")
             return !existingCertificates.isEmpty
         } catch {
             return false

@@ -179,6 +179,15 @@
       "contributions": [
         "ideas"
       ]
+    },
+    {
+      "login": "jsorge",
+      "name": "Jared Sorge",
+      "avatar_url": "https://avatars3.githubusercontent.com/u/2585841?v=4",
+      "profile": "https://jsorge.net",
+      "contributions": [
+        "bug"
+      ]
     }
   ],
   "contributorsPerLine": 7,
