@@ -129,5 +129,4 @@ final class CertificateParserTests: TuistUnitTestCase {
         XCTAssertEqual(twoWrongEncodingsInARow.sanitizeEncoding(), "test ä² something")
         XCTAssertEqual(oneWrongEncodingWithMixedCapitalization.sanitizeEncoding(), "test ä something")
     }
-
 }
