@@ -1,9 +1,10 @@
 import Head from 'next/head';
 import styles from '../styles/Home.module.css';
+import 'twin.macro';
 
 export default function Home() {
     return (
-        <div className={styles.container}>
+        <div className={styles.container} tw="bg-pink-200">
             <Head>
                 <title>Create Next App</title>
                 <link rel="icon" href="/favicon.ico" />
