@@ -92,10 +92,10 @@ final class CertificateParser: CertificateParsing {
     }
 }
 
-private extension String {
+extension String {
     func sanitizeEncoding() -> String {
-        // we had certificates where encoding in the name was broken - e.g. \\xC3\\xA4 instead of ä
-        guard let regex = try? NSRegularExpression(pattern: "(\\\\x([A-Z0-9]{2}))(\\\\x([A-Z0-9]{2}))", options: []) else { return self }
+        // Had some real life certificates where encoding in the name was broken - e.g. \\xC3\\xA4 instead of ä
+        guard let regex = try? NSRegularExpression(pattern: "(\\\\x([A-Za-z0-9]{2}))(\\\\x([A-Za-z0-9]{2}))", options: []) else { return self }
         let matches = regex.matches(in: self, options: [], range: NSRange(startIndex..., in: self)).reversed()
 
         var modifiableString = self

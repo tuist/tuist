@@ -58,7 +58,7 @@ final class SecurityControllerIntegrationTests: TuistTestCase {
 
         let currentDirectory = AbsolutePath(#file.replacingOccurrences(of: "file://", with: "")).removingLastComponent()
         let certificateParser = CertificateParser()
-        let certificate = try! certificateParser.parse(publicKey: currentDirectory.appending(component: "Target.Debug.cer"), privateKey: currentDirectory.appending(component: "Target.Debug.p12"))
+        let certificate = try certificateParser.parse(publicKey: currentDirectory.appending(component: "Target.Debug.cer"), privateKey: currentDirectory.appending(component: "Target.Debug.p12"))
 
         try subject.createKeychain(at: keychainPath, password: "")
         try subject.unlockKeychain(at: keychainPath, password: "")

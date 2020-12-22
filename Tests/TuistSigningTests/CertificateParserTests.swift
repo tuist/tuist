@@ -115,4 +115,19 @@ final class CertificateParserTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(certificate, expectedCertificate)
     }
+
+    func test_sanitizeEncoding() {
+        // Given
+        let oneWrongEncoding = "test \\xC3\\xA4 something"
+        let twoWrongEncodings = "test \\xC3\\xA4 something \\xC2\\xB6 something else"
+        let twoWrongEncodingsInARow = "test \\xC3\\xA4\\xC2\\xB2 something"
+        let oneWrongEncodingWithMixedCapitalization = "test \\xc3\\xA4 something"
+
+        // Then
+        XCTAssertEqual(oneWrongEncoding.sanitizeEncoding(), "test ä something")
+        XCTAssertEqual(twoWrongEncodings.sanitizeEncoding(), "test ä something ¶ something else")
+        XCTAssertEqual(twoWrongEncodingsInARow.sanitizeEncoding(), "test ä² something")
+        XCTAssertEqual(oneWrongEncodingWithMixedCapitalization.sanitizeEncoding(), "test ä something")
+    }
+
 }
