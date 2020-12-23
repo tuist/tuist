@@ -114,3 +114,20 @@ extension String {
         return modifiableString
     }
 }
+
+extension String {
+    func sanitizeEncoding() -> String {
+        // Had some real life certificates where encoding in the name was broken - e.g. \\xC3\\xA4 instead of ä
+        guard let regex = try? NSRegularExpression(pattern: "(\\\\x([A-Za-z0-9]{2}))(\\\\x([A-Za-z0-9]{2}))", options: []) else { return self }
+        let matches = regex.matches(in: self, options: [], range: NSRange(startIndex..., in: self)).reversed()
+
+        var modifiableString = self
+        matches.forEach { result in
+            guard let firstRange = Range(result.range(at: 2), in: modifiableString), let secondRange = Range(result.range(at: 4), in: modifiableString) else { return }
+            guard let firstInt = UInt8(modifiableString[firstRange], radix: 16), let secondInt = UInt8(modifiableString[secondRange], radix: 16) else { return }
+            modifiableString.replaceSubrange(Range(result.range, in: modifiableString)!, with: String(decoding: [firstInt, secondInt] as [UTF8.CodeUnit], as: UTF8.self))
+        }
+
+        return modifiableString
+    }
+}
