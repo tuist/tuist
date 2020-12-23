@@ -16,10 +16,10 @@ public struct TargetAction: Equatable {
     /// How to execute the target action
     ///
     /// - file: Executes the tool, calling the script at the path. Tuist will look up the tool on the environment's PATH
-    /// - text: Executes the entered script. This should be a short command.
+    /// - text: Executes the embedded script. This should be a short command.
     private enum Script: Equatable {
-        case file(_ tool: String?, _ path: AbsolutePath?, _ args: [String])
-        case text(String)
+        case externalFile(_ tool: String?, _ path: AbsolutePath?, _ args: [String])
+        case embedded(String)
     }
 
     /// Name of the build phase when the project gets generated
@@ -28,33 +28,31 @@ public struct TargetAction: Equatable {
     /// The script to execute in the action
     private let script: Script
 
-    public var isEmbeddedScript: Bool {
-        switch self.script {
-        case .file:
-            return false
-        case .text:
-            return true
+    /// The text of the embedded script
+    public var embeddedScript: String? {
+        if case Script.embedded(let embeddedScript) = self.script {
+            return embeddedScript
         }
+
+        return nil
     }
 
-    /// Name of the tool to execute.
+    /// Name of the tool to execute. Tuist will look up the tool on the environment's PATH.
     public var tool: String? {
-        switch script {
-        case .file(let tool, _, _):
+        if case Script.externalFile(let tool, _, _) = self.script {
             return tool
-        case .text:
-            return nil
         }
+
+        return nil
     }
 
-    /// Path to the script to execute
+    /// Path to the script to execute.
     public var path: AbsolutePath? {
-        switch script {
-        case .file(_, let path, _):
+        if case Script.externalFile(_, let path, _) = self.script {
             return path
-        case .text:
-            return nil
         }
+
+        return nil
     }
 
     /// Target action order
@@ -62,12 +60,11 @@ public struct TargetAction: Equatable {
 
     /// Arguments that to be passed
     public var arguments: [String] {
-        switch script {
-        case .file(_, _, let args):
+        if case Script.externalFile(_, _, let args) = self.script {
             return args
-        case .text:
-            return []
         }
+
+        return []
     }
 
     /// List of input file paths
@@ -116,7 +113,7 @@ public struct TargetAction: Equatable {
     {
         self.name = name
         self.order = order
-        self.script = .file(tool, path, arguments)
+        self.script = .externalFile(tool, path, arguments)
         self.inputPaths = inputPaths
         self.inputFileListPaths = inputFileListPaths
         self.outputPaths = outputPaths
@@ -149,7 +146,7 @@ public struct TargetAction: Equatable {
     {
         self.name = name
         self.order = order
-        self.script = .text(script)
+        self.script = .embedded(script)
         self.inputPaths = inputPaths
         self.inputFileListPaths = inputFileListPaths
         self.outputPaths = outputPaths
@@ -165,12 +162,16 @@ public struct TargetAction: Equatable {
     /// - Returns: Shell script that should be used in the target build phase.
     /// - Throws: An error if the tool absolute path cannot be obtained.
     public func shellScript(sourceRootPath: AbsolutePath) throws -> String {
-        if case let Script.text(text) = script {
-            return text
-        } else if let path = path {
-            return "\"${PROJECT_DIR}\"/\(path.relative(to: sourceRootPath).pathString) \(arguments.joined(separator: " "))"
-        } else {
-            return try "\(System.shared.which(tool!).spm_chomp().spm_chuzzle()!) \(arguments.joined(separator: " "))"
+        switch script {
+        case .embedded(let text):
+            return text.spm_chomp().spm_chuzzle() ?? ""
+
+        case .externalFile(let tool, let path, let args):
+            if let path = path {
+                return "\"${PROJECT_DIR}\"/\(path.relative(to: sourceRootPath).pathString) \(args.joined(separator: " "))"
+            } else {
+                return try "\(System.shared.which(tool!).spm_chomp().spm_chuzzle()!) \(args.joined(separator: " "))"
+            }
         }
     }
 }

@@ -43,7 +43,7 @@ final class TargetActionLinterTests: TuistUnitTestCase {
         XCTAssertTrue(got.contains(expected))
     }
 
-    func test_lint_succeeds_when_text() throws {
+    func test_lint_succeeds_when_embedded() throws {
         let action = TargetAction(name: "name",
                                   order: .pre,
                                   script: "echo 'Hello World'")

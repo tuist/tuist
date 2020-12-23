@@ -10,11 +10,11 @@ echo "$wd"
 """
 
 final class TargetActionTests: XCTestCase {
-    func test_embedded_script_functions() throws {
+    func test_embedded_script() throws {
         let subject = TargetAction(name: "name", order: .pre, script: script)
 
         let shellScript = try subject.shellScript(sourceRootPath: .root)
         XCTAssertEqual(script, shellScript)
-        XCTAssertTrue(subject.isEmbeddedScript)
+        XCTAssertNotNil(subject.embeddedScript)
     }
 }

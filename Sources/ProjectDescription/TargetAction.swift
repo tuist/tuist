@@ -13,10 +13,10 @@ public struct TargetAction: Codable, Equatable {
     /// How to execute the target action
     ///
     /// - file: Executes the tool, calling the script at the path. Tuist will look up the tool on the environment's PATH
-    /// - text: Executes the entered script. This should be a short command.
+    /// - text: Executes the embedded script. This should be a short command.
     private enum Script: Equatable {
-        case file(_ tool: String?, _ path: Path?, _ args: [String])
-        case text(String)
+        case externalFile(_ tool: String?, _ path: Path?, _ args: [String])
+        case embedded(String)
     }
 
     /// Name of the build phase when the project gets generated.
@@ -25,33 +25,31 @@ public struct TargetAction: Codable, Equatable {
     /// The script to execute in the action
     private let script: Script
 
-    public var isEmbeddedScript: Bool {
-        switch self.script {
-        case .file:
-            return false
-        case .text:
-            return true
+    /// The text of the embedded script
+    public var embeddedScript: String? {
+        if case Script.embedded(let embeddedScript) = self.script {
+            return embeddedScript
         }
+
+        return nil
     }
 
     /// Name of the tool to execute. Tuist will look up the tool on the environment's PATH.
     public var tool: String? {
-        switch script {
-        case .file(let tool, _, _):
+        if case Script.externalFile(let tool, _, _) = self.script {
             return tool
-        case .text:
-            return nil
         }
+
+        return nil
     }
 
     /// Path to the script to execute.
     public var path: Path? {
-        switch script {
-        case .file(_, let path, _):
+        if case Script.externalFile(_, let path, _) = self.script {
             return path
-        case .text:
-            return nil
         }
+
+        return nil
     }
 
     /// Target action order.
@@ -59,12 +57,11 @@ public struct TargetAction: Codable, Equatable {
 
     /// Arguments that to be passed.
     public var arguments: [String] {
-        switch script {
-        case .file(_, _, let args):
+        if case Script.externalFile(_, _, let args) = self.script {
             return args
-        case .text:
-            return []
         }
+
+        return []
     }
 
     /// List of input file paths
@@ -121,7 +118,7 @@ public struct TargetAction: Codable, Equatable {
          basedOnDependencyAnalysis: Bool? = nil)
     {
         self.name = name
-        self.script = .file(tool, path, arguments)
+        self.script = .externalFile(tool, path, arguments)
         self.order = order
         self.inputPaths = inputPaths
         self.inputFileListPaths = inputFileListPaths
@@ -151,7 +148,7 @@ public struct TargetAction: Codable, Equatable {
          basedOnDependencyAnalysis: Bool? = nil)
     {
         self.name = name
-        self.script = .text(script)
+        self.script = .embedded(script)
         self.order = order
         self.inputPaths = inputPaths
         self.inputFileListPaths = inputFileListPaths
@@ -498,12 +495,12 @@ public struct TargetAction: Codable, Equatable {
 
         let arguments: [String] = try container.decodeIfPresent([String].self, forKey: .arguments) ?? []
         if let script = try container.decodeIfPresent(String.self, forKey: .script) {
-            self.script = .text(script)
+            self.script = .embedded(script)
         } else if let path = try container.decodeIfPresent(Path.self, forKey: .path) {
-            self.script = .file(nil, path, arguments)
+            self.script = .externalFile(nil, path, arguments)
         } else {
             let tool = try container.decode(String.self, forKey: .tool)
-            self.script = .file(tool, nil, arguments)
+            self.script = .externalFile(tool, nil, arguments)
         }
     }
 
@@ -525,7 +522,7 @@ public struct TargetAction: Codable, Equatable {
         if let path = path {
             try container.encode(path, forKey: .path)
         }
-        if case Script.text(let text) = script {
+        if case Script.embedded(let text) = script {
             try container.encode(text, forKey: .script)
         }
     }

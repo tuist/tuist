@@ -13,8 +13,6 @@ protocol TargetActionLinting {
 
 class TargetActionLinter: TargetActionLinting {
     func lint(_ action: TargetAction) -> [LintingIssue] {
-        guard !action.isEmbeddedScript else { return [] }
-
         var issues: [LintingIssue] = []
         issues.append(contentsOf: lintToolExistence(action))
         issues.append(contentsOf: lintPathExistence(action))
@@ -25,9 +23,8 @@ class TargetActionLinter: TargetActionLinting {
     ///
     /// - Parameter action: Action to be linted.
     /// - Returns: Found linting issues.
-    func lintToolExistence(_ action: TargetAction) -> [LintingIssue] {
+    private func lintToolExistence(_ action: TargetAction) -> [LintingIssue] {
         guard
-            !action.isEmbeddedScript,
             let tool = action.tool
         else { return [] }
         do {
@@ -39,9 +36,8 @@ class TargetActionLinter: TargetActionLinting {
         }
     }
 
-    func lintPathExistence(_ action: TargetAction) -> [LintingIssue] {
+    private func lintPathExistence(_ action: TargetAction) -> [LintingIssue] {
         guard
-            !action.isEmbeddedScript,
             let path = action.path,
             !FileHandler.shared.exists(path)
         else { return [] }
