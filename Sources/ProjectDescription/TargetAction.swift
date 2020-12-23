@@ -85,7 +85,7 @@ public struct TargetAction: Codable, Equatable {
         self.tool = tool
         self.path = path
         self.arguments = arguments
-        self.embeddedScript = nil
+        embeddedScript = nil
         self.order = order
         self.inputPaths = inputPaths
         self.inputFileListPaths = inputFileListPaths
@@ -115,10 +115,10 @@ public struct TargetAction: Codable, Equatable {
          basedOnDependencyAnalysis: Bool? = nil)
     {
         self.name = name
-        self.embeddedScript = script
-        self.tool = nil
-        self.path = nil
-        self.arguments = []
+        embeddedScript = script
+        tool = nil
+        path = nil
+        arguments = []
         self.order = order
         self.inputPaths = inputPaths
         self.inputFileListPaths = inputFileListPaths
@@ -463,9 +463,9 @@ public struct TargetAction: Codable, Equatable {
         outputFileListPaths = try container.decodeIfPresent([Path].self, forKey: .outputFileListPaths) ?? []
         basedOnDependencyAnalysis = try container.decodeIfPresent(Bool.self, forKey: .basedOnDependencyAnalysis)
 
-        self.arguments = try container.decodeIfPresent([String].self, forKey: .arguments) ?? []
+        arguments = try container.decodeIfPresent([String].self, forKey: .arguments) ?? []
         if let script = try container.decodeIfPresent(String.self, forKey: .script) {
-            self.embeddedScript = script
+            embeddedScript = script
             tool = nil
             path = nil
         } else if let path = try container.decodeIfPresent(Path.self, forKey: .path) {
@@ -474,7 +474,7 @@ public struct TargetAction: Codable, Equatable {
             tool = nil
         } else {
             embeddedScript = nil
-            self.path = nil
+            path = nil
             tool = try container.decode(String.self, forKey: .tool)
         }
     }
