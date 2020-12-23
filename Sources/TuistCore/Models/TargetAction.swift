@@ -30,7 +30,7 @@ public struct TargetAction: Equatable {
 
     /// The text of the embedded script
     public var embeddedScript: String? {
-        if case Script.embedded(let embeddedScript) = self.script {
+        if case let Script.embedded(embeddedScript) = script {
             return embeddedScript
         }
 
@@ -39,7 +39,7 @@ public struct TargetAction: Equatable {
 
     /// Name of the tool to execute. Tuist will look up the tool on the environment's PATH.
     public var tool: String? {
-        if case Script.externalFile(let tool, _, _) = self.script {
+        if case let Script.externalFile(tool, _, _) = script {
             return tool
         }
 
@@ -48,7 +48,7 @@ public struct TargetAction: Equatable {
 
     /// Path to the script to execute.
     public var path: AbsolutePath? {
-        if case Script.externalFile(_, let path, _) = self.script {
+        if case let Script.externalFile(_, path, _) = script {
             return path
         }
 
@@ -60,7 +60,7 @@ public struct TargetAction: Equatable {
 
     /// Arguments that to be passed
     public var arguments: [String] {
-        if case Script.externalFile(_, _, let args) = self.script {
+        if case let Script.externalFile(_, _, args) = script {
             return args
         }
 
@@ -113,7 +113,7 @@ public struct TargetAction: Equatable {
     {
         self.name = name
         self.order = order
-        self.script = .externalFile(tool, path, arguments)
+        script = .externalFile(tool, path, arguments)
         self.inputPaths = inputPaths
         self.inputFileListPaths = inputFileListPaths
         self.outputPaths = outputPaths
@@ -163,10 +163,10 @@ public struct TargetAction: Equatable {
     /// - Throws: An error if the tool absolute path cannot be obtained.
     public func shellScript(sourceRootPath: AbsolutePath) throws -> String {
         switch script {
-        case .embedded(let text):
+        case let .embedded(text):
             return text.spm_chomp().spm_chuzzle() ?? ""
 
-        case .externalFile(let tool, let path, let args):
+        case let .externalFile(tool, path, args):
             if let path = path {
                 return "\"${PROJECT_DIR}\"/\(path.relative(to: sourceRootPath).pathString) \(args.joined(separator: " "))"
             } else {
