@@ -3,13 +3,15 @@ import TSCBasic
 import TuistSupport
 
 enum CertificateParserError: FatalError, Equatable {
+    case fileParsingFailed(AbsolutePath, String)
     case nameParsingFailed(AbsolutePath, String)
     case developmentTeamParsingFailed(AbsolutePath, String)
     case invalidFormat(String)
+    case fileParsingFailed(AbsolutePath)
 
     var type: ErrorType {
         switch self {
-        case .nameParsingFailed, .developmentTeamParsingFailed, .invalidFormat:
+        case .nameParsingFailed, .developmentTeamParsingFailed, .invalidFormat, .fileParsingFailed:
             return .abort
         }
     }
@@ -22,6 +24,8 @@ enum CertificateParserError: FatalError, Equatable {
             return "We couldn't parse the name while parsing the following output from the file \(path.pathString): \(input)"
         case let .developmentTeamParsingFailed(path, input):
             return "We couldn't parse the development team while parsing the following output from the file \(path.pathString): \(input)"
+        case let .fileParsingFailed(path):
+            return "We couldn't parse the file \(path.pathString)"
         }
     }
 }
@@ -90,11 +94,19 @@ final class CertificateParser: CertificateParsing {
     // MARK: - Helpers
 
     private func subject(at path: AbsolutePath) throws -> String {
-        try System.shared.capture("openssl", "x509", "-inform", "der", "-in", path.pathString, "-noout", "-subject")
+        do {
+            return try System.shared.capture("openssl", "x509", "-inform", "der", "-in", path.pathString, "-noout", "-subject")
+        } catch {
+            throw CertificateParserError.fileParsingFailed(path)
+        }
     }
 
     private func fingerprint(at path: AbsolutePath) throws -> String {
-        try System.shared.capture("openssl", "x509", "-inform", "der", "-in", path.pathString, "-noout", "-fingerprint").spm_chomp()
+        do {
+            return try System.shared.capture("openssl", "x509", "-inform", "der", "-in", path.pathString, "-noout", "-fingerprint").spm_chomp()
+        } catch {
+            throw CertificateParserError.fileParsingFailed(path)
+        }
     }
 }
 
