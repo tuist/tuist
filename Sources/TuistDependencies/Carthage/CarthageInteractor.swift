@@ -75,7 +75,7 @@ public final class CarthageInteractor: CarthageInteracting {
 
         try fileHandler.inTemporaryDirectory { temporaryDirectoryPath in
             // prepare paths
-            let pathsProvider = PathsProvider(dependenciesDirectory: dependenciesDirectory, temporaryDirectoryPath: temporaryDirectoryPath)
+            let pathsProvider = CarthagePathsProvider(dependenciesDirectory: dependenciesDirectory, temporaryDirectoryPath: temporaryDirectoryPath)
 
             // prepare for installation
             try prepareForInstallation(pathsProvider: pathsProvider, dependencies: dependencies)
@@ -95,7 +95,7 @@ public final class CarthageInteractor: CarthageInteracting {
 
     // MARK: - Installation
 
-    private func prepareForInstallation(pathsProvider: PathsProvider, dependencies: [CarthageDependency]) throws {
+    private func prepareForInstallation(pathsProvider: CarthagePathsProvider, dependencies: [CarthageDependency]) throws {
         // copy build directory from previous run if exist
         if fileHandler.exists(pathsProvider.destinationCarthageDirectory) {
             try copyDirectory(from: pathsProvider.destinationCarthageDirectory, to: pathsProvider.temporaryCarthageBuildDirectory)
@@ -107,7 +107,7 @@ public final class CarthageInteractor: CarthageInteracting {
         try fileHandler.write(cartfileContent, path: cartfilePath, atomically: true)
     }
 
-    private func postInstallationActions(pathsProvider: PathsProvider) throws {
+    private func postInstallationActions(pathsProvider: CarthagePathsProvider) throws {
         // validation
         guard fileHandler.exists(pathsProvider.temporaryCarfileResolvedPath) else {
             throw CarthageInteractorError.cartfileNotFound
@@ -156,34 +156,32 @@ public final class CarthageInteractor: CarthageInteracting {
     }
 }
 
-// MARK: - PathsProvider
+// MARK: - Models
 
-private extension CarthageInteractor {
-    struct PathsProvider {
-        let dependenciesDirectory: AbsolutePath
-        let temporaryDirectoryPath: AbsolutePath
+private struct CarthagePathsProvider {
+    let dependenciesDirectory: AbsolutePath
+    let temporaryDirectoryPath: AbsolutePath
 
-        let destinationCarfileResolvedPath: AbsolutePath
-        let destinationCarthageDirectory: AbsolutePath
+    let destinationCarfileResolvedPath: AbsolutePath
+    let destinationCarthageDirectory: AbsolutePath
 
-        let temporaryCarfileResolvedPath: AbsolutePath
-        let temporaryCarthageBuildDirectory: AbsolutePath
+    let temporaryCarfileResolvedPath: AbsolutePath
+    let temporaryCarthageBuildDirectory: AbsolutePath
 
-        init(dependenciesDirectory: AbsolutePath, temporaryDirectoryPath: AbsolutePath) {
-            self.dependenciesDirectory = dependenciesDirectory
-            self.temporaryDirectoryPath = temporaryDirectoryPath
+    init(dependenciesDirectory: AbsolutePath, temporaryDirectoryPath: AbsolutePath) {
+        self.dependenciesDirectory = dependenciesDirectory
+        self.temporaryDirectoryPath = temporaryDirectoryPath
 
-            destinationCarfileResolvedPath = dependenciesDirectory
-                .appending(component: Constants.DependenciesDirectory.lockfilesDirectoryName)
-                .appending(component: Constants.DependenciesDirectory.cartfileResolvedName)
-            destinationCarthageDirectory = dependenciesDirectory
-                .appending(component: Constants.DependenciesDirectory.carthageDirectoryName)
+        destinationCarfileResolvedPath = dependenciesDirectory
+            .appending(component: Constants.DependenciesDirectory.lockfilesDirectoryName)
+            .appending(component: Constants.DependenciesDirectory.cartfileResolvedName)
+        destinationCarthageDirectory = dependenciesDirectory
+            .appending(component: Constants.DependenciesDirectory.carthageDirectoryName)
 
-            temporaryCarfileResolvedPath = temporaryDirectoryPath
-                .appending(component: Constants.DependenciesDirectory.cartfileResolvedName)
-            temporaryCarthageBuildDirectory = temporaryDirectoryPath
-                .appending(component: Constants.DependenciesDirectory.carthageDirectoryName)
-                .appending(component: "Build")
-        }
+        temporaryCarfileResolvedPath = temporaryDirectoryPath
+            .appending(component: Constants.DependenciesDirectory.cartfileResolvedName)
+        temporaryCarthageBuildDirectory = temporaryDirectoryPath
+            .appending(component: Constants.DependenciesDirectory.carthageDirectoryName)
+            .appending(component: "Build")
     }
 }
