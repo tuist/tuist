@@ -6,20 +6,17 @@ enum CertificateParserError: FatalError, Equatable {
     case fileParsingFailed(AbsolutePath, String)
     case nameParsingFailed(AbsolutePath, String)
     case developmentTeamParsingFailed(AbsolutePath, String)
-    case invalidFormat(String)
     case fileParsingFailed(AbsolutePath)
 
     var type: ErrorType {
         switch self {
-        case .nameParsingFailed, .developmentTeamParsingFailed, .invalidFormat, .fileParsingFailed:
+        case .nameParsingFailed, .developmentTeamParsingFailed, .fileParsingFailed:
             return .abort
         }
     }
 
     var description: String {
         switch self {
-        case let .invalidFormat(certificate):
-            return "Certificate \(certificate) is in invalid format. Please name your certificates in the following way: Target.Configuration.p12"
         case let .nameParsingFailed(path, input):
             return "We couldn't parse the name while parsing the following output from the file \(path.pathString): \(input)"
         case let .developmentTeamParsingFailed(path, input):
