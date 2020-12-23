@@ -10,59 +10,23 @@ public struct TargetAction: Codable, Equatable {
         case post
     }
 
-    /// How to execute the target action
-    ///
-    /// - file: Executes the tool, calling the script at the path. Tuist will look up the tool on the environment's PATH
-    /// - text: Executes the embedded script. This should be a short command.
-    private enum Script: Equatable {
-        case externalFile(_ tool: String?, _ path: Path?, _ args: [String])
-        case embedded(String)
-    }
-
     /// Name of the build phase when the project gets generated.
     public let name: String
 
-    /// The script to execute in the action
-    private let script: Script
-
-    /// The text of the embedded script
-    public var embeddedScript: String? {
-        if case Script.embedded(let embeddedScript) = self.script {
-            return embeddedScript
-        }
-
-        return nil
-    }
+    /// The text of an embedded script
+    public let embeddedScript: String?
 
     /// Name of the tool to execute. Tuist will look up the tool on the environment's PATH.
-    public var tool: String? {
-        if case Script.externalFile(let tool, _, _) = self.script {
-            return tool
-        }
-
-        return nil
-    }
+    public let tool: String?
 
     /// Path to the script to execute.
-    public var path: Path? {
-        if case Script.externalFile(_, let path, _) = self.script {
-            return path
-        }
-
-        return nil
-    }
+    public let path: Path?
 
     /// Target action order.
     public let order: Order
 
     /// Arguments that to be passed.
-    public var arguments: [String] {
-        if case Script.externalFile(_, _, let args) = self.script {
-            return args
-        }
-
-        return []
-    }
+    public let arguments: [String]
 
     /// List of input file paths
     public let inputPaths: [Path]
@@ -118,7 +82,10 @@ public struct TargetAction: Codable, Equatable {
          basedOnDependencyAnalysis: Bool? = nil)
     {
         self.name = name
-        self.script = .externalFile(tool, path, arguments)
+        self.tool = tool
+        self.path = path
+        self.arguments = arguments
+        self.embeddedScript = nil
         self.order = order
         self.inputPaths = inputPaths
         self.inputFileListPaths = inputFileListPaths
@@ -148,7 +115,10 @@ public struct TargetAction: Codable, Equatable {
          basedOnDependencyAnalysis: Bool? = nil)
     {
         self.name = name
-        self.script = .embedded(script)
+        self.embeddedScript = script
+        self.tool = nil
+        self.path = nil
+        self.arguments = []
         self.order = order
         self.inputPaths = inputPaths
         self.inputFileListPaths = inputFileListPaths
@@ -493,14 +463,19 @@ public struct TargetAction: Codable, Equatable {
         outputFileListPaths = try container.decodeIfPresent([Path].self, forKey: .outputFileListPaths) ?? []
         basedOnDependencyAnalysis = try container.decodeIfPresent(Bool.self, forKey: .basedOnDependencyAnalysis)
 
-        let arguments: [String] = try container.decodeIfPresent([String].self, forKey: .arguments) ?? []
+        self.arguments = try container.decodeIfPresent([String].self, forKey: .arguments) ?? []
         if let script = try container.decodeIfPresent(String.self, forKey: .script) {
-            self.script = .embedded(script)
+            self.embeddedScript = script
+            tool = nil
+            path = nil
         } else if let path = try container.decodeIfPresent(Path.self, forKey: .path) {
-            self.script = .externalFile(nil, path, arguments)
+            embeddedScript = nil
+            self.path = path
+            tool = nil
         } else {
-            let tool = try container.decode(String.self, forKey: .tool)
-            self.script = .externalFile(tool, nil, arguments)
+            embeddedScript = nil
+            self.path = nil
+            tool = try container.decode(String.self, forKey: .tool)
         }
     }
 
@@ -522,7 +497,7 @@ public struct TargetAction: Codable, Equatable {
         if let path = path {
             try container.encode(path, forKey: .path)
         }
-        if case Script.embedded(let text) = script {
+        if let text = embeddedScript {
             try container.encode(text, forKey: .script)
         }
     }
