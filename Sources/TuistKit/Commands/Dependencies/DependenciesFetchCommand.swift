@@ -17,6 +17,6 @@ struct DependenciesFetchCommand: ParsableCommand {
     var path: String?
 
     func run() throws {
-        try DependenciesService().run(path: path, method: .fetch)
+        try DependenciesFetchService().run(path: path)
     }
 }

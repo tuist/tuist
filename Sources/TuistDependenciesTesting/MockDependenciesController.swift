@@ -6,18 +6,18 @@ import TuistCore
 public final class MockDependenciesController: DependenciesControlling {
     public init() {}
 
-    var invokedInstall = false
-    var invokedInstallCount = 0
-    var invokedInstallParameters: (path: AbsolutePath, method: InstallDependenciesMethod, dependencies: Dependencies)?
-    var invokedInstallParametersList = [(path: AbsolutePath, method: InstallDependenciesMethod, dependencies: Dependencies)]()
-    var stubbedInstallError: Error?
+    var invokedFetch = false
+    var invokedFetchCount = 0
+    var invokedFetchParameters: (path: AbsolutePath, dependencies: Dependencies)?
+    var invokedFetchParametersList = [(path: AbsolutePath, dependencies: Dependencies)]()
+    var stubbedFetchError: Error?
 
-    public func install(at path: AbsolutePath, method: InstallDependenciesMethod, dependencies: Dependencies) throws {
-        invokedInstall = true
-        invokedInstallCount += 1
-        invokedInstallParameters = (path, method, dependencies)
-        invokedInstallParametersList.append((path, method, dependencies))
-        if let error = stubbedInstallError {
+    public func fetch(at path: AbsolutePath, dependencies: Dependencies) throws {
+        invokedFetch = true
+        invokedFetchCount += 1
+        invokedFetchParameters = (path, dependencies)
+        invokedFetchParametersList.append((path, dependencies))
+        if let error = stubbedFetchError {
             throw error
         }
     }

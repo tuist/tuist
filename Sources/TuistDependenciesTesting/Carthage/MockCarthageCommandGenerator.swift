@@ -8,17 +8,17 @@ public final class MockCarthageCommandGenerator: CarthageCommandGenerating {
 
     var invokedCommand = false
     var invokedCommandCount = 0
-    var invokedCommandParameters: (method: InstallDependenciesMethod, path: AbsolutePath, platforms: Set<Platform>?)?
-    var invokedCommandParametersList = [(method: InstallDependenciesMethod, path: AbsolutePath, platforms: Set<Platform>?)]()
-    var commandStub: ((InstallDependenciesMethod, AbsolutePath, Set<Platform>?) -> [String])?
+    var invokedCommandParameters: (path: AbsolutePath, platforms: Set<Platform>?)?
+    var invokedCommandParametersList = [(path: AbsolutePath, platforms: Set<Platform>?)]()
+    var commandStub: ((AbsolutePath, Set<Platform>?) -> [String])?
 
-    public func command(method: InstallDependenciesMethod, path: AbsolutePath, platforms: Set<Platform>?) -> [String] {
+    public func command(path: AbsolutePath, platforms: Set<Platform>?) -> [String] {
         invokedCommand = true
         invokedCommandCount += 1
-        invokedCommandParameters = (method, path, platforms)
-        invokedCommandParametersList.append((method, path, platforms))
+        invokedCommandParameters = (path, platforms)
+        invokedCommandParametersList.append((path, platforms))
         if let stub = commandStub {
-            return stub(method, path, platforms)
+            return stub(path, platforms)
         } else {
             return []
         }

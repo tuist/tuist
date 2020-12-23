@@ -17,6 +17,6 @@ struct DependenciesUpdateCommand: ParsableCommand {
     var path: String?
 
     func run() throws {
-        try DependenciesService().run(path: path, method: .update)
+        try DependenciesUpdateService().run(path: path)
     }
 }

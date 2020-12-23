@@ -18,19 +18,11 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_install_fetch() throws {
+    func test_fetch() throws {
         // Given
         let stubbedPath = try temporaryPath()
 
         // When/Then
-        XCTAssertThrowsSpecific(try subject.install(dependenciesDirectory: stubbedPath, method: .fetch), SwiftPackageManagerInteractorError.unimplemented)
-    }
-
-    func test_install_update() throws {
-        // Given
-        let stubbedPath = try temporaryPath()
-
-        // When/Then
-        XCTAssertThrowsSpecific(try subject.install(dependenciesDirectory: stubbedPath, method: .update), SwiftPackageManagerInteractorError.unimplemented)
+        XCTAssertThrowsSpecific(try subject.fetch(dependenciesDirectory: stubbedPath), SwiftPackageManagerInteractorError.unimplemented)
     }
 }

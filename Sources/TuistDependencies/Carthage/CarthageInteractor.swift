@@ -37,11 +37,11 @@ enum CarthageInteractorError: FatalError, Equatable {
 // MARK: - Carthage Interacting
 
 public protocol CarthageInteracting {
-    /// Installes `Carthage` dependencies.
+    /// Fetches `Carthage` dependencies.
     /// - Parameter dependenciesDirectory: The path to the directory that contains the `Tuist/Dependencies/` directory.
     /// - Parameter method: Installation method.
     /// - Parameter dependencies: List of dependencies to intall using `Carthage`.
-    func install(dependenciesDirectory: AbsolutePath, method: InstallDependenciesMethod, dependencies: [CarthageDependency]) throws
+    func fetch(dependenciesDirectory: AbsolutePath, dependencies: [CarthageDependency]) throws
 }
 
 // MARK: - Carthage Interactor
@@ -61,11 +61,8 @@ public final class CarthageInteractor: CarthageInteracting {
         self.cartfileContentGenerator = cartfileContentGenerator
     }
 
-    public func install(dependenciesDirectory: AbsolutePath, method: InstallDependenciesMethod, dependencies: [CarthageDependency]) throws {
-        switch method {
-        case .fetch: logger.info("Start fetching Carthage dependencies.", metadata: .section)
-        case .update: logger.info("Start updating Carthage dependencies.", metadata: .section)
-        }
+    public func fetch(dependenciesDirectory: AbsolutePath, dependencies: [CarthageDependency]) throws {
+        logger.info("We are starting to fetch the Carthage dependencies.", metadata: .section)
 
         // check availability of `carthage`
         guard canUseSystemCarthage() else {
@@ -84,7 +81,7 @@ public final class CarthageInteractor: CarthageInteracting {
             try prepareForInstallation(pathsProvider: pathsProvider, dependencies: dependencies)
 
             // create `carthage` shell command
-            let command = carthageCommandGenerator.command(method: method, path: temporaryDirectoryPath, platforms: platforms)
+            let command = carthageCommandGenerator.command(path: temporaryDirectoryPath, platforms: platforms)
 
             // run `carthage`
             try System.shared.runAndPrint(command)
@@ -93,10 +90,7 @@ public final class CarthageInteractor: CarthageInteracting {
             try postInstallationActions(pathsProvider: pathsProvider)
         }
 
-        switch method {
-        case .fetch: logger.info("Carthage dependencies were fetched successfully.", metadata: .success)
-        case .update: logger.info("Carthage dependencies were updated successfully.", metadata: .success)
-        }
+        logger.info("Carthage dependencies were fetched successfully.", metadata: .success)
     }
 
     // MARK: - Installation

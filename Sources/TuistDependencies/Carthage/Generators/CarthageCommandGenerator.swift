@@ -7,10 +7,9 @@ import TuistSupport
 public protocol CarthageCommandGenerating {
     /// Builds `Carthage` command.
     /// - Parameters:
-    ///   - method: Installation method.
     ///   - path: Directory whose project's dependencies will be installed.
     ///   - platforms: The platforms to build for.
-    func command(method: InstallDependenciesMethod, path: AbsolutePath, platforms: Set<Platform>?) -> [String]
+    func command(path: AbsolutePath, platforms: Set<Platform>?) -> [String]
 }
 
 // MARK: - Carthage Command Generator
@@ -18,16 +17,10 @@ public protocol CarthageCommandGenerating {
 public final class CarthageCommandGenerator: CarthageCommandGenerating {
     public init() {}
 
-    public func command(method: InstallDependenciesMethod, path: AbsolutePath, platforms: Set<Platform>?) -> [String] {
+    public func command(path: AbsolutePath, platforms: Set<Platform>?) -> [String] {
         var commandComponents: [String] = []
         commandComponents.append("carthage")
-
-        // Command
-
-        switch method {
-        case .fetch: commandComponents.append("bootstrap")
-        case .update: commandComponents.append("update")
-        }
+        commandComponents.append("bootstrap")
 
         // Project Directory
 

@@ -6,18 +6,18 @@ import TuistCore
 public final class MockCarthageInteractor: CarthageInteracting {
     public init() {}
 
-    var invokedInstall = false
-    var invokedInstallCount = 0
-    var invokedInstallParameters: (dependenciesDirectory: AbsolutePath, method: InstallDependenciesMethod, dependencies: [CarthageDependency])?
-    var invokedInstallParametersList = [(dependenciesDirectory: AbsolutePath, method: InstallDependenciesMethod, dependencies: [CarthageDependency])]()
-    var stubbedInstallError: Error?
+    var invokedFetch = false
+    var invokedFetchCount = 0
+    var invokedFetchParameters: (dependenciesDirectory: AbsolutePath, dependencies: [CarthageDependency])?
+    var invokedFetchParametersList = [(dependenciesDirectory: AbsolutePath, dependencies: [CarthageDependency])]()
+    var stubbedFetchError: Error?
 
-    public func install(dependenciesDirectory: AbsolutePath, method: InstallDependenciesMethod, dependencies: [CarthageDependency]) throws {
-        invokedInstall = true
-        invokedInstallCount += 1
-        invokedInstallParameters = (dependenciesDirectory, method, dependencies)
-        invokedInstallParametersList.append((dependenciesDirectory, method, dependencies))
-        if let error = stubbedInstallError {
+    public func fetch(dependenciesDirectory: AbsolutePath, dependencies: [CarthageDependency]) throws {
+        invokedFetch = true
+        invokedFetchCount += 1
+        invokedFetchParameters = (dependenciesDirectory, dependencies)
+        invokedFetchParametersList.append((dependenciesDirectory, dependencies))
+        if let error = stubbedFetchError {
             throw error
         }
     }

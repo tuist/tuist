@@ -46,7 +46,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_install_fetch_all_for_platforms() throws {
+    func test_fetch_all_for_platforms() throws {
         // Given
         let rootPath = try temporaryPath()
         let temporaryDependenciesDirectory = temporaryDirectoryPath
@@ -74,13 +74,13 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         ]
         let stubbedCommand = ["carthage", "bootstrap", "--project-directory", temporaryDirectoryPath.pathString, "--platform iOS", "--cache-builds", "--new-resolver"]
 
-        carthageCommandGenerator.commandStub = { _, _, _ in stubbedCommand }
+        carthageCommandGenerator.commandStub = { _, _ in stubbedCommand }
 
         system.whichStub = { _ in "1.0.0" }
         system.succeedCommand(stubbedCommand)
 
         // When
-        try subject.install(dependenciesDirectory: dependenciesDirectory, method: .fetch, dependencies: stubbedDependencies)
+        try subject.fetch(dependenciesDirectory: dependenciesDirectory, dependencies: stubbedDependencies)
 
         // Then
         let expectedCartfileResolvedPath = dependenciesDirectory
@@ -104,7 +104,6 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         XCTAssertTrue(fileHandler.exists(expectedCarthageDirectory.appending(components: "tvOS", "RxMoya.framework", "Info.plist")))
 
         XCTAssertTrue(carthageCommandGenerator.invokedCommand)
-        XCTAssertEqual(carthageCommandGenerator.invokedCommandParameters?.method, .fetch)
         XCTAssertEqual(carthageCommandGenerator.invokedCommandParameters?.path, temporaryDirectoryPath)
         XCTAssertEqual(carthageCommandGenerator.invokedCommandParameters?.platforms, [.iOS])
 
@@ -112,7 +111,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         XCTAssertEqual(cartfileContentGenerator.invokedCartfileContentParameters, stubbedDependencies)
     }
 
-    func test_install_fetch_only_one_platform() throws {
+    func test_fetch_only_one_platform() throws {
         // Given
         let rootPath = try temporaryPath()
         let temporaryDependenciesDirectory = temporaryDirectoryPath
@@ -131,13 +130,13 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         ]
         let stubbedCommand = ["carthage", "bootstrap", "--project-directory", temporaryDirectoryPath.pathString, "--platform iOS", "--cache-builds", "--new-resolver"]
 
-        carthageCommandGenerator.commandStub = { _, _, _ in stubbedCommand }
+        carthageCommandGenerator.commandStub = { _, _ in stubbedCommand }
 
         system.whichStub = { _ in "1.0.0" }
         system.succeedCommand(stubbedCommand)
 
         // When
-        try subject.install(dependenciesDirectory: dependenciesDirectory, method: .fetch, dependencies: stubbedDependencies)
+        try subject.fetch(dependenciesDirectory: dependenciesDirectory, dependencies: stubbedDependencies)
 
         // Then
         let expectedCartfileResolvedPath = dependenciesDirectory
@@ -161,7 +160,6 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         XCTAssertFalse(fileHandler.exists(expectedCarthageDirectory.appending(components: "tvOS", "RxMoya.framework", "Info.plist")))
 
         XCTAssertTrue(carthageCommandGenerator.invokedCommand)
-        XCTAssertEqual(carthageCommandGenerator.invokedCommandParameters?.method, .fetch)
         XCTAssertEqual(carthageCommandGenerator.invokedCommandParameters?.path, temporaryDirectoryPath)
         XCTAssertEqual(carthageCommandGenerator.invokedCommandParameters?.platforms, [.iOS])
 

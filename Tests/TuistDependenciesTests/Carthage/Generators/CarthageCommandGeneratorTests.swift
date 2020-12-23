@@ -18,56 +18,28 @@ final class CarthageCommandGeneratorTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_command_fetch() throws {
+    func test_command() throws {
         // Given
         let stubbedPath = try temporaryPath()
         let expected = "carthage bootstrap --project-directory \(stubbedPath.pathString) --use-netrc --cache-builds --new-resolver"
 
         // When
         let got = subject
-            .command(method: .fetch, path: stubbedPath, platforms: nil)
+            .command(path: stubbedPath, platforms: nil)
             .joined(separator: " ")
 
         // Then
         XCTAssertEqual(got, expected)
     }
 
-    func test_command_fetch_with_platforms() throws {
+    func test_command_with_platforms() throws {
         // Given
         let stubbedPath = try temporaryPath()
         let expected = "carthage bootstrap --project-directory \(stubbedPath.pathString) --platform iOS --use-netrc --cache-builds --new-resolver"
 
         // When
         let got = subject
-            .command(method: .fetch, path: stubbedPath, platforms: [.iOS])
-            .joined(separator: " ")
-
-        // Then
-        XCTAssertEqual(got, expected)
-    }
-
-    func test_command_update() throws {
-        // Given
-        let stubbedPath = try temporaryPath()
-        let expected = "carthage update --project-directory \(stubbedPath.pathString) --use-netrc --cache-builds --new-resolver"
-
-        // When
-        let got = subject
-            .command(method: .update, path: stubbedPath, platforms: nil)
-            .joined(separator: " ")
-
-        // Then
-        XCTAssertEqual(got, expected)
-    }
-
-    func test_command_update_with_platforms() throws {
-        // Given
-        let stubbedPath = try temporaryPath()
-        let expected = "carthage update --project-directory \(stubbedPath.pathString) --platform iOS --use-netrc --cache-builds --new-resolver"
-
-        // When
-        let got = subject
-            .command(method: .update, path: stubbedPath, platforms: [.iOS])
+            .command(path: stubbedPath, platforms: [.iOS])
             .joined(separator: " ")
 
         // Then

@@ -36,7 +36,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_install_fetch() throws {
+    func test_fetch() throws {
         // Given
         let rootPath = try temporaryPath()
         let dependenciesDirectoryPath = rootPath
@@ -48,15 +48,13 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             CarthageDependency(origin: .github(path: "RxSwift"), requirement: .exact("2.0.0"), platforms: [.iOS]),
         ]
         let stubbedDependencies = Dependencies(carthageDependencies: stubbedCarthageDependencies)
-        let stubbedMethod = InstallDependenciesMethod.fetch
 
         // When
-        try subject.install(at: rootPath, method: stubbedMethod, dependencies: stubbedDependencies)
+        try subject.fetch(at: rootPath, dependencies: stubbedDependencies)
 
         // Then
-        XCTAssertTrue(carthageInteractor.invokedInstall)
-        XCTAssertEqual(carthageInteractor.invokedInstallParameters?.dependenciesDirectory, dependenciesDirectoryPath)
-        XCTAssertEqual(carthageInteractor.invokedInstallParameters?.method, stubbedMethod)
-        XCTAssertEqual(carthageInteractor.invokedInstallParameters?.dependencies, stubbedCarthageDependencies)
+        XCTAssertTrue(carthageInteractor.invokedFetch)
+        XCTAssertEqual(carthageInteractor.invokedFetchParameters?.dependenciesDirectory, dependenciesDirectoryPath)
+        XCTAssertEqual(carthageInteractor.invokedFetchParameters?.dependencies, stubbedCarthageDependencies)
     }
 }

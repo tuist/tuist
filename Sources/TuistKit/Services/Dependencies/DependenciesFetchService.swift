@@ -5,7 +5,7 @@ import TuistDependencies
 import TuistLoader
 import TuistSupport
 
-final class DependenciesService {
+final class DependenciesFetchService {
     private let dependenciesController: DependenciesControlling
     private let dependenciesModelLoader: DependenciesModelLoading
 
@@ -16,21 +16,14 @@ final class DependenciesService {
         self.dependenciesModelLoader = dependenciesModelLoader
     }
 
-    func run(path: String?, method: InstallDependenciesMethod) throws {
-        switch method {
-        case .fetch: logger.info("Start fetching dependencies.", metadata: .section)
-        case .update: logger.info("Start updating dependencies.", metadata: .section)
-        }
-
+    func run(path: String?) throws {
+        logger.info("We are starting to fetch/update the dependencies.", metadata: .section)
+        
         let path = self.path(path)
-
         let dependencies = try dependenciesModelLoader.loadDependencies(at: path)
-        try dependenciesController.install(at: path, method: method, dependencies: dependencies)
+        try dependenciesController.fetch(at: path, dependencies: dependencies)
 
-        switch method {
-        case .fetch: logger.info("Dependencies were fetched successfully.", metadata: .success)
-        case .update: logger.info("Dependencies were updated successfully.", metadata: .success)
-        }
+        logger.info("Dependencies were fetched successfully.", metadata: .success)
     }
 
     // MARK: - Helpers

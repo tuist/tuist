@@ -6,18 +6,18 @@ import TuistCore
 public final class MockCocoaPodsInteractor: CocoaPodsInteracting {
     public init() {}
 
-    var invokedSave = false
-    var invokedSaveCount = 0
-    var invokedSaveParameters: (dependenciesDirectory: AbsolutePath, method: InstallDependenciesMethod)?
-    var invokedSaveParametersList = [(dependenciesDirectory: AbsolutePath, method: InstallDependenciesMethod)]()
-    var stubbedSaveError: Error?
+    var invokedFetch = false
+    var invokedFetchCount = 0
+    var invokedFetchParameters: AbsolutePath?
+    var invokedFetchParametersList = [AbsolutePath]()
+    var stubbedFetchError: Error?
 
-    public func install(dependenciesDirectory: AbsolutePath, method: InstallDependenciesMethod) throws {
-        invokedSave = true
-        invokedSaveCount += 1
-        invokedSaveParameters = (dependenciesDirectory, method)
-        invokedSaveParametersList.append((dependenciesDirectory, method))
-        if let error = stubbedSaveError {
+    public func fetch(dependenciesDirectory: AbsolutePath) throws {
+        invokedFetch = true
+        invokedFetchCount += 1
+        invokedFetchParameters = dependenciesDirectory
+        invokedFetchParametersList.append(dependenciesDirectory)
+        if let error = stubbedFetchError {
             throw error
         }
     }
