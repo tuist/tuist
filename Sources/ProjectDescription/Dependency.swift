@@ -11,7 +11,7 @@ public enum Dependency: Codable, Equatable {
         /// Mimics `binary` keyword from `Cartfile`. Dependencies that are only available as compiled binary `.frameworks`.
         case binary(path: String)
     }
-    
+
     /// Requirement for the Carthage dependency
     public enum CarthageRequirement: Codable, Equatable {
         /// Mimics `== 1.0` from `Cartfile`.
@@ -25,7 +25,7 @@ public enum Dependency: Codable, Equatable {
         /// Mimics `"revision"` from `Cartfile`.
         case revision(String)
     }
-    
+
     /// Contains the description of dependency that can by installed using Carthage. More: https://github.com/Carthage/Carthage/blob/master/Documentation/Artifacts.md
     case carthage(origin: CarthageOrigin, requirement: CarthageRequirement, platforms: Set<Platform>)
 }
@@ -138,12 +138,12 @@ extension Dependency.CarthageOrigin {
         case git
         case binary
     }
-    
+
     private enum CodingKeys: String, CodingKey {
         case kind
         case path
     }
-    
+
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let kind = try container.decode(Kind.self, forKey: .kind)
@@ -159,7 +159,7 @@ extension Dependency.CarthageOrigin {
             self = .binary(path: path)
         }
     }
-    
+
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         switch self {

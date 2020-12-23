@@ -17,7 +17,7 @@ public final class CartfileContentGenerator: CartfileContentGenerating {
 
     public func cartfileContent(for dependencies: [CarthageDependency]) -> String {
         dependencies
-            .map { $0.cartfileValue }
+            .map(\.cartfileValue)
             .joined(separator: "\n")
     }
 }

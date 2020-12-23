@@ -32,15 +32,15 @@ enum DependenciesUpdateServiceError: FatalError {
 final class DependenciesUpdateService {
     private let dependenciesController: DependenciesControlling
     private let dependenciesModelLoader: DependenciesModelLoading
-    
+
     init(dependenciesController: DependenciesControlling = DependenciesController(),
          dependenciesModelLoader: DependenciesModelLoading = DependenciesModelLoader())
     {
         self.dependenciesController = dependenciesController
         self.dependenciesModelLoader = dependenciesModelLoader
     }
-    
-    func run(path: String?) throws {
+
+    func run(path _: String?) throws {
         throw DependenciesUpdateServiceError.unimplemented
     }
 }

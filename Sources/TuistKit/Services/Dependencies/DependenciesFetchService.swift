@@ -18,7 +18,7 @@ final class DependenciesFetchService {
 
     func run(path: String?) throws {
         logger.info("We are starting to fetch/update the dependencies.", metadata: .section)
-        
+
         let path = self.path(path)
         let dependencies = try dependenciesModelLoader.loadDependencies(at: path)
         try dependenciesController.fetch(at: path, dependencies: dependencies)

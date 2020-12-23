@@ -41,7 +41,7 @@ public extension CarthageDependency {
         case github(path: String)
         case git(path: String)
         case binary(path: String)
-        
+
         /// Returns `Cartfile` representation.
         public var cartfileValue: String {
             switch self {
@@ -56,7 +56,6 @@ public extension CarthageDependency {
     }
 }
 
-
 // MARK: - Requirement
 
 public extension CarthageDependency {
@@ -66,7 +65,7 @@ public extension CarthageDependency {
         case atLeast(String)
         case branch(String)
         case revision(String)
-        
+
         /// Returns `Cartfile` representation.
         public var cartfileValue: String {
             switch self {
