@@ -31,14 +31,11 @@ public protocol CarthageGraphLoading {
 }
 
 public struct CarthageGraphLoader: CarthageGraphLoading {
-    private let otoolController: OtoolControlling
     private let frameworkNodeLoader: FrameworkNodeLoading
 
     public init(
-        otoolController: OtoolControlling = OtoolController(),
         frameworkNodeLoader: FrameworkNodeLoading = FrameworkNodeLoader()
     ) {
-        self.otoolController = otoolController
         self.frameworkNodeLoader = frameworkNodeLoader
     }
 
