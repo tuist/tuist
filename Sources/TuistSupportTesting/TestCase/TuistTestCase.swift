@@ -48,7 +48,7 @@ public final class MockFileHandler: FileHandler {
     }
 }
 
-public class TuistTestCase: XCTestCase {
+open class TuistTestCase: XCTestCase {
     fileprivate var temporaryDirectory: TemporaryDirectory!
 
     override public static func setUp() {
@@ -61,7 +61,7 @@ public class TuistTestCase: XCTestCase {
     public var fileHandler: MockFileHandler!
     public var environment: MockEnvironment!
 
-    override public func setUp() {
+    override open func setUp() {
         super.setUp()
 
         do {
@@ -77,7 +77,7 @@ public class TuistTestCase: XCTestCase {
         FileHandler.shared = fileHandler
     }
 
-    override public func tearDown() {
+    override open func tearDown() {
         temporaryDirectory = nil
         super.tearDown()
     }

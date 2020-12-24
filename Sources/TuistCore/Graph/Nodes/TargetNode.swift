@@ -2,7 +2,7 @@ import Foundation
 import TSCBasic
 import TuistSupport
 
-@available(*, deprecated, message: "Target nodes are deprecated. Targets should be usted instead with the ValueGraph.")
+@available(*, deprecated, message: "Target nodes are deprecated. Targets should be used instead with the ValueGraph.")
 public class TargetNode: GraphNode {
     // MARK: - Attributes
 
