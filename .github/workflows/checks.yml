@@ -20,7 +20,7 @@ jobs:
         run: sudo xcode-select -switch /Applications/Xcode_${{ matrix.xcode }}.app
       - uses: actions/setup-ruby@v1
         with:
-          ruby-version: '2.x'
+          ruby-version: '3.0.0'
       - name: Install Bundler 2.1.4
         run: gem install bundler --version 2.1.4
       - name: Install Bundler dependencies
@@ -39,7 +39,7 @@ jobs:
         run: sudo xcode-select -switch /Applications/Xcode_${{ matrix.xcode }}.app
       - uses: actions/setup-ruby@v1
         with:
-          ruby-version: '2.x'
+          ruby-version: '3.0.0'
       - name: Install Bundler 2.1.4
         run: gem install bundler --version 2.1.4
       - name: Install Bundler dependencies

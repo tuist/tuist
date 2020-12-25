@@ -22,4 +22,5 @@ AllCops:
     - Sources/**/*
     - Tests/**/*
     - .github/**/*
-    - website/node_modules/**/*
+    - website/**/*
+    - next/**/*

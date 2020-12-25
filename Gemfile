@@ -16,3 +16,6 @@ gem "xcodeproj", "~> 1.19"
 gem "highline", "~> 2.0"
 gem "rubyzip", "~> 2.3.0"
 gem "ruby-macho", "~> 1.4"
+gem "cli-kit", "~> 3.3"
+
+gem "cli-ui", "~> 1.4"
