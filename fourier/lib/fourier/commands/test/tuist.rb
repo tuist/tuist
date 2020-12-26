@@ -5,7 +5,7 @@ module Fourier
       class Tuist < Base
         desc "unit", "Run Tuist unit tests"
         def unit
-          system("swift", "test", "--package-path", File.expand_path("../../../../../", __dir__)) || Kernel.abort
+          Utilities::System.system("swift", "test", "--package-path", File.expand_path("../../../../../", __dir__))
         end
       end
     end

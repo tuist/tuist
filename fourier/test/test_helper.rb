@@ -20,3 +20,10 @@ reporter_options = { color: true }
 Minitest::Reporters.use!([Minitest::Reporters::DefaultReporter.new(reporter_options)])
 
 require 'mocha/minitest'
+require 'fourier'
+
+class TestCase < MiniTest::Test
+  def root_directory
+    File.expand_path("../..", __dir__)
+  end
+end

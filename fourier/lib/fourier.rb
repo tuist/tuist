@@ -5,4 +5,5 @@ require 'cli/ui'
 module Fourier
   autoload :CLI,      "fourier/cli"
   autoload :Commands, "fourier/commands"
+  autoload :Utilities, "fourier/utilities"
 end
