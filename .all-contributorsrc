@@ -188,6 +188,15 @@
       "contributions": [
         "bug"
       ]
+    },
+    {
+      "login": "joeblau",
+      "name": "Joe Blau",
+      "avatar_url": "https://avatars1.githubusercontent.com/u/1218847?v=4",
+      "profile": "https://joeblau.com",
+      "contributions": [
+        "bug"
+      ]
     }
   ],
   "contributorsPerLine": 7,
