@@ -25,8 +25,8 @@ end
 desc("Runs the Fourier tests")
 Rake::TestTask.new do |t|
   t.name = "test_fourier"
-  t.libs += [File.expand_path('./fourier/test', __dir__)]
-  test_root = File.expand_path('./fourier/test', __dir__)
+  t.libs += [File.expand_path('./tools/fourier/test', __dir__)]
+  test_root = File.expand_path('./tools/fourier/test', __dir__)
   t.test_files = FileList[File.join(test_root, '**', '*_test.rb')]
   t.verbose = false
   t.warning = false

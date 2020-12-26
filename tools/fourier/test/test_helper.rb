@@ -24,6 +24,6 @@ require 'fourier'
 
 class TestCase < MiniTest::Test
   def root_directory
-    File.expand_path("../..", __dir__)
+    File.expand_path("../../..", __dir__)
   end
 end

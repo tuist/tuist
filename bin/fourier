@@ -9,7 +9,7 @@ require "pathname"
 require "bundler/setup"
 
 # Load fourier's directory
-fourier_directory = File.expand_path("../fourier/lib", __dir__)
+fourier_directory = File.expand_path("../tools/fourier/lib", __dir__)
 $LOAD_PATH.unshift(fourier_directory) unless $LOAD_PATH.include?(fourier_directory)
 
 # Load Fourier
