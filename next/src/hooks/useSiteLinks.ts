@@ -20,6 +20,9 @@ const useSiteLinks = (): SiteLinks => {
         siteMetadata {
           links {
             slack
+            releases
+            githubRepository
+            githubOrganization
           }
         }
       }

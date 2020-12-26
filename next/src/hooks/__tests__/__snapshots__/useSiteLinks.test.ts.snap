@@ -11,6 +11,9 @@ exports[`useSiteLinks returns the GitHub organization link from the site metadat
         siteMetadata {
           links {
             slack
+            releases
+            githubRepository
+            githubOrganization
           }
         }
       }
@@ -26,6 +29,9 @@ exports[`useSiteLinks returns the GitHub organization link from the site metadat
         siteMetadata {
           links {
             slack
+            releases
+            githubRepository
+            githubOrganization
           }
         }
       }
@@ -41,6 +47,9 @@ exports[`useSiteLinks returns the GitHub organization link from the site metadat
         siteMetadata {
           links {
             slack
+            releases
+            githubRepository
+            githubOrganization
           }
         }
       }
@@ -56,6 +65,9 @@ exports[`useSiteLinks returns the GitHub organization link from the site metadat
         siteMetadata {
           links {
             slack
+            releases
+            githubRepository
+            githubOrganization
           }
         }
       }
@@ -96,6 +108,9 @@ exports[`useSiteLinks returns the GitHub repository link from the site metadata 
         siteMetadata {
           links {
             slack
+            releases
+            githubRepository
+            githubOrganization
           }
         }
       }
@@ -111,6 +126,9 @@ exports[`useSiteLinks returns the GitHub repository link from the site metadata 
         siteMetadata {
           links {
             slack
+            releases
+            githubRepository
+            githubOrganization
           }
         }
       }
@@ -126,6 +144,9 @@ exports[`useSiteLinks returns the GitHub repository link from the site metadata 
         siteMetadata {
           links {
             slack
+            releases
+            githubRepository
+            githubOrganization
           }
         }
       }
@@ -162,6 +183,9 @@ exports[`useSiteLinks returns the Slack link from the site metadata 1`] = `
         siteMetadata {
           links {
             slack
+            releases
+            githubRepository
+            githubOrganization
           }
         }
       }
@@ -190,6 +214,9 @@ exports[`useSiteLinks returns the releases link from the site metadata 1`] = `
         siteMetadata {
           links {
             slack
+            releases
+            githubRepository
+            githubOrganization
           }
         }
       }
@@ -205,6 +232,9 @@ exports[`useSiteLinks returns the releases link from the site metadata 1`] = `
         siteMetadata {
           links {
             slack
+            releases
+            githubRepository
+            githubOrganization
           }
         }
       }
