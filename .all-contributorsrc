@@ -197,6 +197,15 @@
       "contributions": [
         "bug"
       ]
+    },
+    {
+      "login": "dcvz",
+      "name": "David Chavez",
+      "avatar_url": "https://avatars0.githubusercontent.com/u/2475932?v=4",
+      "profile": "https://twitter.com/dchavezlive",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,
