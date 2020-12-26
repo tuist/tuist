@@ -18,7 +18,7 @@ public enum TargetError: FatalError, Equatable {
 public struct Target: Equatable, Hashable, Comparable {
     // MARK: - Static
 
-    public static let validSourceExtensions: [String] = ["m", "swift", "mm", "cpp", "c", "d", "intentdefinition", "xcmappingmodel", "metal"]
+    public static let validSourceExtensions: [String] = ["m", "swift", "mm", "cpp", "c", "d", "s", "intentdefinition", "xcmappingmodel", "metal"]
     public static let validFolderExtensions: [String] = ["framework", "bundle", "app", "xcassets", "appiconset", "scnassets"]
 
     // MARK: - Attributes
