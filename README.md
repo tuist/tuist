@@ -115,6 +115,9 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
     <td align="center"><a href="https://jsorge.net"><img src="https://avatars3.githubusercontent.com/u/2585841?v=4" width="100px;" alt=""/><br /><sub><b>Jared Sorge</b></sub></a></td>
     <td align="center"><a href="https://joeblau.com"><img src="https://avatars1.githubusercontent.com/u/1218847?v=4" width="100px;" alt=""/><br /><sub><b>Joe Blau</b></sub></a></td>
   </tr>
+  <tr>
+    <td align="center"><a href="https://twitter.com/dchavezlive"><img src="https://avatars0.githubusercontent.com/u/2475932?v=4" width="100px;" alt=""/><br /><sub><b>David Chavez</b></sub></a></td>
+  </tr>
 </table>
 
 <!-- markdownlint-enable -->
