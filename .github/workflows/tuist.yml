@@ -6,10 +6,13 @@ on:
       - main
   pull_request:
 
+env:
+  RUBY_VERSION: '2.7.2'
+
 jobs:
   unit_tests:
     name: Unit tests with Xcode ${{ matrix.xcode }}
-    runs-on: macOS-latest
+    runs-on: macos-latest
     strategy:
       matrix:
         xcode: ['11.5', '12.3']
@@ -89,7 +92,7 @@ jobs:
             ${{ runner.os }}-spm-
       - uses: actions/setup-ruby@v1
         with:
-          ruby-version: '3.0.0'
+          ruby-version: ${{ env.RUBY_VERSION }}
       - name: Install Bundler 2.1.4
         run: gem install bundler --version 2.1.4
       - uses: actions/cache@v2
@@ -117,7 +120,7 @@ jobs:
         run: sudo xcode-select -switch /Applications/Xcode_${{ matrix.xcode }}.app
       - uses: actions/setup-ruby@v1
         with:
-          ruby-version: '3.0.0'
+          ruby-version: ${{ env.RUBY_VERSION }}
       - name: Install Bundler 2.1.4
         run: gem install bundler --version 2.1.4
       - uses: actions/cache@v2
