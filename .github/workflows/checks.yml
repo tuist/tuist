@@ -8,7 +8,7 @@ on:
   pull_request:
 
 env:
-  RUBY_VERSION: 127.0.0.1
+  RUBY_VERSION: '2.7.2'
 
 jobs:
   swiftformat:
