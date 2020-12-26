@@ -1,13 +1,8 @@
 import * as React from 'react'
-import Footer from '../components/Footer'
 import MainLayout from '../layouts/MainLayout'
 
 const IndexPage = () => {
-  return (
-    <MainLayout>
-      <Footer />
-    </MainLayout>
-  )
+  return <MainLayout>Hi</MainLayout>
 }
 
 export default IndexPage

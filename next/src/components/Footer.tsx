@@ -1,5 +1,5 @@
 import React from 'react'
-import tw, { css, styled, theme } from 'twin.macro'
+import tw from 'twin.macro'
 import useSiteLinks from '../hooks/useSiteLinks'
 
 const Footer = () => {
