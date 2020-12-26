@@ -3,9 +3,11 @@ require "thor"
 
 module Fourier
   class CLI < Thor
-    desc "hello NAME", "say hello to NAME"
-    def hello(name)
-      puts "Hello #{name}"
+    desc "test", "Run tests"
+    subcommand "test", Commands::Test
+
+    def self.exit_on_failure?
+      true
     end
   end
 end
