@@ -1,7 +1,10 @@
 import React from 'react'
 import tw, { css, styled, theme } from 'twin.macro'
+import useSiteLinks from '../hooks/useSiteLinks'
 
 const Footer = () => {
+  const links = useSiteLinks()
+  console.log(links)
   return (
     <footer css={[tw`bg-pink-200`]}>
       <div css={[tw`max-w-6xl mx-auto bg-green-200`]}>

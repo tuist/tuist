@@ -9,6 +9,12 @@ module.exports = {
     title: title,
     siteUrl: siteUrl,
     twitterHandle: twitterHandle,
+    links: {
+      slack: 'https://slack.tuist.io',
+      releases: 'https://github.com/tuist/tuist/releases',
+      githubRepository: 'https://github.com/tuist/tuist',
+      githubOrganization: 'https://github.com/tuist',
+    },
   },
   plugins: [
     'gatsby-plugin-sharp',
