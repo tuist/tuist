@@ -1,7 +1,14 @@
+const title = 'Tuist'
+const siteUrl = 'https://tuist.io'
+const twitterHandle = 'tuistio'
+const description =
+  'Boost your productivity working with Xcode projects. Focus on building features while Tuist simplifies your projects.'
+
 module.exports = {
   siteMetadata: {
-    title: 'Tuist',
-    siteUrl: 'https://tuist.io',
+    title: title,
+    siteUrl: siteUrl,
+    twitterHandle: twitterHandle,
   },
   plugins: [
     'gatsby-plugin-sharp',
@@ -11,7 +18,7 @@ module.exports = {
     {
       resolve: 'gatsby-plugin-manifest',
       options: {
-        icon: 'src/images/icon.png',
+        icon: 'src/images/logo.png',
       },
     },
     'gatsby-plugin-mdx',
@@ -38,6 +45,26 @@ module.exports = {
         isTSX: true,
         jsxPragma: `jsx`,
         allExtensions: true,
+      },
+    },
+    `gatsby-plugin-styled-components`,
+    {
+      resolve: 'gatsby-plugin-next-seo',
+      options: {
+        titleTemplate: `${title} | %s`,
+        title: `${title} - Boost your productivity`,
+        description: description,
+        openGraph: {
+          type: 'website',
+          locale: 'en_IE',
+          url: siteUrl,
+          site_name: title,
+        },
+        twitter: {
+          handle: `${twitterHandle}`,
+          site: '@site',
+          cardType: 'summary',
+        },
       },
     },
   ],
