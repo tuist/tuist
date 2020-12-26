@@ -11,6 +11,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Added
 
 - Fourier CLI tool to automate development tasks [#2196](https://github.com/tuist/tuist/pull/2196) by @pepibumur](https://github.com/pepibumur).
+- Support `.s` source files [#2199](https://github.com/tuist/tuist/pull/2199) by[ @dcvz](https://github.com/dcvz).
 
 ## 1.29.0 - Tutu
 
