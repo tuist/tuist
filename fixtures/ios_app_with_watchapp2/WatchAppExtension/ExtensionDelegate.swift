@@ -1,6 +1,8 @@
 import WatchKit
+import LibraryA
 
 class ExtensionDelegate: NSObject, WKExtensionDelegate {
+    private let libraryClass = LibraryAClass()
 
     func applicationDidFinishLaunching() {
         // Perform any final initialization of your application.

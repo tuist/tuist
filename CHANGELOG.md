@@ -7,6 +7,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Fixed
 
 - Fix import of multiple signing certificates [#2112](https://github.com/tuist/tuist/pull/2112) by [@rist](https://github.com/rist).
+- Fix false positive duplicate static products lint rule [#2201](https://github.com/tuist/tuist/pull/2201) by [@kwridan](https://github.com/kwridan).
 
 ### Added
 

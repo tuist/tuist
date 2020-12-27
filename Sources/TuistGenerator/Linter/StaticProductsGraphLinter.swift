@@ -167,6 +167,22 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
             // app's graph. It's an unfortunate side effect of declaring a target application
             // of a UI test bundle as a dependency.
             return false
+        case (.app, .appExtension):
+            // App Extensions can safely link the same static products as apps
+            // as they are an independent product
+            return false
+        case (.app, .watch2App):
+            // Watch Apps (and their extension) can safely link the same static products as apps
+            // as they are an independent product
+            return false
+        case (.app, .appClip):
+            // App Clips can safely link the same static products as apps
+            // as they are an independent product
+            return false
+        case (.app, .messagesExtension):
+            // Message Extensions can safely link the same static products as apps
+            // as they are an independent product
+            return false
         default:
             return true
         }

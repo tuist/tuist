@@ -1,6 +1,9 @@
 import ProjectDescription
 
 let project = Project(name: "App",
+                      packages: [
+                          .package(path: "Packages/LibraryA"),
+                      ],
                       targets: [
                         Target(name: "App",
                                platform: .iOS,
@@ -15,7 +18,8 @@ let project = Project(name: "App",
                                dependencies: [
                                     /* Target dependencies can be defined here */
                                     // .framework(path: "Frameworks/MyFramework.framework")
-                                    .target(name: "WatchApp")
+                                    .target(name: "WatchApp"),
+                                    .package(product: "LibraryA")
                                 ]),
                         Target(name: "WatchApp",
                                platform: .watchOS,
@@ -36,6 +40,6 @@ let project = Project(name: "App",
                                sources: ["WatchAppExtension/**"],
                                resources: ["WatchAppExtension/**/*.xcassets"],
                                dependencies: [
-                                    
+                                    .package(product: "LibraryA")
                                ])
                       ])

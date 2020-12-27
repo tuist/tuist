@@ -120,6 +120,8 @@ public struct Target: Equatable, Hashable, Comparable {
             .uiTests,
             .appExtension,
             .watch2Extension,
+            .messagesExtension,
+            .appClip,
         ].contains(product)
     }
 
