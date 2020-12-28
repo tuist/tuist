@@ -18,7 +18,7 @@ final class SettingsTests: XCTestCase {
         let got = configurations.xcconfigs()
 
         // Then
-        XCTAssertEqual(got.map { $0.pathString }, ["/A", "/B", "/D"])
+        XCTAssertEqual(got.map(\.pathString), ["/A", "/B", "/D"])
     }
 
     func testSortedByBuildConfigurationName() {
@@ -34,7 +34,7 @@ final class SettingsTests: XCTestCase {
         let got = configurations.sortedByBuildConfigurationName()
 
         // Then
-        XCTAssertEqual(got.map { $0.0.name }, ["A", "B", "C", "D"])
+        XCTAssertEqual(got.map(\.0.name), ["A", "B", "C", "D"])
     }
 
     func testDefaultDebugConfigurationWhenDefaultExists() {

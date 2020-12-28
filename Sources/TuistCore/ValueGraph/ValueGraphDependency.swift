@@ -1,7 +1,7 @@
 import Foundation
 import TSCBasic
 
-public enum ValueGraphDependency: Hashable {
+public enum ValueGraphDependency: Hashable, CustomStringConvertible, Comparable {
     /// A dependency that represents a pre-compiled .xcframework.
     case xcframework(
         path: AbsolutePath,
@@ -13,10 +13,12 @@ public enum ValueGraphDependency: Hashable {
     /// A dependency that represents a pre-compiled framework.
     case framework(
         path: AbsolutePath,
+        binaryPath: AbsolutePath,
         dsymPath: AbsolutePath?,
         bcsymbolmapPaths: [AbsolutePath],
         linking: BinaryLinking,
-        architectures: [BinaryArchitecture]
+        architectures: [BinaryArchitecture],
+        isCarthage: Bool
     )
 
     /// A dependency that represents a pre-compiled library.
@@ -45,7 +47,7 @@ public enum ValueGraphDependency: Hashable {
         case let .xcframework(path, _, _, _):
             hasher.combine("xcframework")
             hasher.combine(path)
-        case let .framework(path, _, _, _, _):
+        case let .framework(path, _, _, _, _, _, _):
             hasher.combine("framework")
             hasher.combine(path)
         case let .library(path, _, _, _, _):
@@ -69,5 +71,67 @@ public enum ValueGraphDependency: Hashable {
             hasher.combine("pods")
             hasher.combine(path)
         }
+    }
+
+    public var isTarget: Bool {
+        switch self {
+        case .xcframework: return false
+        case .framework: return false
+        case .library: return false
+        case .packageProduct: return false
+        case .target: return true
+        case .sdk: return false
+        case .cocoapods: return false
+        }
+    }
+
+    public var isPrecompiled: Bool {
+        switch self {
+        case .xcframework: return true
+        case .framework: return true
+        case .library: return true
+        case .packageProduct: return false
+        case .target: return false
+        case .sdk: return false
+        case .cocoapods: return false
+        }
+    }
+
+    // MARK: - Internal
+
+    var targetDependency: (name: String, path: AbsolutePath)? {
+        switch self {
+        case let .target(name: name, path: path):
+            return (name, path)
+        default:
+            return nil
+        }
+    }
+
+    // MARK: - CustomStringConvertible
+
+    public var description: String {
+        switch self {
+        case let .xcframework(path, _, _, _):
+            return "xcframework '\(path.basename)'"
+        case let .framework(path, _, _, _, _, _, _):
+            return "framework '\(path.basename)'"
+        case let .library(path, _, _, _, _):
+            return "library '\(path.basename)'"
+        case let .packageProduct(_, product):
+            return "package '\(product)'"
+        case let .target(name, _):
+            return "target '\(name)'"
+        case let .sdk(name, _, _, _):
+            return "sdk '\(name)'"
+        case let .cocoapods(path):
+            return "cocoapods '\(path)'"
+        }
+    }
+
+    // MARK: - Comparable
+
+    public static func < (lhs: ValueGraphDependency, rhs: ValueGraphDependency) -> Bool {
+        lhs.description < rhs.description
     }
 }

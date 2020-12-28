@@ -222,6 +222,14 @@ Each target in the list of project targets can be initialized with the following
       default: '[]',
     },
     {
+      name: 'Copy Files',
+      description: 'Copy files actions allow defining copy files build phases.',
+      type: '[CopyFilesAction]',
+      typeLink: '#copy-files-action',
+      optional: true,
+      default: '[]',
+    },
+    {
       name: 'Headers',
       description: 'The target headers',
       type: 'Headers',
@@ -255,7 +263,8 @@ Each target in the list of project targets can be initialized with the following
     },
     {
       name: 'Sources',
-      description: 'Source files that are compiled by the target',
+      description:
+        'Source files that are compiled by the target. Any playgrounds matched by the globs used in this property will be automatically added.',
       type: 'SourceFilesList',
       typeLink: '#source-file-list',
       optional: false,
@@ -289,9 +298,9 @@ Each target in the list of project targets can be initialized with the following
       name: 'LaunchArguments',
       description:
         'List of launch arguments that will be set to the scheme that Tuist automatically generates for the target.',
-      type: '[String: Bool]',
+      type: '[LaunchArgument]',
       optional: true,
-      default: '[:]',
+      default: '[]',
     },
   ]}
 />
@@ -310,18 +319,20 @@ let target = Target(name: "App",
 
 ## Source file list
 
-It represents a list of source files that are part of a target:<PropertiesTable
-properties={[
-{
-name: 'Globs',
-description:
-'Path to the source files. They are represented by a [glob pattern](https://facelessuser.github.io/wcmatch/glob/) and the compiler flags.',
-type: '[SourceFileGlob]',
-typeLink: '#source-file-glob',
-optional: false,
-default: '',
-},
-]}
+It represents a list of source files that are part of a target:
+
+<PropertiesTable
+  properties={[
+    {
+      name: 'Globs',
+      description:
+        'Path to the source files. They are represented by a [glob pattern](https://facelessuser.github.io/wcmatch/glob/) and the compiler flags.',
+      type: '[SourceFileGlob]',
+      typeLink: '#source-file-glob',
+      optional: false,
+      default: '',
+    },
+  ]}
 />
 
 <Message
@@ -367,6 +378,68 @@ It represents a glob pattern that refers to source files and the compiler flags 
     },
   ]}
 />
+
+## Copy Files Action
+
+Copy files actions, represented as target copy files build phases, are useful to associate project files and products of other targets with the target and copies them to a specified destination, typically a subfolder within a product. This action may be used multiple times per target.
+
+<EnumTable
+  cases={[
+    {
+      case:
+        '.productsDirectory(name: String, subpath: String?, files: [FileElement])',
+      description: 'A copy files action for the products directory.',
+    },
+    {
+      case: '.wrapper(name: String, subpath: String?, files: [FileElement])',
+      description: 'A copy files action for the wrapper directory.',
+    },
+    {
+      case:
+        '.executables(name: String, subpath: String?, files: [FileElement])',
+      description: 'A copy files action for the executables directory.',
+    },
+    {
+      case: '.resources(name: String, subpath: String?, files: [FileElement])',
+      description: 'A copy files action for the resources directory.',
+    },
+    {
+      case:
+        '.javaResources(name: String, subpath: String?, files: [FileElement])',
+      description: 'A copy files action for the java resources directory.',
+    },
+    {
+      case: '.frameworks(name: String, subpath: String?, files: [FileElement])',
+      description: 'A copy files action for the frameworks directory.',
+    },
+    {
+      case:
+        '.sharedFrameworks(name: String, subpath: String?, files: [FileElement])',
+      description: 'A copy files action for the shared frameworks directory.',
+    },
+    {
+      case:
+        '.sharedSupport(name: String, subpath: String?, files: [FileElement])',
+      description: 'A copy files action for the shared support directory.',
+    },
+    {
+      case: '.plugins(name: String, subpath: String?, files: [FileElement])',
+      description: 'A copy files action for the plugins directory.',
+    },
+  ]}
+/>
+
+The following example shows the definition of a copy files action that copy template files to the shared support directory and adds it inside a subfolder `Templates`:
+
+```swift
+.sharedSupport(name: "Copy Templates", subpath: "Templates", files: "MyTemplates/**")
+```
+
+The following example shows the definition of a copy files action that copy font files to the resources directory and adds it inside a subfolder `Fonts`:
+
+```swift
+.resources(name: "Copy Fonts", subpath: "Fonts", files: "MyFonts/**")
+```
 
 ## Headers
 
@@ -533,23 +606,25 @@ The type of build product this target will output. It can be any of the followin
 
 ## InfoPlist
 
-The `InfoPlist` model represents a target `Info.plist` file. It can have any of the following values:<EnumTable
-cases={[
-{
-case: '.file(path: Path)',
-description: 'The path to an existing Info.plist file',
-},
-{
-case: '.dictionary([String: InfoPlist.Value])',
-description:
-'A dictionary with the Info.plist content. Tuist generates the Info.plist file at the generation time.',
-},
-{
-case: '.extendingDefault(with: [String: InfoPlist.Value])',
-description:
-'It indicates Tuist to provide the default content for the target the InfoPlist belongs to, and extend it with the given values.',
-},
-]}
+The `InfoPlist` model represents a target `Info.plist` file. It can have any of the following values:
+
+<EnumTable
+  cases={[
+    {
+      case: '.file(path: Path)',
+      description: 'The path to an existing Info.plist file',
+    },
+    {
+      case: '.dictionary([String: InfoPlist.Value])',
+      description:
+        'A dictionary with the Info.plist content. Tuist generates the Info.plist file at the generation time.',
+    },
+    {
+      case: '.extendingDefault(with: [String: InfoPlist.Value])',
+      description:
+        'It indicates Tuist to provide the default content for the target the InfoPlist belongs to, and extend it with the given values.',
+    },
+  ]}
 />
 
 <Message
@@ -560,29 +635,31 @@ description:
 
 ## InfoPlist.Value
 
-It represents the values of the InfoPlist file dictionary. The reason this type exists is to ensure that the values used to define the content of the dynamically generated `Info.plist` files ar valid:<EnumTable
-cases={[
-{
-case: '.string(String)',
-description: 'It represents a string value.',
-},
-{
-case: '.integer(Int)',
-description: 'It represents an integer value.',
-},
-{
-case: '.boolean(Bool)',
-description: 'It represents a boolean value.',
-},
-{
-case: '.dictionary([String: InfoPlist.Value])',
-description: 'It represents a dictionary value.',
-},
-{
-case: '.array([InfoPlist.Value])',
-description: 'It represents an array value.',
-},
-]}
+It represents the values of the InfoPlist file dictionary. The reason this type exists is to ensure that the values used to define the content of the dynamically generated `Info.plist` files ar valid:
+
+<EnumTable
+  cases={[
+    {
+      case: '.string(String)',
+      description: 'It represents a string value.',
+    },
+    {
+      case: '.integer(Int)',
+      description: 'It represents an integer value.',
+    },
+    {
+      case: '.boolean(Bool)',
+      description: 'It represents a boolean value.',
+    },
+    {
+      case: '.dictionary([String: InfoPlist.Value])',
+      description: 'It represents a dictionary value.',
+    },
+    {
+      case: '.array([InfoPlist.Value])',
+      description: 'It represents an array value.',
+    },
+  ]}
 />
 
 <Message
@@ -662,72 +739,74 @@ It represents the default build configurations available:
 
 ## Scheme
 
-A `Scheme` defines a collection of targets to `Build, Run, Test, Profile, Analyze and Archive`:<PropertiesTable
-properties={[
-{
-name: 'Name',
-description: 'The name of the scheme.',
-type: 'String',
-optional: false,
-default: '',
-},
-{
-name: 'Shared',
-description:
-'Marks the scheme as shared (i.e. one that is checked in to the repository and is visible to `xcodebuild` from the command line).',
-type: 'Bool',
-optional: true,
-default: 'true',
-},
-{
-name: 'Build action',
-description: 'Action that builds the project targets.',
-type: 'BuildAction',
-typeLink: '#build-action',
-optional: true,
-default: 'nil',
-},
-{
-name: 'Run action',
-description: 'Action that runs project built products.',
-type: 'RunAction',
-typeLink: '#run-action',
-optional: true,
-default: 'nil',
-},
-{
-name: 'Test action',
-description: 'Action that runs the project tests.',
-type: 'TestAction',
-typeLink: '#test-action',
-optional: true,
-default: 'nil',
-},
-{
-name: 'Archive action',
-description: 'Action that runs the project archive.',
-type: 'ArchiveAction',
-typeLink: '#archive-action',
-optional: true,
-default: 'nil',
-},
-{
-name: 'Profile action',
-description: 'Action that profiles the project.',
-type: 'ProfileAction',
-typeLink: '#profile-action',
-optional: true,
-default: 'nil',
-},
-{
-name: 'Analyze action',
-description: 'Action that analyze the project.',
-type: 'AnalyzeAction',
-typeLink: '#analyze-action',
-optional: true,
-default: 'nil',
-},
-]}
+A `Scheme` defines a collection of targets to `Build, Run, Test, Profile, Analyze and Archive`:
+
+<PropertiesTable
+  properties={[
+    {
+      name: 'Name',
+      description: 'The name of the scheme.',
+      type: 'String',
+      optional: false,
+      default: '',
+    },
+    {
+      name: 'Shared',
+      description:
+        'Marks the scheme as shared (i.e. one that is checked in to the repository and is visible to `xcodebuild` from the command line).',
+      type: 'Bool',
+      optional: true,
+      default: 'true',
+    },
+    {
+      name: 'Build action',
+      description: 'Action that builds the project targets.',
+      type: 'BuildAction',
+      typeLink: '#build-action',
+      optional: true,
+      default: 'nil',
+    },
+    {
+      name: 'Run action',
+      description: 'Action that runs project built products.',
+      type: 'RunAction',
+      typeLink: '#run-action',
+      optional: true,
+      default: 'nil',
+    },
+    {
+      name: 'Test action',
+      description: 'Action that runs the project tests.',
+      type: 'TestAction',
+      typeLink: '#test-action',
+      optional: true,
+      default: 'nil',
+    },
+    {
+      name: 'Archive action',
+      description: 'Action that runs the project archive.',
+      type: 'ArchiveAction',
+      typeLink: '#archive-action',
+      optional: true,
+      default: 'nil',
+    },
+    {
+      name: 'Profile action',
+      description: 'Action that profiles the project.',
+      type: 'ProfileAction',
+      typeLink: '#profile-action',
+      optional: true,
+      default: 'nil',
+    },
+    {
+      name: 'Analyze action',
+      description: 'Action that analyze the project.',
+      type: 'AnalyzeAction',
+      typeLink: '#analyze-action',
+      optional: true,
+      default: 'nil',
+    },
+  ]}
 />
 
 <Message
@@ -842,6 +921,14 @@ Alternatively, when leveraging custom configurations, the configuration name can
 
 ### Test Action
 
+You can create a test action with either a set of test targets or test plans.
+
+<Message
+  info
+  title="Test Plans"
+  description="Test plans do not support all properties (those are part of the plan itself). Use the `testPlans` factory method instead of the initializer to create a test action using test plans instead of test targets (details below)."
+/>
+
 <PropertiesTable
   properties={[
     {
@@ -943,6 +1030,29 @@ Alternatively, when leveraging custom configurations, the configuration name can
   ]}
 />
 
+When using test plans:
+
+<PropertiesTable
+  properties={[
+    {
+      name: 'Default',
+      description: 'Path to a xctestplan file',
+      type: 'Path',
+      typeLink: '#path',
+      optional: false,
+      default: 'nil',
+    },
+    {
+      name: 'Other',
+      description: 'Paths to other xctestplan files',
+      type: '[Path]',
+      typeLink: '#path',
+      optional: true,
+      default: '[]',
+    },
+  ]}
+/>
+
 ### Execution Action
 
 Scheme run scripts can be defined with the following attributes:
@@ -1027,10 +1137,10 @@ Arguments contain commandline arguments passed on launch and Environment variabl
     {
       name: 'LaunchArguments',
       description:
-        "Commandline launch arguments where the key is a launch argument and the value is a boolean indicating if it's enabled.",
-      type: '[String: Bool]',
+        'Commandline launch arguments that are passed by the scheme when running a scheme action.',
+      type: '[LaunchArgument]',
       optional: true,
-      default: '[:]',
+      default: '[]',
     },
   ]}
 />
@@ -1217,34 +1327,36 @@ A `Settings` object contains an optional dictionary with build settings and rela
   ]}
 />
 
-To specify multiple configurations beyond the default Debug and Release configuration _(e.g. Debug, Beta, Release)_, `Settings` can alternatively be initialized with the following attributes:<PropertiesTable
-properties={[
-{
-name: 'Base',
-description:
-'A dictionary with build settings that are inherited from all the configurations.',
-type: 'SettingsDictionary',
-typeLink: '#settingsdictionary',
-optional: true,
-default: '[:]',
-},
-{
-name: 'Configurations',
-description: 'A list of custom configurations',
-type: '[CustomConfiguration]',
-typeLink: '#custom-configuration',
-optional: false,
-default: '',
-},
-{
-name: 'Default settings',
-description: 'An enum specifying the set of default settings.',
-type: 'DefaultSettings',
-typeLink: '#defaultsettings',
-optional: true,
-default: '.recommended',
-},
-]}
+To specify multiple configurations beyond the default Debug and Release configuration _(e.g. Debug, Beta, Release)_, `Settings` can alternatively be initialized with the following attributes:
+
+<PropertiesTable
+  properties={[
+    {
+      name: 'Base',
+      description:
+        'A dictionary with build settings that are inherited from all the configurations.',
+      type: 'SettingsDictionary',
+      typeLink: '#settingsdictionary',
+      optional: true,
+      default: '[:]',
+    },
+    {
+      name: 'Configurations',
+      description: 'A list of custom configurations',
+      type: '[CustomConfiguration]',
+      typeLink: '#custom-configuration',
+      optional: false,
+      default: '',
+    },
+    {
+      name: 'Default settings',
+      description: 'An enum specifying the set of default settings.',
+      type: 'DefaultSettings',
+      typeLink: '#defaultsettings',
+      optional: true,
+      default: '.recommended',
+    },
+  ]}
 />
 
 <Message
@@ -1461,24 +1573,26 @@ A `FileElement` can be one of the following options:
 
 ## DefaultSettings
 
-A `DefaultSettings` can be one of the following options:<EnumTable
-cases={[
-{
-case: '.recommended(excluding: Set<String>)',
-description:
-"Recommented settings including warning flags to help you catch some of the bugs at the early stage of development. If you need to override certain settings in a `CustomConfiguration` it's possible to add those keys to `excluding`.",
-},
-{
-case: '.essential(excluding: Set<String>)',
-description:
-"A minimal set of settings to make the project compile without any additional settings for example `'PRODUCT_NAME'` or `'TARGETED_DEVICE_FAMILY'`. If you need to override certain settings in a `CustomConfiguration` it's possible to add those keys to `excluding`.",
-},
-{
-case: '.none',
-description:
-"Tuist won't generate any build settings for the target or project.",
-},
-]}
+A `DefaultSettings` can be one of the following options:
+
+<EnumTable
+  cases={[
+    {
+      case: '.recommended(excluding: Set<String>)',
+      description:
+        "Recommented settings including warning flags to help you catch some of the bugs at the early stage of development. If you need to override certain settings in a `CustomConfiguration` it's possible to add those keys to `excluding`.",
+    },
+    {
+      case: '.essential(excluding: Set<String>)',
+      description:
+        "A minimal set of settings to make the project compile without any additional settings for example `'PRODUCT_NAME'` or `'TARGETED_DEVICE_FAMILY'`. If you need to override certain settings in a `CustomConfiguration` it's possible to add those keys to `excluding`.",
+    },
+    {
+      case: '.none',
+      description:
+        "Tuist won't generate any build settings for the target or project.",
+    },
+  ]}
 />
 
 <Message
@@ -1533,24 +1647,26 @@ The `DeploymentDevice` model represents the device your product will support. It
 
 ## Path
 
-A path represents a path to a file, directory, or a group of files represented by a glob expression. Paths can be relative and absolute. We **discourage** using absolute paths because they create a dependency with the environment where they are defined.<EnumTable
-cases={[
-{
-case: '.relativeToCurrentFile(String)',
-description:
-'Initialize a path that is relative to the file that defines the path.',
-},
-{
-case: '.relativeToManifest(String)',
-description:
-'Initialize a path that is relative to the directory that contains the manifest file being loaded, for example the directory that contains the Project.swift file.',
-},
-{
-case: '.relativeToRoot(String)',
-description:
-'Initialize a path that is relative to the closest directory that contains a Tuist or a .git directory.',
-},
-]}
+A path represents a path to a file, directory, or a group of files represented by a glob expression. Paths can be relative and absolute. We **discourage** using absolute paths because they create a dependency with the environment where they are defined.
+
+<EnumTable
+  cases={[
+    {
+      case: '.relativeToCurrentFile(String)',
+      description:
+        'Initialize a path that is relative to the file that defines the path.',
+    },
+    {
+      case: '.relativeToManifest(String)',
+      description:
+        'Initialize a path that is relative to the directory that contains the manifest file being loaded, for example the directory that contains the Project.swift file.',
+    },
+    {
+      case: '.relativeToRoot(String)',
+      description:
+        'Initialize a path that is relative to the closest directory that contains a Tuist or a .git directory.',
+    },
+  ]}
 />
 
 <Message

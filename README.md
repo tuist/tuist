@@ -63,6 +63,23 @@ MacStadium supports this project by providing Mac mini hardware that we can use 
 
 If you are interested in contributed to the project, our documentation has a section with resources for contributors. We recommend starting from [this page](https://tuist.io/docs/contribution/getting-started/).
 
+## Core Team ✨
+
+<table>
+  <tr>
+    <td align="center"><a href="https://github.com/pepibumur"><img src="https://avatars1.githubusercontent.com/u/663605?v=4" width="100px;" alt=""/><br /><sub><b>Pedro Piñera</b></sub></a><br /></td>
+    <td align="center"><a href="https://github.com/fortmarek"><img src="https://avatars0.githubusercontent.com/u/9371695?v=4" width="100px;" alt=""/><br /><sub><b>Marek Fořt</b></sub></a><br /></td>
+    <td align="center"><a href="http://www.matrixprojects.net"><img src="https://avatars3.githubusercontent.com/u/11914919?v=4" width="100px;" alt=""/><br /><sub><b>Kas</b></sub></a><br /></td>
+    <td align="center"><a href="http://natanrolnik.me"><img src="https://avatars3.githubusercontent.com/u/1164565?v=4" width="100px;" alt=""/><br /><sub><b>Natan Rolnik</b></sub></a><br /></td>
+    <td align="center"><a href="https://github.com/andreacipriani"><img src="https://avatars3.githubusercontent.com/u/536929?v=4" width="100px;" alt=""/><br /><sub><b>Andrea Cipriani</b></sub></a><br /></td>
+  </tr>
+  <tr>
+    <td align="center"><a href="https://github.com/ollieatkinson"><img src="https://avatars1.githubusercontent.com/u/1382565?v=4" width="100px;" alt=""/><br /><sub><b>Oliver Atkinson</b></sub></a><br /></td>
+    <td align="center"><a href="https://github.com/RomainBoulay"><img src="https://avatars1.githubusercontent.com/u/169323?v=4" width="100px;" alt=""/><br /><sub><b>Romain Boulay</b></sub></a><br /></td>
+    <td align="center"><a href="https://github.com/laxmorek"><img src="https://avatars1.githubusercontent.com/u/4774319?v=4" width="100px;" alt=""/><br /><sub><b>Kamil Harasimowicz</b></sub></a><br /></td>
+  </tr>
+</table>
+
 ## Contributors ✨
 
 Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/docs/en/emoji-key)):
@@ -72,25 +89,34 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
 <!-- markdownlint-disable -->
 <table>
   <tr>
-    <td align="center"><a href="https://github.com/kalkwarf"><img src="https://avatars1.githubusercontent.com/u/1033839?v=4" width="100px;" alt=""/><br /><sub><b>kalkwarf</b></sub></a><br /><a href="#ideas-kalkwarf" title="Ideas, Planning, & Feedback">🤔</a> <a href="https://github.com/tuist/tuist/issues?q=author%3Akalkwarf" title="Bug reports">🐛</a></td>
-    <td align="center"><a href="https://github.com/fortmarek"><img src="https://avatars0.githubusercontent.com/u/9371695?v=4" width="100px;" alt=""/><br /><sub><b>Marek Fořt</b></sub></a><br /><a href="#ideas-fortmarek" title="Ideas, Planning, & Feedback">🤔</a></td>
-    <td align="center"><a href="https://github.com/fortmarek"><img src="https://avatars0.githubusercontent.com/u/9371695?v=4" width="100px;" alt=""/><br /><sub><b>Marek Fořt</b></sub></a><br /><a href="#ideas-fortmarek" title="Ideas, Planning, & Feedback">🤔</a></td>
-    <td align="center"><a href="http://www.matrixprojects.net"><img src="https://avatars3.githubusercontent.com/u/11914919?v=4" width="100px;" alt=""/><br /><sub><b>Kas</b></sub></a><br /><a href="https://github.com/tuist/tuist/commits?author=kwridan" title="Code">💻</a></td>
-    <td align="center"><a href="http://natanrolnik.me"><img src="https://avatars3.githubusercontent.com/u/1164565?v=4" width="100px;" alt=""/><br /><sub><b>Natan Rolnik</b></sub></a><br /><a href="https://github.com/tuist/tuist/issues?q=author%3Anatanrolnik" title="Bug reports">🐛</a></td>
-    <td align="center"><a href="https://github.com/svastven"><img src="https://avatars0.githubusercontent.com/u/42235915?v=4" width="100px;" alt=""/><br /><sub><b>svastven</b></sub></a><br /><a href="#ideas-svastven" title="Ideas, Planning, & Feedback">🤔</a></td>
-    <td align="center"><a href="http://bhuemer.github.io"><img src="https://avatars2.githubusercontent.com/u/1212480?v=4" width="100px;" alt=""/><br /><sub><b>Bernhard Huemer</b></sub></a><br /><a href="#ideas-bhuemer" title="Ideas, Planning, & Feedback">🤔</a></td>
+    <td align="center"><a href="https://github.com/kalkwarf"><img src="https://avatars1.githubusercontent.com/u/1033839?v=4" width="100px;" alt=""/><br /><sub><b>kalkwarf</b></sub></a></td>
+    <td align="center"><a href="https://github.com/fortmarek"><img src="https://avatars0.githubusercontent.com/u/9371695?v=4" width="100px;" alt=""/><br /><sub><b>Marek Fořt</b></sub></a></td>
+    <td align="center"><a href="https://github.com/fortmarek"><img src="https://avatars0.githubusercontent.com/u/9371695?v=4" width="100px;" alt=""/><br /><sub><b>Marek Fořt</b></sub></a></td>
+    <td align="center"><a href="http://www.matrixprojects.net"><img src="https://avatars3.githubusercontent.com/u/11914919?v=4" width="100px;" alt=""/><br /><sub><b>Kas</b></sub></a></td>
+    <td align="center"><a href="http://natanrolnik.me"><img src="https://avatars3.githubusercontent.com/u/1164565?v=4" width="100px;" alt=""/><br /><sub><b>Natan Rolnik</b></sub></a></td>
+    <td align="center"><a href="https://github.com/svastven"><img src="https://avatars0.githubusercontent.com/u/42235915?v=4" width="100px;" alt=""/><br /><sub><b>svastven</b></sub></a></td>
+    <td align="center"><a href="http://bhuemer.github.io"><img src="https://avatars2.githubusercontent.com/u/1212480?v=4" width="100px;" alt=""/><br /><sub><b>Bernhard Huemer</b></sub></a></td>
   </tr>
   <tr>
-    <td align="center"><a href="https://djankowski.dev"><img src="https://avatars0.githubusercontent.com/u/10795657?v=4" width="100px;" alt=""/><br /><sub><b>Daniel Jankowski</b></sub></a><br /><a href="#ideas-mollyIV" title="Ideas, Planning, & Feedback">🤔</a></td>
-    <td align="center"><a href="https://github.com/facumenzella"><img src="https://avatars1.githubusercontent.com/u/1125252?v=4" width="100px;" alt=""/><br /><sub><b>Facundo Menzella</b></sub></a><br /><a href="#ideas-facumenzella" title="Ideas, Planning, & Feedback">🤔</a></td>
-    <td align="center"><a href="https://github.com/eito"><img src="https://avatars3.githubusercontent.com/u/775643?v=4" width="100px;" alt=""/><br /><sub><b>Eric Ito</b></sub></a><br /><a href="#ideas-eito" title="Ideas, Planning, & Feedback">🤔</a></td>
-    <td align="center"><a href="https://github.com/laxmorek"><img src="https://avatars2.githubusercontent.com/u/4774319?v=4" width="100px;" alt=""/><br /><sub><b>Kamil Harasimowicz</b></sub></a><br /><a href="https://github.com/tuist/tuist/commits?author=laxmorek" title="Code">💻</a> <a href="#ideas-laxmorek" title="Ideas, Planning, & Feedback">🤔</a></td>
-    <td align="center"><a href="https://github.com/olejnjak"><img src="https://avatars1.githubusercontent.com/u/3148214?v=4" width="100px;" alt=""/><br /><sub><b>Jakub Olejník</b></sub></a><br /><a href="#ideas-olejnjak" title="Ideas, Planning, & Feedback">🤔</a></td>
-    <td align="center"><a href="https://github.com/lakpa"><img src="https://avatars0.githubusercontent.com/u/389328?v=4" width="100px;" alt=""/><br /><sub><b>ldindu</b></sub></a><br /><a href="#ideas-lakpa" title="Ideas, Planning, & Feedback">🤔</a></td>
-    <td align="center"><a href="https://github.com/gtsifrikas"><img src="https://avatars2.githubusercontent.com/u/8904378?v=4" width="100px;" alt=""/><br /><sub><b>George Tsifrikas</b></sub></a><br /><a href="#blog-gtsifrikas" title="Blogposts">📝</a></td>
+    <td align="center"><a href="https://djankowski.dev"><img src="https://avatars0.githubusercontent.com/u/10795657?v=4" width="100px;" alt=""/><br /><sub><b>Daniel Jankowski</b></sub></a></td>
+    <td align="center"><a href="https://github.com/facumenzella"><img src="https://avatars1.githubusercontent.com/u/1125252?v=4" width="100px;" alt=""/><br /><sub><b>Facundo Menzella</b></sub></a></td>
+    <td align="center"><a href="https://github.com/eito"><img src="https://avatars3.githubusercontent.com/u/775643?v=4" width="100px;" alt=""/><br /><sub><b>Eric Ito</b></sub></a></td>
+    <td align="center"><a href="https://github.com/laxmorek"><img src="https://avatars2.githubusercontent.com/u/4774319?v=4" width="100px;" alt=""/><br /><sub><b>Kamil Harasimowicz</b></sub></a></td>
+    <td align="center"><a href="https://github.com/olejnjak"><img src="https://avatars1.githubusercontent.com/u/3148214?v=4" width="100px;" alt=""/><br /><sub><b>Jakub Olejník</b></sub></a></td>
+    <td align="center"><a href="https://github.com/lakpa"><img src="https://avatars0.githubusercontent.com/u/389328?v=4" width="100px;" alt=""/><br /><sub><b>ldindu</b></sub></a></td>
+    <td align="center"><a href="https://github.com/gtsifrikas"><img src="https://avatars2.githubusercontent.com/u/8904378?v=4" width="100px;" alt=""/><br /><sub><b>George Tsifrikas</b></sub></a></td>
   </tr>
   <tr>
-    <td align="center"><a href="https://github.com/yurapriv"><img src="https://avatars2.githubusercontent.com/u/7814127?v=4" width="100px;" alt=""/><br /><sub><b>Privezentsev Yura</b></sub></a><br /><a href="https://github.com/tuist/tuist/commits?author=yurapriv" title="Code">💻</a></td>
+    <td align="center"><a href="https://github.com/yurapriv"><img src="https://avatars2.githubusercontent.com/u/7814127?v=4" width="100px;" alt=""/><br /><sub><b>Privezentsev Yura</b></sub></a></td>
+    <td align="center"><a href="http://ferologics.github.io"><img src="https://avatars2.githubusercontent.com/u/5576161?v=4" width="100px;" alt=""/><br /><sub><b>Fero</b></sub></a></td>
+    <td align="center"><a href="http://www.luispadron.com"><img src="https://avatars3.githubusercontent.com/u/13840545?v=4" width="100px;" alt=""/><br /><sub><b>Luis Padron</b></sub></a></td>
+    <td align="center"><a href="https://heberti.com"><img src="https://avatars0.githubusercontent.com/u/103670?v=4" width="100px;" alt=""/><br /><sub><b>Heberti Almeida</b></sub></a></td>
+    <td align="center"><a href="http://benscheirman.com"><img src="https://avatars0.githubusercontent.com/u/59140?v=4" width="100px;" alt=""/><br /><sub><b>Ben Scheirman</b></sub></a></td>
+    <td align="center"><a href="https://jsorge.net"><img src="https://avatars3.githubusercontent.com/u/2585841?v=4" width="100px;" alt=""/><br /><sub><b>Jared Sorge</b></sub></a></td>
+    <td align="center"><a href="https://joeblau.com"><img src="https://avatars1.githubusercontent.com/u/1218847?v=4" width="100px;" alt=""/><br /><sub><b>Joe Blau</b></sub></a></td>
+  </tr>
+  <tr>
+    <td align="center"><a href="https://twitter.com/dchavezlive"><img src="https://avatars0.githubusercontent.com/u/2475932?v=4" width="100px;" alt=""/><br /><sub><b>David Chavez</b></sub></a></td>
   </tr>
 </table>
 

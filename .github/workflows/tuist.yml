@@ -6,13 +6,16 @@ on:
       - main
   pull_request:
 
+env:
+  RUBY_VERSION: '2.7.2'
+
 jobs:
   unit_tests:
     name: Unit tests with Xcode ${{ matrix.xcode }}
-    runs-on: macOS-latest
+    runs-on: macos-latest
     strategy:
       matrix:
-        xcode: ['11.5', '12.1']
+        xcode: ['11.5', '12.3']
     steps:
       - uses: actions/checkout@v1
       - name: Select Xcode
@@ -21,20 +24,31 @@ jobs:
         name: 'Cache SPM dependencies'
         with:
           path: .build
-          key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
+          key: ${{ runner.os }}-${{ matrix.xcode }}-spm-${{ hashFiles('**/Package.resolved') }}
           restore-keys: |
-            ${{ runner.os }}-spm-
+            ${{ runner.os }}-${{ matrix.xcode }}-spm-
+      - uses: actions/setup-ruby@v1
+        with:
+          ruby-version: ${{ env.RUBY_VERSION }}
+      - uses: actions/cache@v2
+        with:
+          path: vendor/bundle
+          key: ${{ runner.os }}-gems-${{ hashFiles('**/Gemfile.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-gems-
+      - name: Bundle install
+        run: |
+          bundle config path vendor/bundle
+          bundle install --jobs 4 --retry 3
       - name: Run tests
         run: |
-          rm -rf .coverage
-          mkdir -p .coverage
-          swift test --enable-code-coverage
+          ./bin/fourier test tuist unit
   release_build:
     name: Release build with Xcode ${{ matrix.xcode }}
     runs-on: macOS-latest
     strategy:
       matrix:
-        xcode: ['11.5', '12.1']
+        xcode: ['11.5', '12.3']
     steps:
       - uses: actions/checkout@v1
       - name: Select Xcode
@@ -42,9 +56,9 @@ jobs:
       - uses: actions/cache@v2
         with:
           path: .build
-          key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
+          key: ${{ runner.os }}-${{ matrix.xcode }}-spm-${{ hashFiles('**/Package.resolved') }}
           restore-keys: |
-            ${{ runner.os }}-spm-
+            ${{ runner.os }}-${{ matrix.xcode }}-spm-
       - name: Build Tuist for release
         run: swift build -c release --product tuist
       - name: Build Tuistenv for release
@@ -54,7 +68,7 @@ jobs:
     runs-on: macos-latest
     strategy:
       matrix:
-        xcode: ['12.1']
+        xcode: ['12.3']
         feature:
           [
             'generate-1',
@@ -89,9 +103,7 @@ jobs:
             ${{ runner.os }}-spm-
       - uses: actions/setup-ruby@v1
         with:
-          ruby-version: '2.x'
-      - name: Install Bundler 2.1.4
-        run: gem install bundler --version 2.1.4
+          ruby-version: ${{ env.RUBY_VERSION }}
       - uses: actions/cache@v2
         with:
           path: vendor/bundle
@@ -110,16 +122,14 @@ jobs:
     runs-on: macos-latest
     strategy:
       matrix:
-        xcode: ['12.1']
+        xcode: ['12.3']
     steps:
       - uses: actions/checkout@v1
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_${{ matrix.xcode }}.app
       - uses: actions/setup-ruby@v1
         with:
-          ruby-version: '2.x'
-      - name: Install Bundler 2.1.4
-        run: gem install bundler --version 2.1.4
+          ruby-version: ${{ env.RUBY_VERSION }}
       - uses: actions/cache@v2
         with:
           path: vendor/bundle

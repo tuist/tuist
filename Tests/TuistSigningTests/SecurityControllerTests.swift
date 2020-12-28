@@ -61,8 +61,7 @@ final class SecurityControllerTests: TuistUnitTestCase {
         let certificate = Certificate.test(publicKey: certificatePath, privateKey: privateKeyPath)
         let keychainPath = try temporaryPath()
 
-        system.succeedCommand("/usr/bin/security", "find-certificate", certificatePath.pathString, "-P", "", "-k", keychainPath.pathString)
-        system.succeedCommand("/usr/bin/security", "find-key", privateKeyPath.pathString, "-P", "", "-k", keychainPath.pathString)
+        system.succeedCommand("/usr/bin/security", "find-certificate", "-c", certificate.name, "-a", keychainPath.pathString, output: "Some output")
 
         // When
         try subject.importCertificate(certificate, keychainPath: keychainPath)
@@ -70,10 +69,6 @@ final class SecurityControllerTests: TuistUnitTestCase {
         // Then
         XCTAssertPrinterContains(
             "Skipping importing certificate at \(certificate.publicKey.pathString) because it is already present",
-            at: .debug, ==
-        )
-        XCTAssertPrinterContains(
-            "Skipping importing private key at \(privateKeyPath.pathString) because it is already present",
             at: .debug, ==
         )
     }

@@ -64,6 +64,13 @@ extension AbsolutePath {
         return exists && isDirectory.boolValue
     }
 
+    /// Returns true if the path is a package, recognized by having a UTI `com.apple.package`
+    public var isPackage: Bool {
+        let ext = URL(fileURLWithPath: pathString).pathExtension as CFString
+        guard let uti = UTTypeCreatePreferredIdentifierForTag(kUTTagClassFilenameExtension, ext, nil) else { return false }
+        return UTTypeConformsTo(uti.takeRetainedValue(), kUTTypePackage)
+    }
+
     /// Returns the path with the last component removed. For example, given the path
     /// /test/path/to/file it returns /test/path/to
     ///
@@ -97,6 +104,32 @@ extension AbsolutePath {
         return ancestorPath
     }
 
+    public func upToComponentMatching(regex: String) -> AbsolutePath {
+        if isRoot { return self }
+        if basename.range(of: regex, options: .regularExpression) == nil {
+            return parentDirectory.upToComponentMatching(regex: regex)
+        } else {
+            return self
+        }
+    }
+
+    public func upToComponentMatching(extension: String) -> AbsolutePath {
+        if isRoot { return self }
+        if self.extension == `extension` {
+            return self
+        } else {
+            return parentDirectory.upToComponentMatching(extension: `extension`)
+        }
+    }
+
+    public var upToLastNonGlob: AbsolutePath {
+        guard let index = components.firstIndex(where: { $0.isGlobComponent }) else {
+            return self
+        }
+
+        return AbsolutePath(components[0 ..< index].joined(separator: "/"))
+    }
+
     /// Returns the hash of the file the path points to.
     public func sha256() -> Data? {
         try? SHA256Digest.file(at: url)
@@ -113,15 +146,5 @@ extension String {
     var isGlobComponent: Bool {
         let globCharacters = CharacterSet(charactersIn: "*{}")
         return rangeOfCharacter(from: globCharacters) != nil
-    }
-}
-
-extension AbsolutePath {
-    var upToLastNonGlob: AbsolutePath {
-        guard let index = components.firstIndex(where: { $0.isGlobComponent }) else {
-            return self
-        }
-
-        return AbsolutePath(components[0 ..< index].joined(separator: "/"))
     }
 }

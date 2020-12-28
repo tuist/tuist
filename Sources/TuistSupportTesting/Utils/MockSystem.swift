@@ -7,7 +7,7 @@ import XCTest
 public final class MockSystem: Systeming {
     public var env: [String: String] = ProcessInfo.processInfo.environment
     // swiftlint:disable:next large_tuple
-    private var stubs: [String: (stderror: String?, stdout: String?, exitstatus: Int?)] = [:]
+    public var stubs: [String: (stderror: String?, stdout: String?, exitstatus: Int?)] = [:]
     private var calls: [String] = []
     var whichStub: ((String) throws -> String?)?
 
@@ -101,6 +101,7 @@ public final class MockSystem: Systeming {
             }
             throw TuistSupport.SystemError.terminated(command: arguments.first!, code: 1, standardError: Data())
         }
+        calls.append(arguments.joined(separator: " "))
     }
 
     public func observable(_ arguments: [String]) -> Observable<SystemEvent<Data>> {

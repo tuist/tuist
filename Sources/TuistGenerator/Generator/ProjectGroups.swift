@@ -28,7 +28,6 @@ class ProjectGroups {
     @SortedPBXGroup var sortedMain: PBXGroup
     let products: PBXGroup
     let frameworks: PBXGroup
-    let playgrounds: PBXGroup?
 
     private let pbxproj: PBXProj
     private let projectGroups: [String: PBXGroup]
@@ -39,14 +38,12 @@ class ProjectGroups {
                  projectGroups: [(name: String, group: PBXGroup)],
                  products: PBXGroup,
                  frameworks: PBXGroup,
-                 playgrounds: PBXGroup?,
                  pbxproj: PBXProj)
     {
         sortedMain = main
         self.projectGroups = Dictionary(uniqueKeysWithValues: projectGroups)
         self.products = products
         self.frameworks = frameworks
-        self.playgrounds = playgrounds
         self.pbxproj = pbxproj
     }
 
@@ -66,8 +63,7 @@ class ProjectGroups {
     }
 
     static func generate(project: Project,
-                         pbxproj: PBXProj,
-                         playgrounds: Playgrounding = Playgrounds()) -> ProjectGroups
+                         pbxproj: PBXProj) -> ProjectGroups
     {
         /// Main
         let projectRelativePath = project.sourceRootPath.relative(to: project.xcodeProjPath.parentDirectory).pathString
@@ -92,14 +88,6 @@ class ProjectGroups {
         pbxproj.add(object: frameworksGroup)
         mainGroup.children.append(frameworksGroup)
 
-        /// Playgrounds
-        var playgroundsGroup: PBXGroup!
-        if !playgrounds.paths(path: project.path).isEmpty {
-            playgroundsGroup = PBXGroup(children: [], sourceTree: .group, path: "Playgrounds")
-            pbxproj.add(object: playgroundsGroup)
-            mainGroup.children.append(playgroundsGroup)
-        }
-
         /// Products
         let productsGroup = PBXGroup(children: [], sourceTree: .group, name: "Products")
         pbxproj.add(object: productsGroup)
@@ -109,12 +97,11 @@ class ProjectGroups {
                              projectGroups: projectGroups,
                              products: productsGroup,
                              frameworks: frameworksGroup,
-                             playgrounds: playgroundsGroup,
                              pbxproj: pbxproj)
     }
 
     private static func extractProjectGroupNames(from project: Project) -> [String] {
-        let groups = [project.filesGroup] + project.targets.map { $0.filesGroup }
+        let groups = [project.filesGroup] + project.targets.map(\.filesGroup)
         let groupNames: [String] = groups.compactMap {
             switch $0 {
             case let .group(name: groupName):

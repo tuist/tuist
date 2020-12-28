@@ -2,6 +2,7 @@ import Foundation
 import TSCBasic
 import TuistSupport
 
+@available(*, deprecated, message: "Graph nodes are deprecated. Dependencies should be usted instead with the ValueGraph.")
 public class GraphNode: Equatable, Hashable, Encodable, CustomStringConvertible, CustomDebugStringConvertible {
     // MARK: - Attributes
 

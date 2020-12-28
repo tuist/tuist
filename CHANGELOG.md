@@ -4,6 +4,72 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Fixed
+
+- Fix import of multiple signing certificates [#2112](https://github.com/tuist/tuist/pull/2112) by [@rist](https://github.com/rist).
+
+### Added
+
+- Fourier CLI tool to automate development tasks [#2196](https://github.com/tuist/tuist/pull/2196) by @pepibumur](https://github.com/pepibumur).
+- Support `.s` source files [#2199](https://github.com/tuist/tuist/pull/2199) by[ @dcvz](https://github.com/dcvz).
+
+## 1.29.0 - Tutu
+
+### Fixed
+
+- Fix "Embed Frameworks" build phase parameters [#2156](https://github.com/tuist/tuist/pull/2156) by [@kwridan](https://github.com/kwridan).
+- Adjust the project generated for editing to not build for the arm64 architecture [#2154](https://github.com/tuist/tuist/pull/2154) by [@pepibumur](https://github.com/pepibumur).
+- Project generation failing when the resources glob includes a bundle [#2183](https://github.com/tuist/tuist/pull/2183) by [@pepibumur](https://github.com/pepibumur).
+
+## 1.28.0
+
+### Fixed
+
+- Missing required module 'XXX' when building project with cached dependencies [#2051](https://github.com/tuist/tuist/pull/2051) by [@mollyIV](https://github.com/mollyIV).
+- Fix default generated scheme arguments [#2128](https://github.com/tuist/tuist/pull/2128) by [@kwridan](https://github.com/kwridan)
+- Playground files matched by the sources wildcards are added as playgrounds and not groups [#2132](https://github.com/tuist/tuist/pull/2132) by [@pepibumur](https://github.com/pepibumur).
+
+### Removed
+
+- **Breaking** The implicit addition of playgrounds under `Playgrounds/` has been removed [#2132](https://github.com/tuist/tuist/pull/2132) by [@pepibumur](https://github.com/pepibumur).
+
+## 1.27.0 - Hawái
+
+### Added
+
+- Add `Plugin.swift` manifest [#2095](https://github.com/tuist/tuist/pull/2095) by [@luispadron](https://github.com/luispadron)
+- Add Publisher-based methods to System's API [#2108](https://github.com/tuist/tuist/pull/2108) by [@pepibumur](https://github.com/pepibumur).
+
+### Fixed
+
+- Make watch targets runnable to fix schemes in Xcode 12 [#2096](https://github.com/tuist/tuist/pull/2096) by [@thedavidharris](https://github.com/thedavidharris)
+- Fix framework search paths for SDK dependencies [#2097](https://github.com/tuist/tuist/pull/2097) by [@kwridan](https://github.com/kwridan)
+- Fix `ValueGraphTraverser.directTargetDependencies` to return local targets only [#2111](https://github.com/tuist/tuist/pull/2111) by [@kwridan](https://github.com/kwridan)
+  - **Note:** This fixes an issue that previously allowed extension targets to be defined in a separate project (which isn't a supported dependency type)
+
+### Changed
+
+- Generate multiple `XXX-Project` schemes if there are multiple platforms [#2081](https://github.com/tuist/tuist/pull/2081) by [@fortmarek](https://github.com/fortmarek)
+- Generators to take in the graph as `GraphTraversing` instead of `Graph` [#2110](https://github.com/tuist/tuist/pull/2110) by [@pepibumur](https://github.com/pepibumur)
+
+## 1.26.0 - New World
+
+### Added
+
+- Extend the tree-shaking logic to include workspace projects and targets [#2056](https://github.com/tuist/tuist/pull/2056) by [@pepibumur](https://github.com/pepibumur).
+- Add support for copy files phase [#2077](https://github.com/tuist/tuist/pull/2077) by [@hebertialmeida](https://github.com/hebertialmeida).
+
+### Changed
+
+- Change `launchArguments` of `Target` and `RunAction` to ordered array so order can be preserved [#2052](https://github.com/tuist/tuist/pull/2052) by [@olejnjak](https://github.com/olejnjak).
+- Added `Package.swift` to some subdirectories to prevent Xcode from including them in the generated Xcode project [#2058](https://github.com/tuist/tuist/pull/2058) by [@pepibumur](https://github.com/pepibumur).
+
+### Fixed
+
+- Fixed signing linter for target with bundle identifier derived from build settings [#2031](https://github.com/tuist/tuist/pull/2031) by [@leszko11](https://github.com/leszko11).
+- Fix hashing preaction with path to nil [#2074](https://github.com/tuist/tuist/pull/2074) by [@fortmarek](https://github.com/fortmarek)
+- Correct the `TEST_HOST` path for the macOS Platform [#2034](https://github.com/tuist/tuist/pull/2034) by [@ferologics](https://github.com/ferologics)
+
 ## 1.25.0 - Charles
 
 ### Added
@@ -18,6 +84,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Synthesize accessors for stringsdict [#1993](https://github.com/tuist/tuist/pull/1993) by [@fortmarek](https://githubl.com/fortmarek)
 - Add support for `StencilSwiftKit`'s additional filters. [#1994](https://github.com/tuist/tuist/pull/1994) by [@svastven](https://github.com/svastven).
 - Add `migration list-targets` command to show all targets sorted by number of dependencies [#1732](https://github.com/tuist/tuist/pull/1732) of a given project by [@andreacipriani](https://github.com/andreacipriani).
+- Add support for test plans [#1936](https://github.com/tuist/tuist/pull/1936) by [@iteracticman](https://github.com/iteracticman).
 
 ### Fixed
 

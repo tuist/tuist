@@ -36,6 +36,7 @@ Scenario: The project is an iOS application that has resources (ios_app_with_cus
     Then I should be able to test for iOS the scheme Framework2Tests
     Then I should be able to build for iOS the scheme Workspace-App
     Then I should be able to test for iOS the scheme Workspace-App
+    Then I should be able to test for iOS the scheme Workspace-App-With-TestPlans
     Then I should be able to build for iOS the scheme Workspace-Framework
     Then I should be able to test for iOS the scheme Workspace-Framework
 

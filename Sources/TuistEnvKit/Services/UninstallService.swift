@@ -16,7 +16,7 @@ final class UninstallService {
     }
 
     func run(version: String) throws {
-        let versions = versionsController.versions().map { $0.description }
+        let versions = versionsController.versions().map(\.description)
         if versions.contains(version) {
             try versionsController.uninstall(version: version)
             logger.notice("Version \(version) uninstalled", metadata: .success)

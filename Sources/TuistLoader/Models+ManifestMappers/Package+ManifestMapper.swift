@@ -19,12 +19,12 @@ extension TuistCore.Package {
     }
 }
 
-extension TuistCore.Package.Requirement {
+extension TuistCore.Requirement {
     /// Maps a ProjectDescription.Package.Requirement instance into a TuistCore.Package.Requirement model.
     /// - Parameters:
     ///   - manifest: Manifest representation of Package.
     ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.Package.Requirement) -> TuistCore.Package.Requirement {
+    static func from(manifest: ProjectDescription.Package.Requirement) -> TuistCore.Requirement {
         switch manifest {
         case let .branch(branch):
             return .branch(branch)

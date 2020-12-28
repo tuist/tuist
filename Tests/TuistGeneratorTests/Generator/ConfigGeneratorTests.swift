@@ -102,7 +102,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         assert(config: customReleaseConfig, contains: releaseSettings)
     }
 
-    func test_generateTestTargetConfiguration() throws {
+    func test_generateTestTargetConfiguration_iOS() throws {
         // Given / When
         try generateTestTargetConfig(appName: "App")
 
@@ -112,6 +112,23 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
 
         let testHostSettings = [
             "TEST_HOST": "$(BUILT_PRODUCTS_DIR)/App.app/App",
+            "BUNDLE_LOADER": "$(TEST_HOST)",
+        ]
+
+        assert(config: debugConfig, contains: testHostSettings)
+        assert(config: releaseConfig, contains: testHostSettings)
+    }
+
+    func test_generateTestTargetConfiguration_macOS() throws {
+        // Given / When
+        try generateTestTargetConfig(appName: "App", platform: .macOS)
+
+        let configurationList = pbxTarget.buildConfigurationList
+        let debugConfig = configurationList?.configuration(name: "Debug")
+        let releaseConfig = configurationList?.configuration(name: "Release")
+
+        let testHostSettings = [
+            "TEST_HOST": "$(BUILT_PRODUCTS_DIR)/App.app/Contents/MacOS/App",
             "BUNDLE_LOADER": "$(TEST_HOST)",
         ]
 
@@ -265,6 +282,66 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         assert(config: releaseConfig, contains: expectedSettings)
     }
 
+    func test_generateTargetWithDeploymentTarget_whenWatch() throws {
+        // Given
+        let project = Project.test()
+        let target = Target.test(deploymentTarget: .watchOS("6.0"))
+        let graph = ValueGraph.test(path: project.path)
+        let graphTraverser = ValueGraphTraverser(graph: graph)
+
+        // When
+        try subject.generateTargetConfig(target,
+                                         project: project,
+                                         pbxTarget: pbxTarget,
+                                         pbxproj: pbxproj,
+                                         projectSettings: .default,
+                                         fileElements: ProjectFileElements(),
+                                         graphTraverser: graphTraverser,
+                                         sourceRootPath: AbsolutePath("/project"))
+
+        // Then
+        let configurationList = pbxTarget.buildConfigurationList
+        let debugConfig = configurationList?.configuration(name: "Debug")
+        let releaseConfig = configurationList?.configuration(name: "Release")
+
+        let expectedSettings = [
+            "WATCHOS_DEPLOYMENT_TARGET": "6.0",
+        ]
+
+        assert(config: debugConfig, contains: expectedSettings)
+        assert(config: releaseConfig, contains: expectedSettings)
+    }
+
+    func test_generateTargetWithDeploymentTarget_whenTV() throws {
+        // Given
+        let project = Project.test()
+        let target = Target.test(deploymentTarget: .tvOS("14.0"))
+        let graph = ValueGraph.test(path: project.path)
+        let graphTraverser = ValueGraphTraverser(graph: graph)
+
+        // When
+        try subject.generateTargetConfig(target,
+                                         project: project,
+                                         pbxTarget: pbxTarget,
+                                         pbxproj: pbxproj,
+                                         projectSettings: .default,
+                                         fileElements: ProjectFileElements(),
+                                         graphTraverser: graphTraverser,
+                                         sourceRootPath: AbsolutePath("/project"))
+
+        // Then
+        let configurationList = pbxTarget.buildConfigurationList
+        let debugConfig = configurationList?.configuration(name: "Debug")
+        let releaseConfig = configurationList?.configuration(name: "Release")
+
+        let expectedSettings = [
+            "TVOS_DEPLOYMENT_TARGET": "14.0",
+        ]
+
+        assert(config: debugConfig, contains: expectedSettings)
+        assert(config: releaseConfig, contains: expectedSettings)
+    }
+
     func test_generateProjectConfig_defaultConfigurationName() throws {
         // Given
         let settings = Settings(configurations: [
@@ -412,7 +489,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         let fileElements = ProjectFileElements()
         let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj)
         try fileElements.generateProjectFiles(project: project,
-                                              graph: graph,
+                                              graphTraverser: graphTraverser,
                                               groups: groups,
                                               pbxproj: pbxproj)
         _ = try subject.generateTargetConfig(target,
@@ -426,17 +503,18 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
     }
 
     private func generateTestTargetConfig(appName: String = "App",
+                                          platform: Platform = .iOS,
                                           productName: String? = nil,
                                           uiTest: Bool = false) throws
     {
         let dir = try temporaryPath()
 
         let appTarget = Target.test(name: appName,
-                                    platform: .iOS,
+                                    platform: platform,
                                     product: .app,
                                     productName: productName)
 
-        let target = Target.test(name: "Test", product: uiTest ? .uiTests : .unitTests)
+        let target = Target.test(name: "Test", platform: platform, product: uiTest ? .uiTests : .unitTests)
         let project = Project.test(path: dir, name: "Project", targets: [target])
 
         let graph = ValueGraph.test(name: project.name,

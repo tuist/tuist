@@ -45,7 +45,7 @@ final class TestModelGenerator {
         let modelLoader = MockGeneratorModelLoader(basePath: rootPath)
 
         let projects = try (0 ..< config.projects).map { try createProjectWithDependencies(name: "App\($0)") }
-        let workspace = try createWorkspace(path: rootPath, projects: projects.map { $0.name })
+        let workspace = try createWorkspace(path: rootPath, projects: projects.map(\.name))
         projects.forEach { project in
             modelLoader.mockProject(project.name) { _ in project }
         }
@@ -269,9 +269,10 @@ final class TestModelGenerator {
             acc["Environment\(value)"] = "EnvironmentValue\(value)"
             return acc
         }
-        let launch = (0 ..< 10).reduce([String: Bool]()) { acc, value in
+        let launch = (0 ..< 10).reduce([LaunchArgument]()) { acc, value in
             var acc = acc
-            acc["Launch\(value)"] = value % 2 == 0
+            let arg = LaunchArgument(name: "Launch\(value)", isEnabled: value % 2 == 0)
+            acc.append(arg)
             return acc
         }
         return Arguments(environment: environment, launchArguments: launch)

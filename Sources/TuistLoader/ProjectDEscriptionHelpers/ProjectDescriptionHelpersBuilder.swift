@@ -101,7 +101,7 @@ final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding 
             command.append(contentsOf: ["-framework", "ProjectDescription"])
         }
 
-        command.append(contentsOf: files.map { $0.pathString })
+        command.append(contentsOf: files.map(\.pathString))
         return command
     }
 }

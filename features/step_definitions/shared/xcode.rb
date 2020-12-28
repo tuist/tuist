@@ -16,10 +16,6 @@ Then(/I should be able to (.+) for (iOS|macOS|tvOS|watchOS) the scheme (.+)/) do
     args.concat(["-project", @xcodeproj_path]) unless @xcodeproj_path.nil?
   end
 
-  if action == "test" && platform == "iOS"
-    args << "-destination\ \'name=iPhone 11\'"
-  end
-
   if action == "build" && platform == "iOS"
     args << "-sdk\ iphonesimulator"
   end
@@ -29,6 +25,7 @@ Then(/I should be able to (.+) for (iOS|macOS|tvOS|watchOS) the scheme (.+)/) do
   if action == "build" && platform == "tvOS"
     args << "-sdk\ appletvsimulator"
   end
+
   if ["iOS", "tvOS", "watchOS"].include?(platform)
     platform = "iOS" if platform == "watchOS"
     args << "-destination '#{Xcode.valid_simulator_destination_for_platform(platform)}'"
@@ -59,6 +56,16 @@ Then(/the scheme (.+) has a build setting (.+) with value (.+) for the configura
 
   search_for = "#{key} = #{value}"
   assert(out.include?(search_for), "Couldn't find '#{search_for}'")
+end
+
+Then(/^the target (.+) should have the build phase (.+)$/) do |target_name, phase_name|
+  project = Xcodeproj::Project.open(@xcodeproj_path)
+  targets = project.targets
+  target = targets.detect { |t| t.name == target_name }
+  flunk("Target #{target_name} not found in the project") if target.nil?
+  build_phase = target.build_phases.detect { |b| b.display_name == phase_name }
+  flunk("The target #{target_name} doesn't have build phases") if build_phase.nil?
+  assert_equal phase_name, build_phase.name
 end
 
 Then(/^the target (.+) should have the build phase (.+) in the first position$/) do |target_name, phase_name|

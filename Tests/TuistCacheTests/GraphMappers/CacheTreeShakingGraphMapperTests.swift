@@ -84,4 +84,56 @@ final class CacheTreeShakingGraphMapperTests: TuistUnitTestCase {
         let targets = gotGraph.targets.flatMap(\.value)
         XCTAssertEqual(targets.count, 0)
     }
+
+    func test_map_removes_the_workspace_projects_that_no_longer_exist() throws {
+        // Given
+        let path = AbsolutePath("/project")
+        let removedProjectPath = AbsolutePath.root.appending(component: "Other")
+        let target = Target.test(name: "first")
+        let schemes: [Scheme] = [
+            .test(buildAction: .test(targets: [.init(projectPath: path, name: target.name)])),
+        ]
+        let project = Project.test(path: path, targets: [target], schemes: schemes)
+        let targetNode = TargetNode.test(project: project, target: target, prune: true)
+        let workspace = Workspace.test(path: path,
+                                       projects: [project.path, removedProjectPath])
+        let graph = Graph.test(entryPath: path,
+                               entryNodes: [targetNode],
+                               workspace: workspace,
+                               projects: [project],
+                               targets: [project.path: [targetNode]])
+
+        // When
+        let (gotGraph, _) = try subject.map(graph: graph)
+
+        // Then
+        XCTAssertFalse(gotGraph.workspace.projects.contains(removedProjectPath))
+    }
+
+    func test_map_treeshakes_the_workspace_schemes() throws {
+        // Given
+        let path = AbsolutePath("/project")
+        let removedProjectPath = AbsolutePath.root.appending(component: "Other")
+        let target = Target.test(name: "first")
+        let schemes: [Scheme] = [
+            .test(buildAction: .test(targets: [.init(projectPath: path, name: target.name)])),
+        ]
+        let project = Project.test(path: path, targets: [target], schemes: [])
+        let targetNode = TargetNode.test(project: project, target: target, prune: true)
+        let workspace = Workspace.test(path: path,
+                                       projects: [project.path, removedProjectPath],
+                                       schemes: schemes)
+        let graph = Graph.test(entryPath: path,
+                               entryNodes: [targetNode],
+                               workspace: workspace,
+                               projects: [project],
+                               targets: [project.path: [targetNode]])
+
+        // When
+        let (gotGraph, _) = try subject.map(graph: graph)
+
+        // Then
+        let projectSchemes = gotGraph.workspace.schemes
+        XCTAssertEmpty(projectSchemes)
+    }
 }

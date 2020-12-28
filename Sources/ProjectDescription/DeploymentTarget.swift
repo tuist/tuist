@@ -5,11 +5,14 @@ import Foundation
 public enum DeploymentTarget: Codable, Equatable {
     case iOS(targetVersion: String, devices: DeploymentDevice)
     case macOS(targetVersion: String)
-    // TODO: 🙈 Add `watchOS` and `tvOS` support
+    case watchOS(targetVersion: String)
+    case tvOS(targetVersion: String)
 
     private enum Kind: String, Codable {
         case iOS
         case macOS
+        case watchOS
+        case tvOS
     }
 
     enum CodingKeys: String, CodingKey {
@@ -29,6 +32,12 @@ public enum DeploymentTarget: Codable, Equatable {
         case .macOS:
             let version = try container.decode(String.self, forKey: .version)
             self = .macOS(targetVersion: version)
+        case .watchOS:
+            let version = try container.decode(String.self, forKey: .version)
+            self = .watchOS(targetVersion: version)
+        case .tvOS:
+            let version = try container.decode(String.self, forKey: .version)
+            self = .tvOS(targetVersion: version)
         }
     }
 
@@ -41,6 +50,12 @@ public enum DeploymentTarget: Codable, Equatable {
             try container.encode(deploymentDevices, forKey: .deploymentDevices)
         case let .macOS(version):
             try container.encode(Kind.macOS.self, forKey: .kind)
+            try container.encode(version, forKey: .version)
+        case let .watchOS(version):
+            try container.encode(Kind.watchOS.self, forKey: .kind)
+            try container.encode(version, forKey: .version)
+        case let .tvOS(version):
+            try container.encode(Kind.tvOS.self, forKey: .kind)
             try container.encode(version, forKey: .version)
         }
     }

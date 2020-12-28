@@ -10,7 +10,6 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
     )
     case library(
         path: AbsolutePath,
-        binaryPath: AbsolutePath,
         linking: BinaryLinking,
         architectures: [BinaryArchitecture],
         product: Product
@@ -40,7 +39,6 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
                               product: frameworkNode.product)
         } else if let libraryNode = precompiledNode as? LibraryNode {
             self = .library(path: libraryNode.path,
-                            binaryPath: libraryNode.binaryPath,
                             linking: libraryNode.linking,
                             architectures: libraryNode.architectures,
                             product: libraryNode.product)
@@ -56,7 +54,7 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
 
     public func hash(into hasher: inout Hasher) {
         switch self {
-        case let .library(path, _, _, _, _):
+        case let .library(path, _, _, _):
             hasher.combine(path)
         case let .framework(path, _, _, _, _, _, _, _):
             hasher.combine(path)
@@ -78,7 +76,7 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
         switch self {
         case let .framework(path, _, _, _, _, _, _, _):
             return path
-        case let .library(path, _, _, _, _):
+        case let .library(path, _, _, _):
             return path
         case let .xcframework(path, _, _, _):
             return path
@@ -93,7 +91,7 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
             return lhsPath < rhsPath
         case let (.xcframework(lhsPath, _, _, _), .xcframework(rhsPath, _, _, _)):
             return lhsPath < rhsPath
-        case let (.library(lhsPath, _, _, _, _), .library(rhsPath, _, _, _, _)):
+        case let (.library(lhsPath, _, _, _), .library(rhsPath, _, _, _)):
             return lhsPath < rhsPath
         case let (.product(lhsTarget, lhsProductName), .product(rhsTarget, rhsProductName)):
             if lhsTarget == rhsTarget {

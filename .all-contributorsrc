@@ -4,6 +4,8 @@
   ],
   "imageSize": 100,
   "commit": false,
+  "contributorTemplate": "<a href=\"<%= contributor.profile %>\"><img src=\"<%= contributor.avatar_url %>\" width=\"<%= options.imageSize %>px;\" alt=\"\"/><br /><sub><b><%= contributor.name %></b></sub></a>",
+  "commitConvention": "none",
   "contributors": [
     {
       "login": "kalkwarf",
@@ -138,6 +140,69 @@
       "name": "Privezentsev Yura",
       "avatar_url": "https://avatars2.githubusercontent.com/u/7814127?v=4",
       "profile": "https://github.com/yurapriv",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "ferologics",
+      "name": "Fero",
+      "avatar_url": "https://avatars2.githubusercontent.com/u/5576161?v=4",
+      "profile": "http://ferologics.github.io",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "luispadron",
+      "name": "Luis Padron",
+      "avatar_url": "https://avatars3.githubusercontent.com/u/13840545?v=4",
+      "profile": "http://www.luispadron.com",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "hebertialmeida",
+      "name": "Heberti Almeida",
+      "avatar_url": "https://avatars0.githubusercontent.com/u/103670?v=4",
+      "profile": "https://heberti.com",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "subdigital",
+      "name": "Ben Scheirman",
+      "avatar_url": "https://avatars0.githubusercontent.com/u/59140?v=4",
+      "profile": "http://benscheirman.com",
+      "contributions": [
+        "ideas"
+      ]
+    },
+    {
+      "login": "jsorge",
+      "name": "Jared Sorge",
+      "avatar_url": "https://avatars3.githubusercontent.com/u/2585841?v=4",
+      "profile": "https://jsorge.net",
+      "contributions": [
+        "bug"
+      ]
+    },
+    {
+      "login": "joeblau",
+      "name": "Joe Blau",
+      "avatar_url": "https://avatars1.githubusercontent.com/u/1218847?v=4",
+      "profile": "https://joeblau.com",
+      "contributions": [
+        "bug"
+      ]
+    },
+    {
+      "login": "dcvz",
+      "name": "David Chavez",
+      "avatar_url": "https://avatars0.githubusercontent.com/u/2475932?v=4",
+      "profile": "https://twitter.com/dchavezlive",
       "contributions": [
         "code"
       ]

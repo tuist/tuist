@@ -51,7 +51,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
             SourceFile(path: "/test/file2.swift"),
         ]
 
-        let fileElements = createFileElements(for: sources.map { $0.path })
+        let fileElements = createFileElements(for: sources.map(\.path))
 
         // When
         try subject.generateSourcesBuildPhase(files: sources,
@@ -146,7 +146,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let buildPhase = try target.sourcesBuildPhase()
         let buildFiles = buildPhase?.files ?? []
 
-        XCTAssertEqual(buildFiles.map { $0.file }, [
+        XCTAssertEqual(buildFiles.map(\.file), [
             fileElements.elements["/path/sources/OTTSiriExtension.intentdefinition"],
         ])
     }
@@ -312,7 +312,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
 
         // Then
         let buildPhase = nativeTarget.buildPhases.first
-        XCTAssertEqual(buildPhase?.files?.map { $0.file }, [
+        XCTAssertEqual(buildPhase?.files?.map(\.file), [
             fileElements.elements["/path/resources/Main.storyboard"],
             fileElements.elements["/path/resources/App.strings"],
         ])
@@ -471,40 +471,85 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         ])
     }
 
+    func test_generateCopyFilesBuildPhases() throws {
+        // Given
+        let fonts: [FileElement] = [
+            .file(path: "/path/fonts/font1.ttf"),
+            .file(path: "/path/fonts/font2.ttf"),
+            .file(path: "/path/fonts/font3.ttf"),
+        ]
+
+        let templates: [FileElement] = [
+            .file(path: "/path/sharedSupport/tuist.rtfd"),
+        ]
+
+        let pbxproj = PBXProj()
+        let nativeTarget = PBXNativeTarget(name: "Test")
+        let fileElements = createFileElements(for: (fonts + templates).map(\.path))
+
+        let target = Target.test(copyFiles: [
+            CopyFilesAction(name: "Copy Fonts", destination: .resources, subpath: "Fonts", files: fonts),
+            CopyFilesAction(name: "Copy Templates", destination: .sharedSupport, subpath: "Templates", files: templates),
+        ])
+
+        // When
+        try subject.generateCopyFilesBuildPhases(target: target,
+                                                 pbxTarget: nativeTarget,
+                                                 fileElements: fileElements,
+                                                 pbxproj: pbxproj)
+
+        // Then
+        let firstBuildPhase = try XCTUnwrap(nativeTarget.buildPhases.first as? PBXCopyFilesBuildPhase)
+        XCTAssertEqual(firstBuildPhase.name, "Copy Fonts")
+        XCTAssertEqual(firstBuildPhase.dstSubfolderSpec, .resources)
+        XCTAssertEqual(firstBuildPhase.dstPath, "Fonts")
+        XCTAssertEqual(firstBuildPhase.files?.compactMap { $0.file?.nameOrPath }, [
+            "font1.ttf",
+            "font2.ttf",
+            "font3.ttf",
+        ])
+
+        let secondBuildPhase = try XCTUnwrap(nativeTarget.buildPhases.last as? PBXCopyFilesBuildPhase)
+        XCTAssertEqual(secondBuildPhase.name, "Copy Templates")
+        XCTAssertEqual(secondBuildPhase.dstSubfolderSpec, .sharedSupport)
+        XCTAssertEqual(secondBuildPhase.dstPath, "Templates")
+        XCTAssertEqual(secondBuildPhase.files?.compactMap { $0.file?.nameOrPath }, ["tuist.rtfd"])
+    }
+
     func test_generateAppExtensionsBuildPhase() throws {
         // Given
         let path = try temporaryPath()
-        let appExtension = Target.test(name: "AppExtension", product: .appExtension)
         let projectA = Project.test(path: "/path/a")
+        let appExtension = Target.test(name: "AppExtension", product: .appExtension)
         let stickerPackExtension = Target.test(name: "StickerPackExtension", product: .stickerPackExtension)
-        let projectB = Project.test(path: "/path/b")
         let app = Target.test(name: "App", product: .app)
-        let projectC = Project.test(path: "/path/c")
         let pbxproj = PBXProj()
         let nativeTarget = PBXNativeTarget(name: "Test")
         let fileElements = createProductFileElements(for: [appExtension, stickerPackExtension])
 
         let targets: [AbsolutePath: [String: Target]] = [
-            projectA.path: [appExtension.name: appExtension],
-            projectB.path: [stickerPackExtension.name: stickerPackExtension],
-            projectC.path: [app.name: app],
+            projectA.path: [
+                appExtension.name: appExtension,
+                stickerPackExtension.name: stickerPackExtension,
+                app.name: app,
+            ],
         ]
         let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
             .target(name: appExtension.name, path: projectA.path): Set(),
-            .target(name: stickerPackExtension.name, path: projectB.path): Set(),
-            .target(name: app.name, path: projectC.path): Set([.target(name: appExtension.name, path: projectA.path),
-                                                               .target(name: stickerPackExtension.name, path: projectB.path)]),
+            .target(name: stickerPackExtension.name, path: projectA.path): Set(),
+            .target(name: app.name, path: projectA.path): Set([
+                .target(name: appExtension.name, path: projectA.path),
+                .target(name: stickerPackExtension.name, path: projectA.path),
+            ]),
         ]
         let graph = ValueGraph.test(path: path,
-                                    projects: [projectA.path: projectA,
-                                               projectB.path: projectB,
-                                               projectC.path: projectC],
+                                    projects: [projectA.path: projectA],
                                     targets: targets,
                                     dependencies: dependencies)
         let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
-        try subject.generateAppExtensionsBuildPhase(path: projectC.path,
+        try subject.generateAppExtensionsBuildPhase(path: projectA.path,
                                                     target: app,
                                                     graphTraverser: graphTraverser,
                                                     pbxTarget: nativeTarget,
@@ -597,8 +642,10 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
     func test_generateTarget_actions() throws {
         // Given
         system.swiftVersionStub = { "5.2" }
-        let fileElements = ProjectFileElements([:], playgrounds: MockPlaygrounds())
+        let fileElements = ProjectFileElements([:])
         let graph = Graph.test()
+        let valueGraph = ValueGraph(graph: graph)
+        let graphTraverser = ValueGraphTraverser(graph: valueGraph)
         let path = AbsolutePath("/test")
         let pbxproj = PBXProj()
         let pbxProject = createPbxProject(pbxproj: pbxproj)
@@ -610,10 +657,9 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
                                  ])
         let project = Project.test(path: path, sourceRootPath: path, xcodeProjPath: path.appending(component: "Project.xcodeproj"), targets: [target])
         let groups = ProjectGroups.generate(project: project,
-                                            pbxproj: pbxproj,
-                                            playgrounds: MockPlaygrounds())
+                                            pbxproj: pbxproj)
         try fileElements.generateProjectFiles(project: project,
-                                              graph: graph,
+                                              graphTraverser: graphTraverser,
                                               groups: groups,
                                               pbxproj: pbxproj)
 
@@ -625,7 +671,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
                                                              projectSettings: Settings.test(),
                                                              fileElements: fileElements,
                                                              path: path,
-                                                             graph: graph)
+                                                             graphTraverser: graphTraverser)
 
         // Then
         let preBuildPhase = try XCTUnwrap(pbxTarget.buildPhases.first as? PBXShellScriptBuildPhase)

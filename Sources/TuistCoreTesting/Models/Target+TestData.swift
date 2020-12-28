@@ -16,13 +16,16 @@ public extension Target {
                      settings: Settings? = Settings.test(),
                      sources: [SourceFile] = [],
                      resources: [FileElement] = [],
+                     copyFiles: [CopyFilesAction] = [],
                      coreDataModels: [CoreDataModel] = [],
                      headers: Headers? = nil,
                      actions: [TargetAction] = [],
                      environment: [String: String] = [:],
                      filesGroup: ProjectGroup = .group(name: "Project"),
                      dependencies: [Dependency] = [],
-                     scripts: [TargetScript] = []) -> Target
+                     scripts: [TargetScript] = [],
+                     launchArguments: [LaunchArgument] = [],
+                     playgrounds: [AbsolutePath] = []) -> Target
     {
         Target(name: name,
                platform: platform,
@@ -35,13 +38,16 @@ public extension Target {
                settings: settings,
                sources: sources,
                resources: resources,
+               copyFiles: copyFiles,
                headers: headers,
                coreDataModels: coreDataModels,
                actions: actions,
                environment: environment,
+               launchArguments: launchArguments,
                filesGroup: filesGroup,
                dependencies: dependencies,
-               scripts: scripts)
+               scripts: scripts,
+               playgrounds: playgrounds)
     }
 
     /// Creates a bare bones Target with as little data as possible
@@ -56,6 +62,7 @@ public extension Target {
                       settings: Settings? = nil,
                       sources: [SourceFile] = [],
                       resources: [FileElement] = [],
+                      copyFiles: [CopyFilesAction] = [],
                       coreDataModels: [CoreDataModel] = [],
                       headers: Headers? = nil,
                       actions: [TargetAction] = [],
@@ -75,6 +82,7 @@ public extension Target {
                settings: settings,
                sources: sources,
                resources: resources,
+               copyFiles: copyFiles,
                headers: headers,
                coreDataModels: coreDataModels,
                actions: actions,

@@ -11,6 +11,17 @@ updates:
     labels:
       - dependencies
       - automerge
+  - package-ecosystem: npm
+    directory: '/next'
+    schedule:
+      interval: weekly
+      time: '11:00'
+    open-pull-requests-limit: 10
+    reviewers:
+      - tuist/core
+    labels:
+      - dependencies
+      - automerge
   - package-ecosystem: bundler
     directory: '/'
     schedule:

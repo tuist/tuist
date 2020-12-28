@@ -32,8 +32,10 @@ final class StableXcodeProjIntegrationTests: TuistTestCase {
                                                             headers: 100)
             let modelGenerator = TestModelGenerator(rootPath: temporaryPath, config: config)
             let graph = try modelGenerator.generate()
+            let valueGraph = ValueGraph(graph: graph)
+            let graphTraverser = ValueGraphTraverser(graph: valueGraph)
 
-            let workspaceDescriptor = try subject.generateWorkspace(graph: graph)
+            let workspaceDescriptor = try subject.generateWorkspace(graphTraverser: graphTraverser)
 
             // Note: While we already have access to the `XcodeProj` models in `workspaceDescriptor`
             // unfortunately they are not equtable, however once serialized & deserialized back they are
@@ -91,7 +93,7 @@ final class StableXcodeProjIntegrationTests: TuistTestCase {
 
 extension XCWorkspace {
     var projectPaths: [String] {
-        data.children.flatMap { $0.projectPaths }
+        data.children.flatMap(\.projectPaths)
     }
 }
 
@@ -102,7 +104,7 @@ extension XCWorkspaceDataElement {
             let path = file.location.path
             return path.hasSuffix(".xcodeproj") ? [path] : []
         case let .group(elements):
-            return elements.children.flatMap { $0.projectPaths }
+            return elements.children.flatMap(\.projectPaths)
         }
     }
 }

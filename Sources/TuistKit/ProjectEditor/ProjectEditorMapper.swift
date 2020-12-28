@@ -30,7 +30,8 @@ final class ProjectEditorMapper: ProjectEditorMapping {
              projectDescriptionPath: AbsolutePath) throws -> (Project, Graph)
     {
         // Settings
-        let projectSettings = Settings(base: [:],
+        let projectSettings = Settings(base: ["ONLY_ACTIVE_ARCH": "NO",
+                                              "EXCLUDED_ARCHS": "arm64"],
                                        configurations: Settings.default.configurations,
                                        defaultSettings: .recommended)
 
@@ -93,7 +94,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
 
         // Run Scheme
         let buildAction = BuildAction(targets: targets.map { TargetReference(projectPath: sourceRootPath, name: $0.name) })
-        let arguments = Arguments(launchArguments: ["generate --path \(sourceRootPath)": true])
+        let arguments = Arguments(launchArguments: [LaunchArgument(name: "generate --path \(sourceRootPath)", isEnabled: true)])
         let runAction = RunAction(configurationName: "Debug", executable: nil, filePath: tuistPath, arguments: arguments, diagnosticsOptions: Set())
         let scheme = Scheme(name: "Manifests", shared: true, buildAction: buildAction, runAction: runAction)
 

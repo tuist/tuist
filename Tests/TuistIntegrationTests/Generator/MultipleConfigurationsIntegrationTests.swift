@@ -301,8 +301,10 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
         let graphLoader = GraphLoader(modelLoader: modelLoader)
 
         let graph = try graphLoader.loadWorkspace(path: temporaryPath)
-        try linter.lint(graph: graph).printAndThrowIfNeeded()
-        let descriptor = try subject.generateWorkspace(graph: graph)
+        let valueGraph = ValueGraph(graph: graph)
+        let graphTraverser = ValueGraphTraverser(graph: valueGraph)
+        try linter.lint(graphTraverser: graphTraverser).printAndThrowIfNeeded()
+        let descriptor = try subject.generateWorkspace(graphTraverser: graphTraverser)
         try writer.write(workspace: descriptor)
     }
 
@@ -335,7 +337,7 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
     }
 
     private func createConfig() -> Config {
-        Config(compatibleXcodeVersions: .all, cloud: nil, generationOptions: [], path: nil)
+        Config(compatibleXcodeVersions: .all, cloud: nil, plugins: [], generationOptions: [], path: nil)
     }
 
     private func createWorkspace(path: AbsolutePath, projects: [String]) throws -> Workspace {
@@ -406,7 +408,7 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
             return
         }
 
-        let configurationNames = Set(nativeTarget.buildConfigurationList?.buildConfigurations.map { $0.name } ?? [])
+        let configurationNames = Set(nativeTarget.buildConfigurationList?.buildConfigurations.map(\.name) ?? [])
         XCTAssertEqual(configurationNames, expectedConfigurations, file: file, line: line)
     }
 
@@ -424,7 +426,7 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
             return
         }
 
-        let configurationNames = Set(rootProject?.buildConfigurationList?.buildConfigurations.map { $0.name } ?? [])
+        let configurationNames = Set(rootProject?.buildConfigurationList?.buildConfigurations.map(\.name) ?? [])
         XCTAssertEqual(configurationNames, expectedConfigurations, file: file, line: line)
     }
 }

@@ -40,8 +40,13 @@ final class SigningLinter: SigningLinting {
             """,
             severity: .error
         )
+        let buildSettingRegex = "\\$[\\({](.*)[\\)}]"
+
         var issues: [LintingIssue] = []
-        if provisioningProfile.appId.last == "*" {
+
+        if target.bundleId.matches(pattern: buildSettingRegex) {
+            return issues
+        } else if provisioningProfile.appId.last == "*" {
             if !appId.hasPrefix(provisioningProfile.appId.dropLast()) {
                 issues.append(invalidProvisioningProfileIssue)
             }
