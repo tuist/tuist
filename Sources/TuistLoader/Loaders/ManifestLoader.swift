@@ -92,6 +92,11 @@ public protocol ManifestLoading {
 }
 
 public class ManifestLoader: ManifestLoading {
+    // MARK: - Static
+
+    static let startManifestToken = "TUIST_MANIFEST_START"
+    static let endManifestToken = "TUIST_MANIFEST_END"
+
     // MARK: - Attributes
 
     let resourceLocator: ResourceLocating
@@ -220,6 +225,20 @@ public class ManifestLoader: ManifestLoading {
         let result = System.shared.observable(arguments,
                                               verbose: false,
                                               environment: environment.manifestLoadingVariables)
+            .compactMap { (event) -> SystemEvent<Data>? in
+                guard case let SystemEvent.standardOutput(data) = event, let string = String(data: data, encoding: .utf8) else { return nil }
+                guard let startTokenRange = string.range(of: ManifestLoader.startManifestToken) else { return nil }
+                guard let endTokenRange = string.range(of: ManifestLoader.endManifestToken) else { return nil }
+
+                let preManifestLogs = String(string[string.startIndex ..< startTokenRange.lowerBound]).chomp()
+                let postManifestLogs = String(string[endTokenRange.upperBound ..< string.endIndex]).chomp()
+
+                if !preManifestLogs.isEmpty { logger.info("\(path.pathString): \(preManifestLogs)") }
+                if !postManifestLogs.isEmpty { logger.info("\(path.pathString):\(postManifestLogs)") }
+
+                let manifest = string[startTokenRange.upperBound ..< endTokenRange.lowerBound]
+                return SystemEvent<Data>.standardOutput(manifest.data(using: .utf8)!)
+            }
             .toBlocking()
             .materialize()
 
