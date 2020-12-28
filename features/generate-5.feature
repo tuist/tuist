@@ -5,7 +5,7 @@ Scenario: The project is an iOS application with watch app (ios_app_with_watchap
     And I have a working directory
     Then I copy the fixture ios_app_with_watchapp2 into the working directory
     Then tuist generates the project
-    Then I should be able to build for watchOS the scheme App
+    Then I should be able to build for iOS the scheme App
     Then the product 'App.app' with destination 'Debug-iphonesimulator' contains resource 'Watch/WatchApp.app'
     Then the product 'WatchApp.app' with destination 'Debug-watchsimulator' contains extension 'WatchAppExtension'
     Then the product 'App.app' with destination 'Debug-iphonesimulator' does not contain headers

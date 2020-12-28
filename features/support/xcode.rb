@@ -98,6 +98,8 @@ module Xcode
   end
 
   def self.valid_simulator_destination_for_platform(platform)
+    # watchOS simulators are bundled with iOS simulators
+    platform = "iOS" if platform == "watchOS"
     device = SimCtl
       .list_devices
       .select { |d| d.is_available && d.runtime.name.downcase.include?(platform.downcase) }
@@ -107,6 +109,7 @@ module Xcode
     if device.nil?
       flunk("Couldn't find an available destination simulator for platform #{platform}")
     end
-    "id=#{device.udid}"
+
+    "platform=#{platform} Simulator,id=#{device.udid}"
   end
 end
