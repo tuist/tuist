@@ -20,14 +20,3 @@ exports.onPreRenderHTML = function onPreRenderHTML({
 
   replaceHeadComponents(headComponents)
 }
-
-exports.onRenderBody = ({ setHeadComponents }) => {
-  setHeadComponents([
-    <script
-      async
-      defer
-      data-domain="tuist.io"
-      src="https://plausible.io/js/plausible.js"
-    ></script>,
-  ])
-}
