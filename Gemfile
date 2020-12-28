@@ -23,7 +23,7 @@ group :test do
 end
 
 group :development do
-  gem "rubocop", "~> 1.6.1"
+  gem "rubocop", "~> 1.7.0"
   gem 'rubocop-minitest', require: false
   gem 'rubocop-rake', require: false
 end

@@ -173,14 +173,14 @@ GEM
     public_suffix (4.0.6)
     rainbow (3.0.0)
     rake (13.0.3)
-    regexp_parser (2.0.2)
+    regexp_parser (2.0.3)
     representable (3.0.4)
       declarative (< 0.1.0)
       declarative-option (< 0.2.0)
       uber (< 0.2.0)
     retriable (3.1.2)
     rexml (3.2.4)
-    rubocop (1.6.1)
+    rubocop (1.7.0)
       parallel (~> 1.10)
       parser (>= 2.7.1.5)
       rainbow (>= 2.2.2, < 4.0)
@@ -240,7 +240,7 @@ DEPENDENCIES
   minitest-reporters
   mocha (~> 1.12)
   rake (~> 13.0)
-  rubocop (~> 1.6.1)
+  rubocop (~> 1.7.0)
   rubocop-minitest
   rubocop-rake
   ruby-macho (~> 1.4)
