@@ -52,4 +52,14 @@ final class TargetActionLinterTests: TuistUnitTestCase {
         let expected = [LintingIssue]()
         XCTAssertTrue(got.elementsEqual(expected))
     }
+
+    func test_lint_warns_when_embedded_script_empty() {
+        let action = TargetAction(name: "name",
+                                  order: .pre,
+                                  script: "")
+
+        let got = subject.lint(action)
+        let expected = LintingIssue(reason: "The embedded script is empty", severity: .warning)
+        XCTAssertTrue(got.contains(expected))
+    }
 }

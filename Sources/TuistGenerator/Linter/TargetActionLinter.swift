@@ -14,11 +14,22 @@ protocol TargetActionLinting {
 class TargetActionLinter: TargetActionLinting {
     func lint(_ action: TargetAction) -> [LintingIssue] {
         var issues: [LintingIssue] = []
+        issues.append(contentsOf: lintEmbeddedScriptNotEmpty(action))
         issues.append(contentsOf: lintToolExistence(action))
         issues.append(contentsOf: lintPathExistence(action))
         return issues
     }
 
+    private func lintEmbeddedScriptNotEmpty(_ action: TargetAction) -> [LintingIssue] {
+        guard let script = action.embeddedScript,
+              script.isEmpty
+        else { return [] }
+
+        return [
+            LintingIssue(reason: "The embedded script is empty", severity: .warning)
+        ]
+    }
+    
     /// Lints a target aciton.
     ///
     /// - Parameter action: Action to be linted.
