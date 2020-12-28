@@ -6,11 +6,12 @@ module Fourier
     module Test
       module Tuist
         class Acceptance < Base
+          Error = Class.new(StandardError)
+
           attr_reader :feature
 
           def initialize(feature:)
             @feature = feature
-            super
           end
 
           def call
@@ -21,8 +22,8 @@ module Fourier
             else
               feature
             end
-            failure = Cucumber::Cli::Main.execute(args)
-            raise 'Cucumber failed' if failure
+            failure = Cucumber::Cli::Main.execute(*args)
+            raise Error, 'Cucumber failed' if failure
           end
         end
       end

@@ -8,6 +8,9 @@ Style/ClassAndModuleChildren:
   Enabled: false
 Style/RedundantBegin:
   Enabled: false
+Lint/MissingSuper:
+  Enabled: false
+
 AllCops:
   TargetRubyVersion: 2.5
   DisplayCopNames: true
