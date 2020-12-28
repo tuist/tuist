@@ -24,8 +24,6 @@ end
 
 group :development do
   gem "rubocop", "~> 1.7.0"
-  gem 'rubocop-minitest', require: false
-  gem 'rubocop-rake', require: false
 end
 
 group :development, :test do
