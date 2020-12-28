@@ -14,6 +14,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Support for `Carthage` dependencies in `Dependencies.swift` [#2060](https://github.com/tuist/tuist/pull/2060) by [@laxmorek](https://github.com/laxmorek).
 - Fourier CLI tool to automate development tasks [#2196](https://github.com/tuist/tuist/pull/2196) by @pepibumur](https://github.com/pepibumur).
 - Support `.s` source files [#2199](https://github.com/tuist/tuist/pull/2199) by[ @dcvz](https://github.com/dcvz).
+- Support for printing from the manifest files [#2215](https://github.com/tuist/tuist/pull/2215) by @pepibumur](https://github.com/pepibumur).
 
 ## 1.29.0 - Tutu
 
