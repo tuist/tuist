@@ -15,49 +15,29 @@ const useBackgroundColor = () => {
   return theme.colors.background
 }
 
-const CrossPlatform = () => {
-  const textColor = useTextColor()
-  const backgroundColor = useBackgroundColor()
-  const width = useResponsiveValue(['100%', '600'])
-
-  return (
-    <Graphviz
-      options={{ width: width }}
-      dot={`digraph {
-        graph [bgcolor="${backgroundColor}"];
-        µSearchiOS [color="${textColor}", fontcolor="${textColor}"];
-        µSearchmacOS [color="${textColor}", fontcolor="${textColor}"];
-        µSearchwatchOS [color="${textColor}", fontcolor="${textColor}"];
-        µSearch [color="${textColor}", fontcolor="${textColor}"];
-        µSearchiOS -> µSearch [color="${textColor}"];
-        µSearchmacOS -> µSearch [color="${textColor}"];
-        µSearchwatchOS -> µSearch [color="${textColor}"];
-      }`}
-    />
-  )
-}
-
 const MicroFeature = () => {
   const textColor = useTextColor()
   const backgroundColor = useBackgroundColor()
-  const width = useResponsiveValue(['100%', '300'])
+  const width = useResponsiveValue(['100%', '400'])
 
   return (
-    <div sx={{ py: 2 }}>
+    <div sx={{ py: 0 }}>
       <Graphviz
         options={{ width: width }}
         dot={`digraph {
         graph [bgcolor="${backgroundColor}"];
-        Example [color="${textColor}", fontcolor="${textColor}"];
-        Source [color="${textColor}", fontcolor="${textColor}"];
-        Testing [color="${textColor}", fontcolor="${textColor}"];
-        Tests [color="${textColor}", fontcolor="${textColor}"];
+        FeatureExample [color="${textColor}", fontcolor="${textColor}"];
+        FeatureInterface [color="${textColor}", fontcolor="${textColor}"];
+        Feature [color="${textColor}", fontcolor="${textColor}"];
+        FeatureTesting [color="${textColor}", fontcolor="${textColor}"];
+        FeatureTests [color="${textColor}", fontcolor="${textColor}"];
 
-        Example -> Source [color="${textColor}"];
-        Example -> Testing [color="${textColor}"];
-        Tests -> Source [color="${textColor}"];
-        Tests -> Testing [color="${textColor}"];
-        Testing -> Source [color="${textColor}"];
+        FeatureExample -> Feature [color="${textColor}"];
+        FeatureExample -> FeatureTesting [color="${textColor}"];
+        FeatureTests -> Feature [color="${textColor}"];
+        FeatureTests -> FeatureTesting [color="${textColor}"];
+        FeatureTesting -> FeatureInterface [color="${textColor}"];
+        Feature -> FeatureInterface [color="${textColor}"];
       }`}
       />
     </div>
@@ -100,4 +80,4 @@ const Layers = () => {
   )
 }
 
-export { CrossPlatform, MicroFeature, Layers }
+export { MicroFeature, Layers }
