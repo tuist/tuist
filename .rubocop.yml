@@ -1,5 +1,8 @@
 inherit_from:
   - http://shopify.github.io/ruby-style-guide/rubocop.yml
+require:
+  - rubocop-rake
+  - rubocop-minitest
 
 Style/ClassAndModuleChildren:
   Enabled: false
@@ -9,7 +12,6 @@ AllCops:
   TargetRubyVersion: 2.5
   DisplayCopNames: true
   DisplayStyleGuide: true
-  SuggestExtensions: false
   Exclude:
     - features/**/*
     - fixtures/**/*
