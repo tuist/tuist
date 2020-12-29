@@ -11,7 +11,7 @@ echo "$wd"
 
 final class TargetActionTests: XCTestCase {
     func test_embedded_script() throws {
-        let subject = TargetAction(name: "name", order: .pre, script: script)
+        let subject = TargetAction(name: "name", order: .pre, script: .embedded(script))
 
         let shellScript = try subject.shellScript(sourceRootPath: .root)
         XCTAssertEqual(script, shellScript)

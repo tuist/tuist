@@ -23,7 +23,7 @@ final class TargetActionLinterTests: TuistUnitTestCase {
     func test_lint_whenTheToolDoesntExist() {
         let action = TargetAction(name: "name",
                                   order: .pre,
-                                  tool: "randomtool")
+                                  script: .tool("randomtool"))
         let got = subject.lint(action)
 
         let expected = LintingIssue(reason: "The action tool 'randomtool' was not found in the environment",
@@ -35,7 +35,7 @@ final class TargetActionLinterTests: TuistUnitTestCase {
         let temporaryPath = try self.temporaryPath()
         let action = TargetAction(name: "name",
                                   order: .pre,
-                                  path: temporaryPath.appending(component: "invalid.sh"))
+                                  script: .scriptPath(temporaryPath.appending(component: "invalid.sh")))
         let got = subject.lint(action)
 
         let expected = LintingIssue(reason: "The action path \(action.path!.pathString) doesn't exist",
@@ -46,7 +46,7 @@ final class TargetActionLinterTests: TuistUnitTestCase {
     func test_lint_succeeds_when_embedded() throws {
         let action = TargetAction(name: "name",
                                   order: .pre,
-                                  script: "echo 'Hello World'")
+                                  script: .embedded("echo 'Hello World'"))
 
         let got = subject.lint(action)
         let expected = [LintingIssue]()
@@ -56,7 +56,7 @@ final class TargetActionLinterTests: TuistUnitTestCase {
     func test_lint_warns_when_embedded_script_empty() {
         let action = TargetAction(name: "name",
                                   order: .pre,
-                                  script: "")
+                                  script: .embedded(""))
 
         let got = subject.lint(action)
         let expected = LintingIssue(reason: "The embedded script is empty", severity: .warning)

@@ -13,12 +13,14 @@ public struct TargetAction: Equatable {
         case post
     }
 
-    /// How to execute the target action
+    /// Specifies how to execute the target action
     ///
-    /// - file: Executes the tool, calling the script at the path. Tuist will look up the tool on the environment's PATH
+    /// - tool: Executes the tool with the given arguments. Tuist will look up the tool on the environment's PATH.
+    /// - scriptPath: Executes the file at the path with the given arguments.
     /// - text: Executes the embedded script. This should be a short command.
-    private enum Script: Equatable {
-        case externalFile(_ tool: String?, _ path: AbsolutePath?, _ args: [String])
+    public enum Script: Equatable {
+        case tool(_ path: String, _ args: [String] = [])
+        case scriptPath(_ path: AbsolutePath, args: [String] = [])
         case embedded(String)
     }
 
@@ -26,7 +28,7 @@ public struct TargetAction: Equatable {
     public let name: String
 
     /// The script to execute in the action
-    private let script: Script
+    public let script: Script
 
     /// The text of the embedded script
     public var embeddedScript: String? {
@@ -39,7 +41,7 @@ public struct TargetAction: Equatable {
 
     /// Name of the tool to execute. Tuist will look up the tool on the environment's PATH.
     public var tool: String? {
-        if case let Script.externalFile(tool, _, _) = script {
+        if case let Script.tool(tool, _) = script {
             return tool
         }
 
@@ -48,7 +50,7 @@ public struct TargetAction: Equatable {
 
     /// Path to the script to execute.
     public var path: AbsolutePath? {
-        if case let Script.externalFile(_, path, _) = script {
+        if case let Script.scriptPath(path, _) = script {
             return path
         }
 
@@ -60,11 +62,13 @@ public struct TargetAction: Equatable {
 
     /// Arguments that to be passed
     public var arguments: [String] {
-        if case let Script.externalFile(_, _, args) = script {
+        switch script {
+        case let .scriptPath(_, args), let .tool(_, args):
             return args
-        }
 
-        return []
+        case .embedded:
+            return []
+        }
     }
 
     /// List of input file paths
@@ -85,12 +89,11 @@ public struct TargetAction: Equatable {
     /// Whether to skip running this script in incremental builds, if nothing has changed
     public let basedOnDependencyAnalysis: Bool?
 
-    /// Initializes a new target action with its attributes.
+    /// Initializes a new target action with its attributes using a script at the given path to be executed.
     ///
     /// - Parameters:
     ///   - name: Name of the build phase when the project gets generated
     ///   - order: Target action order
-    ///   - tool: Name of the tool to execute. Tuist will look up the tool on the environment's PATH
     ///   - path: Path to the script to execute
     ///   - arguments: Arguments that to be passed
     ///   - inputPaths: List of input file paths
@@ -101,9 +104,7 @@ public struct TargetAction: Equatable {
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
     public init(name: String,
                 order: Order,
-                tool: String? = nil,
-                path: AbsolutePath? = nil,
-                arguments: [String] = [],
+                script: Script = .embedded(""),
                 inputPaths: [AbsolutePath] = [],
                 inputFileListPaths: [AbsolutePath] = [],
                 outputPaths: [AbsolutePath] = [],
@@ -113,40 +114,7 @@ public struct TargetAction: Equatable {
     {
         self.name = name
         self.order = order
-        script = .externalFile(tool, path, arguments)
-        self.inputPaths = inputPaths
-        self.inputFileListPaths = inputFileListPaths
-        self.outputPaths = outputPaths
-        self.outputFileListPaths = outputFileListPaths
-        self.showEnvVarsInLog = showEnvVarsInLog
-        self.basedOnDependencyAnalysis = basedOnDependencyAnalysis
-    }
-
-    /// Initializes a new target action with its attributes.
-    ///
-    /// - Parameters:
-    ///   - name: Name of the build phase when the project gets generated
-    ///   - order: Target action order
-    ///   - script: The text of the script to run. This should be kept small.
-    ///   - inputPaths: List of input file paths
-    ///   - inputFileListPaths: List of input filelist paths
-    ///   - outputPaths: List of output file paths
-    ///   - outputFileListPaths: List of output filelist paths
-    ///   - showEnvVarsInLog: Show environment variables in the logs
-    ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
-    public init(name: String,
-                order: Order,
-                script: String,
-                inputPaths: [AbsolutePath] = [],
-                inputFileListPaths: [AbsolutePath] = [],
-                outputPaths: [AbsolutePath] = [],
-                outputFileListPaths: [AbsolutePath] = [],
-                showEnvVarsInLog: Bool = true,
-                basedOnDependencyAnalysis: Bool? = nil)
-    {
-        self.name = name
-        self.order = order
-        self.script = .embedded(script)
+        self.script = script
         self.inputPaths = inputPaths
         self.inputFileListPaths = inputFileListPaths
         self.outputPaths = outputPaths
@@ -166,12 +134,11 @@ public struct TargetAction: Equatable {
         case let .embedded(text):
             return text.spm_chomp().spm_chuzzle() ?? ""
 
-        case let .externalFile(tool, path, args):
-            if let path = path {
-                return "\"${PROJECT_DIR}\"/\(path.relative(to: sourceRootPath).pathString) \(args.joined(separator: " "))"
-            } else {
-                return try "\(System.shared.which(tool!).spm_chomp().spm_chuzzle()!) \(args.joined(separator: " "))"
-            }
+        case let .scriptPath(path, args: args):
+            return "\"${PROJECT_DIR}\"/\(path.relative(to: sourceRootPath).pathString) \(args.joined(separator: " "))"
+
+        case let .tool(tool, args):
+            return try "\(System.shared.which(tool).spm_chomp().spm_chuzzle()!) \(args.joined(separator: " "))"
         }
     }
 }

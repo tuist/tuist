@@ -23,7 +23,7 @@ final class TargetActionTests: XCTestCase {
         """
 
         let subject = TargetAction.pre(script: script, name: "name")
-        XCTAssertNotNil(subject.embeddedScript)
+        XCTAssertEqual(subject.script, .embedded(script))
     }
 
     func test_toJSON_when_embedded() {
