@@ -22,14 +22,14 @@ class TargetActionLinter: TargetActionLinting {
 
     private func lintEmbeddedScriptNotEmpty(_ action: TargetAction) -> [LintingIssue] {
         guard let script = action.embeddedScript,
-              script.isEmpty
+            script.isEmpty
         else { return [] }
 
         return [
-            LintingIssue(reason: "The embedded script is empty", severity: .warning)
+            LintingIssue(reason: "The embedded script is empty", severity: .warning),
         ]
     }
-    
+
     /// Lints a target aciton.
     ///
     /// - Parameter action: Action to be linted.
