@@ -6,10 +6,12 @@ import XCTest
 @testable import TuistCoreTesting
 @testable import TuistDependenciesTesting
 @testable import TuistKit
+@testable import TuistLoaderTesting
 @testable import TuistSupportTesting
 
 final class DependenciesUpdateServiceTests: TuistUnitTestCase {
     private var dependenciesController: MockDependenciesController!
+    private var dependenciesModelLoader: MockDependenciesModelLoader!
 
     private var subject: DependenciesUpdateService!
 
@@ -17,40 +19,32 @@ final class DependenciesUpdateServiceTests: TuistUnitTestCase {
         super.setUp()
 
         dependenciesController = MockDependenciesController()
+        dependenciesModelLoader = MockDependenciesModelLoader()
 
-        subject = DependenciesUpdateService(dependenciesController: dependenciesController)
+        subject = DependenciesUpdateService(dependenciesController: dependenciesController,
+                                            dependenciesModelLoader: dependenciesModelLoader)
     }
 
     override func tearDown() {
         subject = nil
 
         dependenciesController = nil
+        dependenciesModelLoader = nil
 
         super.tearDown()
     }
 
     func test_run() throws {
         // Given
-        let path = try temporaryPath()
-
-        // When
-        try subject.run(path: path.pathString)
-
-        // Then
-        XCTAssertTrue(dependenciesController.invokedUpdate)
-        XCTAssertEqual(dependenciesController.invokedUpdateCount, 1)
-        XCTAssertEqual(dependenciesController.invokedUpdateParameters, path)
-
-        XCTAssertFalse(dependenciesController.invokedFetch)
-    }
-
-    func test_run_thorws_an_error() throws {
-        // Given
-        let path = try temporaryPath()
-        let error = TestError("Failed fetching!")
-        dependenciesController.stubbedUpdateError = error
+        let stubbedPath = try temporaryPath()
+        let stubbedDependencies = Dependencies(
+            carthageDependencies: [
+                CarthageDependency(origin: .github(path: "Dependency1"), requirement: .exact("1.1.1"), platforms: [.iOS, .macOS]),
+            ]
+        )
+        dependenciesModelLoader.loadDependenciesStub = { _ in stubbedDependencies }
 
         // When/Then
-        XCTAssertThrowsSpecific(try subject.run(path: path.pathString), error)
+        XCTAssertThrowsSpecific(try subject.run(path: stubbedPath.pathString), DependenciesUpdateServiceError.unimplemented)
     }
 }

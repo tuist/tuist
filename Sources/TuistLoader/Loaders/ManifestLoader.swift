@@ -156,14 +156,13 @@ public class ManifestLoader: ManifestLoading {
     }
 
     public func loadDependencies(at path: AbsolutePath) throws -> ProjectDescription.Dependencies {
-        let dependencyPath = path.appending(component: Manifest.dependencies.fileName(path))
+        let dependencyPath = path.appending(components: Constants.tuistDirectoryName, Manifest.dependencies.fileName(path))
         guard FileHandler.shared.exists(dependencyPath) else {
             throw ManifestLoaderError.manifestNotFound(.dependencies, path)
         }
 
         let dependenciesData = try loadManifestData(at: dependencyPath)
         let decoder = JSONDecoder()
-
         return try decoder.decode(Dependencies.self, from: dependenciesData)
     }
 
