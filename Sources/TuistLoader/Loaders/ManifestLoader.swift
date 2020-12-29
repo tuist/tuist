@@ -225,26 +225,25 @@ public class ManifestLoader: ManifestLoading {
         let result = System.shared.observable(arguments,
                                               verbose: false,
                                               environment: environment.manifestLoadingVariables)
-            .compactMap { (event) -> SystemEvent<Data>? in
-                guard case let SystemEvent.standardOutput(data) = event, let string = String(data: data, encoding: .utf8) else { return nil }
-                guard let startTokenRange = string.range(of: ManifestLoader.startManifestToken) else { return nil }
-                guard let endTokenRange = string.range(of: ManifestLoader.endManifestToken) else { return nil }
-
-                let preManifestLogs = String(string[string.startIndex ..< startTokenRange.lowerBound]).chomp()
-                let postManifestLogs = String(string[endTokenRange.upperBound ..< string.endIndex]).chomp()
-
-                if !preManifestLogs.isEmpty { logger.info("\(path.pathString): \(preManifestLogs)") }
-                if !postManifestLogs.isEmpty { logger.info("\(path.pathString):\(postManifestLogs)") }
-
-                let manifest = string[startTokenRange.upperBound ..< endTokenRange.lowerBound]
-                return SystemEvent<Data>.standardOutput(manifest.data(using: .utf8)!)
-            }
             .toBlocking()
             .materialize()
 
         switch result {
         case let .completed(elements):
-            return elements.filter { $0.isStandardOutput }.map(\.value).reduce(into: Data()) { $0.append($1) }
+            let output = elements.filter { $0.isStandardOutput }.map(\.value).reduce(into: Data()) { $0.append($1) }
+            guard let string = String(data: output, encoding: .utf8) else { return output }
+
+            guard let startTokenRange = string.range(of: ManifestLoader.startManifestToken) else { return output }
+            guard let endTokenRange = string.range(of: ManifestLoader.endManifestToken) else { return output }
+
+            let preManifestLogs = String(string[string.startIndex ..< startTokenRange.lowerBound]).chomp()
+            let postManifestLogs = String(string[endTokenRange.upperBound ..< string.endIndex]).chomp()
+
+            if !preManifestLogs.isEmpty { logger.info("\(path.pathString): \(preManifestLogs)") }
+            if !postManifestLogs.isEmpty { logger.info("\(path.pathString):\(postManifestLogs)") }
+
+            let manifest = string[startTokenRange.upperBound ..< endTokenRange.lowerBound]
+            return manifest.data(using: .utf8)!
         case let .failed(_, error):
             throw error
         }
