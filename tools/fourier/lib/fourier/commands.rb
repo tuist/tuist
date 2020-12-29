@@ -1,6 +1,4 @@
 # frozen_string_literal: true
-require "thor"
-
 module Fourier
   module Commands
     autoload :Base, "fourier/commands/base"

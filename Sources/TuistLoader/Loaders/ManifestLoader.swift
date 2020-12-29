@@ -92,6 +92,11 @@ public protocol ManifestLoading {
 }
 
 public class ManifestLoader: ManifestLoading {
+    // MARK: - Static
+
+    static let startManifestToken = "TUIST_MANIFEST_START"
+    static let endManifestToken = "TUIST_MANIFEST_END"
+
     // MARK: - Attributes
 
     let resourceLocator: ResourceLocating
@@ -225,7 +230,20 @@ public class ManifestLoader: ManifestLoading {
 
         switch result {
         case let .completed(elements):
-            return elements.filter { $0.isStandardOutput }.map(\.value).reduce(into: Data()) { $0.append($1) }
+            let output = elements.filter { $0.isStandardOutput }.map(\.value).reduce(into: Data()) { $0.append($1) }
+            guard let string = String(data: output, encoding: .utf8) else { return output }
+
+            guard let startTokenRange = string.range(of: ManifestLoader.startManifestToken) else { return output }
+            guard let endTokenRange = string.range(of: ManifestLoader.endManifestToken) else { return output }
+
+            let preManifestLogs = String(string[string.startIndex ..< startTokenRange.lowerBound]).chomp()
+            let postManifestLogs = String(string[endTokenRange.upperBound ..< string.endIndex]).chomp()
+
+            if !preManifestLogs.isEmpty { logger.info("\(path.pathString): \(preManifestLogs)") }
+            if !postManifestLogs.isEmpty { logger.info("\(path.pathString):\(postManifestLogs)") }
+
+            let manifest = string[startTokenRange.upperBound ..< endTokenRange.lowerBound]
+            return manifest.data(using: .utf8)!
         case let .failed(_, error):
             throw error
         }

@@ -6,8 +6,10 @@ func dumpIfNeeded<E: Encodable>(_ entity: E) {
             let encoder = JSONEncoder()
             // swiftlint:disable:next force_try
             let data = try! encoder.encode(entity)
-            let string = String(data: data, encoding: .utf8)!
-            print(string)
+            let manifest = String(data: data, encoding: .utf8)!
+            print("TUIST_MANIFEST_START")
+            print(manifest)
+            print("TUIST_MANIFEST_END")
         }
     }
 }

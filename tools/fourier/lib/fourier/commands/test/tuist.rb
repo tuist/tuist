@@ -5,7 +5,13 @@ module Fourier
       class Tuist < Base
         desc "unit", "Run Tuist unit tests"
         def unit
-          Utilities::System.system("swift", "test", "--package-path", File.expand_path("../../../../../../", __dir__))
+          Services::Test::Tuist::Unit.call
+        end
+
+        desc "acceptance FEATURE", "Runs the acceptance tests for a given feature."\
+          " When no feature is given, it runs the acceptance tests for all the features."
+        def acceptance(feature = nil)
+          Services::Test::Tuist::Acceptance.call(feature: feature)
         end
       end
     end
