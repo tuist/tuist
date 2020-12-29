@@ -18,10 +18,6 @@ require 'json'
 require 'zip'
 require 'macho'
 
-Cucumber::Rake::Task.new(:features) do |t|
-  t.cucumber_opts = "--format pretty"
-end
-
 desc("Runs the Fourier tests")
 Rake::TestTask.new do |t|
   t.name = "test_fourier"

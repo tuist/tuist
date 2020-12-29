@@ -22,7 +22,8 @@ module Fourier
             else
               feature
             end
-            failure = Cucumber::Cli::Main.execute(*args)
+
+            failure = Cucumber::Cli::Main.execute(args)
             raise Error, 'Cucumber failed' if failure
           end
         end
