@@ -6,6 +6,7 @@ import featureHelpersImage from './images/feature-helpers.svg'
 import featureScaffoldImage from './images/feature-scaffold.svg'
 import communityGitHubImage from './images/community-github.svg'
 import communitySlackImage from './images/community-slack.svg'
+import companiesImage from './images/companies.svg'
 
 const Features = () => {
   const featureCSS = [tw`space-y-4`]
@@ -18,7 +19,7 @@ const Features = () => {
   const featureImageCSS = [tw`mx-auto`]
 
   return (
-    <section css={[tw`bg-primary-dark px-10 py-10 md:px-20 md:py-20`]}>
+    <section css={[tw`bg-primary-dark px-10 py-10 md:py-20`]}>
       <div css={[tw`mx-auto w-full md:max-w-5xl`]}>
         <div css={[tw`space-y-10`]}>
           <h3
@@ -61,12 +62,45 @@ const Features = () => {
     </section>
   )
 }
+
+const Companies = () => {
+  return (
+    <section css={tw`px-10 py-10 md:py-20 relative`}>
+      <div css={tw`mx-auto w-full md:max-w-5xl relative`}>
+        <div css={[tw`static z-0 grid grid-cols-2 grid-rows-1`]}>
+          <h2 css={tw`text-primary font-extrabold text-5xl font-tuist`}>
+            You'll be in great company
+          </h2>
+          <figure
+            css={tw`bg-primary text-white rounded-lg p-8 font-tuist space-y-5`}
+          >
+            <blockquote css={tw`text-2xl`}>
+              Everyone in my team can create their own frameworks in a few
+              seconds which is amazing and really helps to speed up things and
+              work efficiently!
+            </blockquote>
+            <figcaption css={tw`text-xl text-purple-100 text-right`}>
+              iOS lead @ Bloomberg
+            </figcaption>
+          </figure>
+        </div>
+        <div css={[tw`absolute z-10 w-full grid grid-cols-8 grid-rows-6`]}>
+          <img
+            css={tw`col-start-1 col-end-5 row-start-2 row-end-6 object-contain bg-green-200`}
+            src={companiesImage}
+          />
+        </div>
+      </div>
+    </section>
+  )
+}
+
 const Community = () => {
   const textCSS = tw`text-xl text-center font-tuist md:text-2xl md:text-left`
   const highlightCSS = tw`bg-purple-200 font-bold p-1`
   const sectionCSS = tw`space-y-10`
   return (
-    <section css={tw`px-10 py-10 md:px-20 md:py-20`}>
+    <section css={tw`px-10 py-10 md:py-20`}>
       <div
         css={tw`mx-auto w-full md:max-w-5xl grid justify-items-center gap-4 grid-cols-1 grid-rows-2 md:gap-10 md:grid-cols-2 md:grid-rows-1`}
       >
@@ -94,6 +128,7 @@ const IndexPage = () => {
   return (
     <MainLayout>
       <Features />
+      <Companies />
       <Community />
     </MainLayout>
   )
