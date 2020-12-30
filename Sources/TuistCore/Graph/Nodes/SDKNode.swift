@@ -2,27 +2,12 @@ import Foundation
 import TSCBasic
 import TuistSupport
 
-public enum SDKSource {
-    case developer // Platforms/iPhoneOS.platform/Developer/Library
-    case system // Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk/System/Library
-
-    /// Returns the framewok search path that should be used in Xcode to locate the SDK.
-    public var frameworkSearchPath: String? {
-        switch self {
-        case .developer:
-            return "$(PLATFORM_DIR)/Developer/Library/Frameworks"
-        case .system:
-            return nil
-        }
-    }
-}
-
 @available(*, deprecated, message: "SDK nodes are deprecated. Dependencies should be usted instead with the ValueGraph.")
 public class SDKNode: GraphNode {
     static let xctestFrameworkName = "XCTest.framework"
 
     public let status: SDKStatus
-    public let type: Type
+    public let type: SDKType
     public let source: SDKSource
 
     public init(name: String,
@@ -32,7 +17,7 @@ public class SDKNode: GraphNode {
     {
         let sdk = AbsolutePath("/\(name)")
         // TODO: Validate using a linter
-        guard let sdkExtension = sdk.extension, let type = Type(rawValue: sdkExtension) else {
+        guard let sdkExtension = sdk.extension, let type = SDKType(rawValue: sdkExtension) else {
             throw Error.unsupported(sdk: name)
         }
         self.status = status
@@ -60,7 +45,7 @@ public class SDKNode: GraphNode {
         try SDKNode(name: "AppClip.framework", platform: .iOS, status: status, source: .system)
     }
 
-    static func path(name: String, platform: Platform, source _: SDKSource, type: Type) throws -> AbsolutePath {
+    static func path(name: String, platform: Platform, source _: SDKSource, type: SDKType) throws -> AbsolutePath {
         let sdkRootPath: AbsolutePath
         if name == SDKNode.xctestFrameworkName {
             guard let xcodeDeveloperSdkRootPath = platform.xcodeDeveloperSdkRootPath else {
@@ -87,24 +72,12 @@ public class SDKNode: GraphNode {
         }
     }
 
-    public enum `Type`: String, CaseIterable {
-        case framework
-        case library = "tbd"
-
-        static var supportedTypesDescription: String {
-            let supportedTypes = allCases
-                .map { ".\($0.rawValue)" }
-                .joined(separator: ", ")
-            return "[\(supportedTypes)]"
-        }
-    }
-
     enum Error: FatalError, Equatable {
         case unsupported(sdk: String)
         var description: String {
             switch self {
             case let .unsupported(sdk):
-                let supportedTypes = Type.supportedTypesDescription
+                let supportedTypes = SDKType.supportedTypesDescription
                 return "The SDK type of \(sdk) is not currently supported - only \(supportedTypes) are supported."
             }
         }
