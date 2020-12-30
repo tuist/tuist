@@ -13,20 +13,63 @@ public struct TargetAction: Equatable {
         case post
     }
 
+    /// Specifies how to execute the target action
+    ///
+    /// - tool: Executes the tool with the given arguments. Tuist will look up the tool on the environment's PATH.
+    /// - scriptPath: Executes the file at the path with the given arguments.
+    /// - text: Executes the embedded script. This should be a short command.
+    public enum Script: Equatable {
+        case tool(_ path: String, _ args: [String] = [])
+        case scriptPath(_ path: AbsolutePath, args: [String] = [])
+        case embedded(String)
+    }
+
     /// Name of the build phase when the project gets generated
     public let name: String
 
-    /// Name of the tool to execute. Tuist will look up the tool on the environment's PATH
-    public let tool: String?
+    /// The script to execute in the action
+    public let script: Script
 
-    /// Path to the script to execute
-    public let path: AbsolutePath?
+    /// The text of the embedded script
+    public var embeddedScript: String? {
+        if case let Script.embedded(embeddedScript) = script {
+            return embeddedScript
+        }
+
+        return nil
+    }
+
+    /// Name of the tool to execute. Tuist will look up the tool on the environment's PATH.
+    public var tool: String? {
+        if case let Script.tool(tool, _) = script {
+            return tool
+        }
+
+        return nil
+    }
+
+    /// Path to the script to execute.
+    public var path: AbsolutePath? {
+        if case let Script.scriptPath(path, _) = script {
+            return path
+        }
+
+        return nil
+    }
 
     /// Target action order
     public let order: Order
 
     /// Arguments that to be passed
-    public let arguments: [String]
+    public var arguments: [String] {
+        switch script {
+        case let .scriptPath(_, args), let .tool(_, args):
+            return args
+
+        case .embedded:
+            return []
+        }
+    }
 
     /// List of input file paths
     public let inputPaths: [AbsolutePath]
@@ -46,12 +89,11 @@ public struct TargetAction: Equatable {
     /// Whether to skip running this script in incremental builds, if nothing has changed
     public let basedOnDependencyAnalysis: Bool?
 
-    /// Initializes a new target action with its attributes.
+    /// Initializes a new target action with its attributes using a script at the given path to be executed.
     ///
     /// - Parameters:
     ///   - name: Name of the build phase when the project gets generated
     ///   - order: Target action order
-    ///   - tool: Name of the tool to execute. Tuist will look up the tool on the environment's PATH
     ///   - path: Path to the script to execute
     ///   - arguments: Arguments that to be passed
     ///   - inputPaths: List of input file paths
@@ -62,9 +104,7 @@ public struct TargetAction: Equatable {
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
     public init(name: String,
                 order: Order,
-                tool: String? = nil,
-                path: AbsolutePath? = nil,
-                arguments: [String] = [],
+                script: Script = .embedded(""),
                 inputPaths: [AbsolutePath] = [],
                 inputFileListPaths: [AbsolutePath] = [],
                 outputPaths: [AbsolutePath] = [],
@@ -74,9 +114,7 @@ public struct TargetAction: Equatable {
     {
         self.name = name
         self.order = order
-        self.tool = tool
-        self.path = path
-        self.arguments = arguments
+        self.script = script
         self.inputPaths = inputPaths
         self.inputFileListPaths = inputFileListPaths
         self.outputPaths = outputPaths
@@ -92,10 +130,15 @@ public struct TargetAction: Equatable {
     /// - Returns: Shell script that should be used in the target build phase.
     /// - Throws: An error if the tool absolute path cannot be obtained.
     public func shellScript(sourceRootPath: AbsolutePath) throws -> String {
-        if let path = path {
-            return "\"${PROJECT_DIR}\"/\(path.relative(to: sourceRootPath).pathString) \(arguments.joined(separator: " "))"
-        } else {
-            return try "\(System.shared.which(tool!).spm_chomp().spm_chuzzle()!) \(arguments.joined(separator: " "))"
+        switch script {
+        case let .embedded(text):
+            return text.spm_chomp().spm_chuzzle() ?? ""
+
+        case let .scriptPath(path, args: args):
+            return "\"${PROJECT_DIR}\"/\(path.relative(to: sourceRootPath).pathString) \(args.joined(separator: " "))"
+
+        case let .tool(tool, args):
+            return try "\(System.shared.which(tool).spm_chomp().spm_chuzzle()!) \(args.joined(separator: " "))"
         }
     }
 }

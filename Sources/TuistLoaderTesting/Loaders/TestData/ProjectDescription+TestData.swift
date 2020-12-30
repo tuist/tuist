@@ -81,16 +81,13 @@ extension Target {
 
 extension TargetAction {
     public static func test(name: String = "Action",
-                            tool: String? = nil,
-                            path: Path? = nil,
+                            tool: String = "",
                             order: Order = .pre,
                             arguments: [String] = []) -> TargetAction
     {
         TargetAction(name: name,
-                     tool: tool,
-                     path: path,
-                     order: order,
-                     arguments: arguments)
+                     script: .tool(tool, arguments),
+                     order: order)
     }
 }
 

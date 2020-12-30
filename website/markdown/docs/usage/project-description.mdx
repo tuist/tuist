@@ -687,6 +687,12 @@ Target actions, represented as target script build phases, are useful to define 
         'Action executed before the target-specific build phases where path is the path to the tool to be executed.',
     },
     {
+    case:
+      '.pre(script: String, name: String, inputPaths: [Path], inputFileListPaths: [Path], outputPaths: [Path], outputFileListPaths: [Path], basedOnDependencyAnalysis: Bool)',
+    description:
+      'Action executed before the target-specific build phases where script is an embedded script to run. It is advised to keep embedded scripts as small as possible',
+    },
+    {
       case:
         '.post(tool: String, arguments: String..., name: String, inputPaths: [Path], inputFileListPaths: [Path], outputPaths: [Path], outputFileListPaths: [Path], basedOnDependencyAnalysis: Bool)',
       description:
@@ -697,6 +703,12 @@ Target actions, represented as target script build phases, are useful to define 
         '.post(path: Path, arguments: String..., name: String, inputPaths: [Path], inputFileListPaths: [Path], outputPaths: [Path], outputFileListPaths: [Path], basedOnDependencyAnalysis: Bool)',
       description:
         'Action executed after all the target-specific build phases where path is the path to the tool to be executed.',
+    },
+    {
+    case:
+      '.post(script: String, name: String, inputPaths: [Path], inputFileListPaths: [Path], outputPaths: [Path], outputFileListPaths: [Path], basedOnDependencyAnalysis: Bool)',
+    description:
+      'Action executed after all the target-specific build phases where script is an embedded script to run. It is advised to keep embedded scripts as small as possible',
     },
   ]}
 />

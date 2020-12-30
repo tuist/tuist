@@ -652,8 +652,18 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let target = Target.test(sources: [],
                                  resources: [],
                                  actions: [
-                                     TargetAction(name: "post", order: .post, path: path.appending(component: "script.sh"), arguments: ["arg"], showEnvVarsInLog: false, basedOnDependencyAnalysis: false),
-                                     TargetAction(name: "pre", order: .pre, path: path.appending(component: "script.sh"), arguments: ["arg"]),
+                                     TargetAction(
+                                         name: "post",
+                                         order: .post,
+                                         script: .scriptPath(path.appending(component: "script.sh"), args: ["arg"]),
+                                         showEnvVarsInLog: false,
+                                         basedOnDependencyAnalysis: false
+                                     ),
+                                     TargetAction(
+                                         name: "pre",
+                                         order: .pre,
+                                         script: .scriptPath(path.appending(component: "script.sh"), args: ["arg"])
+                                     ),
                                  ])
         let project = Project.test(path: path, sourceRootPath: path, xcodeProjPath: path.appending(component: "Project.xcodeproj"), targets: [target])
         let groups = ProjectGroups.generate(project: project,
