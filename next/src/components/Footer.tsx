@@ -54,7 +54,7 @@ const Footer = () => {
         </div>
         <div
           css={[
-            tw`text-lg flex flex-col items-center space-y-2 md:flex-row md:flex-wrap md:space-x-3 md:justify-center`,
+            tw`text-lg flex flex-col items-center space-y-2 md:space-y-0 md:flex-row md:flex-wrap md:space-x-3 md:justify-center`,
           ]}
         >
           <div css={[tw`flex flex-row space-x-1 items-center`]}>
