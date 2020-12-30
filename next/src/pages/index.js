@@ -4,6 +4,8 @@ import tw from 'twin.macro'
 import featureManifestImage from './images/feature-manifest.svg'
 import featureHelpersImage from './images/feature-helpers.svg'
 import featureScaffoldImage from './images/feature-scaffold.svg'
+import communityGitHubImage from './images/community-github.svg'
+import communitySlackImage from './images/community-slack.svg'
 
 const Features = () => {
   const featureCSS = [tw`space-y-4`]
@@ -59,10 +61,40 @@ const Features = () => {
     </section>
   )
 }
+const Community = () => {
+  const textCSS = tw`text-xl text-center font-tuist md:text-2xl md:text-left`
+  const highlightCSS = tw`bg-purple-200 font-bold p-1`
+  const sectionCSS = tw`space-y-10`
+  return (
+    <section css={tw`px-10 py-10 md:px-20 md:py-20`}>
+      <div
+        css={tw`mx-auto w-full md:max-w-5xl grid justify-items-center gap-4 grid-cols-1 grid-rows-2 md:gap-10 md:grid-cols-2 md:grid-rows-1`}
+      >
+        <div css={sectionCSS}>
+          <div css={textCSS}>
+            Benefit from extensive documentation and our{' '}
+            <span css={highlightCSS}>Slack community</span> for support to scale
+            Xcode projects at any stage
+          </div>
+          <img css={tw`mx-auto`} src={communitySlackImage} />
+        </div>
+        <div css={sectionCSS}>
+          <img css={tw`mx-auto`} src={communityGitHubImage} />
+          <div css={textCSS}>
+            <span css={highlightCSS}>Join contributors</span> from all over the
+            world to shape the next versions of Tuist. From small contributions
+            to important features, mentors will help you go get started.
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
 const IndexPage = () => {
   return (
     <MainLayout>
       <Features />
+      <Community />
     </MainLayout>
   )
 }
