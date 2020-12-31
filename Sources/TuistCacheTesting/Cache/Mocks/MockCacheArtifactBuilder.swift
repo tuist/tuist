@@ -24,7 +24,7 @@ public final class MockCacheArtifactBuilder: CacheArtifactBuilding {
     public var invokedBuildWorkspacePathParametersList = [(workspacePath: AbsolutePath, target: Target, outputDirectory: AbsolutePath)]()
     public var stubbedBuildWorkspacePathError: Error?
 
-    public func build(workspacePath: AbsolutePath, target: Target, into outputDirectory: AbsolutePath) throws {
+    public func build(workspacePath: AbsolutePath, target: Target, configuration: String?, into outputDirectory: AbsolutePath) throws {
         invokedBuildWorkspacePath = true
         invokedBuildWorkspacePathCount += 1
         invokedBuildWorkspacePathParameters = (workspacePath, target, outputDirectory)
@@ -40,7 +40,7 @@ public final class MockCacheArtifactBuilder: CacheArtifactBuilding {
     public var invokedBuildProjectPathParametersList = [(projectPath: AbsolutePath, target: Target, outputDirectory: AbsolutePath)]()
     public var stubbedBuildProjectPathError: Error?
 
-    public func build(projectPath: AbsolutePath, target: Target, into outputDirectory: AbsolutePath) throws {
+    public func build(projectPath: AbsolutePath, target: Target, configuration: String?, into outputDirectory: AbsolutePath) throws {
         invokedBuildProjectPath = true
         invokedBuildProjectPathCount += 1
         invokedBuildProjectPathParameters = (projectPath, target, outputDirectory)
