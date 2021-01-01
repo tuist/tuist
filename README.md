@@ -29,7 +29,7 @@ It's open source and written in Swift.
 ### Running script (Recommended)
 
 ```bash
-bash <(curl -Ls https://install.tuist.io)
+bash <(curl -Ls https://releases.tuist.io/scripts/install)
 ```
 
 ## Bootstrap your first project 🌀
@@ -122,6 +122,7 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
 
 <!-- markdownlint-enable -->
 <!-- prettier-ignore-end -->
+
 <!-- ALL-CONTRIBUTORS-LIST:END -->
 
 This project follows the [all-contributors](https://github.com/all-contributors/all-contributors) specification. Contributions of any kind welcome!
