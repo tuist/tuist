@@ -214,7 +214,7 @@ def decrypt_secrets
 end
 
 def release_scripts
-  bucket = storage.bucket("releases.tuist.io")
+  bucket = storage.bucket("tuist-releases")
   print_section("Uploading installation scripts to the tuist-releases bucket on GCS")
   bucket.create_file("script/install", "scripts/install").acl.public!
   bucket.create_file("script/uninstall", "scripts/uninstall").acl.public!

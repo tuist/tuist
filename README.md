@@ -29,7 +29,7 @@ It's open source and written in Swift.
 ### Running script (Recommended)
 
 ```bash
-bash <(curl -Ls https://releases.tuist.io/scripts/install)
+bash <(curl -Ls https://install.tuist.io)
 ```
 
 ## Bootstrap your first project 🌀
