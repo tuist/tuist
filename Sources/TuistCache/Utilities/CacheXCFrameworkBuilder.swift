@@ -119,11 +119,11 @@ public final class CacheXCFrameworkBuilder: CacheArtifactBuilding {
             .xcarg("SKIP_INSTALL", "NO"),
             .xcarg("BUILD_LIBRARY_FOR_DISTRIBUTION", "YES"),
         ]
-        
+
         if let configuration = configuration {
             arguments.append(.configuration(configuration))
         }
-        
+
         // Without the BUILD_LIBRARY_FOR_DISTRIBUTION argument xcodebuild doesn't generate the .swiftinterface file
         _ = try xcodeBuildController.archive(projectTarget,
                                              scheme: scheme,
@@ -150,11 +150,11 @@ public final class CacheXCFrameworkBuilder: CacheArtifactBuilding {
             .xcarg("SKIP_INSTALL", "NO"),
             .xcarg("BUILD_LIBRARY_FOR_DISTRIBUTION", "YES"),
         ]
-        
+
         if let configuration = configuration {
             arguments.append(.configuration(configuration))
         }
-        
+
         // Without the BUILD_LIBRARY_FOR_DISTRIBUTION argument xcodebuild doesn't generate the .swiftinterface file
         _ = try xcodeBuildController.archive(projectTarget,
                                              scheme: scheme,

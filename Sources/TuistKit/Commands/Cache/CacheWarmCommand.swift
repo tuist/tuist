@@ -16,7 +16,7 @@ struct CacheWarmCommand: ParsableCommand {
         completion: .directory
     )
     var path: String?
-    
+
     @Option(
         name: [.long, .customShort("C")],
         help: "The configuration to be used when compiling the targets that will be cached."
