@@ -117,10 +117,11 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
   </tr>
   <tr>
     <td align="center"><a href="https://twitter.com/dchavezlive"><img src="https://avatars0.githubusercontent.com/u/2475932?v=4" width="100px;" alt=""/><br /><sub><b>David Chavez</b></sub></a></td>
+    <td align="center"><a href="https://www.linkedin.com/in/роман-подымов-72338ab0/"><img src="https://avatars3.githubusercontent.com/u/10789692?v=4" width="100px;" alt=""/><br /><sub><b>Roman Podymov</b></sub></a></td>
   </tr>
 </table>
 
-<!-- markdownlint-enable -->
+<!-- markdownlint-restore -->
 <!-- prettier-ignore-end -->
 
 <!-- ALL-CONTRIBUTORS-LIST:END -->
