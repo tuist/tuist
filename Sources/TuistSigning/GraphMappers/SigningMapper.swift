@@ -93,14 +93,3 @@ public class SigningMapper: ProjectMapping {
         return target
     }
 }
-
-extension Dictionary where Key == Fingerprint, Value == Certificate {
-    func first(for provisioningProfile: ProvisioningProfile) -> Certificate? {
-        for fingerprint in provisioningProfile.developerCertificateFingerprints {
-            if let certificate = self[fingerprint] {
-                return certificate
-            }
-        }
-        return nil
-    }
-}

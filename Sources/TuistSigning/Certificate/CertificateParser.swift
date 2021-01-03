@@ -32,6 +32,9 @@ protocol CertificateParsing {
     /// Parse public-private key pair
     /// - Returns: Parse `Certificate`
     func parse(publicKey: AbsolutePath, privateKey: AbsolutePath) throws -> Certificate
+
+    /// Retrieve fingerprint of a public key
+    func parseFingerPrint(developerCertificate: Data) throws -> String
 }
 
 /// Subject attributes that are returnen with `openssl x509 -subject`
