@@ -21,6 +21,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Support `.s` source files [#2199](https://github.com/tuist/tuist/pull/2199) by[ @dcvz](https://github.com/dcvz).
 - Support for printing from the manifest files [#2215](https://github.com/tuist/tuist/pull/2215) by @pepibumur](https://github.com/pepibumur).
 
+### Changed
+
+- Replace `@UIApplicationMain` and `@NSApplicationMain` with `@main` [#2222](https://github.com/tuist/tuist/pull/2222) by [@RomanPodymov](https://github.com/RomanPodymov).
+
 ## 1.29.0 - Tutu
 
 ### Fixed
