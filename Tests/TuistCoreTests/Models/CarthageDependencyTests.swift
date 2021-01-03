@@ -4,7 +4,7 @@ import XCTest
 @testable import TuistCore
 @testable import TuistSupportTesting
 
-final class CarthageDependencyTests: TuistTestCase {
+final class CarthageDependencyTests: TuistUnitTestCase {
     func test_cartfileValue_github_exact() throws {
         // Given
         let dependency = CarthageDependency(origin: .github(path: "Alamofire/Alamofire"), requirement: .exact("1.2.3"), platforms: [.iOS])
