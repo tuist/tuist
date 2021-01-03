@@ -6,7 +6,7 @@ let project = Project.app(
     dependencies: [
         .project(
             target: "FrameworkA",
-            path: .relativeToRoot("Projects/FrameworkA")
+            path: .relativeToRoot("FrameworkA")
         )
     ]
 )
