@@ -206,6 +206,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "RomanPodymov",
+      "name": "Roman Podymov",
+      "avatar_url": "https://avatars3.githubusercontent.com/u/10789692?v=4",
+      "profile": "https://www.linkedin.com/in/роман-подымов-72338ab0/",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,
