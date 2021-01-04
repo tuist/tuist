@@ -1,1 +1,1 @@
-(env/prepend-to-pathlist "PATH" "./bin")
+(env/prepend-to-pathlist "PATH" (expand-path "./bin"))
