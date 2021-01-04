@@ -755,6 +755,238 @@ class StaticProductsGraphLinterTests: XCTestCase {
         ])
     }
 
+    func test_lint_whenNoStaticProductLinkedTwice_extensions() throws {
+        // Given
+        let path: AbsolutePath = "/project"
+        let app = Target.test(name: "App")
+        let appExtension = Target.test(name: "AppExtension", product: .appExtension)
+        let staticFramework = Target.test(name: "StaticFramework", product: .staticFramework)
+        let project = Project.test(targets: [app, appExtension, staticFramework])
+
+        let appDependency = ValueGraphDependency.target(name: app.name, path: path)
+        let appExtensionDependency = ValueGraphDependency.target(name: appExtension.name, path: path)
+        let staticFrameworkDependency = ValueGraphDependency.target(name: staticFramework.name, path: path)
+
+        let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
+            // apps declare they bundle extensions via dependencies
+            appDependency: Set([staticFrameworkDependency, appExtensionDependency]),
+            appExtensionDependency: Set([staticFrameworkDependency]),
+            staticFrameworkDependency: Set([]),
+        ]
+        let graph = ValueGraph.test(path: path,
+                                    projects: [path: project],
+                                    targets: [path: [
+                                        app.name: app,
+                                        appExtension.name: appExtension,
+                                        staticFramework.name: staticFramework,
+                                    ]],
+                                    dependencies: dependencies)
+        let graphTraverser = ValueGraphTraverser(graph: graph)
+
+        // When
+        let results = subject.lint(graphTraverser: graphTraverser)
+
+        // Then
+        XCTAssertTrue(results.isEmpty)
+    }
+
+    func test_lint_whenStaticProductLinkedTwice_extensions() throws {
+        // Given
+        let path: AbsolutePath = "/project"
+        let app = Target.test(name: "App")
+        let appExtension = Target.test(name: "AppExtension", product: .appExtension)
+        let framework = Target.test(name: "Framework", product: .framework)
+        let staticFramework = Target.test(name: "StaticFramework", product: .staticFramework)
+        let project = Project.test(targets: [app, appExtension, framework, staticFramework])
+
+        let appDependency = ValueGraphDependency.target(name: app.name, path: path)
+        let appExtensionDependency = ValueGraphDependency.target(name: appExtension.name, path: path)
+        let frameworkDependency = ValueGraphDependency.target(name: framework.name, path: path)
+        let staticFrameworkDependency = ValueGraphDependency.target(name: staticFramework.name, path: path)
+
+        let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
+            // apps declare they bundle extensions via dependencies
+            appDependency: Set([staticFrameworkDependency, appExtensionDependency]),
+            appExtensionDependency: Set([staticFrameworkDependency, frameworkDependency]),
+            frameworkDependency: Set([staticFrameworkDependency]),
+            staticFrameworkDependency: Set([]),
+        ]
+        let graph = ValueGraph.test(path: path,
+                                    projects: [path: project],
+                                    targets: [path: [
+                                        app.name: app,
+                                        appExtension.name: appExtension,
+                                        staticFramework.name: staticFramework,
+                                        framework.name: framework,
+                                    ]],
+                                    dependencies: dependencies)
+        let graphTraverser = ValueGraphTraverser(graph: graph)
+
+        // When
+        let results = subject.lint(graphTraverser: graphTraverser)
+
+        // Then
+        XCTAssertEqual(results, [
+            warning(product: "StaticFramework", linkedBy: [appExtensionDependency, frameworkDependency]),
+        ])
+    }
+
+    func test_lint_whenNoStaticProductLinkedTwice_appClips() throws {
+        // Given
+        let path: AbsolutePath = "/project"
+        let app = Target.test(name: "App")
+        let appClip = Target.test(name: "WatchApp", product: .appClip)
+        let staticFramework = Target.test(name: "StaticFramework", product: .staticFramework)
+        let project = Project.test(targets: [app, appClip, staticFramework])
+
+        let appDependency = ValueGraphDependency.target(name: app.name, path: path)
+        let appClipDependency = ValueGraphDependency.target(name: appClip.name, path: path)
+        let staticFrameworkDependency = ValueGraphDependency.target(name: staticFramework.name, path: path)
+
+        let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
+            // apps declare they bundle app clips via dependencies
+            appDependency: Set([staticFrameworkDependency, appClipDependency]),
+            appClipDependency: Set([staticFrameworkDependency]),
+            staticFrameworkDependency: Set([]),
+        ]
+        let graph = ValueGraph.test(path: path,
+                                    projects: [path: project],
+                                    targets: [path: [
+                                        app.name: app,
+                                        appClip.name: appClip,
+                                        staticFramework.name: staticFramework,
+                                    ]],
+                                    dependencies: dependencies)
+        let graphTraverser = ValueGraphTraverser(graph: graph)
+
+        // When
+        let results = subject.lint(graphTraverser: graphTraverser)
+
+        // Then
+        XCTAssertTrue(results.isEmpty)
+    }
+
+    func test_lint_whenStaticProductLinkedTwice_appClips() throws {
+        // Given
+        let path: AbsolutePath = "/project"
+        let app = Target.test(name: "App")
+        let appClip = Target.test(name: "AppClip", product: .appClip)
+        let framework = Target.test(name: "Framework", product: .framework)
+        let staticFramework = Target.test(name: "StaticFramework", product: .staticFramework)
+        let project = Project.test(targets: [app, appClip, framework, staticFramework])
+
+        let appDependency = ValueGraphDependency.target(name: app.name, path: path)
+        let appClipDependency = ValueGraphDependency.target(name: appClip.name, path: path)
+        let frameworkDependency = ValueGraphDependency.target(name: framework.name, path: path)
+        let staticFrameworkDependency = ValueGraphDependency.target(name: staticFramework.name, path: path)
+
+        let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
+            // apps declare they bundle app clips via dependencies
+            appDependency: Set([staticFrameworkDependency, appClipDependency]),
+            appClipDependency: Set([frameworkDependency, staticFrameworkDependency]),
+            frameworkDependency: Set([staticFrameworkDependency]),
+            staticFrameworkDependency: Set([]),
+        ]
+        let graph = ValueGraph.test(path: path,
+                                    projects: [path: project],
+                                    targets: [path: [
+                                        app.name: app,
+                                        appClip.name: appClip,
+                                        framework.name: framework,
+                                        staticFramework.name: staticFramework,
+                                    ]],
+                                    dependencies: dependencies)
+        let graphTraverser = ValueGraphTraverser(graph: graph)
+
+        // When
+        let results = subject.lint(graphTraverser: graphTraverser)
+
+        // Then
+        XCTAssertEqual(results, [
+            warning(product: "StaticFramework", linkedBy: [appClipDependency, frameworkDependency]),
+        ])
+    }
+
+    func test_lint_whenNoStaticProductLinkedTwice_swiftPackagesAndWatchAppExtensions() throws {
+        // Given
+        let path: AbsolutePath = "/project"
+        let app = Target.test(name: "App", platform: .iOS, product: .app)
+        let watchApp = Target.test(name: "WatchApp", platform: .watchOS, product: .watch2App)
+        let watchAppExtension = Target.test(name: "WatchAppExtension", platform: .watchOS, product: .watch2Extension)
+        let project = Project.test(targets: [app, watchApp, watchAppExtension])
+
+        let appDependency = ValueGraphDependency.target(name: app.name, path: path)
+        let watchAppDependency = ValueGraphDependency.target(name: watchApp.name, path: path)
+        let watchAppExtensionDependency = ValueGraphDependency.target(name: watchAppExtension.name, path: path)
+        let swiftPackage = ValueGraphDependency.packageProduct(path: "/path/to/package", product: "LocalPackage")
+
+        let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
+            // apps declare they bundle watch apps via dependencies
+            appDependency: Set([swiftPackage, watchAppDependency]),
+            // apps declare they bundle extensions via dependencies
+            watchAppDependency: Set([watchAppExtensionDependency]),
+            watchAppExtensionDependency: Set([swiftPackage]),
+        ]
+        let graph = ValueGraph.test(path: path,
+                                    projects: [path: project],
+                                    targets: [path: [
+                                        app.name: app,
+                                        watchApp.name: watchApp,
+                                        watchAppExtension.name: watchAppExtension,
+                                    ]],
+                                    dependencies: dependencies)
+        let graphTraverser = ValueGraphTraverser(graph: graph)
+
+        // When
+        let results = subject.lint(graphTraverser: graphTraverser)
+
+        // Then
+        XCTAssertTrue(results.isEmpty)
+    }
+
+    func test_lint_whenStaticProductLinkedTwice_swiftPackagesAndWatchAppExtensions() throws {
+        // Given
+        let path: AbsolutePath = "/project"
+        let app = Target.test(name: "App", platform: .iOS, product: .app)
+        let watchApp = Target.test(name: "WatchApp", platform: .watchOS, product: .watch2App)
+        let watchAppExtension = Target.test(name: "WatchAppExtension", platform: .watchOS, product: .watch2Extension)
+        let watchFramework = Target.test(name: "WatchFramework", platform: .watchOS, product: .framework)
+        let project = Project.test(targets: [app, watchApp, watchAppExtension, watchFramework])
+
+        let appDependency = ValueGraphDependency.target(name: app.name, path: path)
+        let watchAppDependency = ValueGraphDependency.target(name: watchApp.name, path: path)
+        let watchAppExtensionDependency = ValueGraphDependency.target(name: watchAppExtension.name, path: path)
+        let watchFrameworkDependency = ValueGraphDependency.target(name: watchFramework.name, path: path)
+        let swiftPackage = ValueGraphDependency.packageProduct(path: "/path/to/package", product: "LocalPackage")
+
+        let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
+            // apps declare they bundle watch apps via dependencies
+            appDependency: Set([swiftPackage, watchAppDependency]),
+            // apps declare they bundle extensions via dependencies
+            watchAppDependency: Set([watchAppExtensionDependency]),
+            watchAppExtensionDependency: Set([swiftPackage, watchFrameworkDependency]),
+            watchFrameworkDependency: Set([swiftPackage]),
+        ]
+        let graph = ValueGraph.test(path: path,
+                                    projects: [path: project],
+                                    targets: [path: [
+                                        app.name: app,
+                                        watchApp.name: watchApp,
+                                        watchAppExtension.name: watchAppExtension,
+                                        watchFramework.name: watchFramework,
+                                    ]],
+                                    dependencies: dependencies)
+        let graphTraverser = ValueGraphTraverser(graph: graph)
+
+        // When
+        let results = subject.lint(graphTraverser: graphTraverser)
+
+        // Then
+        XCTAssertEqual(results, [
+            warning(product: "LocalPackage", type: "Package", linkedBy: [watchAppExtensionDependency, watchFrameworkDependency]),
+        ])
+    }
+
     // MARK: - Helpers
 
     private func warning(product node: String, type: String = "Target", linkedBy: [ValueGraphDependency]) -> LintingIssue {

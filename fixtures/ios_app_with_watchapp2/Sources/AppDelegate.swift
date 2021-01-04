@@ -1,7 +1,9 @@
 import UIKit
+import LibraryA
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
+    private let libraryClass = LibraryAClass()
 
     var window: UIWindow?
 

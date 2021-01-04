@@ -1,0 +1,257 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`useSiteLinks returns the GitHub organization link from the site metadata 1`] = `
+[MockFunction] {
+  "calls": Array [
+    Array [
+      Array [
+        "
+    query SiteLinks {
+      site {
+        siteMetadata {
+          links {
+            slack
+            releases
+            githubRepository
+            githubOrganization
+          }
+        }
+      }
+    }
+  ",
+      ],
+    ],
+    Array [
+      Array [
+        "
+    query SiteLinks {
+      site {
+        siteMetadata {
+          links {
+            slack
+            releases
+            githubRepository
+            githubOrganization
+          }
+        }
+      }
+    }
+  ",
+      ],
+    ],
+    Array [
+      Array [
+        "
+    query SiteLinks {
+      site {
+        siteMetadata {
+          links {
+            slack
+            releases
+            githubRepository
+            githubOrganization
+          }
+        }
+      }
+    }
+  ",
+      ],
+    ],
+    Array [
+      Array [
+        "
+    query SiteLinks {
+      site {
+        siteMetadata {
+          links {
+            slack
+            releases
+            githubRepository
+            githubOrganization
+          }
+        }
+      }
+    }
+  ",
+      ],
+    ],
+  ],
+  "results": Array [
+    Object {
+      "type": "return",
+      "value": undefined,
+    },
+    Object {
+      "type": "return",
+      "value": undefined,
+    },
+    Object {
+      "type": "return",
+      "value": undefined,
+    },
+    Object {
+      "type": "return",
+      "value": undefined,
+    },
+  ],
+}
+`;
+
+exports[`useSiteLinks returns the GitHub repository link from the site metadata 1`] = `
+[MockFunction] {
+  "calls": Array [
+    Array [
+      Array [
+        "
+    query SiteLinks {
+      site {
+        siteMetadata {
+          links {
+            slack
+            releases
+            githubRepository
+            githubOrganization
+          }
+        }
+      }
+    }
+  ",
+      ],
+    ],
+    Array [
+      Array [
+        "
+    query SiteLinks {
+      site {
+        siteMetadata {
+          links {
+            slack
+            releases
+            githubRepository
+            githubOrganization
+          }
+        }
+      }
+    }
+  ",
+      ],
+    ],
+    Array [
+      Array [
+        "
+    query SiteLinks {
+      site {
+        siteMetadata {
+          links {
+            slack
+            releases
+            githubRepository
+            githubOrganization
+          }
+        }
+      }
+    }
+  ",
+      ],
+    ],
+  ],
+  "results": Array [
+    Object {
+      "type": "return",
+      "value": undefined,
+    },
+    Object {
+      "type": "return",
+      "value": undefined,
+    },
+    Object {
+      "type": "return",
+      "value": undefined,
+    },
+  ],
+}
+`;
+
+exports[`useSiteLinks returns the Slack link from the site metadata 1`] = `
+[MockFunction] {
+  "calls": Array [
+    Array [
+      Array [
+        "
+    query SiteLinks {
+      site {
+        siteMetadata {
+          links {
+            slack
+            releases
+            githubRepository
+            githubOrganization
+          }
+        }
+      }
+    }
+  ",
+      ],
+    ],
+  ],
+  "results": Array [
+    Object {
+      "type": "return",
+      "value": undefined,
+    },
+  ],
+}
+`;
+
+exports[`useSiteLinks returns the releases link from the site metadata 1`] = `
+[MockFunction] {
+  "calls": Array [
+    Array [
+      Array [
+        "
+    query SiteLinks {
+      site {
+        siteMetadata {
+          links {
+            slack
+            releases
+            githubRepository
+            githubOrganization
+          }
+        }
+      }
+    }
+  ",
+      ],
+    ],
+    Array [
+      Array [
+        "
+    query SiteLinks {
+      site {
+        siteMetadata {
+          links {
+            slack
+            releases
+            githubRepository
+            githubOrganization
+          }
+        }
+      }
+    }
+  ",
+      ],
+    ],
+  ],
+  "results": Array [
+    Object {
+      "type": "return",
+      "value": undefined,
+    },
+    Object {
+      "type": "return",
+      "value": undefined,
+    },
+  ],
+}
+`;

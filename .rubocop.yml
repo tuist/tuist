@@ -1,9 +1,14 @@
 inherit_from:
   - http://shopify.github.io/ruby-style-guide/rubocop.yml
+require:
+  - rubocop-rake
+  - rubocop-minitest
 
 Style/ClassAndModuleChildren:
   Enabled: false
 Style/RedundantBegin:
+  Enabled: false
+Lint/MissingSuper:
   Enabled: false
 
 AllCops:
@@ -14,7 +19,6 @@ AllCops:
     - features/**/*
     - fixtures/**/*
     - .build/**/*
-    - .circleci/**/*
     - .vscode/**/*
     - assets/**/*
     - build/**/*
@@ -22,4 +26,6 @@ AllCops:
     - Sources/**/*
     - Tests/**/*
     - .github/**/*
-    - website/node_modules/**/*
+    - website/**/*
+    - next/**/*
+    - vendor/**/*

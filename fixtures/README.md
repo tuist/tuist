@@ -321,3 +321,7 @@ A project with an invalid manifest
 ## framework_with_environment_variables
 
 A framework project that leverages environment variables to change the name of the framework.
+
+## manifest_with_logs
+
+A project that contains logs to verify that the logs are forwarded by Tuist.

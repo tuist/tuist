@@ -2,6 +2,9 @@
   "recommendations": [
     "blodwynn.featurehighlight",
     "silvenon.mdx",
-    "bradlc.vscode-tailwindcss"
+    "bradlc.vscode-tailwindcss",
+    "rebornix.ruby",
+    "misogi.ruby-rubocop",
+    "shopify.vscode-shadowenv"
   ]
 }

@@ -36,6 +36,13 @@ final class PlatformTests: XCTestCase {
         XCTAssertTrue(Platform.tvOS.hasSimulators)
     }
 
+    func test_carthageDirectory() {
+        XCTAssertEqual(Platform.tvOS.carthageDirectory, "tvOS")
+        XCTAssertEqual(Platform.iOS.carthageDirectory, "iOS")
+        XCTAssertEqual(Platform.watchOS.carthageDirectory, "watchOS")
+        XCTAssertEqual(Platform.macOS.carthageDirectory, "Mac")
+    }
+
     func test_xcodeSdkRootPath() {
         // Given
         let platforms: [Platform] = [

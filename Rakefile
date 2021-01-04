@@ -3,6 +3,7 @@
 SWIFTDOC_VERSION = "1.0.0-beta.5"
 SWIFTLINT_VERSION = "0.40.2"
 
+require 'rake/testtask'
 require 'rubygems'
 require 'cucumber'
 require 'cucumber/rake/task'
@@ -17,8 +18,14 @@ require 'json'
 require 'zip'
 require 'macho'
 
-Cucumber::Rake::Task.new(:features) do |t|
-  t.cucumber_opts = "--format pretty"
+desc("Runs the Fourier tests")
+Rake::TestTask.new do |t|
+  t.name = "test_fourier"
+  t.libs += [File.expand_path('./tools/fourier/test', __dir__)]
+  test_root = File.expand_path('./tools/fourier/test', __dir__)
+  t.test_files = FileList[File.join(test_root, '**', '*_test.rb')]
+  t.verbose = false
+  t.warning = false
 end
 
 desc("Updates swift-doc binary with the latest version available.")
@@ -114,24 +121,6 @@ desc("Publishes the installation scripts")
 task :release_scripts do
   decrypt_secrets
   release_scripts
-end
-
-desc("Packages tuist, tags it with the commit sha and uploads it to gcs")
-task :package_commit do
-  decrypt_secrets
-  package
-
-  bucket = storage.bucket("tuist-builds")
-
-  sha = %x(git rev-parse HEAD).strip.chomp
-  print_section("Uploading tuist-#{sha}")
-  file = bucket.create_file(
-    "build/tuist.zip",
-    "#{sha}.zip"
-  )
-
-  file.acl.public!
-  print_section("Uploaded 🚀")
 end
 
 desc("Encrypt secret keys")

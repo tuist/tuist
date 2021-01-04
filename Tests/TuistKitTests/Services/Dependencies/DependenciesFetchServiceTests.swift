@@ -6,10 +6,12 @@ import XCTest
 @testable import TuistCoreTesting
 @testable import TuistDependenciesTesting
 @testable import TuistKit
+@testable import TuistLoaderTesting
 @testable import TuistSupportTesting
 
 final class DependenciesFetchServiceTests: TuistUnitTestCase {
     private var dependenciesController: MockDependenciesController!
+    private var dependenciesModelLoader: MockDependenciesModelLoader!
 
     private var subject: DependenciesFetchService!
 
@@ -17,40 +19,42 @@ final class DependenciesFetchServiceTests: TuistUnitTestCase {
         super.setUp()
 
         dependenciesController = MockDependenciesController()
+        dependenciesModelLoader = MockDependenciesModelLoader()
 
-        subject = DependenciesFetchService(dependenciesController: dependenciesController)
+        subject = DependenciesFetchService(dependenciesController: dependenciesController,
+                                           dependenciesModelLoader: dependenciesModelLoader)
     }
 
     override func tearDown() {
         subject = nil
 
         dependenciesController = nil
+        dependenciesModelLoader = nil
 
         super.tearDown()
     }
 
     func test_run() throws {
         // Given
-        let path = try temporaryPath()
+        let stubbedPath = try temporaryPath()
+        let stubbedDependencies = Dependencies(
+            carthageDependencies: [
+                CarthageDependency(origin: .github(path: "Dependency1"), requirement: .exact("1.1.1"), platforms: [.iOS, .macOS]),
+            ]
+        )
+        dependenciesModelLoader.loadDependenciesStub = { _ in stubbedDependencies }
 
         // When
-        try subject.run(path: path.pathString)
+        try subject.run(path: stubbedPath.pathString)
 
         // Then
         XCTAssertTrue(dependenciesController.invokedFetch)
         XCTAssertEqual(dependenciesController.invokedFetchCount, 1)
-        XCTAssertEqual(dependenciesController.invokedFetchParameters, path)
+        XCTAssertEqual(dependenciesController.invokedFetchParameters?.path, stubbedPath)
+        XCTAssertEqual(dependenciesController.invokedFetchParameters?.dependencies, stubbedDependencies)
 
-        XCTAssertFalse(dependenciesController.invokedUpdate)
-    }
-
-    func test_run_thorws_an_error() throws {
-        // Given
-        let path = try temporaryPath()
-        let error = TestError("Failed fetching!")
-        dependenciesController.stubbedFetchError = error
-
-        // When/Then
-        XCTAssertThrowsSpecific(try subject.run(path: path.pathString), error)
+        XCTAssertTrue(dependenciesModelLoader.invokedLoadDependencies)
+        XCTAssertEqual(dependenciesModelLoader.invokedLoadDependenciesCount, 1)
+        XCTAssertEqual(dependenciesModelLoader.invokedLoadDependenciesParameters, stubbedPath)
     }
 }
