@@ -249,7 +249,7 @@ class Generator: Generating {
         let (updatedGraph, graphMapperSideEffects) = try graphMapperProvider.mapper(config: config).map(graph: graph)
         let updatedWorkspace = updatedModels
             .workspace
-            .merging(projects: updatedGraph.projects.map(\.path))
+            .merging(projects: updatedGraph.projects.map(\.xcodeProjPath))
 
         return (
             project,

@@ -93,7 +93,7 @@ final class WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
             let targets = pbxproj.nativeTargets.map {
                 ($0.name, $0)
             }
-            return (project.path,
+            return (project.xcodeprojPath,
                     GeneratedProject(pbxproj: pbxproj,
                                      path: project.xcodeprojPath,
                                      targets: Dictionary(targets, uniquingKeysWith: { $1 }),

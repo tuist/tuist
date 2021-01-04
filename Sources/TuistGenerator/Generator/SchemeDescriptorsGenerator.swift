@@ -82,7 +82,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
     {
         try project.schemes.map { scheme in
             try generateScheme(scheme: scheme,
-                               path: project.path,
+                               path: project.xcodeProjPath.parentDirectory,
                                graphTraverser: graphTraverser,
                                generatedProjects: [project.path: generatedProject])
         }
@@ -521,7 +521,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
                                             generatedProject: GeneratedProject,
                                             rootPath: AbsolutePath) -> RelativePath
     {
-        let xcodeProjectPath = graphTarget.project.path.appending(component: generatedProject.name)
+        let xcodeProjectPath = graphTarget.project.xcodeProjPath
         return xcodeProjectPath.relative(to: rootPath)
     }
 
@@ -537,13 +537,13 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
                                           rootPath: AbsolutePath,
                                           generatedProjects: [AbsolutePath: GeneratedProject]) throws -> XCScheme.BuildableReference?
     {
-        let projectPath = graphTarget.project.path
+        let projectPath = graphTarget.project.xcodeProjPath
         guard let target = graphTraverser.target(path: graphTarget.project.path, name: graphTarget.target.name) else { return nil }
         guard let generatedProject = generatedProjects[projectPath] else { return nil }
         guard let pbxTarget = generatedProject.targets[graphTarget.target.name] else { return nil }
         let relativeXcodeProjectPath = resolveRelativeProjectPath(graphTarget: graphTarget,
                                                                   generatedProject: generatedProject,
-                                                                  rootPath: target.project.xcodeProjPath)
+                                                                  rootPath: rootPath)
 
         return targetBuildableReference(target: target.target,
                                         pbxTarget: pbxTarget,
