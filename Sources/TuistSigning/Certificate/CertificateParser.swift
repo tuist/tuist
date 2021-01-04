@@ -96,6 +96,11 @@ final class CertificateParser: CertificateParsing {
     private func subject(at path: AbsolutePath) throws -> String {
         do {
             return try System.shared.capture("openssl", "x509", "-inform", "der", "-in", path.pathString, "-noout", "-subject")
+        } catch let TuistSupport.SystemError.terminated(_, _, standardError) {
+            if let string = String(data: standardError, encoding: .utf8) {
+                logger.warning("Parsing subject of \(path) failed with: \(string)")
+            }
+            throw CertificateParserError.fileParsingFailed(path)
         } catch {
             throw CertificateParserError.fileParsingFailed(path)
         }
@@ -104,6 +109,11 @@ final class CertificateParser: CertificateParsing {
     private func fingerprint(at path: AbsolutePath) throws -> String {
         do {
             return try System.shared.capture("openssl", "x509", "-inform", "der", "-in", path.pathString, "-noout", "-fingerprint").spm_chomp()
+        } catch let TuistSupport.SystemError.terminated(_, _, standardError) {
+            if let string = String(data: standardError, encoding: .utf8) {
+                logger.warning("Parsing fingerprint of \(path) failed with: \(string)")
+            }
+            throw CertificateParserError.fileParsingFailed(path)
         } catch {
             throw CertificateParserError.fileParsingFailed(path)
         }
