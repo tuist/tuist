@@ -39,7 +39,7 @@
     "gatsby-plugin-robots-txt": "^1.5.3",
     "gatsby-plugin-sharp": "2.11.2",
     "gatsby-plugin-sitemap": "^2.9.0",
-    "gatsby-plugin-theme-ui": "^0.3.4",
+    "gatsby-plugin-theme-ui": "^0.3.5",
     "gatsby-redirect-from": "^0.2.4",
     "gatsby-remark-check-links": "^2.1.0",
     "gatsby-remark-copy-linked-files": "^2.6.0",
