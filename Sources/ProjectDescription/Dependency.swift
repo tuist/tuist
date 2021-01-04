@@ -25,7 +25,7 @@ public enum Dependency: Codable, Equatable {
         /// Mimics `"revision"` from `Cartfile`.
         case revision(String)
     }
-    
+
     /// Requirement for the Swift Package Manager dependency.
     public enum SPMRequirement: Codable, Equatable {
         /// Mimics `.exact("1.2.3")` from `Package.swift`.
@@ -231,7 +231,7 @@ extension Dependency.SPMRequirement {
         case branch
         case revision
     }
-    
+
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let kind = try container.decode(Kind.self, forKey: .kind)
@@ -262,7 +262,7 @@ extension Dependency.SPMRequirement {
             self = .branch(branch)
         }
     }
-    
+
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         switch self {
