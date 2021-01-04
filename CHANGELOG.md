@@ -20,7 +20,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Add support for embedded scripts in a TargetAction. [#2192](https://github.com/tuist/tuist/pull/2192) by [@jsorge]
 - Support `.s` source files [#2199](https://github.com/tuist/tuist/pull/2199) by[ @dcvz](https://github.com/dcvz).
 - Support for printing from the manifest files [#2215](https://github.com/tuist/tuist/pull/2215) by @pepibumur](https://github.com/pepibumur).
-- Add 'configuration' option to 'cache warm' command [#2190](https://github.com/tuist/tuist/issues/2190) by [@mollyIV](https://github.com/mollyIV).
+- Add `configuration` option to `cache warm` command [#2190](https://github.com/tuist/tuist/issues/2190) by [@mollyIV](https://github.com/mollyIV).
 
 ## 1.29.0 - Tutu
 
