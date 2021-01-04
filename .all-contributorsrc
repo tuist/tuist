@@ -215,6 +215,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "marcinreliga-fn",
+      "name": "Marcin Religa",
+      "avatar_url": "https://avatars0.githubusercontent.com/u/76949651?v=4",
+      "profile": "https://github.com/marcinreliga-fn",
+      "contributions": [
+        "ideas"
+      ]
     }
   ],
   "contributorsPerLine": 7,
