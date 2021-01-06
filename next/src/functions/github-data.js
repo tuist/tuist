@@ -8,9 +8,7 @@ exports.handler = async function (event, context) {
     Authorization: `token ${process.env.GITHUB_TOKEN}`,
   }
   const response = await fetch(url, { headers })
-  console.log(headers)
-  const body = response.json()
-  console.log(body)
+  const body = await response.json()
   return {
     statusCode: 200,
     body: JSON.stringify(body),
