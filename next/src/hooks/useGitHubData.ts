@@ -1,10 +1,14 @@
 export type GitHubData = {
-  name: string
+  contributors: number
+  stars: number
+  forks: number
 }
 
 const useGitHubData = (): GitHubData => {
   return {
-    name: 'test',
+    contributors: 44,
+    stars: 33,
+    forks: 1,
   }
 }
 
