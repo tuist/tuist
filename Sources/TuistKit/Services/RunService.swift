@@ -19,7 +19,7 @@ enum RunServiceError: FatalError {
         case let .platformNotSupported(platformName):
             return "The Run command does not support \(platformName)"
         case let .schemeNotFound(schemeName, buildableSchemes):
-            return "\(schemeName) could not be found \(buildableSchemes), but here are the available schemes: \(buildableSchemes)"
+            return "\(schemeName) could not be found, but here are the available schemes: \(buildableSchemes)"
         case let .targetNotFound(schemeName):
             return "Couldn't find \(schemeName)"
         }
@@ -84,7 +84,7 @@ final class RunService {
             let graph = try generator.load(path: FileHandler.shared.currentPath)
             let schemes = buildGraphInspector.buildableSchemes(graph: graph)
             guard let scheme = schemes.first(where: { $0.name == schemeName }) else {
-                return Observable.error(RunServiceError.schemeNotFound(schemeName: schemeName, buildableSchemes: schemes.map { $0.name }))
+                return Observable.error(RunServiceError.schemeNotFound(schemeName: schemeName, buildableSchemes: schemes.map(\.name)))
             }
             buildableTarget = buildGraphInspector.buildableTarget(scheme: scheme, graph: graph)
             let workspacePath = try buildGraphInspector.workspacePath(directory: FileHandler.shared.currentPath)!
