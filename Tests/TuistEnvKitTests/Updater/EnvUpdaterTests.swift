@@ -32,7 +32,7 @@ final class EnvUpdaterTests: TuistUnitTestCase {
         system.succeedCommand(["/usr/bin/unzip", "-o", downloadPath.pathString, "-d", "/tmp/"])
         system.succeedCommand(["/bin/chmod", "+x", "/tmp/tuistenv"])
         system.succeedCommand(["/bin/cp", "-rf", "/tmp/tuistenv", "/usr/local/bin/tuist"])
-        system.succeedCommand(["/bin/ln", "-s", "/usr/local/bin/tuist", "/usr/local/bin/swift-project"])
+        system.succeedCommand(["/bin/ln", "-sf", "/usr/local/bin/tuist", "/usr/local/bin/swift-project"])
         system.succeedCommand(["/bin/rm", "/tmp/tuistenv"])
 
         // When

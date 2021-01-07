@@ -2,7 +2,7 @@
 import {{ name }}Kit
 import {{ name }}UI
 
-@NSApplicationMain
+@main
 class AppDelegate: NSObject, NSApplicationDelegate {
 
     @IBOutlet weak var window: NSWindow!
@@ -19,7 +19,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 import {{ name }}Kit
 import {{ name }}UI
 
-@UIApplicationMain
+@main
 class AppDelegate: UIResponder, UIApplicationDelegate {
 
     var window: UIWindow?

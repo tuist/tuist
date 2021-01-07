@@ -69,7 +69,7 @@ const Companies = () => {
       <div css={tw`mx-auto w-full md:max-w-5xl relative`}>
         <div css={[tw`static z-0 grid grid-cols-2 grid-rows-1`]}>
           <h2 css={tw`text-primary font-extrabold text-5xl font-tuist`}>
-            You'll be in great company
+            {`You'll be in great company`}
           </h2>
           <figure
             css={tw`bg-primary text-white rounded-lg p-8 font-tuist space-y-5`}
