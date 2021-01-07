@@ -14,8 +14,7 @@ public extension ValueGraphDependency {
                               bcsymbolmapPaths: [AbsolutePath] = [],
                               linking: BinaryLinking = .dynamic,
                               architectures: [BinaryArchitecture] = [.armv7],
-                              isCarthage: Bool = false) -> ValueGraphDependency
-    {
+                              isCarthage: Bool = false) -> ValueGraphDependency {
         ValueGraphDependency.framework(path: path,
                                        binaryPath: binaryPath,
                                        dsymPath: dsymPath,
@@ -28,8 +27,7 @@ public extension ValueGraphDependency {
     static func testXCFramework(path: AbsolutePath = AbsolutePath.root.appending(RelativePath("Test.xcframework")),
                                 infoPlist: XCFrameworkInfoPlist = .test(),
                                 primaryBinaryPath: AbsolutePath = AbsolutePath.root.appending(RelativePath("Test.xcframework/Test")),
-                                linking: BinaryLinking = .dynamic) -> ValueGraphDependency
-    {
+                                linking: BinaryLinking = .dynamic) -> ValueGraphDependency {
         .xcframework(path: path,
                      infoPlist: infoPlist,
                      primaryBinaryPath: primaryBinaryPath,
@@ -37,8 +35,7 @@ public extension ValueGraphDependency {
     }
 
     static func testTarget(name: String = "Test",
-                           path: AbsolutePath = .root) -> ValueGraphDependency
-    {
+                           path: AbsolutePath = .root) -> ValueGraphDependency {
         .target(name: name,
                 path: path)
     }
@@ -46,8 +43,7 @@ public extension ValueGraphDependency {
     static func testSDK(name: String = "XCTest",
                         path: AbsolutePath = AbsolutePath.root.appending(RelativePath("XCTest.framework")),
                         status: SDKStatus = .required,
-                        source: SDKSource = .system) -> ValueGraphDependency
-    {
+                        source: SDKSource = .system) -> ValueGraphDependency {
         .sdk(name: name,
              path: path,
              status: status,
@@ -58,8 +54,7 @@ public extension ValueGraphDependency {
                             publicHeaders: AbsolutePath = AbsolutePath.root.appending(RelativePath("headers")),
                             linking: BinaryLinking = .dynamic,
                             architectures: [BinaryArchitecture] = [.armv7],
-                            swiftModuleMap: AbsolutePath? = nil) -> ValueGraphDependency
-    {
+                            swiftModuleMap: AbsolutePath? = nil) -> ValueGraphDependency {
         .library(path: path,
                  publicHeaders: publicHeaders,
                  linking: linking,
@@ -68,8 +63,7 @@ public extension ValueGraphDependency {
     }
 
     static func testPackageProduct(path: AbsolutePath = .root,
-                                   product: String = "Tuist") -> ValueGraphDependency
-    {
+                                   product: String = "Tuist") -> ValueGraphDependency {
         .packageProduct(path: path,
                         product: product)
     }

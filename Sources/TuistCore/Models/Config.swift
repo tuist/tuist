@@ -49,8 +49,7 @@ public struct Config: Equatable, Hashable {
                 cloud: Cloud?,
                 plugins: [PluginLocation],
                 generationOptions: [GenerationOption],
-                path: AbsolutePath?)
-    {
+                path: AbsolutePath?) {
         self.compatibleXcodeVersions = compatibleXcodeVersions
         self.cloud = cloud
         self.plugins = plugins

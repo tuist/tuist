@@ -9,8 +9,7 @@ extension Certificate {
                      name: String = "",
                      targetName: String = "",
                      configurationName: String = "",
-                     isRevoked: Bool = false) -> Certificate
-    {
+                     isRevoked: Bool = false) -> Certificate {
         Certificate(publicKey: publicKey,
                     privateKey: privateKey,
                     developmentTeam: developmentTeam,

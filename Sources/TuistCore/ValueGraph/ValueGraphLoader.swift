@@ -278,8 +278,7 @@ public final class ValueGraphLoader: ValueGraphLoading {
     private func loadSDK(name: String,
                          platform: Platform,
                          status: SDKStatus,
-                         source: SDKSource) throws -> ValueGraphDependency
-    {
+                         source: SDKSource) throws -> ValueGraphDependency {
         let metadata = try systemFrameworkMetadataProvider.loadMetadata(sdkName: name, status: status, platform: platform, source: source)
         return .sdk(name: metadata.name, path: metadata.path, status: metadata.status, source: metadata.source)
     }

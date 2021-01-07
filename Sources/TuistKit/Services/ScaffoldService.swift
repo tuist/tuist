@@ -35,8 +35,7 @@ class ScaffoldService {
 
     init(templateLoader: TemplateLoading = TemplateLoader(),
          templatesDirectoryLocator: TemplatesDirectoryLocating = TemplatesDirectoryLocator(),
-         templateGenerator: TemplateGenerating = TemplateGenerator())
-    {
+         templateGenerator: TemplateGenerating = TemplateGenerator()) {
         self.templateLoader = templateLoader
         self.templatesDirectoryLocator = templatesDirectoryLocator
         self.templateGenerator = templateGenerator
@@ -44,8 +43,7 @@ class ScaffoldService {
 
     func loadTemplateOptions(templateName: String,
                              path: String?) throws -> (required: [String],
-                                                       optional: [String])
-    {
+                                                       optional: [String]) {
         let path = self.path(path)
         let directories = try templatesDirectoryLocator.templateDirectories(at: path)
 
@@ -67,8 +65,7 @@ class ScaffoldService {
     func run(path: String?,
              templateName: String,
              requiredTemplateOptions: [String: String],
-             optionalTemplateOptions: [String: String?]) throws
-    {
+             optionalTemplateOptions: [String: String?]) throws {
         let path = self.path(path)
 
         let templateDirectories = try templatesDirectoryLocator.templateDirectories(at: path)
@@ -104,8 +101,7 @@ class ScaffoldService {
     /// - Returns: Array of parsed attributes
     private func parseAttributes(requiredTemplateOptions: [String: String],
                                  optionalTemplateOptions: [String: String?],
-                                 template: Template) throws -> [String: String]
-    {
+                                 template: Template) throws -> [String: String] {
         try template.attributes.reduce(into: [:]) { attributesDictionary, attribute in
             switch attribute {
             case let .required(name):

@@ -46,8 +46,7 @@ final class LintCodeService {
          codeLinter: CodeLinting = CodeLinter(),
          manifestLoading: ManifestLoading = ManifestLoader(),
          graphLoader: GraphLoading = GraphLoader(modelLoader: GeneratorModelLoader(manifestLoader: ManifestLoader(),
-                                                                                   manifestLinter: AnyManifestLinter())))
-    {
+                                                                                   manifestLinter: AnyManifestLinter()))) {
         self.rootDirectoryLocator = rootDirectoryLocator
         self.codeLinter = codeLinter
         self.manifestLoading = manifestLoading

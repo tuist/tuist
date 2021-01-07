@@ -4,8 +4,7 @@ import TSCBasic
 
 extension SimulatorDeviceAndRuntime {
     static func test(device: SimulatorDevice = .test(),
-                     runtime: SimulatorRuntime = .test()) -> SimulatorDeviceAndRuntime
-    {
+                     runtime: SimulatorRuntime = .test()) -> SimulatorDeviceAndRuntime {
         SimulatorDeviceAndRuntime(device: device, runtime: runtime)
     }
 }

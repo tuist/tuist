@@ -10,8 +10,7 @@ extension Config {
 extension Template {
     public static func test(description: String = "Template",
                             attributes: [Template.Attribute] = [],
-                            files: [Template.File] = []) -> Template
-    {
+                            files: [Template.File] = []) -> Template {
         Template(description: description,
                  attributes: attributes,
                  files: files)
@@ -21,8 +20,7 @@ extension Template {
 extension Workspace {
     public static func test(name: String = "Workspace",
                             projects: [Path] = [],
-                            additionalFiles: [FileElement] = []) -> Workspace
-    {
+                            additionalFiles: [FileElement] = []) -> Workspace {
         Workspace(name: name,
                   projects: projects,
                   additionalFiles: additionalFiles)
@@ -34,8 +32,7 @@ extension Project {
                             organizationName: String? = nil,
                             settings: Settings? = nil,
                             targets: [Target] = [],
-                            additionalFiles: [FileElement] = []) -> Project
-    {
+                            additionalFiles: [FileElement] = []) -> Project {
         Project(name: name,
                 organizationName: organizationName,
                 settings: settings,
@@ -59,8 +56,7 @@ extension Target {
                             dependencies: [TargetDependency] = [],
                             settings: Settings? = nil,
                             coreDataModels: [CoreDataModel] = [],
-                            environment: [String: String] = [:]) -> Target
-    {
+                            environment: [String: String] = [:]) -> Target {
         Target(name: name,
                platform: platform,
                product: product,
@@ -83,8 +79,7 @@ extension TargetAction {
     public static func test(name: String = "Action",
                             tool: String = "",
                             order: Order = .pre,
-                            arguments: [String] = []) -> TargetAction
-    {
+                            arguments: [String] = []) -> TargetAction {
         TargetAction(name: name,
                      script: .tool(tool, arguments),
                      order: order)
@@ -96,8 +91,7 @@ extension Scheme {
                             shared: Bool = false,
                             buildAction: BuildAction? = nil,
                             testAction: TestAction? = nil,
-                            runAction: RunAction? = nil) -> Scheme
-    {
+                            runAction: RunAction? = nil) -> Scheme {
         Scheme(name: name,
                shared: shared,
                buildAction: buildAction,
@@ -118,8 +112,7 @@ extension TestAction {
     public static func test(targets: [TestableTarget] = [],
                             arguments: Arguments? = nil,
                             config: PresetBuildConfiguration = .debug,
-                            coverage: Bool = true) -> TestAction
-    {
+                            coverage: Bool = true) -> TestAction {
         TestAction(targets: targets,
                    arguments: arguments,
                    config: config,
@@ -132,8 +125,7 @@ extension TestAction {
 extension RunAction {
     public static func test(config: PresetBuildConfiguration = .debug,
                             executable: TargetReference? = nil,
-                            arguments: Arguments? = nil) -> RunAction
-    {
+                            arguments: Arguments? = nil) -> RunAction {
         RunAction(config: config,
                   executable: executable,
                   arguments: arguments)
@@ -143,8 +135,7 @@ extension RunAction {
 extension ExecutionAction {
     public static func test(title: String = "Test Script",
                             scriptText: String = "echo Test",
-                            target: TargetReference? = TargetReference(projectPath: nil, target: "Target")) -> ExecutionAction
-    {
+                            target: TargetReference? = TargetReference(projectPath: nil, target: "Target")) -> ExecutionAction {
         ExecutionAction(title: title,
                         scriptText: scriptText,
                         target: target)
@@ -153,8 +144,7 @@ extension ExecutionAction {
 
 extension Arguments {
     public static func test(environment: [String: String] = [:],
-                            launchArguments: [LaunchArgument] = []) -> Arguments
-    {
+                            launchArguments: [LaunchArgument] = []) -> Arguments {
         Arguments(environment: environment,
                   launchArguments: launchArguments)
     }

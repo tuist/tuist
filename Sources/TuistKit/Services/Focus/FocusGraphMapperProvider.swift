@@ -13,8 +13,7 @@ final class FocusGraphMapperProvider: GraphMapperProviding {
          cache: Bool,
          cacheSources: Set<String>,
          cacheOutputType: CacheOutputType,
-         defaultProvider: GraphMapperProviding = GraphMapperProvider())
-    {
+         defaultProvider: GraphMapperProviding = GraphMapperProvider()) {
         self.contentHasher = contentHasher
         self.cacheSources = cacheSources
         self.cache = cache

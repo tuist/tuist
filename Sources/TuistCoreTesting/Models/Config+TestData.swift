@@ -7,8 +7,7 @@ public extension Config {
                      cloud: Cloud? = Cloud.test(),
                      plugins: [PluginLocation] = [],
                      generationOptions: [GenerationOption] = [],
-                     path: AbsolutePath? = nil) -> Config
-    {
+                     path: AbsolutePath? = nil) -> Config {
         Config(compatibleXcodeVersions: compatibleXcodeVersions,
                cloud: cloud,
                plugins: plugins,

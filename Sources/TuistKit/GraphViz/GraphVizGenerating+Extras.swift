@@ -8,8 +8,7 @@ extension GraphVizGenerating {
     func generate(at path: AbsolutePath,
                   manifestLoader: ManifestLoading,
                   skipTestTargets: Bool,
-                  skipExternalDependencies: Bool) throws -> GraphViz.Graph
-    {
+                  skipExternalDependencies: Bool) throws -> GraphViz.Graph {
         let manifests = manifestLoader.manifests(at: path)
 
         if manifests.contains(.workspace) {

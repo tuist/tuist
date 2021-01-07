@@ -475,8 +475,7 @@ public class Graph: Encodable, Equatable {
 
     public func findAll<T: GraphNode, S: GraphNode>(targetNode: TargetNode,
                                                     test: (T) -> Bool = { _ in true },
-                                                    skip: (S) -> Bool = { _ in false }) -> Set<T>
-    {
+                                                    skip: (S) -> Bool = { _ in false }) -> Set<T> {
         var stack = Stack<GraphNode>()
 
         stack.push(targetNode)

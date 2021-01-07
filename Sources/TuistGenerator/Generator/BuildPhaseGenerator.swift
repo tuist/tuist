@@ -60,8 +60,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                              graphTraverser: GraphTraversing,
                              pbxTarget: PBXTarget,
                              fileElements: ProjectFileElements,
-                             pbxproj: PBXProj) throws
-    {
+                             pbxproj: PBXProj) throws {
         if target.shouldIncludeHeadersBuildPhase, let headers = target.headers {
             try generateHeadersBuildPhase(headers: headers,
                                           pbxTarget: pbxTarget,
@@ -116,8 +115,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
     func generateActions(actions: [TargetAction],
                          pbxTarget: PBXTarget,
                          pbxproj: PBXProj,
-                         sourceRootPath: AbsolutePath) throws
-    {
+                         sourceRootPath: AbsolutePath) throws {
         try actions.forEach { action in
             let buildPhase = try PBXShellScriptBuildPhase(files: [],
                                                           name: action.name,
@@ -144,8 +142,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
 
     func generateScripts(_ scripts: [TargetScript],
                          pbxTarget: PBXTarget,
-                         pbxproj: PBXProj)
-    {
+                         pbxproj: PBXProj) {
         scripts.forEach { script in
             let buildPhase = PBXShellScriptBuildPhase(files: [],
                                                       name: script.name,
@@ -161,8 +158,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                                    coreDataModels: [CoreDataModel],
                                    pbxTarget: PBXTarget,
                                    fileElements: ProjectFileElements,
-                                   pbxproj: PBXProj) throws
-    {
+                                   pbxproj: PBXProj) throws {
         let sourcesBuildPhase = PBXSourcesBuildPhase()
         pbxproj.add(object: sourcesBuildPhase)
         pbxTarget.buildPhases.append(sourcesBuildPhase)
@@ -215,8 +211,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
     func generateHeadersBuildPhase(headers: Headers,
                                    pbxTarget: PBXTarget,
                                    fileElements: ProjectFileElements,
-                                   pbxproj: PBXProj) throws
-    {
+                                   pbxproj: PBXProj) throws {
         let headersBuildPhase = PBXHeadersBuildPhase()
         pbxproj.add(object: headersBuildPhase)
         pbxTarget.buildPhases.append(headersBuildPhase)
@@ -243,8 +238,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                                      graphTraverser: GraphTraversing,
                                      pbxTarget: PBXTarget,
                                      fileElements: ProjectFileElements,
-                                     pbxproj: PBXProj) throws
-    {
+                                     pbxproj: PBXProj) throws {
         let resourcesBuildPhase = PBXResourcesBuildPhase()
         pbxproj.add(object: resourcesBuildPhase)
         pbxTarget.buildPhases.append(resourcesBuildPhase)
@@ -265,8 +259,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
     func generateCopyFilesBuildPhases(target: Target,
                                       pbxTarget: PBXTarget,
                                       fileElements: ProjectFileElements,
-                                      pbxproj: PBXProj) throws
-    {
+                                      pbxproj: PBXProj) throws {
         try target.copyFiles.forEach { action in
             let copyFilesPhase = PBXCopyFilesBuildPhase(
                 dstPath: action.subpath,
@@ -298,8 +291,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
     private func generateResourcesBuildFile(files: [AbsolutePath],
                                             fileElements: ProjectFileElements,
                                             pbxproj: PBXProj,
-                                            resourcesBuildPhase: PBXResourcesBuildPhase) throws
-    {
+                                            resourcesBuildPhase: PBXResourcesBuildPhase) throws {
         var buildFilesCache = Set<AbsolutePath>()
         try files.sorted().forEach { buildFilePath in
             let pathString = buildFilePath.pathString
@@ -341,8 +333,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
     private func generateCoreDataModel(coreDataModel: CoreDataModel,
                                        fileElements: ProjectFileElements,
                                        pbxproj: PBXProj,
-                                       sourcesBuildPhase: PBXSourcesBuildPhase)
-    {
+                                       sourcesBuildPhase: PBXSourcesBuildPhase) {
         let currentVersion = coreDataModel.currentVersion
         let path = coreDataModel.path
         let currentVersionPath = path.appending(component: "\(currentVersion).xcdatamodel")
@@ -361,8 +352,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                                         graphTraverser: GraphTraversing,
                                         fileElements: ProjectFileElements,
                                         pbxproj: PBXProj,
-                                        resourcesBuildPhase: PBXResourcesBuildPhase)
-    {
+                                        resourcesBuildPhase: PBXResourcesBuildPhase) {
         let bundles = graphTraverser
             .resourceBundleDependencies(path: path, name: target.name)
             .sorted()
@@ -380,8 +370,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                                          graphTraverser: GraphTraversing,
                                          pbxTarget: PBXTarget,
                                          fileElements: ProjectFileElements,
-                                         pbxproj: PBXProj) throws
-    {
+                                         pbxproj: PBXProj) throws {
         let appExtensions = graphTraverser.appExtensionDependencies(path: path, name: target.name).sorted()
         guard !appExtensions.isEmpty else { return }
 
@@ -403,8 +392,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                                       graphTraverser: GraphTraversing,
                                       pbxTarget: PBXTarget,
                                       fileElements: ProjectFileElements,
-                                      pbxproj: PBXProj) throws
-    {
+                                      pbxproj: PBXProj) throws {
         let targetDependencies = graphTraverser.directTargetDependencies(path: path, name: target.name).sorted()
         let watchApps = targetDependencies.filter { $0.target.product == .watch2App }
         guard !watchApps.isEmpty else { return }
@@ -429,8 +417,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                                          graphTraverser: GraphTraversing,
                                          pbxTarget: PBXTarget,
                                          fileElements: ProjectFileElements,
-                                         pbxproj: PBXProj) throws
-    {
+                                         pbxproj: PBXProj) throws {
         guard target.product == .app else {
             return
         }

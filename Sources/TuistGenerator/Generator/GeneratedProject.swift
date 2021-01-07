@@ -25,8 +25,7 @@ final class GeneratedProject {
     init(pbxproj: PBXProj,
          path: AbsolutePath,
          targets: [String: PBXNativeTarget],
-         name: String)
-    {
+         name: String) {
         self.pbxproj = pbxproj
         self.path = path
         self.targets = targets

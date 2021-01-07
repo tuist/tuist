@@ -15,8 +15,7 @@ class TargetLinter: TargetLinting {
     // MARK: - Init
 
     init(settingsLinter: SettingsLinting = SettingsLinter(),
-         targetActionLinter: TargetActionLinting = TargetActionLinter())
-    {
+         targetActionLinter: TargetActionLinting = TargetActionLinter()) {
         self.settingsLinter = settingsLinter
         self.targetActionLinter = targetActionLinter
     }
@@ -141,8 +140,7 @@ class TargetLinter: TargetLinting {
         var issues: [LintingIssue] = []
         if let infoPlist = target.infoPlist,
             case let InfoPlist.file(path: path) = infoPlist,
-            !FileHandler.shared.exists(path)
-        {
+            !FileHandler.shared.exists(path) {
             issues.append(LintingIssue(reason: "Info.plist file not found at path \(infoPlist.path!.pathString)", severity: .error))
         }
         return issues
@@ -200,8 +198,7 @@ class TargetLinter: TargetLinting {
         ]
 
         if let invalidProducts = invalidProductsForPlatforms[target.platform],
-            invalidProducts.contains(target.product)
-        {
+            invalidProducts.contains(target.product) {
             return [
                 LintingIssue(reason: "'\(target.name)' for platform '\(target.platform)' can't have a product type '\(target.product)'",
                              severity: .error),

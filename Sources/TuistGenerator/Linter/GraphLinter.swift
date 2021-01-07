@@ -24,8 +24,7 @@ public class GraphLinter: GraphLinting {
     }
 
     init(projectLinter: ProjectLinting,
-         staticProductsLinter: StaticProductsGraphLinting)
-    {
+         staticProductsLinter: StaticProductsGraphLinting) {
         self.projectLinter = projectLinter
         self.staticProductsLinter = staticProductsLinter
     }

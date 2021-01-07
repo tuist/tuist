@@ -32,8 +32,7 @@ public struct CopyFilesAction: Equatable {
     public init(name: String,
                 destination: Destination,
                 subpath: String? = nil,
-                files: [FileElement])
-    {
+                files: [FileElement]) {
         self.name = name
         self.destination = destination
         self.subpath = subpath

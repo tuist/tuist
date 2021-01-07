@@ -77,8 +77,7 @@ public struct TargetAction: Codable, Equatable {
          inputFileListPaths: [Path] = [],
          outputPaths: [Path] = [],
          outputFileListPaths: [Path] = [],
-         basedOnDependencyAnalysis: Bool? = nil)
-    {
+         basedOnDependencyAnalysis: Bool? = nil) {
         self.name = name
         self.script = script
         self.order = order
@@ -161,8 +160,7 @@ extension TargetAction {
                            inputFileListPaths: [Path] = [],
                            outputPaths: [Path] = [],
                            outputFileListPaths: [Path] = [],
-                           basedOnDependencyAnalysis: Bool? = nil) -> TargetAction
-    {
+                           basedOnDependencyAnalysis: Bool? = nil) -> TargetAction {
         TargetAction(name: name,
                      script: .tool(tool, arguments),
                      order: .pre,
@@ -192,8 +190,7 @@ extension TargetAction {
                            inputFileListPaths: [Path] = [],
                            outputPaths: [Path] = [],
                            outputFileListPaths: [Path] = [],
-                           basedOnDependencyAnalysis: Bool? = nil) -> TargetAction
-    {
+                           basedOnDependencyAnalysis: Bool? = nil) -> TargetAction {
         TargetAction(name: name,
                      script: .tool(tool, arguments),
                      order: .pre,
@@ -223,8 +220,7 @@ extension TargetAction {
                             inputFileListPaths: [Path] = [],
                             outputPaths: [Path] = [],
                             outputFileListPaths: [Path] = [],
-                            basedOnDependencyAnalysis: Bool? = nil) -> TargetAction
-    {
+                            basedOnDependencyAnalysis: Bool? = nil) -> TargetAction {
         TargetAction(name: name,
                      script: .tool(tool, arguments),
                      order: .post,
@@ -254,8 +250,7 @@ extension TargetAction {
                             inputFileListPaths: [Path] = [],
                             outputPaths: [Path] = [],
                             outputFileListPaths: [Path] = [],
-                            basedOnDependencyAnalysis: Bool? = nil) -> TargetAction
-    {
+                            basedOnDependencyAnalysis: Bool? = nil) -> TargetAction {
         TargetAction(name: name,
                      script: .tool(tool, arguments),
                      order: .post,
@@ -289,8 +284,7 @@ extension TargetAction {
                            inputFileListPaths: [Path] = [],
                            outputPaths: [Path] = [],
                            outputFileListPaths: [Path] = [],
-                           basedOnDependencyAnalysis: Bool? = nil) -> TargetAction
-    {
+                           basedOnDependencyAnalysis: Bool? = nil) -> TargetAction {
         TargetAction(name: name,
                      script: .scriptPath(path, args: arguments),
                      order: .pre,
@@ -320,8 +314,7 @@ extension TargetAction {
                            inputFileListPaths: [Path] = [],
                            outputPaths: [Path] = [],
                            outputFileListPaths: [Path] = [],
-                           basedOnDependencyAnalysis: Bool? = nil) -> TargetAction
-    {
+                           basedOnDependencyAnalysis: Bool? = nil) -> TargetAction {
         TargetAction(name: name,
                      script: .scriptPath(path, args: arguments),
                      order: .pre,
@@ -351,8 +344,7 @@ extension TargetAction {
                             inputFileListPaths: [Path] = [],
                             outputPaths: [Path] = [],
                             outputFileListPaths: [Path] = [],
-                            basedOnDependencyAnalysis: Bool? = nil) -> TargetAction
-    {
+                            basedOnDependencyAnalysis: Bool? = nil) -> TargetAction {
         TargetAction(name: name,
                      script: .scriptPath(path, args: arguments),
                      order: .post,
@@ -382,8 +374,7 @@ extension TargetAction {
                             inputFileListPaths: [Path] = [],
                             outputPaths: [Path] = [],
                             outputFileListPaths: [Path] = [],
-                            basedOnDependencyAnalysis: Bool? = nil) -> TargetAction
-    {
+                            basedOnDependencyAnalysis: Bool? = nil) -> TargetAction {
         TargetAction(name: name,
                      script: .scriptPath(path, args: arguments),
                      order: .post,
@@ -416,8 +407,7 @@ extension TargetAction {
                            inputFileListPaths: [Path] = [],
                            outputPaths: [Path] = [],
                            outputFileListPaths: [Path] = [],
-                           basedOnDependencyAnalysis: Bool? = nil) -> TargetAction
-    {
+                           basedOnDependencyAnalysis: Bool? = nil) -> TargetAction {
         TargetAction(name: name,
                      script: .embedded(script),
                      order: .pre,
@@ -446,8 +436,7 @@ extension TargetAction {
                             inputFileListPaths: [Path] = [],
                             outputPaths: [Path] = [],
                             outputFileListPaths: [Path] = [],
-                            basedOnDependencyAnalysis: Bool? = nil) -> TargetAction
-    {
+                            basedOnDependencyAnalysis: Bool? = nil) -> TargetAction {
         TargetAction(name: name,
                      script: .embedded(script),
                      order: .post,

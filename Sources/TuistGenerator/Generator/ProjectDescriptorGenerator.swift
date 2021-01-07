@@ -52,8 +52,7 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
     ///   - schemeDescriptorsGenerator: Generator for the project schemes.
     init(targetGenerator: TargetGenerating = TargetGenerator(),
          configGenerator: ConfigGenerating = ConfigGenerator(),
-         schemeDescriptorsGenerator: SchemeDescriptorsGenerating = SchemeDescriptorsGenerator())
-    {
+         schemeDescriptorsGenerator: SchemeDescriptorsGenerating = SchemeDescriptorsGenerator()) {
         self.targetGenerator = targetGenerator
         self.configGenerator = configGenerator
         self.schemeDescriptorsGenerator = schemeDescriptorsGenerator
@@ -63,8 +62,7 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
 
     // swiftlint:disable:next function_body_length
     func generate(project: Project,
-                  graphTraverser: GraphTraversing) throws -> ProjectDescriptor
-    {
+                  graphTraverser: GraphTraversing) throws -> ProjectDescriptor {
         logger.notice("Generating project \(project.name)")
 
         let workspaceData = XCWorkspaceData(children: [])
@@ -123,8 +121,7 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
                                     projectFileElements: ProjectFileElements,
                                     configurationList: XCConfigurationList,
                                     groups: ProjectGroups,
-                                    pbxproj: PBXProj) throws -> PBXProject
-    {
+                                    pbxproj: PBXProj) throws -> PBXProject {
         let defaultRegions = ["en", "Base"]
         let knownRegions = Set(defaultRegions + projectFileElements.knownRegions).sorted()
         let developmentRegion = project.developmentRegion ?? Xcode.Default.developmentRegion
@@ -151,8 +148,7 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
                                  pbxproj: PBXProj,
                                  pbxProject: PBXProject,
                                  fileElements: ProjectFileElements,
-                                 graphTraverser: GraphTraversing) throws -> [String: PBXNativeTarget]
-    {
+                                 graphTraverser: GraphTraversing) throws -> [String: PBXNativeTarget] {
         var nativeTargets: [String: PBXNativeTarget] = [:]
         try project.targets.forEach { target in
             let nativeTarget = try targetGenerator.generateTarget(target: target,
@@ -176,8 +172,7 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
 
     private func generateTestTargetIdentity(project _: Project,
                                             pbxproj: PBXProj,
-                                            pbxProject: PBXProject)
-    {
+                                            pbxProject: PBXProject) {
         func testTargetName(_ target: PBXTarget) -> String? {
             guard let buildConfigurations = target.buildConfigurationList?.buildConfigurations else {
                 return nil

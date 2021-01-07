@@ -39,8 +39,7 @@ public extension GraphDependencyReference {
     static func testLibrary(path: AbsolutePath = "/libraries/library.a",
                             linking: BinaryLinking = .static,
                             architectures: [BinaryArchitecture] = [BinaryArchitecture.arm64],
-                            product: Product = .staticLibrary) -> GraphDependencyReference
-    {
+                            product: Product = .staticLibrary) -> GraphDependencyReference {
         GraphDependencyReference.library(path: path,
                                          linking: linking,
                                          architectures: architectures,
@@ -49,8 +48,7 @@ public extension GraphDependencyReference {
 
     static func testSDK(path: AbsolutePath = "/path/CoreData.framework",
                         status: SDKStatus = .required,
-                        source: SDKSource = .system) -> GraphDependencyReference
-    {
+                        source: SDKSource = .system) -> GraphDependencyReference {
         GraphDependencyReference.sdk(path: path,
                                      status: status,
                                      source: source)

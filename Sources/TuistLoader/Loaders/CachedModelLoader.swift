@@ -10,8 +10,7 @@ public class CachedModelLoader: GeneratorModelLoading {
     private let configs: [AbsolutePath: Config]
     public init(workspace: [Workspace] = [],
                 projects: [Project] = [],
-                configs: [AbsolutePath: Config] = [:])
-    {
+                configs: [AbsolutePath: Config] = [:]) {
         workspaces = Dictionary(uniqueKeysWithValues: workspace.map {
             ($0.path, $0)
         })
