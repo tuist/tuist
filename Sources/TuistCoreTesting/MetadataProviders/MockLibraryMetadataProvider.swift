@@ -6,7 +6,8 @@ public final class MockLibraryMetadataProvider: MockPrecompiledMetadataProvider,
     public var loadMetadataStub: ((AbsolutePath, AbsolutePath, AbsolutePath?) throws -> LibraryMetadata)?
     public func loadMetadata(at path: AbsolutePath,
                              publicHeaders: AbsolutePath,
-                             swiftModuleMap: AbsolutePath?) throws -> LibraryMetadata {
+                             swiftModuleMap: AbsolutePath?) throws -> LibraryMetadata
+    {
         if let stub = loadMetadataStub {
             return try stub(path, publicHeaders, swiftModuleMap)
         } else {

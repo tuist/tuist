@@ -22,7 +22,8 @@ class UpCarthage: Up, GraphInitiatable {
     ///   - carthage: Carthage instace to interact with the project Carthage setup.
     init(platforms: [Platform],
          upHomebrew: Upping = UpHomebrew(packages: ["carthage"]),
-         carthage: Carthaging = Carthage()) {
+         carthage: Carthaging = Carthage())
+    {
         self.platforms = platforms
         self.upHomebrew = upHomebrew
         self.carthage = carthage

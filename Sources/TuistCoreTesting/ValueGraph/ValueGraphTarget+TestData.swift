@@ -6,7 +6,8 @@ import TSCBasic
 public extension ValueGraphTarget {
     static func test(path: AbsolutePath = .root,
                      target: Target = .test(),
-                     project: Project = .test()) -> ValueGraphTarget {
+                     project: Project = .test()) -> ValueGraphTarget
+    {
         ValueGraphTarget(path: path,
                          target: target,
                          project: project)

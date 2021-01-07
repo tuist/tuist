@@ -25,7 +25,8 @@ public extension Target {
                      dependencies: [Dependency] = [],
                      scripts: [TargetScript] = [],
                      launchArguments: [LaunchArgument] = [],
-                     playgrounds: [AbsolutePath] = []) -> Target {
+                     playgrounds: [AbsolutePath] = []) -> Target
+    {
         Target(name: name,
                platform: platform,
                product: product,
@@ -68,7 +69,8 @@ public extension Target {
                       environment: [String: String] = [:],
                       filesGroup: ProjectGroup = .group(name: "Project"),
                       dependencies: [Dependency] = [],
-                      scripts: [TargetScript] = []) -> Target {
+                      scripts: [TargetScript] = []) -> Target
+    {
         Target(name: name,
                platform: platform,
                product: product,

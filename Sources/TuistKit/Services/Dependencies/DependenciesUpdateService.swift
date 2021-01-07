@@ -34,7 +34,8 @@ final class DependenciesUpdateService {
     private let dependenciesModelLoader: DependenciesModelLoading
 
     init(dependenciesController: DependenciesControlling = DependenciesController(),
-         dependenciesModelLoader: DependenciesModelLoading = DependenciesModelLoader()) {
+         dependenciesModelLoader: DependenciesModelLoading = DependenciesModelLoader())
+    {
         self.dependenciesController = dependenciesController
         self.dependenciesModelLoader = dependenciesModelLoader
     }

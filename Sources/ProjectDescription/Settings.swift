@@ -209,7 +209,8 @@ public struct Settings: Equatable, Codable {
     public init(base: SettingsDictionary = [:],
                 debug: Configuration? = nil,
                 release: Configuration? = nil,
-                defaultSettings: DefaultSettings = .recommended) {
+                defaultSettings: DefaultSettings = .recommended)
+    {
         configurations = [
             CustomConfiguration(name: "Debug", variant: .debug, configuration: debug),
             CustomConfiguration(name: "Release", variant: .release, configuration: release),
@@ -233,7 +234,8 @@ public struct Settings: Equatable, Codable {
     /// - seealso: DefaultSettings
     public init(base: SettingsDictionary = [:],
                 configurations: [CustomConfiguration],
-                defaultSettings: DefaultSettings = .recommended) {
+                defaultSettings: DefaultSettings = .recommended)
+    {
         self.base = base
         self.configurations = configurations
         self.defaultSettings = defaultSettings

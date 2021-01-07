@@ -18,7 +18,8 @@ class ProjectLinter: ProjectLinting {
 
     init(targetLinter: TargetLinting = TargetLinter(),
          settingsLinter: SettingsLinting = SettingsLinter(),
-         schemeLinter: SchemeLinting = SchemeLinter()) {
+         schemeLinter: SchemeLinting = SchemeLinter())
+    {
         self.targetLinter = targetLinter
         self.settingsLinter = settingsLinter
         self.schemeLinter = schemeLinter

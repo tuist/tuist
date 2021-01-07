@@ -28,7 +28,8 @@ public class TargetNode: GraphNode {
     public init(project: Project,
                 target: Target,
                 dependencies: [GraphNode],
-                prune: Bool = false) {
+                prune: Bool = false)
+    {
         self.project = project
         self.target = target
         self.dependencies = dependencies

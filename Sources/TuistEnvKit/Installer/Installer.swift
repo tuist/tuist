@@ -62,7 +62,8 @@ final class Installer: Installing {
 
     init(buildCopier: BuildCopying = BuildCopier(),
          versionsController: VersionsControlling = VersionsController(),
-         googleCloudStorageClient: GoogleCloudStorageClienting = GoogleCloudStorageClient()) {
+         googleCloudStorageClient: GoogleCloudStorageClienting = GoogleCloudStorageClient())
+    {
         self.buildCopier = buildCopier
         self.versionsController = versionsController
         self.googleCloudStorageClient = googleCloudStorageClient
@@ -99,7 +100,8 @@ final class Installer: Installing {
 
     func installFromBundle(bundleURL: URL,
                            version: String,
-                           temporaryDirectory: AbsolutePath) throws {
+                           temporaryDirectory: AbsolutePath) throws
+    {
         try versionsController.install(version: version, installation: { installationDirectory in
 
             // Download bundle
@@ -119,7 +121,8 @@ final class Installer: Installing {
 
     // swiftlint:disable:next function_body_length
     func installFromSource(version: String,
-                           temporaryDirectory: AbsolutePath) throws {
+                           temporaryDirectory: AbsolutePath) throws
+    {
         try versionsController.install(version: version) { installationDirectory in
             // Paths
             let buildDirectory = temporaryDirectory.appending(RelativePath(".build/release/"))

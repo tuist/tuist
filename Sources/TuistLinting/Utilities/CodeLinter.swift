@@ -17,7 +17,8 @@ public final class CodeLinter: CodeLinting {
     private let binaryLocator: BinaryLocating
 
     public init(rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator(),
-                binaryLocator: BinaryLocating = BinaryLocator()) {
+                binaryLocator: BinaryLocating = BinaryLocator())
+    {
         self.rootDirectoryLocator = rootDirectoryLocator
         self.binaryLocator = binaryLocator
     }
@@ -61,7 +62,8 @@ public final class CodeLinter: CodeLinting {
 
     private func buildSwiftLintArguments(swiftLintPath: AbsolutePath,
                                          sources _: [AbsolutePath],
-                                         configPath: AbsolutePath?) -> [String] {
+                                         configPath: AbsolutePath?) -> [String]
+    {
         var arguments = [swiftLintPath.pathString,
                          "lint",
                          "--use-script-input-files"]

@@ -70,7 +70,8 @@ public struct Target: Equatable, Hashable, Comparable {
                 filesGroup: ProjectGroup,
                 dependencies: [Dependency] = [],
                 scripts: [TargetScript] = [],
-                playgrounds: [AbsolutePath] = []) {
+                playgrounds: [AbsolutePath] = [])
+    {
         self.name = name
         self.product = product
         self.platform = platform

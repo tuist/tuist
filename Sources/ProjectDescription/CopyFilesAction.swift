@@ -32,7 +32,8 @@ public struct CopyFilesAction: Codable, Equatable {
     init(name: String,
          destination: Destination,
          subpath: String? = nil,
-         files: [FileElement]) {
+         files: [FileElement])
+    {
         self.name = name
         self.destination = destination
         self.subpath = subpath
@@ -49,7 +50,8 @@ public struct CopyFilesAction: Codable, Equatable {
     /// - Returns: Copy files action.
     public static func productsDirectory(name: String,
                                          subpath: String? = nil,
-                                         files: [FileElement]) -> CopyFilesAction {
+                                         files: [FileElement]) -> CopyFilesAction
+    {
         CopyFilesAction(name: name,
                         destination: .productsDirectory,
                         subpath: subpath,
@@ -64,7 +66,8 @@ public struct CopyFilesAction: Codable, Equatable {
     /// - Returns: Copy files action.
     public static func wrapper(name: String,
                                subpath: String? = nil,
-                               files: [FileElement]) -> CopyFilesAction {
+                               files: [FileElement]) -> CopyFilesAction
+    {
         CopyFilesAction(name: name,
                         destination: .wrapper,
                         subpath: subpath,
@@ -79,7 +82,8 @@ public struct CopyFilesAction: Codable, Equatable {
     /// - Returns: Copy files action.
     public static func executables(name: String,
                                    subpath: String? = nil,
-                                   files: [FileElement]) -> CopyFilesAction {
+                                   files: [FileElement]) -> CopyFilesAction
+    {
         CopyFilesAction(name: name,
                         destination: .executables,
                         subpath: subpath,
@@ -94,7 +98,8 @@ public struct CopyFilesAction: Codable, Equatable {
     /// - Returns: Copy files action.
     public static func resources(name: String,
                                  subpath: String? = nil,
-                                 files: [FileElement]) -> CopyFilesAction {
+                                 files: [FileElement]) -> CopyFilesAction
+    {
         CopyFilesAction(name: name,
                         destination: .resources,
                         subpath: subpath,
@@ -109,7 +114,8 @@ public struct CopyFilesAction: Codable, Equatable {
     /// - Returns: Copy files action.
     public static func javaResources(name: String,
                                      subpath: String? = nil,
-                                     files: [FileElement]) -> CopyFilesAction {
+                                     files: [FileElement]) -> CopyFilesAction
+    {
         CopyFilesAction(name: name,
                         destination: .javaResources,
                         subpath: subpath,
@@ -124,7 +130,8 @@ public struct CopyFilesAction: Codable, Equatable {
     /// - Returns: Copy files action.
     public static func frameworks(name: String,
                                   subpath: String? = nil,
-                                  files: [FileElement]) -> CopyFilesAction {
+                                  files: [FileElement]) -> CopyFilesAction
+    {
         CopyFilesAction(name: name,
                         destination: .frameworks,
                         subpath: subpath,
@@ -139,7 +146,8 @@ public struct CopyFilesAction: Codable, Equatable {
     /// - Returns: Copy files action.
     public static func sharedFrameworks(name: String,
                                         subpath: String? = nil,
-                                        files: [FileElement]) -> CopyFilesAction {
+                                        files: [FileElement]) -> CopyFilesAction
+    {
         CopyFilesAction(name: name,
                         destination: .sharedFrameworks,
                         subpath: subpath,
@@ -154,7 +162,8 @@ public struct CopyFilesAction: Codable, Equatable {
     /// - Returns: Copy files action.
     public static func sharedSupport(name: String,
                                      subpath: String? = nil,
-                                     files: [FileElement]) -> CopyFilesAction {
+                                     files: [FileElement]) -> CopyFilesAction
+    {
         CopyFilesAction(name: name,
                         destination: .sharedSupport,
                         subpath: subpath,
@@ -169,7 +178,8 @@ public struct CopyFilesAction: Codable, Equatable {
     /// - Returns: Copy files action.
     public static func plugins(name: String,
                                subpath: String? = nil,
-                               files: [FileElement]) -> CopyFilesAction {
+                               files: [FileElement]) -> CopyFilesAction
+    {
         CopyFilesAction(name: name,
                         destination: .plugins,
                         subpath: subpath,

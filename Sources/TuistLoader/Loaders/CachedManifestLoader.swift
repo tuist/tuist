@@ -38,7 +38,8 @@ public class CachedManifestLoader: ManifestLoading {
          cacheDirectory: AbsolutePath,
          fileHandler: FileHandling,
          environment: Environmenting,
-         tuistVersion: String) {
+         tuistVersion: String)
+    {
         self.manifestLoader = manifestLoader
         self.projectDescriptionHelpersHasher = projectDescriptionHelpersHasher
         self.helpersDirectoryLocator = helpersDirectoryLocator
@@ -102,7 +103,8 @@ public class CachedManifestLoader: ManifestLoading {
 
         let cachedManifestPath = cachedPath(for: manifestPath)
         if let cached: T = loadCachedManifest(at: cachedManifestPath,
-                                              hashes: hashes) {
+                                              hashes: hashes)
+        {
             return cached
         }
 
@@ -123,7 +125,8 @@ public class CachedManifestLoader: ManifestLoading {
 
     private func calculateHashes(path: AbsolutePath,
                                  manifestPath: AbsolutePath,
-                                 manifest: Manifest) throws -> Hashes {
+                                 manifest: Manifest) throws -> Hashes
+    {
         let manifestHash = try calculateManifestHash(for: manifest, at: manifestPath)
         let helpersHash = try calculateHelpersHash(at: path)
         let environmentHash = calculateEnvironmentHash()
@@ -171,7 +174,8 @@ public class CachedManifestLoader: ManifestLoading {
     }
 
     private func loadCachedManifest<T: Decodable>(at cachedManifestPath: AbsolutePath,
-                                                  hashes: Hashes) -> T? {
+                                                  hashes: Hashes) -> T?
+    {
         guard fileHandler.exists(cachedManifestPath) else {
             return nil
         }
@@ -197,7 +201,8 @@ public class CachedManifestLoader: ManifestLoading {
     private func cacheManifest<T: Encodable>(manifest: Manifest,
                                              loadedManifest: T,
                                              hashes: Hashes,
-                                             to cachedManifestPath: AbsolutePath) throws {
+                                             to cachedManifestPath: AbsolutePath) throws
+    {
         let cachedManifest = CachedManifest(tuistVersion: tuistVersion,
                                             hashes: hashes,
                                             manifest: try encoder.encode(loadedManifest))

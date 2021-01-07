@@ -49,7 +49,8 @@ public final class LibraryMetadataProvider: PrecompiledMetadataProvider, Library
 
     public func loadMetadata(at path: AbsolutePath,
                              publicHeaders: AbsolutePath,
-                             swiftModuleMap: AbsolutePath?) throws -> LibraryMetadata {
+                             swiftModuleMap: AbsolutePath?) throws -> LibraryMetadata
+    {
         let fileHandler = FileHandler.shared
         guard fileHandler.exists(path) else {
             throw LibraryMetadataProviderError.libraryNotFound(path)

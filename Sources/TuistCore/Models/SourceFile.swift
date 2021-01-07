@@ -17,7 +17,8 @@ public struct SourceFile: ExpressibleByStringLiteral, Equatable {
 
     public init(path: AbsolutePath,
                 compilerFlags: String? = nil,
-                contentHash: String? = nil) {
+                contentHash: String? = nil)
+    {
         self.path = path
         self.compilerFlags = compilerFlags
         self.contentHash = contentHash

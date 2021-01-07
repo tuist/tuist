@@ -65,7 +65,8 @@ final class DocService {
          swiftDocServer: SwiftDocServing = SwiftDocServer(),
          fileHandler: FileHandling = FileHandler.shared,
          opener: Opening = Opener(),
-         semaphore: Semaphoring = Semaphore()) {
+         semaphore: Semaphoring = Semaphore())
+    {
         self.generator = generator
         self.swiftDocController = swiftDocController
         self.swiftDocServer = swiftDocServer

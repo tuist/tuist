@@ -42,7 +42,8 @@ public final class CacheRemoteStorage: CacheStoring {
     init(cloudConfig: Cloud,
          cloudClient: CloudClienting,
          fileArchiverFactory: FileArchivingFactorying,
-         fileClient: FileClienting) {
+         fileClient: FileClienting)
+    {
         self.cloudConfig = cloudConfig
         self.cloudClient = cloudClient
         self.fileArchiverFactory = fileArchiverFactory

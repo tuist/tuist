@@ -16,7 +16,8 @@ public class SigningMapper: ProjectMapping {
 
     init(signingFilesLocator: SigningFilesLocating,
          signingMatcher: SigningMatching,
-         signingCipher: SigningCiphering) {
+         signingCipher: SigningCiphering)
+    {
         self.signingFilesLocator = signingFilesLocator
         self.signingMatcher = signingMatcher
         self.signingCipher = signingCipher
@@ -59,7 +60,8 @@ public class SigningMapper: ProjectMapping {
                      project: Project,
                      keychainPath: AbsolutePath,
                      certificates: [TargetName: [ConfigurationName: Certificate]],
-                     provisioningProfiles: [TargetName: [ConfigurationName: ProvisioningProfile]]) throws -> Target {
+                     provisioningProfiles: [TargetName: [ConfigurationName: ProvisioningProfile]]) throws -> Target
+    {
         var target = target
         let targetConfigurations = target.settings?.configurations ?? [:]
         let configurations: [BuildConfiguration: Configuration?] = targetConfigurations

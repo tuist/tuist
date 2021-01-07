@@ -7,7 +7,8 @@ public struct HTTPResource<T, E: Error>: Equatable, Hashable, CustomStringConver
 
     public init(request: @escaping () -> URLRequest,
                 parse: @escaping (Data, HTTPURLResponse) throws -> T,
-                parseError: @escaping (Data, HTTPURLResponse) throws -> E) {
+                parseError: @escaping (Data, HTTPURLResponse) throws -> E)
+    {
         self.request = request
         self.parse = parse
         self.parseError = parseError

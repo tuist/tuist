@@ -10,7 +10,8 @@ final class MockXcodeBuildController: XcodeBuildControlling {
     func build(_ target: XcodeBuildTarget,
                scheme: String,
                clean: Bool,
-               arguments: [XcodeBuildArgument]) -> Observable<SystemEvent<XcodeBuildOutput>> {
+               arguments: [XcodeBuildArgument]) -> Observable<SystemEvent<XcodeBuildOutput>>
+    {
         if let buildStub = buildStub {
             return buildStub(target, scheme, clean, arguments)
         } else {
@@ -38,7 +39,8 @@ final class MockXcodeBuildController: XcodeBuildControlling {
                  scheme: String,
                  clean: Bool,
                  archivePath: AbsolutePath,
-                 arguments: [XcodeBuildArgument]) -> Observable<SystemEvent<XcodeBuildOutput>> {
+                 arguments: [XcodeBuildArgument]) -> Observable<SystemEvent<XcodeBuildOutput>>
+    {
         if let archiveStub = archiveStub {
             return archiveStub(target, scheme, clean, archivePath, arguments)
         } else {

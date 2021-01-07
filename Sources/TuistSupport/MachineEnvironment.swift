@@ -17,6 +17,8 @@ public class MachineEnvironment: MachineEnvironmentRetrieving {
     public let clientId = (Host.current().name?.checksum(algorithm: .md5)) ?? "unknown"
 
     /// The `macOSVersion` of the machine running Tuist, in the format major.minor.path, e.g: "10.15.7"
+
+    // swiftlint:disable line_length
     public let macOSVersion = "\(ProcessInfo.processInfo.operatingSystemVersion.majorVersion).\(ProcessInfo.processInfo.operatingSystemVersion.minorVersion).\(ProcessInfo.processInfo.operatingSystemVersion.patchVersion)"
 
     /// The `swiftVersion` of the machine running Tuist

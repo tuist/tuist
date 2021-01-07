@@ -116,7 +116,8 @@ public class ManifestLoader: ManifestLoading {
     init(environment: Environmenting = Environment.shared,
          resourceLocator: ResourceLocating,
          projectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding,
-         manifestFilesLocator: ManifestFilesLocating) {
+         manifestFilesLocator: ManifestFilesLocating)
+    {
         self.environment = environment
         self.resourceLocator = resourceLocator
         self.projectDescriptionHelpersBuilder = projectDescriptionHelpersBuilder

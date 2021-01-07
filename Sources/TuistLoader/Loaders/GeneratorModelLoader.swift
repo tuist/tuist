@@ -10,7 +10,8 @@ public class GeneratorModelLoader {
     private let rootDirectoryLocator: RootDirectoryLocating
 
     public convenience init(manifestLoader: ManifestLoading,
-                            manifestLinter: ManifestLinting) {
+                            manifestLinter: ManifestLinting)
+    {
         self.init(manifestLoader: manifestLoader,
                   manifestLinter: manifestLinter,
                   rootDirectoryLocator: RootDirectoryLocator())
@@ -18,7 +19,8 @@ public class GeneratorModelLoader {
 
     init(manifestLoader: ManifestLoading,
          manifestLinter: ManifestLinting,
-         rootDirectoryLocator: RootDirectoryLocating) {
+         rootDirectoryLocator: RootDirectoryLocating)
+    {
         self.manifestLoader = manifestLoader
         self.manifestLinter = manifestLinter
         self.rootDirectoryLocator = rootDirectoryLocator

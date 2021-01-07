@@ -33,7 +33,8 @@ final class TargetGenerator: TargetGenerating {
     init(configGenerator: ConfigGenerating = ConfigGenerator(),
          fileGenerator: FileGenerating = FileGenerator(),
          buildPhaseGenerator: BuildPhaseGenerating = BuildPhaseGenerator(),
-         linkGenerator: LinkGenerating = LinkGenerator()) {
+         linkGenerator: LinkGenerating = LinkGenerator())
+    {
         self.configGenerator = configGenerator
         self.fileGenerator = fileGenerator
         self.buildPhaseGenerator = buildPhaseGenerator
@@ -50,7 +51,8 @@ final class TargetGenerator: TargetGenerating {
                         projectSettings: Settings,
                         fileElements: ProjectFileElements,
                         path: AbsolutePath,
-                        graphTraverser: GraphTraversing) throws -> PBXNativeTarget {
+                        graphTraverser: GraphTraversing) throws -> PBXNativeTarget
+    {
         /// Products reference.
         let productFileReference = fileElements.products[target.name]!
 
@@ -111,7 +113,8 @@ final class TargetGenerator: TargetGenerating {
     func generateTargetDependencies(path: AbsolutePath,
                                     targets: [Target],
                                     nativeTargets: [String: PBXNativeTarget],
-                                    graphTraverser: GraphTraversing) throws {
+                                    graphTraverser: GraphTraversing) throws
+    {
         try targets.forEach { targetSpec in
             let dependencies = graphTraverser.directTargetDependencies(path: path, name: targetSpec.name).sorted()
             try dependencies.forEach { dependency in

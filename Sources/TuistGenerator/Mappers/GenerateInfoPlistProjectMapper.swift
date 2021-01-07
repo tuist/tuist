@@ -11,7 +11,8 @@ public final class GenerateInfoPlistProjectMapper: ProjectMapping {
     private let infoPlistsDirectoryName: String
 
     public convenience init(derivedDirectoryName: String = Constants.DerivedDirectory.name,
-                            infoPlistsDirectoryName: String = Constants.DerivedDirectory.infoPlists) {
+                            infoPlistsDirectoryName: String = Constants.DerivedDirectory.infoPlists)
+    {
         self.init(infoPlistContentProvider: InfoPlistContentProvider(),
                   derivedDirectoryName: derivedDirectoryName,
                   infoPlistsDirectoryName: infoPlistsDirectoryName)
@@ -19,7 +20,8 @@ public final class GenerateInfoPlistProjectMapper: ProjectMapping {
 
     init(infoPlistContentProvider: InfoPlistContentProviding,
          derivedDirectoryName: String,
-         infoPlistsDirectoryName: String) {
+         infoPlistsDirectoryName: String)
+    {
         self.infoPlistContentProvider = infoPlistContentProvider
         self.derivedDirectoryName = derivedDirectoryName
         self.infoPlistsDirectoryName = infoPlistsDirectoryName
@@ -70,14 +72,16 @@ public final class GenerateInfoPlistProjectMapper: ProjectMapping {
 
     private func infoPlistDictionary(infoPlist: InfoPlist,
                                      project: Project,
-                                     target: Target) -> [String: Any]? {
+                                     target: Target) -> [String: Any]?
+    {
         switch infoPlist {
         case let .dictionary(content):
             return content.mapValues { $0.value }
         case let .extendingDefault(extended):
             if let content = infoPlistContentProvider.content(project: project,
                                                               target: target,
-                                                              extendedWith: extended) {
+                                                              extendedWith: extended)
+            {
                 return content
             }
             return nil

@@ -13,7 +13,8 @@ public extension TestAction {
                      diagnosticsOptions: Set<SchemeDiagnosticsOption> = Set(),
                      language: String? = nil,
                      region: String? = nil,
-                     testPlans: [TestPlan]? = nil) -> TestAction {
+                     testPlans: [TestPlan]? = nil) -> TestAction
+    {
         TestAction(targets: targets,
                    arguments: arguments,
                    configurationName: configurationName,

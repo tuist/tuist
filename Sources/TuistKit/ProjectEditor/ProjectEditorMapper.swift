@@ -27,7 +27,8 @@ final class ProjectEditorMapper: ProjectEditorMapping {
              manifests: [AbsolutePath],
              helpers: [AbsolutePath],
              templates: [AbsolutePath],
-             projectDescriptionPath: AbsolutePath) throws -> (Project, Graph) {
+             projectDescriptionPath: AbsolutePath) throws -> (Project, Graph)
+    {
         // Settings
         let projectSettings = Settings(base: ["ONLY_ACTIVE_ARCH": "NO",
                                               "EXCLUDED_ARCHS": "arm64"],

@@ -24,7 +24,8 @@ final class GraphService {
              layoutAlgorithm: GraphViz.LayoutAlgorithm,
              skipTestTargets: Bool,
              skipExternalDependencies: Bool,
-             path: String?) throws {
+             path: String?) throws
+    {
         let graphVizGraph = try graphVizGenerator.generate(at: FileHandler.shared.currentPath,
                                                            manifestLoader: manifestLoader,
                                                            skipTestTargets: skipTestTargets,
@@ -49,7 +50,8 @@ final class GraphService {
     private func export(graph: GraphViz.Graph,
                         at filePath: AbsolutePath,
                         withFormat format: GraphFormat,
-                        layoutAlgorithm: LayoutAlgorithm) throws {
+                        layoutAlgorithm: LayoutAlgorithm) throws
+    {
         switch format {
         case .dot:
             try exportDOTRepresentation(from: graph, at: filePath)
@@ -65,7 +67,8 @@ final class GraphService {
 
     private func exportPNGRepresentation(from graphVizGraph: GraphViz.Graph,
                                          at filePath: AbsolutePath,
-                                         layoutAlgorithm: LayoutAlgorithm) throws {
+                                         layoutAlgorithm: LayoutAlgorithm) throws
+    {
         if try !isGraphVizInstalled() {
             try installGraphViz()
         }

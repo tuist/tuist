@@ -4,14 +4,16 @@ import XcodeProj
 
 final class SettingsHelper {
     func extend(buildSettings: inout SettingsDictionary,
-                with other: SettingsDictionary) {
+                with other: SettingsDictionary)
+    {
         other.forEach { key, newValue in
             buildSettings[key] = merge(oldValue: buildSettings[key], newValue: newValue).normalize()
         }
     }
 
     func extend(buildSettings: inout [String: Any],
-                with other: SettingsDictionary) throws {
+                with other: SettingsDictionary) throws
+    {
         var settings = try buildSettings.toSettings()
         extend(buildSettings: &settings, with: other)
         buildSettings = settings.toAny()

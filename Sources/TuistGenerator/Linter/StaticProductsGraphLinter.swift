@@ -57,7 +57,8 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
     ///
     private func buildStaticProductsMap(visiting dependency: ValueGraphDependency,
                                         graphTraverser: GraphTraversing,
-                                        cache: Cache) -> StaticProducts {
+                                        cache: Cache) -> StaticProducts
+    {
         if let cachedResult = cache.results(for: dependency) {
             return cachedResult
         }
@@ -94,7 +95,8 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
 
     private func staticDependencyWarning(staticProduct: ValueGraphDependency,
                                          linkedBy: Set<ValueGraphDependency>,
-                                         graphTraverser: GraphTraversing) -> [StaticDependencyWarning] {
+                                         graphTraverser: GraphTraversing) -> [StaticDependencyWarning]
+    {
         // Common dependencies between test bundles and their host apps are automatically omitted
         // during generation - as such those shouldn't be flagged
         //
@@ -209,7 +211,8 @@ extension StaticProductsGraphLinter {
         }
 
         static func < (lhs: StaticDependencyWarning,
-                       rhs: StaticDependencyWarning) -> Bool {
+                       rhs: StaticDependencyWarning) -> Bool
+        {
             lhs.stringDescription < rhs.stringDescription
         }
     }
@@ -238,7 +241,8 @@ extension StaticProductsGraphLinter {
         }
 
         func cache(results: StaticProducts,
-                   for dependency: ValueGraphDependency) {
+                   for dependency: ValueGraphDependency)
+        {
             cachedResults[dependency] = results
         }
     }

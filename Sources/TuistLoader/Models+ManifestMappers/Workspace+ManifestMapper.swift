@@ -12,7 +12,8 @@ extension TuistCore.Workspace {
     static func from(manifest: ProjectDescription.Workspace,
                      path: AbsolutePath,
                      generatorPaths: GeneratorPaths,
-                     manifestLoader: ManifestLoading) throws -> TuistCore.Workspace {
+                     manifestLoader: ManifestLoading) throws -> TuistCore.Workspace
+    {
         func globProjects(_ path: Path) throws -> [AbsolutePath] {
             let resolvedPath = try generatorPaths.resolve(path: path)
             let projects = FileHandler.shared.glob(AbsolutePath.root, glob: String(resolvedPath.pathString.dropFirst()))

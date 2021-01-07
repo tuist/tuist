@@ -93,7 +93,8 @@ extension TuistCore.Target {
 
     // swiftlint:disable line_length
     fileprivate static func resourcesAndPlaygrounds(manifest: ProjectDescription.Target,
-                                                    generatorPaths: GeneratorPaths) throws -> (resources: [TuistCore.FileElement], playgrounds: [AbsolutePath], invalidResourceGlobs: [InvalidGlob]) {
+                                                    generatorPaths: GeneratorPaths) throws -> (resources: [TuistCore.FileElement], playgrounds: [AbsolutePath], invalidResourceGlobs: [InvalidGlob])
+    {
         // swiftlint:enable line_length
         let resourceFilter = { (path: AbsolutePath) -> Bool in
             TuistCore.Target.isResource(path: path)

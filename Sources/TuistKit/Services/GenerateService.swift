@@ -31,7 +31,8 @@ final class GenerateService {
 
     init(clock: Clock = WallClock(),
          opener: Opening = Opener(),
-         projectGeneratorFactory: GenerateServiceProjectGeneratorFactorying = GenerateServiceProjectGeneratorFactory()) {
+         projectGeneratorFactory: GenerateServiceProjectGeneratorFactorying = GenerateServiceProjectGeneratorFactory())
+    {
         self.clock = clock
         self.opener = opener
         self.projectGeneratorFactory = projectGeneratorFactory
@@ -39,7 +40,8 @@ final class GenerateService {
 
     func run(path: String?,
              projectOnly: Bool,
-             open: Bool) throws {
+             open: Bool) throws
+    {
         let timer = clock.startTimer()
         let path = self.path(path)
         let generator = projectGeneratorFactory.generator()

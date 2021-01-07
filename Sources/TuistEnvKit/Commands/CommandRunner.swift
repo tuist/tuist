@@ -43,7 +43,8 @@ class CommandRunner: CommandRunning {
          installer: Installing = Installer(),
          versionsController: VersionsControlling = VersionsController(),
          arguments: @escaping () -> [String] = CommandRunner.arguments,
-         exiter: @escaping (Int) -> Void = { exit(Int32($0)) }) {
+         exiter: @escaping (Int) -> Void = { exit(Int32($0)) })
+    {
         self.versionResolver = versionResolver
         self.environment = environment
         self.versionsController = versionsController
