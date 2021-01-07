@@ -3,7 +3,7 @@ import TSCBasic
 import TuistSupport
 
 enum DependencyGraphLoadError: FatalError, Equatable {
-    case unableToLoadDlyb(AbsolutePath)
+    case unableToLoadDlyb(path: AbsolutePath)
     case invalidCarthagePath(AbsolutePath)
 
     var type: ErrorType {
@@ -15,10 +15,10 @@ enum DependencyGraphLoadError: FatalError, Equatable {
 
     var description: String {
         switch self {
-            case let .unableToLoadDlyb(name):
-                return ""
+            case let .unableToLoadDlyb(path):
+                return "Unable to load dependency at \(path.pathString)."
             case let .invalidCarthagePath(path):
-                return ""
+                return "The path is not a valid Carthage path."
         }
     }
 }
@@ -205,7 +205,7 @@ public class GraphLoader: GraphLoading {
                         graphLoaderCache: graphLoaderCache
                     )
                 }
-                throw DependencyGraphLoadError.unableToLoadDlyb("name")
+                throw DependencyGraphLoadError.unableToLoadDlyb(path: dependencyPath)
             } ?? []
     }
 

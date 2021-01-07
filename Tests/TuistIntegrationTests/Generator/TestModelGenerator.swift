@@ -34,11 +34,13 @@ final class TestModelGenerator {
         let modelLoader = try createModelLoader()
         let otoolController = OtoolController()
 
-        let graphLoader = GraphLoader(modelLoader: modelLoader,
-                                      frameworkNodeLoader: frameworkNodeLoader,
-                                      xcframeworkNodeLoader: xcframeworkNodeLoader,
-                                      libraryNodeLoader: libraryNodeLoader,
-                                      otoolController: otoolController)
+        let graphLoader = GraphLoader(
+            modelLoader: modelLoader,
+            frameworkNodeLoader: frameworkNodeLoader,
+            xcframeworkNodeLoader: xcframeworkNodeLoader,
+            libraryNodeLoader: libraryNodeLoader,
+            otoolController: otoolController
+        )
 
         return try graphLoader.loadWorkspace(path: rootPath)
     }

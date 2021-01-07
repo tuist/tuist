@@ -34,13 +34,11 @@ final class FrameworkNodeLoaderErrorTests: TuistUnitTestCase {
 
 final class FrameworkNodeLoaderTests: TuistUnitTestCase {
     var frameworkMetadataProvider: MockFrameworkMetadataProvider!
-    var otoolController: MockOtoolController!
 
     var subject: FrameworkNodeLoader!
 
     override func setUp() {
         frameworkMetadataProvider = MockFrameworkMetadataProvider()
-        otoolController = MockOtoolController()
         subject = FrameworkNodeLoader(frameworkMetadataProvider: frameworkMetadataProvider)
         super.setUp()
     }
@@ -73,14 +71,6 @@ final class FrameworkNodeLoaderTests: TuistUnitTestCase {
 
         let invalidPath = path.appending(RelativePath("Unexistent.framework/Unexistent"))
         var isFirstRecursiveCall = false
-//        otoolController.dlybDependenciesPathStub = { _ in
-//            guard !isFirstRecursiveCall else { return .just([]) }
-//            isFirstRecursiveCall = true
-//            return .just([
-//                invalidPath,
-//            ])
-//        }
-
         XCTAssertThrowsSpecific(
             try subject.load(path: frameworkPath),
             FrameworkNodeLoaderError.invalidDependencyPath(invalidPath.removingLastComponent())
