@@ -1,17 +1,26 @@
 import Foundation
 import TSCBasic
-import TuistCore
 import TuistSupport
 import XCTest
-
+import TuistLoader
+@testable import TuistCore
 @testable import TuistSupportTesting
 
-final class CarthageGraphLoaderIntegrationTests: TuistTestCase {
-    var subject: CarthageGraphLoader!
+final class GraphLoaderIntegrationTests: TuistTestCase {
+    var subject: GraphLoader!
 
     override func setUp() {
         super.setUp()
-        subject = CarthageGraphLoader()
+        subject = GraphLoader(
+            modelLoader: GeneratorModelLoader(
+                manifestLoader: ManifestLoader(),
+                manifestLinter: ManifestLinter()
+            ),
+            frameworkNodeLoader: FrameworkNodeLoader(),
+            xcframeworkNodeLoader: XCFrameworkNodeLoader(),
+            libraryNodeLoader: LibraryNodeLoader(),
+            otoolController: OtoolController()
+        )
     }
 
     override func tearDown() {
@@ -31,13 +40,15 @@ final class CarthageGraphLoaderIntegrationTests: TuistTestCase {
         )
 
         // When
-        let graph = try subject.load(dependencies: [alamofireDependency], atPath: iOSBuildFolder)
+        let graph = try subject.loadDependencyGraph(for: [alamofireDependency], atPath: iOSBuildFolder)
 
         // Then
         XCTAssertTrue(graph.entryNodes.count == 1)
-        XCTAssertTrue(graph.entryNodes.first!.name == "AlamofireImage")
-        XCTAssertTrue(graph.entryNodes.first!.isCarthage)
-        XCTAssertTrue(graph.entryNodes.first!.dependencies.first!.frameworkNode!.name == "Alamofire")
+
+        let node = graph.entryNodes.first as! FrameworkNode
+        XCTAssertTrue(node.name == "AlamofireImage")
+        XCTAssertTrue(node.isCarthage)
+        XCTAssertTrue(node.dependencies.first!.frameworkNode!.name == "Alamofire")
     }
 
     func test_loading_non_carthage_folder_fails() throws {
@@ -52,8 +63,8 @@ final class CarthageGraphLoaderIntegrationTests: TuistTestCase {
 
         // When/Then
         XCTAssertThrowsSpecific(
-            try subject.load(dependencies: [alamofireDependency], atPath: carthagePath),
-            CarthageGraphLoaderError.invalidPath(carthagePath)
+            try subject.loadDependencyGraph(for: [alamofireDependency], atPath: carthagePath),
+            DependencyGraphLoadError.invalidCarthagePath(carthagePath)
         )
     }
 }

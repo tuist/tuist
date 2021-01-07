@@ -74,7 +74,7 @@ let package = Package(
         ),
         .testTarget(
             name: "TuistCoreIntegrationTests",
-            dependencies: ["TuistCore", "TuistSupportTesting"]
+            dependencies: ["TuistCore", "TuistLoader", "TuistSupportTesting"]
         ),
         .target(
             name: "TuistDoc",

@@ -41,8 +41,7 @@ final class FrameworkNodeLoaderTests: TuistUnitTestCase {
     override func setUp() {
         frameworkMetadataProvider = MockFrameworkMetadataProvider()
         otoolController = MockOtoolController()
-        subject = FrameworkNodeLoader(frameworkMetadataProvider: frameworkMetadataProvider,
-                                      otoolController: otoolController)
+        subject = FrameworkNodeLoader(frameworkMetadataProvider: frameworkMetadataProvider)
         super.setUp()
     }
 

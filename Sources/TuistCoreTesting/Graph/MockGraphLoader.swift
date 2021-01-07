@@ -19,4 +19,10 @@ public final class MockGraphLoader: GraphLoading {
     public func loadConfig(path: AbsolutePath) throws -> Config {
         try loadConfigStub?(path) ?? Config.test()
     }
+
+    public var loadDependencyGraphStub: (([CarthageDependency], AbsolutePath) throws -> (DependencyGraph))?
+    public func loadDependencyGraph(for dependencies: [CarthageDependency],
+                                    atPath path: AbsolutePath) throws -> DependencyGraph {
+        try loadDependencyGraphStub?(dependencies, path) ?? DependencyGraph.test()
+    }
 }

@@ -39,16 +39,11 @@ public final class FrameworkNodeLoader: FrameworkNodeLoading {
     /// Framework metadata provider.
     private let frameworkMetadataProvider: FrameworkMetadataProviding
 
-    /// Otool controller.
-    private let otoolController: OtoolControlling
-
     /// Initializes the loader with its attributes.
     /// - Parameter frameworkMetadataProvider: Framework metadata provider.
-    public init(frameworkMetadataProvider: FrameworkMetadataProviding = FrameworkMetadataProvider(),
-                otoolController: OtoolControlling = OtoolController())
+    public init(frameworkMetadataProvider: FrameworkMetadataProviding = FrameworkMetadataProvider())
     {
         self.frameworkMetadataProvider = frameworkMetadataProvider
-        self.otoolController = otoolController
     }
 
     public func load(path: AbsolutePath) throws -> FrameworkNode {
@@ -62,38 +57,11 @@ public final class FrameworkNodeLoader: FrameworkNodeLoading {
         let linking = try frameworkMetadataProvider.linking(binaryPath: binaryPath)
         let architectures = try frameworkMetadataProvider.architectures(binaryPath: binaryPath)
 
-        let dependencies = try dlybDependenciesPath(forBinaryAt: binaryPath)
-
         return FrameworkNode(path: path,
                              dsymPath: dsymsPath,
                              bcsymbolmapPaths: bcsymbolmapPaths,
                              linking: linking,
                              architectures: architectures,
-                             dependencies: dependencies)
-    }
-
-    private func dlybDependenciesPath(forBinaryAt binaryPath: AbsolutePath) throws -> [PrecompiledNode.Dependency] {
-        try otoolController
-            .dylibDependenciesBinaryPath(forBinaryAt: binaryPath)
-            .toBlocking()
-            .first()?
-            .filter { $0 != binaryPath }
-            .map { $0.removingLastComponent() }
-            .map { dependencyPath -> PrecompiledNode.Dependency in
-                if dependencyPath.isFrameworkPath {
-                    guard let node = try? load(path: dependencyPath) else {
-                        throw FrameworkNodeLoaderError.invalidDependencyPath(dependencyPath)
-                    }
-                    return PrecompiledNode.Dependency.framework(node)
-                } else {
-                    return PrecompiledNode.Dependency.framework(node)
-                }
-            } ?? []
-    }
-}
-
-private extension AbsolutePath {
-    var isFrameworkPath: Bool {
-        pathString.contains("framework")
+                             dependencies: [])
     }
 }

@@ -2,6 +2,27 @@ import Foundation
 import TSCBasic
 import TuistSupport
 
+enum DependencyGraphLoadError: FatalError, Equatable {
+    case unableToLoadDlyb(AbsolutePath)
+    case invalidCarthagePath(AbsolutePath)
+
+    var type: ErrorType {
+        switch self {
+            case .unableToLoadDlyb: return .abort
+            case .invalidCarthagePath: return .bug
+        }
+    }
+
+    var description: String {
+        switch self {
+            case let .unableToLoadDlyb(name):
+                return ""
+            case let .invalidCarthagePath(path):
+                return ""
+        }
+    }
+}
+
 public protocol GraphLoading: AnyObject {
     /// Path to the directory that contains the project.
     /// - Parameter path: Path to the directory that contains the project.
@@ -17,6 +38,11 @@ public protocol GraphLoading: AnyObject {
     /// - Returns: Loaded Config object.
     /// - Throws: An error if the Config.swift can't be parsed.
     func loadConfig(path: AbsolutePath) throws -> Config
+
+    func loadDependencyGraph(
+        for dependencies: [CarthageDependency],
+        atPath path: AbsolutePath
+    ) throws -> DependencyGraph
 }
 
 public class GraphLoader: GraphLoading {
@@ -33,24 +59,29 @@ public class GraphLoader: GraphLoading {
     /// Utility to load library nodes by parsing their information from disk.
     fileprivate let libraryNodeLoader: LibraryNodeLoading
 
+    fileprivate let otoolController: OtoolControlling!
+
     // MARK: - Init
 
     public convenience init(modelLoader: GeneratorModelLoading) {
         self.init(modelLoader: modelLoader,
                   frameworkNodeLoader: FrameworkNodeLoader(),
                   xcframeworkNodeLoader: XCFrameworkNodeLoader(),
-                  libraryNodeLoader: LibraryNodeLoader())
+                  libraryNodeLoader: LibraryNodeLoader(),
+                  otoolController: OtoolController())
     }
 
     public init(modelLoader: GeneratorModelLoading,
                 frameworkNodeLoader: FrameworkNodeLoading,
                 xcframeworkNodeLoader: XCFrameworkNodeLoading,
-                libraryNodeLoader: LibraryNodeLoading)
+                libraryNodeLoader: LibraryNodeLoading,
+                otoolController: OtoolControlling)
     {
         self.modelLoader = modelLoader
         self.frameworkNodeLoader = frameworkNodeLoader
         self.xcframeworkNodeLoader = xcframeworkNodeLoader
         self.libraryNodeLoader = libraryNodeLoader
+        self.otoolController = otoolController
     }
 
     // MARK: - GraphLoading
@@ -118,7 +149,65 @@ public class GraphLoader: GraphLoading {
         }
     }
 
+    public func loadDependencyGraph(
+        for dependencies: [CarthageDependency],
+        atPath path: AbsolutePath
+    ) throws -> DependencyGraph {
+        guard path.pathString.contains("Carthage/Build") else {
+            throw DependencyGraphLoadError.invalidCarthagePath(path)
+        }
+        return DependencyGraph(entryNodes: try dependencies.map { try loadDependencyNode(for: $0, at: path) })
+    }
+
+
     // MARK: - Fileprivate
+
+    fileprivate func loadDependencyNode(for dependency: CarthageDependency, at path: AbsolutePath) throws -> GraphNode {
+        let cache = GraphLoaderCache()
+        let frameworkFolderPath = path.appending(RelativePath("\(dependency.name).framework"))
+
+        let node = try loadFrameworkNode(frameworkPath: frameworkFolderPath, graphLoaderCache: cache)
+        let binaryPath = FrameworkNode.binaryPath(frameworkPath: frameworkFolderPath)
+
+        let nodes = try dlybDependenciesNodes(
+            forBinaryAt: binaryPath,
+            graphLoaderCache: cache
+        )
+
+        nodes.forEach {
+            if let framework = $0 as? FrameworkNode {
+                node.add(dependency: PrecompiledNode.Dependency.framework(framework))
+            } else if let xcframework = $0 as? XCFrameworkNode {
+                node.add(dependency: PrecompiledNode.Dependency.xcframework(xcframework))
+            }
+        }
+
+        return node
+    }
+
+    private func dlybDependenciesNodes(
+        forBinaryAt binaryPath: AbsolutePath,
+        graphLoaderCache: GraphLoaderCaching
+    ) throws -> [GraphNode] {
+        try otoolController
+            .dylibDependenciesBinaryPath(forBinaryAt: binaryPath)
+            .toBlocking()
+            .first()?
+            .filter { $0 != binaryPath }
+            .map { dependencyPath -> GraphNode in
+                if dependencyPath.isFrameworkPath {
+                    return try loadFrameworkNode(
+                        frameworkPath: dependencyPath.removingLastComponent(),
+                        graphLoaderCache: graphLoaderCache)
+                } else if dependencyPath.isFrameworkPath {
+                    return try loadXCFrameworkNode(
+                        path: dependencyPath.removingLastComponent(),
+                        graphLoaderCache: graphLoaderCache
+                    )
+                }
+                throw DependencyGraphLoadError.unableToLoadDlyb("name")
+            } ?? []
+    }
 
     /// Loads the project at the given path. If the project has already been loaded and cached, it returns it from the cache.
     /// - Parameters:
@@ -307,5 +396,15 @@ public class GraphLoader: GraphLoading {
         let xcframework = try xcframeworkNodeLoader.load(path: path)
         graphLoaderCache.add(precompiledNode: xcframework)
         return xcframework
+    }
+}
+
+private extension AbsolutePath {
+    var isFrameworkPath: Bool {
+        pathString.contains("framework")
+    }
+
+    var isXcframework: Bool {
+        pathString.contains("xcframework")
     }
 }

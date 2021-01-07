@@ -12,8 +12,7 @@ final class FrameworkNodeLoaderIntegrationTests: TuistTestCase {
     override func setUp() {
         super.setUp()
         subject = FrameworkNodeLoader(
-            frameworkMetadataProvider: FrameworkMetadataProvider(),
-            otoolController: OtoolController()
+            frameworkMetadataProvider: FrameworkMetadataProvider()
         )
     }
 
