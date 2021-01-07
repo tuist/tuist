@@ -133,6 +133,7 @@ let package = Package(
                 "GraphViz",
                 "TuistMigration",
                 "TuistAsyncQueue",
+                "TuistAnalytics",
             ]
         ),
         .testTarget(
@@ -223,6 +224,7 @@ let package = Package(
                 swifterDependency,
                 signalsDependency,
                 "Zip",
+                "Checksum",
             ]
         ),
         .target(
@@ -624,6 +626,18 @@ let package = Package(
                 "TuistSupport",
                 "TuistCoreTesting",
                 "TuistLoaderTesting",
+            ]
+        ),
+        .target(
+            name: "TuistAnalytics",
+            dependencies: [
+                "TuistAsyncQueue",
+            ]
+        ),
+        .testTarget(
+            name: "TuistAnalyticsTests",
+            dependencies: [
+                "TuistSupportTesting",
             ]
         ),
     ]
