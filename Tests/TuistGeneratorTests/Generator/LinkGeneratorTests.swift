@@ -15,7 +15,7 @@ final class LinkGeneratorPathTests: TuistUnitTestCase {
     }
 }
 
-final class LinkGeneratorErrorTests: XCTestCase {
+final class LinkGeneratorTests: XCTestCase {
     var embedScriptGenerator: MockEmbedScriptGenerator!
     var subject: LinkGenerator!
 
@@ -74,12 +74,16 @@ final class LinkGeneratorErrorTests: XCTestCase {
         XCTAssertEqual(scriptBuildPhase?.inputPaths, ["frameworks/A.framework"])
         XCTAssertEqual(scriptBuildPhase?.outputPaths, ["output/A.framework"])
 
-        let copyBuildPhase: PBXCopyFilesBuildPhase? = pbxTarget.buildPhases.last as? PBXCopyFilesBuildPhase
-        XCTAssertEqual(copyBuildPhase?.name, "Embed Frameworks")
-        let wakaBuildFile: PBXBuildFile? = copyBuildPhase?.files?.first
-        XCTAssertEqual(wakaBuildFile?.file, wakaFile)
-        let settings: [String: [String]]? = wakaBuildFile?.settings as? [String: [String]]
-        XCTAssertEqual(settings, ["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]])
+        let embedBuildPhase = try XCTUnwrap(pbxTarget.embedFrameworksBuildPhases().first)
+        XCTAssertEqual(embedBuildPhase.name, "Embed Frameworks")
+        XCTAssertEqual(embedBuildPhase.dstPath, "")
+        XCTAssertEqual(embedBuildPhase.dstSubfolderSpec, .frameworks)
+        XCTAssertEqual(embedBuildPhase.files?.map(\.file), [
+            wakaFile,
+        ])
+        XCTAssertEqual(embedBuildPhase.files?.compactMap { $0.settings as? [String: [String]] }, [
+            ["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]],
+        ])
     }
 
     func test_generateEmbedPhase_includesSymbols_when_nonTestTarget() throws {
@@ -229,6 +233,7 @@ final class LinkGeneratorErrorTests: XCTestCase {
             GraphDependencyReference.testXCFramework(path: "/path/Dependencies/XCFrameworks/E.xcframework"),
             GraphDependencyReference.testSDK(path: "/libc++.tbd"),
             GraphDependencyReference.testSDK(path: "/CloudKit.framework"),
+            GraphDependencyReference.testSDK(path: "/XCTest.framework", source: .developer),
             GraphDependencyReference.testProduct(target: "Foo", productName: "Foo.framework"),
         ].shuffled()
         let sourceRootPath = AbsolutePath("/path")
@@ -243,8 +248,8 @@ final class LinkGeneratorErrorTests: XCTestCase {
         // Then
         let config = xcodeprojElements.config
         XCTAssertEqual(config.buildSettings["FRAMEWORK_SEARCH_PATHS"] as? [String], [
-            "$(DEVELOPER_FRAMEWORKS_DIR)",
             "$(inherited)",
+            "$(PLATFORM_DIR)/Developer/Library/Frameworks",
             "$(SRCROOT)/Dependencies/Frameworks",
             "$(SRCROOT)/Dependencies/Libraries",
             "$(SRCROOT)/Dependencies/XCFrameworks",
@@ -514,13 +519,15 @@ final class LinkGeneratorErrorTests: XCTestCase {
                                      (target: target, dependencies: [staticDependency]),
                                      (target: staticDependency, dependencies: []),
                                  ])
+        let valueGraph = ValueGraph(graph: graph)
+        let graphTraverser = ValueGraphTraverser(graph: valueGraph)
         let fileElements = createProjectFileElements(for: [staticDependency])
         let xcodeProjElements = createXcodeprojElements()
 
         // When
         try subject.generateCopyProductsBuildPhase(path: path,
                                                    target: target,
-                                                   graph: graph,
+                                                   graphTraverser: graphTraverser,
                                                    pbxTarget: xcodeProjElements.pbxTarget,
                                                    pbxproj: xcodeProjElements.pbxproj,
                                                    fileElements: fileElements)
@@ -549,13 +556,15 @@ final class LinkGeneratorErrorTests: XCTestCase {
                                      (target: target, dependencies: [staticDependency]),
                                      (target: staticDependency, dependencies: []),
                                  ])
+        let valueGraph = ValueGraph(graph: graph)
+        let graphTraverser = ValueGraphTraverser(graph: valueGraph)
         let fileElements = createProjectFileElements(for: [staticDependency])
         let xcodeProjElements = createXcodeprojElements()
 
         // When
         try subject.generateCopyProductsBuildPhase(path: path,
                                                    target: target,
-                                                   graph: graph,
+                                                   graphTraverser: graphTraverser,
                                                    pbxTarget: xcodeProjElements.pbxTarget,
                                                    pbxproj: xcodeProjElements.pbxproj,
                                                    fileElements: fileElements)
@@ -581,11 +590,13 @@ final class LinkGeneratorErrorTests: XCTestCase {
                                  ])
         let fileElements = createProjectFileElements(for: [resourceBundle])
         let xcodeProjElements = createXcodeprojElements()
+        let valueGraph = ValueGraph(graph: graph)
+        let graphTraverser = ValueGraphTraverser(graph: valueGraph)
 
         // When
         try subject.generateCopyProductsBuildPhase(path: path,
                                                    target: target,
-                                                   graph: graph,
+                                                   graphTraverser: graphTraverser,
                                                    pbxTarget: xcodeProjElements.pbxTarget,
                                                    pbxproj: xcodeProjElements.pbxproj,
                                                    fileElements: fileElements)
@@ -631,7 +642,7 @@ final class LinkGeneratorErrorTests: XCTestCase {
     }
 
     func createProjectFileElements(for targets: [Target]) -> ProjectFileElements {
-        let projectFileElements = ProjectFileElements(playgrounds: MockPlaygrounds())
+        let projectFileElements = ProjectFileElements()
         targets.forEach {
             projectFileElements.products[$0.name] = PBXFileReference(path: $0.productNameWithExtension)
         }

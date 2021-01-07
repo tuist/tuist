@@ -31,21 +31,14 @@ class ProjectFileElements {
     var sdks: [AbsolutePath: PBXFileReference] = [:]
     var knownRegions: Set<String> = Set([])
 
-    // MARK: - Private
-
-    private let playgrounds: Playgrounding
-
     // MARK: - Init
 
-    init(_ elements: [AbsolutePath: PBXFileElement] = [:],
-         playgrounds: Playgrounding = Playgrounds())
-    {
+    init(_ elements: [AbsolutePath: PBXFileElement] = [:]) {
         self.elements = elements
-        self.playgrounds = playgrounds
     }
 
     func generateProjectFiles(project: Project,
-                              graph: Graph,
+                              graphTraverser: GraphTraversing,
                               groups: ProjectGroups,
                               pbxproj: PBXProj) throws
     {
@@ -67,19 +60,13 @@ class ProjectFileElements {
                      pbxproj: pbxproj,
                      sourceRootPath: project.sourceRootPath)
 
-        /// Playgrounds
-        generatePlaygrounds(path: project.path,
-                            groups: groups,
-                            pbxproj: pbxproj,
-                            sourceRootPath: project.sourceRootPath)
-
         // Products
         let directProducts = project.targets.map {
             GraphDependencyReference.product(target: $0.name, productName: $0.productNameWithExtension)
         }
 
         // Dependencies
-        let dependencies = try graph.allDependencyReferences(for: project)
+        let dependencies = try graphTraverser.allProjectDependencies(path: project.path).sorted()
 
         try generate(dependencyReferences: Set(directProducts + dependencies),
                      groups: groups,
@@ -111,6 +98,7 @@ class ProjectFileElements {
     func targetFiles(target: Target) throws -> Set<GroupFileElement> {
         var files = Set<AbsolutePath>()
         files.formUnion(target.sources.map(\.path))
+        files.formUnion(target.playgrounds)
         files.formUnion(target.coreDataModels.map(\.path))
         files.formUnion(target.coreDataModels.flatMap(\.versions))
 
@@ -143,6 +131,14 @@ class ProjectFileElements {
                              isReference: $0.isReference)
         })
 
+        target.copyFiles.forEach {
+            elements.formUnion($0.files.map {
+                GroupFileElement(path: $0.path,
+                                 group: target.filesGroup,
+                                 isReference: $0.isReference)
+            })
+        }
+
         return elements
     }
 
@@ -153,26 +149,6 @@ class ProjectFileElements {
     {
         try files.forEach {
             try generate(fileElement: $0, groups: groups, pbxproj: pbxproj, sourceRootPath: sourceRootPath)
-        }
-    }
-
-    func generatePlaygrounds(path: AbsolutePath,
-                             groups: ProjectGroups,
-                             pbxproj: PBXProj,
-                             sourceRootPath _: AbsolutePath)
-    {
-        let paths = playgrounds.paths(path: path)
-        if paths.isEmpty { return }
-
-        let group = groups.playgrounds
-        paths.forEach { playgroundPath in
-            let name = playgroundPath.components.last!
-            let reference = PBXFileReference(sourceTree: .group,
-                                             lastKnownFileType: "file.playground",
-                                             path: name,
-                                             xcLanguageSpecificationIdentifier: "xcode.lang.swift")
-            pbxproj.add(object: reference)
-            group!.children.append(reference)
         }
     }
 
@@ -198,7 +174,7 @@ class ProjectFileElements {
                 try generatePrecompiled(path)
             case let .framework(path, _, _, _, _, _, _, _):
                 try generatePrecompiled(path)
-            case let .library(path, _, _, _, _):
+            case let .library(path, _, _, _):
                 try generatePrecompiled(path)
             case let .sdk(sdkNodePath, _, _):
                 generateSDKFileElement(sdkNodePath: sdkNodePath,
@@ -328,6 +304,15 @@ class ProjectFileElements {
                                    name: name,
                                    toGroup: toGroup,
                                    pbxproj: pbxproj)
+        } else if isPlayground(path: absolutePath) {
+            addPlayground(from: from,
+                          fileAbsolutePath: absolutePath,
+                          fileRelativePath: relativePath,
+                          name: name,
+                          toGroup: toGroup,
+                          pbxproj: pbxproj)
+            return nil
+
         } else {
             addFileElement(from: from,
                            fileAbsolutePath: absolutePath,
@@ -446,6 +431,24 @@ class ProjectFileElements {
         elements[fileAbsolutePath] = file
     }
 
+    func addPlayground(from _: AbsolutePath,
+                       fileAbsolutePath: AbsolutePath,
+                       fileRelativePath: RelativePath,
+                       name: String?,
+                       toGroup: PBXGroup,
+                       pbxproj: PBXProj)
+    {
+        let lastKnownFileType = fileAbsolutePath.extension.flatMap { Xcode.filetype(extension: $0) }
+        let file = PBXFileReference(sourceTree: .group,
+                                    name: name,
+                                    lastKnownFileType: lastKnownFileType,
+                                    path: fileRelativePath.pathString,
+                                    xcLanguageSpecificationIdentifier: "xcode.lang.swift")
+        pbxproj.add(object: file)
+        toGroup.children.append(file)
+        elements[fileAbsolutePath] = file
+    }
+
     private func generateSDKFileElement(sdkNodePath: AbsolutePath,
                                         toGroup: PBXGroup,
                                         pbxproj: PBXProj)
@@ -491,6 +494,10 @@ class ProjectFileElements {
 
     func isLocalized(path: AbsolutePath) -> Bool {
         path.extension == "lproj"
+    }
+
+    func isPlayground(path: AbsolutePath) -> Bool {
+        path.extension == "playground"
     }
 
     func isVersionGroup(path: AbsolutePath) -> Bool {

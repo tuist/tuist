@@ -127,12 +127,14 @@ class Generator: Generating {
     private func generateProject(path: AbsolutePath) throws -> (AbsolutePath, Graph) {
         // Load
         let (project, graph, sideEffects) = try loadProject(path: path)
+        let valueGraph = ValueGraph(graph: graph)
+        let graphTraverser = ValueGraphTraverser(graph: valueGraph)
 
         // Lint
-        try lint(graph: graph)
+        try lint(graphTraverser: graphTraverser)
 
         // Generate
-        let projectDescriptor = try generator.generateProject(project: project, graph: graph)
+        let projectDescriptor = try generator.generateProject(project: project, graphTraverser: graphTraverser)
 
         // Write
         try writer.write(project: projectDescriptor)
@@ -149,12 +151,14 @@ class Generator: Generating {
     private func generateWorkspace(path: AbsolutePath) throws -> (AbsolutePath, Graph) {
         // Load
         let (graph, sideEffects) = try loadWorkspace(path: path)
+        let valueGraph = ValueGraph(graph: graph)
+        let graphTraverser = ValueGraphTraverser(graph: valueGraph)
 
         // Lint
-        try lint(graph: graph)
+        try lint(graphTraverser: graphTraverser)
 
         // Generate
-        let workspaceDescriptor = try generator.generateWorkspace(graph: graph)
+        let workspaceDescriptor = try generator.generateWorkspace(graphTraverser: graphTraverser)
 
         // Write
         try writer.write(workspace: workspaceDescriptor)
@@ -171,12 +175,14 @@ class Generator: Generating {
     internal func generateProjectWorkspace(path: AbsolutePath) throws -> (AbsolutePath, Graph) {
         // Load
         let (_, graph, sideEffects) = try loadProjectWorkspace(path: path)
+        let valueGraph = ValueGraph(graph: graph)
+        let graphTraverser = ValueGraphTraverser(graph: valueGraph)
 
         // Lint
-        try lint(graph: graph)
+        try lint(graphTraverser: graphTraverser)
 
         // Generate
-        let workspaceDescriptor = try generator.generateWorkspace(graph: graph)
+        let workspaceDescriptor = try generator.generateWorkspace(graphTraverser: graphTraverser)
 
         // Write
         try writer.write(workspace: workspaceDescriptor)
@@ -190,11 +196,11 @@ class Generator: Generating {
         return (workspaceDescriptor.xcworkspacePath, graph)
     }
 
-    private func lint(graph: Graph) throws {
-        let config = try graphLoader.loadConfig(path: graph.entryPath)
+    private func lint(graphTraverser: GraphTraversing) throws {
+        let config = try graphLoader.loadConfig(path: graphTraverser.path)
 
         try environmentLinter.lint(config: config).printAndThrowIfNeeded()
-        try graphLinter.lint(graph: graph).printAndThrowIfNeeded()
+        try graphLinter.lint(graphTraverser: graphTraverser).printAndThrowIfNeeded()
     }
 
     private func postGenerationActions(for graph: Graph, workspaceName: String) throws {

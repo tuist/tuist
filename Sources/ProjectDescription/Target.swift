@@ -41,6 +41,9 @@ public struct Target: Codable, Equatable {
     /// Relative paths to the resources directory.
     public let resources: [FileElement]?
 
+    /// Copy files actions.
+    public let copyFiles: [CopyFilesAction]?
+
     /// Headers.
     public let headers: Headers?
 
@@ -68,6 +71,7 @@ public struct Target: Codable, Equatable {
         case dependencies
         case sources
         case resources
+        case copyFiles
         case headers
         case coreDataModels = "core_data_models"
         case actions
@@ -86,6 +90,7 @@ public struct Target: Codable, Equatable {
     ///   - infoPlist: relative path to the Info.plist file.
     ///   - sources: relative paths to the sources directory.
     ///   - resources: relative paths to the resources directory.
+    ///   - copyFiles: copy files phases.
     ///   - headers: headers.
     ///   - entitlements: relative path to the entitlements file.
     ///   - actions: target actions.
@@ -104,6 +109,7 @@ public struct Target: Codable, Equatable {
                 infoPlist: InfoPlist,
                 sources: SourceFilesList? = nil,
                 resources: [FileElement]? = nil,
+                copyFiles: [CopyFilesAction]? = nil,
                 headers: Headers? = nil,
                 entitlements: Path? = nil,
                 actions: [TargetAction] = [],
@@ -124,6 +130,7 @@ public struct Target: Codable, Equatable {
         self.settings = settings
         self.sources = sources
         self.resources = resources
+        self.copyFiles = copyFiles
         self.headers = headers
         self.actions = actions
         self.coreDataModels = coreDataModels
@@ -142,6 +149,7 @@ public struct Target: Codable, Equatable {
     ///   - infoPlist: relative path to the Info.plist file.
     ///   - sources: relative paths to the sources directory.
     ///   - resources: relative paths to the resources directory.
+    ///   - copyFiles: copy files phases.
     ///   - headers: headers.
     ///   - entitlements: relative path to the entitlements file.
     ///   - actions: target actions.
@@ -159,6 +167,7 @@ public struct Target: Codable, Equatable {
                 infoPlist: InfoPlist,
                 sources: SourceFilesList? = nil,
                 resources: [FileElement]? = nil,
+                copyFiles: [CopyFilesAction]? = nil,
                 headers: Headers? = nil,
                 entitlements: Path? = nil,
                 actions: [TargetAction] = [],
@@ -179,6 +188,7 @@ public struct Target: Codable, Equatable {
         self.settings = settings
         self.sources = sources
         self.resources = resources
+        self.copyFiles = copyFiles
         self.headers = headers
         self.actions = actions
         self.coreDataModels = coreDataModels

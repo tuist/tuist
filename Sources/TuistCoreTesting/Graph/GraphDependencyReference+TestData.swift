@@ -27,7 +27,8 @@ public extension GraphDependencyReference {
         path: AbsolutePath = "/frameworks/tuist.xcframework",
         infoPlist: XCFrameworkInfoPlist = .test(),
         primaryBinaryPath: AbsolutePath = "/frameworks/tuist.xcframework/ios-arm64/tuist",
-        binaryPath: AbsolutePath = "/frameworks/tuist.xcframework/ios-arm64/tuist"
+        binaryPath: AbsolutePath = "/frameworks/tuist.xcframework/ios-arm64/tuist",
+        linking _: BinaryLinking = .dynamic
     ) -> GraphDependencyReference {
         GraphDependencyReference.xcframework(path: path,
                                              infoPlist: infoPlist,
@@ -36,13 +37,11 @@ public extension GraphDependencyReference {
     }
 
     static func testLibrary(path: AbsolutePath = "/libraries/library.a",
-                            binaryPath: AbsolutePath = "/libraries/library.a",
                             linking: BinaryLinking = .static,
                             architectures: [BinaryArchitecture] = [BinaryArchitecture.arm64],
                             product: Product = .staticLibrary) -> GraphDependencyReference
     {
         GraphDependencyReference.library(path: path,
-                                         binaryPath: binaryPath,
                                          linking: linking,
                                          architectures: architectures,
                                          product: product)
@@ -50,7 +49,7 @@ public extension GraphDependencyReference {
 
     static func testSDK(path: AbsolutePath = "/path/CoreData.framework",
                         status: SDKStatus = .required,
-                        source: SDKSource = .developer) -> GraphDependencyReference
+                        source: SDKSource = .system) -> GraphDependencyReference
     {
         GraphDependencyReference.sdk(path: path,
                                      status: status,

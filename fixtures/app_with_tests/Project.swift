@@ -48,6 +48,7 @@ let project = Project(
             platform: .macOS,
             product: .framework,
             bundleId: "io.tuist.MacFramework",
+            deploymentTarget: .macOS(targetVersion: "10.15"),
             infoPlist: .default,
             sources: "Targets/MacFramework/Sources/**",
             settings: Settings(
@@ -62,6 +63,7 @@ let project = Project(
             platform: .macOS,
             product: .unitTests,
             bundleId: "io.tuist.MacFrameworkTests",
+            deploymentTarget: .macOS(targetVersion: "10.15"),
             infoPlist: .default,
             sources: "Targets/MacFramework/Tests/**",
             dependencies: [

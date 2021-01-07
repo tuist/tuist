@@ -2,6 +2,7 @@ import Foundation
 import TSCBasic
 import TuistSupport
 
+@available(*, deprecated, message: "XCFramework nodes are deprecated. Dependencies should be usted instead with the ValueGraph.")
 public class XCFrameworkNode: PrecompiledNode {
     /// Coding keys.
     enum XCFrameworkNodeCodingKeys: String, CodingKey {

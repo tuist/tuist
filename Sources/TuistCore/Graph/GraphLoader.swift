@@ -320,7 +320,7 @@ public class GraphLoader: GraphLoading {
 
         // System SDK
         case let .sdk(name, status):
-            return try SDKNode(name: name, platform: platform, status: status, source: .developer)
+            return try SDKNode(name: name, platform: platform, status: status, source: .system)
 
         // CocoaPods
         case let .cocoapods(podsPath):
@@ -332,7 +332,7 @@ public class GraphLoader: GraphLoading {
 
         // XCTest
         case .xctest:
-            return try SDKNode(name: SDKNode.xctestFrameworkName, platform: platform, status: .required, source: .system)
+            return try SDKNode(name: SDKNode.xctestFrameworkName, platform: platform, status: .required, source: .developer)
         }
     }
 

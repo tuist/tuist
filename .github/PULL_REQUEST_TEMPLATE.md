@@ -1,16 +1,14 @@
 Resolves https://github.com/tuist/tuist/issues/YYY
+Request for comments document (if applies):
 
 ### Short description 📝
 
 > Describe here the purpose of your PR.
 
-### Solution 📦
+### Checklist ✅
 
-> Describe the solution you came up with and the reasons that led you to that solution. If you thought about other solutions don't forget about mentioning them.
-
-### Implementation 👩‍💻👨‍💻
-
-> Detail in a checklist the steps that you took to implement the PR.
-
-- [ ] Step 1
-- [ ] Step 2
+- [ ] The code architecture and patterns are consistent with the rest of the codebase.
+- [ ] A developer other than the author has verified that the changes work as expected.
+- [ ] The changes have been tested following the [documented guidelines](https://tuist.io/docs/contribution/testing-strategy/).
+- [ ] The `CHANGELOG.md` has been updated to reflect the changes. In case of a breaking change, it's been flagged as such.
+- [ ] In case the PR introduces changes that affect users, the documentation has been updated.

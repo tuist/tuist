@@ -17,18 +17,18 @@ public protocol DescriptorGenerating {
     ///
     /// - Parameters:
     ///   - project: Project model
-    ///   - graph: Graph model
+    ///   - graphTraverser: Graph traverser.
     ///
     /// - Seealso: `GraphLoader`
-    func generateProject(project: Project, graph: Graph) throws -> ProjectDescriptor
+    func generateProject(project: Project, graphTraverser: GraphTraversing) throws -> ProjectDescriptor
 
     /// Generate a workspace descriptor
     ///
     /// - Parameters:
-    ///   - graph: Graph model
+    ///   - graphTraverser: Graph traverser.
     ///
     /// - Seealso: `GraphLoader`
-    func generateWorkspace(graph: Graph) throws -> WorkspaceDescriptor
+    func generateWorkspace(graphTraverser: GraphTraversing) throws -> WorkspaceDescriptor
 }
 
 // MARK: -
@@ -60,11 +60,11 @@ public final class DescriptorGenerator: DescriptorGenerating {
         self.projectDescriptorGenerator = projectDescriptorGenerator
     }
 
-    public func generateProject(project: Project, graph: Graph) throws -> ProjectDescriptor {
-        try projectDescriptorGenerator.generate(project: project, graph: graph)
+    public func generateProject(project: Project, graphTraverser: GraphTraversing) throws -> ProjectDescriptor {
+        try projectDescriptorGenerator.generate(project: project, graphTraverser: graphTraverser)
     }
 
-    public func generateWorkspace(graph: Graph) throws -> WorkspaceDescriptor {
-        try workspaceDescriptorGenerator.generate(graph: graph)
+    public func generateWorkspace(graphTraverser: GraphTraversing) throws -> WorkspaceDescriptor {
+        try workspaceDescriptorGenerator.generate(graphTraverser: graphTraverser)
     }
 }

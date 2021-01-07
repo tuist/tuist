@@ -57,3 +57,11 @@ Feature: Generate a new project using Tuist (suite 1)
     Then the scheme SignApp has a build setting PROVISIONING_PROFILE_SPECIFIER with value d34fb066-f494-4d85-a556-d469c2196f46 for the configuration Debug
     Then the scheme SignApp has a build setting CODE_SIGN_IDENTITY with value Apple Development: Marek Fort (54GSF6G47V) for the configuration Release
     Then the scheme SignApp has a build setting PROVISIONING_PROFILE_SPECIFIER with value 76a7d75c-01d4-4c7f-9140-1d829227883a for the configuration Release
+    Then the scheme SignApp has a build setting PRODUCT_BUNDLE_IDENTIFIER with value team.io.tuist.debug for the configuration Debug
+    Then the scheme SignApp has a build setting PRODUCT_BUNDLE_IDENTIFIER with value team.io.tuist.release for the configuration Release
+    Then the scheme AppA has a build setting CODE_SIGN_IDENTITY with value iPhone Developer: Christoph Lederer (F2X7FM3XMV) for the configuration Debug
+    Then the scheme AppA has a build setting PROVISIONING_PROFILE_SPECIFIER with value 7fcc4b2f-adbf-4a86-be34-fc8bc4f1ad7 for the configuration Debug
+    Then the scheme AppA has a build setting PRODUCT_BUNDLE_IDENTIFIER with value io.tuist.test.appA for the configuration Debug
+    Then the scheme AppB has a build setting CODE_SIGN_IDENTITY with value iPhone Developer: Christoph Lederer (F2X7FM3XMV) for the configuration Debug
+    Then the scheme AppB has a build setting PROVISIONING_PROFILE_SPECIFIER with value 59024d29-40ec-4719-8800-7b539ed98051 for the configuration Debug
+    Then the scheme AppB has a build setting PRODUCT_BUNDLE_IDENTIFIER with value io.tuist.test.appB for the configuration Debug

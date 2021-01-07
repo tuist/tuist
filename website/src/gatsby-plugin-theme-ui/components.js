@@ -6,6 +6,7 @@ import Code from './code'
 import Message from '../../markdown/docs/components/message'
 import Email from '../../markdown/docs/components/email'
 import ArgumentsTable from '../../markdown/docs/components/arguments-table'
+import RecommendationsTable from '../../markdown/docs/components/recommendations-table'
 
 const heading = (Tag) => (props) => {
   if (!props.id) return <Tag {...props} />
@@ -30,4 +31,5 @@ export default {
   Message: Message,
   Email: Email,
   ArgumentsTable: ArgumentsTable,
+  RecommendationsTable: RecommendationsTable,
 }
