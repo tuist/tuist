@@ -18,10 +18,10 @@ struct CacheWarmCommand: ParsableCommand {
     var path: String?
 
     @Option(
-        name: [.long, .customShort("C")],
-        help: "The configuration to be used when compiling the targets that will be cached."
+        name: .shortAndLong,
+        help: "The name of the flavor to be used when warming up the cache."
     )
-    var configuration: String?
+    var flavor: String?
 
     @Flag(
         name: [.customShort("x"), .long],
@@ -30,6 +30,6 @@ struct CacheWarmCommand: ParsableCommand {
     var xcframeworks: Bool = false
 
     func run() throws {
-        try CacheWarmService().run(path: path, configuration: configuration, xcframeworks: xcframeworks)
+        try CacheWarmService().run(path: path, flavor: flavor, xcframeworks: xcframeworks)
     }
 }

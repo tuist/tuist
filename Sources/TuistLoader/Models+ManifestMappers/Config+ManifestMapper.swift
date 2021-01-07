@@ -19,8 +19,14 @@ extension TuistCore.Config {
         if let manifestCloud = manifest.cloud {
             cloud = try TuistCore.Cloud.from(manifest: manifestCloud)
         }
+
+        var cache: TuistCore.Cache?
+        if let manifestCache = manifest.cache {
+            cache = TuistCore.Cache.from(manifest: manifestCache)
+        }
         return TuistCore.Config(compatibleXcodeVersions: compatibleXcodeVersions,
                                 cloud: cloud,
+                                cache: cache ?? .default,
                                 plugins: plugins,
                                 generationOptions: generationOptions,
                                 path: path)
