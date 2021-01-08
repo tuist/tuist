@@ -46,17 +46,17 @@ final class CacheWarmService {
     private func cacheFlavor(named flavorName: String?, from config: Config) throws -> TuistCore.Cache.Flavor {
         let flavors = config.cache.flavors
         switch flavorName {
-            case .none:
-                guard let defaultFlavor = flavors.first else {
-                    throw CacheWarmServiceError.missingDefaultFlavor
-                }
-                return defaultFlavor
+        case .none:
+            guard let defaultFlavor = flavors.first else {
+                throw CacheWarmServiceError.missingDefaultFlavor
+            }
+            return defaultFlavor
 
-            case let .some(name):
-                guard let flavor = flavors.first(where: { $0.name == name }) else {
-                    throw CacheWarmServiceError.missingFlavor(name: name, availableFlavors: flavors.map(\.name))
-                }
-                return flavor
+        case let .some(name):
+            guard let flavor = flavors.first(where: { $0.name == name }) else {
+                throw CacheWarmServiceError.missingFlavor(name: name, availableFlavors: flavors.map(\.name))
+            }
+            return flavor
         }
     }
 
