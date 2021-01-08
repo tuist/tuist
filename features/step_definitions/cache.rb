@@ -8,8 +8,8 @@ Then(/^tuist warms the cache with xcframeworks$/) do
   system("swift", "run", "tuist", "cache", "warm", "--path", @dir, "--xcframeworks")
 end
 
-Then(/^tuist warms the cache with configuration ([a-zA-Z]+)$/) do |configuration|
-  system("swift", "run", "tuist", "cache", "warm", "--path", @dir, "--configuration", configuration)
+Then(/^tuist warms the cache with flavor ([a-zA-Z]+)$/) do |flavor|
+  system("swift", "run", "tuist", "cache", "warm", "--path", @dir, "--flavor", flavor)
 end
 
 Then(/^([a-zA-Z]+) links the framework ([a-zA-Z]+) from the cache/) do |target_name, framework_name|
