@@ -4,6 +4,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Added
+
+- Add linting for paths of local packages and for URL validity of remote packages  [#2255](https://github.com/tuist/tuist/pull/2255) by [@adellibovi](https://github.com/adellibovi).
+
 ### Fixed
 
 - Update failing trying to create the `swift-project` symbolic link [#2244](https://github.com/tuist/tuist/pull/2244)
