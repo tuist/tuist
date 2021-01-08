@@ -6,6 +6,7 @@ public class MockGeneratorModelLoader: GeneratorModelLoading {
     private var projects = [String: (AbsolutePath) throws -> Project]()
     private var workspaces = [String: (AbsolutePath) throws -> Workspace]()
     private var configs = [String: (AbsolutePath) throws -> Config]()
+    private var plugins = [String: (AbsolutePath) throws -> Plugin]()
 
     private let basePath: AbsolutePath
 
@@ -27,6 +28,10 @@ public class MockGeneratorModelLoader: GeneratorModelLoading {
         try configs[path.pathString]!(path)
     }
 
+    public func loadPlugin(at path: AbsolutePath) throws -> Plugin {
+        try plugins[path.pathString]!(path)
+    }
+
     // MARK: - Mock
 
     public func mockProject(_ path: String, loadClosure: @escaping (AbsolutePath) throws -> Project) {
@@ -39,5 +44,9 @@ public class MockGeneratorModelLoader: GeneratorModelLoading {
 
     public func mockConfig(_ path: String = "", loadClosure: @escaping (AbsolutePath) throws -> Config) {
         configs[basePath.appending(component: path).pathString] = loadClosure
+    }
+
+    public func mockPlugin(_ path: String = "", loadClosure: @escaping (AbsolutePath) throws -> Plugin) {
+        plugins[path] = loadClosure
     }
 }
