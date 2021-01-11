@@ -45,7 +45,7 @@
     "gatsby-remark-copy-linked-files": "^2.7.0",
     "gatsby-remark-embedder": "^4.1.0",
     "gatsby-remark-images": "^3.8.1",
-    "gatsby-remark-smartypants": "^2.7.0",
+    "gatsby-remark-smartypants": "^2.8.0",
     "gatsby-source-filesystem": "^2.8.1",
     "gatsby-transformer-yaml": "^2.9.0",
     "graphviz-react": "^1.1.1",
