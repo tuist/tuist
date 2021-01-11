@@ -21,7 +21,7 @@
   "dependencies": {
     "@mdx-js/mdx": "^1.6.22",
     "@mdx-js/react": "^1.6.22",
-    "gatsby": "^2.29.3",
+    "gatsby": "^2.30.1",
     "gatsby-image": "^2.8.0",
     "gatsby-plugin-manifest": "^2.9.1",
     "gatsby-plugin-mdx": "^1.8.0",
@@ -30,7 +30,7 @@
     "gatsby-plugin-react-helmet": "^3.7.0",
     "gatsby-plugin-sharp": "^2.11.2",
     "gatsby-plugin-sitemap": "^2.9.0",
-    "gatsby-plugin-styled-components": "^3.7.0",
+    "gatsby-plugin-styled-components": "^3.8.0",
     "gatsby-plugin-typescript": "^2.9.0",
     "gatsby-plugin-web-font-loader": "^1.0.4",
     "gatsby-source-filesystem": "^2.8.1",
@@ -46,7 +46,7 @@
     "typescript": "^4.1.3"
   },
   "devDependencies": {
-    "@types/jest": "^26.0.19",
+    "@types/jest": "^26.0.20",
     "@types/react": "^17.0.0",
     "@types/styled-components": "^5.1.7",
     "@typescript-eslint/eslint-plugin": "^4.11.1",
