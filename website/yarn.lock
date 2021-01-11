@@ -8224,13 +8224,13 @@ gatsby-telemetry@^1.7.1:
     node-fetch "^2.6.1"
     uuid "3.4.0"
 
-gatsby-transformer-yaml@^2.8.0:
-  version "2.8.0"
-  resolved "https://registry.yarnpkg.com/gatsby-transformer-yaml/-/gatsby-transformer-yaml-2.8.0.tgz#6b0a353efdbbcc2f38896d65087169b4c09bf9a6"
-  integrity sha512-z7XhhGFshOw2yGKcerD7LDbFjJHhntwcrriktDic+dvbN3/UKrfJdiF4aJrSnP/MFwpclqti17Zo7BJSWXLiow==
+gatsby-transformer-yaml@^2.9.0:
+  version "2.9.0"
+  resolved "https://registry.yarnpkg.com/gatsby-transformer-yaml/-/gatsby-transformer-yaml-2.9.0.tgz#cb4da0a1d2c9ae2ffafb7ffe57b47d7506bcfc13"
+  integrity sha512-Jpn+XwNoSOq5dPxVEhXHNcc7DZNjPYGgBXu38m2vE5Z+sahXeLHbZKxx1pkTO9vfWWt2v36cF733kLxbH047BA==
   dependencies:
     "@babel/runtime" "^7.12.5"
-    js-yaml "^3.14.0"
+    js-yaml "^3.14.1"
     lodash "^4.17.20"
     unist-util-select "^1.5.0"
 
@@ -10301,10 +10301,10 @@ js-tokens@^3.0.2:
   resolved "https://registry.yarnpkg.com/js-tokens/-/js-tokens-3.0.2.tgz#9866df395102130e38f7f996bceb65443209c25b"
   integrity sha1-mGbfOVECEw449/mWvOtlRDIJwls=
 
-js-yaml@^3.11.0, js-yaml@^3.13.1, js-yaml@^3.14.0:
-  version "3.14.0"
-  resolved "https://registry.yarnpkg.com/js-yaml/-/js-yaml-3.14.0.tgz#a7a34170f26a21bb162424d8adacb4113a69e482"
-  integrity sha512-/4IbIeHcD9VMHFqDR/gQ7EdZdLimOvW2DdcxFjdyyZ9NsbS+ccrXqVWDtab/lRl5AlUqmpBx8EhPaWR+OtY17A==
+js-yaml@^3.11.0, js-yaml@^3.13.1, js-yaml@^3.14.1:
+  version "3.14.1"
+  resolved "https://registry.yarnpkg.com/js-yaml/-/js-yaml-3.14.1.tgz#dae812fdb3825fa306609a8717383c50c36a0537"
+  integrity sha512-okMH7OXXJ7YrN9Ok3/SXrnu4iX9yOk+25nqX4imS2npuvTYDmo/QEZoqwZkYaIDk3jVvBOTOIEgEhaLOynBS9g==
   dependencies:
     argparse "^1.0.7"
     esprima "^4.0.0"
@@ -13617,10 +13617,10 @@ react-animated-term@^1.3.2:
     classnames "^2.2.5"
     prop-types "^15.6.1"
 
-react-burger-menu@^3.0.2:
-  version "3.0.2"
-  resolved "https://registry.yarnpkg.com/react-burger-menu/-/react-burger-menu-3.0.2.tgz#3c9a393cc3d2f0b4a7a69786ebe5ff68e48fdd35"
-  integrity sha512-7wMXhePWrUnqwvHV4XO4LF1+iQrlfac/Cz/99Zp21OF8ctI3ccNdg/hdMrVEliEifxZ2jXLjUZy4l79P23qjzg==
+react-burger-menu@^3.0.3:
+  version "3.0.3"
+  resolved "https://registry.yarnpkg.com/react-burger-menu/-/react-burger-menu-3.0.3.tgz#be1268423b7a4a21d99243ae63842e480a5ba70b"
+  integrity sha512-BqOZnAktmd6uoiQYcKQmx8RFaZXbol5K8cApN2rKWz/qg1U4IPYGeHPKkLaYKDBelQz4IPaD2GMzo4PKCvXwNg==
   dependencies:
     browserify-optional "^1.0.0"
     classnames "^2.2.6"
