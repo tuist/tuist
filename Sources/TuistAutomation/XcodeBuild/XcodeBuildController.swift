@@ -196,22 +196,19 @@ public final class XcodeBuildController: XcodeBuildControlling {
     }
 
     fileprivate func run(command: [String]) -> Observable<SystemEvent<XcodeBuildOutput>> {
-        let colored = Environment.shared.shouldOutputBeColoured
-        return System.shared.observable(command, verbose: false)
+        return System.shared.observable(command, pipedToArguments: ["/usr/local/bin/xcbeautify"])
             .flatMap { event -> Observable<SystemEvent<XcodeBuildOutput>> in
                 switch event {
                 case let .standardError(errorData):
                     guard let line = String(data: errorData, encoding: .utf8) else { return Observable.empty() }
                     let output = line.split(separator: "\n").map { line -> SystemEvent<XcodeBuildOutput> in
-                        let formatedOutput = self.parser.parse(line: String(line), colored: colored)
-                        return SystemEvent.standardError(XcodeBuildOutput(raw: "\(String(line))\n", formatted: formatedOutput.map { "\($0)\n" }))
+                        return SystemEvent.standardError(XcodeBuildOutput(raw: "\(String(line))\n", formatted: "\(String(line))\n"))
                     }
                     return Observable.from(output)
                 case let .standardOutput(outputData):
                     guard let line = String(data: outputData, encoding: .utf8) else { return Observable.empty() }
                     let output = line.split(separator: "\n").map { line -> SystemEvent<XcodeBuildOutput> in
-                        let formatedOutput = self.parser.parse(line: String(line), colored: colored)
-                        return SystemEvent.standardOutput(XcodeBuildOutput(raw: "\(String(line))\n", formatted: formatedOutput.map { "\($0)\n" }))
+                        return SystemEvent.standardOutput(XcodeBuildOutput(raw: "\(String(line))\n", formatted: "\(String(line))\n"))
                     }
                     return Observable.from(output)
                 }

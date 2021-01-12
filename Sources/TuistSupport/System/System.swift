@@ -127,6 +127,10 @@ public protocol Systeming {
     ///   - environment: Environment that should be used when running the command.
     func observable(_ arguments: [String], verbose: Bool, environment: [String: String]) -> Observable<SystemEvent<Data>>
     
+    func observable(_ arguments: [String], pipedToArguments: [String]) -> Observable<SystemEvent<Data>>
+    
+    func observable(_ arguments: [String], environment: [String: String], pipeTo secondArguments: [String]) -> Observable<SystemEvent<Data>>
+    
     /// Runs a command in the shell asynchronously.
     /// When the process that triggers the command gets killed, the command continues its execution.
     ///
@@ -478,8 +482,11 @@ public final class System: Systeming {
         .subscribeOn(ConcurrentDispatchQueueScheduler(queue: DispatchQueue.global()))
     }
     
+    public func observable(_ arguments: [String], pipedToArguments: [String]) -> Observable<SystemEvent<Data>> {
+        observable(arguments, environment: env, pipeTo: pipedToArguments)
+    }
+    
     public func observable(_ arguments: [String],
-                           verbose: Bool,
                            environment: [String: String],
                            pipeTo secondArguments: [String]) -> Observable<SystemEvent<Data>>
     {
@@ -491,11 +498,15 @@ public final class System: Systeming {
             let stdErrPipe: Pipe = Pipe()
             let processOne: Foundation.Process = Foundation.Process()
             
-            processOne.arguments = arguments
+            let processOneLaunchPath = arguments.first ?? ""
+            processOne.launchPath = processOneLaunchPath
+            processOne.arguments = Array(arguments.dropFirst())
             processOne.environment = environment
             
             let processTwo: Foundation.Process = Foundation.Process()
-            processTwo.arguments = secondArguments
+            let processTwoLaunchPath = secondArguments.first ?? ""
+            processTwo.launchPath = processTwoLaunchPath
+            processTwo.arguments = Array(secondArguments.dropFirst())
             processTwo.environment = environment
             
             processOne.standardOutput = processPipe
