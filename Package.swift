@@ -10,7 +10,6 @@ let rxTestDependency: Target.Dependency = .product(name: "RxTest", package: "RxS
 let swiftToolsSupportDependency: Target.Dependency = .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core")
 let loggingDependency: Target.Dependency = .product(name: "Logging", package: "swift-log")
 let argumentParserDependency: Target.Dependency = .product(name: "ArgumentParser", package: "swift-argument-parser")
-let beautifyDependency: Target.Dependency = .product(name: "XcbeautifyLib", package: "xcbeautify")
 let swiftGenKitDependency: Target.Dependency = .product(name: "SwiftGenKit", package: "SwiftGen")
 let swifterDependency: Target.Dependency = .byName(name: "Swifter")
 let combineExtDependency: Target.Dependency = .byName(name: "CombineExt")
@@ -45,7 +44,6 @@ let package = Package(
         .package(url: "https://github.com/ReactiveX/RxSwift.git", .upToNextMajor(from: "5.1.1")),
         .package(url: "https://github.com/rnine/Checksum.git", .upToNextMajor(from: "1.0.2")),
         .package(url: "https://github.com/apple/swift-log.git", .upToNextMajor(from: "1.4.0")),
-        .package(url: "https://github.com/thii/xcbeautify.git", .upToNextMajor(from: "0.8.1")),
         .package(url: "https://github.com/krzyzanowskim/CryptoSwift.git", .upToNextMajor(from: "1.3.3")),
         .package(url: "https://github.com/stencilproject/Stencil.git", .upToNextMajor(from: "0.14.0")),
         .package(url: "https://github.com/kishikawakatsumi/KeychainAccess.git", .upToNextMajor(from: "4.1.0")),
@@ -396,7 +394,6 @@ let package = Package(
                 swiftToolsSupportDependency,
                 "TuistCore",
                 "TuistSupport",
-                beautifyDependency,
             ]
         ),
         .testTarget(
@@ -434,7 +431,6 @@ let package = Package(
                 swiftToolsSupportDependency,
                 "TuistCore",
                 "TuistSupport",
-                beautifyDependency,
             ]
         ),
         .testTarget(
