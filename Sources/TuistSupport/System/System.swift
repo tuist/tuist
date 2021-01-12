@@ -127,8 +127,17 @@ public protocol Systeming {
     ///   - environment: Environment that should be used when running the command.
     func observable(_ arguments: [String], verbose: Bool, environment: [String: String]) -> Observable<SystemEvent<Data>>
     
+    /// Runs a command in the shell and wraps the standard output and error in a observable.
+    /// - Parameters:
+    ///   - arguments: Command.
+    ///   - pipedToArguments: Second Command.
     func observable(_ arguments: [String], pipedToArguments: [String]) -> Observable<SystemEvent<Data>>
     
+    /// Runs a command in the shell and wraps the standard output and error in a observable.
+    /// - Parameters:
+    ///   - arguments: Command.
+    ///   - environment: Environment that should be used when running the command.
+    ///   - secondArguments: Second Command.
     func observable(_ arguments: [String], environment: [String: String], pipeTo secondArguments: [String]) -> Observable<SystemEvent<Data>>
     
     /// Runs a command in the shell asynchronously.
@@ -493,38 +502,46 @@ public final class System: Systeming {
         Observable.create { (observer) -> Disposable in
             let synchronizationQueue = DispatchQueue(label: "io.tuist.support.system")
             var errorData: [UInt8] = []
-            let processPipe: Pipe = Pipe()
             let stdOutPipe: Pipe = Pipe()
             let stdErrPipe: Pipe = Pipe()
-            let processOne: Foundation.Process = Foundation.Process()
+            let processPipe: Pipe = Pipe()
+            let processOne: Foundation.Process = {
+                let process = Foundation.Process()
+                let processOneLaunchPath = arguments.first ?? ""
+                process.launchPath = processOneLaunchPath
+                process.arguments = Array(arguments.dropFirst())
+                process.environment = environment
+                return process
+            }()
+            let processTwo: Foundation.Process = {
+                let process = Foundation.Process()
+                let processTwoLaunchPath = secondArguments.first ?? ""
+                process.launchPath = processTwoLaunchPath
+                process.arguments = Array(secondArguments.dropFirst())
+                process.environment = environment
+                return process
+            }()
             
-            let processOneLaunchPath = arguments.first ?? ""
-            processOne.launchPath = processOneLaunchPath
-            processOne.arguments = Array(arguments.dropFirst())
-            processOne.environment = environment
-            
-            let processTwo: Foundation.Process = Foundation.Process()
-            let processTwoLaunchPath = secondArguments.first ?? ""
-            processTwo.launchPath = processTwoLaunchPath
-            processTwo.arguments = Array(secondArguments.dropFirst())
-            processTwo.environment = environment
-            
+            // Redirect output of Process One to Process Two
             processOne.standardOutput = processPipe
             processTwo.standardInput = processPipe
             
+            // Redirect output of Process Two
             processTwo.standardOutput = stdOutPipe
             processTwo.standardError = stdErrPipe
             
             stdOutPipe.fileHandleForReading.readabilityHandler = { fileHandle in
                 synchronizationQueue.async {
-                    observer.onNext(.standardOutput(Data(fileHandle.availableData)))
+                    let data: Data = fileHandle.availableData
+                    observer.onNext(.standardOutput(Data(data)))
                 }
             }
             
             stdErrPipe.fileHandleForReading.readabilityHandler = { fileHandle in
                 synchronizationQueue.async {
-                    errorData.append(contentsOf: fileHandle.availableData)
-                    observer.onNext(.standardError(Data(fileHandle.availableData)))
+                    let data: Data = fileHandle.availableData
+                    errorData.append(contentsOf: data)
+                    observer.onNext(.standardError(data))
                 }
             }
             
@@ -532,9 +549,11 @@ public final class System: Systeming {
                 processOne.launch()
                 processTwo.launch()
                 processOne.waitUntilExit()
+                
+                let exitStatus = ProcessResult.ExitStatus.terminated(code: processOne.terminationStatus)
                 let result = ProcessResult(arguments: arguments,
                                            environment: environment,
-                                           exitStatus: ProcessResult.ExitStatus.terminated(code: processOne.terminationStatus),
+                                           exitStatus: exitStatus,
                                            output: .success([]),
                                            stderrOutput: .success(errorData))
                 try result.throwIfErrored()
