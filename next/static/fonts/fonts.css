@@ -1,0 +1,20 @@
+@font-face {
+  font-family: 'ModernEra';
+  src: url('ModernEra-ExtraBold.otf') format('opentype');
+  font-weight: 900;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'ModernEra';
+  src: url('ModernEra-Regular.otf') format('opentype');
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'ModernEraMono';
+  src: url('ModernEraMono-Bold.otf') format('opentype');
+  font-weight: bold;
+  font-style: normal;
+}

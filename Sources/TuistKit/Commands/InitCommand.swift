@@ -10,11 +10,13 @@ import TuistSupport
 private typealias Platform = TuistCore.Platform
 private typealias Product = TuistCore.Product
 
-struct InitCommand: ParsableCommand {
+struct InitCommand: ParsableCommand, HasTrackableParameters {
     static var configuration: CommandConfiguration {
         CommandConfiguration(commandName: "init",
                              abstract: "Bootstraps a project")
     }
+
+    static var analyticsDelegate: TrackableParametersDelegate?
 
     @Option(
         help: "The platform (ios, tvos or macos) the product will be for (Default: ios)",
@@ -64,6 +66,7 @@ struct InitCommand: ParsableCommand {
     }
 
     func run() throws {
+        InitCommand.analyticsDelegate?.willRun(withParamters: ["platform": platform ?? "unknown"])
         try InitService().run(name: name,
                               platform: platform,
                               path: path,

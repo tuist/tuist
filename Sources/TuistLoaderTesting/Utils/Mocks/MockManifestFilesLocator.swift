@@ -14,6 +14,8 @@ public final class MockManifestFilesLocator: ManifestFilesLocating {
     public var locateSetupStub: AbsolutePath?
     public var locateSetupArgs: [AbsolutePath] = []
 
+    public init() {}
+
     public func locateProjectManifests(at: AbsolutePath) -> [(Manifest, AbsolutePath)] {
         locateProjectManifestsArgs.append(at)
         return locateProjectManifestsStub ?? [(.project, at.appending(component: "Project.swift"))]
