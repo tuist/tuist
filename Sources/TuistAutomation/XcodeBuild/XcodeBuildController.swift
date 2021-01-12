@@ -3,7 +3,6 @@ import RxSwift
 import TSCBasic
 import TuistCore
 import TuistSupport
-import XcbeautifyLib
 
 public final class XcodeBuildController: XcodeBuildControlling {
     // MARK: - Attributes
@@ -16,8 +15,20 @@ public final class XcodeBuildController: XcodeBuildControlling {
         pattern: "^Build settings for action (?:\\S+) and target \\\"?([^\":]+)\\\"?:$",
         options: [.caseInsensitive, .anchorsMatchLines]
     )
-
-    public init() { }
+    
+    private let formatter: Formatting
+    private let environment: Environmenting
+    
+    public convenience init() {
+        self.init(formatter: Formatter(),
+                  environment: Environment.shared)
+    }
+    
+    init(formatter: Formatting,
+         environment: Environmenting) {
+        self.formatter = formatter
+        self.environment = environment
+    }
 
     public func build(_ target: XcodeBuildTarget,
                       scheme: String,
@@ -41,7 +52,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
         // Arguments
         command.append(contentsOf: arguments.flatMap(\.arguments))
 
-        return run(command: command, isVerbose: Environment.shared.isVerbose)
+        return run(command: command, isVerbose: environment.isVerbose)
     }
 
     public func test(
@@ -75,7 +86,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
             break
         }
 
-        return run(command: command, isVerbose: Environment.shared.isVerbose)
+        return run(command: command, isVerbose: environment.isVerbose)
     }
 
     public func archive(_ target: XcodeBuildTarget,
@@ -104,7 +115,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
         // Arguments
         command.append(contentsOf: arguments.flatMap(\.arguments))
 
-        return run(command: command, isVerbose: Environment.shared.isVerbose)
+        return run(command: command, isVerbose: environment.isVerbose)
     }
 
     public func createXCFramework(frameworks: [AbsolutePath], output: AbsolutePath) -> Observable<SystemEvent<XcodeBuildOutput>> {
@@ -112,7 +123,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
         command.append(contentsOf: frameworks.flatMap { ["-framework", $0.pathString] })
         command.append(contentsOf: ["-output", output.pathString])
         command.append("-allow-internal-distribution")
-        return run(command: command, isVerbose: Environment.shared.isVerbose)
+        return run(command: command, isVerbose: environment.isVerbose)
     }
 
     public func showBuildSettings(_ target: XcodeBuildTarget,
@@ -190,7 +201,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
         if isVerbose {
             return run(command: command)
         } else {
-            return run(command: command, pipedToArguments: ["/usr/local/bin/xcbeautify"])
+            return run(command: command, pipedToArguments: try! formatter.buildArguments())
         }
     }
     
