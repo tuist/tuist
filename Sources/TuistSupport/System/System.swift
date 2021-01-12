@@ -507,7 +507,7 @@ public final class System: Systeming {
             let processPipe: Pipe = Pipe()
             let processOne: Foundation.Process = {
                 let process = Foundation.Process()
-                let processOneLaunchPath = arguments.first ?? ""
+                let processOneLaunchPath = arguments.first!
                 process.launchPath = processOneLaunchPath
                 process.arguments = Array(arguments.dropFirst())
                 process.environment = environment
@@ -515,7 +515,7 @@ public final class System: Systeming {
             }()
             let processTwo: Foundation.Process = {
                 let process = Foundation.Process()
-                let processTwoLaunchPath = secondArguments.first ?? ""
+                let processTwoLaunchPath = secondArguments.first!
                 process.launchPath = processTwoLaunchPath
                 process.arguments = Array(secondArguments.dropFirst())
                 process.environment = environment
@@ -533,7 +533,7 @@ public final class System: Systeming {
             stdOutPipe.fileHandleForReading.readabilityHandler = { fileHandle in
                 synchronizationQueue.async {
                     let data: Data = fileHandle.availableData
-                    observer.onNext(.standardOutput(Data(data)))
+                    observer.onNext(.standardOutput(data))
                 }
             }
             

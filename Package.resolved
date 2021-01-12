@@ -29,15 +29,6 @@
         }
       },
       {
-        "package": "Colorizer",
-        "repositoryURL": "https://github.com/getGuaka/Colorizer.git",
-        "state": {
-          "branch": null,
-          "revision": "2ccc99bf1715e73c4139e8d40b6e6b30be975586",
-          "version": "0.2.1"
-        }
-      },
-      {
         "package": "CombineExt",
         "repositoryURL": "https://github.com/CombineCommunity/CombineExt.git",
         "state": {
@@ -74,21 +65,12 @@
         }
       },
       {
-        "package": "Guaka",
-        "repositoryURL": "https://github.com/nsomar/Guaka.git",
-        "state": {
-          "branch": null,
-          "revision": "6fb29b2378166a30d72120980e1c099c664598de",
-          "version": "0.4.1"
-        }
-      },
-      {
         "package": "Kanna",
         "repositoryURL": "https://github.com/tid-kijyun/Kanna.git",
         "state": {
           "branch": null,
-          "revision": "609367a2cd84827a33383cf7923cb4fe8f69ee0a",
-          "version": "5.2.2"
+          "revision": "4a80ebe93b6966d5083394fcaaaff57a2fcec935",
+          "version": "5.2.3"
         }
       },
       {
@@ -155,15 +137,6 @@
         }
       },
       {
-        "package": "StringScanner",
-        "repositoryURL": "https://github.com/getGuaka/StringScanner.git",
-        "state": {
-          "branch": null,
-          "revision": "de1685ad202cb586d626ed52d6de904dd34189f3",
-          "version": "0.4.1"
-        }
-      },
-      {
         "package": "swift-argument-parser",
         "repositoryURL": "https://github.com/apple/swift-argument-parser.git",
         "state": {
@@ -209,15 +182,6 @@
         }
       },
       {
-        "package": "xcbeautify",
-        "repositoryURL": "https://github.com/thii/xcbeautify.git",
-        "state": {
-          "branch": null,
-          "revision": "fd7b0b6972809eead52b9016b383cf6d467e00b0",
-          "version": "0.8.1"
-        }
-      },
-      {
         "package": "XcodeProj",
         "repositoryURL": "https://github.com/tuist/XcodeProj.git",
         "state": {
@@ -231,8 +195,8 @@
         "repositoryURL": "https://github.com/jpsim/Yams.git",
         "state": {
           "branch": null,
-          "revision": "88caa2e6fffdbef2e91c2022d038576062042907",
-          "version": "4.0.0"
+          "revision": "138cf1b701cf825233b92ceac919152d5aba8a3f",
+          "version": "4.0.1"
         }
       },
       {
