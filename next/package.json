@@ -23,7 +23,7 @@
     "@mdx-js/react": "^1.6.22",
     "gatsby": "^2.30.1",
     "gatsby-image": "^2.9.0",
-    "gatsby-plugin-manifest": "^2.9.1",
+    "gatsby-plugin-manifest": "^2.10.0",
     "gatsby-plugin-mdx": "^1.8.0",
     "gatsby-plugin-next-seo": "^1.6.1",
     "gatsby-plugin-offline": "^3.8.0",
