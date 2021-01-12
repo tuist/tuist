@@ -25,6 +25,7 @@ public enum Constants {
     public enum Vendor {
         public static let swiftLint = "swiftlint"
         public static let swiftDoc = "swift-doc"
+        public static let xcbeautify = "xcbeautify"
     }
 
     public enum DependenciesDirectory {

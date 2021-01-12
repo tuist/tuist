@@ -89,7 +89,7 @@ task :install_git_hooks do
 end
 
 desc("Updates xcbeautify binary with the latest version available.")
-task :swift_lint_update do
+task :xcbeautify_update do
   root_dir = File.expand_path(__dir__)
   Dir.mktmpdir do |temporary_dir|
     Dir.chdir(temporary_dir) do
@@ -98,7 +98,7 @@ task :swift_lint_update do
       Dir.chdir("xcbeautify/xcbeautify-#{XCBEAUTIFY_VERSION}") do
         system("make", "build")
       end
-      release_dir = File.join(temporary_dir, "xcbeautify/xcbeautify-#{SWIFTDOC_VERSION}/.build/apple/Products/Release")
+      release_dir = File.join(temporary_dir, "xcbeautify/xcbeautify-#{XCBEAUTIFY_VERSION}/.build/apple/Products/Release")
       vendor_dir = File.join(root_dir, "vendor")
       dst_binary_path = File.join(vendor_dir, "xcbeautify")
       
