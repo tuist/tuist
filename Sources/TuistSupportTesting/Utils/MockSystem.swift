@@ -5,6 +5,7 @@ import TuistSupport
 import XCTest
 
 public final class MockSystem: Systeming {
+   
     public var env: [String: String] = ProcessInfo.processInfo.environment
     // swiftlint:disable:next large_tuple
     public var stubs: [String: (stderror: String?, stdout: String?, exitstatus: Int?)] = [:]
@@ -113,6 +114,32 @@ public final class MockSystem: Systeming {
     }
 
     public func observable(_ arguments: [String], verbose _: Bool, environment _: [String: String]) -> Observable<SystemEvent<Data>> {
+        Observable.create { (observer) -> Disposable in
+            let command = arguments.joined(separator: " ")
+            guard let stub = self.stubs[command] else {
+                observer.onError(TuistSupport.SystemError.terminated(command: arguments.first!, code: 1, standardError: Data()))
+                return Disposables.create()
+            }
+            guard stub.exitstatus == 0 else {
+                if let error = stub.stderror {
+                    observer.onNext(.standardError(error.data(using: .utf8)!))
+                }
+                observer.onError(TuistSupport.SystemError.terminated(command: arguments.first!, code: 1, standardError: Data()))
+                return Disposables.create()
+            }
+            if let stdout = stub.stdout {
+                observer.onNext(.standardOutput(stdout.data(using: .utf8)!))
+            }
+            observer.onCompleted()
+            return Disposables.create()
+        }
+    }
+    
+    public func observable(_ arguments: [String], pipedToArguments: [String]) -> Observable<SystemEvent<Data>> {
+        observable(arguments, environment: [:], pipeTo: pipedToArguments)
+    }
+    
+    public func observable(_ arguments: [String], environment: [String : String], pipeTo secondArguments: [String]) -> Observable<SystemEvent<Data>> {
         Observable.create { (observer) -> Disposable in
             let command = arguments.joined(separator: " ")
             guard let stub = self.stubs[command] else {
