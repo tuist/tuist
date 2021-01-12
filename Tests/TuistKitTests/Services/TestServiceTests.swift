@@ -82,7 +82,7 @@ final class TestServiceTests: TuistUnitTestCase {
             XCTAssertTrue(_clean)
             XCTAssertEqual(_arguments, buildArguments)
             XCTAssertEqual(_destination, .device(availableDeviceAndRuntime.device.udid))
-            return Observable.just(.standardOutput(.init(raw: "success", formatted: nil)))
+            return Observable.just(.standardOutput(.init(raw: "success")))
         }
 
         // Then
@@ -139,7 +139,7 @@ final class TestServiceTests: TuistUnitTestCase {
             } else {
                 XCTFail("unexpected scheme \(_scheme)")
             }
-            return Observable.just(.standardOutput(.init(raw: "success", formatted: nil)))
+            return Observable.just(.standardOutput(.init(raw: "success")))
         }
 
         // Then
@@ -170,7 +170,7 @@ final class TestServiceTests: TuistUnitTestCase {
             ]
         }
         xcodebuildController.testStub = { _, _, _, _, _ in
-            .just(.standardOutput(.init(raw: "success", formatted: nil)))
+            .just(.standardOutput(.init(raw: "success")))
         }
 
         // When

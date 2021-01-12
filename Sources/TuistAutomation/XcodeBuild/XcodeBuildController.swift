@@ -17,16 +17,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
         options: [.caseInsensitive, .anchorsMatchLines]
     )
 
-    /// Instance to format xcodebuild output.
-    private let parser: Parsing
-
-    public convenience init() {
-        self.init(parser: Parser())
-    }
-
-    init(parser: Parsing) {
-        self.parser = parser
-    }
+    public init() { }
 
     public func build(_ target: XcodeBuildTarget,
                       scheme: String,
@@ -50,7 +41,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
         // Arguments
         command.append(contentsOf: arguments.flatMap(\.arguments))
 
-        return run(command: command)
+        return run(command: command, isVerbose: Environment.shared.isVerbose)
     }
 
     public func test(
@@ -84,7 +75,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
             break
         }
 
-        return run(command: command)
+        return run(command: command, isVerbose: Environment.shared.isVerbose)
     }
 
     public func archive(_ target: XcodeBuildTarget,
@@ -113,7 +104,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
         // Arguments
         command.append(contentsOf: arguments.flatMap(\.arguments))
 
-        return run(command: command)
+        return run(command: command, isVerbose: Environment.shared.isVerbose)
     }
 
     public func createXCFramework(frameworks: [AbsolutePath], output: AbsolutePath) -> Observable<SystemEvent<XcodeBuildOutput>> {
@@ -121,7 +112,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
         command.append(contentsOf: frameworks.flatMap { ["-framework", $0.pathString] })
         command.append(contentsOf: ["-output", output.pathString])
         command.append("-allow-internal-distribution")
-        return run(command: command)
+        return run(command: command, isVerbose: Environment.shared.isVerbose)
     }
 
     public func showBuildSettings(_ target: XcodeBuildTarget,
@@ -194,21 +185,49 @@ public final class XcodeBuildController: XcodeBuildControlling {
             })
             .asSingle()
     }
-
+    
+    fileprivate func run(command: [String], isVerbose: Bool) -> Observable<SystemEvent<XcodeBuildOutput>> {
+        if isVerbose {
+            return run(command: command)
+        } else {
+            return run(command: command, pipedToArguments: ["/usr/local/bin/xcbeautify"])
+        }
+    }
+    
     fileprivate func run(command: [String]) -> Observable<SystemEvent<XcodeBuildOutput>> {
-        return System.shared.observable(command, pipedToArguments: ["/usr/local/bin/xcbeautify"])
+        return System.shared.observable(command)
             .flatMap { event -> Observable<SystemEvent<XcodeBuildOutput>> in
                 switch event {
                 case let .standardError(errorData):
                     guard let line = String(data: errorData, encoding: .utf8) else { return Observable.empty() }
                     let output = line.split(separator: "\n").map { line -> SystemEvent<XcodeBuildOutput> in
-                        return SystemEvent.standardError(XcodeBuildOutput(raw: "\(String(line))\n", formatted: "\(String(line))\n"))
+                        return SystemEvent.standardError(XcodeBuildOutput(raw: "\(String(line))\n"))
                     }
                     return Observable.from(output)
                 case let .standardOutput(outputData):
                     guard let line = String(data: outputData, encoding: .utf8) else { return Observable.empty() }
                     let output = line.split(separator: "\n").map { line -> SystemEvent<XcodeBuildOutput> in
-                        return SystemEvent.standardOutput(XcodeBuildOutput(raw: "\(String(line))\n", formatted: "\(String(line))\n"))
+                        return SystemEvent.standardOutput(XcodeBuildOutput(raw: "\(String(line))\n"))
+                    }
+                    return Observable.from(output)
+                }
+            }
+    }
+    
+    fileprivate func run(command: [String], pipedToArguments: [String]) -> Observable<SystemEvent<XcodeBuildOutput>> {
+        return System.shared.observable(command, pipedToArguments: pipedToArguments)
+            .flatMap { event -> Observable<SystemEvent<XcodeBuildOutput>> in
+                switch event {
+                case let .standardError(errorData):
+                    guard let line = String(data: errorData, encoding: .utf8) else { return Observable.empty() }
+                    let output = line.split(separator: "\n").map { line -> SystemEvent<XcodeBuildOutput> in
+                        return SystemEvent.standardError(XcodeBuildOutput(raw: "\(String(line))\n"))
+                    }
+                    return Observable.from(output)
+                case let .standardOutput(outputData):
+                    guard let line = String(data: outputData, encoding: .utf8) else { return Observable.empty() }
+                    let output = line.split(separator: "\n").map { line -> SystemEvent<XcodeBuildOutput> in
+                        return SystemEvent.standardOutput(XcodeBuildOutput(raw: "\(String(line))\n"))
                     }
                     return Observable.from(output)
                 }
