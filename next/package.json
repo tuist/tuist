@@ -29,7 +29,7 @@
     "gatsby-plugin-offline": "^3.8.0",
     "gatsby-plugin-react-helmet": "^3.8.0",
     "gatsby-plugin-sharp": "^2.11.2",
-    "gatsby-plugin-sitemap": "^2.9.0",
+    "gatsby-plugin-sitemap": "^2.10.0",
     "gatsby-plugin-styled-components": "^3.8.0",
     "gatsby-plugin-typescript": "^2.9.0",
     "gatsby-plugin-web-font-loader": "^1.0.4",
