@@ -7915,10 +7915,10 @@ gatsby-plugin-meta-redirect@^1.1.1:
   dependencies:
     fs-extra "^7.0.0"
 
-gatsby-plugin-netlify@^2.8.0:
-  version "2.8.0"
-  resolved "https://registry.yarnpkg.com/gatsby-plugin-netlify/-/gatsby-plugin-netlify-2.8.0.tgz#686323c18d920e0091f6df03c9e35b819f03ae72"
-  integrity sha512-Nz38dvPBAwqVQdoRWZLip1ITzgZB6noiZq9NbpiVX/GW3e1dFaLPZH0bnwp0rCkt6MIjxgqELSjR5YzhRzaERA==
+gatsby-plugin-netlify@^2.9.0:
+  version "2.9.0"
+  resolved "https://registry.yarnpkg.com/gatsby-plugin-netlify/-/gatsby-plugin-netlify-2.9.0.tgz#58e241e9f53fbc9b0e9bb1c82206016a14be5062"
+  integrity sha512-KJ4/LXTUptJzjt3uywQAKi76SPAo56jxQ6QrVmZhrCZS1D0YAMUHlJx3BOPANOJ/utY9JHFio4Qpfb7eH8mx0Q==
   dependencies:
     "@babel/runtime" "^7.12.5"
     fs-extra "^8.1.0"
