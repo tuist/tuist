@@ -7950,10 +7950,10 @@ gatsby-plugin-page-creator@^2.8.0:
     globby "^11.0.1"
     lodash "^4.17.20"
 
-gatsby-plugin-postcss@^3.4.0:
-  version "3.4.0"
-  resolved "https://registry.yarnpkg.com/gatsby-plugin-postcss/-/gatsby-plugin-postcss-3.4.0.tgz#ad3607da60421c7593b6db509398a3dccb477678"
-  integrity sha512-91iSfMNczGExULcP1xdyYctf9EmRfTYLzhWUOmOnsGD1R3jPrEmSt4LGIBh4LtpLPuVuJZNZGYVfXhKuQCYS2A==
+gatsby-plugin-postcss@^3.5.0:
+  version "3.5.0"
+  resolved "https://registry.yarnpkg.com/gatsby-plugin-postcss/-/gatsby-plugin-postcss-3.5.0.tgz#c575451f2fbc20a9a3d5f694e39ee21dcb34dc95"
+  integrity sha512-MzFIL4S3i2GqXHz0j46vE+yxCjYMheUsfRgXV5GqgTMzwYT3Z4maqK+IpkO0ttWJOskwhQmDY5KhOPSzct2+pw==
   dependencies:
     "@babel/runtime" "^7.12.5"
     postcss-loader "^4.0.4"
@@ -8124,10 +8124,10 @@ gatsby-remark-check-links@^2.1.0:
   dependencies:
     unist-util-visit "^1.4.1"
 
-gatsby-remark-copy-linked-files@^2.7.0:
-  version "2.7.0"
-  resolved "https://registry.yarnpkg.com/gatsby-remark-copy-linked-files/-/gatsby-remark-copy-linked-files-2.7.0.tgz#8a7c336881f8a498cf58d295b181341067594e53"
-  integrity sha512-0UWaYmneg1yA+GuDzF5Aoy52TgiXjArGhrP9XB36rooT1m2V1lTSBasTd7n1H4TEcw3PrTJK+taxv51b3Sf+UQ==
+gatsby-remark-copy-linked-files@^2.8.0:
+  version "2.8.0"
+  resolved "https://registry.yarnpkg.com/gatsby-remark-copy-linked-files/-/gatsby-remark-copy-linked-files-2.8.0.tgz#e2045bace6617dc266b4ac0646609df24b1b2564"
+  integrity sha512-6rtuTw3v8Fv0K+h+xufgady+hIJOBjWbjn4jPu3EXe2vVU2ld6j5nEsmVqvyfn4sXO/ZAN9z1jZJeo1A53VLmA==
   dependencies:
     "@babel/runtime" "^7.12.5"
     cheerio "^1.0.0-rc.3"
@@ -8194,7 +8194,7 @@ gatsby-source-filesystem@^2.8.1:
     valid-url "^1.0.9"
     xstate "^4.14.0"
 
-gatsby-telemetry@^1.7.1, gatsby-telemetry@^1.8.0:
+gatsby-telemetry@^1.8.0:
   version "1.8.0"
   resolved "https://registry.yarnpkg.com/gatsby-telemetry/-/gatsby-telemetry-1.8.0.tgz#c24f321f19898a40d1113df1148a9c52700371c9"
   integrity sha512-vWhOVud2LUx0lQZvACSJtGB6ft1G9Uy/jp6RL82tXmWo+tpo0Ph6JeiYJAcqpQIa+cg73TYE6DGWq16bL/57UQ==
