@@ -1,6 +1,7 @@
 import ArgumentParser
 import Foundation
 import TuistSupport
+import TuistAsyncQueue
 
 /// `TrackableCommandInfo` contains the information to report the execution of a command
 public struct TrackableCommandInfo {
@@ -14,20 +15,20 @@ public struct TrackableCommandInfo {
 public class TrackableCommand: TrackableParametersDelegate {
     private var command: ParsableCommand
     private let clock: Clock
-    private let commandEventTagger: CommandEventTagging
     private var trackedParameters: [String: String] = [:]
+    private let commandEventFactory: CommandEventFactory
 
     public init(
         command: ParsableCommand,
-        commandEventTagger: CommandEventTagging = CommandEventTagger(),
-        clock: Clock = WallClock()
+        clock: Clock = WallClock(),
+        commandEventFactory: CommandEventFactory = CommandEventFactory()
     ) {
         self.command = command
         self.clock = clock
-        self.commandEventTagger = commandEventTagger
+        self.commandEventFactory = commandEventFactory
     }
 
-    func run() throws {
+    func run(completion: @escaping () -> ()) throws {
         let timer = clock.startTimer()
         if let command = command as? HasTrackableParameters {
             type(of: command).analyticsDelegate = self
@@ -42,10 +43,11 @@ public class TrackableCommand: TrackableParametersDelegate {
             parameters: trackedParameters,
             duration: duration
         )
-        commandEventTagger.tagCommand(from: info)
+        let commandEvent = commandEventFactory.make(from: info)
+        AsyncQueue.sharedInstance.dispatch(event: commandEvent, completion: completion)
     }
 
-    func willRun(withParamters parameters: [String: String]) {
+    func willRun(withParameters parameters: [String: String]) {
         trackedParameters = parameters
     }
 

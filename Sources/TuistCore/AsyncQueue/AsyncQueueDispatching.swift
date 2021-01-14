@@ -8,9 +8,9 @@ public protocol AsyncQueueDispatching {
 
     /// Dispatches a given event.
     /// - Parameter event: Event to be dispatched.
-    func dispatch(event: AsyncQueueEvent) throws
+    func dispatch(event: AsyncQueueEvent, completion: @escaping () -> ()) throws
 
     /// Dispatch a persisted event.
     /// - Parameter data: Serialized data of the event.
-    func dispatchPersisted(data: Data) throws
+    func dispatchPersisted(data: Data, completion: @escaping () -> ()) throws
 }

@@ -7,52 +7,46 @@ import TuistSupport
 public protocol AsyncQueuing {
     /// It dispatches the given event.
     /// - Parameter event: Event to be dispatched.
-    func dispatch<T: AsyncQueueEvent>(event: T)
+    /// - Parameter completion: It's called when the event has been persisted, to make sure it won't get lost
+    func dispatch<T: AsyncQueueEvent>(event: T, completion: @escaping () -> ())
 }
 
 public class AsyncQueue: AsyncQueuing {
     // MARK: - Attributes
-
-    public static var shared: AsyncQueuing!
     private let disposeBag: DisposeBag = DisposeBag()
     private let queue: Queuing
     private let ciChecker: CIChecking
     private let persistor: AsyncQueuePersisting
-    private let dispatchers: [String: AsyncQueueDispatching]
-    private let executionBlock: () throws -> Void
+    private var dispatchers: [String: AsyncQueueDispatching] = [:]
     private let persistedEventsSchedulerType: SchedulerType
+
+    public static let sharedInstance: AsyncQueue = AsyncQueue()
 
     // MARK: - Init
 
-    public convenience init(dispatchers: [AsyncQueueDispatching],
-                            executionBlock: @escaping () throws -> Void) throws
-    {
-        try self.init(queue: Queuer.shared,
-                      executionBlock: executionBlock,
-                      ciChecker: CIChecker(),
-                      persistor: AsyncQueuePersistor(),
-                      dispatchers: dispatchers)
-    }
-
-    init(queue: Queuing,
-         executionBlock: @escaping () throws -> Void,
-         ciChecker: CIChecking,
-         persistor: AsyncQueuePersisting,
-         dispatchers: [AsyncQueueDispatching],
-         persistedEventsSchedulerType: SchedulerType = AsyncQueue.schedulerType()) throws
+    private init(queue: Queuing = Queuer.shared,
+         ciChecker: CIChecking = CIChecker(),
+         persistor: AsyncQueuePersisting = AsyncQueuePersistor(),
+         persistedEventsSchedulerType: SchedulerType = AsyncQueue.schedulerType())
     {
         self.queue = queue
-        self.executionBlock = executionBlock
         self.ciChecker = ciChecker
         self.persistor = persistor
-        self.dispatchers = dispatchers.reduce(into: [String: AsyncQueueDispatching]()) { $0[$1.identifier] = $1 }
         self.persistedEventsSchedulerType = persistedEventsSchedulerType
-        try run()
+    }
+
+    public func register(dispatcher: AsyncQueueDispatching) {
+        self.dispatchers[dispatcher.identifier] = dispatcher
     }
 
     // MARK: - AsyncQueuing
 
-    public func dispatch<T: AsyncQueueEvent>(event: T) {
+    public func start() {
+        loadEvents()
+        queue.resume()
+    }
+
+    public func dispatch<T: AsyncQueueEvent>(event: T, completion: @escaping () -> ()) {
         guard let dispatcher = dispatchers[event.dispatcherId] else {
             logger.error("Couldn't find dispatcher with id: \(event.dispatcherId)")
             return
@@ -61,11 +55,17 @@ public class AsyncQueue: AsyncQueuing {
         // We persist the event in case the dispatching is halted because Tuist's
         // process exits. In that case we want to retry again the next time there's
         // opportunity for that.
-        _ = persistor.write(event: event)
+        let writeCompletable = persistor.write(event: event)
+        _ = writeCompletable.subscribe { _ in
+            // Queue event to send
+            let operation = self.liveDispatchOperation(event: event, dispatcher: dispatcher)
+            self.queue.addOperation(operation)
+            completion()
+        }
+    }
 
-        // Queue event to send
-        let operation = liveDispatchOperation(event: event, dispatcher: dispatcher)
-        queue.addOperation(operation)
+    public static func schedulerType() -> SchedulerType {
+        SerialDispatchQueueScheduler(queue: dispatchQueue(), internalSerialQueueName: "tuist-async-queue")
     }
 
     // MARK: - Private
@@ -73,14 +73,13 @@ public class AsyncQueue: AsyncQueuing {
     private func liveDispatchOperation<T: AsyncQueueEvent>(event: T, dispatcher: AsyncQueueDispatching) -> Operation {
         ConcurrentOperation(name: event.id.uuidString) { operation in
             logger.debug("Dispatching event with ID '\(event.id.uuidString)' to '\(dispatcher.identifier)'")
-
             do {
-                try dispatcher.dispatch(event: event)
-                operation.success = true
-
-                /// After the dispatching operation finishes, we delete the event locally.
-                _ = self.persistor.delete(event: event)
+                try dispatcher.dispatch(event: event) {
+                    _ = self.persistor.delete(event: event)
+                    operation.success = true
+                }
             } catch {
+                _ = self.persistor.delete(event: event)
                 operation.success = false
             }
         }
@@ -101,32 +100,16 @@ public class AsyncQueue: AsyncQueuing {
                                             dispatcher: AsyncQueueDispatching) -> Operation
     {
         ConcurrentOperation(name: event.id.uuidString) { _ in
-            /// After the dispatching operation finishes, we delete the event locally.
-            defer { self.deletePersistedEvent(filename: event.filename) }
-
             do {
                 logger.debug("Dispatching persisted event with ID '\(event.id.uuidString)' to '\(dispatcher.identifier)'")
-                try dispatcher.dispatchPersisted(data: event.data)
+                try dispatcher.dispatchPersisted(data: event.data) {
+                    self.deletePersistedEvent(filename: event.filename)
+                    print("Deleted persisted \(event.filename)")
+                }
             } catch {
                 logger.debug("Failed to dispatch persisted event with ID '\(event.id.uuidString)' to '\(dispatcher.identifier)'")
             }
         }
-    }
-
-    private func run() throws {
-        start()
-        do {
-            try executionBlock()
-            waitIfCI()
-        } catch {
-            waitIfCI()
-            throw error
-        }
-    }
-
-    private func start() {
-        loadEvents()
-        queue.resume()
     }
 
     private func waitIfCI() {
@@ -154,9 +137,5 @@ public class AsyncQueue: AsyncQueuing {
 
     private static func dispatchQueue() -> DispatchQueue {
         DispatchQueue(label: "io.tuist.async-queue", qos: .background)
-    }
-
-    private static func schedulerType() -> SchedulerType {
-        ConcurrentDispatchQueueScheduler(queue: dispatchQueue())
     }
 }
