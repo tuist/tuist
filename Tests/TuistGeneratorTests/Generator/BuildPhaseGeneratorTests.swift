@@ -642,7 +642,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
     func test_generateTarget_actions() throws {
         // Given
         system.swiftVersionStub = { "5.2" }
-        let fileElements = ProjectFileElements([:], playgrounds: MockPlaygrounds())
+        let fileElements = ProjectFileElements([:])
         let graph = Graph.test()
         let valueGraph = ValueGraph(graph: graph)
         let graphTraverser = ValueGraphTraverser(graph: valueGraph)
@@ -652,13 +652,22 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let target = Target.test(sources: [],
                                  resources: [],
                                  actions: [
-                                     TargetAction(name: "post", order: .post, path: path.appending(component: "script.sh"), arguments: ["arg"], showEnvVarsInLog: false, basedOnDependencyAnalysis: false),
-                                     TargetAction(name: "pre", order: .pre, path: path.appending(component: "script.sh"), arguments: ["arg"]),
+                                     TargetAction(
+                                         name: "post",
+                                         order: .post,
+                                         script: .scriptPath(path.appending(component: "script.sh"), args: ["arg"]),
+                                         showEnvVarsInLog: false,
+                                         basedOnDependencyAnalysis: false
+                                     ),
+                                     TargetAction(
+                                         name: "pre",
+                                         order: .pre,
+                                         script: .scriptPath(path.appending(component: "script.sh"), args: ["arg"])
+                                     ),
                                  ])
         let project = Project.test(path: path, sourceRootPath: path, xcodeProjPath: path.appending(component: "Project.xcodeproj"), targets: [target])
         let groups = ProjectGroups.generate(project: project,
-                                            pbxproj: pbxproj,
-                                            playgrounds: MockPlaygrounds())
+                                            pbxproj: pbxproj)
         try fileElements.generateProjectFiles(project: project,
                                               graphTraverser: graphTraverser,
                                               groups: groups,

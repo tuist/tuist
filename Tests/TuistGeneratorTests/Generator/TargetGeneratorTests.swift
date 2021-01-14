@@ -19,7 +19,7 @@ final class TargetGeneratorTests: XCTestCase {
         path = AbsolutePath("/test")
         pbxproj = PBXProj()
         pbxProject = createPbxProject(pbxproj: pbxproj)
-        fileElements = ProjectFileElements([:], playgrounds: MockPlaygrounds())
+        fileElements = ProjectFileElements([:])
 
         subject = TargetGenerator()
     }
@@ -41,13 +41,10 @@ final class TargetGeneratorTests: XCTestCase {
                                  actions: [
                                      TargetAction(name: "pre",
                                                   order: .pre,
-                                                  tool: "echo",
-                                                  arguments: ["pre1", "pre2"]),
+                                                  script: .tool("echo", ["pre1", "pre2"])),
                                      TargetAction(name: "post",
                                                   order: .post,
-                                                  tool: "echo",
-                                                  path: "/tmp",
-                                                  arguments: ["post1", "post2"],
+                                                  script: .tool("echo", ["post1", "post2"]),
                                                   inputFileListPaths: ["/tmp/b"],
                                                   outputFileListPaths: ["/tmp/d"]),
                                  ])
@@ -59,8 +56,7 @@ final class TargetGeneratorTests: XCTestCase {
         let valueGraph = ValueGraph(graph: graph)
         let graphTraverser = ValueGraphTraverser(graph: valueGraph)
         let groups = ProjectGroups.generate(project: project,
-                                            pbxproj: pbxproj,
-                                            playgrounds: MockPlaygrounds())
+                                            pbxproj: pbxproj)
         try fileElements.generateProjectFiles(project: project,
                                               graphTraverser: graphTraverser,
                                               groups: groups,
@@ -133,13 +129,20 @@ final class TargetGeneratorTests: XCTestCase {
         let target = Target.test(sources: [],
                                  resources: [],
                                  actions: [
-                                     TargetAction(name: "post", order: .post, path: path.appending(component: "script.sh"), arguments: ["arg"]),
-                                     TargetAction(name: "pre", order: .pre, path: path.appending(component: "script.sh"), arguments: ["arg"]),
+                                     TargetAction(
+                                         name: "post",
+                                         order: .post,
+                                         script: .scriptPath(path.appending(component: "script.sh"), args: ["arg"])
+                                     ),
+                                     TargetAction(
+                                         name: "pre",
+                                         order: .pre,
+                                         script: .scriptPath(path.appending(component: "script.sh"), args: ["arg"])
+                                     ),
                                  ])
         let project = Project.test(path: path, sourceRootPath: path, xcodeProjPath: path.appending(component: "Project.xcodeproj"), targets: [target])
         let groups = ProjectGroups.generate(project: project,
-                                            pbxproj: pbxproj,
-                                            playgrounds: MockPlaygrounds())
+                                            pbxproj: pbxproj)
         try fileElements.generateProjectFiles(project: project,
                                               graphTraverser: graphTraverser,
                                               groups: groups,

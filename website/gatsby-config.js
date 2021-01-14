@@ -7,7 +7,7 @@ module.exports = {
     title: title,
     description: `Tuist is a tool that helps developers manage large Xcode projects by leveraging project generation. Moreover, it provides some tools to automate most common tasks, allowing developers to focus on building apps.`,
     siteUrl: siteUrl,
-    discourseUrl: 'https://community.tuist.io',
+    discourseUrl: 'https://github.com/tuist/tuist/discussions',
     githubUrl: 'https://github.com/tuist',
     releasesUrl: 'https://github.com/tuist/tuist/releases',
     documentationUrl: 'https://docs.tuist.io/',
@@ -71,7 +71,6 @@ module.exports = {
     },
     `gatsby-plugin-sharp`,
     `gatsby-plugin-sitemap`,
-    `gatsby-plugin-offline`,
     `gatsby-plugin-theme-ui`,
     `gatsby-transformer-yaml`,
     {
@@ -211,31 +210,5 @@ module.exports = {
     },
     'gatsby-plugin-meta-redirect',
     `gatsby-plugin-robots-txt`,
-    {
-      resolve: `gatsby-plugin-purgecss`,
-      options: {
-        printRejected: true, // Print removed selectors and processed file names
-        // develop: true, // Enable while using `gatsby develop`
-        tailwind: true, // Enable tailwindcss support
-        // whitelist: ['whitelist'], // Don't remove this selector
-        // ignore: ['/ignored.css', 'prismjs/', 'docsearch.js/'], // Ignore files/folders
-        // purgeOnly : ['components/', '/main.css', 'bootstrap/'], // Purge only these files/folders
-      },
-    },
-    {
-      resolve: `gatsby-plugin-google-analytics`,
-      options: {
-        trackingId: 'UA-125584790-6',
-        head: false,
-        anonymize: true,
-        respectDNT: true,
-        exclude: [],
-        pageTransitionDelay: 0,
-        defer: false,
-        sampleRate: 5,
-        siteSpeedSampleRate: 10,
-        cookieDomain: 'tuist.io',
-      },
-    },
   ],
 }

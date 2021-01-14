@@ -1,5 +1,6 @@
 import ArgumentParser
 import Foundation
+import TuistAnalytics
 import TuistSupport
 
 public struct TuistCommand: ParsableCommand {
@@ -56,7 +57,8 @@ public struct TuistCommand: ParsableCommand {
             _exit(exitCode(for: error).rawValue)
         }
         do {
-            try command.run()
+            let trackableCommand = TrackableCommand(command: command)
+            try trackableCommand.run()
             exit()
         } catch let error as FatalError {
             errorHandler.fatal(error: error)

@@ -119,7 +119,12 @@ end
 
 Then(/^a file (.+) exists$/) do |file|
   file_path = File.join(@dir, file)
-  assert(File.exist?(file_path), "#{file_path} does not exist")
+  assert(File.file?(file_path), "#{file_path} does not exist")
+end
+
+Then(/^a directory (.+) exists$/) do |directory|
+  directory_path = File.join(@dir, directory)
+  assert(Dir.exist?(directory_path), "#{directory_path} does not exist")
 end
 
 Then("the product {string} with destination {string} contains the appClip {string} with architecture {string}") do |product, destination, app_clip, architecture|

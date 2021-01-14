@@ -18,7 +18,7 @@ public enum TargetError: FatalError, Equatable {
 public struct Target: Equatable, Hashable, Comparable {
     // MARK: - Static
 
-    public static let validSourceExtensions: [String] = ["m", "swift", "mm", "cpp", "c", "d", "intentdefinition", "xcmappingmodel", "metal"]
+    public static let validSourceExtensions: [String] = ["m", "swift", "mm", "cpp", "c", "d", "s", "intentdefinition", "xcmappingmodel", "metal"]
     public static let validFolderExtensions: [String] = ["framework", "bundle", "app", "xcassets", "appiconset", "scnassets"]
 
     // MARK: - Attributes
@@ -46,6 +46,7 @@ public struct Target: Equatable, Hashable, Comparable {
     public var launchArguments: [LaunchArgument]
     public var filesGroup: ProjectGroup
     public var scripts: [TargetScript]
+    public var playgrounds: [AbsolutePath]
 
     // MARK: - Init
 
@@ -68,7 +69,8 @@ public struct Target: Equatable, Hashable, Comparable {
                 launchArguments: [LaunchArgument] = [],
                 filesGroup: ProjectGroup,
                 dependencies: [Dependency] = [],
-                scripts: [TargetScript] = [])
+                scripts: [TargetScript] = [],
+                playgrounds: [AbsolutePath] = [])
     {
         self.name = name
         self.product = product
@@ -90,6 +92,7 @@ public struct Target: Equatable, Hashable, Comparable {
         self.filesGroup = filesGroup
         self.dependencies = dependencies
         self.scripts = scripts
+        self.playgrounds = playgrounds
     }
 
     /// Target can be included in the link phase of other targets
@@ -117,6 +120,8 @@ public struct Target: Equatable, Hashable, Comparable {
             .uiTests,
             .appExtension,
             .watch2Extension,
+            .messagesExtension,
+            .appClip,
         ].contains(product)
     }
 

@@ -8,6 +8,7 @@ public enum BinaryArchitecture: String, Codable {
     case arm64
     case armv7k
     case arm6432 = "arm64_32"
+    case arm64e
 }
 
 public enum BinaryLinking: String, Codable {

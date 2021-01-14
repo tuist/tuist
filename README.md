@@ -112,11 +112,21 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
     <td align="center"><a href="http://www.luispadron.com"><img src="https://avatars3.githubusercontent.com/u/13840545?v=4" width="100px;" alt=""/><br /><sub><b>Luis Padron</b></sub></a></td>
     <td align="center"><a href="https://heberti.com"><img src="https://avatars0.githubusercontent.com/u/103670?v=4" width="100px;" alt=""/><br /><sub><b>Heberti Almeida</b></sub></a></td>
     <td align="center"><a href="http://benscheirman.com"><img src="https://avatars0.githubusercontent.com/u/59140?v=4" width="100px;" alt=""/><br /><sub><b>Ben Scheirman</b></sub></a></td>
+    <td align="center"><a href="https://jsorge.net"><img src="https://avatars3.githubusercontent.com/u/2585841?v=4" width="100px;" alt=""/><br /><sub><b>Jared Sorge</b></sub></a></td>
+    <td align="center"><a href="https://joeblau.com"><img src="https://avatars1.githubusercontent.com/u/1218847?v=4" width="100px;" alt=""/><br /><sub><b>Joe Blau</b></sub></a></td>
+  </tr>
+  <tr>
+    <td align="center"><a href="https://twitter.com/dchavezlive"><img src="https://avatars0.githubusercontent.com/u/2475932?v=4" width="100px;" alt=""/><br /><sub><b>David Chavez</b></sub></a></td>
+    <td align="center"><a href="https://www.linkedin.com/in/роман-подымов-72338ab0/"><img src="https://avatars3.githubusercontent.com/u/10789692?v=4" width="100px;" alt=""/><br /><sub><b>Roman Podymov</b></sub></a></td>
+    <td align="center"><a href="https://github.com/marcinreliga-fn"><img src="https://avatars0.githubusercontent.com/u/76949651?v=4" width="100px;" alt=""/><br /><sub><b>Marcin Religa</b></sub></a></td>
+    <td align="center"><a href="https://github.com/adellibovi"><img src="https://avatars3.githubusercontent.com/u/67916?v=4" width="100px;" alt=""/><br /><sub><b>Alfredo Delli Bovi</b></sub></a></td>
+    <td align="center"><a href="https://github.com/Jake-Prickett"><img src="https://avatars1.githubusercontent.com/u/26095410?v=4" width="100px;" alt=""/><br /><sub><b>Jake Prickett</b></sub></a></td>
   </tr>
 </table>
 
-<!-- markdownlint-enable -->
+<!-- markdownlint-restore -->
 <!-- prettier-ignore-end -->
+
 <!-- ALL-CONTRIBUTORS-LIST:END -->
 
 This project follows the [all-contributors](https://github.com/all-contributors/all-contributors) specification. Contributions of any kind welcome!

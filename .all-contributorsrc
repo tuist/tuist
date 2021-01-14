@@ -179,6 +179,69 @@
       "contributions": [
         "ideas"
       ]
+    },
+    {
+      "login": "jsorge",
+      "name": "Jared Sorge",
+      "avatar_url": "https://avatars3.githubusercontent.com/u/2585841?v=4",
+      "profile": "https://jsorge.net",
+      "contributions": [
+        "bug"
+      ]
+    },
+    {
+      "login": "joeblau",
+      "name": "Joe Blau",
+      "avatar_url": "https://avatars1.githubusercontent.com/u/1218847?v=4",
+      "profile": "https://joeblau.com",
+      "contributions": [
+        "bug"
+      ]
+    },
+    {
+      "login": "dcvz",
+      "name": "David Chavez",
+      "avatar_url": "https://avatars0.githubusercontent.com/u/2475932?v=4",
+      "profile": "https://twitter.com/dchavezlive",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "RomanPodymov",
+      "name": "Roman Podymov",
+      "avatar_url": "https://avatars3.githubusercontent.com/u/10789692?v=4",
+      "profile": "https://www.linkedin.com/in/роман-подымов-72338ab0/",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "marcinreliga-fn",
+      "name": "Marcin Religa",
+      "avatar_url": "https://avatars0.githubusercontent.com/u/76949651?v=4",
+      "profile": "https://github.com/marcinreliga-fn",
+      "contributions": [
+        "ideas"
+      ]
+    },
+    {
+      "login": "adellibovi",
+      "name": "Alfredo Delli Bovi",
+      "avatar_url": "https://avatars3.githubusercontent.com/u/67916?v=4",
+      "profile": "https://github.com/adellibovi",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "Jake-Prickett",
+      "name": "Jake Prickett",
+      "avatar_url": "https://avatars1.githubusercontent.com/u/26095410?v=4",
+      "profile": "https://github.com/Jake-Prickett",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,

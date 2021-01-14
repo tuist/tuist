@@ -4,10 +4,54 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Added
+
+- Add linting for paths of local packages and for URL validity of remote packages  [#2255](https://github.com/tuist/tuist/pull/2255) by [@adellibovi](https://github.com/adellibovi).
+
+### Fixed
+
+- Update failing trying to create the `swift-project` symbolic link [#2244](https://github.com/tuist/tuist/pull/2244)
+- Tuist now correctly parses arm64e architectures in xcframeworks [#2247](https://github.com/tuist/tuist/pull/2247) by [@thedavidharris](https://github.com/thedavidharris).
+
+## 1.30.0 - 2021
+
+### Fixed
+
+- Fix import of multiple signing certificates [#2112](https://github.com/tuist/tuist/pull/2112) by [@rist](https://github.com/rist).
+- Fix false positive duplicate static products lint rule [#2201](https://github.com/tuist/tuist/pull/2201) by [@kwridan](https://github.com/kwridan).
+
+### Added
+
+- Add support for embedded scripts in a TargetAction. [#2192](https://github.com/tuist/tuist/pull/2192) by [@jsorge](https://github.com/jsorge)
+- Support for `Carthage` dependencies in `Dependencies.swift` [#2060](https://github.com/tuist/tuist/pull/2060) by [@laxmorek](https://github.com/laxmorek).
+- Fourier CLI tool to automate development tasks [#2196](https://github.com/tuist/tuist/pull/2196) by [@pepibumur](https://github.com/pepibumur).
+- Add support for embedded scripts in a TargetAction. [#2192](https://github.com/tuist/tuist/pull/2192) by [@jsorge](https://github.com/jsorge)
+- Support `.s` source files [#2199](https://github.com/tuist/tuist/pull/2199) by [@dcvz](https://github.com/dcvz).
+- Support for printing from the manifest files [#2215](https://github.com/tuist/tuist/pull/2215) by [@pepibumur](https://github.com/pepibumur).
+
+### Changed
+
+- Replace `@UIApplicationMain` and `@NSApplicationMain` with `@main` [#2222](https://github.com/tuist/tuist/pull/2222) by [@RomanPodymov](https://github.com/RomanPodymov).
+
+## 1.29.0 - Tutu
+
+### Fixed
+
+- Fix "Embed Frameworks" build phase parameters [#2156](https://github.com/tuist/tuist/pull/2156) by [@kwridan](https://github.com/kwridan).
+- Adjust the project generated for editing to not build for the arm64 architecture [#2154](https://github.com/tuist/tuist/pull/2154) by [@pepibumur](https://github.com/pepibumur).
+- Project generation failing when the resources glob includes a bundle [#2183](https://github.com/tuist/tuist/pull/2183) by [@pepibumur](https://github.com/pepibumur).
+
+## 1.28.0
+
 ### Fixed
 
 - Missing required module 'XXX' when building project with cached dependencies [#2051](https://github.com/tuist/tuist/pull/2051) by [@mollyIV](https://github.com/mollyIV).
 - Fix default generated scheme arguments [#2128](https://github.com/tuist/tuist/pull/2128) by [@kwridan](https://github.com/kwridan)
+- Playground files matched by the sources wildcards are added as playgrounds and not groups [#2132](https://github.com/tuist/tuist/pull/2132) by [@pepibumur](https://github.com/pepibumur).
+
+### Removed
+
+- **Breaking** The implicit addition of playgrounds under `Playgrounds/` has been removed [#2132](https://github.com/tuist/tuist/pull/2132) by [@pepibumur](https://github.com/pepibumur).
 
 ## 1.27.0 - Hawái
 

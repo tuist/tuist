@@ -14,4 +14,26 @@ final class TargetActionTests: XCTestCase {
         let subject = TargetAction.post(tool: "tool", arguments: ["arg"], name: "name")
         XCTAssertCodable(subject)
     }
+
+    func test_embedded_script() {
+        let script = """
+        echo 'Hello World'
+        wd=$(pwd)
+        echo "$wd"
+        """
+
+        let subject = TargetAction.pre(script: script, name: "name")
+        XCTAssertEqual(subject.script, .embedded(script))
+    }
+
+    func test_toJSON_when_embedded() {
+        let script = """
+        echo 'Hello World'
+        wd=$(pwd)
+        echo "$wd"
+        """
+
+        let subject = TargetAction.pre(script: script, name: "name")
+        XCTAssertCodable(subject)
+    }
 }

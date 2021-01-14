@@ -1,5 +1,3 @@
-/** @jsx jsx */
-import { jsx, Styled } from 'theme-ui'
 import React from 'react'
 import { useStaticQuery, graphql } from 'gatsby'
 
@@ -19,13 +17,13 @@ export default ({ path }) => {
   `)
   const url = `${editUrl}/markdown/${path}`
   return (
-    <Styled.a
+    <a
       href={url}
-      sx={{ textAlign: 'center' }}
+      className="text-center"
       target="__blank"
       alt="Open GitHub to edit the content of the current page"
     >
       This page can be edited on GitHub
-    </Styled.a>
+    </a>
   )
 }

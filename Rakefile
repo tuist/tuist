@@ -1,8 +1,9 @@
 # frozen_string_literal: true
 
-SWIFTDOC_VERSION = "1.0.0-beta.5".freeze
-SWIFTLINT_VERSION = "0.40.2".freeze
+SWIFTDOC_VERSION = "1.0.0-beta.5"
+SWIFTLINT_VERSION = "0.40.2"
 
+require 'rake/testtask'
 require 'rubygems'
 require 'cucumber'
 require 'cucumber/rake/task'
@@ -17,8 +18,14 @@ require 'json'
 require 'zip'
 require 'macho'
 
-Cucumber::Rake::Task.new(:features) do |t|
-  t.cucumber_opts = "--format pretty"
+desc("Runs the Fourier tests")
+Rake::TestTask.new do |t|
+  t.name = "test_fourier"
+  t.libs += [File.expand_path('./tools/fourier/test', __dir__)]
+  test_root = File.expand_path('./tools/fourier/test', __dir__)
+  t.test_files = FileList[File.join(test_root, '**', '*_test.rb')]
+  t.verbose = false
+  t.warning = false
 end
 
 desc("Updates swift-doc binary with the latest version available.")
@@ -35,7 +42,7 @@ task :swift_doc_update do
       vendor_dir = File.join(root_dir, "vendor")
       dst_binary_path = File.join(vendor_dir, "swift-doc")
       bundle_paths = Dir[File.join(release_dir, "*.bundle")]
-      
+
       # Copy binary and bundles
       binary_path = File.join(release_dir, "swift-doc")
       File.delete(dst_binary_path) if File.exist?(dst_binary_path)
@@ -49,7 +56,7 @@ task :swift_doc_update do
       # Change the reference to lib_InternalSwiftSyntaxParser.dylib
       # https://github.com/SwiftDocOrg/homebrew-formulae/blob/master/Formula/swift-doc.rb#L43
       macho = MachO.open(dst_binary_path)
-      return unless (toolchain = macho.rpaths.find { |path| path.include?(".xctoolchain") })
+      break unless (toolchain = macho.rpaths.find { |path| path.include?(".xctoolchain") })
       syntax_parser_dylib_name = "lib_InternalSwiftSyntaxParser.dylib"
       FileUtils.cp(File.join(toolchain, syntax_parser_dylib_name), File.join(vendor_dir, syntax_parser_dylib_name))
 
@@ -64,7 +71,8 @@ task :swift_lint_update do
   root_dir = File.expand_path(__dir__)
   Dir.mktmpdir do |temporary_dir|
     Dir.chdir(temporary_dir) do
-      system("curl", "-LO", "https://github.com/realm/SwiftLint/releases/download/#{SWIFTLINT_VERSION}/portable_swiftlint.zip")
+      system("curl", "-LO",
+"https://github.com/realm/SwiftLint/releases/download/#{SWIFTLINT_VERSION}/portable_swiftlint.zip")
       extract_zip("portable_swiftlint.zip", "portable_swiftlint")
       system("cp", "portable_swiftlint/swiftlint", "#{root_dir}/vendor/swiftlint")
     end
@@ -104,7 +112,7 @@ task :local_package do
 end
 
 desc("Builds, archives, and publishes tuist and tuistenv for release")
-task :release, [:version] do |task, options|
+task :release, [:version] do |_task, options|
   decrypt_secrets
   release(options[:version])
 end
@@ -115,24 +123,6 @@ task :release_scripts do
   release_scripts
 end
 
-desc("Packages tuist, tags it with the commit sha and uploads it to gcs")
-task :package_commit do
-  decrypt_secrets
-  package
-
-  bucket = storage.bucket("tuist-builds")
-
-  sha = %x(git rev-parse HEAD).strip.chomp
-  print_section("Uploading tuist-#{sha}")
-  file = bucket.create_file(
-    "build/tuist.zip",
-    "#{sha}.zip"
-  )
-
-  file.acl.public!
-  print_section("Uploaded 🚀")
-end
-
 desc("Encrypt secret keys")
 task :encrypt_secrets do
   Encrypted::Environment.encrypt_ejson("secrets.ejson", private_key: ENV["SECRET_KEY"])
@@ -140,20 +130,19 @@ end
 
 desc("Benchmarks tuist against a specified versiom")
 task :benchmark do
-
   print_section("🛠 Building supporting tools")
 
   # Build tuistbench
   system(
-    "swift", "build", 
-    "-c", "release", 
+    "swift", "build",
+    "-c", "release",
     "--package-path", "tools/tuistbench"
   )
 
   # Build fixturegen
   system(
-    "swift", "build", 
-    "-c", "release", 
+    "swift", "build",
+    "-c", "release",
     "--package-path", "tools/fixturegen"
   )
 
@@ -183,9 +172,9 @@ task :benchmark do
       "fixtures/ios_app_with_framework_and_resources",
       "fixtures/ios_app_with_transitive_framework",
       "fixtures/ios_app_with_xcframeworks",
-    ]
+    ],
   }
-  File.open(".fixtures.generated.json","w") do |f|
+  File.open(".fixtures.generated.json", "w") do |f|
     f.write(fixtures.to_json)
   end
 
@@ -204,13 +193,12 @@ task :benchmark do
 
   print_section("⏱ Benchmarking ...")
   system(
-    "tools/tuistbench/.build/release/tuistbench", 
+    "tools/tuistbench/.build/release/tuistbench",
     "-b", ".build/release/tuist",
     "-r", ".build/release/tuistenv",
     "-l", ".fixtures.generated.json",
     "--format", "markdown"
   )
-
 end
 
 def swiftformat_path
@@ -246,7 +234,7 @@ def package
     "-Xswiftc", ".build/release/ProjectDescription.swiftinterface"
   )
   system("swift", "build", "--product", "tuistenv", "--configuration", "release")
-  
+
   build_templates_path = File.join(__dir__, ".build/release/Templates")
   vendor_path = File.join(__dir__, ".build/release/vendor")
 
@@ -261,7 +249,10 @@ def package
     system(
       "zip", "-q", "-r", "--symlinks",
       "tuist.zip", "tuist",
-      "ProjectDescription.swiftmodule", "ProjectDescription.swiftdoc", "libProjectDescription.dylib", "ProjectDescription.swiftinterface",
+      "ProjectDescription.swiftmodule",
+      "ProjectDescription.swiftdoc",
+      "libProjectDescription.dylib",
+      "ProjectDescription.swiftinterface",
       "Templates",
       "vendor"
     )
@@ -273,7 +264,7 @@ def package
 end
 
 def release(version)
-  if version == nil
+  if version.nil?
     version = cli.ask("Introduce the released version:")
   end
 

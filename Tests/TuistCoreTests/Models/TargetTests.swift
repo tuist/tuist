@@ -20,7 +20,7 @@ final class TargetErrorTests: TuistUnitTestCase {
 
 final class TargetTests: TuistUnitTestCase {
     func test_validSourceExtensions() {
-        XCTAssertEqual(Target.validSourceExtensions, ["m", "swift", "mm", "cpp", "c", "d", "intentdefinition", "xcmappingmodel", "metal"])
+        XCTAssertEqual(Target.validSourceExtensions, ["m", "swift", "mm", "cpp", "c", "d", "s", "intentdefinition", "xcmappingmodel", "metal"])
     }
 
     func test_productName_when_staticLibrary() {
@@ -87,6 +87,7 @@ final class TargetTests: TuistUnitTestCase {
             "sources/c.mm",
             "sources/d.c",
             "sources/e.cpp",
+            "sources/f.s",
             "sources/k.kt",
             "sources/n.metal",
         ])
@@ -105,6 +106,7 @@ final class TargetTests: TuistUnitTestCase {
             "sources/b.m",
             "sources/c.mm",
             "sources/d.c",
+            "sources/f.s",
             "sources/e.cpp",
             "sources/n.metal",
         ]))

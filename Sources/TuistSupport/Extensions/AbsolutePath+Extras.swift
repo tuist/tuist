@@ -104,6 +104,32 @@ extension AbsolutePath {
         return ancestorPath
     }
 
+    public func upToComponentMatching(regex: String) -> AbsolutePath {
+        if isRoot { return self }
+        if basename.range(of: regex, options: .regularExpression) == nil {
+            return parentDirectory.upToComponentMatching(regex: regex)
+        } else {
+            return self
+        }
+    }
+
+    public func upToComponentMatching(extension: String) -> AbsolutePath {
+        if isRoot { return self }
+        if self.extension == `extension` {
+            return self
+        } else {
+            return parentDirectory.upToComponentMatching(extension: `extension`)
+        }
+    }
+
+    public var upToLastNonGlob: AbsolutePath {
+        guard let index = components.firstIndex(where: { $0.isGlobComponent }) else {
+            return self
+        }
+
+        return AbsolutePath(components[0 ..< index].joined(separator: "/"))
+    }
+
     /// Returns the hash of the file the path points to.
     public func sha256() -> Data? {
         try? SHA256Digest.file(at: url)
@@ -120,15 +146,5 @@ extension String {
     var isGlobComponent: Bool {
         let globCharacters = CharacterSet(charactersIn: "*{}")
         return rangeOfCharacter(from: globCharacters) != nil
-    }
-}
-
-extension AbsolutePath {
-    var upToLastNonGlob: AbsolutePath {
-        guard let index = components.firstIndex(where: { $0.isGlobComponent }) else {
-            return self
-        }
-
-        return AbsolutePath(components[0 ..< index].joined(separator: "/"))
     }
 }

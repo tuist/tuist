@@ -1,5 +1,5 @@
 /** @jsx jsx */
-import { jsx, Styled, NavLink } from 'theme-ui'
+import { jsx } from 'theme-ui'
 import { useState, useRef } from 'react'
 import { MDXRenderer } from 'gatsby-plugin-mdx'
 import { graphql, Link, withPrefix } from 'gatsby'
@@ -9,10 +9,9 @@ import urljoin from 'url-join'
 import moment from 'moment'
 import SEO from '../components/SEO'
 import Links from '../../markdown/docs/links.mdx'
-import { AccordionNav, Sidenav } from '@theme-ui/sidenav'
+import { Sidenav } from '@theme-ui/sidenav'
 import { Location } from '@reach/router'
 import isAbsoluteURL from 'is-absolute-url'
-import tw from 'twin.macro'
 
 const NavigationLink = ({ href, ...props }) => {
   const style = {
@@ -107,7 +106,7 @@ const DocumentationPage = (
                   open={menuOpen}
                   components={{ wrapper: Sidenav, a: NavigationLink }}
                   pathname={location.pathname}
-                  css={[menuOpen && tw`shadow-links`]}
+                  className={menuOpen}
                   sx={{
                     li: {
                       listStyleType: 'none',

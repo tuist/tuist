@@ -31,4 +31,11 @@ public protocol GeneratorModelLoading {
     /// - Returns: The config loaded from the specified path
     /// - Throws: Error encountered during the loading process (e.g. Missing Config file)
     func loadConfig(at path: AbsolutePath) throws -> Config
+
+    /// Load a Plugin model at the specified path
+    ///
+    /// - Parameter path: The absolute path for the Plugin model to load
+    /// - Returns: The Plugin loaded from the specified path
+    /// - Throws: Error encountered during the loading process (e.g. Missing Plugin file)
+    func loadPlugin(at path: AbsolutePath) throws -> Plugin
 }

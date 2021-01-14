@@ -1,59 +1,43 @@
 import TSCBasic
+import TuistCore
 import TuistSupport
-
-// MARK: - Dependencies Controller Errors
-
-public enum DependenciesControllerError: FatalError {
-    case unimplemented
-
-    /// Error type.
-    public var type: ErrorType {
-        switch self {
-        case .unimplemented:
-            return .abort
-        }
-    }
-
-    /// Description.
-    public var description: String {
-        switch self {
-        case .unimplemented:
-            return "A standard approach for managing third-party dependencies is being worked on and it'll be available soon."
-        }
-    }
-}
 
 // MARK: - Dependencies Controlling
 
 /// `DependenciesControlling` controls:
 ///     1. Fetching/updating dependencies defined in `./Tuist/Dependencies.swift` by running appropriate dependencies managers (`Cocoapods`, `Carthage`, `SPM`).
 ///     2. Compiling fetched/updated depedencies into `.framework.`/`.xcframework.`.
-///     3. Saving compiled frameworks uder `./Tuist/Dependencies/*`.
+///     3. Saving compiled frameworks under `./Tuist/Dependencies/*`.
+///     4. Generating dependencies graph under `./Tuist/Dependencies/graph.json`.
 public protocol DependenciesControlling {
     /// Fetches dependencies.
-    /// - Parameter path: Directory whose project's dependencies will be fetched.
-    func fetch(at path: AbsolutePath) throws
-    /// Updates dependencies.
-    /// - Parameter path: Directory whose project's dependencies will be updated.
-    func update(at path: AbsolutePath) throws
+    /// - Parameter path: Directory whose project's dependencies will be installed.
+    /// - Parameter dependencies: List of dependencies to intall.
+    func fetch(at path: AbsolutePath, dependencies: Dependencies) throws
 }
 
 // MARK: - Dependencies Controller
 
 public final class DependenciesController: DependenciesControlling {
-    public init() {}
+    private let carthageInteractor: CarthageInteracting
+    private let cocoaPodsInteractor: CocoaPodsInteracting
+    private let swiftPackageManagerInteractor: SwiftPackageManagerInteracting
 
-    public func fetch(at _: AbsolutePath) throws {
-        logger.notice("Start fetching depednencies.")
-
-        // TODO: implement me!
-        throw DependenciesControllerError.unimplemented
+    public init(
+        carthageInteractor: CarthageInteracting = CarthageInteractor(),
+        cocoaPodsInteractor: CocoaPodsInteracting = CocoaPodsInteractor(),
+        swiftPackageManagerInteractor: SwiftPackageManagerInteracting = SwiftPackageManagerInteractor()
+    ) {
+        self.carthageInteractor = carthageInteractor
+        self.cocoaPodsInteractor = cocoaPodsInteractor
+        self.swiftPackageManagerInteractor = swiftPackageManagerInteractor
     }
 
-    public func update(at _: AbsolutePath) throws {
-        logger.notice("Start updating depednencies.")
+    public func fetch(at path: AbsolutePath, dependencies: Dependencies) throws {
+        let dependenciesDirectory = path
+            .appending(component: Constants.tuistDirectoryName)
+            .appending(component: Constants.DependenciesDirectory.name)
 
-        // TODO: implement me!
-        throw DependenciesControllerError.unimplemented
+        try carthageInteractor.fetch(dependenciesDirectory: dependenciesDirectory, dependencies: dependencies.carthageDependencies)
     }
 }

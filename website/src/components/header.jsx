@@ -99,7 +99,6 @@ export default ({ menuOpen, setMenuOpen, menuRef }) => {
         <Location>
           {({ location }) => {
             const isDocs = location.pathname.startsWith('/docs')
-            const isResources = location.pathname.startsWith('/resources')
             const isBlog = location.pathname.startsWith('/blog')
             const isAppsAtScale = location.pathname.startsWith('/apps-at-scale')
             return (
@@ -129,18 +128,6 @@ export default ({ menuOpen, setMenuOpen, menuRef }) => {
                     to={firstDocumentationPagePath}
                   >
                     DOCS
-                  </Link>
-                  <Link
-                    sx={{
-                      ...linkStyle,
-                      ...(isResources ? hoverStyle : {}),
-                      ml: [0, 4],
-                      variant: 'text.header',
-                    }}
-                    to="/resources"
-                    alt="Resources"
-                  >
-                    RESOURCES
                   </Link>
                   <Link
                     sx={{

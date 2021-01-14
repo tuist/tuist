@@ -27,3 +27,9 @@ Scenario: The project is an macOS app without any dependencies (macos_app_with_c
     Then tuist generates the project
     Then the target App should have the build phase Copy Templates
     Then I should be able to build for macOS the scheme App
+
+Scenario: The project is a macOS app with logs in the manifest (manifest_with_logs)
+    Given that tuist is available
+    And I have a working directory
+    Then I copy the fixture manifest_with_logs into the working directory
+    Then tuist generates the project and outputs: Target name - App
