@@ -12,7 +12,7 @@ final class Formatter: Formatting {
     init(binaryLocator: BinaryLocating = BinaryLocator()) {
         self.binaryLocator = binaryLocator
     }
-    
+
     func buildArguments() throws -> [String] {
         let xcbeautifyPath = try binaryLocator.xcbeautifyPath()
         return [xcbeautifyPath.pathString]

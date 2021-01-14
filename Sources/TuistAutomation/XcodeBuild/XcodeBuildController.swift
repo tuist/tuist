@@ -15,17 +15,18 @@ public final class XcodeBuildController: XcodeBuildControlling {
         pattern: "^Build settings for action (?:\\S+) and target \\\"?([^\":]+)\\\"?:$",
         options: [.caseInsensitive, .anchorsMatchLines]
     )
-    
+
     private let formatter: Formatting
     private let environment: Environmenting
-    
+
     public convenience init() {
         self.init(formatter: Formatter(),
                   environment: Environment.shared)
     }
-    
+
     init(formatter: Formatting,
-         environment: Environmenting) {
+         environment: Environmenting)
+    {
         self.formatter = formatter
         self.environment = environment
     }
@@ -196,7 +197,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
             })
             .asSingle()
     }
-    
+
     fileprivate func run(command: [String], isVerbose: Bool) -> Observable<SystemEvent<XcodeBuildOutput>> {
         if isVerbose {
             return run(command: command)
@@ -204,41 +205,41 @@ public final class XcodeBuildController: XcodeBuildControlling {
             return run(command: command, pipedToArguments: try! formatter.buildArguments())
         }
     }
-    
+
     fileprivate func run(command: [String]) -> Observable<SystemEvent<XcodeBuildOutput>> {
-        return System.shared.observable(command)
+        System.shared.observable(command)
             .flatMap { event -> Observable<SystemEvent<XcodeBuildOutput>> in
                 switch event {
                 case let .standardError(errorData):
                     guard let line = String(data: errorData, encoding: .utf8) else { return Observable.empty() }
                     let output = line.split(separator: "\n").map { line -> SystemEvent<XcodeBuildOutput> in
-                        return SystemEvent.standardError(XcodeBuildOutput(raw: "\(String(line))\n"))
+                        SystemEvent.standardError(XcodeBuildOutput(raw: "\(String(line))\n"))
                     }
                     return Observable.from(output)
                 case let .standardOutput(outputData):
                     guard let line = String(data: outputData, encoding: .utf8) else { return Observable.empty() }
                     let output = line.split(separator: "\n").map { line -> SystemEvent<XcodeBuildOutput> in
-                        return SystemEvent.standardOutput(XcodeBuildOutput(raw: "\(String(line))\n"))
+                        SystemEvent.standardOutput(XcodeBuildOutput(raw: "\(String(line))\n"))
                     }
                     return Observable.from(output)
                 }
             }
     }
-    
+
     fileprivate func run(command: [String], pipedToArguments: [String]) -> Observable<SystemEvent<XcodeBuildOutput>> {
-        return System.shared.observable(command, pipedToArguments: pipedToArguments)
+        System.shared.observable(command, pipedToArguments: pipedToArguments)
             .flatMap { event -> Observable<SystemEvent<XcodeBuildOutput>> in
                 switch event {
                 case let .standardError(errorData):
                     guard let line = String(data: errorData, encoding: .utf8) else { return Observable.empty() }
                     let output = line.split(separator: "\n").map { line -> SystemEvent<XcodeBuildOutput> in
-                        return SystemEvent.standardError(XcodeBuildOutput(raw: "\(String(line))\n"))
+                        SystemEvent.standardError(XcodeBuildOutput(raw: "\(String(line))\n"))
                     }
                     return Observable.from(output)
                 case let .standardOutput(outputData):
                     guard let line = String(data: outputData, encoding: .utf8) else { return Observable.empty() }
                     let output = line.split(separator: "\n").map { line -> SystemEvent<XcodeBuildOutput> in
-                        return SystemEvent.standardOutput(XcodeBuildOutput(raw: "\(String(line))\n"))
+                        SystemEvent.standardOutput(XcodeBuildOutput(raw: "\(String(line))\n"))
                     }
                     return Observable.from(output)
                 }

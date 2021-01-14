@@ -27,7 +27,7 @@ public final class MockBinaryLocator: BinaryLocating {
             throw BinaryLocatorError.swiftDocNotFound
         }
     }
-    
+
     public var xcbeautifyStub: (() throws -> AbsolutePath)?
     public func xcbeautifyPath() throws -> AbsolutePath {
         if let xcbeautifyPath = xcbeautifyStub {

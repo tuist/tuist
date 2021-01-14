@@ -7,19 +7,19 @@ import TSCBasic
 public protocol Systeming {
     /// System environment.
     var env: [String: String] { get }
-    
+
     /// Runs a command without collecting output nor printing anything.
     ///
     /// - Parameter arguments: Command.
     /// - Throws: An error if the command fails
     func run(_ arguments: [String]) throws
-    
+
     /// Runs a command without collecting output nor printing anything.
     ///
     /// - Parameter arguments: Command.
     /// - Throws: An error if the command fails
     func run(_ arguments: String...) throws
-    
+
     /// Runs a command in the shell and returns the standard output string.
     ///
     /// - Parameters:
@@ -27,7 +27,7 @@ public protocol Systeming {
     /// - Returns: Standard output string.
     /// - Throws: An error if the command fails.
     func capture(_ arguments: String...) throws -> String
-    
+
     /// Runs a command in the shell and returns the standard output string.
     ///
     /// - Parameters:
@@ -35,7 +35,7 @@ public protocol Systeming {
     /// - Returns: Standard output string.
     /// - Throws: An error if the command fails.
     func capture(_ arguments: [String]) throws -> String
-    
+
     /// Runs a command in the shell and returns the standard output string.
     ///
     /// - Parameters:
@@ -45,7 +45,7 @@ public protocol Systeming {
     /// - Returns: Standard output string.
     /// - Throws: An error if the command fails.
     func capture(_ arguments: String..., verbose: Bool, environment: [String: String]) throws -> String
-    
+
     /// Runs a command in the shell and returns the standard output string.
     ///
     /// - Parameters:
@@ -55,21 +55,21 @@ public protocol Systeming {
     /// - Returns: Standard output string.
     /// - Throws: An error if the command fails.
     func capture(_ arguments: [String], verbose: Bool, environment: [String: String]) throws -> String
-    
+
     /// Runs a command in the shell printing its output.
     ///
     /// - Parameters:
     ///   - arguments: Command.
     /// - Throws: An error if the command fails.
     func runAndPrint(_ arguments: String...) throws
-    
+
     /// Runs a command in the shell printing its output.
     ///
     /// - Parameters:
     ///   - arguments: Command.
     /// - Throws: An error if the command fails.
     func runAndPrint(_ arguments: [String]) throws
-    
+
     /// Runs a command in the shell printing its output.
     ///
     /// - Parameters:
@@ -78,7 +78,7 @@ public protocol Systeming {
     ///   - environment: Environment that should be used when running the task.
     /// - Throws: An error if the command fails.
     func runAndPrint(_ arguments: String..., verbose: Bool, environment: [String: String]) throws
-    
+
     /// Runs a command in the shell printing its output.
     ///
     /// - Parameters:
@@ -87,7 +87,7 @@ public protocol Systeming {
     ///   - environment: Environment that should be used when running the task.
     /// - Throws: An error if the command fails.
     func runAndPrint(_ arguments: [String], verbose: Bool, environment: [String: String]) throws
-    
+
     /// Runs a command in the shell printing its output.
     ///
     /// - Parameters:
@@ -97,12 +97,12 @@ public protocol Systeming {
     ///   - redirection: Instance through which the output will be redirected.
     /// - Throws: An error if the command fails.
     func runAndPrint(_ arguments: [String], verbose: Bool, environment: [String: String], redirection: TSCBasic.Process.OutputRedirection) throws
-    
+
     /// Runs a command in the shell and wraps the standard output and error in a observable.
     /// - Parameters:
     ///   - arguments: Command.
     func observable(_ arguments: [String]) -> Observable<SystemEvent<Data>>
-    
+
     /// Runs a command in the shell and wraps the standard output and error in a observable.
     /// - Parameters:
     ///   - arguments: Command.
@@ -119,27 +119,27 @@ public protocol Systeming {
     ///   - arguments: Command.
     ///   - verbose: When true it prints the command that will be executed before executing it.
     func publisher(_ arguments: [String], verbose: Bool) -> AnyPublisher<SystemEvent<Data>, Error>
-    
+
     /// Runs a command in the shell and wraps the standard output and error in a observable.
     /// - Parameters:
     ///   - arguments: Command.
     ///   - verbose: When true it prints the command that will be executed before executing it.
     ///   - environment: Environment that should be used when running the command.
     func observable(_ arguments: [String], verbose: Bool, environment: [String: String]) -> Observable<SystemEvent<Data>>
-    
+
     /// Runs a command in the shell and wraps the standard output and error in a observable.
     /// - Parameters:
     ///   - arguments: Command.
     ///   - pipedToArguments: Second Command.
     func observable(_ arguments: [String], pipedToArguments: [String]) -> Observable<SystemEvent<Data>>
-    
+
     /// Runs a command in the shell and wraps the standard output and error in a observable.
     /// - Parameters:
     ///   - arguments: Command.
     ///   - environment: Environment that should be used when running the command.
     ///   - secondArguments: Second Command.
     func observable(_ arguments: [String], environment: [String: String], pipeTo secondArguments: [String]) -> Observable<SystemEvent<Data>>
-    
+
     /// Runs a command in the shell asynchronously.
     /// When the process that triggers the command gets killed, the command continues its execution.
     ///
@@ -147,7 +147,7 @@ public protocol Systeming {
     ///   - arguments: Command.
     /// - Throws: An error if the command fails.
     func async(_ arguments: [String]) throws
-    
+
     /// Runs a command in the shell asynchronously.
     /// When the process that triggers the command gets killed, the command continues its execution.
     ///
@@ -157,13 +157,13 @@ public protocol Systeming {
     ///   - environment: Environment that should be used when running the command.
     /// - Throws: An error if the command fails.
     func async(_ arguments: [String], verbose: Bool, environment: [String: String]) throws
-    
+
     /// Returns the Swift version.
     ///
     /// - Returns: Swift version.
     /// - Throws: An error if Swift is not installed or it exists unsuccessfully.
     func swiftVersion() throws -> String
-    
+
     /// Runs /usr/bin/which passing the given tool.
     ///
     /// - Parameter name: Tool whose path will be obtained using which.
@@ -188,7 +188,7 @@ extension ProcessResult {
             }
         }
     }
-    
+
     /// It returns the command that the process executed.
     /// If the command is executed through xcrun, then the name of the tool is returned instead.
     /// - Returns: Returns the command that the process executed.
@@ -205,7 +205,7 @@ public enum SystemError: FatalError, Equatable {
     case terminated(command: String, code: Int32, standardError: Data)
     case signalled(command: String, code: Int32, standardError: Data)
     case parseSwiftVersion(String)
-    
+
     public var description: String {
         switch self {
         case let .signalled(command, code, data):
@@ -224,7 +224,7 @@ public enum SystemError: FatalError, Equatable {
             return "Couldn't obtain the Swift version from the output: \(output)."
         }
     }
-    
+
     public var type: ErrorType {
         switch self {
         case .signalled: return .abort
@@ -237,24 +237,24 @@ public enum SystemError: FatalError, Equatable {
 public final class System: Systeming {
     /// Shared system instance.
     public static var shared: Systeming = System()
-    
+
     /// Regex expression used to get the Swift version from the output of the 'swift --version' command.
     // swiftlint:disable:next force_try
     private static var swiftVersionRegex = try! NSRegularExpression(pattern: "Apple Swift version\\s(.+)\\s\\(.+\\)", options: [])
-    
+
     /// Convenience shortcut to the environment.
     public var env: [String: String] {
         ProcessInfo.processInfo.environment
     }
-    
+
     func escaped(arguments: [String]) -> String {
         arguments.map { $0.spm_shellEscaped() }.joined(separator: " ")
     }
-    
+
     // MARK: - Init
-    
+
     // MARK: - Systeming
-    
+
     /// Runs a command without collecting output nor printing anything.
     ///
     /// - Parameter arguments: Command.
@@ -265,18 +265,18 @@ public final class System: Systeming {
                               outputRedirection: .collect,
                               verbose: false,
                               startNewProcessGroup: false)
-        
+
         logger.debug("\(escaped(arguments: arguments))")
-        
+
         try process.launch()
         let result = try process.waitUntilExit()
         let output = try result.utf8Output()
-        
+
         logger.debug("\(output)")
-        
+
         try result.throwIfErrored()
     }
-    
+
     /// Runs a command without collecting output nor printing anything.
     ///
     /// - Parameter arguments: Command.
@@ -284,7 +284,7 @@ public final class System: Systeming {
     public func run(_ arguments: String...) throws {
         try run(arguments)
     }
-    
+
     /// Runs a command in the shell and returns the standard output string.
     ///
     /// - Parameters:
@@ -296,7 +296,7 @@ public final class System: Systeming {
     public func capture(_ arguments: String...) throws -> String {
         try capture(arguments)
     }
-    
+
     /// Runs a command in the shell and returns the standard output string.
     ///
     /// - Parameters:
@@ -306,7 +306,7 @@ public final class System: Systeming {
     public func capture(_ arguments: [String]) throws -> String {
         try capture(arguments, verbose: false, environment: env)
     }
-    
+
     /// Runs a command in the shell and returns the standard output string.
     ///
     /// - Parameters:
@@ -321,7 +321,7 @@ public final class System: Systeming {
     {
         try capture(arguments, verbose: verbose, environment: environment)
     }
-    
+
     /// Runs a command in the shell and returns the standard output string.
     ///
     /// - Parameters:
@@ -339,20 +339,20 @@ public final class System: Systeming {
                               outputRedirection: .collect,
                               verbose: verbose,
                               startNewProcessGroup: false)
-        
+
         logger.debug("\(escaped(arguments: arguments))")
-        
+
         try process.launch()
         let result = try process.waitUntilExit()
         let output = try result.utf8Output()
-        
+
         logger.debug("\(output)")
-        
+
         try result.throwIfErrored()
-        
+
         return try result.utf8Output()
     }
-    
+
     /// Runs a command in the shell printing its output.
     ///
     /// - Parameters:
@@ -361,7 +361,7 @@ public final class System: Systeming {
     public func runAndPrint(_ arguments: String...) throws {
         try runAndPrint(arguments)
     }
-    
+
     /// Runs a command in the shell printing its output.
     ///
     /// - Parameters:
@@ -370,7 +370,7 @@ public final class System: Systeming {
     public func runAndPrint(_ arguments: [String]) throws {
         try runAndPrint(arguments, verbose: false, environment: env)
     }
-    
+
     /// Runs a command in the shell printing its output.
     ///
     /// - Parameters:
@@ -386,7 +386,7 @@ public final class System: Systeming {
                         verbose: verbose,
                         environment: environment)
     }
-    
+
     /// Runs a command in the shell printing its output.
     ///
     /// - Parameters:
@@ -403,7 +403,7 @@ public final class System: Systeming {
                         environment: environment,
                         redirection: .none)
     }
-    
+
     /// Runs a command in the shell printing its output.
     ///
     /// - Parameters:
@@ -420,33 +420,33 @@ public final class System: Systeming {
         let process = Process(arguments: arguments,
                               environment: environment,
                               outputRedirection: .stream(stdout: { bytes in
-                                FileHandle.standardOutput.write(Data(bytes))
-                                redirection.outputClosures?.stdoutClosure(bytes)
+                                  FileHandle.standardOutput.write(Data(bytes))
+                                  redirection.outputClosures?.stdoutClosure(bytes)
                               }, stderr: { bytes in
-                                FileHandle.standardError.write(Data(bytes))
-                                redirection.outputClosures?.stderrClosure(bytes)
+                                  FileHandle.standardError.write(Data(bytes))
+                                  redirection.outputClosures?.stderrClosure(bytes)
                               }), verbose: verbose,
                               startNewProcessGroup: false)
-        
+
         logger.debug("\(escaped(arguments: arguments))")
-        
+
         try process.launch()
         let result = try process.waitUntilExit()
         let output = try result.utf8Output()
-        
+
         logger.debug("\(output)")
-        
+
         try result.throwIfErrored()
     }
-    
+
     public func observable(_ arguments: [String]) -> Observable<SystemEvent<Data>> {
         observable(arguments, verbose: false)
     }
-    
+
     public func observable(_ arguments: [String], verbose: Bool) -> Observable<SystemEvent<Data>> {
         observable(arguments, verbose: verbose, environment: env)
     }
-    
+
     public func observable(_ arguments: [String], verbose: Bool, environment: [String: String]) -> Observable<SystemEvent<Data>> {
         Observable.create { (observer) -> Disposable in
             let synchronizationQueue = DispatchQueue(label: "io.tuist.support.system")
@@ -454,14 +454,14 @@ public final class System: Systeming {
             let process = Process(arguments: arguments,
                                   environment: environment,
                                   outputRedirection: .stream(stdout: { bytes in
-                                    synchronizationQueue.async {
-                                        observer.onNext(.standardOutput(Data(bytes)))
-                                    }
+                                      synchronizationQueue.async {
+                                          observer.onNext(.standardOutput(Data(bytes)))
+                                      }
                                   }, stderr: { bytes in
-                                    synchronizationQueue.async {
-                                        errorData.append(contentsOf: bytes)
-                                        observer.onNext(.standardError(Data(bytes)))
-                                    }
+                                      synchronizationQueue.async {
+                                          errorData.append(contentsOf: bytes)
+                                          observer.onNext(.standardError(Data(bytes)))
+                                      }
                                   }),
                                   verbose: verbose,
                                   startNewProcessGroup: false)
@@ -490,11 +490,11 @@ public final class System: Systeming {
         }
         .subscribeOn(ConcurrentDispatchQueueScheduler(queue: DispatchQueue.global()))
     }
-    
+
     public func observable(_ arguments: [String], pipedToArguments: [String]) -> Observable<SystemEvent<Data>> {
         observable(arguments, environment: env, pipeTo: pipedToArguments)
     }
-    
+
     public func observable(_ arguments: [String],
                            environment: [String: String],
                            pipeTo secondArguments: [String]) -> Observable<SystemEvent<Data>>
@@ -521,22 +521,22 @@ public final class System: Systeming {
                 process.environment = environment
                 return process
             }()
-            
+
             // Redirect output of Process One to Process Two
             processOne.standardOutput = processPipe
             processTwo.standardInput = processPipe
-            
+
             // Redirect output of Process Two
             processTwo.standardOutput = stdOutPipe
             processTwo.standardError = stdErrPipe
-            
+
             stdOutPipe.fileHandleForReading.readabilityHandler = { fileHandle in
                 synchronizationQueue.async {
                     let data: Data = fileHandle.availableData
                     observer.onNext(.standardOutput(data))
                 }
             }
-            
+
             stdErrPipe.fileHandleForReading.readabilityHandler = { fileHandle in
                 synchronizationQueue.async {
                     let data: Data = fileHandle.availableData
@@ -544,12 +544,12 @@ public final class System: Systeming {
                     observer.onNext(.standardError(data))
                 }
             }
-            
+
             do {
                 processOne.launch()
                 processTwo.launch()
                 processOne.waitUntilExit()
-                
+
                 let exitStatus = ProcessResult.ExitStatus.terminated(code: processOne.terminationStatus)
                 let result = ProcessResult(arguments: arguments,
                                            environment: environment,
@@ -573,7 +573,7 @@ public final class System: Systeming {
         }
         .subscribeOn(ConcurrentDispatchQueueScheduler(queue: DispatchQueue.global()))
     }
-    
+
     /// Runs a command in the shell asynchronously.
     /// When the process that triggers the command gets killed, the command continues its execution.
     ///
@@ -583,7 +583,7 @@ public final class System: Systeming {
     public func async(_ arguments: [String]) throws {
         try async(arguments, verbose: false, environment: env)
     }
-    
+
     /// Runs a command in the shell asynchronously.
     /// When the process that triggers the command gets killed, the command continues its execution.
     ///
@@ -598,12 +598,12 @@ public final class System: Systeming {
                               outputRedirection: .none,
                               verbose: verbose,
                               startNewProcessGroup: true)
-        
+
         logger.debug("\(escaped(arguments: arguments))")
-        
+
         try process.launch()
     }
-    
+
     /// Returns the Swift version.
     ///
     /// - Returns: Swift version.
@@ -616,7 +616,7 @@ public final class System: Systeming {
         }
         return NSString(string: output).substring(with: match.range(at: 1)).spm_chomp()
     }
-    
+
     /// Runs /usr/bin/which passing the given tool.
     ///
     /// - Parameter name: Tool whose path will be obtained using which.
