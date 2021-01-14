@@ -5,14 +5,14 @@ import TuistSupport
 import XcodeProj
 
 public enum TargetsExtractorError: FatalError, Equatable {
-    case missingProject
+    case missingXcodeProj(AbsolutePath)
     case noTargets
     case failedToExtractTargets(String)
     case failedToEncode
 
     public var description: String {
         switch self {
-        case .missingProject: return "The project's pbxproj file contains no projects."
+        case let .missingXcodeProj(path): return "Couldn't find Xcode project at path \(path.pathString)."
         case .noTargets: return "The project doesn't have any targets."
         case .failedToEncode: return "Failed to encode targets into JSON schema"
         case let .failedToExtractTargets(reason): return "Failed to extract targets for reason: \(reason)."
@@ -21,7 +21,7 @@ public enum TargetsExtractorError: FatalError, Equatable {
 
     public var type: ErrorType {
         switch self {
-        case .missingProject:
+        case .missingXcodeProj:
             return .abort
         case .noTargets:
             return .abort
@@ -53,7 +53,7 @@ public final class TargetsExtractor: TargetsExtracting {
     // MARK: - EmptyBuildSettingsChecking
 
     public func targetsSortedByDependencies(xcodeprojPath: AbsolutePath) throws -> [TargetDependencyCount] {
-        guard FileHandler.shared.exists(xcodeprojPath) else { throw TargetsExtractorError.missingProject }
+        guard FileHandler.shared.exists(xcodeprojPath) else { throw TargetsExtractorError.missingXcodeProj(xcodeprojPath) }
         let pbxproj = try XcodeProj(path: Path(xcodeprojPath.pathString)).pbxproj
         let targets = pbxproj.nativeTargets + pbxproj.aggregateTargets + pbxproj.legacyTargets
         if targets.isEmpty {
