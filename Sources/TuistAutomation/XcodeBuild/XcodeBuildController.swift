@@ -202,6 +202,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
         if isVerbose {
             return run(command: command)
         } else {
+            // swiftlint:disable:next force_try
             return run(command: command, pipedToArguments: try! formatter.buildArguments())
         }
     }
