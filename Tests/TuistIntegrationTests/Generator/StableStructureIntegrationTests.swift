@@ -32,13 +32,14 @@ final class StableXcodeProjIntegrationTests: TuistTestCase {
                                                             headers: 100)
             let modelGenerator = TestModelGenerator(rootPath: temporaryPath, config: config)
             let graph = try modelGenerator.generate()
-            let valueGraph = ValueGraph(graph: graph)
+            var valueGraph = ValueGraph(graph: graph)
+            valueGraph.workspace.projects = valueGraph.projects.compactMap { $0.value.xcodeProjPath }
             let graphTraverser = ValueGraphTraverser(graph: valueGraph)
 
             let workspaceDescriptor = try subject.generateWorkspace(graphTraverser: graphTraverser)
 
             // Note: While we already have access to the `XcodeProj` models in `workspaceDescriptor`
-            // unfortunately they are not equtable, however once serialized & deserialized back they are
+            // unfortunately they are not equatable, however once serialized & deserialized back they are
             try writer.write(workspace: workspaceDescriptor)
             let xcworkspace = try XCWorkspace(path: workspaceDescriptor.xcworkspacePath.path)
             let xcodeProjs = try findXcodeProjs(in: xcworkspace)
@@ -67,7 +68,12 @@ final class StableXcodeProjIntegrationTests: TuistTestCase {
 
     private func findXcodeProjs(in workspace: XCWorkspace) throws -> [XcodeProj] {
         let temporaryPath = try self.temporaryPath()
-        let projectsPaths = workspace.projectPaths.map { temporaryPath.appending(RelativePath($0)) }
+        let projectsPaths = workspace.data.children
+            .flatMap { child in
+                child.projectPaths.map {
+                    temporaryPath.appending(components: child.location.path, $0)
+                }
+            }
         let xcodeProjs = try projectsPaths.map { try XcodeProj(path: $0.path) }
         return xcodeProjs
     }

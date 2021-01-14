@@ -10,35 +10,32 @@ import XCTest
 
 final class AutomationPathProjectMapperTests: TuistUnitTestCase {
     private var subject: AutomationPathProjectMapper!
-    private var contentHasher: MockContentHasher!
+    private var xcodeProjDirectory: AbsolutePath!
 
     override func setUpWithError() throws {
         try super.setUpWithError()
+        xcodeProjDirectory = try temporaryPath()
         subject = .init(
-            xcodeProjDirectory: try temporaryPath()
+            xcodeProjDirectory: xcodeProjDirectory
         )
     }
 
     override func tearDown() {
-        super.tearDown()
-        contentHasher = nil
+        xcodeProjDirectory = nil
         subject = nil
+        super.tearDown()
     }
 
     func test_map() throws {
         // Given
-        let projectPath = try temporaryPath()
-        contentHasher.hashStub = { _ in
-            projectPath.basename
-        }
+        let projectPath: AbsolutePath = xcodeProjDirectory
         let xcodeProjPath = projectPath.appending(component: "A.xcodeproj")
         let project = Project.test(
             path: projectPath,
+            sourceRootPath: xcodeProjDirectory,
             xcodeProjPath: xcodeProjPath,
             name: "A"
         )
-        let projectsDirectory = environment.projectsCacheDirectory
-            .appending(component: "A-\(projectPath.basename)")
 
         // When
         let (gotProject, gotSideEffects) = try subject.map(project: project)
@@ -48,7 +45,8 @@ final class AutomationPathProjectMapperTests: TuistUnitTestCase {
             gotProject,
             Project.test(
                 path: projectPath,
-                xcodeProjPath: projectsDirectory.appending(component: "A.xcodeproj"),
+                sourceRootPath: xcodeProjDirectory,
+                xcodeProjPath: projectPath.appending(component: "A.xcodeproj"),
                 name: "A"
             )
         )
@@ -57,7 +55,7 @@ final class AutomationPathProjectMapperTests: TuistUnitTestCase {
             [
                 .directory(
                     DirectoryDescriptor(
-                        path: projectsDirectory,
+                        path: xcodeProjDirectory,
                         state: .present
                     )
                 ),

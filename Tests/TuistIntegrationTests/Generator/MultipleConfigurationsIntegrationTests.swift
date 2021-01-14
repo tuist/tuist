@@ -302,7 +302,8 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
 
         let graph = try graphLoader.loadWorkspace(path: temporaryPath)
         try linter.lint(graph: graph).printAndThrowIfNeeded()
-        let valueGraph = ValueGraph(graph: graph)
+        var valueGraph = ValueGraph(graph: graph)
+        valueGraph.workspace.projects = valueGraph.workspace.projects.map { $0.appending(component: "App.xcodeproj") }
         let graphTraverser = ValueGraphTraverser(graph: valueGraph)
         let descriptor = try subject.generateWorkspace(graphTraverser: graphTraverser)
         try writer.write(workspace: descriptor)

@@ -10,34 +10,27 @@ import XCTest
 
 final class AutomationPathWorkspaceMapperTests: TuistUnitTestCase {
     private var subject: AutomationPathWorkspaceMapper!
-    private var contentHasher: MockContentHasher!
+    private var temporaryDirectory: AbsolutePath!
 
     override func setUpWithError() throws {
         try super.setUpWithError()
-        contentHasher = .init()
+        temporaryDirectory = try temporaryPath()
         subject = .init(
-            temporaryDirectory: try temporaryPath()
+            temporaryDirectory: temporaryDirectory
         )
     }
 
     override func tearDown() {
         super.tearDown()
-        contentHasher = nil
         subject = nil
     }
 
     func test_map() throws {
         // Given
-        let workspacePath = try temporaryPath()
-        contentHasher.hashStub = { _ in
-            workspacePath.basename
-        }
         let workspace = Workspace.test(
-            path: workspacePath,
+            path: temporaryDirectory,
             name: "A"
         )
-        let projectsDirectory = environment.projectsCacheDirectory
-            .appending(component: "A-\(workspacePath.basename)")
 
         // When
         let (gotWorkspaceWithProjects, gotSideEffects) = try subject.map(
@@ -51,7 +44,7 @@ final class AutomationPathWorkspaceMapperTests: TuistUnitTestCase {
         XCTAssertEqual(
             gotWorkspaceWithProjects.workspace,
             Workspace.test(
-                path: projectsDirectory,
+                path: temporaryDirectory,
                 name: "A"
             )
         )
@@ -60,7 +53,7 @@ final class AutomationPathWorkspaceMapperTests: TuistUnitTestCase {
             [
                 .directory(
                     DirectoryDescriptor(
-                        path: projectsDirectory,
+                        path: temporaryDirectory,
                         state: .present
                     )
                 ),

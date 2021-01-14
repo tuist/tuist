@@ -81,13 +81,18 @@ public class GraphLoader: GraphLoading {
         let graphCircularDetector = GraphCircularDetector()
         let workspace = try modelLoader.loadWorkspace(at: path)
 
-        let projects = try workspace.projects.map { (projectPath) -> (AbsolutePath, Project) in
-            try (projectPath, self.loadProject(at: projectPath, graphLoaderCache: graphLoaderCache, graphCircularDetector: graphCircularDetector))
-        }
+        let projects = try workspace.projects
+            .map { projectPath in
+                try self.loadProject(
+                    at: projectPath,
+                    graphLoaderCache: graphLoaderCache,
+                    graphCircularDetector: graphCircularDetector
+                )
+            }
 
         let entryNodes = try projects.flatMap { (project) -> [TargetNode] in
-            let projectPath = project.0
-            let projectManifest = project.1
+            let projectPath = project.path
+            let projectManifest = project
             return try projectManifest.targets.map { target in
                 try self.loadTarget(name: target.name,
                                     path: projectPath,
