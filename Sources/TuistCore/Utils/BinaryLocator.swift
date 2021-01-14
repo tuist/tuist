@@ -35,7 +35,7 @@ public protocol BinaryLocating {
 
     /// Returns the path to the swift-doc binary.
     func swiftDocPath() throws -> AbsolutePath
-    
+
     /// Returns the path to the xcbeautify binary.
     func xcbeautifyPath() throws -> AbsolutePath
 }
@@ -83,7 +83,7 @@ public final class BinaryLocator: BinaryLocating {
         }
         return existingPath
     }
-    
+
     public func xcbeautifyPath() throws -> AbsolutePath {
         let candidates = try binariesPaths().map { path in
             path.appending(component: Constants.Vendor.xcbeautify)

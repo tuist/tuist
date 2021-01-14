@@ -5,7 +5,6 @@ import TuistSupport
 import XCTest
 
 public final class MockSystem: Systeming {
-   
     public var env: [String: String] = ProcessInfo.processInfo.environment
     // swiftlint:disable:next large_tuple
     public var stubs: [String: (stderror: String?, stdout: String?, exitstatus: Int?)] = [:]
@@ -134,12 +133,12 @@ public final class MockSystem: Systeming {
             return Disposables.create()
         }
     }
-    
+
     public func observable(_ arguments: [String], pipedToArguments: [String]) -> Observable<SystemEvent<Data>> {
         observable(arguments, environment: [:], pipeTo: pipedToArguments)
     }
-    
-    public func observable(_ arguments: [String], environment: [String : String], pipeTo secondArguments: [String]) -> Observable<SystemEvent<Data>> {
+
+    public func observable(_ arguments: [String], environment _: [String: String], pipeTo _: [String]) -> Observable<SystemEvent<Data>> {
         Observable.create { (observer) -> Disposable in
             let command = arguments.joined(separator: " ")
             guard let stub = self.stubs[command] else {
