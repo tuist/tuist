@@ -82,16 +82,18 @@ final class WorkspaceDescriptorGeneratorTests: TuistUnitTestCase {
         // Given
         let temporaryPath = try self.temporaryPath()
         let target = anyTarget()
-        let project = Project.test(path: temporaryPath,
-                                   sourceRootPath: temporaryPath,
-                                   xcodeProjPath: temporaryPath.appending(component: "Test.xcodeproj"),
-                                   name: "Test",
-                                   settings: .default,
-                                   targets: [target])
+        let project = Project.test(
+            path: temporaryPath,
+            sourceRootPath: temporaryPath,
+            xcodeProjPath: temporaryPath.appending(component: "Test.xcodeproj"),
+            name: "Test",
+            settings: .default,
+            targets: [target]
+        )
 
         let workspace = Workspace.test(
             path: temporaryPath,
-            projects: [project.path]
+            projects: [project.xcodeProjPath]
         )
         let graph = Graph.create(project: project,
                                  dependencies: [(target, [])])
