@@ -84,7 +84,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             try generateScheme(scheme: scheme,
                                path: project.xcodeProjPath.parentDirectory,
                                graphTraverser: graphTraverser,
-                               generatedProjects: [project.path: generatedProject])
+                               generatedProjects: [project.xcodeProjPath: generatedProject])
         }
     }
 
@@ -469,9 +469,10 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
                                generatedProjects: [AbsolutePath: GeneratedProject],
                                rootPath _: AbsolutePath) throws -> XCScheme.ExecutionAction
     {
-        guard let targetReference = action.target,
+        guard
+            let targetReference = action.target,
             let graphTarget = graphTraverser.target(path: targetReference.projectPath, name: targetReference.name),
-            let generatedProject = generatedProjects[targetReference.projectPath]
+            let generatedProject = generatedProjects[graphTarget.project.xcodeProjPath]
         else {
             return schemeExecutionAction(action: action)
         }
