@@ -1,17 +1,17 @@
+import TSCBasic
 import TuistCore
 import TuistSupport
-import TSCBasic
 
 /// Updates path of project to point to where automation project should be generated
 public final class AutomationPathProjectMapper: ProjectMapping {
     private let xcodeProjDirectory: AbsolutePath
-    
+
     public init(
         xcodeProjDirectory: AbsolutePath
     ) {
         self.xcodeProjDirectory = xcodeProjDirectory
     }
-    
+
     public func map(project: Project) throws -> (Project, [SideEffectDescriptor]) {
         var project = project
         let xcodeProjBasename = project.xcodeProjPath.basename

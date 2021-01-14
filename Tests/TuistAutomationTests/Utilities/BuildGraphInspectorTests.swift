@@ -379,7 +379,7 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(got, workspacePath)
     }
-    
+
     func test_projectSchemes_when_multiple_platforms() {
         // Given
         let graph: Graph = .test(
@@ -392,10 +392,10 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
                 ]
             )
         )
-        
+
         // When
         let got = subject.projectSchemes(graph: graph)
-        
+
         // Then
         XCTAssertEqual(
             got,
@@ -405,7 +405,7 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
             ]
         )
     }
-    
+
     func test_projectSchemes_when_single_platform() {
         // Given
         let graph: Graph = .test(
@@ -417,10 +417,10 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
                 ]
             )
         )
-        
+
         // When
         let got = subject.projectSchemes(graph: graph)
-        
+
         // Then
         XCTAssertEqual(
             got,

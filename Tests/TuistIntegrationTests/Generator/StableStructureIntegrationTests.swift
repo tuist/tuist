@@ -33,7 +33,7 @@ final class StableXcodeProjIntegrationTests: TuistTestCase {
             let modelGenerator = TestModelGenerator(rootPath: temporaryPath, config: config)
             let graph = try modelGenerator.generate()
             var valueGraph = ValueGraph(graph: graph)
-            valueGraph.workspace.projects = valueGraph.projects.compactMap { $0.value.xcodeProjPath }
+            valueGraph.workspace.projects = valueGraph.projects.compactMap(\.value.xcodeProjPath)
             let graphTraverser = ValueGraphTraverser(graph: valueGraph)
 
             let workspaceDescriptor = try subject.generateWorkspace(graphTraverser: graphTraverser)

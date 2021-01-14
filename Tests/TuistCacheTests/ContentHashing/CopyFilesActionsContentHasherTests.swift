@@ -2,8 +2,8 @@ import Foundation
 import TSCBasic
 import TuistCore
 import TuistCoreTesting
-import TuistSupportTesting
 import TuistSupport
+import TuistSupportTesting
 import XCTest
 @testable import TuistCache
 @testable import TuistSupportTesting

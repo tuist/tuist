@@ -45,13 +45,13 @@ final class TestService {
 
     /// Simulator controller
     let simulatorController: SimulatorControlling
-    
+
     private let temporaryDirectory: TemporaryDirectory
 
-    convenience init (
-        xcodebuildController: XcodeBuildControlling = XcodeBuildController(),
-        buildGraphInspector: BuildGraphInspecting = BuildGraphInspector(),
-        simulatorController: SimulatorControlling = SimulatorController()
+    convenience init(
+        xcodebuildController _: XcodeBuildControlling = XcodeBuildController(),
+        buildGraphInspector _: BuildGraphInspecting = BuildGraphInspector(),
+        simulatorController _: SimulatorControlling = SimulatorController()
     ) throws {
         let temporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
         self.init(
@@ -68,7 +68,7 @@ final class TestService {
             )
         )
     }
-    
+
     init(
         temporaryDirectory: TemporaryDirectory,
         generator: Generating,
@@ -181,7 +181,7 @@ final class TestService {
         .toBlocking()
         .last()
     }
-    
+
     private func findDestination(
         buildableTarget: Target,
         scheme: Scheme,

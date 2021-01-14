@@ -1,15 +1,15 @@
 import Foundation
+import TSCBasic
 import TuistAutomation
 import TuistCore
 import TuistGenerator
-import TSCBasic
 
 /// Custom mapper provider for automation features
 /// It uses default `WorkspaceMapperProvider` but adds its own on top
 final class AutomationWorkspaceMapperProvider: WorkspaceMapperProviding {
     private let workspaceDirectory: AbsolutePath
     private let workspaceMapperProvider: WorkspaceMapperProviding
-    
+
     convenience init(
         workspaceDirectory: AbsolutePath
     ) {

@@ -519,7 +519,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
     // MARK: - Helpers
 
     private func resolveRelativeProjectPath(graphTarget: ValueGraphTarget,
-                                            generatedProject: GeneratedProject,
+                                            generatedProject _: GeneratedProject,
                                             rootPath: AbsolutePath) -> RelativePath
     {
         let xcodeProjectPath = graphTarget.project.xcodeProjPath

@@ -2,8 +2,8 @@ import Foundation
 import RxSwift
 import TSCBasic
 import TuistAutomation
-import TuistSupport
 import TuistCore
+import TuistSupport
 import XCTest
 
 @testable import TuistAutomationTesting
@@ -42,7 +42,7 @@ final class TestServiceTests: TuistUnitTestCase {
         subject = nil
         super.tearDown()
     }
-    
+
     func test_run_generates_project() throws {
         // Given
         let path = try temporaryPath()
@@ -53,17 +53,17 @@ final class TestServiceTests: TuistUnitTestCase {
             projectOnly = $1
             return ($0, Graph.test())
         }
-        
+
         // When
         try? subject.testRun(
             path: path
         )
-        
+
         // Then
         XCTAssertEqual(generatedPath, path)
         XCTAssertEqual(projectOnly, false)
     }
-    
+
     func test_run_tests_for_only_specified_scheme() throws {
         // Given
         buildGraphInspector.testableSchemesStub = { _ in
@@ -85,17 +85,17 @@ final class TestServiceTests: TuistUnitTestCase {
             testedSchemes.append(scheme)
             return .just(.standardOutput(.init(raw: "success", formatted: nil)))
         }
-        
+
         // When
         try subject.testRun(
             schemeName: "TestScheme",
             path: try temporaryPath()
         )
-        
+
         // Then
         XCTAssertEqual(testedSchemes, ["TestScheme"])
     }
-    
+
     func test_run_tests_all_project_schemes() throws {
         // Given
         buildGraphInspector.testableSchemesStub = { _ in
@@ -117,12 +117,12 @@ final class TestServiceTests: TuistUnitTestCase {
             testedSchemes.append(scheme)
             return .just(.standardOutput(.init(raw: "success", formatted: nil)))
         }
-        
+
         // When
         try subject.testRun(
             path: try temporaryPath()
         )
-        
+
         // Then
         XCTAssertEqual(
             testedSchemes,

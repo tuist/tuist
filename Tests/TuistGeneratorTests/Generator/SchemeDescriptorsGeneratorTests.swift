@@ -51,7 +51,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             graphTraverser: graphTraverser,
             rootPath: AbsolutePath("/somepath/Workspace"),
             generatedProjects: [
-                xcodeProjPath: generatedProject(targets: targets, projectPath: "\(xcodeProjPath)")
+                xcodeProjPath: generatedProject(targets: targets, projectPath: "\(xcodeProjPath)"),
             ]
         )
 
@@ -70,7 +70,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         XCTAssertEqual(result.parallelizeBuild, true)
         XCTAssertEqual(result.buildImplicitDependencies, true)
     }
-    
+
     func test_schemeBuildAction_whenSingleProjectAndXcodeProjPathDiffers() throws {
         // Given
         let projectPath = AbsolutePath("/somepath/Workspace/Projects/Project")
@@ -97,7 +97,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             graphTraverser: graphTraverser,
             rootPath: AbsolutePath("/differentpath/Workspace"),
             generatedProjects: [
-                xcodeProjPath: generatedProject(targets: targets, projectPath: xcodeProjPath.pathString)
+                xcodeProjPath: generatedProject(targets: targets, projectPath: xcodeProjPath.pathString),
             ]
         )
 

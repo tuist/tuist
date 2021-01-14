@@ -1,7 +1,7 @@
 import Foundation
+import TSCBasic
 import TuistCore
 import TuistSupport
-import TSCBasic
 
 /// Updates path of workspace to point to where automation workspace should be generated
 public final class AutomationPathWorkspaceMapper: WorkspaceMapping {

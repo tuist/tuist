@@ -1,10 +1,10 @@
 import Foundation
+import TSCBasic
 import TuistCache
 import TuistCloud
 import TuistCore
 import TuistGenerator
 import TuistSigning
-import TSCBasic
 
 /// It defines an interface for providing the mappers to be used for a specific configuration.
 protocol GraphMapperProviding {
@@ -15,24 +15,25 @@ protocol GraphMapperProviding {
 
 final class GraphMapperProvider: GraphMapperProviding {
     init() {}
-    
+
     func mapper(config: Config) -> GraphMapping {
         SequentialGraphMapper(mappers(config: config))
     }
-    
+
     func mappers(config _: Config) -> [GraphMapping] {
         var mappers: [GraphMapping] = []
         mappers.append(UpdateWorkspaceProjectsGraphMapper())
         return mappers
     }
 }
+
 //
-//import TuistSupport
+// import TuistSupport
 //
-//final class AutomationGraphMapperProvider: GraphMapperProviding {
+// final class AutomationGraphMapperProvider: GraphMapperProviding {
 //    private let graphMapperProvider: GraphMapperProviding
 //    private let temporaryDirectory: AbsolutePath
-//    
+//
 //    init(
 //        temporaryDirectory: AbsolutePath,
 //        graphMapperProvider: GraphMapperProviding = GraphMapperProvider()
@@ -40,25 +41,25 @@ final class GraphMapperProvider: GraphMapperProviding {
 //        self.temporaryDirectory = temporaryDirectory
 //        self.graphMapperProvider = graphMapperProvider
 //    }
-//    
+//
 //    func mapper(config: Config) -> GraphMapping {
 //        var mappers: [GraphMapping] = []
 //        mappers.append(AutomationPathGraphMapper(temporaryDirectory: temporaryDirectory))
 //        mappers.append(graphMapperProvider.mapper(config: config))
-//        
+//
 //        return SequentialGraphMapper(mappers)
 //    }
-//}
+// }
 //
-//final class AutomationPathGraphMapper: GraphMapping {
+// final class AutomationPathGraphMapper: GraphMapping {
 //    private let temporaryDirectory: AbsolutePath
-//    
+//
 //    init(
 //        temporaryDirectory: AbsolutePath
 //    ) {
 //        self.temporaryDirectory = temporaryDirectory
 //    }
-//    
+//
 //    func map(graph: Graph) throws -> (Graph, [SideEffectDescriptor]) {
 //        var workspace = graph.workspace
 //        workspace.path = temporaryDirectory
@@ -80,4 +81,4 @@ final class GraphMapperProvider: GraphMapperProviding {
 //                []
 //            )
 //    }
-//}
+// }
