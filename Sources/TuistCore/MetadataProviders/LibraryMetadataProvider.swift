@@ -1,6 +1,7 @@
 import Foundation
 import TSCBasic
 import TuistSupport
+import TuistGraph
 
 // MARK: - Provider Errors
 

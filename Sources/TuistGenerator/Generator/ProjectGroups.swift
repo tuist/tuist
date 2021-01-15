@@ -3,6 +3,7 @@ import TSCBasic
 import TuistCore
 import TuistSupport
 import XcodeProj
+import TuistGraph
 
 enum ProjectGroupsError: FatalError, Equatable {
     case missingGroup(String)

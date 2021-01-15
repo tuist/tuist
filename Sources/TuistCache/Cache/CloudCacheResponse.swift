@@ -1,6 +1,7 @@
 import Foundation
 import TuistCore
 import TuistSupport
+import TuistGraph
 
 struct CloudCacheResponse: Decodable {
     typealias CloudCacheResource = HTTPResource<CloudResponse<CloudCacheResponse>, CloudResponseError>

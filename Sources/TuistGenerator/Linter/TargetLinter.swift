@@ -1,6 +1,7 @@
 import Foundation
 import TuistCore
 import TuistSupport
+import TuistGraph
 
 protocol TargetLinting: AnyObject {
     func lint(target: Target) -> [LintingIssue]

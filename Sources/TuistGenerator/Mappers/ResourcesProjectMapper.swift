@@ -2,6 +2,7 @@ import Foundation
 import TSCBasic
 import TuistCore
 import TuistSupport
+import TuistGraph
 
 /// A project mapper that adds support for defining resources in targets that don't support it
 public class ResourcesProjectMapper: ProjectMapping {

@@ -3,6 +3,7 @@ import TSCBasic
 import TuistCore
 import TuistSupport
 import XcodeProj
+import TuistGraph
 
 enum BuildPhaseGenerationError: FatalError, Equatable {
     case missingFileReference(AbsolutePath)

@@ -24,7 +24,8 @@ let package = Package(
         .library(name: "ProjectDescription",
                  type: .dynamic,
                  targets: ["ProjectDescription"]),
-
+        .library(name: "TuistGraph",
+                 targets: ["TuistGraph"]),
         /// TuistGenerator
         ///
         /// A high level Xcode generator library
@@ -61,8 +62,20 @@ let package = Package(
     ],
     targets: [
         .target(
+            name: "TuistGraph",
+            dependencies: [swiftToolsSupportDependency]
+        ),
+        .target(
+            name: "TuistGraphTesting",
+            dependencies: ["TuistGraph", "TuistSupportTesting"]
+        ),
+        .testTarget(
+            name: "TuistGraphTests",
+            dependencies: ["TuistGraph", "TuistGraphTesting", "TuistSupportTesting"]
+        ),
+        .target(
             name: "TuistCore",
-            dependencies: [swiftToolsSupportDependency, "TuistSupport", "XcodeProj", "Checksum"]
+            dependencies: [swiftToolsSupportDependency, "TuistSupport", "TuistGraph", "XcodeProj", "Checksum"]
         ),
         .target(
             name: "TuistCoreTesting",
@@ -81,6 +94,7 @@ let package = Package(
             dependencies: [
                 swiftToolsSupportDependency,
                 "TuistCore",
+                "TuistGraph",
                 "TuistSupport",
                 signalsDependency,
                 rxBlockingDependency,
@@ -135,6 +149,7 @@ let package = Package(
                 "TuistAsyncQueue",
                 "TuistAnalytics",
                 "TuistPlugin",
+                "TuistGraph"
             ]
         ),
         .testTarget(
@@ -257,6 +272,7 @@ let package = Package(
                 "XcodeProj",
                 swiftToolsSupportDependency,
                 "TuistCore",
+                "TuistGraph",
                 "TuistSupport",
                 rxBlockingDependency,
                 "GraphViz",
@@ -297,6 +313,7 @@ let package = Package(
                 "XcodeProj",
                 swiftToolsSupportDependency,
                 "TuistCore",
+                "TuistGraph",
                 "TuistSupport",
                 rxSwiftDependency,
             ]
@@ -328,6 +345,7 @@ let package = Package(
                 "XcodeProj",
                 swiftToolsSupportDependency,
                 "TuistCore",
+                "TuistGraph",
                 "TuistSupport",
                 rxSwiftDependency,
             ]
@@ -365,6 +383,7 @@ let package = Package(
             dependencies: [
                 swiftToolsSupportDependency,
                 "TuistCore",
+                "TuistGraph",
                 "TuistSupport",
                 "StencilSwiftKit",
                 "Stencil",
@@ -395,6 +414,7 @@ let package = Package(
                 "XcodeProj",
                 swiftToolsSupportDependency,
                 "TuistCore",
+                "TuistGraph",
                 "TuistSupport",
                 beautifyDependency,
             ]
@@ -433,6 +453,7 @@ let package = Package(
                 "XcodeProj",
                 swiftToolsSupportDependency,
                 "TuistCore",
+                "TuistGraph",
                 "TuistSupport",
                 beautifyDependency,
             ]
@@ -455,6 +476,7 @@ let package = Package(
             name: "TuistSigning",
             dependencies: [
                 "TuistCore",
+                "TuistGraph",
                 "TuistSupport",
                 "CryptoSwift",
             ]
@@ -484,6 +506,7 @@ let package = Package(
         .target(
             name: "TuistDependencies",
             dependencies: ["TuistCore",
+                           "TuistGraph",
                            "TuistSupport"]
         ),
         .target(
@@ -503,6 +526,7 @@ let package = Package(
             name: "TuistLinting",
             dependencies: [
                 "TuistCore",
+                "TuistGraph",
                 "TuistSupport",
                 signalsDependency,
                 rxSwiftDependency,
@@ -529,6 +553,7 @@ let package = Package(
             name: "TuistMigration",
             dependencies: [
                 "TuistCore",
+                "TuistGraph",
                 "TuistSupport",
                 "XcodeProj",
                 swiftToolsSupportDependency,
@@ -560,6 +585,7 @@ let package = Package(
             name: "TuistAsyncQueue",
             dependencies: [
                 "TuistCore",
+                "TuistGraph",
                 "TuistSupport",
                 "XcodeProj",
                 swiftToolsSupportDependency,
@@ -586,6 +612,7 @@ let package = Package(
                 "XcodeProj",
                 swiftToolsSupportDependency,
                 "TuistCore",
+                "TuistGraph",
                 "TuistSupport",
                 "ProjectDescription",
             ]
@@ -645,6 +672,7 @@ let package = Package(
             name: "TuistPlugin",
             dependencies: [
                 "TuistCore",
+                "TuistGraph",
                 "TuistLoader",
                 "TuistSupport",
                 swiftToolsSupportDependency,

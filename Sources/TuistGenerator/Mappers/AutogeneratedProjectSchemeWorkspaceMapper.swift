@@ -1,5 +1,6 @@
 import Foundation
 import TuistCore
+import TuistGraph
 
 /// Mapper that generates a new scheme `ProjectName-Project` that includes all targets
 /// From a given workspace

@@ -2,6 +2,7 @@ import Foundation
 import TSCBasic
 import TuistCore
 import TuistSupport
+import TuistGraph
 
 public protocol EnvironmentLinting {
     /// Lints a given Tuist configuration.

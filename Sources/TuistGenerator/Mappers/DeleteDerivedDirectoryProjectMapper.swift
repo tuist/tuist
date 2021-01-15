@@ -1,6 +1,7 @@
 import Foundation
 import TuistCore
 import TuistSupport
+import TuistGraph
 
 /// A project mapper that returns side effects to delete the derived directory.
 public final class DeleteDerivedDirectoryProjectMapper: ProjectMapping {

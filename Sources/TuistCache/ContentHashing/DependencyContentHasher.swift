@@ -1,5 +1,6 @@
 import Foundation
 import TuistCore
+import TuistGraph
 
 public protocol DependenciesContentHashing {
     func hash(dependencies: [Dependency]) throws -> String

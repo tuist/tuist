@@ -1,6 +1,7 @@
 import Foundation
 import TuistCore
 import TuistSupport
+import TuistGraph
 
 struct CloudHEADResponse: Decodable {
     public init() {}

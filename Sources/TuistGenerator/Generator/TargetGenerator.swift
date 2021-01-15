@@ -3,6 +3,7 @@ import TSCBasic
 import TuistCore
 import TuistSupport
 import XcodeProj
+import TuistGraph
 
 protocol TargetGenerating: AnyObject {
     func generateTarget(target: Target,

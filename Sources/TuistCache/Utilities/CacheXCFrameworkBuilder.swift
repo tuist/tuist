@@ -4,6 +4,7 @@ import RxSwift
 import TSCBasic
 import TuistCore
 import TuistSupport
+import TuistGraph
 
 public final class CacheXCFrameworkBuilder: CacheArtifactBuilding {
     // MARK: - Attributes

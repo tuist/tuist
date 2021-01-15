@@ -4,6 +4,7 @@ import RxSwift
 import TSCBasic
 import TuistCore
 import TuistSupport
+import TuistGraph
 
 public class CacheBuildPhaseProjectMapper: ProjectMapping {
     public init() {}

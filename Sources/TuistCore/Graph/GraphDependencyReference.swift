@@ -1,5 +1,6 @@
 import Foundation
 import TSCBasic
+import TuistGraph
 
 public enum GraphDependencyReference: Equatable, Comparable, Hashable {
     case xcframework(

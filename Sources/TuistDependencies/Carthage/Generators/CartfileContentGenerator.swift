@@ -1,6 +1,7 @@
 import TSCBasic
 import TuistCore
 import TuistSupport
+import TuistGraph
 
 // MARK: - Cartfile Content Generating
 

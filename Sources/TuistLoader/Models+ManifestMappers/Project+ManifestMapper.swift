@@ -1,16 +1,16 @@
 import Foundation
 import ProjectDescription
 import TSCBasic
-import TuistCore
+import TuistGraph
 
-extension TuistCore.Project {
+extension TuistGraph.Project {
     /// Maps a ProjectDescription.FileElement instance into a [TuistCore.FileElement] instance.
     /// Glob patterns in file elements are unfolded as part of the mapping.
     /// - Parameters:
     ///   - manifest: Manifest representation of  the file element.
     ///   - generatorPaths: Generator paths.
     static func from(manifest: ProjectDescription.Project,
-                     generatorPaths: GeneratorPaths) throws -> TuistCore.Project
+                     generatorPaths: GeneratorPaths) throws -> TuistGraph.Project
     {
         let name = manifest.name
         let organizationName = manifest.organizationName

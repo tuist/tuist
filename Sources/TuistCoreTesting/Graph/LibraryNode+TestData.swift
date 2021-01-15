@@ -1,6 +1,6 @@
 import Foundation
 import TSCBasic
-
+import TuistGraph
 @testable import TuistCore
 
 public extension LibraryNode {

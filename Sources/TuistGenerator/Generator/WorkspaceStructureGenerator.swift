@@ -2,6 +2,7 @@ import Foundation
 import TSCBasic
 import TuistCore
 import TuistSupport
+import TuistGraph
 
 struct WorkspaceStructure {
     enum Element: Equatable {

@@ -1,5 +1,6 @@
 import Foundation
 import TuistCore
+import TuistGraph
 
 /// It defines the interface to get the storages that should be used given a config.
 public protocol CacheStorageProviding: AnyObject {

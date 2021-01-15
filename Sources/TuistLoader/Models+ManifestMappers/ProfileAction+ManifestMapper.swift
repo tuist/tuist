@@ -1,16 +1,16 @@
 import Foundation
 import ProjectDescription
 import TSCBasic
-import TuistCore
+import TuistGraph
 
-extension TuistCore.ProfileAction {
+extension TuistGraph.ProfileAction {
     static func from(manifest: ProjectDescription.ProfileAction,
-                     generatorPaths: GeneratorPaths) throws -> TuistCore.ProfileAction
+                     generatorPaths: GeneratorPaths) throws -> TuistGraph.ProfileAction
     {
         let configurationName = manifest.configurationName
-        let arguments = manifest.arguments.map { TuistCore.Arguments.from(manifest: $0) }
+        let arguments = manifest.arguments.map { TuistGraph.Arguments.from(manifest: $0) }
 
-        var executableResolved: TuistCore.TargetReference?
+        var executableResolved: TuistGraph.TargetReference?
         if let executable = manifest.executable {
             executableResolved = TargetReference(projectPath: try generatorPaths.resolveSchemeActionProjectPath(executable.projectPath),
                                                  name: executable.targetName)

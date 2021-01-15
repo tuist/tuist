@@ -1,5 +1,6 @@
 import Foundation
 import TuistCore
+import TuistGraph
 
 public protocol CoreDataModelsContentHashing {
     func hash(coreDataModels: [CoreDataModel]) throws -> String

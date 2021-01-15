@@ -3,6 +3,7 @@ import struct TSCUtility.Version
 import TuistCore
 import TuistSupport
 import XcodeProj
+import TuistGraph
 
 public protocol DefaultSettingsProviding {
     func projectSettings(project: Project,

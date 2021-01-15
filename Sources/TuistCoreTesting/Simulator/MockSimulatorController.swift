@@ -3,7 +3,7 @@ import RxSwift
 import struct TSCUtility.Version
 import TuistCore
 import TuistSupport
-
+import TuistGraph
 @testable import TuistCore
 @testable import TuistSupportTesting
 

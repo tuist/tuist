@@ -1,6 +1,7 @@
 import Foundation
 import TuistCore
 import XcodeProj
+import TuistGraph
 
 final class SettingsHelper {
     func extend(buildSettings: inout SettingsDictionary,

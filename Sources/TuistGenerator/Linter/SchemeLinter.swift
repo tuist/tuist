@@ -1,6 +1,7 @@
 import Foundation
 import TuistCore
 import TuistSupport
+import TuistGraph
 
 protocol SchemeLinting {
     func lint(project: Project) -> [LintingIssue]

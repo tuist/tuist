@@ -2,6 +2,7 @@ import Foundation
 import struct TSCUtility.Version
 import TuistCore
 import TuistSupport
+import TuistGraph
 
 public protocol GraphLinting: AnyObject {
     func lint(graphTraverser: GraphTraversing) -> [LintingIssue]
@@ -239,7 +240,7 @@ public class GraphLinter: GraphLinting {
     }
 
     struct LintableTarget: Equatable, Hashable {
-        let platform: TuistCore.Platform
+        let platform: TuistGraph.Platform
         let product: Product
     }
 

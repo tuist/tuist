@@ -4,6 +4,7 @@ import TSCBasic
 import TuistCore
 import TuistSupport
 import XcodeProj
+import TuistGraph
 
 enum LinkGeneratorError: FatalError, Equatable {
     case missingProduct(name: String)

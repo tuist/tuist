@@ -3,6 +3,7 @@ import TSCBasic
 import TuistCore
 import TuistSupport
 import XcodeProj
+import TuistGraph
 
 /// Protocol that defines the interface of the schemes generation.
 protocol SchemeDescriptorsGenerating {

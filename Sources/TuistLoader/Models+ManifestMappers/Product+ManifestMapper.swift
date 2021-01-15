@@ -1,13 +1,13 @@
 import Foundation
 import ProjectDescription
-import TuistCore
+import TuistGraph
 
-extension TuistCore.Product {
+extension TuistGraph.Product {
     /// Maps a ProjectDescription.Product instance into a TuistCore.Product instance.
     /// - Parameters:
     ///   - manifest: Manifest representation of product model.
     ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.Product) -> TuistCore.Product {
+    static func from(manifest: ProjectDescription.Product) -> TuistGraph.Product {
         switch manifest {
         case .app:
             return .app

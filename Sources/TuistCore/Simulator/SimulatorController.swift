@@ -2,6 +2,7 @@ import Foundation
 import RxSwift
 import struct TSCUtility.Version
 import TuistSupport
+import TuistGraph
 
 public protocol SimulatorControlling {
     /// Returns the list of simulator devices that are available in the system.

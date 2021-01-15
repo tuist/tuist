@@ -3,6 +3,7 @@ import RxSwift
 import TSCBasic
 import TuistCore
 import TuistSupport
+import TuistGraph
 
 enum CacheRemoteStorageError: FatalError, Equatable {
     case frameworkNotFound(hash: String)

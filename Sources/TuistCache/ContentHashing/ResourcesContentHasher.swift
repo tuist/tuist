@@ -1,5 +1,6 @@
 import Foundation
 import TuistCore
+import TuistGraph
 
 public protocol ResourcesContentHashing {
     func hash(resources: [FileElement]) throws -> String

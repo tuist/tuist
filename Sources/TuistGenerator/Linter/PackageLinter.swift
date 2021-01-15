@@ -2,6 +2,7 @@ import Foundation
 import TSCBasic
 import TuistCore
 import TuistSupport
+import TuistGraph
 
 protocol PackageLinting: AnyObject {
     func lint(_ package: Package) -> [LintingIssue]
