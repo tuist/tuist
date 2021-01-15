@@ -2,7 +2,7 @@ import Foundation
 import TuistCore
 import TuistSupport
 
-public protocol Formatting {
+protocol Formatting {
     func buildArguments() throws -> [String]
 }
 
