@@ -61,7 +61,7 @@ MacStadium supports this project by providing Mac mini hardware that we can use 
 
 1Password supports this project by providing a team account to store sensitive like access tokens and passwords:
 
-<img width="200" src="assets/1Password.png"/>
+<img width="100" src="assets/1Password.png"/>
 
 ## Contribute 👩‍💻
 
