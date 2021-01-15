@@ -91,10 +91,11 @@ task :xcbeautify_update do
       Dir.chdir("xcbeautify/xcbeautify-#{XCBEAUTIFY_VERSION}") do
         system("make", "build")
       end
-      release_dir = File.join(temporary_dir, "xcbeautify/xcbeautify-#{XCBEAUTIFY_VERSION}/.build/apple/Products/Release")
+      release_dir = File.join(temporary_dir,
+"xcbeautify/xcbeautify-#{XCBEAUTIFY_VERSION}/.build/apple/Products/Release")
       vendor_dir = File.join(root_dir, "vendor")
       dst_binary_path = File.join(vendor_dir, "xcbeautify")
-      
+
       # Copy binary
       binary_path = File.join(release_dir, "xcbeautify")
       File.delete(dst_binary_path) if File.exist?(dst_binary_path)
