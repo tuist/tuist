@@ -13,6 +13,12 @@ To facilitate that, Tuist allows passing configuration through environment varia
 TUIST_APP_NAME=MyApp tuist focus
 ```
 
+If you want to pass multiple environment variables just separate them with space. For example: 
+
+```bash
+TUIST_APP_NAME=MyApp TUIST_APP_LOCALE=pl tuist focus
+```
+
 Variables can be accesed using the `Environment` type. Any variables following the convention `TUIST_XXX` defined in the environment or passed to Tuist when running commands will be accessible using the `Environment` type.
 The following example shows how we access the `TUIST_APP_NAME` variable:
 
