@@ -80,10 +80,16 @@ task :swift_lint_update do
   File.write(File.join(root_dir, "vendor/.swiftlint.version"), SWIFTLINT_VERSION)
 end
 
+desc("Install git hooks")
+task :install_git_hooks do
+  system("cp hooks/pre-commit .git/hooks/pre-commit")
+  system("chmod 777 .git/hooks/pre-commit")
+  puts("pre-commit hooks installed on .git/hooks/")
+end
+
 desc("Formats the code style")
 task :style_correct do
-  system(swiftlint_path, "autocorrect")
-  system(swiftformat_path, ".")
+  system(code_style_path)
 end
 
 desc("Swift format check")
@@ -207,6 +213,10 @@ end
 
 def swiftlint_path
   File.expand_path("bin/swiftlint", __dir__)
+end
+
+def code_style_path
+  File.expand_path("script/code_style.sh", __dir__)
 end
 
 def decrypt_secrets
