@@ -53,11 +53,15 @@ The repository is a monorepo with multiple projects:
 
 Do you want to know more about what Tuist can offer you? Or perhaps want to contribute to the project and you need a starting point? You can check out the [project documentation](https://tuist.io/docs/usage/getting-started/).
 
-## Supported by MacStadium
+## Supported by great companies
 
 MacStadium supports this project by providing Mac mini hardware that we can use for running performance tests.
 
 <img width="200" src="assets/MacStadium.png"/>
+
+1Password supports this project by providing a team account to store sensitive like access tokens and passwords:
+
+<img width="200" src="assets/1Password"/>
 
 ## Contribute 👩‍💻
 
