@@ -84,7 +84,7 @@ public class GraphLoader: GraphLoading {
     public func loadWorkspace(path: AbsolutePath) throws -> Graph {
         let graphLoaderCache = GraphLoaderCache()
         let graphCircularDetector = GraphCircularDetector()
-        let workspace = try modelLoader.loadWorkspace(at: path)
+        var workspace = try modelLoader.loadWorkspace(at: path)
 
         let projects = try workspace.projects
             .map { projectPath in
@@ -94,6 +94,8 @@ public class GraphLoader: GraphLoading {
                     graphCircularDetector: graphCircularDetector
                 )
             }
+        
+        workspace.xcodeProjPaths = projects.map(\.xcodeProjPath)
 
         let entryNodes = try projects.flatMap { (project) -> [TargetNode] in
             let projectPath = project.path
