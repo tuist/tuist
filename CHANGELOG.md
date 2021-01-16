@@ -4,6 +4,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+## 1.31.0
+
 ### Added
 
 - Add linting for paths of local packages and for URL validity of remote packages  [#2255](https://github.com/tuist/tuist/pull/2255) by [@adellibovi](https://github.com/adellibovi).
