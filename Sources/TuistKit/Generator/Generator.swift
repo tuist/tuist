@@ -231,7 +231,12 @@ class Generator: Generating {
         let projects = try convert(manifests: manifests)
 
         let workspaceName = manifests.projects[path]?.name ?? "Workspace"
-        let workspace = Workspace(path: path, name: workspaceName, projects: [])
+        let workspace = Workspace(
+            path: path,
+            name: workspaceName,
+            projects: [],
+            xcodeProjPaths: []
+        )
         let models = (workspace: workspace, projects: projects)
 
         // Apply any registered model mappers
@@ -247,9 +252,19 @@ class Generator: Generating {
 
         // Apply graph mappers
         let (updatedGraph, graphMapperSideEffects) = try graphMapperProvider.mapper(config: config).map(graph: graph)
-        let updatedWorkspace = updatedModels
+        var updatedWorkspace = updatedModels
             .workspace
-            .merging(projects: updatedGraph.projects.map(\.xcodeProjPath))
+        
+        updatedWorkspace.projects = Array(
+            Set(
+                updatedWorkspace.projects + updatedGraph.projects.map(\.path)
+            )
+        )
+        updatedWorkspace.xcodeProjPaths = Array(
+            Set(
+                updatedWorkspace.xcodeProjPaths + updatedGraph.projects.map(\.xcodeProjPath)
+            )
+        )
 
         return (
             project,

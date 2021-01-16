@@ -41,6 +41,7 @@ extension TuistCore.Workspace {
         return TuistCore.Workspace(path: path,
                                    name: manifest.name,
                                    projects: try manifest.projects.flatMap(globProjects),
+                                   xcodeProjPaths: [],
                                    schemes: schemes,
                                    additionalFiles: additionalFiles)
     }

@@ -64,7 +64,12 @@ public class GraphLoader: GraphLoading {
         let entryNodes: [GraphNode] = try project.targets.map { target in
             try self.loadTarget(name: target.name, path: path, graphLoaderCache: graphLoaderCache, graphCircularDetector: graphCircularDetector)
         }
-        let workspace = Workspace(path: project.path, name: project.name, projects: [project.path])
+        let workspace = Workspace(
+            path: project.path,
+            name: project.name,
+            projects: [project.path],
+            xcodeProjPaths: [project.xcodeProjPath]
+        )
 
         let graph = Graph(
             name: project.name,

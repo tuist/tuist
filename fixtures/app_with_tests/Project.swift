@@ -1,5 +1,4 @@
 import ProjectDescription
-import ProjectDescriptionHelpers
 
 let project = Project(
     name: "App",
@@ -77,5 +76,5 @@ let project = Project(
                 ]
             )
         ),
-    ] + macTargets
+    ]
 )

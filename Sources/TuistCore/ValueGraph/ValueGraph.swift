@@ -10,7 +10,7 @@ public struct ValueGraph: Equatable {
     public let path: AbsolutePath
 
     /// Graph's workspace.
-    public var workspace: Workspace
+    public let workspace: Workspace
 
     /// A dictionary where the keys are the paths to the directories where the projects are defined,
     /// and the values are the projects defined in the directories.

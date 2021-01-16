@@ -137,7 +137,12 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         }
 
         let manifestTargetNodes = manifestsTargets.map { TargetNode(project: project, target: $0, dependencies: dependencies) }
-        let workspace = Workspace(path: project.path, name: "Manifests", projects: [project.path])
+        let workspace = Workspace(
+            path: project.path,
+            name: "Manifests",
+            projects: [project.path],
+            xcodeProjPaths: [project.xcodeProjPath]
+        )
 
         let graph = Graph(
             name: "Manifests",

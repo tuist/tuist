@@ -71,10 +71,15 @@ public final class ValueGraphLoader: ValueGraphLoading {
         let cycleDetector = GraphCircularDetector()
         try loadProject(path: path, cache: cache, cycleDetector: cycleDetector)
 
+        let projectPaths: [(AbsolutePath, AbsolutePath)] = cache.loadedProjects
+            .sorted(by: { $0.key < $1.key })
+            .map { ($0.key, $0.value.xcodeProjPath) }
+        
         let workspace = Workspace(
             path: path,
             name: rootProject.name,
-            projects: cache.loadedProjects.keys.sorted()
+            projects: projectPaths.map(\.0),
+            xcodeProjPaths: projectPaths.map(\.1)
         )
         let graph = ValueGraph(
             name: rootProject.name,

@@ -22,7 +22,7 @@ protocol WorkspaceStructureGenerating {
 final class WorkspaceStructureGenerator: WorkspaceStructureGenerating {
     func generateStructure(path: AbsolutePath, workspace: Workspace, fileHandler: FileHandling) -> WorkspaceStructure {
         let graph = DirectoryStructure(path: path,
-                                       projects: workspace.projects,
+                                       projects: workspace.xcodeProjPaths,
                                        files: workspace.additionalFiles,
                                        fileHandler: fileHandler).buildGraph()
         return WorkspaceStructure(name: workspace.name,
