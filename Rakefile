@@ -83,7 +83,7 @@ end
 desc("Install git hooks")
 task :install_git_hooks do
   system("cp hooks/pre-commit .git/hooks/pre-commit")
-  system("chmod 777 .git/hooks/pre-commit")
+  system("chmod u+x .git/hooks/pre-commit")
   puts("pre-commit hook installed on .git/hooks/")
 end
 
