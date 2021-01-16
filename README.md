@@ -53,11 +53,15 @@ The repository is a monorepo with multiple projects:
 
 Do you want to know more about what Tuist can offer you? Or perhaps want to contribute to the project and you need a starting point? You can check out the [project documentation](https://tuist.io/docs/usage/getting-started/).
 
-## Supported by MacStadium
+## Supported by great companies
 
 MacStadium supports this project by providing Mac mini hardware that we can use for running performance tests.
 
 <img width="200" src="assets/MacStadium.png"/>
+
+1Password supports this project by providing a team account to store sensitive like access tokens and passwords:
+
+<img width="100" src="assets/1Password.png"/>
 
 ## Contribute 👩‍💻
 
@@ -120,6 +124,7 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
     <td align="center"><a href="https://www.linkedin.com/in/роман-подымов-72338ab0/"><img src="https://avatars3.githubusercontent.com/u/10789692?v=4" width="100px;" alt=""/><br /><sub><b>Roman Podymov</b></sub></a></td>
     <td align="center"><a href="https://github.com/marcinreliga-fn"><img src="https://avatars0.githubusercontent.com/u/76949651?v=4" width="100px;" alt=""/><br /><sub><b>Marcin Religa</b></sub></a></td>
     <td align="center"><a href="https://github.com/adellibovi"><img src="https://avatars3.githubusercontent.com/u/67916?v=4" width="100px;" alt=""/><br /><sub><b>Alfredo Delli Bovi</b></sub></a></td>
+    <td align="center"><a href="https://github.com/Jake-Prickett"><img src="https://avatars1.githubusercontent.com/u/26095410?v=4" width="100px;" alt=""/><br /><sub><b>Jake Prickett</b></sub></a></td>
   </tr>
 </table>
 

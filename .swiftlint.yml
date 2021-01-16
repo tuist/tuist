@@ -15,6 +15,7 @@ disabled_rules:
   - file_length
   - todo
   - function_parameter_count
+  - opening_brace
 line_length:
   ignores_interpolated_strings: true
   ignores_comments: true
