@@ -301,7 +301,9 @@ class Generator: Generating {
         let graph = try cachedGraphLoader.loadWorkspace(path: path)
 
         // Apply graph mappers
-        let (mappedGraph, graphMapperSideEffects) = try graphMapperProvider.mapper(config: config).map(graph: graph)
+        let (mappedGraph, graphMapperSideEffects) = try graphMapperProvider
+            .mapper(config: config)
+            .map(graph: graph)
 
         return (mappedGraph, modelMapperSideEffects + graphMapperSideEffects)
     }
