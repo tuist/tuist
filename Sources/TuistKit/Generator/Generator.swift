@@ -254,7 +254,7 @@ class Generator: Generating {
         let (updatedGraph, graphMapperSideEffects) = try graphMapperProvider.mapper(config: config).map(graph: graph)
         var updatedWorkspace = updatedModels
             .workspace
-        
+
         updatedWorkspace.projects = Array(
             Set(
                 updatedWorkspace.projects + updatedGraph.projects.map(\.path)

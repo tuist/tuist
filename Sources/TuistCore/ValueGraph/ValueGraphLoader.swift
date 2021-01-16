@@ -74,7 +74,7 @@ public final class ValueGraphLoader: ValueGraphLoading {
         let projectPaths: [(AbsolutePath, AbsolutePath)] = cache.loadedProjects
             .sorted(by: { $0.key < $1.key })
             .map { ($0.key, $0.value.xcodeProjPath) }
-        
+
         let workspace = Workspace(
             path: path,
             name: rootProject.name,

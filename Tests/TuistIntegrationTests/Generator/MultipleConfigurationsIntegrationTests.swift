@@ -301,8 +301,7 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
         let graphLoader = GraphLoader(modelLoader: modelLoader)
 
         let graph = try graphLoader.loadWorkspace(path: temporaryPath)
-        var valueGraph = ValueGraph(graph: graph)
-        valueGraph.workspace.projects = valueGraph.workspace.projects.map { $0.appending(component: "App.xcodeproj") }
+        let valueGraph = ValueGraph(graph: graph)
         let graphTraverser = ValueGraphTraverser(graph: valueGraph)
         try linter.lint(graphTraverser: graphTraverser).printAndThrowIfNeeded()
         let descriptor = try subject.generateWorkspace(graphTraverser: graphTraverser)
@@ -342,7 +341,12 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
     }
 
     private func createWorkspace(path: AbsolutePath, projects: [String]) throws -> Workspace {
-        Workspace(path: path, name: "Workspace", projects: try projects.map { try pathTo($0) })
+        Workspace(
+            path: path,
+            name: "Workspace",
+            projects: try projects.map { try pathTo($0) },
+            xcodeProjPaths: try projects.map { try pathTo($0).appending(component: "App.xcodeproj") }
+        )
     }
 
     private func createProject(path: AbsolutePath, settings: Settings, targets: [Target], packages: [Package] = [], schemes: [Scheme]) -> Project {

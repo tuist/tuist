@@ -93,7 +93,8 @@ final class WorkspaceDescriptorGeneratorTests: TuistUnitTestCase {
 
         let workspace = Workspace.test(
             path: temporaryPath,
-            projects: [project.path]
+            projects: [project.path],
+            xcodeProjPaths: [project.xcodeProjPath]
         )
         let graph = Graph.create(project: project,
                                  dependencies: [(target, [])])
