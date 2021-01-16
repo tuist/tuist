@@ -93,12 +93,12 @@ public final class CacheXCFrameworkBuilder: CacheArtifactBuilding {
     }
 
     fileprivate func buildXCFramework(frameworks: [AbsolutePath], output: AbsolutePath, target: Target) throws {
-        _ = try xcodeBuildController.createXCFramework(frameworks: frameworks, output: output)
+        _ = xcodeBuildController.createXCFramework(frameworks: frameworks, output: output)
             .do(onSubscribed: {
                 logger.notice("Exporting xcframework for \(target.platform.caseValue)", metadata: .subsection)
             })
             .toBlocking()
-            .last()
+            .materialize()
     }
 
     fileprivate func deviceBuild(projectTarget: XcodeBuildTarget,
