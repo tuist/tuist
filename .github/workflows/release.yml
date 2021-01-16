@@ -10,13 +10,9 @@ jobs:
     name: Release Tuist
     runs-on: macos-latest
     steps:
-      - name: Configure CI Git User
-        run: |
-          git config --global user.name 'xcoderobot'
-          git config --global user.email 'xcoderobot@users.noreply.github.com'
       - uses: actions/checkout@v2
         with:
-          token: ${{ secrets.GH_TOKEN }}
+          token: ${{ secrets.GH_TOKEN_2 }}
           ref: main
           fetch-depth: 0
       - uses: actions/setup-ruby@v1
