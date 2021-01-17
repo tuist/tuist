@@ -15,15 +15,41 @@ struct CloudCacheResponse: Decodable {
     }
 
     public static func fetchResource(hash: String, cloud: Cloud) throws -> CloudCacheResource {
-        var request = URLRequest(url: try URL.apiCacheURL(hash: hash, cacheURL: cloud.url, projectId: cloud.projectId))
-        request.httpMethod = "GET"
-        return .jsonResource { request }
+        let url = try URL.apiCacheURL(
+            hash: hash,
+            cacheURL: cloud.url,
+            projectId: cloud.projectId
+        )
+        return jsonResource(for: url, httpMethod: "GET")
     }
 
-    public static func storeResource(hash: String, cloud: Cloud, contentMD5: String) throws -> CloudCacheResource {
-        let url = try URL.apiCacheURL(hash: hash, cacheURL: cloud.url, projectId: cloud.projectId)
-        var request = URLRequest(url: url.addingQueryItem(name: "content_md5", value: contentMD5))
-        request.httpMethod = "POST"
+    public static func storeResource(hash: String,
+                                     cloud: Cloud,
+                                     contentMD5: String) throws -> CloudCacheResource {
+        let url = try URL.apiCacheURL(
+            hash: hash,
+            cacheURL: cloud.url,
+            projectId: cloud.projectId,
+            contentMD5: contentMD5
+        )
+        return jsonResource(for: url, httpMethod: "POST")
+    }
+
+    public static func verifyUploadResource(hash: String,
+                                            cloud: Cloud,
+                                            contentMD5: String) throws -> CloudCacheResource {
+        let url = try URL.apiCacheVerifyUploadURL(
+            hash: hash,
+            cacheURL: cloud.url,
+            projectId: cloud.projectId,
+            contentMD5: contentMD5
+        )
+        return jsonResource(for: url, httpMethod: "POST")
+    }
+    
+    public static func jsonResource(for url: URL, httpMethod: String) -> CloudCacheResource {
+        var request = URLRequest(url: url)
+        request.httpMethod = httpMethod
         return .jsonResource { request }
     }
 }
