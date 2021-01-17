@@ -3,7 +3,6 @@ import TSCBasic
 import TuistSupport
 
 enum CertificateParserError: FatalError, Equatable {
-    case fileParsingFailed(AbsolutePath, String)
     case nameParsingFailed(AbsolutePath, String)
     case developmentTeamParsingFailed(AbsolutePath, String)
     case fileParsingFailed(AbsolutePath)
