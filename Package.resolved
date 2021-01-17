@@ -122,9 +122,9 @@
         "package": "Stencil",
         "repositoryURL": "https://github.com/stencilproject/Stencil.git",
         "state": {
-          "branch": "master",
-          "revision": "22440c53690c84603cea018a5204c0f1e770461d",
-          "version": null
+          "branch": null,
+          "revision": "94197b3adbbf926348ad8765476a158aa4e54f8a",
+          "version": "0.14.0"
         }
       },
       {
@@ -132,7 +132,7 @@
         "repositoryURL": "https://github.com/fortmarek/StencilSwiftKit.git",
         "state": {
           "branch": "stable",
-          "revision": "33cf26bc68f3aced91cb810bc0a4e5ce445a140f",
+          "revision": "99ac008eb7026e40af7fc882d5788f5de6eda47e",
           "version": null
         }
       },
