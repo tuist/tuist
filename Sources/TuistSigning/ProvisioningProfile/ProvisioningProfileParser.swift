@@ -29,9 +29,11 @@ protocol ProvisioningProfileParsing {
 
 final class ProvisioningProfileParser: ProvisioningProfileParsing {
     private let securityController: SecurityControlling
+    private let certificateParser: CertificateParsing
 
-    init(securityController: SecurityControlling = SecurityController()) {
+    init(securityController: SecurityControlling = SecurityController(), certificateParser: CertificateParsing = CertificateParser()) {
         self.securityController = securityController
+        self.certificateParser = certificateParser
     }
 
     func parse(at path: AbsolutePath) throws -> ProvisioningProfile {
@@ -44,6 +46,10 @@ final class ProvisioningProfileParser: ProvisioningProfileParsing {
         let plistData = Data(unencryptedProvisioningProfile.utf8)
         let provisioningProfileContent = try PropertyListDecoder().decode(ProvisioningProfile.Content.self, from: plistData)
 
+        let developerCertificateFingerprints = try provisioningProfileContent.developerCertificates.map {
+            try certificateParser.parseFingerPrint(developerCertificate: $0)
+        }
+
         return ProvisioningProfile(path: path,
                                    name: provisioningProfileContent.name,
                                    targetName: targetName,
@@ -54,6 +60,7 @@ final class ProvisioningProfileParser: ProvisioningProfileParsing {
                                    appIdName: provisioningProfileContent.appIdName,
                                    applicationIdPrefix: provisioningProfileContent.applicationIdPrefix,
                                    platforms: provisioningProfileContent.platforms,
-                                   expirationDate: provisioningProfileContent.expirationDate)
+                                   expirationDate: provisioningProfileContent.expirationDate,
+                                   developerCertificateFingerprints: developerCertificateFingerprints)
     }
 }

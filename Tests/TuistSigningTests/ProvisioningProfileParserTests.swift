@@ -37,7 +37,8 @@ final class ProvisioningProfileParserTests: TuistUnitTestCase {
             appIdName: "AppIDName",
             applicationIdPrefix: ["Prefix"],
             platforms: ["iOS"],
-            expirationDate: Date(timeIntervalSinceReferenceDate: 640_729_461)
+            expirationDate: Date(timeIntervalSinceReferenceDate: 640_729_461),
+            developerCertificateFingerprints: []
         )
         securityController.decodeFileStub = { _ in
             .testProvisioningProfile(
@@ -110,6 +111,9 @@ private extension String {
             <date>\(expirationDate)</date>
             <key>Name</key>
             <string>\(name)</string>
+            <key>DeveloperCertificates</key>
+            <array>
+            </array>
             <key>ProvisionedDevices</key>
             <array>
                 <string>2b41533fd2df499800f493b261d060fe6d60838b</string>

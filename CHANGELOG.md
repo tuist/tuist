@@ -9,6 +9,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Added
 
 - Add linting for paths of local packages and for URL validity of remote packages  [#2255](https://github.com/tuist/tuist/pull/2255) by [@adellibovi](https://github.com/adellibovi).
+- Allow use of a single cert for multiple provisioning profiles [#2193](https://github.com/tuist/tuist/pull/2193) by [@rist](https://github.com/rist).
 
 ### Fixed
 
