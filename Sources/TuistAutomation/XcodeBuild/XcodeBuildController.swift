@@ -124,7 +124,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
         command.append(contentsOf: frameworks.flatMap { ["-framework", $0.pathString] })
         command.append(contentsOf: ["-output", output.pathString])
         command.append("-allow-internal-distribution")
-        return run(command: command)
+        return run(command: command, isVerbose: environment.isVerbose)
     }
 
     public func showBuildSettings(_ target: XcodeBuildTarget,
