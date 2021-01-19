@@ -180,7 +180,7 @@ GEM
       uber (< 0.2.0)
     retriable (3.1.2)
     rexml (3.2.4)
-    rubocop (1.8.0)
+    rubocop (1.8.1)
       parallel (~> 1.10)
       parser (>= 3.0.0.0)
       rainbow (>= 2.2.2, < 4.0)
@@ -240,7 +240,7 @@ DEPENDENCIES
   minitest-reporters
   mocha (~> 1.12)
   rake (~> 13.0)
-  rubocop (~> 1.8.0)
+  rubocop (~> 1.8.1)
   rubocop-minitest (~> 0.10.2)
   rubocop-rake (~> 0.5.1)
   ruby-macho (~> 1.4)
