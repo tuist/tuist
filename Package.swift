@@ -716,7 +716,6 @@ let package = Package(
         .target(
             name: "TuistPlugin",
             dependencies: [
-                "TuistCore",
                 "TuistGraph",
                 "TuistLoader",
                 "TuistSupport",
@@ -726,7 +725,7 @@ let package = Package(
         .testTarget(
             name: "TuistPluginTests",
             dependencies: [
-                "TuistCore",
+                "ProjectDescription",
                 "TuistLoader",
                 "TuistLoaderTesting",
                 "TuistGraphTesting",

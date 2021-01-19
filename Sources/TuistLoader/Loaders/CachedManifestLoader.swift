@@ -1,6 +1,7 @@
 import Foundation
 import ProjectDescription
 import TSCBasic
+import struct TuistGraph.Plugins
 import TuistSupport
 
 /// Cached Manifest Loader
@@ -77,12 +78,22 @@ public class CachedManifestLoader: ManifestLoading {
         }
     }
 
+    public func loadPlugin(at path: AbsolutePath) throws -> Plugin {
+        try load(manifest: .plugin, at: path) {
+            try manifestLoader.loadPlugin(at: path)
+        }
+    }
+
     public func loadDependencies(at path: AbsolutePath) throws -> Dependencies {
         try manifestLoader.loadDependencies(at: path)
     }
 
     public func manifests(at path: AbsolutePath) -> Set<Manifest> {
         manifestLoader.manifests(at: path)
+    }
+
+    public func register(plugins: Plugins) {
+        manifestLoader.register(plugins: plugins)
     }
 
     // MARK: - Private
