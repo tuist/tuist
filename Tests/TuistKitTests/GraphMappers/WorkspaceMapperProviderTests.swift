@@ -1,6 +1,8 @@
 import Foundation
 import TuistCache
 import TuistCore
+import TuistGraph
+import TuistGraphTesting
 import TuistGenerator
 import XCTest
 

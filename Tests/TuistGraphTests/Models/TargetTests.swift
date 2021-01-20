@@ -2,7 +2,8 @@ import Foundation
 import TSCBasic
 import TuistSupport
 import XCTest
-@testable import TuistCore
+import TuistCore
+@testable import TuistGraph
 @testable import TuistSupportTesting
 
 final class TargetErrorTests: TuistUnitTestCase {

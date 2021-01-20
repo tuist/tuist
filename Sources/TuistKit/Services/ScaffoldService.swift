@@ -3,6 +3,7 @@ import TuistCore
 import TuistLoader
 import TuistScaffold
 import TuistSupport
+import TuistGraph
 
 enum ScaffoldServiceError: FatalError, Equatable {
     var type: ErrorType {

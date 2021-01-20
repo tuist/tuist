@@ -2,7 +2,7 @@ import Foundation
 import TSCBasic
 import TuistSupportTesting
 import XCTest
-@testable import TuistCore
+@testable import TuistGraph
 
 final class SettingsTests: XCTestCase {
     func testXcconfigs() {

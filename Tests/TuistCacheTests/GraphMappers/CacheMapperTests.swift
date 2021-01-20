@@ -1,10 +1,12 @@
 import Foundation
 import RxBlocking
 import RxSwift
+import TuistGraph
 import TuistCore
 import XCTest
 
 @testable import TuistCache
+@testable import TuistGraphTesting
 @testable import TuistCacheTesting
 @testable import TuistCoreTesting
 @testable import TuistSupportTesting

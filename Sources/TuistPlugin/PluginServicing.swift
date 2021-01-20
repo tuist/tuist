@@ -3,6 +3,7 @@ import TSCBasic
 import TuistCore
 import TuistLoader
 import TuistSupport
+import TuistGraph
 
 /// A protocol defining a service for interacting with plugins.
 public protocol PluginServicing {

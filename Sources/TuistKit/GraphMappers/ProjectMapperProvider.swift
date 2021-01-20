@@ -4,6 +4,7 @@ import TuistGenerator
 import TuistLoader
 import TuistSigning
 import TuistSupport
+import TuistGraph
 
 /// It defines an interface for providing the project mappers to be used for a specific configuration.
 protocol ProjectMapperProviding {

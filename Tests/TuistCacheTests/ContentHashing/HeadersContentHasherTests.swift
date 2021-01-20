@@ -2,6 +2,7 @@ import Foundation
 import TSCBasic
 import TuistCacheTesting
 import TuistCore
+import TuistGraph
 import TuistCoreTesting
 import TuistSupport
 import XCTest

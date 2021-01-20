@@ -3,13 +3,14 @@ import ProjectDescription
 import TSCBasic
 import TuistCore
 import TuistSupport
+import TuistGraph
 
-extension TuistCore.Package {
+extension TuistGraph.Package {
     /// Maps a ProjectDescription.Package instance into a TuistCore.Package model.
     /// - Parameters:
     ///   - manifest: Manifest representation of Package.
     ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.Package, generatorPaths: GeneratorPaths) throws -> TuistCore.Package {
+    static func from(manifest: ProjectDescription.Package, generatorPaths: GeneratorPaths) throws -> TuistGraph.Package {
         switch manifest {
         case let .local(path: local):
             return .local(path: try generatorPaths.resolve(path: local))
@@ -19,12 +20,12 @@ extension TuistCore.Package {
     }
 }
 
-extension TuistCore.Requirement {
+extension TuistGraph.Requirement {
     /// Maps a ProjectDescription.Package.Requirement instance into a TuistCore.Package.Requirement model.
     /// - Parameters:
     ///   - manifest: Manifest representation of Package.
     ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.Package.Requirement) -> TuistCore.Requirement {
+    static func from(manifest: ProjectDescription.Package.Requirement) -> TuistGraph.Requirement {
         switch manifest {
         case let .branch(branch):
             return .branch(branch)

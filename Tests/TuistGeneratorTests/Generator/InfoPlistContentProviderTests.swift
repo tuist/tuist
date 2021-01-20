@@ -2,6 +2,8 @@ import Foundation
 import TuistCore
 import TuistCoreTesting
 import XCTest
+import TuistGraph
+import TuistGraphTesting
 @testable import TuistGenerator
 
 final class InfoPlistContentProviderTests: XCTestCase {

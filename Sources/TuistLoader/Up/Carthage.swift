@@ -2,6 +2,7 @@ import Foundation
 import TSCBasic
 import TuistCore
 import TuistSupport
+import TuistGraph
 
 /// Model that represents the content of the file that Carthage
 /// generates for each resolved dependency.

@@ -2,23 +2,24 @@ import Foundation
 import ProjectDescription
 import TSCBasic
 import TuistCore
+import TuistGraph
 
-extension TuistCore.BuildAction {
+extension TuistGraph.BuildAction {
     /// Maps a ProjectDescription.BuildAction instance into a TuistCore.BuildAction instance.
     /// - Parameters:
     ///   - manifest: Manifest representation of build action model.
     ///   - generatorPaths: Generator paths.
     static func from(manifest: ProjectDescription.BuildAction,
-                     generatorPaths: GeneratorPaths) throws -> TuistCore.BuildAction
+                     generatorPaths: GeneratorPaths) throws -> TuistGraph.BuildAction
     {
-        let preActions = try manifest.preActions.map { try TuistCore.ExecutionAction.from(manifest: $0,
+        let preActions = try manifest.preActions.map { try TuistGraph.ExecutionAction.from(manifest: $0,
                                                                                           generatorPaths: generatorPaths) }
-        let postActions = try manifest.postActions.map { try TuistCore.ExecutionAction.from(manifest: $0,
+        let postActions = try manifest.postActions.map { try TuistGraph.ExecutionAction.from(manifest: $0,
                                                                                             generatorPaths: generatorPaths) }
-        let targets: [TuistCore.TargetReference] = try manifest.targets.map {
+        let targets: [TuistGraph.TargetReference] = try manifest.targets.map {
             .init(projectPath: try generatorPaths.resolveSchemeActionProjectPath($0.projectPath),
                   name: $0.targetName)
         }
-        return TuistCore.BuildAction(targets: targets, preActions: preActions, postActions: postActions)
+        return TuistGraph.BuildAction(targets: targets, preActions: preActions, postActions: postActions)
     }
 }

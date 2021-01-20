@@ -3,8 +3,9 @@ import ProjectDescription
 import TSCBasic
 import TuistCore
 import TuistSupport
+import TuistGraph
 
-extension TuistCore.CarthageDependency.Origin {
+extension TuistGraph.CarthageDependency.Origin {
     static func from(manifest: ProjectDescription.Dependency.CarthageOrigin) throws -> Self {
         switch manifest {
         case let .github(path):
@@ -17,7 +18,7 @@ extension TuistCore.CarthageDependency.Origin {
     }
 }
 
-extension TuistCore.CarthageDependency.Requirement {
+extension TuistGraph.CarthageDependency.Requirement {
     static func from(manifest: ProjectDescription.Dependency.CarthageRequirement) throws -> Self {
         switch manifest {
         case let .exact(version):

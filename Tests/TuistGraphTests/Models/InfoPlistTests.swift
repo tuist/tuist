@@ -1,7 +1,7 @@
 import Foundation
 import TSCBasic
 import XCTest
-@testable import TuistCore
+@testable import TuistGraph
 @testable import TuistSupportTesting
 
 final class InfoPlistTests: XCTestCase {

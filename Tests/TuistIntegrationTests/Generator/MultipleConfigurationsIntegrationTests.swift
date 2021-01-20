@@ -2,6 +2,7 @@ import TSCBasic
 import TuistCore
 import TuistLoaderTesting
 import XcodeProj
+import TuistGraph
 import XCTest
 @testable import TuistGenerator
 @testable import TuistSupport

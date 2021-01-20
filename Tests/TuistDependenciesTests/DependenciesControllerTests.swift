@@ -2,7 +2,7 @@ import TSCBasic
 import TuistCore
 import TuistSupport
 import XCTest
-
+import TuistGraph
 @testable import TuistDependencies
 @testable import TuistDependenciesTesting
 @testable import TuistSupportTesting

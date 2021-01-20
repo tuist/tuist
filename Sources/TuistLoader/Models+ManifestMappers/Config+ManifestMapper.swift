@@ -3,23 +3,24 @@ import ProjectDescription
 import TSCBasic
 import TuistCore
 import TuistSupport
+import TuistGraph
 
-extension TuistCore.Config {
+extension TuistGraph.Config {
     /// Maps a ProjectDescription.Config instance into a TuistCore.Config model.
     /// - Parameters:
     ///   - manifest: Manifest representation of Tuist config.
     ///   - path: The path of the config file.
-    static func from(manifest: ProjectDescription.Config, at path: AbsolutePath) throws -> TuistCore.Config {
-        let generationOptions = try manifest.generationOptions.map { try TuistCore.Config.GenerationOption.from(manifest: $0) }
-        let compatibleXcodeVersions = TuistCore.CompatibleXcodeVersions.from(manifest: manifest.compatibleXcodeVersions)
+    static func from(manifest: ProjectDescription.Config, at path: AbsolutePath) throws -> TuistGraph.Config {
+        let generationOptions = try manifest.generationOptions.map { try TuistGraph.Config.GenerationOption.from(manifest: $0) }
+        let compatibleXcodeVersions = TuistGraph.CompatibleXcodeVersions.from(manifest: manifest.compatibleXcodeVersions)
         let generatorPaths = GeneratorPaths(manifestDirectory: path)
         let plugins = try manifest.plugins.map { try PluginLocation.from(manifest: $0, generatorPaths: generatorPaths) }
 
-        var cloud: TuistCore.Cloud?
+        var cloud: TuistGraph.Cloud?
         if let manifestCloud = manifest.cloud {
-            cloud = try TuistCore.Cloud.from(manifest: manifestCloud)
+            cloud = try TuistGraph.Cloud.from(manifest: manifestCloud)
         }
-        return TuistCore.Config(compatibleXcodeVersions: compatibleXcodeVersions,
+        return TuistGraph.Config(compatibleXcodeVersions: compatibleXcodeVersions,
                                 cloud: cloud,
                                 plugins: plugins,
                                 generationOptions: generationOptions,
@@ -27,12 +28,12 @@ extension TuistCore.Config {
     }
 }
 
-extension TuistCore.Config.GenerationOption {
+extension TuistGraph.Config.GenerationOption {
     /// Maps a ProjectDescription.Config.GenerationOptions instance into a TuistCore.Config.GenerationOptions model.
     /// - Parameters:
     ///   - manifest: Manifest representation of Tuist config generation options
     ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.Config.GenerationOptions) throws -> TuistCore.Config.GenerationOption {
+    static func from(manifest: ProjectDescription.Config.GenerationOptions) throws -> TuistGraph.Config.GenerationOption {
         switch manifest {
         case let .xcodeProjectName(templateString):
             return .xcodeProjectName(templateString.description)

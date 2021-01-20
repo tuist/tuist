@@ -4,6 +4,8 @@ import TuistCore
 import TuistCoreTesting
 import TuistSupport
 import XCTest
+import TuistGraph
+import TuistGraphTesting
 @testable import TuistGenerator
 @testable import TuistSupportTesting
 

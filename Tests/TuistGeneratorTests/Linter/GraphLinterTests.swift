@@ -2,9 +2,11 @@ import Foundation
 import TSCBasic
 import struct TSCUtility.Version
 import TuistCore
+import TuistGraph
 import TuistSupport
 import XCTest
 
+@testable import TuistGraphTesting
 @testable import TuistCoreTesting
 @testable import TuistGenerator
 @testable import TuistSupportTesting

@@ -3,12 +3,13 @@ import Foundation
 import TSCBasic
 import TuistCore
 import TuistGenerator
+import TuistGraph
 import TuistLoader
 import TuistScaffold
 import TuistSupport
 
-private typealias Platform = TuistCore.Platform
-private typealias Product = TuistCore.Product
+private typealias Platform = TuistGraph.Platform
+private typealias Product = TuistGraph.Product
 
 struct InitCommand: ParsableCommand, HasTrackableParameters {
     static var configuration: CommandConfiguration {

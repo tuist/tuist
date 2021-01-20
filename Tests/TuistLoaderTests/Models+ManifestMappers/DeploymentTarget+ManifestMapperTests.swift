@@ -2,6 +2,8 @@ import Foundation
 import ProjectDescription
 import TSCBasic
 import TuistCore
+import TuistGraph
+import TuistGraphTesting
 import TuistSupport
 import XCTest
 
@@ -14,7 +16,7 @@ final class DeploymentTargetManifestMapperTests: TuistUnitTestCase {
         let manifest: ProjectDescription.DeploymentTarget = .iOS(targetVersion: "13.1", devices: .iphone)
 
         // When
-        let got = TuistCore.DeploymentTarget.from(manifest: manifest)
+        let got = TuistGraph.DeploymentTarget.from(manifest: manifest)
 
         // Then
         guard

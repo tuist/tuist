@@ -4,6 +4,7 @@ import TuistCloud
 import TuistCore
 import TuistGenerator
 import TuistSigning
+import TuistGraph
 
 /// It defines an interface for providing the mappers to be used for a specific configuration.
 protocol GraphMapperProviding {

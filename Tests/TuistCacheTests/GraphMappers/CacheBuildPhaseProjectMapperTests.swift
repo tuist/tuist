@@ -3,6 +3,7 @@ import RxBlocking
 import RxSwift
 import TuistCore
 import XCTest
+import TuistGraph
 
 @testable import TuistCache
 @testable import TuistCacheTesting

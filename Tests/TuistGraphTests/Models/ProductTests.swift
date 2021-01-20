@@ -1,8 +1,7 @@
 import Foundation
 import XcodeProj
 import XCTest
-
-@testable import TuistCore
+@testable import TuistGraph
 
 final class ProductTests: XCTestCase {
     func test_xcodeValue() {

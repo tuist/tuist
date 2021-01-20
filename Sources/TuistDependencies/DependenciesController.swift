@@ -1,6 +1,7 @@
 import TSCBasic
 import TuistCore
 import TuistSupport
+import TuistGraph
 
 // MARK: - Dependencies Controlling
 

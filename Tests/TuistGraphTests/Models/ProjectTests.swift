@@ -1,7 +1,10 @@
 import Foundation
 import TSCBasic
 import XCTest
-@testable import TuistCore
+import TuistCore
+import TuistCoreTesting
+import TuistGraphTesting
+@testable import TuistGraph
 
 final class ProjectTests: XCTestCase {
     func test_sortedTargetsForProjectScheme() {

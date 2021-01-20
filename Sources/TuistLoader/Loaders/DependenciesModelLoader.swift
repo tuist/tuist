@@ -3,6 +3,7 @@ import ProjectDescription
 import TSCBasic
 import TuistCore
 import TuistSupport
+import TuistGraph
 
 /// Entity responsible for providing dependencies model
 public protocol DependenciesModelLoading {
@@ -10,7 +11,7 @@ public protocol DependenciesModelLoading {
     /// - Parameter path: The absolute path for the dependency models to load.
     /// - Returns: The Dependencies loaded from the specified path.
     /// - Throws: Error encountered during the loading process (e.g. Missing Dependencies file).
-    func loadDependencies(at path: AbsolutePath) throws -> TuistCore.Dependencies
+    func loadDependencies(at path: AbsolutePath) throws -> TuistGraph.Dependencies
 }
 
 public class DependenciesModelLoader: DependenciesModelLoading {
@@ -20,8 +21,8 @@ public class DependenciesModelLoader: DependenciesModelLoading {
         self.manifestLoader = manifestLoader
     }
 
-    public func loadDependencies(at path: AbsolutePath) throws -> TuistCore.Dependencies {
+    public func loadDependencies(at path: AbsolutePath) throws -> TuistGraph.Dependencies {
         let manifest = try manifestLoader.loadDependencies(at: path)
-        return try TuistCore.Dependencies.from(manifest: manifest)
+        return try TuistGraph.Dependencies.from(manifest: manifest)
     }
 }

@@ -1,7 +1,8 @@
 import Foundation
 import TSCBasic
 import XCTest
-@testable import TuistCore
+import TuistCore
+@testable import TuistGraph
 @testable import TuistSupportTesting
 
 final class LintingIssueTests: TuistUnitTestCase {

@@ -1,7 +1,6 @@
 import Foundation
 import XCTest
-
-@testable import TuistCore
+@testable import TuistGraph
 @testable import TuistSupportTesting
 
 final class CarthageDependencyTests: TuistUnitTestCase {

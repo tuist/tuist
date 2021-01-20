@@ -1,7 +1,7 @@
 import Foundation
 import TSCBasic
 import XCTest
-@testable import TuistCore
+@testable import TuistGraph
 
 private let script = """
 echo 'Hello World'

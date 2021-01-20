@@ -1,6 +1,7 @@
 import TSCBasic
 import TuistCore
 import XCTest
+import TuistGraph
 @testable import TuistSigning
 @testable import TuistSigningTesting
 @testable import TuistSupportTesting

@@ -2,13 +2,15 @@ import Foundation
 import ProjectDescription
 import TSCBasic
 import TuistCore
+import TuistGraph
 import TuistSupport
 import TuistSupportTesting
 import XCTest
+import TuistGraph
 @testable import TuistLoader
 
 extension TuistTestCase {
-    func XCTAssertSettingsMatchesManifest(settings: TuistCore.Settings,
+    func XCTAssertSettingsMatchesManifest(settings: TuistGraph.Settings,
                                           matches manifest: ProjectDescription.Settings,
                                           at path: AbsolutePath,
                                           generatorPaths: GeneratorPaths,
@@ -24,7 +26,7 @@ extension TuistTestCase {
         }
     }
 
-    func XCTAssertTargetMatchesManifest(target: TuistCore.Target,
+    func XCTAssertTargetMatchesManifest(target: TuistGraph.Target,
                                         matches manifest: ProjectDescription.Target,
                                         at path: AbsolutePath,
                                         generatorPaths: GeneratorPaths,
@@ -44,7 +46,7 @@ extension TuistTestCase {
         }
     }
 
-    func XCTAssertBuildConfigurationMatchesManifest(configuration: (TuistCore.BuildConfiguration, TuistCore.Configuration?),
+    func XCTAssertBuildConfigurationMatchesManifest(configuration: (TuistGraph.BuildConfiguration, TuistGraph.Configuration?),
                                                     matches manifest: ProjectDescription.CustomConfiguration,
                                                     at _: AbsolutePath,
                                                     generatorPaths: GeneratorPaths,
@@ -60,7 +62,7 @@ extension TuistTestCase {
                        file: file, line: line)
     }
 
-    func assert(coreDataModels: [TuistCore.CoreDataModel],
+    func assert(coreDataModels: [TuistGraph.CoreDataModel],
                 matches manifests: [ProjectDescription.CoreDataModel],
                 at path: AbsolutePath,
                 generatorPaths: GeneratorPaths,
@@ -73,7 +75,7 @@ extension TuistTestCase {
                       line: line)
     }
 
-    func coreDataModel(_ coreDataModel: TuistCore.CoreDataModel,
+    func coreDataModel(_ coreDataModel: TuistGraph.CoreDataModel,
                        matches manifest: ProjectDescription.CoreDataModel,
                        at _: AbsolutePath,
                        generatorPaths: GeneratorPaths) throws -> Bool
@@ -82,7 +84,7 @@ extension TuistTestCase {
             && coreDataModel.currentVersion == manifest.currentVersion
     }
 
-    func assert(scheme: TuistCore.Scheme,
+    func assert(scheme: TuistGraph.Scheme,
                 matches manifest: ProjectDescription.Scheme,
                 path: AbsolutePath,
                 generatorPaths: GeneratorPaths,
@@ -104,21 +106,21 @@ extension TuistTestCase {
         }
     }
 
-    func assert(buildAction: TuistCore.BuildAction,
+    func assert(buildAction: TuistGraph.BuildAction,
                 matches manifest: ProjectDescription.BuildAction,
                 path _: AbsolutePath,
                 generatorPaths: GeneratorPaths,
                 file: StaticString = #file,
                 line: UInt = #line) throws
     {
-        let convertedTargets: [TuistCore.TargetReference] = try manifest.targets.map {
+        let convertedTargets: [TuistGraph.TargetReference] = try manifest.targets.map {
             let resolvedPath = try generatorPaths.resolveSchemeActionProjectPath($0.projectPath)
             return .init(projectPath: resolvedPath, name: $0.targetName)
         }
         XCTAssertEqual(buildAction.targets, convertedTargets, file: file, line: line)
     }
 
-    func assert(testAction: TuistCore.TestAction,
+    func assert(testAction: TuistGraph.TestAction,
                 matches manifest: ProjectDescription.TestAction,
                 path _: AbsolutePath,
                 generatorPaths: GeneratorPaths,
@@ -134,7 +136,7 @@ extension TuistTestCase {
         }
     }
 
-    func assert(runAction: TuistCore.RunAction,
+    func assert(runAction: TuistGraph.RunAction,
                 matches manifest: ProjectDescription.RunAction,
                 path _: AbsolutePath,
                 generatorPaths: GeneratorPaths,
@@ -151,7 +153,7 @@ extension TuistTestCase {
         }
     }
 
-    func assert(arguments: TuistCore.Arguments,
+    func assert(arguments: TuistGraph.Arguments,
                 matches manifest: ProjectDescription.Arguments,
                 file: StaticString = #file,
                 line: UInt = #line)
@@ -181,10 +183,10 @@ extension TuistTestCase {
     }
 }
 
-private func == (_ lhs: TuistCore.Platform,
+private func == (_ lhs: TuistGraph.Platform,
                  _ rhs: ProjectDescription.Platform) -> Bool
 {
-    let map: [TuistCore.Platform: ProjectDescription.Platform] = [
+    let map: [TuistGraph.Platform: ProjectDescription.Platform] = [
         .iOS: .iOS,
         .macOS: .macOS,
         .tvOS: .tvOS,
@@ -192,10 +194,10 @@ private func == (_ lhs: TuistCore.Platform,
     return map[lhs] == rhs
 }
 
-private func == (_ lhs: TuistCore.Product,
+private func == (_ lhs: TuistGraph.Product,
                  _ rhs: ProjectDescription.Product) -> Bool
 {
-    let map: [TuistCore.Product: ProjectDescription.Product] = [
+    let map: [TuistGraph.Product: ProjectDescription.Product] = [
         .app: .app,
         .framework: .framework,
         .staticFramework: .staticFramework,

@@ -1,4 +1,5 @@
 import TSCBasic
+import TuistGraph
 import TuistCore
 import TuistCoreTesting
 import TuistLoaderTesting

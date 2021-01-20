@@ -2,7 +2,7 @@ import Foundation
 import TuistCore
 import TuistSupport
 import XCTest
-
+import TuistGraph
 @testable import TuistCoreTesting
 @testable import TuistSupportTesting
 

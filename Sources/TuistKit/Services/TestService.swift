@@ -6,6 +6,7 @@ import TuistAutomation
 import TuistCache
 import TuistCore
 import TuistSupport
+import TuistGraph
 
 enum TestServiceError: FatalError {
     case schemeNotFound(scheme: String, existing: [String])

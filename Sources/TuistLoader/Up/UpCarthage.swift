@@ -2,6 +2,7 @@ import Foundation
 import TSCBasic
 import TuistCore
 import TuistSupport
+import TuistGraph
 
 /// Up that bootstraps outdated Carthage dependencies.
 class UpCarthage: Up, GraphInitiatable {

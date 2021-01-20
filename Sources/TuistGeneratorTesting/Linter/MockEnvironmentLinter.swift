@@ -1,6 +1,8 @@
 import Foundation
 import TSCBasic
 import TuistCore
+import TuistGraph
+
 @testable import TuistGenerator
 
 public final class MockEnvironmentLinter: EnvironmentLinting {

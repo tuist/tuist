@@ -3,8 +3,9 @@ import ProjectDescription
 import TSCBasic
 import TuistCore
 import TuistSupport
+import TuistGraph
 
-extension TuistCore.Workspace {
+extension TuistGraph.Workspace {
     /// Maps a ProjectDescription.Workspace instance into a TuistCore.Workspace model.
     /// - Parameters:
     ///   - manifest: Manifest representation of  workspace.
@@ -12,7 +13,7 @@ extension TuistCore.Workspace {
     static func from(manifest: ProjectDescription.Workspace,
                      path: AbsolutePath,
                      generatorPaths: GeneratorPaths,
-                     manifestLoader: ManifestLoading) throws -> TuistCore.Workspace
+                     manifestLoader: ManifestLoading) throws -> TuistGraph.Workspace
     {
         func globProjects(_ path: Path) throws -> [AbsolutePath] {
             let resolvedPath = try generatorPaths.resolve(path: path)
@@ -33,12 +34,12 @@ extension TuistCore.Workspace {
         }
 
         let additionalFiles = try manifest.additionalFiles.flatMap {
-            try TuistCore.FileElement.from(manifest: $0, generatorPaths: generatorPaths)
+            try TuistGraph.FileElement.from(manifest: $0, generatorPaths: generatorPaths)
         }
 
-        let schemes = try manifest.schemes.map { try TuistCore.Scheme.from(manifest: $0, generatorPaths: generatorPaths) }
+        let schemes = try manifest.schemes.map { try TuistGraph.Scheme.from(manifest: $0, generatorPaths: generatorPaths) }
 
-        return TuistCore.Workspace(path: path,
+        return TuistGraph.Workspace(path: path,
                                    name: manifest.name,
                                    projects: try manifest.projects.flatMap(globProjects),
                                    schemes: schemes,

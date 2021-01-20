@@ -2,6 +2,8 @@ import Foundation
 import TSCBasic
 import TuistCore
 import XcodeProj
+import TuistGraph
+
 @testable import TuistGenerator
 
 final class MockDescriptorGenerator: DescriptorGenerating {

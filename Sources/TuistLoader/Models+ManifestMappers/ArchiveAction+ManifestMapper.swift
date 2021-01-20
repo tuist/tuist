@@ -2,23 +2,24 @@ import Foundation
 import ProjectDescription
 import TSCBasic
 import TuistCore
+import TuistGraph
 
-extension TuistCore.ArchiveAction {
+extension TuistGraph.ArchiveAction {
     /// Maps a ProjectDescription.ArchiveAction instance into a TuistCore.ArchiveAction instance.
     /// - Parameters:
     ///   - manifest: Manifest representation of archive action model.
     ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.ArchiveAction, generatorPaths: GeneratorPaths) throws -> TuistCore.ArchiveAction {
+    static func from(manifest: ProjectDescription.ArchiveAction, generatorPaths: GeneratorPaths) throws -> TuistGraph.ArchiveAction {
         let configurationName = manifest.configurationName
         let revealArchiveInOrganizer = manifest.revealArchiveInOrganizer
         let customArchiveName = manifest.customArchiveName
-        let preActions = try manifest.preActions.map { try TuistCore.ExecutionAction.from(manifest: $0, generatorPaths: generatorPaths) }
-        let postActions = try manifest.postActions.map { try TuistCore.ExecutionAction.from(manifest: $0, generatorPaths: generatorPaths) }
-
-        return TuistCore.ArchiveAction(configurationName: configurationName,
-                                       revealArchiveInOrganizer: revealArchiveInOrganizer,
-                                       customArchiveName: customArchiveName,
-                                       preActions: preActions,
-                                       postActions: postActions)
+        let preActions = try manifest.preActions.map { try TuistGraph.ExecutionAction.from(manifest: $0, generatorPaths: generatorPaths) }
+        let postActions = try manifest.postActions.map { try TuistGraph.ExecutionAction.from(manifest: $0, generatorPaths: generatorPaths) }
+        
+        return TuistGraph.ArchiveAction(configurationName: configurationName,
+                                        revealArchiveInOrganizer: revealArchiveInOrganizer,
+                                        customArchiveName: customArchiveName,
+                                        preActions: preActions,
+                                        postActions: postActions)
     }
 }

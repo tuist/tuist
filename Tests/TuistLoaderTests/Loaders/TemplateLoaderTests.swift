@@ -1,6 +1,7 @@
 import TSCBasic
 import TuistCore
 import TuistSupport
+import TuistGraph
 import XCTest
 
 @testable import ProjectDescription
@@ -49,7 +50,7 @@ final class TemplateLoaderTests: TuistUnitTestCase {
         let got = try subject.loadTemplate(at: temporaryPath)
 
         // Then
-        XCTAssertEqual(got, TuistCore.Template(description: "desc",
+        XCTAssertEqual(got, TuistGraph.Template(description: "desc",
                                                files: [Template.File(path: RelativePath("generateOne"),
                                                                      contents: .file(temporaryPath.appending(component: "fileOne")))]))
     }

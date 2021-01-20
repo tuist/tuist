@@ -2,9 +2,10 @@ import Foundation
 import TSCBasic
 import TuistSupport
 import XCTest
-
+import TuistGraph
 @testable import TuistCore
 @testable import TuistCoreTesting
+@testable import TuistGraphTesting
 @testable import TuistSupportTesting
 
 final class ValueGraphTraverserTests: TuistUnitTestCase {

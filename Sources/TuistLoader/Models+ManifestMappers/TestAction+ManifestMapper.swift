@@ -2,19 +2,20 @@ import Foundation
 import ProjectDescription
 import TSCBasic
 import TuistCore
+import TuistGraph
 
-extension TuistCore.TestAction {
+extension TuistGraph.TestAction {
     /// Maps a ProjectDescription.TestAction instance into a TuistCore.TestAction instance.
     /// - Parameters:
     ///   - manifest: Manifest representation of test action model.
     ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.TestAction, generatorPaths: GeneratorPaths) throws -> TuistCore.TestAction {
-        let testPlans: [TuistCore.TestPlan]?
-        let targets: [TuistCore.TestableTarget]
-        let arguments: TuistCore.Arguments?
+    static func from(manifest: ProjectDescription.TestAction, generatorPaths: GeneratorPaths) throws -> TuistGraph.TestAction {
+        let testPlans: [TuistGraph.TestPlan]?
+        let targets: [TuistGraph.TestableTarget]
+        let arguments: TuistGraph.Arguments?
         let coverage: Bool
-        let codeCoverageTargets: [TuistCore.TargetReference]
-        let diagnosticsOptions: Set<TuistCore.SchemeDiagnosticsOption>
+        let codeCoverageTargets: [TuistGraph.TargetReference]
+        let diagnosticsOptions: Set<TuistGraph.SchemeDiagnosticsOption>
         let language: String?
         let region: String?
 
@@ -32,15 +33,15 @@ extension TuistCore.TestAction {
             language = nil
             region = nil
         } else {
-            targets = try manifest.targets.map { try TuistCore.TestableTarget.from(manifest: $0, generatorPaths: generatorPaths) }
-            arguments = manifest.arguments.map { TuistCore.Arguments.from(manifest: $0) }
+            targets = try manifest.targets.map { try TuistGraph.TestableTarget.from(manifest: $0, generatorPaths: generatorPaths) }
+            arguments = manifest.arguments.map { TuistGraph.Arguments.from(manifest: $0) }
             coverage = manifest.coverage
             codeCoverageTargets = try manifest.codeCoverageTargets.map {
-                TuistCore.TargetReference(projectPath: try generatorPaths.resolveSchemeActionProjectPath($0.projectPath),
+                TuistGraph.TargetReference(projectPath: try generatorPaths.resolveSchemeActionProjectPath($0.projectPath),
                                           name: $0.targetName)
             }
 
-            diagnosticsOptions = Set(manifest.diagnosticsOptions.map { TuistCore.SchemeDiagnosticsOption.from(manifest: $0) })
+            diagnosticsOptions = Set(manifest.diagnosticsOptions.map { TuistGraph.SchemeDiagnosticsOption.from(manifest: $0) })
             language = manifest.language
             region = manifest.region
 
@@ -49,9 +50,9 @@ extension TuistCore.TestAction {
         }
 
         let configurationName = manifest.configurationName
-        let preActions = try manifest.preActions.map { try TuistCore.ExecutionAction.from(manifest: $0,
+        let preActions = try manifest.preActions.map { try TuistGraph.ExecutionAction.from(manifest: $0,
                                                                                           generatorPaths: generatorPaths) }
-        let postActions = try manifest.postActions.map { try TuistCore.ExecutionAction.from(manifest: $0,
+        let postActions = try manifest.postActions.map { try TuistGraph.ExecutionAction.from(manifest: $0,
                                                                                             generatorPaths: generatorPaths) }
 
         return TestAction(targets: targets,

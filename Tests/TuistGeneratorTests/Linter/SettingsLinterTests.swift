@@ -1,8 +1,10 @@
 import Foundation
 import TSCBasic
 import TuistCore
+import TuistGraph
 import TuistSupport
 import XCTest
+@testable import TuistGraphTesting
 @testable import TuistGenerator
 @testable import TuistSupportTesting
 

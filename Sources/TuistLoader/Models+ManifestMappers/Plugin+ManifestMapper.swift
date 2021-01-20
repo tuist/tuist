@@ -3,9 +3,10 @@ import ProjectDescription
 import TSCBasic
 import TuistCore
 import TuistSupport
+import TuistGraph
 
-extension TuistCore.Plugin {
+extension TuistGraph.Plugin {
     static func from(manifest: ProjectDescription.Plugin) throws -> Self {
-        TuistCore.Plugin(name: manifest.name)
+        TuistGraph.Plugin(name: manifest.name)
     }
 }

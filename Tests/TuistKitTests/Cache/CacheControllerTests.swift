@@ -2,6 +2,8 @@ import Foundation
 import TSCBasic
 import TuistCache
 import TuistCacheTesting
+import TuistGraph
+import TuistGraphTesting
 import TuistCore
 import TuistCoreTesting
 import TuistLoader

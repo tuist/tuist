@@ -3,6 +3,8 @@ import RxSwift
 import TSCBasic
 import TuistAutomation
 import TuistCore
+import TuistGraph
+import TuistGraphTesting
 import XCTest
 
 @testable import TuistAutomationTesting

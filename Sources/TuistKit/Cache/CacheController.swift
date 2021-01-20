@@ -9,6 +9,7 @@ import TuistCore
 import TuistGenerator
 import TuistLoader
 import TuistSupport
+import TuistGraph
 
 /// A provider that concatenates the default mappers, to the mapper that adds the build phase
 /// to locate the built products directory.
