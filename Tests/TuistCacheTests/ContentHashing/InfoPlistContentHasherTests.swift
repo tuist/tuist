@@ -3,6 +3,8 @@ import TSCBasic
 import TuistCacheTesting
 import TuistCore
 import TuistCoreTesting
+import TuistGraph
+import TuistGraphTesting
 import TuistSupport
 import XCTest
 @testable import TuistCache
@@ -66,7 +68,7 @@ final class InfoPlistContentHasherTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(mockContentHasher.hashStringCallCount, 1)
-        XCTAssertEqual(hash, "1=integer(23);2=string(\"foo\");3=boolean(true);4=boolean(false);5=array([TuistCore.InfoPlist.Value.string(\"5a\"), TuistCore.InfoPlist.Value.string(\"5b\")]);6=dictionary([\"6a\": TuistCore.InfoPlist.Value.string(\"6value\")]);-hash")
+        XCTAssertEqual(hash, "1=integer(23);2=string(\"foo\");3=boolean(true);4=boolean(false);5=array([TuistGraph.InfoPlist.Value.string(\"5a\"), TuistGraph.InfoPlist.Value.string(\"5b\")]);6=dictionary([\"6a\": TuistGraph.InfoPlist.Value.string(\"6value\")]);-hash")
     }
 
     func test_hash_whenPlistIsExtendingDefault_allDictionaryValuesAreConsideredForHash() throws {
@@ -85,6 +87,6 @@ final class InfoPlistContentHasherTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(mockContentHasher.hashStringCallCount, 1)
-        XCTAssertEqual(hash, "1=integer(23);2=string(\"foo\");3=boolean(true);4=boolean(false);5=array([TuistCore.InfoPlist.Value.string(\"5a\"), TuistCore.InfoPlist.Value.string(\"5b\")]);6=dictionary([\"6a\": TuistCore.InfoPlist.Value.string(\"6value\")]);-hash")
+        XCTAssertEqual(hash, "1=integer(23);2=string(\"foo\");3=boolean(true);4=boolean(false);5=array([TuistGraph.InfoPlist.Value.string(\"5a\"), TuistGraph.InfoPlist.Value.string(\"5b\")]);6=dictionary([\"6a\": TuistGraph.InfoPlist.Value.string(\"6value\")]);-hash")
     }
 }

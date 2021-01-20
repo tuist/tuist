@@ -2,6 +2,8 @@ import Foundation
 import TSCBasic
 import TuistCore
 import TuistGenerator
+import TuistGraph
+import TuistGraphTesting
 @testable import TuistKit
 
 final class MockGenerator: Generating {

@@ -2,6 +2,7 @@ import Foundation
 import PathKit
 import TSCBasic
 import TuistCore
+import TuistGraph
 import TuistSupport
 import XcodeProj
 

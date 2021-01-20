@@ -1,4 +1,5 @@
 import TSCBasic
+import TuistGraph
 import TuistSupport
 import XCTest
 

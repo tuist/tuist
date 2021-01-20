@@ -4,6 +4,7 @@ import TSCBasic
 import TuistAutomation
 import TuistCache
 import TuistCore
+import TuistGraph
 import TuistSupport
 
 enum BuildServiceError: FatalError {

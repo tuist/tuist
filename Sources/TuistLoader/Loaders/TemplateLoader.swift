@@ -2,6 +2,7 @@ import Foundation
 import ProjectDescription
 import TSCBasic
 import TuistCore
+import TuistGraph
 import TuistSupport
 
 public protocol TemplateLoading {
@@ -9,7 +10,7 @@ public protocol TemplateLoading {
     /// - Parameters:
     ///     - path: Path of template manifest file `name_of_template.swift`
     /// - Returns: Loaded `TuistScaffold.Template`
-    func loadTemplate(at path: AbsolutePath) throws -> TuistCore.Template
+    func loadTemplate(at path: AbsolutePath) throws -> TuistGraph.Template
 }
 
 public class TemplateLoader: TemplateLoading {
@@ -24,28 +25,28 @@ public class TemplateLoader: TemplateLoading {
         self.manifestLoader = manifestLoader
     }
 
-    public func loadTemplate(at path: AbsolutePath) throws -> TuistCore.Template {
+    public func loadTemplate(at path: AbsolutePath) throws -> TuistGraph.Template {
         let template = try manifestLoader.loadTemplate(at: path)
         let generatorPaths = GeneratorPaths(manifestDirectory: path)
-        return try TuistCore.Template.from(manifest: template,
-                                           generatorPaths: generatorPaths)
+        return try TuistGraph.Template.from(manifest: template,
+                                            generatorPaths: generatorPaths)
     }
 }
 
-extension TuistCore.Template {
-    static func from(manifest: ProjectDescription.Template, generatorPaths: GeneratorPaths) throws -> TuistCore.Template {
-        let attributes = try manifest.attributes.map(TuistCore.Template.Attribute.from)
+extension TuistGraph.Template {
+    static func from(manifest: ProjectDescription.Template, generatorPaths: GeneratorPaths) throws -> TuistGraph.Template {
+        let attributes = try manifest.attributes.map(TuistGraph.Template.Attribute.from)
         let files = try manifest.files.map { File(path: RelativePath($0.path),
-                                                  contents: try TuistCore.Template.Contents.from(manifest: $0.contents,
-                                                                                                 generatorPaths: generatorPaths)) }
-        return TuistCore.Template(description: manifest.description,
-                                  attributes: attributes,
-                                  files: files)
+                                                  contents: try TuistGraph.Template.Contents.from(manifest: $0.contents,
+                                                                                                  generatorPaths: generatorPaths)) }
+        return TuistGraph.Template(description: manifest.description,
+                                   attributes: attributes,
+                                   files: files)
     }
 }
 
-extension TuistCore.Template.Attribute {
-    static func from(manifest: ProjectDescription.Template.Attribute) throws -> TuistCore.Template.Attribute {
+extension TuistGraph.Template.Attribute {
+    static func from(manifest: ProjectDescription.Template.Attribute) throws -> TuistGraph.Template.Attribute {
         switch manifest {
         case let .required(name):
             return .required(name)
@@ -55,9 +56,9 @@ extension TuistCore.Template.Attribute {
     }
 }
 
-extension TuistCore.Template.Contents {
+extension TuistGraph.Template.Contents {
     static func from(manifest: ProjectDescription.Template.Contents,
-                     generatorPaths: GeneratorPaths) throws -> TuistCore.Template.Contents
+                     generatorPaths: GeneratorPaths) throws -> TuistGraph.Template.Contents
     {
         switch manifest {
         case let .string(contents):

@@ -2,6 +2,7 @@ import Foundation
 import ProjectDescription
 import TSCBasic
 import TuistCore
+import TuistGraph
 import TuistSupport
 import XCTest
 
@@ -35,7 +36,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
                                                   project: "Sources/project/**")
 
         // When
-        let model = try TuistCore.Headers.from(manifest: manifest, generatorPaths: generatorPaths)
+        let model = try TuistGraph.Headers.from(manifest: manifest, generatorPaths: generatorPaths)
 
         // Then
         XCTAssertEqual(model.public, [
@@ -80,7 +81,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
                                                   project: ["Sources/project/E/*.h", "Sources/project/F/*.h"])
 
         // When
-        let model = try TuistCore.Headers.from(manifest: manifest, generatorPaths: generatorPaths)
+        let model = try TuistGraph.Headers.from(manifest: manifest, generatorPaths: generatorPaths)
 
         // Then
         XCTAssertEqual(model.public, [
@@ -117,7 +118,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
                                                   project: ["Sources/project/C/*.h", "Sources/project/D/*.h"])
 
         // When
-        let model = try TuistCore.Headers.from(manifest: manifest, generatorPaths: generatorPaths)
+        let model = try TuistGraph.Headers.from(manifest: manifest, generatorPaths: generatorPaths)
 
         // Then
         XCTAssertEqual(model.public, [

@@ -1,4 +1,5 @@
 import TuistCore
+import TuistGraph
 
 /// This mapper takes the `Config`level setting `disableShowEnvironmentVarsInScriptPhases` and pushes it down into all of the `Project`'s shell script `TargetAction`s`
 

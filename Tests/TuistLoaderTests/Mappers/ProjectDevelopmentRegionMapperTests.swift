@@ -1,5 +1,6 @@
 import ProjectDescription
 import TuistCore
+import TuistGraph
 import TuistSupport
 import XCTest
 
@@ -9,12 +10,12 @@ import XCTest
 
 final class ProjectDevelopmentRegionMapperTests: TuistUnitTestCase {
     var subject: ProjectDevelopmentRegionMapper!
-    var config: TuistCore.Config!
+    var config: TuistGraph.Config!
 
     override func setUp() {
         super.setUp()
 
-        config = TuistCore.Config.test(generationOptions: [
+        config = TuistGraph.Config.test(generationOptions: [
             .developmentRegion("en"),
         ])
         subject = ProjectDevelopmentRegionMapper(config: config)
@@ -28,7 +29,7 @@ final class ProjectDevelopmentRegionMapperTests: TuistUnitTestCase {
 
     func test_map_changes_the_development_region() throws {
         // Given
-        let project = TuistCore.Project.test(name: "Test", developmentRegion: nil)
+        let project = TuistGraph.Project.test(name: "Test", developmentRegion: nil)
 
         // When
         let (got, _) = try subject.map(project: project)

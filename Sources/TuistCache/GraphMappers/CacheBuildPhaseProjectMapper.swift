@@ -3,6 +3,7 @@ import RxBlocking
 import RxSwift
 import TSCBasic
 import TuistCore
+import TuistGraph
 import TuistSupport
 
 public class CacheBuildPhaseProjectMapper: ProjectMapping {

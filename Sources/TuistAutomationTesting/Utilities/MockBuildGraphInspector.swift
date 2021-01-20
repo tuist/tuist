@@ -2,6 +2,7 @@ import Foundation
 import TSCBasic
 import TuistCore
 import TuistCoreTesting
+import TuistGraph
 
 @testable import TuistAutomation
 

@@ -1,9 +1,11 @@
 import Foundation
 import TSCBasic
 import TuistCore
+import TuistGraph
 import TuistSupport
 import XCTest
 @testable import TuistGenerator
+@testable import TuistGraphTesting
 @testable import TuistSupportTesting
 
 final class SettingsLinterTests: TuistUnitTestCase {

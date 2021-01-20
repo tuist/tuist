@@ -1,20 +1,21 @@
 import Foundation
 import ProjectDescription
 import TuistCore
+import TuistGraph
 
-extension TuistCore.BuildConfiguration {
+extension TuistGraph.BuildConfiguration {
     /// Maps a ProjectDescription.BuildConfiguration instance into a TuistCore.BuildConfiguration instance.
     /// - Parameters:
     ///   - manifest: Manifest representation of build configuration model.
     ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.CustomConfiguration) -> TuistCore.BuildConfiguration {
-        let variant: TuistCore.BuildConfiguration.Variant
+    static func from(manifest: ProjectDescription.CustomConfiguration) -> TuistGraph.BuildConfiguration {
+        let variant: TuistGraph.BuildConfiguration.Variant
         switch manifest.variant {
         case .debug:
             variant = .debug
         case .release:
             variant = .release
         }
-        return TuistCore.BuildConfiguration(name: manifest.name, variant: variant)
+        return TuistGraph.BuildConfiguration(name: manifest.name, variant: variant)
     }
 }

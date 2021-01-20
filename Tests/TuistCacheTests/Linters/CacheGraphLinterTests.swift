@@ -1,8 +1,9 @@
 import TuistCore
+import TuistGraph
 import XCTest
-
 @testable import TuistCache
 @testable import TuistCoreTesting
+@testable import TuistGraphTesting
 @testable import TuistSupportTesting
 
 final class CacheGraphLinterTests: TuistUnitTestCase {

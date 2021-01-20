@@ -1,5 +1,6 @@
 import Foundation
 import TSCBasic
+import TuistGraph
 
 /// A protocol that defines an interface to map dependency graphs.
 public protocol GraphMapping {

@@ -2,6 +2,7 @@ import Foundation
 import ProjectDescription
 import TSCBasic
 import TuistCore
+import TuistGraph
 import TuistSupport
 import XCTest
 
@@ -15,7 +16,7 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
         let generatorPaths = GeneratorPaths(manifestDirectory: AbsolutePath("/"))
 
         // When
-        let got = try TuistCore.Dependency.from(manifest: dependency, generatorPaths: generatorPaths)
+        let got = try TuistGraph.Dependency.from(manifest: dependency, generatorPaths: generatorPaths)
 
         // Then
         guard case let .cocoapods(path) = got else {
@@ -31,7 +32,7 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
         let generatorPaths = GeneratorPaths(manifestDirectory: AbsolutePath("/"))
 
         // When
-        let got = try TuistCore.Dependency.from(manifest: dependency, generatorPaths: generatorPaths)
+        let got = try TuistGraph.Dependency.from(manifest: dependency, generatorPaths: generatorPaths)
 
         // Then
         guard

@@ -3,6 +3,8 @@ import TSCBasic
 import struct TSCUtility.Version
 import TuistCore
 import TuistCoreTesting
+import TuistGraph
+import TuistGraphTesting
 import TuistSupport
 import XcodeProj
 import XCTest
