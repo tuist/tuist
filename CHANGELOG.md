@@ -4,6 +4,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Fixed
+
+- Fixed known issue that causes the `xcodebuild` process hang when running `tuist test` and `tuist build`. [#2297](https://github.com/tuist/tuist/pull/2297) by [@Jake-Prickett](https://github.com/Jake-Prickett).
+
 ## 1.31.0 - Arctic
 
 ### Added
