@@ -4,8 +4,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
-### Fixed 
-
+- Improve performance of project generation by removing unneeded Glob directory cache [#2318](https://github.com/tuist/tuist/pull/2318) by [@adellibovi](https://github.com/adellibovi).
 - Fix cache's hash calculation of resources [#2325](https://github.com/tuist/tuist/pull/2325) by [@natanrolnik](https://github.com/natanrolnik).
 
 ## 1.31.0 - Arctic
