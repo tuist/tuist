@@ -1,5 +1,6 @@
 import Foundation
 import TSCBasic
+import TuistGraph
 import TuistSupport
 
 @available(*, deprecated, message: "XCFramework nodes are deprecated. Dependencies should be usted instead with the ValueGraph.")

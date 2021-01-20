@@ -1,5 +1,5 @@
 import Foundation
-
+import TuistGraph
 @testable import TuistCache
 @testable import TuistCore
 

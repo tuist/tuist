@@ -3,6 +3,7 @@ import RxSwift
 import TSCBasic
 import TuistCache
 import TuistCore
+import TuistGraph
 import TuistSupportTesting
 
 public final class MockCacheArtifactBuilder: CacheArtifactBuilding {

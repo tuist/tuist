@@ -1,13 +1,13 @@
 import Foundation
 import ProjectDescription
-import TuistCore
+import TuistGraph
 
-extension TuistCore.Platform {
+extension TuistGraph.Platform {
     /// Maps a ProjectDescription.Platform instance into a TuistCore.Platform instance.
     /// - Parameters:
     ///   - manifest: Manifest representation of platform model.
     ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.Platform) throws -> TuistCore.Platform {
+    static func from(manifest: ProjectDescription.Platform) throws -> TuistGraph.Platform {
         switch manifest {
         case .macOS:
             return .macOS

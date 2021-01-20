@@ -2,6 +2,7 @@ import Foundation
 import ProjectDescription
 import TSCBasic
 import TuistCore
+import TuistGraph
 import TuistSupport
 import XCTest
 
@@ -18,7 +19,7 @@ final class CoreDataModeltManifestMapperTests: TuistUnitTestCase {
                                                         currentVersion: "1")
 
         // When
-        let model = try TuistCore.CoreDataModel.from(manifest: manifest, generatorPaths: generatorPaths)
+        let model = try TuistGraph.CoreDataModel.from(manifest: manifest, generatorPaths: generatorPaths)
 
         // Then
         XCTAssertTrue(try coreDataModel(model, matches: manifest, at: temporaryPath, generatorPaths: generatorPaths))
@@ -35,7 +36,7 @@ final class CoreDataModeltManifestMapperTests: TuistUnitTestCase {
         let manifestWithoutCurrentVersion = ProjectDescription.CoreDataModel("model.xcdatamodeld")
 
         // When
-        let model = try TuistCore.CoreDataModel.from(manifest: manifestWithoutCurrentVersion, generatorPaths: generatorPaths)
+        let model = try TuistGraph.CoreDataModel.from(manifest: manifestWithoutCurrentVersion, generatorPaths: generatorPaths)
 
         let manifestWithCurrentVersionExplicitly = ProjectDescription.CoreDataModel("model.xcdatamodeld", currentVersion: "83")
 
@@ -56,7 +57,7 @@ final class CoreDataModeltManifestMapperTests: TuistUnitTestCase {
 
         // Then
         XCTAssertThrowsError(
-            try TuistCore.CoreDataModel.from(manifest: manifestWithoutCurrentVersion, generatorPaths: generatorPaths)
+            try TuistGraph.CoreDataModel.from(manifest: manifestWithoutCurrentVersion, generatorPaths: generatorPaths)
         )
     }
 
@@ -69,7 +70,7 @@ final class CoreDataModeltManifestMapperTests: TuistUnitTestCase {
         let manifestWithoutCurrentVersion = ProjectDescription.CoreDataModel("model.xcdatamodeld")
 
         XCTAssertThrowsError(
-            try TuistCore.CoreDataModel.from(manifest: manifestWithoutCurrentVersion, generatorPaths: generatorPaths)
+            try TuistGraph.CoreDataModel.from(manifest: manifestWithoutCurrentVersion, generatorPaths: generatorPaths)
         )
     }
 

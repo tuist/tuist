@@ -1,7 +1,7 @@
 import Foundation
 import TSCBasic
 import TuistCore
-
+import TuistGraph
 @testable import TuistLoader
 
 final class MockRome: Romeaging {

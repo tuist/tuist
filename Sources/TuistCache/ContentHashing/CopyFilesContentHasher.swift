@@ -1,5 +1,6 @@
 import Foundation
 import TuistCore
+import TuistGraph
 
 public protocol CopyFilesContentHashing {
     func hash(copyFiles: [CopyFilesAction]) throws -> String

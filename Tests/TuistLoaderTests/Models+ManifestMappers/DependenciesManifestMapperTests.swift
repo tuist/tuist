@@ -2,6 +2,7 @@ import Foundation
 import ProjectDescription
 import TSCBasic
 import TuistCore
+import TuistGraph
 import TuistSupport
 import XCTest
 
@@ -18,13 +19,13 @@ final class DependenciesManifestMapperTests: TuistUnitTestCase {
         ])
 
         // When
-        let model = try TuistCore.Dependencies.from(manifest: manifest)
+        let model = try TuistGraph.Dependencies.from(manifest: manifest)
 
         // Then
         XCTAssertEqual(model.carthageDependencies, [
-            TuistCore.CarthageDependency(origin: .github(path: "Dependency1"), requirement: .exact("1.1.1"), platforms: Set([.iOS])),
-            TuistCore.CarthageDependency(origin: .git(path: "Dependency.git"), requirement: .branch("BranchName"), platforms: Set([.macOS])),
-            TuistCore.CarthageDependency(origin: .binary(path: "DependencyXYZ"), requirement: .atLeast("2.3.1"), platforms: Set([.tvOS])),
+            TuistGraph.CarthageDependency(origin: .github(path: "Dependency1"), requirement: .exact("1.1.1"), platforms: Set([.iOS])),
+            TuistGraph.CarthageDependency(origin: .git(path: "Dependency.git"), requirement: .branch("BranchName"), platforms: Set([.macOS])),
+            TuistGraph.CarthageDependency(origin: .binary(path: "DependencyXYZ"), requirement: .atLeast("2.3.1"), platforms: Set([.tvOS])),
         ])
     }
 }

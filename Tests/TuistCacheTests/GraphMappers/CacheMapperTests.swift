@@ -2,11 +2,13 @@ import Foundation
 import RxBlocking
 import RxSwift
 import TuistCore
+import TuistGraph
 import XCTest
 
 @testable import TuistCache
 @testable import TuistCacheTesting
 @testable import TuistCoreTesting
+@testable import TuistGraphTesting
 @testable import TuistSupportTesting
 
 final class CacheMapperTests: TuistUnitTestCase {

@@ -1,5 +1,6 @@
 import Foundation
 import TuistCore
+import TuistGraph
 
 protocol SigningLinting {
     func lint(certificate: Certificate, provisioningProfile: ProvisioningProfile) -> [LintingIssue]

@@ -2,6 +2,7 @@ import Foundation
 import TSCBasic
 import TuistCore
 import TuistGenerator
+import TuistGraph
 import TuistLoader
 import TuistSigning
 import TuistSupport
@@ -287,7 +288,7 @@ class Generator: Generating {
     }
 
     private func convert(manifests: LoadedProjects,
-                         context: ExecutionContext = .concurrent) throws -> [TuistCore.Project]
+                         context: ExecutionContext = .concurrent) throws -> [TuistGraph.Project]
     {
         let tuples = manifests.projects.map { (path: $0.key, manifest: $0.value) }
         return try tuples.map(context: context) {
@@ -296,7 +297,7 @@ class Generator: Generating {
     }
 
     private func convert(manifests: LoadedWorkspace,
-                         context: ExecutionContext = .concurrent) throws -> (workspace: Workspace, projects: [TuistCore.Project])
+                         context: ExecutionContext = .concurrent) throws -> (workspace: Workspace, projects: [TuistGraph.Project])
     {
         let workspace = try converter.convert(manifest: manifests.workspace, path: manifests.path)
         let tuples = manifests.projects.map { (path: $0.key, manifest: $0.value) }

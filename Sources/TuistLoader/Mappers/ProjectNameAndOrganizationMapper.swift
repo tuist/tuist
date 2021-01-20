@@ -2,20 +2,21 @@ import Foundation
 import ProjectDescription
 import TSCBasic
 import TuistCore
+import TuistGraph
 import TuistSupport
 
 /// It's a mapper that changes the project name and organization based on the configuration
 /// in the Config.swift
 public class ProjectNameAndOrganizationMapper: ProjectMapping {
-    private let config: TuistCore.Config
+    private let config: TuistGraph.Config
 
-    public init(config: TuistCore.Config) {
+    public init(config: TuistGraph.Config) {
         self.config = config
     }
 
     // MARK: - ProjectMapping
 
-    public func map(project: TuistCore.Project) throws -> (TuistCore.Project, [SideEffectDescriptor]) {
+    public func map(project: TuistGraph.Project) throws -> (TuistGraph.Project, [SideEffectDescriptor]) {
         var project = project
 
         // Xcode project file name
@@ -36,7 +37,7 @@ public class ProjectNameAndOrganizationMapper: ProjectMapping {
     /// It returns the name that should be used for the given project.
     /// - Parameter project: Project representation.
     /// - Returns: The name to be used.
-    private func xcodeFileNameOverride(for project: TuistCore.Project) -> String? {
+    private func xcodeFileNameOverride(for project: TuistGraph.Project) -> String? {
         var xcodeFileName = config.generationOptions.compactMap { item -> String? in
             switch item {
             case let .xcodeProjectName(projectName):

@@ -1,5 +1,6 @@
 import Foundation
 import TSCBasic
+import TuistGraph
 
 /// Entity responsible for providing generator models
 ///

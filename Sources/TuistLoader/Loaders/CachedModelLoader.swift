@@ -1,6 +1,7 @@
 import Foundation
 import TSCBasic
 import TuistCore
+import TuistGraph
 
 /// An in-memory model loader implementation which can be configured
 /// at instantiation time with a cache of all preloaded models.

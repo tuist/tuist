@@ -1,6 +1,7 @@
 import Foundation
 import TuistCore
 import TuistGenerator
+import TuistGraph
 
 protocol WorkspaceMapperProviding {
     func mapper(config: Config) -> WorkspaceMapping

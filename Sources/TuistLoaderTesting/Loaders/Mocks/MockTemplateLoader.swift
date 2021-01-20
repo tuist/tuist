@@ -1,6 +1,6 @@
 import Foundation
 import TSCBasic
-import TuistCore
+import TuistGraph
 import TuistLoader
 
 public final class MockTemplateLoader: TemplateLoading {

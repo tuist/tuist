@@ -1,5 +1,6 @@
 import TSCBasic
 import TuistCore
+import TuistGraph
 @testable import TuistSigning
 
 final class MockSigningLinter: SigningLinting {
