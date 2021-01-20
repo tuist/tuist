@@ -7,12 +7,13 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Changed
 
 - Improve performance of project generation by removing unneeded Glob directory cache [#2318](https://github.com/tuist/tuist/pull/2318) by [@adellibovi](https://github.com/adellibovi).
+- Extracted graph models into `TuistGraph` [#2324](https://github.com/tuist/tuist/pull/2324) by [@pepibumur](https://github.com/pepibumur).
 
 ## 1.31.0 - Arctic
 
 ### Added
 
-- Add linting for paths of local packages and for URL validity of remote packages  [#2255](https://github.com/tuist/tuist/pull/2255) by [@adellibovi](https://github.com/adellibovi).
+- Add linting for paths of local packages and for URL validity of remote packages [#2255](https://github.com/tuist/tuist/pull/2255) by [@adellibovi](https://github.com/adellibovi).
 - Allow use of a single cert for multiple provisioning profiles [#2193](https://github.com/tuist/tuist/pull/2193) by [@rist](https://github.com/rist).
 
 ### Fixed
