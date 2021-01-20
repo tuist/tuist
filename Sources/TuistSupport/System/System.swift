@@ -507,16 +507,16 @@ public final class System: Systeming {
             let processPipe: Pipe = Pipe()
             let processOne: Foundation.Process = {
                 let process = Foundation.Process()
-                let processOneLaunchPath = arguments.first!
-                process.launchPath = processOneLaunchPath
+                let processOneExecutable = arguments.first!
+                process.executableURL = URL(fileURLWithPath: processOneExecutable)
                 process.arguments = Array(arguments.dropFirst())
                 process.environment = environment
                 return process
             }()
             let processTwo: Foundation.Process = {
                 let process = Foundation.Process()
-                let processTwoLaunchPath = secondArguments.first!
-                process.launchPath = processTwoLaunchPath
+                let processTwoExecutable = secondArguments.first!
+                process.executableURL = URL(fileURLWithPath: processTwoExecutable)
                 process.arguments = Array(secondArguments.dropFirst())
                 process.environment = environment
                 return process
@@ -546,8 +546,8 @@ public final class System: Systeming {
             }
 
             do {
-                processOne.launch()
-                processTwo.launch()
+                try processOne.run()
+                try processTwo.run()
                 processOne.waitUntilExit()
 
                 let exitStatus = ProcessResult.ExitStatus.terminated(code: processOne.terminationStatus)

@@ -17,6 +17,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Improve performance of project generation by removing unneeded Glob directory cache [#2318](https://github.com/tuist/tuist/pull/2318) by [@adellibovi](https://github.com/adellibovi).
 - Extracted graph models into `TuistGraph` [#2324](https://github.com/tuist/tuist/pull/2324) by [@pepibumur](https://github.com/pepibumur).
 
+### Fixed
+
+- Fixed known issue that causes the `xcodebuild` process hang when running `tuist test` and `tuist build`. [#2297](https://github.com/tuist/tuist/pull/2297) by [@Jake-Prickett](https://github.com/Jake-Prickett).
+
 ## 1.31.0 - Arctic
 
 ### Added
