@@ -1,8 +1,8 @@
 import Foundation
 import TSCBasic
 import TuistCore
-import TuistGraph
 import TuistGenerator
+import TuistGraph
 import TuistLoader
 import TuistScaffold
 import TuistSupport

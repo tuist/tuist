@@ -1,8 +1,8 @@
 import Foundation
 import TSCBasic
-import XCTest
 import TuistGraph
 import TuistSupportTesting
+import XCTest
 @testable import TuistCore
 
 final class TargetNodeTests: XCTestCase {

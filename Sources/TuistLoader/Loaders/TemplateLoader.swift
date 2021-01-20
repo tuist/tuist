@@ -29,7 +29,7 @@ public class TemplateLoader: TemplateLoading {
         let template = try manifestLoader.loadTemplate(at: path)
         let generatorPaths = GeneratorPaths(manifestDirectory: path)
         return try TuistGraph.Template.from(manifest: template,
-                                           generatorPaths: generatorPaths)
+                                            generatorPaths: generatorPaths)
     }
 }
 
@@ -38,10 +38,10 @@ extension TuistGraph.Template {
         let attributes = try manifest.attributes.map(TuistGraph.Template.Attribute.from)
         let files = try manifest.files.map { File(path: RelativePath($0.path),
                                                   contents: try TuistGraph.Template.Contents.from(manifest: $0.contents,
-                                                                                                 generatorPaths: generatorPaths)) }
+                                                                                                  generatorPaths: generatorPaths)) }
         return TuistGraph.Template(description: manifest.description,
-                                  attributes: attributes,
-                                  files: files)
+                                   attributes: attributes,
+                                   files: files)
     }
 }
 

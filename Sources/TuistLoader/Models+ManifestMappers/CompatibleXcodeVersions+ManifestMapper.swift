@@ -2,8 +2,8 @@ import Foundation
 import ProjectDescription
 import TSCBasic
 import TuistCore
-import TuistSupport
 import TuistGraph
+import TuistSupport
 
 extension TuistGraph.CompatibleXcodeVersions {
     /// Maps a ProjectDescription.CompatibleXcodeVersions instance into a TuistCore.CompatibleXcodeVersions model.

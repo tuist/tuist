@@ -2,9 +2,9 @@ import Foundation
 import ProjectDescription
 import TSCBasic
 import TuistCore
+import TuistGraph
 import TuistSupport
 import XCTest
-import TuistGraph
 
 @testable import TuistLoader
 @testable import TuistSupportTesting

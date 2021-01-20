@@ -1,9 +1,9 @@
 import Foundation
 import TSCBasic
 import TuistCore
+import TuistGraph
 import TuistSupport
 import XcodeProj
-import TuistGraph
 
 protocol ConfigGenerating: AnyObject {
     func generateProjectConfig(project: Project,

@@ -1,6 +1,6 @@
 import Foundation
-import TuistSupport
 import TuistGraph
+import TuistSupport
 
 extension BuildConfiguration: XcodeRepresentable {
     public var xcodeValue: String { name }

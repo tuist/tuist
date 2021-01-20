@@ -2,8 +2,8 @@ import Foundation
 import ProjectDescription
 import TSCBasic
 import TuistCore
-import TuistSupport
 import TuistGraph
+import TuistSupport
 
 extension TuistGraph.Dependencies {
     static func from(manifest: ProjectDescription.Dependencies) throws -> Self {

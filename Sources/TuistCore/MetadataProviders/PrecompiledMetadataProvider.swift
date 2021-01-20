@@ -1,7 +1,7 @@
 import Foundation
 import TSCBasic
-import TuistSupport
 import TuistGraph
+import TuistSupport
 
 enum PrecompiledMetadataProviderError: FatalError, Equatable {
     case architecturesNotFound(AbsolutePath)

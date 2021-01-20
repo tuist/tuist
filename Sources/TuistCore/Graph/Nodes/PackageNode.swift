@@ -1,7 +1,7 @@
 import Foundation
 import TSCBasic
-import TuistSupport
 import TuistGraph
+import TuistSupport
 
 @available(*, deprecated, message: "Package product nodes are deprecated. Dependencies should be usted instead with the ValueGraph.")
 /// Node specifying a product dependency on a swift package

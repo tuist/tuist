@@ -4,7 +4,6 @@ import TSCBasic
 import TuistCore
 import TuistGraph
 import TuistSupport
-import TuistGraph
 
 /// Mapper that changes the development region based on configuration
 /// in the Config.swift

@@ -38,7 +38,7 @@ extension TuistGraph.TestAction {
             coverage = manifest.coverage
             codeCoverageTargets = try manifest.codeCoverageTargets.map {
                 TuistGraph.TargetReference(projectPath: try generatorPaths.resolveSchemeActionProjectPath($0.projectPath),
-                                          name: $0.targetName)
+                                           name: $0.targetName)
             }
 
             diagnosticsOptions = Set(manifest.diagnosticsOptions.map { TuistGraph.SchemeDiagnosticsOption.from(manifest: $0) })
@@ -51,9 +51,9 @@ extension TuistGraph.TestAction {
 
         let configurationName = manifest.configurationName
         let preActions = try manifest.preActions.map { try TuistGraph.ExecutionAction.from(manifest: $0,
-                                                                                          generatorPaths: generatorPaths) }
+                                                                                           generatorPaths: generatorPaths) }
         let postActions = try manifest.postActions.map { try TuistGraph.ExecutionAction.from(manifest: $0,
-                                                                                            generatorPaths: generatorPaths) }
+                                                                                             generatorPaths: generatorPaths) }
 
         return TestAction(targets: targets,
                           arguments: arguments,

@@ -2,8 +2,8 @@ import Foundation
 import ProjectDescription
 import TSCBasic
 import TuistCore
-import TuistSupport
 import TuistGraph
+import TuistSupport
 
 extension TuistGraph.CoreDataModel {
     /// Maps a ProjectDescription.CoreDataModel instance into a TuistCore.CoreDataModel instance.

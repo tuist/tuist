@@ -2,8 +2,8 @@ import Foundation
 import ProjectDescription
 import TSCBasic
 import TuistCore
-import TuistSupport
 import TuistGraph
+import TuistSupport
 
 /// It's a mapper that changes the project name and organization based on the configuration
 /// in the Config.swift

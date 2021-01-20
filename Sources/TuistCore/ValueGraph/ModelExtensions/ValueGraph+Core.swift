@@ -1,5 +1,5 @@
-import TuistGraph
 import TSCBasic
+import TuistGraph
 
 public extension ValueGraph {
     init(graph: Graph) {

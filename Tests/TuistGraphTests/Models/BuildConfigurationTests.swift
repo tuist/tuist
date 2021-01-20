@@ -1,6 +1,6 @@
 import Foundation
-import XCTest
 import TuistGraph
+import XCTest
 @testable import TuistCore
 
 final class BuildConfigurationTests: XCTestCase {

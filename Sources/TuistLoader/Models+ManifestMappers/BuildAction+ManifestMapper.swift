@@ -13,9 +13,9 @@ extension TuistGraph.BuildAction {
                      generatorPaths: GeneratorPaths) throws -> TuistGraph.BuildAction
     {
         let preActions = try manifest.preActions.map { try TuistGraph.ExecutionAction.from(manifest: $0,
-                                                                                          generatorPaths: generatorPaths) }
+                                                                                           generatorPaths: generatorPaths) }
         let postActions = try manifest.postActions.map { try TuistGraph.ExecutionAction.from(manifest: $0,
-                                                                                            generatorPaths: generatorPaths) }
+                                                                                             generatorPaths: generatorPaths) }
         let targets: [TuistGraph.TargetReference] = try manifest.targets.map {
             .init(projectPath: try generatorPaths.resolveSchemeActionProjectPath($0.projectPath),
                   name: $0.targetName)

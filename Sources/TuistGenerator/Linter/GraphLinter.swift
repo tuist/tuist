@@ -1,8 +1,8 @@
 import Foundation
 import struct TSCUtility.Version
 import TuistCore
-import TuistSupport
 import TuistGraph
+import TuistSupport
 
 public protocol GraphLinting: AnyObject {
     func lint(graphTraverser: GraphTraversing) -> [LintingIssue]

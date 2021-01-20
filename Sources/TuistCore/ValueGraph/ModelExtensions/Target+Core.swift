@@ -1,7 +1,7 @@
 import Foundation
+import TSCBasic
 import TuistGraph
 import TuistSupport
-import TSCBasic
 
 public enum TargetError: FatalError, Equatable {
     case invalidSourcesGlob(targetName: String, invalidGlobs: [InvalidGlob])
@@ -17,7 +17,6 @@ public enum TargetError: FatalError, Equatable {
 }
 
 extension Target {
-    
     /// It returns the name of the variable that should be used to create an empty file
     /// in the $BUILT_PRODUCTS_DIR directory that is used after builds to reliably locate the
     /// directories where the products have been exported into.
@@ -28,7 +27,7 @@ extension Target {
             .uppercased()
         return "\(upperCasedSnakeCasedProductName)_LOCATE_HASH"
     }
-    
+
     /// Returns true if the file at the given path is a resource.
     /// - Parameter path: Path to the file to be checked.
     public static func isResource(path: AbsolutePath) -> Bool {
@@ -43,8 +42,7 @@ extension Target {
             return false
         }
     }
-    
-    
+
     /// This method unfolds the source file globs subtracting the paths that are excluded and ignoring
     /// the files that don't have a supported source extension.
     /// - Parameter sources: List of source file glob to be unfolded.
@@ -89,6 +87,4 @@ extension Target {
 
         return Array(sourceFiles.values)
     }
-
-    
 }

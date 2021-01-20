@@ -1,7 +1,7 @@
 import Foundation
 import TSCBasic
-import TuistSupport
 import TuistGraph
+import TuistSupport
 
 public protocol GraphLoading: AnyObject {
     /// Path to the directory that contains the project.

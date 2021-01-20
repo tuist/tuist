@@ -2,8 +2,8 @@ import Foundation
 import ProjectDescription
 import TSCBasic
 import TuistCore
-import TuistSupport
 import TuistGraph
+import TuistSupport
 
 extension TuistGraph.DefaultSettings {
     /// Maps a ProjectDescription.DefaultSettings instance into a TuistCore.DefaultSettings model.

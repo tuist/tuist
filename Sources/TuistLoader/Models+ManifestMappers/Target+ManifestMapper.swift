@@ -2,8 +2,8 @@ import Foundation
 import ProjectDescription
 import TSCBasic
 import TuistCore
-import TuistSupport
 import TuistGraph
+import TuistSupport
 
 public enum TargetManifestMapperError: FatalError {
     case invalidResourcesGlob(targetName: String, invalidGlobs: [InvalidGlob])
@@ -69,25 +69,25 @@ extension TuistGraph.Target {
         let playgrounds = sourcesPlaygrounds + resourcesPlaygrounds
 
         return TuistGraph.Target(name: name,
-                                platform: platform,
-                                product: product,
-                                productName: productName,
-                                bundleId: bundleId,
-                                deploymentTarget: deploymentTarget,
-                                infoPlist: infoPlist,
-                                entitlements: entitlements,
-                                settings: settings,
-                                sources: sources,
-                                resources: resources,
-                                copyFiles: copyFiles,
-                                headers: headers,
-                                coreDataModels: coreDataModels,
-                                actions: actions,
-                                environment: environment,
-                                launchArguments: launchArguments,
-                                filesGroup: .group(name: "Project"),
-                                dependencies: dependencies,
-                                playgrounds: playgrounds)
+                                 platform: platform,
+                                 product: product,
+                                 productName: productName,
+                                 bundleId: bundleId,
+                                 deploymentTarget: deploymentTarget,
+                                 infoPlist: infoPlist,
+                                 entitlements: entitlements,
+                                 settings: settings,
+                                 sources: sources,
+                                 resources: resources,
+                                 copyFiles: copyFiles,
+                                 headers: headers,
+                                 coreDataModels: coreDataModels,
+                                 actions: actions,
+                                 environment: environment,
+                                 launchArguments: launchArguments,
+                                 filesGroup: .group(name: "Project"),
+                                 dependencies: dependencies,
+                                 playgrounds: playgrounds)
     }
 
     // MARK: - Fileprivate
@@ -108,8 +108,8 @@ extension TuistGraph.Target {
         let allResources = try (manifest.resources ?? []).flatMap { manifest -> [TuistGraph.FileElement] in
             do {
                 return try TuistGraph.FileElement.from(manifest: manifest,
-                                                      generatorPaths: generatorPaths,
-                                                      includeFiles: resourceFilter)
+                                                       generatorPaths: generatorPaths,
+                                                       includeFiles: resourceFilter)
             } catch let GlobError.nonExistentDirectory(invalidGlob) {
                 invalidResourceGlobs.append(invalidGlob)
                 return []

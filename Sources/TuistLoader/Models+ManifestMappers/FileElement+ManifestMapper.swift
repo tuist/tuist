@@ -2,8 +2,8 @@ import Foundation
 import ProjectDescription
 import TSCBasic
 import TuistCore
-import TuistSupport
 import TuistGraph
+import TuistSupport
 
 extension TuistGraph.FileElement {
     /// Maps a ProjectDescription.FileElement instance into a [TuistCore.FileElement] instance.

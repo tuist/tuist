@@ -1,8 +1,8 @@
 import Foundation
 import TSCBasic
 import TuistCore
-import TuistSupport
 import TuistGraph
+import TuistSupport
 
 public protocol EnvironmentLinting {
     /// Lints a given Tuist configuration.

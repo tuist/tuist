@@ -2,8 +2,8 @@ import Foundation
 import ProjectDescription
 import TSCBasic
 import TuistCore
-import TuistSupport
 import TuistGraph
+import TuistSupport
 
 extension TuistGraph.SettingValue {
     /// Maps a ProjectDescription.SettingValue instance into a TuistCore.SettingValue model.

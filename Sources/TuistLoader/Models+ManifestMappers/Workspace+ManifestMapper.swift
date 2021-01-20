@@ -2,8 +2,8 @@ import Foundation
 import ProjectDescription
 import TSCBasic
 import TuistCore
-import TuistSupport
 import TuistGraph
+import TuistSupport
 
 extension TuistGraph.Workspace {
     /// Maps a ProjectDescription.Workspace instance into a TuistCore.Workspace model.
@@ -40,9 +40,9 @@ extension TuistGraph.Workspace {
         let schemes = try manifest.schemes.map { try TuistGraph.Scheme.from(manifest: $0, generatorPaths: generatorPaths) }
 
         return TuistGraph.Workspace(path: path,
-                                   name: manifest.name,
-                                   projects: try manifest.projects.flatMap(globProjects),
-                                   schemes: schemes,
-                                   additionalFiles: additionalFiles)
+                                    name: manifest.name,
+                                    projects: try manifest.projects.flatMap(globProjects),
+                                    schemes: schemes,
+                                    additionalFiles: additionalFiles)
     }
 }

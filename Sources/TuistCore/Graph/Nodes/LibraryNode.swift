@@ -1,7 +1,7 @@
 import Foundation
 import TSCBasic
-import TuistSupport
 import TuistGraph
+import TuistSupport
 
 @available(*, deprecated, message: "Library nodes are deprecated. Dependencies should be usted instead with the ValueGraph.")
 public class LibraryNode: PrecompiledNode {

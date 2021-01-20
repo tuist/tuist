@@ -4,8 +4,8 @@ import TSCBasic
 import TuistAutomation
 import TuistCache
 import TuistCore
-import TuistSupport
 import TuistGraph
+import TuistSupport
 
 enum BuildServiceError: FatalError {
     case schemeNotFound(scheme: String, existing: [String])

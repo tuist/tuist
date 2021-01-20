@@ -1,6 +1,6 @@
 import TuistCore
-import XCTest
 import TuistGraph
+import XCTest
 @testable import TuistCoreTesting
 
 class TargetNodeGraphMapperTests: XCTestCase {

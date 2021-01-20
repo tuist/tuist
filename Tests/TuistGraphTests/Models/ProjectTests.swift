@@ -1,9 +1,9 @@
 import Foundation
 import TSCBasic
-import XCTest
 import TuistCore
 import TuistCoreTesting
 import TuistGraphTesting
+import XCTest
 @testable import TuistGraph
 
 final class ProjectTests: XCTestCase {

@@ -2,8 +2,8 @@ import Foundation
 import ProjectDescription
 import TSCBasic
 import TuistCore
-import TuistSupport
 import TuistGraph
+import TuistSupport
 
 extension TuistGraph.CarthageDependency.Origin {
     static func from(manifest: ProjectDescription.Dependency.CarthageOrigin) throws -> Self {

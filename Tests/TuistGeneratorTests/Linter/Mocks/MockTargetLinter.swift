@@ -1,8 +1,8 @@
 import Foundation
 import TuistCore
-import TuistSupport
 import TuistGraph
 import TuistGraphTesting
+import TuistSupport
 @testable import TuistGenerator
 
 class MockTargetLinter: TargetLinting {

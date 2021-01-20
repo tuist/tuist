@@ -1,8 +1,8 @@
 import Foundation
 import TSCBasic
 import TuistCore
-import TuistSupport
 import TuistGraph
+import TuistSupport
 
 /// Up that updates outdated Rome dependencies.
 class UpRome: Up, GraphInitiatable {

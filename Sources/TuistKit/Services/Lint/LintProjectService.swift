@@ -2,9 +2,9 @@ import Foundation
 import TSCBasic
 import TuistCore
 import TuistGenerator
+import TuistGraph
 import TuistLoader
 import TuistSupport
-import TuistGraph
 
 enum LintProjectServiceError: FatalError, Equatable {
     /// Thrown when neither a workspace or a project is found in the given path.

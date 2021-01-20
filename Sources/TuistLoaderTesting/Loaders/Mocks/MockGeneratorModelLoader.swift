@@ -1,7 +1,7 @@
 import TSCBasic
+import TuistCore
 import TuistGraph
 import TuistSupport
-import TuistCore
 
 public class MockGeneratorModelLoader: GeneratorModelLoading {
     private var projects = [String: (AbsolutePath) throws -> Project]()

@@ -10,7 +10,7 @@ public struct ValueGraphTarget: Equatable, Hashable, Comparable, CustomDebugStri
 
     /// Project that contains the target.
     public let project: Project
-    
+
     public init(path: AbsolutePath, target: Target, project: Project) {
         self.path = path
         self.target = target

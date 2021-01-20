@@ -2,10 +2,10 @@ import Foundation
 import TSCBasic
 import TuistCore
 import TuistGenerator
+import TuistGraph
 import TuistLoader
 import TuistSigning
 import TuistSupport
-import TuistGraph
 
 protocol Generating {
     @discardableResult

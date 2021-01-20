@@ -2,8 +2,8 @@ import Foundation
 import ProjectDescription
 import TSCBasic
 import TuistCore
-import TuistSupport
 import TuistGraph
+import TuistSupport
 
 public class GeneratorModelLoader {
     private let manifestLoader: ManifestLoading
@@ -87,9 +87,9 @@ extension GeneratorModelLoader: ManifestModelConverting {
     public func convert(manifest: ProjectDescription.Workspace, path: AbsolutePath) throws -> TuistGraph.Workspace {
         let generatorPaths = GeneratorPaths(manifestDirectory: path)
         let workspace = try TuistGraph.Workspace.from(manifest: manifest,
-                                                     path: path,
-                                                     generatorPaths: generatorPaths,
-                                                     manifestLoader: manifestLoader)
+                                                      path: path,
+                                                      generatorPaths: generatorPaths,
+                                                      manifestLoader: manifestLoader)
         return workspace
     }
 }

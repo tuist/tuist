@@ -6,7 +6,6 @@ import TuistGraph
 import TuistSupport
 import TuistSupportTesting
 import XCTest
-import TuistGraph
 @testable import TuistLoader
 
 extension TuistTestCase {

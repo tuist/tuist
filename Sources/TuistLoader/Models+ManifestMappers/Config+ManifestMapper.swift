@@ -2,8 +2,8 @@ import Foundation
 import ProjectDescription
 import TSCBasic
 import TuistCore
-import TuistSupport
 import TuistGraph
+import TuistSupport
 
 extension TuistGraph.Config {
     /// Maps a ProjectDescription.Config instance into a TuistCore.Config model.
@@ -21,10 +21,10 @@ extension TuistGraph.Config {
             cloud = try TuistGraph.Cloud.from(manifest: manifestCloud)
         }
         return TuistGraph.Config(compatibleXcodeVersions: compatibleXcodeVersions,
-                                cloud: cloud,
-                                plugins: plugins,
-                                generationOptions: generationOptions,
-                                path: path)
+                                 cloud: cloud,
+                                 plugins: plugins,
+                                 generationOptions: generationOptions,
+                                 path: path)
     }
 }
 

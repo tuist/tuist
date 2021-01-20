@@ -2,8 +2,8 @@ import Foundation
 import ProjectDescription
 import TSCBasic
 import TuistCore
-import TuistSupport
 import TuistGraph
+import TuistSupport
 
 extension TuistGraph.TargetAction {
     /// Maps a ProjectDescription.TargetAction instance into a TuistCore.TargetAction model.

@@ -1,7 +1,7 @@
 import Foundation
 import TuistCore
-import TuistSupport
 import TuistGraph
+import TuistSupport
 
 /// Protocol that defines the interface of a linter for target actions.
 protocol TargetActionLinting {

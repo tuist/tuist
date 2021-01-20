@@ -2,8 +2,8 @@ import Foundation
 import ProjectDescription
 import TSCBasic
 import TuistCore
-import TuistSupport
 import TuistGraph
+import TuistSupport
 
 public enum CopyFilesManifestMapperError: FatalError {
     case invalidResourcesGlob(actionName: String, invalidGlobs: [InvalidGlob])
@@ -28,8 +28,8 @@ extension TuistGraph.CopyFilesAction {
         let files: [TuistGraph.FileElement] = try manifest.files.flatMap { manifest -> [TuistGraph.FileElement] in
             do {
                 let files = try TuistGraph.FileElement.from(manifest: manifest,
-                                                           generatorPaths: generatorPaths,
-                                                           includeFiles: { TuistGraph.Target.isResource(path: $0) })
+                                                            generatorPaths: generatorPaths,
+                                                            includeFiles: { TuistGraph.Target.isResource(path: $0) })
                 return files.cleanPackages()
             } catch let GlobError.nonExistentDirectory(invalidGlob) {
                 invalidResourceGlobs.append(invalidGlob)

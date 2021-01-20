@@ -2,8 +2,8 @@ import Foundation
 import StencilSwiftKit
 import TSCBasic
 import TuistCore
-import TuistSupport
 import TuistGraph
+import TuistSupport
 
 /// Interface for generating content defined in template manifest
 public protocol TemplateGenerating {

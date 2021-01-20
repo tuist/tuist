@@ -3,9 +3,9 @@ import TSCBasic
 import TuistCacheTesting
 import TuistCore
 import TuistCoreTesting
+import TuistGraph
 import TuistSupport
 import XCTest
-import TuistGraph
 @testable import TuistCache
 @testable import TuistSupportTesting
 

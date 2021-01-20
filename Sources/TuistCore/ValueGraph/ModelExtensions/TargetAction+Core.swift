@@ -1,7 +1,7 @@
 import Foundation
+import TSCBasic
 import TuistGraph
 import TuistSupport
-import TSCBasic
 
 extension TargetAction {
     /// Returns the shell script that should be used in the target build phase.

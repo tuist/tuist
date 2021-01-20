@@ -13,17 +13,17 @@ extension TuistGraph.Scheme {
         let name = manifest.name
         let shared = manifest.shared
         let buildAction = try manifest.buildAction.map { try TuistGraph.BuildAction.from(manifest: $0,
-                                                                                        generatorPaths: generatorPaths) }
+                                                                                         generatorPaths: generatorPaths) }
         let testAction = try manifest.testAction.map { try TuistGraph.TestAction.from(manifest: $0,
-                                                                                     generatorPaths: generatorPaths) }
+                                                                                      generatorPaths: generatorPaths) }
         let runAction = try manifest.runAction.map { try TuistGraph.RunAction.from(manifest: $0,
-                                                                                  generatorPaths: generatorPaths) }
+                                                                                   generatorPaths: generatorPaths) }
         let archiveAction = try manifest.archiveAction.map { try TuistGraph.ArchiveAction.from(manifest: $0,
-                                                                                              generatorPaths: generatorPaths) }
+                                                                                               generatorPaths: generatorPaths) }
         let profileAction = try manifest.profileAction.map { try TuistGraph.ProfileAction.from(manifest: $0,
-                                                                                              generatorPaths: generatorPaths) }
+                                                                                               generatorPaths: generatorPaths) }
         let analyzeAction = try manifest.analyzeAction.map { try TuistGraph.AnalyzeAction.from(manifest: $0,
-                                                                                              generatorPaths: generatorPaths) }
+                                                                                               generatorPaths: generatorPaths) }
 
         return Scheme(name: name,
                       shared: shared,

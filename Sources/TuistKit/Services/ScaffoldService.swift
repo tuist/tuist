@@ -1,9 +1,9 @@
 import TSCBasic
 import TuistCore
+import TuistGraph
 import TuistLoader
 import TuistScaffold
 import TuistSupport
-import TuistGraph
 
 enum ScaffoldServiceError: FatalError, Equatable {
     var type: ErrorType {

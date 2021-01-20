@@ -2,8 +2,8 @@ import Foundation
 import ProjectDescription
 import TSCBasic
 import TuistCore
-import TuistSupport
 import TuistGraph
+import TuistSupport
 
 extension TuistGraph.Configuration {
     /// Maps a ProjectDescription.Configuration instance into a TuistCore.Configuration instance.

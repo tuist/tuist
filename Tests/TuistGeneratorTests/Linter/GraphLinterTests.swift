@@ -6,9 +6,9 @@ import TuistGraph
 import TuistSupport
 import XCTest
 
-@testable import TuistGraphTesting
 @testable import TuistCoreTesting
 @testable import TuistGenerator
+@testable import TuistGraphTesting
 @testable import TuistSupportTesting
 
 final class GraphLinterTests: TuistUnitTestCase {

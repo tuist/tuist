@@ -5,8 +5,8 @@ import struct TSCUtility.Version
 import TuistAutomation
 import TuistCache
 import TuistCore
-import TuistSupport
 import TuistGraph
+import TuistSupport
 
 enum TestServiceError: FatalError {
     case schemeNotFound(scheme: String, existing: [String])

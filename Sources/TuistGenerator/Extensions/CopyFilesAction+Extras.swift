@@ -1,6 +1,6 @@
 import TuistCore
-import XcodeProj
 import TuistGraph
+import XcodeProj
 
 extension CopyFilesAction.Destination {
     var toXcodeprojSubFolder: PBXCopyFilesBuildPhase.SubFolder {

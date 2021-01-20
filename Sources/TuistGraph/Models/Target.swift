@@ -160,7 +160,7 @@ public struct Target: Equatable, Hashable, Comparable {
         }
         return false
     }
-    
+
     // MARK: - Equatable
 
     public static func == (lhs: Target, rhs: Target) -> Bool {

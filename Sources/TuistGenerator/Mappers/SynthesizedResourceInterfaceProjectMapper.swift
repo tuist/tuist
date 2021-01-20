@@ -1,8 +1,8 @@
 import Foundation
 import TSCBasic
 import TuistCore
-import TuistSupport
 import TuistGraph
+import TuistSupport
 
 /// A project mapper that synthezies resource interfaces
 public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping {

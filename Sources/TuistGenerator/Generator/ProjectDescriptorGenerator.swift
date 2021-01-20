@@ -1,9 +1,9 @@
 import Foundation
 import TSCBasic
 import TuistCore
+import TuistGraph
 import TuistSupport
 import XcodeProj
-import TuistGraph
 
 protocol ProjectDescriptorGenerating: AnyObject {
     /// Generates the given project.

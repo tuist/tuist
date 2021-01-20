@@ -14,7 +14,7 @@ extension TuistGraph.RunAction {
     {
         let configurationName = manifest.configurationName
         let arguments = manifest.arguments.map { TuistGraph.Arguments.from(manifest: $0) }
-        
+
         var executableResolved: TuistGraph.TargetReference?
         if let executable = manifest.executable {
             executableResolved = TargetReference(projectPath: try generatorPaths.resolveSchemeActionProjectPath(executable.projectPath),

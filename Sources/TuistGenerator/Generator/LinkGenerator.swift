@@ -2,9 +2,9 @@ import Foundation
 import PathKit
 import TSCBasic
 import TuistCore
+import TuistGraph
 import TuistSupport
 import XcodeProj
-import TuistGraph
 
 enum LinkGeneratorError: FatalError, Equatable {
     case missingProduct(name: String)

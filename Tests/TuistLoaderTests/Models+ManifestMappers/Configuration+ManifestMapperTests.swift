@@ -1,7 +1,6 @@
 import Foundation
 import ProjectDescription
 import TSCBasic
-import TuistGraph
 import TuistCore
 import TuistGraph
 import TuistSupport
@@ -34,7 +33,7 @@ final class ConfigurationManifestMapperTests: TuistUnitTestCase {
 
         // When
         let got = try TuistGraph.Configuration.from(manifest: manifest,
-                                                   generatorPaths: generatorPaths)
+                                                    generatorPaths: generatorPaths)
 
         // Then
         guard let aSetting = got?.settings["A"] else {

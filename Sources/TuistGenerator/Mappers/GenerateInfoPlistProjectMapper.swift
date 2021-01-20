@@ -1,9 +1,9 @@
 import Foundation
 import TSCBasic
 import TuistCore
+import TuistGraph
 import TuistSupport
 import XcodeProj
-import TuistGraph
 
 /// A project mapper that generates derived Info.plist files for targets that define it as a dictonary.
 public final class GenerateInfoPlistProjectMapper: ProjectMapping {

@@ -1,7 +1,7 @@
 import Foundation
 import TSCBasic
-import TuistSupport
 import TuistGraph
+import TuistSupport
 
 protocol GraphLoaderCaching: AnyObject {
     // MARK: - Projects

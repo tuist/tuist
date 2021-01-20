@@ -1,10 +1,10 @@
 import Foundation
 import TSCBasic
 import TuistCore
-import TuistSupport
-import XCTest
 import TuistGraph
 import TuistGraphTesting
+import TuistSupport
+import XCTest
 @testable import TuistGenerator
 
 class SchemeLinterTests: XCTestCase {

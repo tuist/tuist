@@ -2,8 +2,8 @@ import Foundation
 import ProjectDescription
 import TSCBasic
 import TuistCore
-import TuistSupport
 import TuistGraph
+import TuistSupport
 import XCTest
 
 @testable import TuistLoader
@@ -23,8 +23,8 @@ final class FileElementManifestMapperTests: TuistUnitTestCase {
 
         // When
         let model = try TuistGraph.FileElement.from(manifest: manifest,
-                                                   generatorPaths: generatorPaths,
-                                                   includeFiles: { !FileHandler.shared.isFolder($0) })
+                                                    generatorPaths: generatorPaths,
+                                                    includeFiles: { !FileHandler.shared.isFolder($0) })
 
         // Then
         let documentationPath = temporaryPath.appending(component: "Documentation").pathString
