@@ -4,8 +4,17 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
-- Improve performance of project generation by removing unneeded Glob directory cache [#2318](https://github.com/tuist/tuist/pull/2318) by [@adellibovi](https://github.com/adellibovi).
+### Added
+
+- Disable SwiftFormat in the generated synthesized interface for resources [#2328]((https://github.com/tuist/tuist/pull/2328) by [@natanrolnik](https://github.com/natanrolnik).
+
+### Fixed
+
 - Fix cache's hash calculation of resources [#2325](https://github.com/tuist/tuist/pull/2325) by [@natanrolnik](https://github.com/natanrolnik).
+
+### Changed
+
+- Improve performance of project generation by removing unneeded Glob directory cache [#2318](https://github.com/tuist/tuist/pull/2318) by [@adellibovi](https://github.com/adellibovi).
 - Extracted graph models into `TuistGraph` [#2324](https://github.com/tuist/tuist/pull/2324) by [@pepibumur](https://github.com/pepibumur).
 
 ## 1.31.0 - Arctic
