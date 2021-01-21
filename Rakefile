@@ -99,7 +99,7 @@ task :xcbeautify_update do
         system("make", "build")
       end
       release_dir = File.join(temporary_dir,
-"xcbeautify/xcbeautify-#{XCBEAUTIFY_VERSION}/.build/apple/Products/Release")
+"xcbeautify/xcbeautify-#{XCBEAUTIFY_VERSION}/.build/release")
       vendor_dir = File.join(root_dir, "vendor")
       dst_binary_path = File.join(vendor_dir, "xcbeautify")
 
