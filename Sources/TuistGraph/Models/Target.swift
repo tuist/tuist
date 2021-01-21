@@ -111,18 +111,6 @@ public struct Target: Equatable, Hashable, Comparable {
         ].contains(product)
     }
 
-    /// Returns the product name including the extension.
-    public var productNameWithExtension: String {
-        switch product {
-        case .staticLibrary, .dynamicLibrary:
-            return "lib\(productName).\(product.xcodeValue.fileExtension!)"
-        case .commandLineTool:
-            return productName
-        case _:
-            return "\(productName).\(product.xcodeValue.fileExtension!)"
-        }
-    }
-
     /// Returns true if the target supports having a headers build phase..
     public var shouldIncludeHeadersBuildPhase: Bool {
         switch product {

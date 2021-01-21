@@ -17,6 +17,18 @@ public enum TargetError: FatalError, Equatable {
 }
 
 extension Target {
+    /// Returns the product name including the extension.
+    public var productNameWithExtension: String {
+        switch product {
+        case .staticLibrary, .dynamicLibrary:
+            return "lib\(productName).\(product.xcodeValue.fileExtension!)"
+        case .commandLineTool:
+            return productName
+        case _:
+            return "\(productName).\(product.xcodeValue.fileExtension!)"
+        }
+    }
+
     /// It returns the name of the variable that should be used to create an empty file
     /// in the $BUILT_PRODUCTS_DIR directory that is used after builds to reliably locate the
     /// directories where the products have been exported into.
