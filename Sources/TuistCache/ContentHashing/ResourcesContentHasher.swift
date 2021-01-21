@@ -20,7 +20,10 @@ public final class ResourcesContentHasher: ResourcesContentHashing {
     // MARK: - ResourcesContentHashing
 
     public func hash(resources: [FileElement]) throws -> String {
-        let hashes = try resources.map { try contentHasher.hash(path: $0.path) }
+        let hashes = try resources
+            .sorted(by: { $0.path < $1.path })
+            .map { try contentHasher.hash(path: $0.path) }
+
         return try contentHasher.hash(hashes)
     }
 }
