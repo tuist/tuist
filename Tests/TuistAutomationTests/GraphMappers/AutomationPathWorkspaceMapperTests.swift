@@ -1,8 +1,8 @@
 import Foundation
 import TSCBasic
 import TuistCore
-import TuistSupport
 import TuistGraph
+import TuistSupport
 import XCTest
 
 @testable import TuistAutomation
@@ -56,6 +56,7 @@ final class AutomationPathWorkspaceMapperTests: TuistUnitTestCase {
             gotWorkspaceWithProjects.workspace,
             Workspace.test(
                 path: workspaceDirectory,
+                xcWorkspacePath: workspaceDirectory.appending(component: "A.xcworkspace"),
                 name: "A"
             )
         )

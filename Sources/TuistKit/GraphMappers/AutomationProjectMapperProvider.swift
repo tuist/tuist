@@ -3,8 +3,8 @@ import TSCBasic
 import TuistAutomation
 import TuistCore
 import TuistGenerator
-import TuistSupport
 import TuistGraph
+import TuistSupport
 
 /// Custom mapper provider for automation features
 /// It uses default `ProjectMapperProvider` but adds its own on top

@@ -1,6 +1,6 @@
 import Foundation
-import TuistGraph
 import TuistCore
+import TuistGraph
 
 @testable import TuistKit
 

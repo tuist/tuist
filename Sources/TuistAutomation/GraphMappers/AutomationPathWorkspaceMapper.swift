@@ -1,8 +1,8 @@
 import Foundation
 import TSCBasic
 import TuistCore
-import TuistSupport
 import TuistGraph
+import TuistSupport
 
 /// Updates path of workspace to point to where automation workspace should be generated
 public final class AutomationPathWorkspaceMapper: WorkspaceMapping {
@@ -31,9 +31,9 @@ public final class AutomationPathWorkspaceMapper: WorkspaceMapping {
             ] + mappedProjects.flatMap(\.1)
         )
     }
-    
+
     // MARK: - Helpers
-    
+
     private func map(project: Project) throws -> (Project, [SideEffectDescriptor]) {
         var project = project
         let xcodeProjBasename = project.xcodeProjPath.basename
