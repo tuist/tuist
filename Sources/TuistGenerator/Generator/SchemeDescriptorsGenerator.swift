@@ -69,7 +69,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
     {
         let schemes = try workspace.schemes.map { scheme in
             try generateScheme(scheme: scheme,
-                               path: workspace.path,
+                               path: workspace.xcWorkspacePath.parentDirectory,
                                graphTraverser: graphTraverser,
                                generatedProjects: generatedProjects)
         }

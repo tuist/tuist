@@ -8,7 +8,7 @@ import XCTest
 @testable import TuistGenerator
 @testable import TuistSupportTesting
 
-class WorkspaceStructureGeneratorTests: XCTestCase {
+final class WorkspaceStructureGeneratorTests: XCTestCase {
     fileprivate var fileHandler: InMemoryFileHandler!
     var subject: WorkspaceStructureGenerator!
 

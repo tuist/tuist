@@ -140,6 +140,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         let manifestTargetNodes = manifestsTargets.map { TargetNode(project: project, target: $0, dependencies: dependencies) }
         let workspace = Workspace(
             path: project.path,
+            xcWorkspacePath: project.path.appending(component: "Manifests.xcworkspace"),
             name: "Manifests",
             projects: [project.path]
         )

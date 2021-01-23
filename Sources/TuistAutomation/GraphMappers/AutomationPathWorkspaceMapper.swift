@@ -16,7 +16,7 @@ public final class AutomationPathWorkspaceMapper: WorkspaceMapping {
 
     public func map(workspace: WorkspaceWithProjects) throws -> (WorkspaceWithProjects, [SideEffectDescriptor]) {
         var workspace = workspace
-        workspace.workspace.path = workspaceDirectory
+        workspace.workspace.xcWorkspacePath = workspaceDirectory.appending(component: "\(workspace.workspace.name).xcworkspace")
         let mappedProjects = try workspace.projects.map(map(project:))
         workspace.projects = mappedProjects.map(\.0)
         return (

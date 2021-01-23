@@ -164,9 +164,8 @@ final class TestService {
             version: version,
             deviceName: deviceName
         )
-        let workspacePath = try buildGraphInspector.workspacePath(directory: graph.workspace.path)!
         _ = try xcodebuildController.test(
-            .workspace(workspacePath),
+            .workspace(graph.workspace.xcWorkspacePath),
             scheme: scheme.name,
             clean: clean,
             destination: destination,

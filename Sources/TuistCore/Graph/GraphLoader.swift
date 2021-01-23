@@ -67,6 +67,7 @@ public class GraphLoader: GraphLoading {
         }
         let workspace = Workspace(
             path: project.path,
+            xcWorkspacePath: project.path.appending(component: "\(project.name).xcworkspace"),
             name: project.name,
             projects: [project.path]
         )

@@ -234,6 +234,7 @@ class Generator: Generating {
         let workspaceName = manifests.projects[path]?.name ?? "Workspace"
         let workspace = Workspace(
             path: path,
+            xcWorkspacePath: path.appending(component: "\(workspaceName).xcworkspace"),
             name: workspaceName,
             projects: []
         )
