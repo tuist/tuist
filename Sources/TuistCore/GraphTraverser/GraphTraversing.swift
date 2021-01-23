@@ -1,5 +1,6 @@
 import Foundation
 import TSCBasic
+import TuistGraph
 
 public protocol GraphTraversing {
     /// Graph name

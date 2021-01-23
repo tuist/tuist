@@ -6,7 +6,7 @@ gem "cucumber", "~> 5.2"
 gem "rake", "~> 13.0"
 gem "simctl", "~> 1.6"
 gem "encrypted-environment", "~> 0.2.0"
-gem "google-cloud-storage", "~> 1.29"
+gem "google-cloud-storage", "~> 1.30"
 gem "colorize", "~> 0.8.1"
 gem "cocoapods", "~> 1.10"
 gem "xcodeproj", "~> 1.19"
@@ -23,8 +23,8 @@ group :test do
 end
 
 group :development do
-  gem "rubocop", "~> 1.8.0"
-  gem "rubocop-minitest", "~> 0.10.2"
+  gem "rubocop", "~> 1.8.1"
+  gem "rubocop-minitest", "~> 0.10.3"
   gem "rubocop-rake", "~> 0.5.1"
 end
 

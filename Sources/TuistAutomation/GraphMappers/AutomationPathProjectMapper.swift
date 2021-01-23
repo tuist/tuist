@@ -1,6 +1,7 @@
 import TSCBasic
 import TuistCore
 import TuistSupport
+import TuistGraph
 
 /// Updates path of project to point to where automation project should be generated
 public final class AutomationPathProjectMapper: ProjectMapping {

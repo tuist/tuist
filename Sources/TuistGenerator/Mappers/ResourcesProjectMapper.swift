@@ -1,6 +1,7 @@
 import Foundation
 import TSCBasic
 import TuistCore
+import TuistGraph
 import TuistSupport
 
 /// A project mapper that adds support for defining resources in targets that don't support it
@@ -69,6 +70,7 @@ public class ResourcesProjectMapper: ProjectMapping {
         if !target.supportsResources {
             return """
             // swiftlint:disable all
+            // swiftformat:disable all
             import Foundation
 
             // MARK: - Swift Bundle Accessor
@@ -105,10 +107,12 @@ public class ResourcesProjectMapper: ProjectMapping {
                }
             }
             // swiftlint:enable all
+            // swiftformat:enable all
             """
         } else {
             return """
             // swiftlint:disable all
+            // swiftformat:disable all
             import Foundation
 
             // MARK: - Swift Bundle Accessor
@@ -131,6 +135,7 @@ public class ResourcesProjectMapper: ProjectMapping {
                }
             }
             // swiftlint:enable all
+            // swiftformat:enable all
             """
         }
     }

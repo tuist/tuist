@@ -1,6 +1,7 @@
 import Foundation
 import TSCBasic
 import TuistCore
+import TuistGraph
 import TuistSupport
 
 public class SigningMapper: ProjectMapping {
@@ -59,7 +60,7 @@ public class SigningMapper: ProjectMapping {
     private func map(target: Target,
                      project: Project,
                      keychainPath: AbsolutePath,
-                     certificates: [TargetName: [ConfigurationName: Certificate]],
+                     certificates: [Fingerprint: Certificate],
                      provisioningProfiles: [TargetName: [ConfigurationName: ProvisioningProfile]]) throws -> Target
     {
         var target = target
@@ -70,7 +71,7 @@ public class SigningMapper: ProjectMapping {
             .reduce(into: [:]) { dict, configurationPair in
                 guard
                     let provisioningProfile = provisioningProfiles[target.name]?[configurationPair.key.name],
-                    let certificate = certificates[target.name]?[configurationPair.key.name]
+                    let certificate = certificates.first(for: provisioningProfile)
                 else {
                     dict[configurationPair.key] = configurationPair.value
                     return

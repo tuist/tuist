@@ -1,5 +1,6 @@
 import Foundation
 import TuistCore
+import TuistGraph
 
 public protocol SourceFilesContentHashing {
     func hash(sources: [SourceFile]) throws -> String

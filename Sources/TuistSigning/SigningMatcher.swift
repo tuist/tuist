@@ -2,6 +2,7 @@ import Foundation
 import TSCBasic
 import TuistCore
 
+typealias Fingerprint = String
 typealias TargetName = String
 typealias ConfigurationName = String
 
@@ -10,7 +11,7 @@ protocol SigningMatching {
     /// - Returns: Certificates and provisioning profiles matched with their configuration and target
     /// - Warning: Expects certificates and provisioning profiles already decrypted
     func match(from path: AbsolutePath) throws -> (
-        certificates: [TargetName: [ConfigurationName: Certificate]],
+        certificates: [Fingerprint: Certificate],
         provisioningProfiles: [TargetName: [ConfigurationName: ProvisioningProfile]]
     )
 }
@@ -30,19 +31,17 @@ final class SigningMatcher: SigningMatching {
     }
 
     func match(from path: AbsolutePath) throws -> (
-        certificates: [TargetName: [ConfigurationName: Certificate]],
+        certificates: [Fingerprint: Certificate],
         provisioningProfiles: [TargetName: [ConfigurationName: ProvisioningProfile]]
     ) {
         let certificateFiles = try signingFilesLocator.locateUnencryptedCertificates(from: path)
             .sorted()
         let privateKeyFiles = try signingFilesLocator.locateUnencryptedPrivateKeys(from: path)
             .sorted()
-        let certificates: [TargetName: [ConfigurationName: Certificate]] = try zip(certificateFiles, privateKeyFiles)
+        let certificates: [Fingerprint: Certificate] = try zip(certificateFiles, privateKeyFiles)
             .map(certificateParser.parse)
             .reduce(into: [:]) { dict, certificate in
-                var currentTargetDict = dict[certificate.targetName] ?? [:]
-                currentTargetDict[certificate.configurationName] = certificate
-                dict[certificate.targetName] = currentTargetDict
+                dict[certificate.fingerprint] = certificate
             }
 
         // swiftlint:disable:next line_length

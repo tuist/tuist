@@ -1,6 +1,6 @@
 import Foundation
 import TSCBasic
-import TuistSupport
+import TuistGraph
 
 public protocol ValueGraphLoading {
     func loadWorkspace(workspace: Workspace, projects: [Project]) throws -> ValueGraph

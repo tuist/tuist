@@ -16,6 +16,7 @@ struct ProvisioningProfile: Equatable {
     let applicationIdPrefix: [String]
     let platforms: [String]
     let expirationDate: Date
+    let developerCertificateFingerprints: [String]
 
     struct Content {
         let name: String
@@ -26,6 +27,7 @@ struct ProvisioningProfile: Equatable {
         let applicationIdPrefix: [String]
         let platforms: [String]
         let expirationDate: Date
+        let developerCertificates: [Data]
     }
 }
 
@@ -52,6 +54,7 @@ extension ProvisioningProfile.Content: Decodable {
         case platforms = "Platform"
         case entitlements = "Entitlements"
         case expirationDate = "ExpirationDate"
+        case developerCertificates = "DeveloperCertificates"
     }
 
     init(from decoder: Decoder) throws {
@@ -65,5 +68,6 @@ extension ProvisioningProfile.Content: Decodable {
         let entitlements = try container.decode(Entitlements.self, forKey: .entitlements)
         appId = entitlements.appId
         expirationDate = try container.decode(Date.self, forKey: .expirationDate)
+        developerCertificates = try container.decode([Data].self, forKey: .developerCertificates)
     }
 }

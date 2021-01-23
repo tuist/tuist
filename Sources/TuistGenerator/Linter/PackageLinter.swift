@@ -1,6 +1,7 @@
 import Foundation
 import TSCBasic
 import TuistCore
+import TuistGraph
 import TuistSupport
 
 protocol PackageLinting: AnyObject {

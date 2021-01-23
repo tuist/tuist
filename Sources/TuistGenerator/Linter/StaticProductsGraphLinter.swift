@@ -1,6 +1,7 @@
 import Foundation
 import TSCBasic
 import TuistCore
+import TuistGraph
 
 /// Static Products Graph Linter
 ///

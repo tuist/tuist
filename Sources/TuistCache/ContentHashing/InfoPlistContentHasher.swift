@@ -1,5 +1,6 @@
 import Foundation
 import TuistCore
+import TuistGraph
 
 public protocol InfoPlistContentHashing {
     func hash(plist: InfoPlist) throws -> String

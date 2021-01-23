@@ -1,13 +1,14 @@
 import Foundation
 import ProjectDescription
 import TuistCore
+import TuistGraph
 
-extension TuistCore.SDKStatus {
+extension TuistGraph.SDKStatus {
     /// Maps a ProjectDescription.SDKStatus instance into a TuistCore.SDKStatus instance.
     /// - Parameters:
     ///   - manifest: Manifest representation of SDK status model.
     ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.SDKStatus) -> TuistCore.SDKStatus {
+    static func from(manifest: ProjectDescription.SDKStatus) -> TuistGraph.SDKStatus {
         switch manifest {
         case .required:
             return .required

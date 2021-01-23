@@ -1,9 +1,8 @@
 import Foundation
 import RxSwift
 import struct TSCUtility.Version
-import TuistCore
+import TuistGraph
 import TuistSupport
-
 @testable import TuistCore
 @testable import TuistSupportTesting
 

@@ -1,4 +1,5 @@
 import Foundation
+import TuistGraph
 
 public protocol ProjectMapping {
     func map(project: Project) throws -> (Project, [SideEffectDescriptor])

@@ -1,5 +1,6 @@
 import Foundation
 import TSCBasic
+import TuistGraph
 import TuistSupport
 
 @available(*, deprecated, message: "Target nodes are deprecated. Targets should be used instead with the ValueGraph.")

@@ -1,5 +1,5 @@
 import TSCBasic
-import TuistCore
+import TuistGraph
 
 @testable import TuistDependencies
 

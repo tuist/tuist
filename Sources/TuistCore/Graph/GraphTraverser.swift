@@ -1,5 +1,6 @@
 import Foundation
 import TSCBasic
+import TuistGraph
 
 public final class GraphTraverser {
     private let graph: Graph

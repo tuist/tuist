@@ -1,6 +1,7 @@
 import Foundation
 import TuistCache
 import TuistCore
+import TuistGraph
 
 final class FocusGraphMapperProvider: GraphMapperProviding {
     private let defaultProvider: GraphMapperProviding

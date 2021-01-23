@@ -1,5 +1,6 @@
 import Foundation
 import TuistCore
+import TuistGraph
 
 /// Defines the interface to obtain the content to generate derived Info.plist files for the targets.
 protocol InfoPlistContentProviding {

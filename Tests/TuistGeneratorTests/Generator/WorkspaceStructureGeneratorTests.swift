@@ -1,6 +1,8 @@
 import TSCBasic
 import TuistCore
 import TuistCoreTesting
+import TuistGraph
+import TuistGraphTesting
 import TuistSupport
 import XCTest
 @testable import TuistGenerator

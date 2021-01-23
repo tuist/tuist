@@ -1,6 +1,7 @@
 import Foundation
 import TSCBasic
 import TuistCore
+import TuistGraph
 import TuistSupport
 
 /// Protocol that defines an interface to interact with a local Rome setup.

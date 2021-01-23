@@ -5,7 +5,7 @@ import struct TSCUtility.Version
 import TuistAutomation
 import TuistCache
 import TuistCore
-import TuistLoader
+import TuistGraph
 import TuistSupport
 
 enum TestServiceError: FatalError {
