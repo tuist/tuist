@@ -8,11 +8,12 @@ public protocol AsyncQueuing {
     /// It dispatches the given event.
     /// - Parameter event: Event to be dispatched.
     /// - Parameter completion: It's called when the event has been persisted, to make sure it won't get lost
-    func dispatch<T: AsyncQueueEvent>(event: T, completion: @escaping () -> ())
+    func dispatch<T: AsyncQueueEvent>(event: T, completion: @escaping () -> Void)
 }
 
 public class AsyncQueue: AsyncQueuing {
     // MARK: - Attributes
+
     private let disposeBag: DisposeBag = DisposeBag()
     private let queue: Queuing
     private let ciChecker: CIChecking
@@ -27,8 +28,7 @@ public class AsyncQueue: AsyncQueuing {
     init(queue: Queuing = Queuer.shared,
          ciChecker: CIChecking = CIChecker(),
          persistor: AsyncQueuePersisting = AsyncQueuePersistor(),
-         persistedEventsSchedulerType: SchedulerType = AsyncQueue.schedulerType())
-    {
+         persistedEventsSchedulerType: SchedulerType = AsyncQueue.schedulerType()) {
         self.queue = queue
         self.ciChecker = ciChecker
         self.persistor = persistor
@@ -36,7 +36,7 @@ public class AsyncQueue: AsyncQueuing {
     }
 
     public func register(dispatcher: AsyncQueueDispatching) {
-        self.dispatchers[dispatcher.identifier] = dispatcher
+        dispatchers[dispatcher.identifier] = dispatcher
     }
 
     // MARK: - AsyncQueuing
@@ -46,7 +46,7 @@ public class AsyncQueue: AsyncQueuing {
         queue.resume()
     }
 
-    public func dispatch<T: AsyncQueueEvent>(event: T, completion: @escaping () -> ()) {
+    public func dispatch<T: AsyncQueueEvent>(event: T, completion: @escaping () -> Void) {
         guard let dispatcher = dispatchers[event.dispatcherId] else {
             logger.error("Couldn't find dispatcher with id: \(event.dispatcherId)")
             return
@@ -96,8 +96,7 @@ public class AsyncQueue: AsyncQueuing {
     }
 
     private func persistedDispatchOperation(event: AsyncQueueEventTuple,
-                                            dispatcher: AsyncQueueDispatching) -> Operation
-    {
+                                            dispatcher: AsyncQueueDispatching) -> Operation {
         ConcurrentOperation(name: event.id.uuidString) { _ in
             do {
                 logger.debug("Dispatching persisted event with ID '\(event.id.uuidString)' to '\(dispatcher.identifier)'")

@@ -1,9 +1,9 @@
 import ArgumentParser
 import Foundation
+import TuistAnalytics
+import TuistAsyncQueueTesting
 import TuistSupport
 import XCTest
-import TuistAsyncQueueTesting
-import TuistAnalytics
 
 @testable import TuistKit
 @testable import TuistSupportTesting

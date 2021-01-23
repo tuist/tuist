@@ -12,15 +12,15 @@ public struct TuistAnalyticsDispatcher: AsyncQueueDispatching {
 
     public var identifier = TuistAnalyticsDispatcher.dispatcherId
 
-    public func dispatch(event: AsyncQueueEvent, completion: @escaping () -> ()) throws {
+    public func dispatch(event: AsyncQueueEvent, completion: @escaping () -> Void) throws {
         if let commandEvent = event as? CommandEvent {
-            try send(commandEvent: commandEvent) { data, response, error in
+            try send(commandEvent: commandEvent) { _, _, _ in
                 completion()
             }
         }
     }
 
-    public func dispatchPersisted(data: Data, completion: @escaping () -> ()) throws {
+    public func dispatchPersisted(data: Data, completion: @escaping () -> Void) throws {
         let decoder = JSONDecoder()
         let commandEvent = try decoder.decode(CommandEvent.self, from: data)
         return try dispatch(event: commandEvent, completion: completion)

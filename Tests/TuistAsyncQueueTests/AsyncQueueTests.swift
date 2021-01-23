@@ -53,13 +53,14 @@ final class AsyncQueueTests: TuistUnitTestCase {
         queue: Queuing? = nil,
         ciChecker: CIChecking? = nil,
         persistor: AsyncQueuePersisting? = nil,
-        dispatchers: [AsyncQueueDispatching]? = nil
+        dispatchers _: [AsyncQueueDispatching]? = nil
     ) -> AsyncQueue {
         let asyncQueue = AsyncQueue(
             queue: queue ?? mockQueuer,
             ciChecker: ciChecker ?? mockCIChecker,
             persistor: persistor ?? mockPersistor,
-            persistedEventsSchedulerType: MainScheduler())
+            persistedEventsSchedulerType: MainScheduler()
+        )
         asyncQueue.register(dispatcher: mockAsyncQueueDispatcher1)
         asyncQueue.register(dispatcher: mockAsyncQueueDispatcher2)
         return asyncQueue
@@ -283,7 +284,7 @@ final class AsyncQueueTests: TuistUnitTestCase {
         // When
         subject = makeSubject(queue: Queuer.shared)
         subject.start()
-        
+
         // Then
         wait(for: [expectation], timeout: timeout)
         guard let filename = mockPersistor.invokedDeleteFilenameParameter else {
