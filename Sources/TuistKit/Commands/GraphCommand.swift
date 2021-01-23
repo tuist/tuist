@@ -47,9 +47,9 @@ struct GraphCommand: ParsableCommand, HasTrackableParameters {
 
     func run() throws {
         GraphCommand.analyticsDelegate?.willRun(withParameters: ["format": format.rawValue,
-                                                                "algorithm": layoutAlgorithm.rawValue,
-                                                                "skip_external_dependencies": String(skipExternalDependencies),
-                                                                "skip_test_targets": String(skipExternalDependencies)])
+                                                                 "algorithm": layoutAlgorithm.rawValue,
+                                                                 "skip_external_dependencies": String(skipExternalDependencies),
+                                                                 "skip_test_targets": String(skipExternalDependencies)])
         try GraphService().run(format: format,
                                layoutAlgorithm: layoutAlgorithm,
                                skipTestTargets: skipTestTargets,

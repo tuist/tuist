@@ -28,7 +28,8 @@ public class AsyncQueue: AsyncQueuing {
     init(queue: Queuing = Queuer.shared,
          ciChecker: CIChecking = CIChecker(),
          persistor: AsyncQueuePersisting = AsyncQueuePersistor(),
-         persistedEventsSchedulerType: SchedulerType = AsyncQueue.schedulerType()) {
+         persistedEventsSchedulerType: SchedulerType = AsyncQueue.schedulerType())
+    {
         self.queue = queue
         self.ciChecker = ciChecker
         self.persistor = persistor
@@ -96,7 +97,8 @@ public class AsyncQueue: AsyncQueuing {
     }
 
     private func persistedDispatchOperation(event: AsyncQueueEventTuple,
-                                            dispatcher: AsyncQueueDispatching) -> Operation {
+                                            dispatcher: AsyncQueueDispatching) -> Operation
+    {
         ConcurrentOperation(name: event.id.uuidString) { _ in
             do {
                 logger.debug("Dispatching persisted event with ID '\(event.id.uuidString)' to '\(dispatcher.identifier)'")

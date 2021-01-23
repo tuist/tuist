@@ -1,7 +1,7 @@
 import ArgumentParser
 import Foundation
-import TuistSupport
 import TuistAsyncQueue
+import TuistSupport
 
 /// `TrackableCommandInfo` contains the information to report the execution of a command
 public struct TrackableCommandInfo {
@@ -31,7 +31,7 @@ public class TrackableCommand: TrackableParametersDelegate {
         self.asyncQueue = asyncQueue
     }
 
-    func run(completion: @escaping () -> ()) throws {
+    func run(completion: @escaping () -> Void) throws {
         let timer = clock.startTimer()
         if let command = command as? HasTrackableParameters {
             type(of: command).analyticsDelegate = self

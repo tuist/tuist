@@ -18,7 +18,8 @@ public struct AnyAsyncQueueEvent: AsyncQueueEvent {
 
     public init(id: UUID = UUID(),
                 dispatcherId: String,
-                date: Date = Date()) {
+                date: Date = Date())
+    {
         self.id = id
         self.dispatcherId = dispatcherId
         self.date = date

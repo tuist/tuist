@@ -1,7 +1,7 @@
-//import Foundation
-//import TuistCore
+// import Foundation
+// import TuistCore
 //
-//public final class MockAsyncQueueDispatcher: AsyncQueueDispatching {
+// public final class MockAsyncQueueDispatcher: AsyncQueueDispatching {
 //    init() {}
 //
 //    public var invokedIdentifierGetter = false
@@ -45,4 +45,4 @@
 //            throw error
 //        }
 //    }
-//}
+// }
