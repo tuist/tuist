@@ -68,9 +68,8 @@ public struct TuistCommand: ParsableCommand {
             try trackableCommand.run {
                 commandCompletionGroup.leave()
             }
-            // Block Tuist to wait until the event is persisted, otherwise the event could get lost
-            // Note: Tuist is not waiting for the event to be successfully sent, but only stored
-            // and it will retry on next launch to send all pending events
+            // Block Tuist to wait until the event is persisted, otherwise it could get lost
+            // Note: Tuist is not waiting for the event to be successfully sent, but only persisted
             _ = commandCompletionGroup.wait(timeout: DispatchTime.now() + DispatchTimeInterval.seconds(2))
             exit()
         } catch let error as FatalError {
