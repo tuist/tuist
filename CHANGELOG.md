@@ -9,12 +9,15 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Generate resource mapping and synthesized Bundle accessors for targets with Core Data models [#2376](https://github.com/tuist/tuist/pull/2376) by [@thedavidharris](https://github.com/thedavidharris).
 - Support for dynamic library dependencies for command line tool projects [#2332]((https://github.com/tuist/tuist/pull/2332) by [@danyf90](https://github.com/danyf90).
 - Disable SwiftFormat in the generated synthesized interface for resources [#2328](https://github.com/tuist/tuist/pull/2328) by [@natanrolnik](https://github.com/natanrolnik).
+- Send Tuist usage analytics event to https://stats.tuist.io/ [#2331]((https://github.com/tuist/tuist/pull/2331) by [@andreacipriani](https://github.com/andreacipriani).
 
 ### Fixed
 
 - Fix missing autocompletion link on website [#2396](https://github.com/tuist/tuist/pull/2396) by [@fortmarek](https://github.com/fortmarek).
 - Fix memory leak related to xcbeautify [#2380](https://github.com/tuist/tuist/pull/2380) by [@adellibovi](https://github.com/adellibovi).
 - Fix autocompletion script output and documentation [#2400](https://github.com/tuist/tuist/pull/2400) by [@danyf90](https://github.com/danyf90).
+- Fix cache's hash calculation of resources [#2325](https://github.com/tuist/tuist/pull/2325) by [@natanrolnik](https://github.com/natanrolnik).
+- Fixed known issue that causes the `xcodebuild` process hang when running `tuist test` and `tuist build`. [#2297](https://github.com/tuist/tuist/pull/2297) by [@Jake-Prickett](https://github.com/Jake-Prickett).
 
 ### Changed
 
@@ -24,12 +27,6 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Improve performance of project generation by removing unneeded Glob directory cache [#2318](https://github.com/tuist/tuist/pull/2318) by [@adellibovi](https://github.com/adellibovi).
 - Extracted graph models into `TuistGraph` [#2324](https://github.com/tuist/tuist/pull/2324) by [@pepibumur](https://github.com/pepibumur).
 - Improved the CI workflows to run only when their logic is impacted by the file changes [#2390](https://github.com/tuist/tuist/pull/2390) by [@pepibumur](https://github.com/pepibumur).
-
-### Fixed
-
-- Fix cache's hash calculation of resources [#2325](https://github.com/tuist/tuist/pull/2325) by [@natanrolnik](https://github.com/natanrolnik).
-- Fixed known issue that causes the `xcodebuild` process hang when running `tuist test` and `tuist build`. [#2297](https://github.com/tuist/tuist/pull/2297) by [@Jake-Prickett](https://github.com/Jake-Prickett).
-- Fix missing vendor directory in built from source versions [#2388](https://github.com/tuist/tuist/pull/2388) by [@natanrolnik](https://github.com/natanrolnik).
 
 ## 1.31.0 - Arctic
 
