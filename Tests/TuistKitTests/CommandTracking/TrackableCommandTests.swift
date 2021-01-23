@@ -2,72 +2,63 @@ import ArgumentParser
 import Foundation
 import TuistSupport
 import XCTest
+import TuistAsyncQueueTesting
+import TuistAnalytics
 
 @testable import TuistKit
 @testable import TuistSupportTesting
 
 final class TrackableCommandTests: TuistUnitTestCase {
     private var subject: TrackableCommand!
-    private var mockCommandEventTagger: MockCommandEventTagging!
+    private var mockAsyncQueue: MockAsyncQueuer!
 
     override func setUp() {
         super.setUp()
-        mockCommandEventTagger = MockCommandEventTagging()
+        mockAsyncQueue = MockAsyncQueuer()
     }
 
     override func tearDown() {
         subject = nil
-        mockCommandEventTagger = nil
+        mockAsyncQueue = nil
         super.tearDown()
     }
 
     private func makeSubject(flag: Bool = true) {
         subject = TrackableCommand(command: TestCommand(flag: flag),
-                                   commandEventTagger: mockCommandEventTagger,
-                                   clock: WallClock())
+                                   clock: WallClock(),
+                                   asyncQueue: mockAsyncQueue)
     }
 
     // MARK: - Tests
 
-    func test_whenFlagTrue_callsCommandEventTaggerWithExpectedParameters() throws {
+    func test_whenParamsHaveFlagTrue_dispatchesEventWithExpectedParameters() throws {
         // Given
         makeSubject(flag: true)
         let expectedParams = ["flag": "true"]
 
         // When
-        try subject.run()
+        try subject.run(completion: {})
 
         // Then
-        XCTAssertEqual(mockCommandEventTagger.tagCommandCallCount, 1)
-        let info = try XCTUnwrap(mockCommandEventTagger.infoSpy)
-        XCTAssertEqual(info.name, "test")
-        XCTAssertTrue(info.duration > 0)
-        XCTAssertEqual(info.parameters, expectedParams)
+        XCTAssertEqual(mockAsyncQueue.invokedDispatchCount, 1)
+        let event = try XCTUnwrap(mockAsyncQueue.invokedDispatchParameters?.event as? CommandEvent)
+        XCTAssertEqual(event.name, "test")
+        XCTAssertEqual(event.params, expectedParams)
     }
 
-    func test_whenFlagFalse_callsCommandEventTaggerWithExpectedParameters() throws {
+    func test_whenParamsHaveFlagFalse_dispatchesEventWithExpectedParameters() throws {
         // Given
         makeSubject(flag: false)
         let expectedParams = ["flag": "false"]
 
         // When
-        try subject.run()
+        try subject.run(completion: {})
 
         // Then
-        XCTAssertEqual(mockCommandEventTagger.tagCommandCallCount, 1)
-        let info = try XCTUnwrap(mockCommandEventTagger.infoSpy)
-        XCTAssertEqual(info.name, "test")
-        XCTAssertTrue(info.duration > 0)
-        XCTAssertEqual(info.parameters, expectedParams)
-    }
-}
-
-private final class MockCommandEventTagging: CommandEventTagging {
-    var infoSpy: TrackableCommandInfo?
-    var tagCommandCallCount = 0
-    func tagCommand(from info: TrackableCommandInfo) {
-        tagCommandCallCount += 1
-        infoSpy = info
+        XCTAssertEqual(mockAsyncQueue.invokedDispatchCount, 1)
+        let event = try XCTUnwrap(mockAsyncQueue.invokedDispatchParameters?.event as? CommandEvent)
+        XCTAssertEqual(event.name, "test")
+        XCTAssertEqual(event.params, expectedParams)
     }
 }
 
@@ -81,6 +72,6 @@ private struct TestCommand: ParsableCommand, HasTrackableParameters {
     static var analyticsDelegate: TrackableParametersDelegate?
 
     func run() throws {
-        TestCommand.analyticsDelegate?.willRun(withParamters: ["flag": String(flag)])
+        TestCommand.analyticsDelegate?.willRun(withParameters: ["flag": String(flag)])
     }
 }

@@ -17,15 +17,18 @@ public class TrackableCommand: TrackableParametersDelegate {
     private let clock: Clock
     private var trackedParameters: [String: String] = [:]
     private let commandEventFactory: CommandEventFactory
+    private let asyncQueue: AsyncQueuing
 
     public init(
         command: ParsableCommand,
         clock: Clock = WallClock(),
-        commandEventFactory: CommandEventFactory = CommandEventFactory()
+        commandEventFactory: CommandEventFactory = CommandEventFactory(),
+        asyncQueue: AsyncQueuing = AsyncQueue.sharedInstance
     ) {
         self.command = command
         self.clock = clock
         self.commandEventFactory = commandEventFactory
+        self.asyncQueue = asyncQueue
     }
 
     func run(completion: @escaping () -> ()) throws {
@@ -44,7 +47,7 @@ public class TrackableCommand: TrackableParametersDelegate {
             duration: duration
         )
         let commandEvent = commandEventFactory.make(from: info)
-        AsyncQueue.sharedInstance.dispatch(event: commandEvent, completion: completion)
+        asyncQueue.dispatch(event: commandEvent, completion: completion)
     }
 
     func willRun(withParameters parameters: [String: String]) {
