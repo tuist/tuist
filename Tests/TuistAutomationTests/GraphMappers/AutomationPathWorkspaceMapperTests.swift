@@ -11,13 +11,13 @@ import XCTest
 
 final class AutomationPathWorkspaceMapperTests: TuistUnitTestCase {
     private var subject: AutomationPathWorkspaceMapper!
-    private var temporaryDirectory: AbsolutePath!
+    private var workspaceDirectory: AbsolutePath!
 
     override func setUpWithError() throws {
         try super.setUpWithError()
-        temporaryDirectory = try temporaryPath()
+        workspaceDirectory = try temporaryPath()
         subject = .init(
-            temporaryDirectory: temporaryDirectory
+            workspaceDirectory: workspaceDirectory
         )
     }
 
@@ -28,8 +28,16 @@ final class AutomationPathWorkspaceMapperTests: TuistUnitTestCase {
 
     func test_map() throws {
         // Given
+        let projectPath = try temporaryPath()
+        let project = Project.test(
+            path: projectPath,
+            sourceRootPath: projectPath,
+            xcodeProjPath: projectPath.appending(component: "A.xcodeproj"),
+            name: "A"
+        )
+
         let workspace = Workspace.test(
-            path: temporaryDirectory,
+            path: workspaceDirectory,
             name: "A"
         )
 
@@ -37,7 +45,9 @@ final class AutomationPathWorkspaceMapperTests: TuistUnitTestCase {
         let (gotWorkspaceWithProjects, gotSideEffects) = try subject.map(
             workspace: WorkspaceWithProjects(
                 workspace: workspace,
-                projects: []
+                projects: [
+                    project,
+                ]
             )
         )
 
@@ -45,16 +55,27 @@ final class AutomationPathWorkspaceMapperTests: TuistUnitTestCase {
         XCTAssertEqual(
             gotWorkspaceWithProjects.workspace,
             Workspace.test(
-                path: temporaryDirectory,
+                path: workspaceDirectory,
                 name: "A"
             )
+        )
+        XCTAssertEqual(
+            gotWorkspaceWithProjects.projects,
+            [
+                Project.test(
+                    path: projectPath,
+                    sourceRootPath: workspaceDirectory,
+                    xcodeProjPath: workspaceDirectory.appending(component: "A.xcodeproj"),
+                    name: "A"
+                ),
+            ]
         )
         XCTAssertEqual(
             gotSideEffects,
             [
                 .directory(
                     DirectoryDescriptor(
-                        path: temporaryDirectory,
+                        path: workspaceDirectory,
                         state: .present
                     )
                 ),

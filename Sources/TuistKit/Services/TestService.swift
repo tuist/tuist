@@ -58,9 +58,7 @@ final class TestService {
         self.init(
             temporaryDirectory: temporaryDirectory,
             generator: Generator(
-                projectMapperProvider: AutomationProjectMapperProvider(
-                    xcodeProjDirectory: temporaryDirectory.path
-                ),
+                projectMapperProvider: AutomationProjectMapperProvider(),
                 graphMapperProvider: GraphMapperProvider(),
                 workspaceMapperProvider: AutomationWorkspaceMapperProvider(
                     workspaceDirectory: temporaryDirectory.path

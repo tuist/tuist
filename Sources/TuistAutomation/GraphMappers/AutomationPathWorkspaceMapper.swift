@@ -2,30 +2,46 @@ import Foundation
 import TSCBasic
 import TuistCore
 import TuistSupport
+import TuistGraph
 
 /// Updates path of workspace to point to where automation workspace should be generated
 public final class AutomationPathWorkspaceMapper: WorkspaceMapping {
-    private let temporaryDirectory: AbsolutePath
+    private let workspaceDirectory: AbsolutePath
 
     public init(
-        temporaryDirectory: AbsolutePath
+        workspaceDirectory: AbsolutePath
     ) {
-        self.temporaryDirectory = temporaryDirectory
+        self.workspaceDirectory = workspaceDirectory
     }
 
     public func map(workspace: WorkspaceWithProjects) throws -> (WorkspaceWithProjects, [SideEffectDescriptor]) {
         var workspace = workspace
-        workspace.workspace.path = temporaryDirectory
+        workspace.workspace.path = workspaceDirectory
+        let mappedProjects = try workspace.projects.map(map(project:))
+        workspace.projects = mappedProjects.map(\.0)
         return (
             workspace,
             [
                 .directory(
                     DirectoryDescriptor(
-                        path: temporaryDirectory,
+                        path: workspaceDirectory,
                         state: .present
                     )
                 ),
-            ]
+            ] + mappedProjects.flatMap(\.1)
+        )
+    }
+    
+    // MARK: - Helpers
+    
+    private func map(project: Project) throws -> (Project, [SideEffectDescriptor]) {
+        var project = project
+        let xcodeProjBasename = project.xcodeProjPath.basename
+        project.sourceRootPath = workspaceDirectory
+        project.xcodeProjPath = workspaceDirectory.appending(component: xcodeProjBasename)
+        return (
+            project,
+            []
         )
     }
 }
