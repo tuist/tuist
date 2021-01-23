@@ -26,7 +26,7 @@ public class MockAsyncQueueDispatcher: AsyncQueueDispatching {
     public var invokedDispatchParametersEventsList = [AsyncQueueEvent]()
     public var stubbedDispatchError: Error?
 
-    public func dispatch(event: AsyncQueueEvent) throws {
+    public func dispatch(event: AsyncQueueEvent, completion: @escaping () -> ()) throws {
         invokedDispatch = true
         invokedDispatchCount += 1
         invokedDispatchParameterEvent = event
@@ -36,6 +36,7 @@ public class MockAsyncQueueDispatcher: AsyncQueueDispatching {
             throw error
         }
         invokedDispatchCallBack()
+        completion()
     }
 
     public var invokedDispatchPersisted = false
@@ -45,7 +46,7 @@ public class MockAsyncQueueDispatcher: AsyncQueueDispatching {
     public var invokedDispatchPersistedParametersDataList = [Data]()
     public var stubbedDispatchPersistedError: Error?
 
-    public func dispatchPersisted(data: Data) throws {
+    public func dispatchPersisted(data: Data, completion: @escaping () -> ()) throws {
         invokedDispatchPersisted = true
         invokedDispatchPersistedCount += 1
         invokedDispatchPersistedDataParameter = data
@@ -55,5 +56,6 @@ public class MockAsyncQueueDispatcher: AsyncQueueDispatching {
             throw error
         }
         invokedDispatchPersistedCallBack()
+        completion()
     }
 }

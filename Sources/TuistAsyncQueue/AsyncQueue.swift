@@ -24,7 +24,7 @@ public class AsyncQueue: AsyncQueuing {
 
     // MARK: - Init
 
-    private init(queue: Queuing = Queuer.shared,
+    init(queue: Queuing = Queuer.shared,
          ciChecker: CIChecking = CIChecker(),
          persistor: AsyncQueuePersisting = AsyncQueuePersistor(),
          persistedEventsSchedulerType: SchedulerType = AsyncQueue.schedulerType())
@@ -60,7 +60,7 @@ public class AsyncQueue: AsyncQueuing {
             // Queue event to send
             let operation = self.liveDispatchOperation(event: event, dispatcher: dispatcher)
             self.queue.addOperation(operation)
-            completion()
+            completion() // The completion means that the event has been persisted sucessfully, not that it has been sent
         }
     }
 
@@ -79,7 +79,6 @@ public class AsyncQueue: AsyncQueuing {
                     operation.success = true
                 }
             } catch {
-                _ = self.persistor.delete(event: event)
                 operation.success = false
             }
         }
