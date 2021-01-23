@@ -7,7 +7,6 @@ public extension Workspace {
         path: AbsolutePath = AbsolutePath("/"),
         name: String = "test",
         projects: [AbsolutePath] = [],
-        xcodeProjPaths: [AbsolutePath] = [],
         schemes: [Scheme] = [],
         additionalFiles: [FileElement] = []
     ) -> Workspace {
@@ -15,7 +14,6 @@ public extension Workspace {
             path: path,
             name: name,
             projects: projects,
-            xcodeProjPaths: xcodeProjPaths,
             schemes: schemes,
             additionalFiles: additionalFiles
         )

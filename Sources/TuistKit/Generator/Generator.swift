@@ -235,8 +235,7 @@ class Generator: Generating {
         let workspace = Workspace(
             path: path,
             name: workspaceName,
-            projects: [],
-            xcodeProjPaths: []
+            projects: []
         )
         let models = (workspace: workspace, projects: projects)
 
@@ -259,11 +258,6 @@ class Generator: Generating {
         updatedWorkspace.projects = Array(
             Set(
                 updatedWorkspace.projects + updatedGraph.projects.map(\.path)
-            )
-        )
-        updatedWorkspace.xcodeProjPaths = Array(
-            Set(
-                updatedWorkspace.xcodeProjPaths + updatedGraph.projects.map(\.xcodeProjPath)
             )
         )
 

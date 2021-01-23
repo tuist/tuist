@@ -1,4 +1,5 @@
 import Foundation
+import TuistGraph
 import TuistCore
 
 @testable import TuistKit

@@ -101,9 +101,12 @@ final class WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
         })
 
         // Workspace structure
-        let structure = workspaceStructureGenerator.generateStructure(path: graphTraverser.workspace.path,
-                                                                      workspace: graphTraverser.workspace,
-                                                                      fileHandler: FileHandler.shared)
+        let structure = workspaceStructureGenerator.generateStructure(
+            path: graphTraverser.workspace.path,
+            workspace: graphTraverser.workspace,
+            xcodeProjPaths: generatedProjects.keys.map { $0 },
+            fileHandler: FileHandler.shared
+        )
 
         let workspacePath = graphTraverser.workspace.path.appending(component: workspaceName)
         let workspaceData = XCWorkspaceData(children: [])
@@ -115,9 +118,11 @@ final class WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
         }
 
         // Schemes
-        let schemes = try schemeDescriptorsGenerator.generateWorkspaceSchemes(workspace: graphTraverser.workspace,
-                                                                              generatedProjects: generatedProjects,
-                                                                              graphTraverser: graphTraverser)
+        let schemes = try schemeDescriptorsGenerator.generateWorkspaceSchemes(
+            workspace: graphTraverser.workspace,
+            generatedProjects: generatedProjects,
+            graphTraverser: graphTraverser
+        )
 
         return WorkspaceDescriptor(
             path: graphTraverser.workspace.path,

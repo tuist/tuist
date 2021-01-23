@@ -34,9 +34,8 @@ class WorkspaceStructureGeneratorTests: XCTestCase {
         // When
         let structure = subject.generateStructure(
             path: "/path/to/workspace",
-            workspace: Workspace.test(
-                xcodeProjPaths: xcodeProjPaths
-            ),
+            workspace: Workspace.test(),
+            xcodeProjPaths: xcodeProjPaths,
             fileHandler: fileHandler
         )
 
@@ -76,13 +75,13 @@ class WorkspaceStructureGeneratorTests: XCTestCase {
         ])
 
         let workspace = Workspace.test(
-            xcodeProjPaths: xcodeProjPaths,
             additionalFiles: files.map { .file(path: $0) }
         )
 
         // When
         let structure = subject.generateStructure(path: "/path/to/workspace",
                                                   workspace: workspace,
+                                                  xcodeProjPaths: xcodeProjPaths,
                                                   fileHandler: fileHandler)
 
         // Then
@@ -129,6 +128,7 @@ class WorkspaceStructureGeneratorTests: XCTestCase {
         // When
         let structure = subject.generateStructure(path: "/path/to/workspace",
                                                   workspace: workspace,
+                                                  xcodeProjPaths: [],
                                                   fileHandler: fileHandler)
 
         // Then
@@ -162,6 +162,7 @@ class WorkspaceStructureGeneratorTests: XCTestCase {
         // When
         let structure = subject.generateStructure(path: "/path/to/workspace",
                                                   workspace: workspace,
+                                                  xcodeProjPaths: [],
                                                   fileHandler: fileHandler)
 
         // Then
@@ -191,6 +192,7 @@ class WorkspaceStructureGeneratorTests: XCTestCase {
         // When
         let structure = subject.generateStructure(path: "/path/to/workspace",
                                                   workspace: workspace,
+                                                  xcodeProjPaths: [],
                                                   fileHandler: fileHandler)
 
         // Then
@@ -214,6 +216,7 @@ class WorkspaceStructureGeneratorTests: XCTestCase {
         // When
         let structure = subject.generateStructure(path: "/path/to/workspace",
                                                   workspace: workspace,
+                                                  xcodeProjPaths: [],
                                                   fileHandler: fileHandler)
 
         // Then
@@ -233,13 +236,13 @@ class WorkspaceStructureGeneratorTests: XCTestCase {
             .folderReference(path: "/path/to/workspace/Modules/A"),
         ]
         let workspace = Workspace.test(
-            xcodeProjPaths: xcodeProjPaths,
             additionalFiles: files
         )
 
         // When
         let structure = subject.generateStructure(path: "/path/to/workspace",
                                                   workspace: workspace,
+                                                  xcodeProjPaths: xcodeProjPaths,
                                                   fileHandler: fileHandler)
 
         // Then
@@ -263,12 +266,12 @@ class WorkspaceStructureGeneratorTests: XCTestCase {
             "/path/to/workspace/Modules/A/README.md",
         ])
 
-        let workspace = Workspace.test(xcodeProjPaths: xcodeProjPaths,
-                                       additionalFiles: files.map { .file(path: $0) })
+        let workspace = Workspace.test(additionalFiles: files.map { .file(path: $0) })
 
         // When
         let structure = subject.generateStructure(path: "/path/to/workspace",
                                                   workspace: workspace,
+                                                  xcodeProjPaths: xcodeProjPaths,
                                                   fileHandler: fileHandler)
 
         // Then

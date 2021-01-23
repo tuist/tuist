@@ -141,8 +141,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         let workspace = Workspace(
             path: project.path,
             name: "Manifests",
-            projects: [project.path],
-            xcodeProjPaths: [project.xcodeProjPath]
+            projects: [project.path]
         )
 
         let graph = Graph(

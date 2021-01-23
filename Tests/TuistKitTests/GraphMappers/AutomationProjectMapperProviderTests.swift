@@ -2,6 +2,7 @@ import Foundation
 import TuistAutomation
 import TuistCache
 import TuistGenerator
+import TuistGraph
 import XCTest
 
 @testable import TuistCore

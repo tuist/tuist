@@ -3,6 +3,7 @@ import TSCBasic
 import TuistAutomation
 import TuistCore
 import TuistGenerator
+import TuistGraph
 
 /// Custom mapper provider for automation features
 /// It uses default `WorkspaceMapperProvider` but adds its own on top

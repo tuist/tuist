@@ -7,8 +7,6 @@ public struct Workspace: Equatable {
     public var path: AbsolutePath
     public var name: String
     public var projects: [AbsolutePath]
-    /// Array of paths to `.xcodeproj`
-    public var xcodeProjPaths: [AbsolutePath]
     public var schemes: [Scheme]
     public var additionalFiles: [FileElement]
 
@@ -18,14 +16,12 @@ public struct Workspace: Equatable {
         path: AbsolutePath,
         name: String,
         projects: [AbsolutePath],
-        xcodeProjPaths: [AbsolutePath],
         schemes: [Scheme] = [],
         additionalFiles: [FileElement] = []
     ) {
         self.path = path
         self.name = name
         self.projects = projects
-        self.xcodeProjPaths = xcodeProjPaths
         self.schemes = schemes
         self.additionalFiles = additionalFiles
     }
@@ -42,7 +38,6 @@ extension Workspace {
         Workspace(path: path,
                   name: name,
                   projects: projects,
-                  xcodeProjPaths: xcodeProjPaths,
                   schemes: schemes,
                   additionalFiles: additionalFiles + files.map { .file(path: $0) })
     }
@@ -51,7 +46,6 @@ extension Workspace {
         Workspace(path: path,
                   name: name,
                   projects: projects,
-                  xcodeProjPaths: xcodeProjPaths,
                   schemes: schemes,
                   additionalFiles: additionalFiles)
     }
@@ -60,7 +54,6 @@ extension Workspace {
         Workspace(path: path,
                   name: name,
                   projects: Array(Set(projects + otherProjects)),
-                  xcodeProjPaths: xcodeProjPaths,
                   schemes: schemes,
                   additionalFiles: additionalFiles)
     }

@@ -91,12 +91,7 @@ final class TestModelGenerator {
     }
 
     private func createWorkspace(path: AbsolutePath, projects: [String]) throws -> Workspace {
-        Workspace(
-            path: path,
-            name: "Workspace",
-            projects: projects.map { pathTo($0) },
-            xcodeProjPaths: projects.map { pathTo($0).appending(component: "App.xcodeproj") }
-        )
+        Workspace(path: path, name: "Workspace", projects: projects.map { pathTo($0) })
     }
 
     private func createProject(path: AbsolutePath, name: String, settings: Settings, targets: [Target], packages: [Package] = [], schemes: [Scheme]) -> Project {

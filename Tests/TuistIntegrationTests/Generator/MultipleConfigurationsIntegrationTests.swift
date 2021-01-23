@@ -342,12 +342,7 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
     }
 
     private func createWorkspace(path: AbsolutePath, projects: [String]) throws -> Workspace {
-        Workspace(
-            path: path,
-            name: "Workspace",
-            projects: try projects.map { try pathTo($0) },
-            xcodeProjPaths: try projects.map { try pathTo($0).appending(component: "App.xcodeproj") }
-        )
+        Workspace(path: path, name: "Workspace", projects: try projects.map { try pathTo($0) })
     }
 
     private func createProject(path: AbsolutePath, settings: Settings, targets: [Target], packages: [Package] = [], schemes: [Scheme]) -> Project {

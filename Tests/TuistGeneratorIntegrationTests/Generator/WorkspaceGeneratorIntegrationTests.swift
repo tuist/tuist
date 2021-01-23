@@ -45,8 +45,7 @@ final class WorkspaceGeneratorIntegrationTests: TuistTestCase {
                                  })
         let workspace = Workspace.test(
             path: temporaryPath,
-            projects: projects.map(\.path),
-            xcodeProjPaths: projects.map(\.xcodeProjPath)
+            projects: projects.map(\.path)
         )
         graph = graph.with(workspace: workspace)
         let valueGraph = ValueGraph(graph: graph)

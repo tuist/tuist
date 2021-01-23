@@ -17,13 +17,23 @@ struct WorkspaceStructure {
 }
 
 protocol WorkspaceStructureGenerating {
-    func generateStructure(path: AbsolutePath, workspace: Workspace, fileHandler: FileHandling) -> WorkspaceStructure
+    func generateStructure(
+        path: AbsolutePath,
+        workspace: Workspace,
+        xcodeProjPaths: [AbsolutePath],
+        fileHandler: FileHandling
+    ) -> WorkspaceStructure
 }
 
 final class WorkspaceStructureGenerator: WorkspaceStructureGenerating {
-    func generateStructure(path: AbsolutePath, workspace: Workspace, fileHandler: FileHandling) -> WorkspaceStructure {
+    func generateStructure(
+        path: AbsolutePath,
+        workspace: Workspace,
+        xcodeProjPaths: [AbsolutePath],
+        fileHandler: FileHandling
+    ) -> WorkspaceStructure {
         let graph = DirectoryStructure(path: path,
-                                       projects: workspace.xcodeProjPaths,
+                                       projects: xcodeProjPaths,
                                        files: workspace.additionalFiles,
                                        fileHandler: fileHandler).buildGraph()
         return WorkspaceStructure(name: workspace.name,

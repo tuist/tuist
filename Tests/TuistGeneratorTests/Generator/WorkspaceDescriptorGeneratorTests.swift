@@ -42,10 +42,7 @@ final class WorkspaceDescriptorGeneratorTests: TuistUnitTestCase {
             .folderReference(path: temporaryPath.appending(RelativePath("Website"))),
         ]
 
-        let workspace = Workspace.test(
-            path: temporaryPath,
-            additionalFiles: additionalFiles
-        )
+        let workspace = Workspace.test(additionalFiles: additionalFiles)
         let graph = Graph.test(entryPath: temporaryPath, workspace: workspace)
 
         // When
@@ -84,20 +81,14 @@ final class WorkspaceDescriptorGeneratorTests: TuistUnitTestCase {
         // Given
         let temporaryPath = try self.temporaryPath()
         let target = anyTarget()
-        let project = Project.test(
-            path: temporaryPath,
-            sourceRootPath: temporaryPath,
-            xcodeProjPath: temporaryPath.appending(component: "Test.xcodeproj"),
-            name: "Test",
-            settings: .default,
-            targets: [target]
-        )
+        let project = Project.test(path: temporaryPath,
+                                   sourceRootPath: temporaryPath,
+                                   xcodeProjPath: temporaryPath.appending(component: "Test.xcodeproj"),
+                                   name: "Test",
+                                   settings: .default,
+                                   targets: [target])
 
-        let workspace = Workspace.test(
-            path: temporaryPath,
-            projects: [project.path],
-            xcodeProjPaths: [project.xcodeProjPath]
-        )
+        let workspace = Workspace.test(projects: [project.path])
         let graph = Graph.create(project: project,
                                  dependencies: [(target, [])])
         let valueGraph = ValueGraph(graph: graph.with(workspace: workspace))
