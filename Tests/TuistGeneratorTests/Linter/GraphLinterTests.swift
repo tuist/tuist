@@ -860,7 +860,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         let got = subject.lint(graphTraverser: graphTraverser)
 
         // Then
-        XCTAssertEqual(got, [])
+        XCTAssertEmpty(got)
     }
 
     func test_lint_when_cli_tool_links_supported_dependencies() throws {
