@@ -25,7 +25,8 @@ struct CloudCacheResponse: Decodable {
 
     public static func storeResource(hash: String,
                                      cloud: Cloud,
-                                     contentMD5: String) throws -> CloudCacheResource {
+                                     contentMD5: String) throws -> CloudCacheResource
+    {
         let url = try URL.apiCacheURL(
             hash: hash,
             cacheURL: cloud.url,
@@ -37,7 +38,8 @@ struct CloudCacheResponse: Decodable {
 
     public static func verifyUploadResource(hash: String,
                                             cloud: Cloud,
-                                            contentMD5: String) throws -> CloudCacheResource {
+                                            contentMD5: String) throws -> CloudCacheResource
+    {
         let url = try URL.apiCacheVerifyUploadURL(
             hash: hash,
             cacheURL: cloud.url,
@@ -46,7 +48,7 @@ struct CloudCacheResponse: Decodable {
         )
         return jsonResource(for: url, httpMethod: "POST")
     }
-    
+
     public static func jsonResource(for url: URL, httpMethod: String) -> CloudCacheResource {
         var request = URLRequest(url: url)
         request.httpMethod = httpMethod

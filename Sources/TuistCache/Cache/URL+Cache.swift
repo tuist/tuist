@@ -12,7 +12,7 @@ extension URL {
 
         var queryItems: [URLQueryItem] = [
             URLQueryItem(name: "project_id", value: projectId),
-            URLQueryItem(name: "hash", value: hash)
+            URLQueryItem(name: "hash", value: hash),
         ]
         if let contentMD5 = contentMD5 {
             queryItems.append(URLQueryItem(name: "content_md5", value: contentMD5))
@@ -36,7 +36,7 @@ extension URL {
         urlComponents.queryItems = [
             URLQueryItem(name: "project_id", value: projectId),
             URLQueryItem(name: "hash", value: hash),
-            URLQueryItem(name: "content_md5", value: contentMD5)
+            URLQueryItem(name: "content_md5", value: contentMD5),
         ]
         return urlComponents.url!
     }
