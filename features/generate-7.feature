@@ -7,10 +7,10 @@ Scenario: The project is a macOS command line tool without any dependencies (com
     Then tuist generates the project
     Then I should be able to build for macOS the scheme CommandLineTool
 
-Scenario: The project is a macOS command line tool with static dependencies (command_line_tool_with_static_dependencies)
+Scenario: The project is a macOS command line tool with static library (command_line_tool_with_static_library)
     Given that tuist is available
     And I have a working directory
-    Then I copy the fixture command_line_tool_with_static_dependencies into the working directory
+    Then I copy the fixture command_line_tool_with_static_library into the working directory
     Then tuist generates the project
     Then I should be able to build for macOS the scheme CommandLineTool
 

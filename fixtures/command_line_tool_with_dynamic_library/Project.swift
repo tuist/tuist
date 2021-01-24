@@ -8,7 +8,6 @@ let project = Project(name: "CommandLineTool",
                                bundleId: "com.example.commandlinetool",
                                infoPlist: .default,
                                dependencies: [
-                                .target(name: "DynamicFramework"),
                                 .target(name: "DynamicLib"),
                                ]),
                         Target(name: "DynamicLib",
