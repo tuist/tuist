@@ -62,15 +62,7 @@ public struct TuistCommand: ParsableCommand {
             _exit(exitCode)
         }
         do {
-            let commandCompletionGroup = DispatchGroup()
-            commandCompletionGroup.enter()
-            let trackableCommand = TrackableCommand(command: command)
-            try trackableCommand.run {
-                commandCompletionGroup.leave()
-            }
-            // Block Tuist to wait until the event is persisted, otherwise it could get lost
-            // Note: Tuist is not waiting for the event to be successfully sent, but only persisted
-            _ = commandCompletionGroup.wait(timeout: DispatchTime.now() + DispatchTimeInterval.seconds(2))
+            try execute(command)
             exit()
         } catch let error as FatalError {
             errorHandler.fatal(error: error)
@@ -84,6 +76,24 @@ public struct TuistCommand: ParsableCommand {
                 _exit(exitCode(for: error).rawValue)
             }
         }
+    }
+
+    private static func execute(_ command: ParsableCommand) throws {
+        var command = command
+        let userOptedOutFromStats = Environment.shared.tuistVariables["TUIST_STATS_OPT_OUT"] != nil
+        guard userOptedOutFromStats else {
+            try command.run()
+            return
+        }
+        let commandCompletionGroup = DispatchGroup()
+        commandCompletionGroup.enter()
+        let trackableCommand = TrackableCommand(command: command)
+        try trackableCommand.run {
+            commandCompletionGroup.leave()
+        }
+        // Block Tuist to wait until the event is persisted, otherwise it could get lost
+        // Note: Tuist is not waiting for the event to be successfully sent, but only persisted
+        _ = commandCompletionGroup.wait(timeout: DispatchTime.now() + DispatchTimeInterval.seconds(2))
     }
 
     // MARK: - Helpers
