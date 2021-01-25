@@ -18,6 +18,7 @@ Scenario: The project is a macOS command line tool with dynamic dependencies (co
     Given that tuist is available
     And I have a working directory
     Then I copy the fixture command_line_tool_with_dynamic_library into the working directory
+    Then tuist generates the project
     Then I should be able to build for macOS the scheme CommandLineTool
 
 Scenario: The project is a macOS command line tool with dynamic framework (framework)
