@@ -3,6 +3,7 @@ import RxSwift
 import TSCBasic
 import TuistCore
 import TuistSupport
+import TuistGraph
 
 /// It defines the interface to mutate a graph using information from the cache.
 protocol CacheGraphMutating {
@@ -12,7 +13,7 @@ protocol CacheGraphMutating {
     ///   - graph: Dependency graph.
     ///   - precompiledFrameworks: Dictionary that maps targets with the paths to their cached `.framework`s or `.xcframework`s.
     ///   - source: Contains a list of targets that won't be replaced with their pre-compiled version from the cache.
-    func map(graph: Graph, precompiledFrameworks: [TargetNode: AbsolutePath], sources: Set<String>) throws -> Graph
+    func map(graph: ValueGraph, precompiledFrameworks: [ValueGraphTarget: AbsolutePath], sources: Set<String>) throws -> ValueGraph
 }
 
 class CacheGraphMutator: CacheGraphMutating {
@@ -39,7 +40,7 @@ class CacheGraphMutator: CacheGraphMutating {
 
     // MARK: - CacheGraphMapping
 
-    public func map(graph: Graph, precompiledFrameworks: [TargetNode: AbsolutePath], sources: Set<String>) throws -> Graph {
+    public func map(graph: ValueGraph, precompiledFrameworks: [ValueGraphTarget: AbsolutePath], sources: Set<String>) throws -> ValueGraph {
         var visitedPrecompiledFrameworkPaths: [TargetNode: VisitedPrecompiledFramework?] = [:]
         var loadedPrecompiledNodes: [AbsolutePath: PrecompiledNode] = [:]
         let userSpecifiedSourceTargets = graph.targets.flatMap(\.value).filter { sources.contains($0.target.name) }
