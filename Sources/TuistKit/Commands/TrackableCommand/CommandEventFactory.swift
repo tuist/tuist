@@ -20,7 +20,7 @@ public final class CommandEventFactory {
             name: info.name,
             subcommand: info.subcommand,
             params: info.parameters,
-            duration: Int(info.duration),
+            durationInMs: Int(info.durationInMs),
             clientId: machineEnvironment.clientId,
             tuistVersion: Constants.version,
             swiftVersion: machineEnvironment.swiftVersion,

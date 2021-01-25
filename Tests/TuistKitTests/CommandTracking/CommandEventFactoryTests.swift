@@ -30,12 +30,12 @@ final class CommandEventFactoryTests: TuistUnitTestCase {
         let info = TrackableCommandInfo(name: "cache",
                                         subcommand: "warm",
                                         parameters: ["foo": "bar"],
-                                        duration: TimeInterval(5000))
+                                        durationInMs: 5000)
         let expectedEvent = CommandEvent(
             name: "cache",
             subcommand: "warm",
             params: ["foo": "bar"],
-            duration: 5000,
+            durationInMs: 5000,
             clientId: "123",
             tuistVersion: Constants.version,
             swiftVersion: "5.1",
@@ -50,7 +50,7 @@ final class CommandEventFactoryTests: TuistUnitTestCase {
         XCTAssertEqual(event.name, expectedEvent.name)
         XCTAssertEqual(event.subcommand, expectedEvent.subcommand)
         XCTAssertEqual(event.params, expectedEvent.params)
-        XCTAssertEqual(event.duration, expectedEvent.duration)
+        XCTAssertEqual(event.durationInMs, expectedEvent.durationInMs)
         XCTAssertEqual(event.clientId, expectedEvent.clientId)
         XCTAssertEqual(event.tuistVersion, expectedEvent.tuistVersion)
         XCTAssertEqual(event.swiftVersion, expectedEvent.swiftVersion)

@@ -8,7 +8,7 @@ public struct TrackableCommandInfo {
     let name: String
     let subcommand: String?
     let parameters: [String: String]
-    let duration: TimeInterval
+    let durationInMs: Int
 }
 
 /// A `TrackableCommand` wraps a `ParsableCommand` and reports its execution to an analytics provider
@@ -37,14 +37,15 @@ public class TrackableCommand: TrackableParametersDelegate {
             type(of: command).analyticsDelegate = self
         }
         try command.run()
-        let duration = timer.stop()
+        let durationInSeconds = timer.stop()
+        let durationInMs = Int(durationInSeconds * 1000)
         let configuration = type(of: command).configuration
         let (name, subcommand) = extractCommandName(from: configuration)
         let info = TrackableCommandInfo(
             name: name,
             subcommand: subcommand,
             parameters: trackedParameters,
-            duration: duration
+            durationInMs: durationInMs
         )
         let commandEvent = commandEventFactory.make(from: info)
         asyncQueue.dispatch(event: commandEvent, completion: completion)
