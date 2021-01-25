@@ -132,11 +132,9 @@ public final class CacheFrameworkBuilder: CacheArtifactBuilding {
         let pathString = projectPath.pathString
 
         if let existing = projectPathHashes[pathString] {
-            logger.info("Found previously calculated build directory for \(target.name) at: \(existing)")
             return existing
         }
 
-        logger.info("Calculating build directory for \(target.name) using \(projectPath)")
         let derivedDataPath = developerEnvironment.derivedDataDirectory
         let hash = try XcodeProjectPathHasher.hashString(for: pathString)
         let buildDirectory = derivedDataPath
@@ -145,8 +143,6 @@ public final class CacheFrameworkBuilder: CacheArtifactBuilding {
             .appending(component: "Products")
             .appending(component: "\(configuration)-\(sdk)")
         projectPathHashes[pathString] = buildDirectory
-
-        logger.info("Found build directory for \(target.name) at \(buildDirectory)")
 
         return buildDirectory
     }
