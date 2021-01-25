@@ -134,6 +134,32 @@ public final class MockSystem: Systeming {
         }
     }
 
+    public func observable(_ arguments: [String], pipedToArguments: [String]) -> Observable<SystemEvent<Data>> {
+        observable(arguments, environment: [:], pipeTo: pipedToArguments)
+    }
+
+    public func observable(_ arguments: [String], environment _: [String: String], pipeTo _: [String]) -> Observable<SystemEvent<Data>> {
+        Observable.create { (observer) -> Disposable in
+            let command = arguments.joined(separator: " ")
+            guard let stub = self.stubs[command] else {
+                observer.onError(TuistSupport.SystemError.terminated(command: arguments.first!, code: 1, standardError: Data()))
+                return Disposables.create()
+            }
+            guard stub.exitstatus == 0 else {
+                if let error = stub.stderror {
+                    observer.onNext(.standardError(error.data(using: .utf8)!))
+                }
+                observer.onError(TuistSupport.SystemError.terminated(command: arguments.first!, code: 1, standardError: Data()))
+                return Disposables.create()
+            }
+            if let stdout = stub.stdout {
+                observer.onNext(.standardOutput(stdout.data(using: .utf8)!))
+            }
+            observer.onCompleted()
+            return Disposables.create()
+        }
+    }
+
     public func async(_ arguments: [String]) throws {
         try async(arguments, verbose: false, environment: [:])
     }

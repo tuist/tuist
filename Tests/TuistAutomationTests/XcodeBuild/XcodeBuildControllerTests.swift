@@ -8,27 +8,16 @@ import XCTest
 @testable import TuistAutomation
 @testable import TuistSupportTesting
 
-private final class MockParser: Parsing {
-    var parseStub: ((String, Bool) -> String?)?
-
-    func parse(line: String, colored: Bool) -> String? {
-        parseStub?(line, colored)
-    }
-}
-
 final class XcodeBuildControllerTests: TuistUnitTestCase {
     var subject: XcodeBuildController!
-    fileprivate var parser: MockParser!
 
     override func setUp() {
         super.setUp()
-        parser = MockParser()
-        subject = XcodeBuildController(parser: parser)
+        subject = XcodeBuildController()
     }
 
     override func tearDown() {
         super.tearDown()
-        parser = nil
         subject = nil
     }
 
@@ -45,25 +34,15 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
         command.append(contentsOf: target.xcodebuildArguments)
 
         system.succeedCommand(command, output: "output")
-        var parseCalls: [(String, Bool)] = []
-        parser.parseStub = { output, colored in
-            parseCalls.append((output, colored))
-            return "formated-output"
-        }
 
         // When
         let events = subject.build(target, scheme: scheme, clean: true, arguments: [])
             .toBlocking()
             .materialize()
 
-        // Then
-        XCTAssertEqual(parseCalls.count, 1)
-        XCTAssertEqual(parseCalls.first?.0, "output")
-        XCTAssertEqual(parseCalls.first?.1, shouldOutputBeColoured)
-
         switch events {
         case let .completed(output):
-            XCTAssertEqual(output, [.standardOutput(XcodeBuildOutput(raw: "output\n", formatted: "formated-output\n"))])
+            XCTAssertEqual(output, [.standardOutput(XcodeBuildOutput(raw: "output\n"))])
         case .failed:
             XCTFail("The command was not expected to fail")
         }
@@ -90,11 +69,6 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
         command.append(contentsOf: ["-destination", "id=device-id"])
 
         system.succeedCommand(command, output: "output")
-        var parseCalls: [(String, Bool)] = []
-        parser.parseStub = { output, colored in
-            parseCalls.append((output, colored))
-            return "formated-output"
-        }
 
         // When
         let events = subject.test(
@@ -107,14 +81,9 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
         .toBlocking()
         .materialize()
 
-        // Then
-        XCTAssertEqual(parseCalls.count, 1)
-        XCTAssertEqual(parseCalls.first?.0, "output")
-        XCTAssertEqual(parseCalls.first?.1, shouldOutputBeColoured)
-
         switch events {
         case let .completed(output):
-            XCTAssertEqual(output, [.standardOutput(XcodeBuildOutput(raw: "output\n", formatted: "formated-output\n"))])
+            XCTAssertEqual(output, [.standardOutput(XcodeBuildOutput(raw: "output\n"))])
         case .failed:
             XCTFail("The command was not expected to fail")
         }
@@ -140,11 +109,6 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
         command.append(contentsOf: target.xcodebuildArguments)
 
         system.succeedCommand(command, output: "output")
-        var parseCalls: [(String, Bool)] = []
-        parser.parseStub = { output, colored in
-            parseCalls.append((output, colored))
-            return "formated-output"
-        }
 
         // When
         let events = subject.test(
@@ -157,14 +121,9 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
         .toBlocking()
         .materialize()
 
-        // Then
-        XCTAssertEqual(parseCalls.count, 1)
-        XCTAssertEqual(parseCalls.first?.0, "output")
-        XCTAssertEqual(parseCalls.first?.1, shouldOutputBeColoured)
-
         switch events {
         case let .completed(output):
-            XCTAssertEqual(output, [.standardOutput(XcodeBuildOutput(raw: "output\n", formatted: "formated-output\n"))])
+            XCTAssertEqual(output, [.standardOutput(XcodeBuildOutput(raw: "output\n"))])
         case .failed:
             XCTFail("The command was not expected to fail")
         }

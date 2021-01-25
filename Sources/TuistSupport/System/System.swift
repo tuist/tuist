@@ -127,6 +127,19 @@ public protocol Systeming {
     ///   - environment: Environment that should be used when running the command.
     func observable(_ arguments: [String], verbose: Bool, environment: [String: String]) -> Observable<SystemEvent<Data>>
 
+    /// Runs a command in the shell and wraps the standard output and error in a observable.
+    /// - Parameters:
+    ///   - arguments: Command.
+    ///   - pipedToArguments: Second Command.
+    func observable(_ arguments: [String], pipedToArguments: [String]) -> Observable<SystemEvent<Data>>
+
+    /// Runs a command in the shell and wraps the standard output and error in a observable.
+    /// - Parameters:
+    ///   - arguments: Command.
+    ///   - environment: Environment that should be used when running the command.
+    ///   - secondArguments: Second Command.
+    func observable(_ arguments: [String], environment: [String: String], pipeTo secondArguments: [String]) -> Observable<SystemEvent<Data>>
+
     /// Runs a command in the shell asynchronously.
     /// When the process that triggers the command gets killed, the command continues its execution.
     ///
@@ -478,6 +491,68 @@ public final class System: Systeming {
         .subscribeOn(ConcurrentDispatchQueueScheduler(queue: DispatchQueue.global()))
     }
 
+    public func observable(_ arguments: [String], pipedToArguments: [String]) -> Observable<SystemEvent<Data>> {
+        observable(arguments, environment: env, pipeTo: pipedToArguments)
+    }
+
+    public func observable(_ arguments: [String],
+                           environment: [String: String],
+                           pipeTo secondArguments: [String]) -> Observable<SystemEvent<Data>>
+    {
+        Observable.create { (observer) -> Disposable in
+            let synchronizationQueue = DispatchQueue(label: "io.tuist.support.system")
+            var errorData: [UInt8] = []
+            var processOne = System.process(arguments, environment: environment)
+            var processTwo = System.process(secondArguments, environment: environment)
+            
+            System.pipe(&processOne, &processTwo)
+            
+            let pipes = System.pipeOutput(&processTwo)
+
+            pipes.stdOut.fileHandleForReading.readabilityHandler = { fileHandle in
+                synchronizationQueue.async {
+                    let data: Data = fileHandle.availableData
+                    observer.onNext(.standardOutput(data))
+                }
+            }
+
+            pipes.stdErr.fileHandleForReading.readabilityHandler = { fileHandle in
+                synchronizationQueue.async {
+                    let data: Data = fileHandle.availableData
+                    errorData.append(contentsOf: data)
+                    observer.onNext(.standardError(data))
+                }
+            }
+
+            do {
+                try processOne.run()
+                try processTwo.run()
+                processOne.waitUntilExit()
+
+                let exitStatus = ProcessResult.ExitStatus.terminated(code: processOne.terminationStatus)
+                let result = ProcessResult(arguments: arguments,
+                                           environment: environment,
+                                           exitStatus: exitStatus,
+                                           output: .success([]),
+                                           stderrOutput: .success(errorData))
+                try result.throwIfErrored()
+                synchronizationQueue.sync {
+                    observer.onCompleted()
+                }
+            } catch {
+                synchronizationQueue.sync {
+                    observer.onError(error)
+                }
+            }
+            return Disposables.create {
+                if processOne.isRunning {
+                    processOne.terminate()
+                }
+            }
+        }
+        .subscribeOn(ConcurrentDispatchQueueScheduler(queue: DispatchQueue.global()))
+    }
+
     /// Runs a command in the shell asynchronously.
     /// When the process that triggers the command gets killed, the command continues its execution.
     ///
@@ -528,6 +603,52 @@ public final class System: Systeming {
     /// - Throws: An error if which exits unsuccessfully.
     public func which(_ name: String) throws -> String {
         try capture("/usr/bin/env", "which", name).spm_chomp()
+    }
+    
+    // MARK: Helpers
+    
+    /// Converts an array of arguments into a `Foundation.Process`
+    /// - Parameters:
+    ///   - arguments: Arguments for the process, first item being the executable URL.
+    ///   - environment: Environment
+    /// - Returns: A `Foundation.Process`
+    static func process(_ arguments: [String],
+                        environment: [String: String]) -> Foundation.Process {
+        let executablePath = arguments.first!
+        let process = Foundation.Process()
+        process.executableURL = URL(fileURLWithPath: executablePath)
+        process.arguments = Array(arguments.dropFirst())
+        process.environment = environment
+        return process
+    }
+    
+    /// Pipe the output of one Process to another
+    /// - Parameters:
+    ///   - processOne: First Process
+    ///   - processTwo: Second Process
+    /// - Returns: The pipe
+    @discardableResult
+    static func pipe(_ processOne: inout Foundation.Process,
+                     _ processTwo: inout Foundation.Process) -> Pipe {
+        let processPipe = Pipe()
+        
+        processOne.standardOutput = processPipe
+        processTwo.standardInput = processPipe
+        return processPipe
+    }
+    
+    /// PIpe the output of a process into separate output and error pipes
+    /// - Parameter process: The process to pipe
+    /// - Returns: Tuple that contains the output and error Pipe.
+    static func pipeOutput(_ process: inout Foundation.Process) -> (stdOut: Pipe, stdErr: Pipe) {
+        let stdOut: Pipe = Pipe()
+        let stdErr: Pipe = Pipe()
+        
+        // Redirect output of Process Two
+        process.standardOutput = stdOut
+        process.standardError = stdErr
+        
+        return (stdOut, stdErr)
     }
 }
 
