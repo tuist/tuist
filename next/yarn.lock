@@ -10302,6 +10302,11 @@ lodash.filter@^4.4.0:
   resolved "https://registry.yarnpkg.com/lodash.filter/-/lodash.filter-4.6.0.tgz#668b1d4981603ae1cc5a6fa760143e480b4c4ace"
   integrity sha1-ZosdSYFgOuHMWm+nYBQ+SAtMSs4=
 
+lodash.flatmap@^4.5.0:
+  version "4.5.0"
+  resolved "https://registry.yarnpkg.com/lodash.flatmap/-/lodash.flatmap-4.5.0.tgz#ef8cbf408f6e48268663345305c6acc0b778702e"
+  integrity sha1-74y/QI9uSCaGYzRTBcaswLd4cC4=
+
 lodash.flatten@^4.2.0, lodash.flatten@^4.4.0:
   version "4.4.0"
   resolved "https://registry.yarnpkg.com/lodash.flatten/-/lodash.flatten-4.4.0.tgz#f31c22225a9632d2bbf8e4addbef240aa765a61f"
@@ -15559,10 +15564,10 @@ tweetnacl@^0.14.3, tweetnacl@~0.14.0:
   resolved "https://registry.yarnpkg.com/tweetnacl/-/tweetnacl-0.14.5.tgz#5ae68177f192d4456269d108afa93ff8743f4f64"
   integrity sha1-WuaBd/GS1EViadEIr6k/+HQ/T2Q=
 
-twin.macro@^2.0.8:
-  version "2.0.8"
-  resolved "https://registry.yarnpkg.com/twin.macro/-/twin.macro-2.0.8.tgz#ac27579051e8c87f3163ecddf04febf731ed45b5"
-  integrity sha512-5yY9QNv/R0amIH+JaPMqr35wbkJyICvrGAANZmaXZHNMMmRDfqH/XcefrvEw7eHKC3GremEWAh5rVcGXePd3gg==
+twin.macro@^2.1.1:
+  version "2.1.1"
+  resolved "https://registry.yarnpkg.com/twin.macro/-/twin.macro-2.1.1.tgz#387b64af2094b4f987455e258df0a0584ae9fee4"
+  integrity sha512-luotfMXdMsgdQpRq5yS6oSQEJqvLjM7/amAavWlux1z/yQ6Dh3Y5P56FQJpD+6dcIKRio7AcIE8jx4lrpzkLJQ==
   dependencies:
     "@babel/parser" "^7.12.5"
     babel-plugin-macros "^2.8.0"
@@ -15570,6 +15575,7 @@ twin.macro@^2.0.8:
     clean-set "^1.1.1"
     color "^3.1.3"
     dset "^2.0.1"
+    lodash.flatmap "^4.5.0"
     lodash.merge "^4.6.2"
     postcss "^8.1.8"
     string-similarity "^4.0.3"
