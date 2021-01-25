@@ -73,11 +73,6 @@ final class TargetTests: TuistUnitTestCase {
         XCTAssertEqual(targets.apps, [appClip])
     }
 
-    func test_targetLocatorBuildPhaseVariable() {
-        XCTAssertEqual(Target.test(productName: "My Framework").targetLocatorBuildPhaseVariable, "MY_FRAMEWORK_LOCATE_HASH")
-        XCTAssertEqual(Target.test(productName: "Feature").targetLocatorBuildPhaseVariable, "FEATURE_LOCATE_HASH")
-    }
-
     func test_sources() throws {
         // Given
         let temporaryPath = try self.temporaryPath()
