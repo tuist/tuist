@@ -80,8 +80,7 @@ public struct TuistCommand: ParsableCommand {
 
     private static func execute(_ command: ParsableCommand) throws {
         var command = command
-        let userOptedOutFromStats = Environment.shared.tuistVariables["TUIST_STATS_OPT_OUT"] != nil
-        guard userOptedOutFromStats else {
+        guard Environment.shared.isStatsEnabled else {
             try command.run()
             return
         }
