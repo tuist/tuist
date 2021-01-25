@@ -29,6 +29,9 @@ public protocol GraphTraversing {
 
     /// Returns the targets from the project that lives in the directory from which the graph has been loaded.
     func rootTargets() -> Set<ValueGraphTarget>
+    
+    /// Returns all the targets that are part of the graph.
+    func allTargets() -> Set<ValueGraphTarget>
 
     /// Returns the project from which the graph has been loaded.
     func rootProjects() -> Set<Project>
@@ -141,6 +144,12 @@ public protocol GraphTraversing {
     /// the groups.
     /// - Parameter path: Path to the directory where the project is defined.
     func allProjectDependencies(path: AbsolutePath) throws -> Set<GraphDependencyReference>
+    
+    /// Returns true if the given target depends on XCTest.
+    /// - Parameters:
+    ///   - path: Path to the project tha defines the target.
+    ///   - name: Target name.
+    func dependsOnXCTest(path: AbsolutePath, name: String) -> Bool
 }
 
 public extension GraphTraversing {
