@@ -219,10 +219,10 @@ final class WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
             return .group(groupReference)
 
         case let .project(path: projectPath):
-            guard let generatedProject = generatedProjects[projectPath] else {
+            guard generatedProjects[projectPath] != nil else {
                 throw WorkspaceDescriptorGeneratorError.projectNotFound(path: projectPath)
             }
-            let relativePath = generatedProject.path.relative(to: path)
+            let relativePath = projectPath.relative(to: path)
             return workspaceFileElement(path: relativePath)
         }
     }
