@@ -10,11 +10,11 @@ public class MockAsyncQueuer: AsyncQueuing {
     public var invokedDispatchParameters: (event: Any, Void)?
     public var invokedDispatchParametersList = [(event: Any, Void)]()
 
-    public func dispatch<T: AsyncQueueEvent>(event: T, completion: @escaping () -> Void) {
+    public func dispatch<T: AsyncQueueEvent>(event: T, didPersistEvent: @escaping () -> Void) {
         invokedDispatch = true
         invokedDispatchCount += 1
         invokedDispatchParameters = (event, ())
         invokedDispatchParametersList.append((event, ()))
-        completion()
+        didPersistEvent()
     }
 }

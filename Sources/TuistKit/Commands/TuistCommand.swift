@@ -90,9 +90,11 @@ public struct TuistCommand: ParsableCommand {
         try trackableCommand.run {
             commandCompletionGroup.leave()
         }
+        let maximumWaitingTime = DispatchTimeInterval.seconds(2)
         // Block Tuist to wait until the event is persisted, otherwise it could get lost
         // Note: Tuist is not waiting for the event to be successfully sent, but only persisted
-        _ = commandCompletionGroup.wait(timeout: DispatchTime.now() + DispatchTimeInterval.seconds(2))
+        // Set 2 seconds as a parachute timeout in case something goes wrong and the event is not persisted
+        _ = commandCompletionGroup.wait(timeout: DispatchTime.now() + maximumWaitingTime)
     }
 
     // MARK: - Helpers

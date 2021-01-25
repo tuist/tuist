@@ -7,8 +7,8 @@ import TuistSupport
 public protocol AsyncQueuing {
     /// It dispatches the given event.
     /// - Parameter event: Event to be dispatched.
-    /// - Parameter completion: It's called when the event has been persisted, to make sure it won't get lost
-    func dispatch<T: AsyncQueueEvent>(event: T, completion: @escaping () -> Void)
+    /// - Parameter didPersistEvent: It's called when the event has been persisted, to make sure it can't get lost
+    func dispatch<T: AsyncQueueEvent>(event: T, didPersistEvent: @escaping () -> Void)
 }
 
 public class AsyncQueue: AsyncQueuing {
@@ -47,7 +47,7 @@ public class AsyncQueue: AsyncQueuing {
         queue.resume()
     }
 
-    public func dispatch<T: AsyncQueueEvent>(event: T, completion: @escaping () -> Void) {
+    public func dispatch<T: AsyncQueueEvent>(event: T, didPersistEvent: @escaping () -> Void) {
         guard let dispatcher = dispatchers[event.dispatcherId] else {
             logger.error("Couldn't find dispatcher with id: \(event.dispatcherId)")
             return
@@ -61,7 +61,7 @@ public class AsyncQueue: AsyncQueuing {
             // Queue event to send
             let operation = self.liveDispatchOperation(event: event, dispatcher: dispatcher)
             self.queue.addOperation(operation)
-            completion() // The completion means that the event has been persisted sucessfully, not that it has been sent
+            didPersistEvent()
         }
     }
 

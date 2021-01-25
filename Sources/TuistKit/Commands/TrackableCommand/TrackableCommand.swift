@@ -31,7 +31,7 @@ public class TrackableCommand: TrackableParametersDelegate {
         self.asyncQueue = asyncQueue
     }
 
-    func run(completion: @escaping () -> Void) throws {
+    func run(didPersistEvent: @escaping () -> Void) throws {
         let timer = clock.startTimer()
         if let command = command as? HasTrackableParameters {
             type(of: command).analyticsDelegate = self
@@ -48,7 +48,7 @@ public class TrackableCommand: TrackableParametersDelegate {
             durationInMs: durationInMs
         )
         let commandEvent = commandEventFactory.make(from: info)
-        asyncQueue.dispatch(event: commandEvent, completion: completion)
+        asyncQueue.dispatch(event: commandEvent, didPersistEvent: didPersistEvent)
     }
 
     func willRun(withParameters parameters: [String: String]) {

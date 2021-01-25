@@ -35,30 +35,37 @@ final class TrackableCommandTests: TuistUnitTestCase {
         // Given
         makeSubject(flag: true)
         let expectedParams = ["flag": "true"]
+        var didPersisteEvent = false
 
         // When
-        try subject.run(completion: {})
+        try subject.run(didPersistEvent: {
+            didPersisteEvent = true
+        })
 
         // Then
         XCTAssertEqual(mockAsyncQueue.invokedDispatchCount, 1)
         let event = try XCTUnwrap(mockAsyncQueue.invokedDispatchParameters?.event as? CommandEvent)
         XCTAssertEqual(event.name, "test")
         XCTAssertEqual(event.params, expectedParams)
+        XCTAssertTrue(didPersisteEvent)
     }
 
     func test_whenParamsHaveFlagFalse_dispatchesEventWithExpectedParameters() throws {
         // Given
         makeSubject(flag: false)
         let expectedParams = ["flag": "false"]
-
+        var didPersisteEvent = false
         // When
-        try subject.run(completion: {})
+        try subject.run(didPersistEvent: {
+            didPersisteEvent = true
+        })
 
         // Then
         XCTAssertEqual(mockAsyncQueue.invokedDispatchCount, 1)
         let event = try XCTUnwrap(mockAsyncQueue.invokedDispatchParameters?.event as? CommandEvent)
         XCTAssertEqual(event.name, "test")
         XCTAssertEqual(event.params, expectedParams)
+        XCTAssertTrue(didPersisteEvent)
     }
 }
 

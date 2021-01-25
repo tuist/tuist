@@ -110,7 +110,7 @@ public class Environment: Environmenting {
         let userOptedOut = Constants.trueValues.contains(variable)
         return !userOptedOut
     }
-    
+
     /// Returns the directory where all the versions are.
     public var versionsDirectory: AbsolutePath {
         if let envVariable = ProcessInfo.processInfo.environment[Constants.EnvironmentVariables.versionsDirectory] {
