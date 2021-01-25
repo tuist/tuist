@@ -154,7 +154,7 @@ GEM
     middleware (0.1.0)
     mini_mime (1.0.2)
     minitest (5.14.3)
-    minitest-reporters (1.4.2)
+    minitest-reporters (1.4.3)
       ansi
       builder
       minitest (>= 5.0)
