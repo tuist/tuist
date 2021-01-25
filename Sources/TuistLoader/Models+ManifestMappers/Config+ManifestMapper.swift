@@ -21,11 +21,11 @@ extension TuistGraph.Config {
             cloud = try TuistGraph.Cloud.from(manifest: manifestCloud)
         }
 
-        var cache: TuistCore.Cache?
+        var cache: TuistGraph.Cache?
         if let manifestCache = manifest.cache {
-            cache = TuistCore.Cache.from(manifest: manifestCache)
+            cache = TuistGraph.Cache.from(manifest: manifestCache)
         }
-        return TuistCore.Config(compatibleXcodeVersions: compatibleXcodeVersions,
+        return TuistGraph.Config(compatibleXcodeVersions: compatibleXcodeVersions,
                                 cloud: cloud,
                                 cache: cache ?? .default,
                                 plugins: plugins,

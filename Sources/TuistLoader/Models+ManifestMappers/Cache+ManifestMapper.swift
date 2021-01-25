@@ -1,17 +1,17 @@
 import Foundation
 import ProjectDescription
 import TSCBasic
-import TuistCore
+import TuistGraph
 import TuistSupport
 
-extension TuistCore.Cache {
-    static func from(manifest: ProjectDescription.Cache) -> TuistCore.Cache {
-        TuistCore.Cache(flavors: manifest.flavors.map(TuistCore.Cache.Flavor.from(manifest:)))
+extension TuistGraph.Cache {
+    static func from(manifest: ProjectDescription.Cache) -> TuistGraph.Cache {
+        TuistGraph.Cache(flavors: manifest.flavors.map(TuistGraph.Cache.Flavor.from(manifest:)))
     }
 }
 
-extension TuistCore.Cache.Flavor {
-    static func from(manifest: ProjectDescription.Cache.Flavor) -> TuistCore.Cache.Flavor {
-        TuistCore.Cache.Flavor(name: manifest.name, configuration: manifest.configuration)
+extension TuistGraph.Cache.Flavor {
+    static func from(manifest: ProjectDescription.Cache.Flavor) -> TuistGraph.Cache.Flavor {
+        TuistGraph.Cache.Flavor(name: manifest.name, configuration: manifest.configuration)
     }
 }

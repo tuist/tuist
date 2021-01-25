@@ -1,6 +1,6 @@
 import Foundation
 import TSCBasic
-@testable import TuistCore
+@testable import TuistGraph
 
 public extension Cache {
     static func test(flavors: [Cache.Flavor] = [Cache.Flavor.test()]) -> Cache {

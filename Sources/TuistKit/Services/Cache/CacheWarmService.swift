@@ -2,6 +2,7 @@ import Foundation
 import TSCBasic
 import TuistCache
 import TuistCore
+import TuistGraph
 import TuistLoader
 import TuistSupport
 
@@ -43,7 +44,7 @@ final class CacheWarmService {
         }
     }
 
-    private func cacheFlavor(named flavorName: String?, from config: Config) throws -> TuistCore.Cache.Flavor {
+    private func cacheFlavor(named flavorName: String?, from config: Config) throws -> TuistGraph.Cache.Flavor {
         let flavors = config.cache.flavors
         switch flavorName {
         case .none:
