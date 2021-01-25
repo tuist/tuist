@@ -502,42 +502,21 @@ public final class System: Systeming {
         Observable.create { (observer) -> Disposable in
             let synchronizationQueue = DispatchQueue(label: "io.tuist.support.system")
             var errorData: [UInt8] = []
-            let stdOutPipe: Pipe = Pipe()
-            let stdErrPipe: Pipe = Pipe()
-            let processPipe: Pipe = Pipe()
-            let processOne: Foundation.Process = {
-                let process = Foundation.Process()
-                let processOneExecutable = arguments.first!
-                process.executableURL = URL(fileURLWithPath: processOneExecutable)
-                process.arguments = Array(arguments.dropFirst())
-                process.environment = environment
-                return process
-            }()
-            let processTwo: Foundation.Process = {
-                let process = Foundation.Process()
-                let processTwoExecutable = secondArguments.first!
-                process.executableURL = URL(fileURLWithPath: processTwoExecutable)
-                process.arguments = Array(secondArguments.dropFirst())
-                process.environment = environment
-                return process
-            }()
+            var processOne = System.process(arguments, environment: environment)
+            var processTwo = System.process(secondArguments, environment: environment)
+            
+            System.pipe(&processOne, &processTwo)
+            
+            let pipes = System.pipeOutput(&processTwo)
 
-            // Redirect output of Process One to Process Two
-            processOne.standardOutput = processPipe
-            processTwo.standardInput = processPipe
-
-            // Redirect output of Process Two
-            processTwo.standardOutput = stdOutPipe
-            processTwo.standardError = stdErrPipe
-
-            stdOutPipe.fileHandleForReading.readabilityHandler = { fileHandle in
+            pipes.stdOut.fileHandleForReading.readabilityHandler = { fileHandle in
                 synchronizationQueue.async {
                     let data: Data = fileHandle.availableData
                     observer.onNext(.standardOutput(data))
                 }
             }
 
-            stdErrPipe.fileHandleForReading.readabilityHandler = { fileHandle in
+            pipes.stdErr.fileHandleForReading.readabilityHandler = { fileHandle in
                 synchronizationQueue.async {
                     let data: Data = fileHandle.availableData
                     errorData.append(contentsOf: data)
@@ -624,6 +603,52 @@ public final class System: Systeming {
     /// - Throws: An error if which exits unsuccessfully.
     public func which(_ name: String) throws -> String {
         try capture("/usr/bin/env", "which", name).spm_chomp()
+    }
+    
+    // MARK: Helpers
+    
+    /// Converts an array of arguments into a `Foundation.Process`
+    /// - Parameters:
+    ///   - arguments: Arguments for the process, first item being the executable URL.
+    ///   - environment: Environment
+    /// - Returns: A `Foundation.Process`
+    static func process(_ arguments: [String],
+                        environment: [String: String]) -> Foundation.Process {
+        let executablePath = arguments.first!
+        let process = Foundation.Process()
+        process.executableURL = URL(fileURLWithPath: executablePath)
+        process.arguments = Array(arguments.dropFirst())
+        process.environment = environment
+        return process
+    }
+    
+    /// Pipe the output of one Process to another
+    /// - Parameters:
+    ///   - processOne: First Process
+    ///   - processTwo: Second Process
+    /// - Returns: The pipe
+    @discardableResult
+    static func pipe(_ processOne: inout Foundation.Process,
+                     _ processTwo: inout Foundation.Process) -> Pipe {
+        let processPipe = Pipe()
+        
+        processOne.standardOutput = processPipe
+        processTwo.standardInput = processPipe
+        return processPipe
+    }
+    
+    /// PIpe the output of a process into separate output and error pipes
+    /// - Parameter process: The process to pipe
+    /// - Returns: Tuple that contains the output and error Pipe.
+    static func pipeOutput(_ process: inout Foundation.Process) -> (stdOut: Pipe, stdErr: Pipe) {
+        let stdOut: Pipe = Pipe()
+        let stdErr: Pipe = Pipe()
+        
+        // Redirect output of Process Two
+        process.standardOutput = stdOut
+        process.standardError = stdErr
+        
+        return (stdOut, stdErr)
     }
 }
 
