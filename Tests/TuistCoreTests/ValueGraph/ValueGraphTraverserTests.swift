@@ -24,20 +24,10 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
                                          ])
         let subject = ValueGraphTraverser(graph: valueGraph)
 
-        // Given: Value Graph
-        let frameworkNode = TargetNode.test(project: project, target: framework)
-        let appNode = TargetNode.test(project: project, target: app)
-        let graph = Graph.test(entryPath: project.path,
-                               entryNodes: [appNode, frameworkNode],
-                               targets: [project.path: [appNode, frameworkNode]])
-        let graphTraverser = GraphTraverser(graph: graph)
-
         // When
         let got = subject.target(path: "/", name: "App")
-        let gotGraph = graphTraverser.target(path: "/", name: "App")
 
         // Then
-        XCTAssertEqual(got, gotGraph)
         XCTAssertEqual(got.map(\.target), app)
     }
 
@@ -56,20 +46,10 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
                                          ])
         let subject = ValueGraphTraverser(graph: valueGraph)
 
-        // When: Graph
-        let frameworkNode = TargetNode.test(project: project, target: framework)
-        let appNode = TargetNode.test(project: project, target: app)
-        let graph = Graph.test(entryPath: project.path,
-                               entryNodes: [appNode, frameworkNode],
-                               targets: [project.path: [appNode, frameworkNode]])
-        let graphTraverser = GraphTraverser(graph: graph)
-
         // When
-        let gotGraph = graphTraverser.targets(at: path).sorted()
         let got = subject.targets(at: path).sorted()
 
         // Then
-        XCTAssertEqual(got, gotGraph)
         XCTAssertEqual(got.map(\.target), [app, framework])
     }
 
@@ -100,30 +80,16 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
                                          dependencies: dependencies)
         let subject = ValueGraphTraverser(graph: valueGraph)
 
-        // Given: Graph
-        let frameworkNode = TargetNode.test(project: project, target: framework)
-        let dependantFrameworkNode = TargetNode.test(project: project, target: dependantFramework, dependencies: [frameworkNode])
-        let unitTestsNode = TargetNode.test(project: project, target: unitTests, dependencies: [frameworkNode])
-        let uiTestsNode = TargetNode.test(project: project, target: uiTests, dependencies: [frameworkNode])
-
-        let graph = Graph.test(entryPath: project.path,
-                               entryNodes: [frameworkNode, dependantFrameworkNode, unitTestsNode, uiTestsNode],
-                               targets: [project.path: [frameworkNode, dependantFrameworkNode, unitTestsNode, uiTestsNode]])
-        let graphTraverser = GraphTraverser(graph: graph)
-
         // When
-        let gotGraph = graphTraverser.testTargetsDependingOn(path: path, name: framework.name).sorted()
         let got = subject.testTargetsDependingOn(path: path, name: framework.name).sorted()
 
         // Then
-        XCTAssertEqual(gotGraph, got)
         XCTAssertEqual(got.map(\.target), [uiTests, unitTests])
     }
 
     func test_directStaticDependencies() {
         // Given
         let path = AbsolutePath.root
-        let project = Project.test(path: path)
         let framework = Target.test(name: "Framework", product: .framework)
         let staticLibrary = Target.test(name: "StaticLibrary", product: .staticLibrary)
         let targets: [AbsolutePath: [String: Target]] = [
@@ -140,21 +106,10 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
                                          dependencies: dependencies)
         let subject = ValueGraphTraverser(graph: valueGraph)
 
-        // Given: Graph
-        let staticLibraryNode = TargetNode.test(project: project, target: staticLibrary)
-        let frameworkNode = TargetNode.test(project: project, target: framework, dependencies: [staticLibraryNode])
-
-        let graph = Graph.test(entryPath: project.path,
-                               entryNodes: [frameworkNode, staticLibraryNode],
-                               targets: [project.path: [frameworkNode, staticLibraryNode]])
-        let graphTraverser = GraphTraverser(graph: graph)
-
         // When
         let got = subject.directStaticDependencies(path: path, name: framework.name).sorted()
-        let gotGraph = graphTraverser.directStaticDependencies(path: path, name: framework.name).sorted()
 
         // Then
-        XCTAssertEqual(gotGraph, got)
         XCTAssertEqual(got, [.product(target: staticLibrary.name, productName: staticLibrary.productNameWithExtension)])
     }
 
@@ -181,22 +136,10 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
                                          dependencies: dependencies)
         let subject = ValueGraphTraverser(graph: valueGraph)
 
-        // Given: Graph
-        let cNode = TargetNode.test(project: project, target: c)
-        let bNode = TargetNode.test(project: project, target: b, dependencies: [cNode])
-        let aNode = TargetNode.test(project: project, target: a, dependencies: [bNode])
-
-        let graph = Graph.test(entryPath: project.path,
-                               entryNodes: [aNode, bNode, cNode],
-                               targets: [project.path: [aNode, bNode, cNode]])
-        let graphTraverser = GraphTraverser(graph: graph)
-
         // When
         let got = subject.directTargetDependencies(path: project.path, name: a.name).sorted()
-        let gotGraph = graphTraverser.directTargetDependencies(path: project.path, name: a.name).sorted()
 
         // Then
-        XCTAssertEqual(gotGraph, got)
         XCTAssertEqual(got.map(\.target), [b])
     }
 
@@ -232,25 +175,10 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
                                          dependencies: dependencies)
         let subject = ValueGraphTraverser(graph: valueGraph)
 
-        // Given: Graph
-        let b1Node = TargetNode.test(project: projectB, target: b1)
-        let a2Node = TargetNode.test(project: projectA, target: a2)
-        let a1Node = TargetNode.test(project: projectA, target: a1, dependencies: [a2Node, b1Node])
-
-        let graph = Graph.test(entryPath: projectA.path,
-                               entryNodes: [a1Node, a2Node, b1Node],
-                               targets: [
-                                   projectA.path: [a1Node, a2Node],
-                                   projectB.path: [b1Node],
-                               ])
-        let graphTraverser = GraphTraverser(graph: graph)
-
         // When
         let got = subject.directTargetDependencies(path: projectA.path, name: a1.name).sorted()
-        let gotGraph = graphTraverser.directTargetDependencies(path: projectA.path, name: a1.name).sorted()
 
         // Then
-        XCTAssertEqual(gotGraph, got)
         XCTAssertEqual(got.map(\.target), [a2])
     }
 
@@ -277,22 +205,10 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
                                          dependencies: dependencies)
         let subject = ValueGraphTraverser(graph: valueGraph)
 
-        // Given: Graph
-        let bundleNode = TargetNode.test(project: project, target: bundle)
-        let watchAppNode = TargetNode.test(project: project, target: watchApp, dependencies: [bundleNode])
-        let appNode = TargetNode.test(project: project, target: app, dependencies: [watchAppNode])
-
-        let graph = Graph.test(entryPath: project.path,
-                               entryNodes: [appNode, bundleNode, watchAppNode],
-                               targets: [project.path: [appNode, bundleNode, watchAppNode]])
-        let graphTraverser = GraphTraverser(graph: graph)
-
         // When
         let got = subject.resourceBundleDependencies(path: project.path, name: app.name).sorted()
-        let gotGraph = graphTraverser.resourceBundleDependencies(path: project.path, name: app.name).sorted()
 
         // Then
-        XCTAssertEqual(gotGraph, got)
         XCTAssertEqual(got, [])
     }
 
@@ -319,21 +235,10 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
                                          dependencies: dependencies)
         let subject = ValueGraphTraverser(graph: valueGraph)
 
-        // Given: Graph
-        let bundleNode = TargetNode.test(project: project, target: bundle)
-        let staticLibraryNode = TargetNode.test(project: project, target: staticLibrary, dependencies: [bundleNode])
-        let appNode = TargetNode.test(project: project, target: app, dependencies: [staticLibraryNode])
-        let graph = Graph.test(entryPath: project.path,
-                               entryNodes: [appNode, bundleNode, staticLibraryNode],
-                               targets: [project.path: [appNode, bundleNode, staticLibraryNode]])
-        let graphTraverser = GraphTraverser(graph: graph)
-
         // When
         let got = subject.resourceBundleDependencies(path: project.path, name: app.name).sorted()
-        let gotGraph = graphTraverser.resourceBundleDependencies(path: project.path, name: app.name).sorted()
 
         // Then
-        XCTAssertEqual(gotGraph, got)
         XCTAssertEqual(got.map(\.target), [bundle])
     }
 
@@ -357,20 +262,10 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
                                          dependencies: dependencies)
         let subject = ValueGraphTraverser(graph: valueGraph)
 
-        // Given: Graph
-        let bundleNode = TargetNode.test(project: project, target: bundle)
-        let staticLibraryNode = TargetNode.test(project: project, target: staticLibrary, dependencies: [bundleNode])
-        let graph = Graph.test(entryPath: project.path,
-                               entryNodes: [bundleNode, staticLibraryNode],
-                               targets: [project.path: [bundleNode, staticLibraryNode]])
-        let graphTraverser = GraphTraverser(graph: graph)
-
         // When
         let got = subject.resourceBundleDependencies(path: project.path, name: staticLibrary.name).sorted()
-        let gotGraph = graphTraverser.resourceBundleDependencies(path: project.path, name: staticLibrary.name).sorted()
 
         // Then
-        XCTAssertEqual(gotGraph, got)
         XCTAssertEqual(got, [])
     }
 
@@ -393,20 +288,10 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
                                          dependencies: dependencies)
         let subject = ValueGraphTraverser(graph: valueGraph)
 
-        // Given: Graph
-        let graph = Graph.create(project: project,
-                                 dependencies: [
-                                     (target: bundle, dependencies: []),
-                                     (target: app, dependencies: [bundle]),
-                                 ])
-        let graphTraverser = GraphTraverser(graph: graph)
-
         // When
-        let gotGraph = graphTraverser.resourceBundleDependencies(path: project.path, name: app.name).sorted()
         let got = subject.resourceBundleDependencies(path: project.path, name: app.name).sorted()
 
         // Then
-        XCTAssertEqual(got, gotGraph)
         XCTAssertEqual(got.map(\.target.name), [
             "Bundle1",
         ])
@@ -434,20 +319,10 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
                                          dependencies: dependencies)
         let subject = ValueGraphTraverser(graph: valueGraph)
 
-        // Given: Graph
-        let graph = Graph.create(projects: [projectA, projectB],
-                                 dependencies: [
-                                     (project: projectA, target: bundle, dependencies: []),
-                                     (project: projectB, target: app, dependencies: [bundle]),
-                                 ])
-        let graphTraverser = GraphTraverser(graph: graph)
-
         // When
-        let graphGot = graphTraverser.resourceBundleDependencies(path: projectB.path, name: app.name).sorted()
         let got = subject.resourceBundleDependencies(path: projectB.path, name: app.name).sorted()
 
         // Then
-        XCTAssertEqual(graphGot, got)
         XCTAssertEqual(got.map(\.target.name), [
             "Bundle1",
         ])
@@ -478,21 +353,10 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
                                          dependencies: dependencies)
         let subject = ValueGraphTraverser(graph: valueGraph)
 
-        // Given: Graph
-        let graph = Graph.create(projects: [projectA, projectB],
-                                 dependencies: [
-                                     (project: projectB, target: app, dependencies: [staticFramework]),
-                                     (project: projectA, target: staticFramework, dependencies: [bundle]),
-                                     (project: projectA, target: bundle, dependencies: []),
-                                 ])
-        let graphTraverser = GraphTraverser(graph: graph)
-
         // When
         let got = subject.resourceBundleDependencies(path: projectB.path, name: app.name).sorted()
-        let gotGraph = graphTraverser.resourceBundleDependencies(path: projectB.path, name: app.name).sorted()
 
         // Then
-        XCTAssertEqual(got, gotGraph)
         XCTAssertEqual(got.map(\.target.name), [
             "ResourceBundle",
         ])
@@ -530,23 +394,10 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
                                          dependencies: dependencies)
         let subject = ValueGraphTraverser(graph: valueGraph)
 
-        // Given: Graph
-        let graph = Graph.create(projects: [projectA, projectB],
-                                 dependencies: [
-                                     (project: projectB, target: app, dependencies: [staticFramework1]),
-                                     (project: projectA, target: staticFramework1, dependencies: [staticFramework2, bundle1]),
-                                     (project: projectA, target: staticFramework2, dependencies: [bundle2]),
-                                     (project: projectA, target: bundle1, dependencies: []),
-                                     (project: projectA, target: bundle2, dependencies: []),
-                                 ])
-        let graphTraverser = GraphTraverser(graph: graph)
-
         // When
         let got = subject.resourceBundleDependencies(path: projectB.path, name: app.name).sorted()
-        let gotGraph = graphTraverser.resourceBundleDependencies(path: projectB.path, name: app.name).sorted()
 
         // Then
-        XCTAssertEqual(got, gotGraph)
         XCTAssertEqual(got.map(\.target.name), [
             "ResourceBundle1",
             "ResourceBundle2",
@@ -587,34 +438,13 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
                                          dependencies: dependencies)
         let subject = ValueGraphTraverser(graph: valueGraph)
 
-        // Given: Graph
-        let graph = Graph.create(projects: [projectA, projectB],
-                                 dependencies: [
-                                     (project: projectA, target: bundle, dependencies: []),
-                                     (project: projectA, target: staticFramework1, dependencies: [staticFramework2]),
-                                     (project: projectA, target: staticFramework2, dependencies: [bundle]),
-                                     (project: projectA, target: dynamicFramework, dependencies: [staticFramework2]),
-                                     (project: projectB, target: app, dependencies: [dynamicFramework]),
-                                 ])
-        let graphTraverser = GraphTraverser(graph: graph)
-
         // When
         let appResults = subject.resourceBundleDependencies(path: projectB.path, name: app.name).sorted()
         let dynamicFrameworkResults = subject.resourceBundleDependencies(path: projectA.path, name: dynamicFramework.name).sorted()
         let staticFramework1Results = subject.resourceBundleDependencies(path: projectA.path, name: staticFramework1.name).sorted()
         let staticFramework2Results = subject.resourceBundleDependencies(path: projectA.path, name: staticFramework2.name).sorted()
 
-        let appResultsGraph = graphTraverser.resourceBundleDependencies(path: projectB.path, name: app.name).sorted()
-        let dynamicFrameworkResultsGraph = graphTraverser.resourceBundleDependencies(path: projectA.path, name: dynamicFramework.name).sorted()
-        let staticFramework1ResultsGraph = graphTraverser.resourceBundleDependencies(path: projectA.path, name: staticFramework1.name).sorted()
-        let staticFramework2ResultsGraph = graphTraverser.resourceBundleDependencies(path: projectA.path, name: staticFramework2.name).sorted()
-
         // Then
-        XCTAssertEqual(appResults, appResultsGraph)
-        XCTAssertEqual(dynamicFrameworkResults, dynamicFrameworkResultsGraph)
-        XCTAssertEqual(staticFramework1Results, staticFramework1ResultsGraph)
-        XCTAssertEqual(staticFramework2Results, staticFramework2ResultsGraph)
-
         XCTAssertEqual(appResults.map(\.target.name), [])
         XCTAssertEqual(dynamicFrameworkResults.map(\.target.name), [
             "ResourceBundle",
@@ -635,19 +465,10 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
                                          dependencies: [.target(name: app.name, path: project.path): Set()])
         let subject = ValueGraphTraverser(graph: valueGraph)
 
-        // Given: Graph
-        let graph = Graph.create(projects: [project],
-                                 dependencies: [
-                                     (project: project, target: app, dependencies: []),
-                                 ])
-        let graphTraverser = GraphTraverser(graph: graph)
-
         // When
         let got = subject.target(path: project.path, name: app.name)
-        let gotGraph = graphTraverser.target(path: project.path, name: app.name)
 
         // Then
-        XCTAssertEqual(got, gotGraph)
         XCTAssertEqual(got?.target, app)
     }
 
@@ -759,17 +580,11 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         let targetNode = TargetNode(project: project,
                                     target: target,
                                     dependencies: [dependencyNode])
-        let graph = Graph.test(projects: [project], targets: [
-            project.path: [targetNode, dependencyNode],
-        ])
-        let graphTraverser = GraphTraverser(graph: graph)
 
         // When
         let got = subject.appExtensionDependencies(path: project.path, name: target.name).sorted()
-        let gotGraph = graphTraverser.appExtensionDependencies(path: project.path, name: target.name).sorted()
 
         // Then
-        XCTAssertEqual(got, gotGraph)
         XCTAssertEqual(got.first?.target.name, "AppExtension")
     }
 
@@ -791,24 +606,10 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
                                          dependencies: dependencies)
         let subject = ValueGraphTraverser(graph: valueGraph)
 
-        // Given: Graph
-        let dependencyNode = TargetNode(project: project,
-                                        target: dependency,
-                                        dependencies: [])
-        let targetNode = TargetNode(project: project,
-                                    target: target,
-                                    dependencies: [dependencyNode])
-        let graph = Graph.test(projects: [project], targets: [
-            project.path: [targetNode, dependencyNode],
-        ])
-        let graphTraverser = GraphTraverser(graph: graph)
-
         // Given
         let got = subject.appExtensionDependencies(path: project.path, name: target.name).sorted()
-        let gotGraph = graphTraverser.appExtensionDependencies(path: project.path, name: target.name).sorted()
 
         // Then
-        XCTAssertEqual(got, gotGraph)
         XCTAssertEqual(got.first?.target.name, "StickerPackExtension")
     }
 
@@ -830,20 +631,10 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
                                          dependencies: dependencies)
         let subject = ValueGraphTraverser(graph: valueGraph)
 
-        // Given: Graph
-        let graph = Graph.create(project: project,
-                                 dependencies: [
-                                     (target: app, dependencies: [messageExtension]),
-                                     (target: messageExtension, dependencies: []),
-                                 ])
-        let graphTraverser = GraphTraverser(graph: graph)
-
         // When
         let got = subject.appExtensionDependencies(path: project.path, name: app.name).sorted()
-        let gotGraph = graphTraverser.appExtensionDependencies(path: project.path, name: app.name).sorted()
 
         // Then
-        XCTAssertEqual(got, gotGraph)
         XCTAssertEqual(got.map(\.target.name), [
             "MessageExtension",
         ])
@@ -855,29 +646,21 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         let app = Target.test(name: "app", product: .app)
         let appClip = Target.test(name: "clip", product: .appClip)
 
-        // Given: Value graph
+        // Given: Graph
         let appClipNode = TargetNode.test(project: project,
                                           target: appClip)
         let appNode = TargetNode.test(project: project,
                                       target: app,
                                       dependencies: [appClipNode])
-        let graph = Graph.test(entryNodes: [appNode, appClipNode],
-                               projects: [project],
-                               targets: [project.path: [appNode, appClipNode]])
-        let graphTraverser = GraphTraverser(graph: graph)
-
-        // Given: Graph
         let valueGraph = ValueGraph.test(projects: [project.path: project],
                                          targets: [project.path: [app.name: app, appClip.name: appClip]],
                                          dependencies: [.target(name: app.name, path: project.path): Set(arrayLiteral: .target(name: appClip.name, path: project.path))])
         let subject = ValueGraphTraverser(graph: valueGraph)
 
         // When
-        let graphGot = graphTraverser.appClipDependencies(path: project.path, name: app.name)
         let got = subject.appClipDependencies(path: project.path, name: app.name)
 
         // Then
-        XCTAssertEqual(graphGot, got)
         XCTAssertEqual(got, .init(path: project.path, target: appClip, project: project))
     }
 
@@ -886,18 +669,6 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         let target = Target.test(name: "Main", product: .framework)
         let dependency = Target.test(name: "Dependency", product: .framework)
         let project = Project.test(targets: [target])
-
-        // Given: Graph
-        let dependencyNode = TargetNode(project: project,
-                                        target: dependency,
-                                        dependencies: [])
-        let targetNode = TargetNode(project: project,
-                                    target: target,
-                                    dependencies: [dependencyNode])
-        let graph = Graph.test(projects: [project], targets: [
-            project.path: [targetNode, dependencyNode],
-        ])
-        let graphTraverser = GraphTraverser(graph: graph)
 
         // Given: Value Graph
         let valueGraph = ValueGraph.test(projects: [project.path: project],
@@ -909,10 +680,8 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
 
         // When
         let got = subject.embeddableFrameworks(path: project.path, name: target.name).sorted()
-        let gotGraph = graphTraverser.embeddableFrameworks(path: project.path, name: target.name).sorted()
 
         // Then
-        XCTAssertEqual(got, gotGraph)
         XCTAssertNil(got.first)
     }
 
@@ -926,11 +695,6 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         let dependencyNode = TargetNode(project: project,
                                         target: dependency,
                                         dependencies: [])
-        let targetNode = TargetNode(project: project,
-                                    target: target,
-                                    dependencies: [dependencyNode])
-        let graph = Graph.test(projects: [project],
-                               targets: [project.path: [targetNode, dependencyNode]])
 
         // Given: Value Graph
         let valueGraph = ValueGraph.test(projects: [project.path: project],
@@ -942,10 +706,8 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
 
         // When
         let got = subject.embeddableFrameworks(path: project.path, name: target.name).sorted()
-        let gotGraph = graph.embeddableFrameworks(path: project.path, name: target.name).sorted()
 
         // Then
-        XCTAssertEqual(gotGraph, got)
         XCTAssertEqual(got.first, GraphDependencyReference.product(target: "Dependency", productName: "Dependency.framework"))
     }
 
@@ -960,15 +722,6 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
                                                architectures: [.arm64],
                                                dependencies: [])
         let project = Project.test(targets: [target])
-
-        // Given: Graph
-        let targetNode = TargetNode(project: project,
-                                    target: target,
-                                    dependencies: [frameworkNode])
-        let graph = Graph.test(projects: [project],
-                               precompiled: [frameworkNode],
-                               targets: [project.path: [targetNode]])
-        let graphTraverser = GraphTraverser(graph: graph)
 
         // Given: Value Graph
         let frameworkDependency = ValueGraphDependency.testFramework(path: frameworkPath,
@@ -986,11 +739,9 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         let subject = ValueGraphTraverser(graph: valueGraph)
 
         // When
-        let gotGraph = graphTraverser.embeddableFrameworks(path: project.path, name: target.name).sorted()
         let got = subject.embeddableFrameworks(path: project.path, name: target.name).sorted()
 
         // Then
-        XCTAssertEqual(gotGraph, got)
         XCTAssertEqual(got.first, GraphDependencyReference(precompiledNode: frameworkNode))
     }
 
@@ -1009,17 +760,6 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
                                          primaryBinaryPath: "/xcframeworks/c.xcframework/c",
                                          linking: .dynamic,
                                          dependencies: [.xcframework(dNode)])
-        let appNode = TargetNode.test(target: app, dependencies: [cNode])
-
-        let cache = GraphLoaderCache()
-        cache.add(targetNode: appNode)
-        cache.add(precompiledNode: dNode)
-        cache.add(precompiledNode: cNode)
-        let graph = Graph.test(entryNodes: [appNode],
-                               projects: [project],
-                               precompiled: [cNode, dNode],
-                               targets: [project.path: [appNode]])
-        let graphTraverser = GraphTraverser(graph: graph)
 
         // Given: Value Graph
         let cDependency = ValueGraphDependency.xcframework(path: "/xcframeworks/c.xcframework",
@@ -1041,11 +781,9 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         let subject = ValueGraphTraverser(graph: valueGraph)
 
         // When
-        let gotGraph = graphTraverser.embeddableFrameworks(path: project.path, name: app.name).sorted()
         let got = subject.embeddableFrameworks(path: project.path, name: app.name).sorted()
 
         // Then
-        XCTAssertEqual(got, gotGraph)
         XCTAssertEqual(got, [
             GraphDependencyReference(precompiledNode: cNode),
             GraphDependencyReference(precompiledNode: dNode),
@@ -1058,29 +796,13 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         let dependency = Target.test(name: "Dependency", product: .framework)
         let project = Project.test(targets: [target])
 
-        // Given: Graph
+        // Given: Value Graph
         let frameworkNode = FrameworkNode.test(path: "/framework.framework",
                                                dsymPath: nil,
                                                bcsymbolmapPaths: [],
                                                linking: .dynamic,
                                                architectures: [.arm64],
                                                dependencies: [])
-        let dependencyNode = TargetNode(
-            project: project,
-            target: dependency,
-            dependencies: [frameworkNode]
-        )
-        let targetNode = TargetNode(
-            project: project,
-            target: target,
-            dependencies: [dependencyNode]
-        )
-        let graph = Graph.test(projects: [project],
-                               precompiled: [frameworkNode],
-                               targets: [project.path: [targetNode, dependencyNode]])
-        let graphTraverser = GraphTraverser(graph: graph)
-
-        // Given: Value Graph
         let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
             .target(name: target.name, path: project.path): Set(arrayLiteral: .target(name: dependency.name, path: project.path)),
             .target(name: dependency.name, path: project.path): Set(arrayLiteral: .testFramework(path: "/framework.framework",
@@ -1097,11 +819,9 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         let subject = ValueGraphTraverser(graph: valueGraph)
 
         // When
-        let gotGraph = graphTraverser.embeddableFrameworks(path: project.path, name: target.name).sorted()
         let got = subject.embeddableFrameworks(path: project.path, name: target.name).sorted()
 
         // Then
-        XCTAssertEqual(got, gotGraph)
         XCTAssertEqual(got, [
             GraphDependencyReference.product(target: "Dependency", productName: "Dependency.framework"),
             GraphDependencyReference(precompiledNode: frameworkNode),
@@ -1112,24 +832,6 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         // Given
         let target = Target.test(name: "Main")
         let project = Project.test(targets: [target])
-
-        let frameworkNode = FrameworkNode.test(path: "/test/StaticFramework.framework",
-                                               dsymPath: nil,
-                                               bcsymbolmapPaths: [],
-                                               linking: .static,
-                                               architectures: [.arm64],
-                                               dependencies: [])
-        let targetNode = TargetNode(
-            project: project,
-            target: target,
-            dependencies: [frameworkNode]
-        )
-
-        // Given: Graph
-        let graph = Graph.test(projects: [project],
-                               precompiled: [frameworkNode],
-                               targets: [project.path: [targetNode]])
-        let graphTraverser = GraphTraverser(graph: graph)
 
         // Given: Value Graph
         let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
@@ -1147,12 +849,10 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         let subject = ValueGraphTraverser(graph: valueGraph)
 
         // When
-        let gotGraph = graphTraverser.embeddableFrameworks(path: project.path, name: target.name).sorted()
         let got = subject.embeddableFrameworks(path: project.path, name: target.name).sorted()
 
         // Then
-        XCTAssertEqual(got, gotGraph)
-        XCTAssertTrue(gotGraph.isEmpty)
+        XCTAssertTrue(got.isEmpty)
     }
 
     func test_embeddableFrameworks_when_watchExtension() throws {
@@ -1161,15 +861,6 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         let frameworkB = Target.test(name: "FrameworkB", product: .framework)
         let watchExtension = Target.test(name: "WatchExtension", product: .watch2Extension)
         let project = Project.test(targets: [watchExtension, frameworkA, frameworkB])
-
-        // Given: Graph
-        let graph = Graph.create(project: project,
-                                 dependencies: [
-                                     (target: watchExtension, dependencies: [frameworkA]),
-                                     (target: frameworkA, dependencies: [frameworkB]),
-                                     (target: frameworkB, dependencies: []),
-                                 ])
-        let graphTraverser = GraphTraverser(graph: graph)
 
         // Given: Value Graph
         let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
@@ -1185,11 +876,9 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         let subject = ValueGraphTraverser(graph: valueGraph)
 
         // When
-        let gotGraph = graphTraverser.embeddableFrameworks(path: project.path, name: watchExtension.name).sorted()
         let got = subject.embeddableFrameworks(path: project.path, name: watchExtension.name).sorted()
 
         // Then
-        XCTAssertEqual(got, gotGraph)
         XCTAssertEqual(got, [
             .product(target: "FrameworkA", productName: "FrameworkA.framework"),
             .product(target: "FrameworkB", productName: "FrameworkB.framework"),
@@ -1204,15 +893,6 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         let app = Target.test(name: "App", product: .app)
         let tests = Target.test(name: "AppTests", product: .unitTests)
         let project = Project.test(path: "/path/")
-
-        // Given: Graph
-        let graph = Graph.create(project: project,
-                                 dependencies: [
-                                     (target: app, dependencies: [framework]),
-                                     (target: framework, dependencies: []),
-                                     (target: tests, dependencies: [app]),
-                                 ])
-        let graphTraverser = GraphTraverser(graph: graph)
 
         // Given: Value Graph
         let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
@@ -1229,10 +909,8 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
 
         // When
         let got = subject.embeddableFrameworks(path: project.path, name: tests.name).sorted()
-        let gotGraph = graphTraverser.embeddableFrameworks(path: project.path, name: tests.name).sorted()
 
         // Then
-        XCTAssertEqual(got, gotGraph)
         XCTAssertTrue(got.isEmpty)
     }
 
@@ -1241,34 +919,6 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         let unitTests = Target.test(name: "AppUnitTests", product: .unitTests)
         let project = Project.test(path: "/path/a")
         let target = Target.test(name: "LocallyBuiltFramework", product: .framework)
-
-        // Given: Graph
-        let precompiledNode = FrameworkNode.test(path: "/test/test.framework",
-                                                 dsymPath: nil,
-                                                 bcsymbolmapPaths: [],
-                                                 linking: .dynamic,
-                                                 architectures: [.arm64],
-                                                 dependencies: [])
-
-        let targetNode = TargetNode(project: project,
-                                    target: target,
-                                    dependencies: [])
-
-        let unitTestsNode = TargetNode(project: project, target: unitTests, dependencies: [precompiledNode, targetNode])
-
-        let cache = GraphLoaderCache()
-        cache.add(project: project)
-        cache.add(precompiledNode: precompiledNode)
-        cache.add(targetNode: unitTestsNode)
-
-        let graph = Graph(
-            name: "Graph",
-            entryPath: project.path,
-            cache: cache,
-            entryNodes: [unitTestsNode],
-            workspace: Workspace.test()
-        )
-        let graphTraverser = GraphTraverser(graph: graph)
 
         // Given: Value Graph
         let precompiledDependency = ValueGraphDependency.testFramework(path: "/test/test.framework",
@@ -1289,11 +939,9 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         let subject = ValueGraphTraverser(graph: valueGraph)
 
         // When
-        let gotGraph = graphTraverser.embeddableFrameworks(path: project.path, name: unitTests.name).sorted()
         let got = subject.embeddableFrameworks(path: project.path, name: unitTests.name).sorted()
 
         // Then
-        XCTAssertEqual(gotGraph, got)
         XCTAssertTrue(got.isEmpty)
     }
 
@@ -1308,16 +956,6 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         let app = Target.test(name: "App", product: .app)
         let tests = Target.test(name: "AppTests", product: .unitTests)
         let project = Project.test(path: "/path/a")
-
-        // Given: Graph
-        let graph = Graph.create(project: project,
-                                 dependencies: [
-                                     (target: app, dependencies: [staticFramework]),
-                                     (target: framework, dependencies: []),
-                                     (target: staticFramework, dependencies: [framework]),
-                                     (target: tests, dependencies: [app, staticFramework]),
-                                 ])
-        let graphTraverser = GraphTraverser(graph: graph)
 
         // Given: Value Graph
         let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
@@ -1335,11 +973,9 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         let subject = ValueGraphTraverser(graph: valueGraph)
 
         // When
-        let gotGraph = graphTraverser.embeddableFrameworks(path: project.path, name: tests.name).sorted()
         let got = subject.embeddableFrameworks(path: project.path, name: tests.name).sorted()
 
         // Then
-        XCTAssertEqual(gotGraph, got)
         XCTAssertTrue(got.isEmpty)
     }
 
@@ -1349,31 +985,6 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         let app = Target.test(name: "App", product: .app)
         let uiTests = Target.test(name: "AppUITests", product: .uiTests)
         let project = Project.test(path: "/path/a")
-
-        // Given: Graph
-        let precompiledNode = FrameworkNode.test(path: "/test/test.framework",
-                                                 dsymPath: nil,
-                                                 bcsymbolmapPaths: [],
-                                                 linking: .dynamic,
-                                                 architectures: [.arm64],
-                                                 dependencies: [])
-        let appNode = TargetNode(project: project, target: app, dependencies: [precompiledNode])
-        let uiTestsNode = TargetNode(project: project, target: uiTests, dependencies: [appNode])
-
-        let cache = GraphLoaderCache()
-        cache.add(project: project)
-        cache.add(precompiledNode: precompiledNode)
-        cache.add(targetNode: appNode)
-        cache.add(targetNode: uiTestsNode)
-
-        let graph = Graph(
-            name: "Graph",
-            entryPath: project.path,
-            cache: cache,
-            entryNodes: [appNode, uiTestsNode],
-            workspace: Workspace.test()
-        )
-        let graphTraverser = GraphTraverser(graph: graph)
 
         // Given: Value Graph
         let precompiledDependency = ValueGraphDependency.testFramework(path: "/test/test.framework",
@@ -1396,11 +1007,9 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
 
         // When
         let got = subject.embeddableFrameworks(path: project.path, name: uiTests.name).sorted()
-        let gotGraph = graphTraverser.embeddableFrameworks(path: project.path, name: uiTests.name).sorted()
 
         // Then
-        XCTAssertEqual(got, gotGraph)
-        XCTAssertTrue(gotGraph.isEmpty)
+        XCTAssertTrue(got.isEmpty)
     }
 
     func test_librariesPublicHeadersFolders() throws {
@@ -1408,18 +1017,6 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         let target = Target.test(name: "Main")
         let publicHeadersPath = AbsolutePath("/test/public/")
         let project = Project.test(targets: [target])
-
-        // Given: Graph
-        let precompiledNode = LibraryNode.test(path: AbsolutePath("/test/test.a"),
-                                               publicHeaders: publicHeadersPath,
-                                               linking: .static)
-        let targetNode = TargetNode(project: project,
-                                    target: target,
-                                    dependencies: [precompiledNode])
-        let graph = Graph.test(projects: [project],
-                               precompiled: [precompiledNode],
-                               targets: [project.path: [targetNode]])
-        let graphTraverser = GraphTraverser(graph: graph)
 
         // Given: Value Graph
         let precompiledDependency = ValueGraphDependency.testLibrary(path: AbsolutePath("/test/test.a"),
@@ -1437,11 +1034,8 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         // When
         let got = subject.librariesPublicHeadersFolders(path: project.path,
                                                         name: target.name).sorted()
-        let gotGraph = graphTraverser.librariesPublicHeadersFolders(path: project.path,
-                                                                    name: target.name).sorted()
 
         // Then
-        XCTAssertEqual(got, gotGraph)
         XCTAssertEqual(got.first, publicHeadersPath)
     }
 
@@ -1449,19 +1043,6 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         // Given
         let target = Target.test(name: "Main")
         let project = Project.test(targets: [target])
-
-        // Given: Graph
-        let precompiledNode = LibraryNode.test(path: "/test/test.a",
-                                               publicHeaders: "/test/public/",
-                                               architectures: [],
-                                               linking: .static)
-        let targetNode = TargetNode(project: project,
-                                    target: target,
-                                    dependencies: [precompiledNode])
-        let graph = Graph.test(projects: [project],
-                               precompiled: [precompiledNode],
-                               targets: [project.path: [targetNode]])
-        let graphTraverser = GraphTraverser(graph: graph)
 
         // Given: Value Graph
         let precompiledDependency = ValueGraphDependency.testLibrary(path: "/test/test.a",
@@ -1478,10 +1059,8 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
 
         // When
         let got = subject.librariesSearchPaths(path: project.path, name: target.name).sorted()
-        let gotGraph = graphTraverser.librariesSearchPaths(path: project.path, name: target.name).sorted()
 
         // Then
-        XCTAssertEqual(got, gotGraph)
         XCTAssertEqual(got, [AbsolutePath("/test")])
     }
 
@@ -1490,19 +1069,12 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         let target = Target.test(name: "Main")
         let project = Project.test(targets: [target])
 
-        // Given: Graph
+        // Given: Value Graph
         let precompiledNode = FrameworkNode.test(path: "/test/test.framework",
                                                  dsymPath: nil,
                                                  bcsymbolmapPaths: [],
                                                  linking: .dynamic,
                                                  architectures: [.arm64])
-        let targetNode = TargetNode(project: project,
-                                    target: target,
-                                    dependencies: [precompiledNode])
-        let graph = Graph.test(targets: [targetNode.path: [targetNode]])
-        let graphTraverser = GraphTraverser(graph: graph)
-
-        // Given: Value Graph
         let precompiledDependency = ValueGraphDependency.testFramework(path: "/test/test.framework",
                                                                        binaryPath: "/test/test.framework/test",
                                                                        dsymPath: nil,
@@ -1520,11 +1092,9 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
 
         // When
         let got = try subject.linkableDependencies(path: project.path, name: target.name).sorted()
-        let gotGraph = try graphTraverser.linkableDependencies(path: project.path, name: target.name).sorted()
 
         // Then
-        XCTAssertEqual(got, gotGraph)
-        XCTAssertEqual(gotGraph.first, GraphDependencyReference(precompiledNode: precompiledNode))
+        XCTAssertEqual(got.first, GraphDependencyReference(precompiledNode: precompiledNode))
     }
 
     func test_linkableAndEmbeddableDependencies_when_appDependensOnPrecompiledStaticBinaryWithPrecompiledStaticBinaryDependency() throws {
@@ -1534,7 +1104,7 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         let target = Target.test(name: "Main")
         let project = Project.test(targets: [target])
 
-        // Given: Graph
+        // Given: Value Graph
         let precompiledStaticBinaryB = FrameworkNode.test(
             path: AbsolutePath("/test/StaticFrameworkB.framework"),
             dsymPath: nil,
@@ -1550,14 +1120,6 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
             architectures: [.arm64],
             dependencies: [.framework(precompiledStaticBinaryB)]
         )
-
-        let targetNode = TargetNode(project: project,
-                                    target: target,
-                                    dependencies: [precompiledStaticBinaryA])
-        let graph = Graph.test(targets: [targetNode.path: [targetNode]])
-        let graphTraverser = GraphTraverser(graph: graph)
-
-        // Given: Value Graph
         let dependencyPrecompiledStaticBinaryB = ValueGraphDependency.testFramework(
             path: "/test/StaticFrameworkB.framework",
             binaryPath: "/test/StaticFrameworkB.framework/StaticFrameworkB",
@@ -1589,21 +1151,17 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
 
         // When
         let got = try subject.linkableDependencies(path: project.path, name: target.name).sorted()
-        let gotGraph = try graphTraverser.linkableDependencies(path: project.path, name: target.name).sorted()
 
         // Then
-        XCTAssertEqual(got, gotGraph)
-        XCTAssertEqual(gotGraph, [
+        XCTAssertEqual(got, [
             GraphDependencyReference(precompiledNode: precompiledStaticBinaryA),
             GraphDependencyReference(precompiledNode: precompiledStaticBinaryB),
         ])
 
         // When
         let embeddable = subject.embeddableFrameworks(path: project.path, name: target.name)
-        let embeddableGraph = graphTraverser.embeddableFrameworks(path: project.path, name: target.name)
 
         // Then
-        XCTAssertEqual(embeddable, embeddableGraph)
         XCTAssertTrue(embeddable.isEmpty)
     }
 
@@ -1631,12 +1189,6 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
             dependencies: [.framework(precompiledDynamicBinaryB)]
         )
 
-        let targetNode = TargetNode(project: project,
-                                    target: target,
-                                    dependencies: [precompiledDynamicBinaryA])
-        let graph = Graph.test(targets: [targetNode.path: [targetNode]])
-        let graphTraverser = GraphTraverser(graph: graph)
-
         // Given: Value Graph
         let dependencyPrecompiledDynamicBinaryB = ValueGraphDependency.testFramework(
             path: "/test/DynamicFrameworkB.framework",
@@ -1669,21 +1221,17 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
 
         // When
         let got = try subject.linkableDependencies(path: project.path, name: target.name).sorted()
-        let gotGraph = try graphTraverser.linkableDependencies(path: project.path, name: target.name).sorted()
 
         // Then
-        XCTAssertEqual(got, gotGraph)
-        XCTAssertEqual(gotGraph, [
+        XCTAssertEqual(got, [
             GraphDependencyReference(precompiledNode: precompiledDynamicBinaryA),
             GraphDependencyReference(precompiledNode: precompiledDynamicBinaryB),
         ])
 
         // When
         let embeddable = subject.embeddableFrameworks(path: project.path, name: target.name)
-        let embeddableGraph = graphTraverser.embeddableFrameworks(path: project.path, name: target.name)
 
         // Then
-        XCTAssertEqual(embeddable, embeddableGraph)
         XCTAssertEqual(embeddable, [
             GraphDependencyReference(precompiledNode: precompiledDynamicBinaryA),
             GraphDependencyReference(precompiledNode: precompiledDynamicBinaryB),
@@ -1697,7 +1245,7 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         let target = Target.test(name: "Main")
         let project = Project.test(targets: [target])
 
-        // Given: Graph
+        // Given: Value Graph
         let precompiledDynamicBinaryB = FrameworkNode.test(
             path: AbsolutePath("/test/DynamicFrameworkB.framework"),
             dsymPath: nil,
@@ -1713,14 +1261,6 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
             architectures: [.arm64],
             dependencies: [.framework(precompiledDynamicBinaryB)]
         )
-
-        let targetNode = TargetNode(project: project,
-                                    target: target,
-                                    dependencies: [precompiledStaticBinaryA])
-        let graph = Graph.test(targets: [targetNode.path: [targetNode]])
-        let graphTraverser = GraphTraverser(graph: graph)
-
-        // Given: Value Graph
         let dependencyPrecompiledDynamicBinaryB = ValueGraphDependency.testFramework(
             path: "/test/DynamicFrameworkB.framework",
             binaryPath: "/test/DynamicFrameworkB.framework/DynamicFrameworkB",
@@ -1752,21 +1292,17 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
 
         // When
         let got = try subject.linkableDependencies(path: project.path, name: target.name).sorted()
-        let gotGraph = try graphTraverser.linkableDependencies(path: project.path, name: target.name).sorted()
 
         // Then
-        XCTAssertEqual(got, gotGraph)
-        XCTAssertEqual(gotGraph, [
+        XCTAssertEqual(got, [
             GraphDependencyReference(precompiledNode: precompiledDynamicBinaryB),
             GraphDependencyReference(precompiledNode: precompiledStaticBinaryA),
         ])
 
         // When
         let embeddable = subject.embeddableFrameworks(path: project.path, name: target.name)
-        let embeddableGraph = graphTraverser.embeddableFrameworks(path: project.path, name: target.name)
 
         // Then
-        XCTAssertEqual(embeddable, embeddableGraph)
         XCTAssertEqual(embeddable, [
             GraphDependencyReference(precompiledNode: precompiledDynamicBinaryB),
         ])
@@ -1778,8 +1314,8 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         // Given
         let target = Target.test(name: "Main")
         let project = Project.test(targets: [target])
-
-        // Given: Graph
+        
+        // Given: Value Graph
         let precompiledStaticBinaryB = FrameworkNode.test(
             path: AbsolutePath("/test/StaticFrameworkB.framework"),
             dsymPath: nil,
@@ -1796,13 +1332,6 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
             dependencies: [.framework(precompiledStaticBinaryB)]
         )
 
-        let targetNode = TargetNode(project: project,
-                                    target: target,
-                                    dependencies: [precompiledDynamicBinaryA])
-        let graph = Graph.test(targets: [targetNode.path: [targetNode]])
-        let graphTraverser = GraphTraverser(graph: graph)
-
-        // Given: Value Graph
         let dependencyPrecompiledStaticBinaryB = ValueGraphDependency.testFramework(
             path: "/test/StaticFrameworkB.framework",
             binaryPath: "/test/StaticFrameworkB.framework/StaticFrameworkB",
@@ -1834,21 +1363,17 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
 
         // When
         let got = try subject.linkableDependencies(path: project.path, name: target.name).sorted()
-        let gotGraph = try graphTraverser.linkableDependencies(path: project.path, name: target.name).sorted()
 
         // Then
-        XCTAssertEqual(got, gotGraph)
-        XCTAssertEqual(gotGraph, [
+        XCTAssertEqual(got, [
             GraphDependencyReference(precompiledNode: precompiledDynamicBinaryA),
             GraphDependencyReference(precompiledNode: precompiledStaticBinaryB),
         ])
 
         // When
         let embeddable = subject.embeddableFrameworks(path: project.path, name: target.name)
-        let embeddableGraph = graphTraverser.embeddableFrameworks(path: project.path, name: target.name)
 
         // Then
-        XCTAssertEqual(embeddable, embeddableGraph)
         XCTAssertEqual(embeddable, [
             GraphDependencyReference(precompiledNode: precompiledDynamicBinaryA),
         ])
@@ -1860,17 +1385,6 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         let dependency = Target.test(name: "Dependency", product: .staticLibrary)
         let project = Project.test(targets: [target])
 
-        // Given: Graph
-        let dependencyNode = TargetNode(project: project,
-                                        target: dependency,
-                                        dependencies: [])
-        let targetNode = TargetNode(project: project,
-                                    target: target,
-                                    dependencies: [dependencyNode])
-        let graph = Graph.test(projects: [project], targets: [
-            project.path: [dependencyNode, targetNode],
-        ])
-        let graphTraverser = GraphTraverser(graph: graph)
 
         // Given: Value Graph
         let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
@@ -1884,10 +1398,8 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
 
         // When
         let got = try subject.linkableDependencies(path: project.path, name: target.name).sorted()
-        let gotGraph = try graphTraverser.linkableDependencies(path: project.path, name: target.name).sorted()
 
         // Then
-        XCTAssertEqual(got, gotGraph)
         XCTAssertEqual(got.first, .product(target: "Dependency", productName: "libDependency.a"))
     }
 
@@ -1897,19 +1409,6 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         let dependency = Target.test(name: "Dependency", product: .framework)
         let staticDependency = Target.test(name: "StaticDependency", product: .staticLibrary)
         let project = Project.test(targets: [target])
-
-        // Given: Graph
-        let staticDependencyNode = TargetNode(project: project,
-                                              target: staticDependency,
-                                              dependencies: [])
-        let dependencyNode = TargetNode(project: project,
-                                        target: dependency,
-                                        dependencies: [staticDependencyNode])
-        let targetNode = TargetNode(project: project,
-                                    target: target,
-                                    dependencies: [dependencyNode])
-        let graph = Graph.test(projects: [project], targets: [project.path: [targetNode, dependencyNode, staticDependencyNode]])
-        let graphTraverser = GraphTraverser(graph: graph)
 
         // Given: Value Graph
         let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
@@ -1927,16 +1426,12 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         // When
         let got = try subject.linkableDependencies(path: project.path,
                                                    name: target.name).sorted()
-        let gotGraph = try graphTraverser.linkableDependencies(path: project.path,
-                                                               name: target.name).sorted()
 
         // Then
-        XCTAssertEqual(got, gotGraph)
-
         XCTAssertEqual(got.count, 1)
         XCTAssertEqual(got.first, .product(target: "Dependency", productName: "Dependency.framework"))
 
-        let frameworkGot = try graph.linkableDependencies(path: project.path, name: dependency.name)
+        let frameworkGot = try subject.linkableDependencies(path: project.path, name: dependency.name)
 
         XCTAssertEqual(frameworkGot.count, 1)
         XCTAssertTrue(frameworkGot.contains(.product(target: "StaticDependency", productName: "libStaticDependency.a")))
@@ -1953,15 +1448,6 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         let app = Target.test(name: "App", product: .app)
         let project = Project.test(path: "/path/a")
 
-        // Given: Graph
-        let graph = Graph.create(project: project,
-                                 dependencies: [
-                                     (target: app, dependencies: [staticFramework]),
-                                     (target: staticFramework, dependencies: [dynamicFramework]),
-                                     (target: dynamicFramework, dependencies: []),
-                                 ])
-        let graphTraverser = GraphTraverser(graph: graph)
-
         // Given: Value Graph
         let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
             .target(name: app.name, path: project.path): Set(arrayLiteral: .target(name: staticFramework.name, path: project.path)),
@@ -1977,10 +1463,8 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
 
         // When
         let got = try subject.linkableDependencies(path: project.path, name: app.name).sorted()
-        let gotGraph = try graphTraverser.linkableDependencies(path: project.path, name: app.name).sorted()
 
         // Then
-        XCTAssertEqual(got, gotGraph)
         XCTAssertEqual(got, [GraphDependencyReference.product(target: "DynamicFramework", productName: "DynamicFramework.framework"),
                              GraphDependencyReference.product(target: "StaticFramework", productName: "StaticFramework.framework")])
     }
@@ -2002,17 +1486,6 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         let app = Target.test(name: "App", product: .app)
         let project = Project.test(path: "/path/a")
 
-        // Given: Graph
-        let graph = Graph.create(project: project,
-                                 dependencies: [
-                                     (target: app, dependencies: [dynamicFramework1]),
-                                     (target: dynamicFramework1, dependencies: [staticFramework1]),
-                                     (target: staticFramework1, dependencies: [staticFramework2]),
-                                     (target: staticFramework2, dependencies: [dynamicFramework2]),
-                                     (target: dynamicFramework2, dependencies: []),
-                                 ])
-        let graphTraverser = GraphTraverser(graph: graph)
-
         // Given: Value Graph
         let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
             .target(name: app.name, path: project.path): Set(arrayLiteral: .target(name: dynamicFramework1.name, path: project.path)),
@@ -2033,8 +1506,8 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         // When
         let appGot = try subject.linkableDependencies(path: project.path, name: app.name).sorted()
         let dynamicFramework1Got = try subject.linkableDependencies(path: project.path, name: dynamicFramework1.name).sorted()
-        let appGotGraph = try graphTraverser.linkableDependencies(path: project.path, name: app.name).sorted()
-        let dynamicFramework1GotGraph = try graphTraverser.linkableDependencies(path: project.path, name: dynamicFramework1.name).sorted()
+        let appGotGraph = try subject.linkableDependencies(path: project.path, name: app.name).sorted()
+        let dynamicFramework1GotGraph = try subject.linkableDependencies(path: project.path, name: dynamicFramework1.name).sorted()
 
         // Then
         XCTAssertEqual(appGot, appGotGraph)
@@ -2072,18 +1545,6 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
 
         let project = Project.test(path: "/path/a")
 
-        // Given: Graph
-        let graph = Graph.create(project: project,
-                                 dependencies: [
-                                     (target: app, dependencies: [dynamicFramework1]),
-                                     (target: dynamicFramework1, dependencies: [dynamicFramework2]),
-                                     (target: dynamicFramework2, dependencies: [staticFramework1]),
-                                     (target: staticFramework1, dependencies: [staticFramework2]),
-                                     (target: staticFramework2, dependencies: [dynamicFramework3]),
-                                     (target: dynamicFramework3, dependencies: []),
-                                 ])
-        let graphTraverser = GraphTraverser(graph: graph)
-
         // Given: Value Graph
         let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
             .target(name: app.name, path: project.path): Set(arrayLiteral: .target(name: dynamicFramework1.name, path: project.path)),
@@ -2105,10 +1566,8 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
 
         // When
         let dynamicFramework1Got = try subject.linkableDependencies(path: project.path, name: dynamicFramework1.name).sorted()
-        let dynamicFramework1GotGraph = try graphTraverser.linkableDependencies(path: project.path, name: dynamicFramework1.name).sorted()
 
         // Then
-        XCTAssertEqual(dynamicFramework1Got, dynamicFramework1GotGraph)
         XCTAssertEqual(dynamicFramework1Got, [GraphDependencyReference.product(target: "DynamicFramework2", productName: "DynamicFramework2.framework")])
     }
 
@@ -2122,15 +1581,6 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
                                            dependencies: [])
         let app = Target.test(name: "App", product: .app)
         let project = Project.test(path: "/path/a")
-
-        // Given: Graph
-        let graph = Graph.create(project: project,
-                                 dependencies: [
-                                     (target: app, dependencies: [staticFrameworkB]),
-                                     (target: staticFrameworkB, dependencies: [staticFrameworkA]),
-                                     (target: staticFrameworkA, dependencies: []),
-                                 ])
-        let graphTraverser = GraphTraverser(graph: graph)
 
         // Given: Value Graph
         let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
@@ -2150,10 +1600,8 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
 
         // When
         let got = try subject.linkableDependencies(path: project.path, name: app.name).sorted()
-        let gotGraph = try graphTraverser.linkableDependencies(path: project.path, name: app.name).sorted()
 
         // Then
-        XCTAssertEqual(got, gotGraph)
         XCTAssertEqual(got.compactMap(sdkDependency), [
             SDKPathAndStatus(name: "some.framework", status: .optional),
         ])
@@ -2169,15 +1617,6 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
                                            dependencies: [])
         let app = Target.test(name: "App", product: .app)
         let project = Project.test(path: "/path/a")
-
-        // Given: Graph
-        let graph = Graph.create(project: project,
-                                 dependencies: [
-                                     (target: app, dependencies: [dynamicFramework]),
-                                     (target: dynamicFramework, dependencies: [staticFramework]),
-                                     (target: staticFramework, dependencies: []),
-                                 ])
-        let graphTraverser = GraphTraverser(graph: graph)
 
         // Given: Value Graph
         let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
@@ -2198,15 +1637,13 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         // When
         let appGot = try subject.linkableDependencies(path: project.path, name: app.name).sorted()
         let dynamicGot = try subject.linkableDependencies(path: project.path, name: dynamicFramework.name).sorted()
-        let appGotGraph = try graphTraverser.linkableDependencies(path: project.path, name: app.name).sorted()
-        let dynamicGotGraph = try graphTraverser.linkableDependencies(path: project.path, name: dynamicFramework.name).sorted()
 
         // Then
-        XCTAssertEqual(appGot, appGotGraph)
-        XCTAssertEqual(dynamicGot, dynamicGotGraph)
+        XCTAssertEqual(appGot, appGot)
+        XCTAssertEqual(dynamicGot, dynamicGot)
 
-        XCTAssertEqual(appGotGraph.compactMap(sdkDependency), [])
-        XCTAssertEqual(dynamicGotGraph.compactMap(sdkDependency),
+        XCTAssertEqual(appGot.compactMap(sdkDependency), [])
+        XCTAssertEqual(dynamicGot.compactMap(sdkDependency),
                        [SDKPathAndStatus(name: "some.framework", status: .optional)])
     }
 
@@ -2220,14 +1657,6 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
                               dependencies: [.sdk(name: "some.framework", status: .optional)])
 
         let project = Project.test(path: "/path/a")
-
-        // Given: Graph
-        let graph = Graph.create(project: project,
-                                 dependencies: [
-                                     (target: app, dependencies: [staticFramework]),
-                                     (target: staticFramework, dependencies: []),
-                                 ])
-        let graphTraverser = GraphTraverser(graph: graph)
 
         // Given: Value Graph
         let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
@@ -2245,10 +1674,8 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
 
         // When
         let got = try subject.linkableDependencies(path: project.path, name: app.name).sorted()
-        let gotGraph = try graphTraverser.linkableDependencies(path: project.path, name: app.name).sorted()
 
         // Then
-        XCTAssertEqual(got, gotGraph)
         XCTAssertEqual(got.compactMap(sdkDependency), [SDKPathAndStatus(name: "some.framework", status: .optional)])
     }
 
@@ -2260,13 +1687,6 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
                                                          .sdk(name: "thingtwo.framework", status: .required)])
 
         let project = Project.test(path: "/path/a")
-
-        // Given: Graph
-        let graph = Graph.create(project: project,
-                                 dependencies: [
-                                     (target: staticFramework, dependencies: []),
-                                 ])
-        let graphTraverser = GraphTraverser(graph: graph)
 
         // Given: Value Graph
         let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
@@ -2286,10 +1706,8 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
 
         // When
         let got = try subject.linkableDependencies(path: project.path, name: staticFramework.name).sorted()
-        let gotGraph = try graphTraverser.linkableDependencies(path: project.path, name: staticFramework.name).sorted()
 
         // Then
-        XCTAssertEqual(got, gotGraph)
         XCTAssertEqual(got.compactMap(sdkDependency),
                        [SDKPathAndStatus(name: "thingone.framework", status: .optional),
                         SDKPathAndStatus(name: "thingtwo.framework", status: .required)])
@@ -2305,14 +1723,6 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
                                            dependencies: [.sdk(name: "ThingTwo.framework", status: .optional)])
 
         let project = Project.test(path: "/path/a")
-
-        // Given: Graph
-        let graph = Graph.create(project: project,
-                                 dependencies: [
-                                     (target: staticFrameworkA, dependencies: [staticFrameworkB]),
-                                     (target: staticFrameworkB, dependencies: []),
-                                 ])
-        let graphTraverser = GraphTraverser(graph: graph)
 
         // Given: Value Graph
         let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
@@ -2334,10 +1744,8 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
 
         // When
         let got = try subject.linkableDependencies(path: project.path, name: staticFrameworkA.name).sorted()
-        let gotGraph = try graphTraverser.linkableDependencies(path: project.path, name: staticFrameworkA.name).sorted()
 
         // Then
-        XCTAssertEqual(got, gotGraph)
         XCTAssertEqual(got.compactMap(sdkDependency),
                        [SDKPathAndStatus(name: "ThingOne.framework", status: .optional)])
     }
@@ -2349,14 +1757,6 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         let watchExtension = Target.test(name: "WatchExtension", product: .watch2Extension)
         let project = Project.test(targets: [watchExtension, frameworkA, frameworkB])
 
-        // Given: Graph
-        let graph = Graph.create(project: project,
-                                 dependencies: [
-                                     (target: watchExtension, dependencies: [frameworkA]),
-                                     (target: frameworkA, dependencies: [frameworkB]),
-                                     (target: frameworkB, dependencies: []),
-                                 ])
-        let graphTraverser = GraphTraverser(graph: graph)
 
         // Given: Value Graph
         let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
@@ -2373,10 +1773,8 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
 
         // When
         let got = try subject.linkableDependencies(path: project.path, name: watchExtension.name).sorted()
-        let gotGraph = try graphTraverser.linkableDependencies(path: project.path, name: watchExtension.name).sorted()
 
         // Then
-        XCTAssertEqual(got, gotGraph)
         XCTAssertEqual(got, [
             .product(target: "FrameworkA", productName: "FrameworkA.framework"),
         ])
@@ -2389,15 +1787,6 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         let watchExtension = Target.test(name: "WatchExtension", product: .watch2Extension)
         let project = Project.test(targets: [watchExtension, frameworkA, frameworkB])
 
-        // Given: Graph
-        let graph = Graph.create(project: project,
-                                 dependencies: [
-                                     (target: watchExtension, dependencies: [frameworkA]),
-                                     (target: frameworkA, dependencies: [frameworkB]),
-                                     (target: frameworkB, dependencies: []),
-                                 ])
-        let graphTraverser = GraphTraverser(graph: graph)
-
         // Given: Value Graph
         let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
             .target(name: watchExtension.name, path: project.path): Set(arrayLiteral: .target(name: frameworkA.name, path: project.path)),
@@ -2413,10 +1802,8 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
 
         // When
         let got = try subject.linkableDependencies(path: project.path, name: watchExtension.name).sorted()
-        let gotGraph = try graphTraverser.linkableDependencies(path: project.path, name: watchExtension.name).sorted()
 
         // Then
-        XCTAssertEqual(got, gotGraph)
         XCTAssertEqual(got, [
             .product(target: "FrameworkA", productName: "FrameworkA.framework"),
             .product(target: "FrameworkB", productName: "FrameworkB.framework"),
@@ -2431,15 +1818,6 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         let app = Target.test(name: "App", product: .app)
         let tests = Target.test(name: "AppTests", product: .unitTests)
         let project = Project.test(path: "/path/a")
-
-        // Given: Graph
-        let graph = Graph.create(project: project,
-                                 dependencies: [
-                                     (target: app, dependencies: [staticFramework]),
-                                     (target: staticFramework, dependencies: []),
-                                     (target: tests, dependencies: [app, staticFramework]),
-                                 ])
-        let graphTraverser = GraphTraverser(graph: graph)
 
         // Given: Value Graph
         let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
@@ -2457,10 +1835,8 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
 
         // When
         let got = try subject.linkableDependencies(path: project.path, name: tests.name).sorted()
-        let gotGraph = try graphTraverser.linkableDependencies(path: project.path, name: tests.name).sorted()
 
         // Then
-        XCTAssertEqual(got, gotGraph)
         XCTAssertTrue(got.isEmpty)
     }
 
@@ -2472,15 +1848,6 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         let app = Target.test(name: "App", product: .app)
         let tests = Target.test(name: "AppTests", product: .unitTests)
         let project = Project.test(path: "/path/a")
-
-        // Given: Graph
-        let graph = Graph.create(project: project,
-                                 dependencies: [
-                                     (target: app, dependencies: [framework]),
-                                     (target: framework, dependencies: []),
-                                     (target: tests, dependencies: [app, framework]),
-                                 ])
-        let graphTraverser = GraphTraverser(graph: graph)
 
         // Given: Value Graph
         let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
@@ -2498,10 +1865,8 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
 
         // When
         let got = try subject.linkableDependencies(path: project.path, name: tests.name).sorted()
-        let gotGraph = try graphTraverser.linkableDependencies(path: project.path, name: tests.name).sorted()
 
         // Then
-        XCTAssertEqual(got, gotGraph)
         XCTAssertEqual(got, [
             .product(target: "Framework", productName: "Framework.framework"),
         ])
@@ -2516,14 +1881,6 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         let tests = Target.test(name: "AppTests", product: .unitTests)
         let project = Project.test(path: "/path/a")
 
-        // Given: Graph
-        let graph = Graph.create(project: project,
-                                 dependencies: [
-                                     (target: app, dependencies: [framework]),
-                                     (target: framework, dependencies: []),
-                                     (target: tests, dependencies: [app]),
-                                 ])
-        let graphTraverser = GraphTraverser(graph: graph)
 
         // Given: Value Graph
         let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
@@ -2540,10 +1897,8 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
 
         // When
         let got = try subject.linkableDependencies(path: project.path, name: tests.name).sorted()
-        let gotGraph = try graphTraverser.linkableDependencies(path: project.path, name: tests.name).sorted()
 
         // Then
-        XCTAssertEqual(got, gotGraph)
         XCTAssertTrue(got.isEmpty)
     }
 
@@ -2551,11 +1906,6 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         // Given
         let target = Target.test(name: "AppClip", product: .appClip)
         let project = Project.test(path: "/path/a")
-
-        // Given: Graph
-        let graph = Graph.create(project: project,
-                                 dependencies: [(target: target, dependencies: [])])
-        let graphTraverser = GraphTraverser(graph: graph)
 
         // Given: Value Graph
         let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
@@ -2568,10 +1918,8 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
 
         // When
         let got = try subject.linkableDependencies(path: project.path, name: target.name).sorted()
-        let gotGraph = try graphTraverser.linkableDependencies(path: project.path, name: target.name).sorted()
 
         // Then
-        XCTAssertEqual(got, gotGraph)
         XCTAssertEqual(got, [.sdk(path: try SDKNode.appClip(status: .required).path, status: .required, source: .system)])
     }
 
@@ -2586,15 +1934,6 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
                                                architectures: [.arm64],
                                                dependencies: [])
         let project = Project.test(targets: [target])
-
-        // Given: Graph
-        let targetNode = TargetNode(project: project,
-                                    target: target,
-                                    dependencies: [frameworkNode])
-        let graph = Graph.test(projects: [project],
-                               precompiled: [frameworkNode],
-                               targets: [project.path: [targetNode]])
-        let graphTraverser = GraphTraverser(graph: graph)
 
         // Given: Value Graph
         let frameworkDependency = ValueGraphDependency.testFramework(path: frameworkPath,
@@ -2613,10 +1952,8 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
 
         // When
         let got = try subject.linkableDependencies(path: project.path, name: target.name)
-        let gotGraph = try graphTraverser.linkableDependencies(path: project.path, name: target.name)
 
         // Then
-        XCTAssertEqual(got, gotGraph)
         XCTAssertEqual(got, [
             GraphDependencyReference(precompiledNode: frameworkNode),
         ])
@@ -2639,12 +1976,6 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
             dependencies: [frameworkNode]
         )
 
-        // Given: Graph
-        let graph = Graph.test(projects: [project],
-                               precompiled: [frameworkNode],
-                               targets: [project.path: [targetNode]])
-        let graphTraverser = GraphTraverser(graph: graph)
-
         // Given: Value Graph
         let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
             .target(name: target.name, path: project.path): Set(arrayLiteral: .testFramework(path: "/test/StaticFramework.framework",
@@ -2662,10 +1993,8 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
 
         // When
         let got = try subject.linkableDependencies(path: project.path, name: target.name)
-        let gotGraph = try graphTraverser.linkableDependencies(path: project.path, name: target.name)
 
         // Then
-        XCTAssertEqual(got, gotGraph)
         XCTAssertEqual(got, [
             GraphDependencyReference(precompiledNode: frameworkNode),
         ])
@@ -2691,21 +2020,10 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
                                          ])
         let subject = ValueGraphTraverser(graph: valueGraph)
 
-        // Given: Graph
-        let targetNode = TargetNode(project: project,
-                                    target: target,
-                                    dependencies: [precompiledNodeA, precompiledNodeB])
-        let graph = Graph.test(projects: [project],
-                               precompiled: [precompiledNodeA, precompiledNodeB],
-                               targets: [project.path: [targetNode]])
-        let graphTraverser = GraphTraverser(graph: graph)
-
         // When
         let got = subject.librariesSwiftIncludePaths(path: project.path, name: target.name).sorted()
-        let gotGraph = graphTraverser.librariesSwiftIncludePaths(path: project.path, name: target.name).sorted()
 
         // Then
-        XCTAssertEqual(got, gotGraph)
         XCTAssertEqual(got, [AbsolutePath("/test/modules")])
     }
 
@@ -2713,34 +2031,6 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         // Given
         let unitTests = Target.test(name: "AppUnitTests", product: .unitTests)
         let project = Project.test(path: "/path/a")
-
-        // Given: Graph
-        let precompiledNode = FrameworkNode.test(path: "/test/test.framework",
-                                                 dsymPath: nil,
-                                                 bcsymbolmapPaths: [],
-                                                 linking: .dynamic,
-                                                 architectures: [.arm64])
-        let precompiledNodeB = FrameworkNode.test(path: "/test/testb.framework",
-                                                  dsymPath: nil,
-                                                  bcsymbolmapPaths: [],
-                                                  linking: .dynamic,
-                                                  architectures: [.arm64])
-        let unitTestsNode = TargetNode(project: project, target: unitTests, dependencies: [precompiledNode, precompiledNodeB])
-
-        let cache = GraphLoaderCache()
-        cache.add(project: project)
-        cache.add(precompiledNode: precompiledNode)
-        cache.add(precompiledNode: precompiledNodeB)
-        cache.add(targetNode: unitTestsNode)
-
-        let graph = Graph(
-            name: "Graph",
-            entryPath: project.path,
-            cache: cache,
-            entryNodes: [unitTestsNode],
-            workspace: Workspace.test(path: project.path)
-        )
-        let graphTraverser = GraphTraverser(graph: graph)
 
         // Given: Value Graph
         let precompiledDependency = ValueGraphDependency.testFramework(path: "/test/test.famework",
@@ -2768,10 +2058,8 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
 
         // When
         let got = subject.runPathSearchPaths(path: project.path, name: unitTests.name).sorted()
-        let gotGraph = graphTraverser.runPathSearchPaths(path: project.path, name: unitTests.name).sorted()
 
         // Then
-        XCTAssertEqual(got, gotGraph)
         XCTAssertEqual(
             got,
             [AbsolutePath("/test")]
@@ -2791,22 +2079,6 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
 
         let appNode = TargetNode(project: project, target: app, dependencies: [precompiledNode])
         let unitTestsNode = TargetNode(project: project, target: unitTests, dependencies: [appNode, precompiledNode])
-
-        let cache = GraphLoaderCache()
-        cache.add(project: project)
-        cache.add(targetNode: appNode)
-        cache.add(precompiledNode: precompiledNode)
-        cache.add(targetNode: unitTestsNode)
-
-        // Given: Graph
-        let graph = Graph(
-            name: "Graph",
-            entryPath: project.path,
-            cache: cache,
-            entryNodes: [unitTestsNode],
-            workspace: Workspace.test()
-        )
-        let graphTraverser = GraphTraverser(graph: graph)
 
         // Given: Value Graph
         let precompiledDependency = ValueGraphDependency.testFramework(path: "/test/test.famework",
@@ -2828,10 +2100,8 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
 
         // When
         let got = subject.runPathSearchPaths(path: project.path, name: unitTests.name).sorted()
-        let gotGraph = graphTraverser.runPathSearchPaths(path: project.path, name: unitTests.name).sorted()
 
         // Then
-        XCTAssertEqual(got, gotGraph)
         XCTAssertEmpty(got)
     }
 
@@ -2840,14 +2110,6 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         let app = Target.test(name: "App", platform: .iOS, product: .app)
         let watchApp = Target.test(name: "WatchApp", platform: .watchOS, product: .watch2App)
         let project = Project.test(path: "/path/a")
-
-        // Given: Graph
-        let graph = Graph.create(project: project,
-                                 dependencies: [
-                                     (target: app, dependencies: [watchApp]),
-                                     (target: watchApp, dependencies: []),
-                                 ])
-        let graphTraverser = GraphTraverser(graph: graph)
 
         // Given: Value Graph
         let valueGraph = ValueGraph.test(projects: [project.path: project],
@@ -2861,10 +2123,8 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
 
         // When
         let got = subject.hostTargetFor(path: project.path, name: "WatchApp")
-        let gotGraph = graphTraverser.hostTargetFor(path: project.path, name: "WatchApp")
 
         // Then
-        XCTAssertEqual(got, gotGraph)
         XCTAssertEqual(got?.target, app)
     }
 
@@ -2873,14 +2133,6 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         let watchApp = Target.test(name: "WatchApp", platform: .watchOS, product: .watch2App)
         let watchAppExtension = Target.test(name: "WatchAppExtension", platform: .watchOS, product: .watch2Extension)
         let project = Project.test(path: "/path/a")
-
-        // Given: Graph
-        let graph = Graph.create(project: project,
-                                 dependencies: [
-                                     (target: watchApp, dependencies: [watchAppExtension]),
-                                     (target: watchAppExtension, dependencies: []),
-                                 ])
-        let graphTraverser = GraphTraverser(graph: graph)
 
         // Given: Value Graph
         let valueGraph = ValueGraph.test(projects: [project.path: project],
@@ -2894,10 +2146,8 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
 
         // When
         let got = subject.hostTargetFor(path: project.path, name: "WatchAppExtension")
-        let gotGraph = graphTraverser.hostTargetFor(path: project.path, name: "WatchAppExtension")
 
         // Then
-        XCTAssertEqual(got, gotGraph)
         XCTAssertEqual(got?.target, watchApp)
     }
 

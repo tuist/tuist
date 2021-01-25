@@ -4,6 +4,7 @@ import TuistGraph
 @testable import TuistCore
 
 final class MockGraphTraverser: GraphTraversing {
+
     var invokedNameGetter = false
     var invokedNameGetterCount = 0
     var stubbedName: String! = ""
@@ -92,6 +93,16 @@ final class MockGraphTraverser: GraphTraversing {
         invokedRootTargets = true
         invokedRootTargetsCount += 1
         return stubbedRootTargetsResult
+    }
+
+    var invokedAllTargets = false
+    var invokedAllTargetsCount = 0
+    var stubbedAllTargetsResult: Set<ValueGraphTarget>! = []
+
+    func allTargets() -> Set<ValueGraphTarget> {
+        invokedAllTargets = true
+        invokedAllTargetsCount += 1
+        return stubbedAllTargetsResult
     }
 
     var invokedRootProjects = false
@@ -372,5 +383,19 @@ final class MockGraphTraverser: GraphTraversing {
             throw error
         }
         return stubbedAllProjectDependenciesResult
+    }
+
+    var invokedDependsOnXCTest = false
+    var invokedDependsOnXCTestCount = 0
+    var invokedDependsOnXCTestParameters: (path: AbsolutePath, name: String)?
+    var invokedDependsOnXCTestParametersList = [(path: AbsolutePath, name: String)]()
+    var stubbedDependsOnXCTestResult: Bool! = false
+
+    func dependsOnXCTest(path: AbsolutePath, name: String) -> Bool {
+        invokedDependsOnXCTest = true
+        invokedDependsOnXCTestCount += 1
+        invokedDependsOnXCTestParameters = (path, name)
+        invokedDependsOnXCTestParametersList.append((path, name))
+        return stubbedDependsOnXCTestResult
     }
 }
