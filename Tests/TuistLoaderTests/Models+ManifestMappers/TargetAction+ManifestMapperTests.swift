@@ -2,6 +2,7 @@ import Foundation
 import ProjectDescription
 import TSCBasic
 import TuistCore
+import TuistGraph
 import TuistSupport
 import XCTest
 
@@ -18,7 +19,7 @@ final class TargetActionManifestMapperTests: TuistUnitTestCase {
                                                             order: .pre,
                                                             arguments: ["arg1", "arg2"])
         // When
-        let model = try TuistCore.TargetAction.from(manifest: manifest, generatorPaths: generatorPaths)
+        let model = try TuistGraph.TargetAction.from(manifest: manifest, generatorPaths: generatorPaths)
 
         // Then
         XCTAssertEqual(model.name, "MyScript")

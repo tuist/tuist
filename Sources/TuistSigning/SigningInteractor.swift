@@ -1,6 +1,7 @@
 import Foundation
 import TSCBasic
 import TuistCore
+import TuistGraph
 import TuistSupport
 
 /// Interacts with signing
@@ -83,7 +84,7 @@ public final class SigningInteractor: SigningInteracting {
     private func install(target: Target,
                          project: Project,
                          keychainPath: AbsolutePath,
-                         certificates: [TargetName: [ConfigurationName: Certificate]],
+                         certificates: [Fingerprint: Certificate],
                          provisioningProfiles: [TargetName: [ConfigurationName: ProvisioningProfile]]) throws
     {
         let targetConfigurations = target.settings?.configurations ?? [:]
@@ -97,7 +98,7 @@ public final class SigningInteractor: SigningInteracting {
         .compactMap { configuration -> (certificate: Certificate, provisioningProfile: ProvisioningProfile)? in
             guard
                 let provisioningProfile = provisioningProfiles[target.name]?[configuration.name],
-                let certificate = certificates[target.name]?[configuration.name]
+                let certificate = certificates.first(for: provisioningProfile)
             else {
                 return nil
             }

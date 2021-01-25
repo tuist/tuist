@@ -1,5 +1,6 @@
 import TSCBasic
 import TuistCore
+import TuistGraph
 import TuistSupport
 import XCTest
 @testable import TuistCoreTesting
@@ -207,14 +208,11 @@ final class SigningInteractorTests: TuistUnitTestCase {
         let targetName = "target"
         let configuration = "configuration"
         let expectedCertificate = Certificate.test(name: "certA")
-        let expectedProvisioningProfile = ProvisioningProfile.test(name: "profileA")
+        let expectedProvisioningProfile = ProvisioningProfile.test(name: "profileA", developerCertificateFingerprints: ["fingerprint"])
         signingMatcher.matchStub = { _ in
             (certificates: [
-                targetName: [
-                    configuration: expectedCertificate,
-                    // Used to ensure only certificates that have configuration are installed
-                    "other-config": Certificate.test(name: "certB"),
-                ],
+                "fingerprint": expectedCertificate,
+                "otherFingerprint": Certificate.test(name: "certB"),
             ],
             provisioningProfiles: [
                 targetName: [

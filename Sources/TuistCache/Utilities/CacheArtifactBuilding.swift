@@ -1,5 +1,6 @@
 import TSCBasic
 import TuistCore
+import TuistGraph
 
 public protocol CacheArtifactBuilding {
     /// Returns the type of artifact that the concrete builder processes.

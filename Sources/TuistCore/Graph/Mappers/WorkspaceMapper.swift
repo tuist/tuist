@@ -1,4 +1,5 @@
 import Foundation
+import TuistGraph
 
 public struct WorkspaceWithProjects {
     public var workspace: Workspace

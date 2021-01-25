@@ -1,6 +1,7 @@
 import Foundation
 import RxSwift
 import struct TSCUtility.Version
+import TuistGraph
 import TuistSupport
 
 public protocol SimulatorControlling {

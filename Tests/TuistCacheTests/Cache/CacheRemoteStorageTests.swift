@@ -4,6 +4,8 @@ import TuistCacheTesting
 import TuistCloud
 import TuistCore
 import TuistCoreTesting
+import TuistGraph
+import TuistGraphTesting
 import TuistSupport
 import XCTest
 
@@ -23,7 +25,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
     override func setUp() {
         super.setUp()
 
-        config = TuistCore.Config.test()
+        config = TuistGraph.Config.test()
         zipPath = fixturePath(path: RelativePath("uUI.xcframework.zip"))
 
         fileArchiverFactory = MockFileArchivingFactory()

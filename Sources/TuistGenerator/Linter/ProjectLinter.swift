@@ -1,6 +1,7 @@
 import Foundation
 import TSCBasic
 import TuistCore
+import TuistGraph
 import TuistSupport
 
 protocol ProjectLinting: AnyObject {
@@ -13,16 +14,19 @@ class ProjectLinter: ProjectLinting {
     let targetLinter: TargetLinting
     let settingsLinter: SettingsLinting
     let schemeLinter: SchemeLinting
+    let packageLinter: PackageLinting
 
     // MARK: - Init
 
     init(targetLinter: TargetLinting = TargetLinter(),
          settingsLinter: SettingsLinting = SettingsLinter(),
-         schemeLinter: SchemeLinting = SchemeLinter())
+         schemeLinter: SchemeLinting = SchemeLinter(),
+         packageLinter: PackageLinting = PackageLinter())
     {
         self.targetLinter = targetLinter
         self.settingsLinter = settingsLinter
         self.schemeLinter = schemeLinter
+        self.packageLinter = packageLinter
     }
 
     // MARK: - ProjectLinting
@@ -32,10 +36,15 @@ class ProjectLinter: ProjectLinting {
         issues.append(contentsOf: lintTargets(project: project))
         issues.append(contentsOf: settingsLinter.lint(project: project))
         issues.append(contentsOf: schemeLinter.lint(project: project))
+        issues.append(contentsOf: lintPackages(project: project))
         return issues
     }
 
     // MARK: - Fileprivate
+
+    private func lintPackages(project: Project) -> [LintingIssue] {
+        project.packages.flatMap(packageLinter.lint)
+    }
 
     private func lintTargets(project: Project) -> [LintingIssue] {
         var issues: [LintingIssue] = []

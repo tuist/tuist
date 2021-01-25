@@ -2,6 +2,7 @@ import Foundation
 import RxSwift
 import TSCBasic
 import TuistCore
+import TuistGraph
 import TuistSupport
 
 enum CacheRemoteStorageError: FatalError, Equatable {

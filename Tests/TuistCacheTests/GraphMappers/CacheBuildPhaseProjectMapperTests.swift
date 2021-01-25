@@ -2,6 +2,7 @@ import Foundation
 import RxBlocking
 import RxSwift
 import TuistCore
+import TuistGraph
 import XCTest
 
 @testable import TuistCache

@@ -14,7 +14,8 @@ extension ProvisioningProfile {
         appIdName: String = "appIdName",
         applicationIdPrefix: [String] = [],
         platforms: [String] = ["iOS"],
-        expirationDate: Date = Date().addingTimeInterval(100)
+        expirationDate: Date = Date().addingTimeInterval(100),
+        developerCertificateFingerprints: [String] = ["developerCertificateFingerprint"]
     ) -> ProvisioningProfile {
         ProvisioningProfile(
             path: path,
@@ -27,7 +28,8 @@ extension ProvisioningProfile {
             appIdName: appIdName,
             applicationIdPrefix: applicationIdPrefix,
             platforms: platforms,
-            expirationDate: expirationDate
+            expirationDate: expirationDate,
+            developerCertificateFingerprints: developerCertificateFingerprints
         )
     }
 }

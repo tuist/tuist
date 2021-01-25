@@ -2,6 +2,7 @@ import Foundation
 import ProjectDescription
 import TSCBasic
 import TuistCore
+import TuistGraph
 import TuistSupport
 
 public class GeneratorModelLoader {
@@ -34,25 +35,25 @@ extension GeneratorModelLoader: GeneratorModelLoading {
     ///   - path: The absolute path for the project model to load.
     /// - Returns: The Project loaded from the specified path
     /// - Throws: Error encountered during the loading process (e.g. Missing project)
-    public func loadProject(at path: AbsolutePath) throws -> TuistCore.Project {
+    public func loadProject(at path: AbsolutePath) throws -> TuistGraph.Project {
         let manifest = try manifestLoader.loadProject(at: path)
         try manifestLinter.lint(project: manifest).printAndThrowIfNeeded()
         return try convert(manifest: manifest, path: path)
     }
 
-    public func loadWorkspace(at path: AbsolutePath) throws -> TuistCore.Workspace {
+    public func loadWorkspace(at path: AbsolutePath) throws -> TuistGraph.Workspace {
         let manifest = try manifestLoader.loadWorkspace(at: path)
         return try convert(manifest: manifest, path: path)
     }
 
-    public func loadConfig(at path: AbsolutePath) throws -> TuistCore.Config {
+    public func loadConfig(at path: AbsolutePath) throws -> TuistGraph.Config {
         // If the Config.swift file exists in the root Tuist/ directory, we load it from there
         if let rootDirectoryPath = rootDirectoryLocator.locate(from: path) {
             let configPath = rootDirectoryPath.appending(RelativePath("\(Constants.tuistDirectoryName)/\(Manifest.config.fileName(path))"))
 
             if FileHandler.shared.exists(configPath) {
                 let manifest = try manifestLoader.loadConfig(at: configPath.parentDirectory)
-                return try TuistCore.Config.from(manifest: manifest, at: configPath)
+                return try TuistGraph.Config.from(manifest: manifest, at: configPath)
             }
         }
 
@@ -66,25 +67,29 @@ extension GeneratorModelLoader: GeneratorModelLoading {
                 continue
             }
             let manifest = try manifestLoader.loadConfig(at: configPath.parentDirectory)
-            return try TuistCore.Config.from(manifest: manifest, at: configPath)
+            return try TuistGraph.Config.from(manifest: manifest, at: configPath)
         }
 
-        return TuistCore.Config.default
+        return TuistGraph.Config.default
+    }
+
+    public func loadPlugin(at _: AbsolutePath) throws -> TuistGraph.Plugin {
+        Plugin(name: "TODO")
     }
 }
 
 extension GeneratorModelLoader: ManifestModelConverting {
-    public func convert(manifest: ProjectDescription.Project, path: AbsolutePath) throws -> TuistCore.Project {
+    public func convert(manifest: ProjectDescription.Project, path: AbsolutePath) throws -> TuistGraph.Project {
         let generatorPaths = GeneratorPaths(manifestDirectory: path)
-        return try TuistCore.Project.from(manifest: manifest, generatorPaths: generatorPaths)
+        return try TuistGraph.Project.from(manifest: manifest, generatorPaths: generatorPaths)
     }
 
-    public func convert(manifest: ProjectDescription.Workspace, path: AbsolutePath) throws -> TuistCore.Workspace {
+    public func convert(manifest: ProjectDescription.Workspace, path: AbsolutePath) throws -> TuistGraph.Workspace {
         let generatorPaths = GeneratorPaths(manifestDirectory: path)
-        let workspace = try TuistCore.Workspace.from(manifest: manifest,
-                                                     path: path,
-                                                     generatorPaths: generatorPaths,
-                                                     manifestLoader: manifestLoader)
+        let workspace = try TuistGraph.Workspace.from(manifest: manifest,
+                                                      path: path,
+                                                      generatorPaths: generatorPaths,
+                                                      manifestLoader: manifestLoader)
         return workspace
     }
 }

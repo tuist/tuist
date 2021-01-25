@@ -1,13 +1,14 @@
 import Foundation
 import ProjectDescription
 import TuistCore
+import TuistGraph
 
-extension TuistCore.DeploymentTarget {
+extension TuistGraph.DeploymentTarget {
     /// Maps a ProjectDescription.DeploymentTarget instance into a TuistCore.DeploymentTarget instance.
     /// - Parameters:
     ///   - manifest: Manifest representation of deployment target model.
     ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.DeploymentTarget) -> TuistCore.DeploymentTarget {
+    static func from(manifest: ProjectDescription.DeploymentTarget) -> TuistGraph.DeploymentTarget {
         switch manifest {
         case let .iOS(version, devices):
             return .iOS(version, DeploymentDevice(rawValue: devices.rawValue))

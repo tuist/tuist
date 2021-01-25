@@ -2,6 +2,8 @@ import Foundation
 import TSCBasic
 import TuistCore
 import TuistCoreTesting
+import TuistGraph
+import TuistGraphTesting
 import TuistSupport
 import XCTest
 @testable import TuistGenerator
@@ -10,6 +12,7 @@ final class ProjectLinterTests: XCTestCase {
     var targetLinter: MockTargetLinter!
     var schemeLinter: MockSchemeLinter!
     var settingsLinter: MockSettingsLinter!
+    var packageLinter: MockPackageLinter!
 
     var subject: ProjectLinter!
 
@@ -18,9 +21,11 @@ final class ProjectLinterTests: XCTestCase {
         targetLinter = MockTargetLinter()
         schemeLinter = MockSchemeLinter()
         settingsLinter = MockSettingsLinter()
+        packageLinter = MockPackageLinter()
         subject = ProjectLinter(targetLinter: targetLinter,
                                 settingsLinter: settingsLinter,
-                                schemeLinter: schemeLinter)
+                                schemeLinter: schemeLinter,
+                                packageLinter: packageLinter)
     }
 
     override func tearDown() {
@@ -30,6 +35,7 @@ final class ProjectLinterTests: XCTestCase {
         settingsLinter = nil
         schemeLinter = nil
         targetLinter = nil
+        packageLinter = nil
     }
 
     func test_validate_when_there_are_duplicated_targets() throws {

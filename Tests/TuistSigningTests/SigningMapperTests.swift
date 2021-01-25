@@ -1,5 +1,6 @@
 import TSCBasic
 import TuistCore
+import TuistGraph
 import TuistSupport
 import XCTest
 @testable import TuistCoreTesting
@@ -44,16 +45,16 @@ final class SigningMapperTests: TuistUnitTestCase {
         let targetName = "target"
         let configuration = "configuration"
         let certificate = Certificate.test(name: "certA")
+        let fingerprint = "fingerprint"
         let provisioningProfile = ProvisioningProfile.test(
             name: "profileA",
             teamId: "TeamID",
-            appId: "TeamID.BundleID"
+            appId: "TeamID.BundleID",
+            developerCertificateFingerprints: ["otherFingerPrint", fingerprint]
         )
         signingMatcher.matchStub = { _ in
             (certificates: [
-                targetName: [
-                    configuration: certificate,
-                ],
+                fingerprint: certificate,
             ],
             provisioningProfiles: [
                 targetName: [

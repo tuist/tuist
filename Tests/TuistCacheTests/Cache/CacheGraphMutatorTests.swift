@@ -1,9 +1,11 @@
 import Foundation
 import TSCBasic
 import TuistCore
+import TuistGraph
 import XCTest
 @testable import TuistCache
 @testable import TuistCoreTesting
+@testable import TuistGraphTesting
 @testable import TuistSupportTesting
 
 // To generate the ASCII graphs: http://asciiflow.com/

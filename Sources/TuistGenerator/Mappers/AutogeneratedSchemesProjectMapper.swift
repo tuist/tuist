@@ -1,5 +1,6 @@
 import Foundation
 import TuistCore
+import TuistGraph
 
 /// A project mapper that auto-generates schemes for each of the targets of the `Project`
 /// if the user hasn't already defined schemes for those.

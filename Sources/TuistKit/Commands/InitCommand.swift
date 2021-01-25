@@ -3,18 +3,21 @@ import Foundation
 import TSCBasic
 import TuistCore
 import TuistGenerator
+import TuistGraph
 import TuistLoader
 import TuistScaffold
 import TuistSupport
 
-private typealias Platform = TuistCore.Platform
-private typealias Product = TuistCore.Product
+private typealias Platform = TuistGraph.Platform
+private typealias Product = TuistGraph.Product
 
-struct InitCommand: ParsableCommand {
+struct InitCommand: ParsableCommand, HasTrackableParameters {
     static var configuration: CommandConfiguration {
         CommandConfiguration(commandName: "init",
                              abstract: "Bootstraps a project")
     }
+
+    static var analyticsDelegate: TrackableParametersDelegate?
 
     @Option(
         help: "The platform (ios, tvos or macos) the product will be for (Default: ios)",
@@ -64,6 +67,7 @@ struct InitCommand: ParsableCommand {
     }
 
     func run() throws {
+        InitCommand.analyticsDelegate?.willRun(withParamters: ["platform": platform ?? "unknown"])
         try InitService().run(name: name,
                               platform: platform,
                               path: path,

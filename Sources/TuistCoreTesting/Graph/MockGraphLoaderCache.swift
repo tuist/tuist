@@ -1,5 +1,6 @@
 import Foundation
 import TSCBasic
+import TuistGraph
 @testable import TuistCore
 
 public final class MockGraphLoaderCache: GraphLoaderCaching {

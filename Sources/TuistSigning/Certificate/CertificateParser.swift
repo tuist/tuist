@@ -5,23 +5,23 @@ import TuistSupport
 enum CertificateParserError: FatalError, Equatable {
     case nameParsingFailed(AbsolutePath, String)
     case developmentTeamParsingFailed(AbsolutePath, String)
-    case invalidFormat(String)
+    case fileParsingFailed(AbsolutePath)
 
     var type: ErrorType {
         switch self {
-        case .nameParsingFailed, .developmentTeamParsingFailed, .invalidFormat:
+        case .nameParsingFailed, .developmentTeamParsingFailed, .fileParsingFailed:
             return .abort
         }
     }
 
     var description: String {
         switch self {
-        case let .invalidFormat(certificate):
-            return "Certificate \(certificate) is in invalid format. Please name your certificates in the following way: Target.Configuration.p12"
         case let .nameParsingFailed(path, input):
             return "We couldn't parse the name while parsing the following output from the file \(path.pathString): \(input)"
         case let .developmentTeamParsingFailed(path, input):
             return "We couldn't parse the development team while parsing the following output from the file \(path.pathString): \(input)"
+        case let .fileParsingFailed(path):
+            return "We couldn't parse the file \(path.pathString)"
         }
     }
 }
@@ -31,6 +31,9 @@ protocol CertificateParsing {
     /// Parse public-private key pair
     /// - Returns: Parse `Certificate`
     func parse(publicKey: AbsolutePath, privateKey: AbsolutePath) throws -> Certificate
+
+    /// Retrieve fingerprint of a public key
+    func parseFingerPrint(developerCertificate: Data) throws -> String
 }
 
 /// Subject attributes that are returnen with `openssl x509 -subject`
@@ -48,12 +51,8 @@ private enum SubjectAttribute: String {
 
 final class CertificateParser: CertificateParsing {
     func parse(publicKey: AbsolutePath, privateKey: AbsolutePath) throws -> Certificate {
-        let publicKeyComponents = publicKey.basenameWithoutExt.components(separatedBy: ".")
-        guard publicKeyComponents.count == 2 else { throw CertificateParserError.invalidFormat(publicKey.pathString) }
-        let targetName = publicKeyComponents[0]
-        let configurationName = publicKeyComponents[1]
-
         let subject = try self.subject(at: publicKey)
+        let fingerprint = try self.fingerprint(at: publicKey)
         let isRevoked = subject.contains("REVOKED")
 
         let nameRegex = try NSRegularExpression(
@@ -61,9 +60,9 @@ final class CertificateParser: CertificateParsing {
             options: []
         )
         guard
-            let result = nameRegex.firstMatch(in: subject, options: [], range: NSRange(location: 0, length: subject.count))
+            let nameResult = nameRegex.firstMatch(in: subject, options: [], range: NSRange(location: 0, length: subject.count))
         else { throw CertificateParserError.nameParsingFailed(publicKey, subject) }
-        let name = NSString(string: subject).substring(with: result.range(at: 1)).spm_chomp()
+        let name = NSString(string: subject).substring(with: nameResult.range(at: 1)).spm_chomp()
 
         let developmentTeamRegex = try NSRegularExpression(
             pattern: SubjectAttribute.organizationalUnit.rawValue + " *= *([^/,]+)",
@@ -77,18 +76,46 @@ final class CertificateParser: CertificateParsing {
         return Certificate(
             publicKey: publicKey,
             privateKey: privateKey,
+            fingerprint: fingerprint,
             developmentTeam: developmentTeam,
             name: name.sanitizeEncoding(),
-            targetName: targetName,
-            configurationName: configurationName,
             isRevoked: isRevoked
         )
+    }
+
+    func parseFingerPrint(developerCertificate: Data) throws -> String {
+        let temporaryFile = try FileHandler.shared.temporaryDirectory().appending(component: "developerCertificate.cer")
+        try developerCertificate.write(to: temporaryFile.asURL)
+
+        return try fingerprint(at: temporaryFile)
     }
 
     // MARK: - Helpers
 
     private func subject(at path: AbsolutePath) throws -> String {
-        try System.shared.capture("openssl", "x509", "-inform", "der", "-in", path.pathString, "-noout", "-subject")
+        do {
+            return try System.shared.capture("openssl", "x509", "-inform", "der", "-in", path.pathString, "-noout", "-subject")
+        } catch let TuistSupport.SystemError.terminated(_, _, standardError) {
+            if let string = String(data: standardError, encoding: .utf8) {
+                logger.warning("Parsing subject of \(path) failed with: \(string)")
+            }
+            throw CertificateParserError.fileParsingFailed(path)
+        } catch {
+            throw CertificateParserError.fileParsingFailed(path)
+        }
+    }
+
+    private func fingerprint(at path: AbsolutePath) throws -> String {
+        do {
+            return try System.shared.capture("openssl", "x509", "-inform", "der", "-in", path.pathString, "-noout", "-fingerprint").spm_chomp()
+        } catch let TuistSupport.SystemError.terminated(_, _, standardError) {
+            if let string = String(data: standardError, encoding: .utf8) {
+                logger.warning("Parsing fingerprint of \(path) failed with: \(string)")
+            }
+            throw CertificateParserError.fileParsingFailed(path)
+        } catch {
+            throw CertificateParserError.fileParsingFailed(path)
+        }
     }
 }
 
