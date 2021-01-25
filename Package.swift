@@ -320,7 +320,6 @@ let package = Package(
                 "TuistGraph",
                 "TuistSupport",
                 rxSwiftDependency,
-                "CryptoSwift",
             ]
         ),
         .testTarget(
