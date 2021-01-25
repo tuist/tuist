@@ -3,13 +3,13 @@ import TSCBasic
 @testable import TuistGraph
 
 public extension Cache {
-    static func test(flavors: [Cache.Flavor] = [Cache.Flavor.test()]) -> Cache {
-        Cache(flavors: flavors)
+    static func test(profiles: [Cache.Profile] = [Cache.Profile.test()]) -> Cache {
+        Cache(profiles: profiles)
     }
 }
 
-public extension Cache.Flavor {
-    static func test() -> Cache.Flavor {
-        Cache.Flavor(name: "development", configuration: "Debug")
+public extension Cache.Profile {
+    static func test() -> Cache.Profile {
+        Cache.Profile(name: "development", configuration: "Debug")
     }
 }

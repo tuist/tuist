@@ -7,6 +7,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Added
 
 - Disable SwiftFormat in the generated synthesized interface for resources [#2328]((https://github.com/tuist/tuist/pull/2328) by [@natanrolnik](https://github.com/natanrolnik).
+- Add `profile` option to `cache warm` command [#2190](https://github.com/tuist/tuist/issues/2190) by [@mollyIV](https://github.com/mollyIV).
 
 ### Fixed
 
@@ -28,10 +29,6 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Update failing trying to create the `swift-project` symbolic link [#2244](https://github.com/tuist/tuist/pull/2244)
 - Tuist now correctly parses arm64e architectures in xcframeworks [#2247](https://github.com/tuist/tuist/pull/2247) by [@thedavidharris](https://github.com/thedavidharris).
-
-### Added
-
-- Add `flavor` option to `cache warm` command [#2190](https://github.com/tuist/tuist/issues/2190) by [@mollyIV](https://github.com/mollyIV).
 
 ## 1.30.0 - 2021
 

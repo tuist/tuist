@@ -1,7 +1,7 @@
 import Foundation
 
 public struct Cache: Equatable, Hashable {
-    public struct Flavor: Equatable, Hashable {
+    public struct Profile: Equatable, Hashable {
         public let name: String
         public let configuration: String
 
@@ -11,11 +11,11 @@ public struct Cache: Equatable, Hashable {
         }
     }
 
-    public let flavors: [Flavor]
+    public let profiles: [Profile]
 
-    public init(flavors: [Flavor]) {
-        self.flavors = flavors
+    public init(profiles: [Profile]) {
+        self.profiles = profiles
     }
 
-    public static let `default` = Cache(flavors: [Flavor(name: "development", configuration: "Debug")])
+    public static let `default` = Cache(profiles: [Profile(name: "development", configuration: "Debug")])
 }

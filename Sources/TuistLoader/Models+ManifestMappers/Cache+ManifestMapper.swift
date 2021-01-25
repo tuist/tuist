@@ -6,12 +6,12 @@ import TuistSupport
 
 extension TuistGraph.Cache {
     static func from(manifest: ProjectDescription.Cache) -> TuistGraph.Cache {
-        TuistGraph.Cache(flavors: manifest.flavors.map(TuistGraph.Cache.Flavor.from(manifest:)))
+        TuistGraph.Cache(profiles: manifest.profiles.map(TuistGraph.Cache.Profile.from(manifest:)))
     }
 }
 
-extension TuistGraph.Cache.Flavor {
-    static func from(manifest: ProjectDescription.Cache.Flavor) -> TuistGraph.Cache.Flavor {
-        TuistGraph.Cache.Flavor(name: manifest.name, configuration: manifest.configuration)
+extension TuistGraph.Cache.Profile {
+    static func from(manifest: ProjectDescription.Cache.Profile) -> TuistGraph.Cache.Profile {
+        TuistGraph.Cache.Profile(name: manifest.name, configuration: manifest.configuration)
     }
 }

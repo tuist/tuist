@@ -6,6 +6,32 @@ import TuistGraph
 import TuistLoader
 import TuistSupport
 
+enum CacheWarmServiceError: FatalError, Equatable {
+    case missingDefaultProfile
+    case missingProfile(name: String, availableProfiles: [String])
+
+    /// Error description.
+    var description: String {
+        switch self {
+        case let .missingProfile(name, availableProfiles):
+            return "The profile '\(name)' is missing in your project's configuration. Available cache profiles: \(availableProfiles.joined(separator: ", "))."
+
+        case .missingDefaultProfile:
+            return "The default profile has not been found."
+        }
+    }
+
+    /// Error type.
+    var type: ErrorType {
+        switch self {
+        case .missingProfile:
+            return .abort
+        case .missingDefaultProfile:
+            return .abort
+        }
+    }
+}
+
 final class CacheWarmService {
     /// Generator Model Loader, used for getting the user config
     private let generatorModelLoader: GeneratorModelLoader
@@ -18,7 +44,7 @@ final class CacheWarmService {
     }
 
     // TODO: Add unit tests
-    func run(path: String?, flavor: String?, xcframeworks: Bool) throws {
+    func run(path: String?, profile: String?, xcframeworks: Bool) throws {
         let path = self.path(path)
         let config = try generatorModelLoader.loadConfig(at: currentPath)
         let cache = Cache(storageProvider: CacheStorageProvider(config: config))
@@ -30,8 +56,8 @@ final class CacheWarmService {
         } else {
             cacheController = cacheControllerFactory.makeForSimulatorFramework(contentHasher: contentHasher)
         }
-        let flavor = try cacheFlavor(named: flavor, from: config)
-        try cacheController.cache(path: path, configuration: flavor.configuration)
+        let profile = try cacheProfile(named: profile, from: config)
+        try cacheController.cache(path: path, configuration: profile.configuration)
     }
 
     // MARK: - Helpers
@@ -44,50 +70,24 @@ final class CacheWarmService {
         }
     }
 
-    private func cacheFlavor(named flavorName: String?, from config: Config) throws -> TuistGraph.Cache.Flavor {
-        let flavors = config.cache.flavors
-        switch flavorName {
+    private func cacheProfile(named profileName: String?, from config: Config) throws -> TuistGraph.Cache.Profile {
+        let profiles = config.cache.profiles
+        switch profileName {
         case .none:
-            guard let defaultFlavor = flavors.first else {
-                throw CacheWarmServiceError.missingDefaultFlavor
+            guard let defaultProfile = profiles.first else {
+                throw CacheWarmServiceError.missingDefaultProfile
             }
-            return defaultFlavor
+            return defaultProfile
 
         case let .some(name):
-            guard let flavor = flavors.first(where: { $0.name == name }) else {
-                throw CacheWarmServiceError.missingFlavor(name: name, availableFlavors: flavors.map(\.name))
+            guard let profile = profiles.first(where: { $0.name == name }) else {
+                throw CacheWarmServiceError.missingProfile(name: name, availableProfiles: profiles.map(\.name))
             }
-            return flavor
+            return profile
         }
     }
 
     private var currentPath: AbsolutePath {
         FileHandler.shared.currentPath
-    }
-}
-
-enum CacheWarmServiceError: FatalError, Equatable {
-    case missingDefaultFlavor
-    case missingFlavor(name: String, availableFlavors: [String])
-
-    /// Error description.
-    var description: String {
-        switch self {
-        case let .missingFlavor(name, availableFlavors):
-            return "The flavor '\(name)' is missing in your project's configuration. Available cache flavors: \(availableFlavors.joined(separator: ", "))."
-
-        case .missingDefaultFlavor:
-            return "The default flavor has not been found."
-        }
-    }
-
-    /// Error type.
-    var type: ErrorType {
-        switch self {
-        case .missingFlavor:
-            return .abort
-        case .missingDefaultFlavor:
-            return .abort
-        }
     }
 }
