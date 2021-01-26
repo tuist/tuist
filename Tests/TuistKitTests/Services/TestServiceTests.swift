@@ -85,7 +85,7 @@ final class TestServiceTests: TuistUnitTestCase {
         var testedSchemes: [String] = []
         xcodebuildController.testStub = { _, scheme, _, _, _ in
             testedSchemes.append(scheme)
-            return .just(.standardOutput(.init(raw: "success", formatted: nil)))
+            return .just(.standardOutput(.init(raw: "success")))
         }
 
         // When
@@ -117,7 +117,7 @@ final class TestServiceTests: TuistUnitTestCase {
         var testedSchemes: [String] = []
         xcodebuildController.testStub = { _, scheme, _, _, _ in
             testedSchemes.append(scheme)
-            return .just(.standardOutput(.init(raw: "success", formatted: nil)))
+            return .just(.standardOutput(.init(raw: "success")))
         }
 
         // When
