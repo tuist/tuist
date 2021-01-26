@@ -10,7 +10,7 @@ final class DependencyTests: XCTestCase {
     }
 
     func test_dependency_spm_codable() {
-        let subject: Dependency = .spm(url: "Path/Path", requirement: .exact("1.2.3"))
+        let subject: Dependency = .swiftPackageManager(package: .local(path: "Path/Path"))
         XCTAssertCodable(subject)
     }
 
@@ -55,48 +55,6 @@ final class DependencyTests: XCTestCase {
 
     func test_carthageRequirement_revision_codable() {
         let subject: Dependency.CarthageRequirement = .revision("revision")
-        XCTAssertCodable(subject)
-    }
-
-    // MARK: - SPM Requirement tests
-
-    func test_spmRequirement_exact_codable() {
-        let subject: Dependency.SPMRequirement = .exact("1.2.3")
-        XCTAssertCodable(subject)
-    }
-
-    func test_spmRequirement_upToNextMajor_codable() {
-        let subject: Dependency.SPMRequirement = .upToNextMajor("2.2.1")
-        XCTAssertCodable(subject)
-    }
-
-    func test_spmRequirement_upToNextMinor_codable() {
-        let subject: Dependency.SPMRequirement = .upToNextMinor("4.4.1")
-        XCTAssertCodable(subject)
-    }
-
-    func test_spmRequirement_atLeast_codable() {
-        let subject: Dependency.SPMRequirement = .atLeast("9.0.1")
-        XCTAssertCodable(subject)
-    }
-
-    func test_spmRequirement_range_codable() {
-        let subject: Dependency.SPMRequirement = .range("9.0.1" ..< "10.1.0")
-        XCTAssertCodable(subject)
-    }
-
-    func test_spmRequirement_closedRange_codable() {
-        let subject: Dependency.SPMRequirement = .closedRange("1.2.1" ... "7.1.4")
-        XCTAssertCodable(subject)
-    }
-
-    func test_spmRequirement_branch_codable() {
-        let subject: Dependency.SPMRequirement = .branch("branch")
-        XCTAssertCodable(subject)
-    }
-
-    func test_spmRequirement_revision_codable() {
-        let subject: Dependency.SPMRequirement = .revision("revision")
         XCTAssertCodable(subject)
     }
 }

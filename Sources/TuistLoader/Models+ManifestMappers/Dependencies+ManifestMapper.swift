@@ -14,7 +14,7 @@ extension TuistGraph.Dependencies {
                 let requirement = try TuistGraph.CarthageDependency.Requirement.from(manifest: requirement)
                 let platforms = try platforms.map { try TuistGraph.Platform.from(manifest: $0) }
                 result.append(CarthageDependency(origin: origin, requirement: requirement, platforms: Set(platforms)))
-            case .spm:
+            case .swiftPackageManager:
                 #warning("IMPLEMENT ME")
             }
         }
