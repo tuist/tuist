@@ -93,7 +93,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         let valueGraph = ValueGraph(graph: graph)
         let graphTraverser = ValueGraphTraverser(graph: valueGraph)
 
-        // Then
+        // When
         let got = try subject.schemeBuildAction(
             scheme: scheme,
             graphTraverser: graphTraverser,
@@ -103,7 +103,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             ]
         )
 
-        // When
+        // Then
         let result = try XCTUnwrap(got)
         XCTAssertEqual(result.buildActionEntries.count, 1)
         let entry = try XCTUnwrap(result.buildActionEntries.first)

@@ -256,11 +256,7 @@ class Generator: Generating {
         var updatedWorkspace = updatedModels
             .workspace
 
-        updatedWorkspace.projects = Array(
-            Set(
-                updatedWorkspace.projects + updatedGraph.projects.map(\.path)
-            )
-        )
+        updatedWorkspace = updatedWorkspace.merging(projects: updatedGraph.projects.map(\.path))
 
         return (
             project,
