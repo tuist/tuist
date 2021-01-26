@@ -14,6 +14,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Changed
 
+- Use project generated for automation and always leverage `XXX-Scheme` [#2057](https://github.com/tuist/tuist/pull/2057) by [@fortmarek](https://github.com/fortmarek)
 - Improve performance of project generation by removing unneeded Glob directory cache [#2318](https://github.com/tuist/tuist/pull/2318) by [@adellibovi](https://github.com/adellibovi).
 - Extracted graph models into `TuistGraph` [#2324](https://github.com/tuist/tuist/pull/2324) by [@pepibumur](https://github.com/pepibumur).
 
@@ -85,7 +86,6 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Changed
 
-- Use project generated for automation and always leverage `XXX-Scheme` [#2057](https://github.com/tuist/tuist/pull/2057) by [@fortmarek](https://github.com/fortmarek)
 - Generate multiple `XXX-Project` schemes if there are multiple platforms [#2081](https://github.com/tuist/tuist/pull/2081) by [@fortmarek](https://github.com/fortmarek)
 - Generators to take in the graph as `GraphTraversing` instead of `Graph` [#2110](https://github.com/tuist/tuist/pull/2110) by [@pepibumur](https://github.com/pepibumur)
 
