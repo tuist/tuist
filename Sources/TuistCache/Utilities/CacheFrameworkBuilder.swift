@@ -43,6 +43,10 @@ public final class CacheFrameworkBuilder: CacheArtifactBuilding {
     /// Developer's environment.
     private let developerEnvironment: DeveloperEnvironmenting
 
+    /// a map between the path of a project or workspace, and the path to derived data
+    /// using the hash calculated by Xcode.
+    private var projectPathHashes: [String: AbsolutePath] = [:]
+
     // MARK: - Init
 
     /// Initialzies the builder.
@@ -93,8 +97,6 @@ public final class CacheFrameworkBuilder: CacheArtifactBuilding {
         }
         let scheme = target.name.spm_shellEscaped()
 
-        // Create temporary directories
-        let builtProductsDirFingerprint = String.random()
         logger.notice("Building .framework for \(target.name)...", metadata: .section)
 
         let sdk = self.sdk(target: target)
@@ -102,8 +104,8 @@ public final class CacheFrameworkBuilder: CacheArtifactBuilding {
 
         let arguments = try self.arguments(target: target,
                                            sdk: sdk,
-                                           configuration: configuration,
-                                           builtProductsDirFingerprint: builtProductsDirFingerprint)
+                                           configuration: configuration)
+
         try xcodebuild(
             projectTarget: projectTarget,
             scheme: scheme,
@@ -111,15 +113,43 @@ public final class CacheFrameworkBuilder: CacheArtifactBuilding {
             arguments: arguments
         )
 
-        try exportFrameworksAndDSYMs(into: outputDirectory,
-                                     target: target,
-                                     builtProductsDirFingerprint: builtProductsDirFingerprint)
+        let buildDirectory = try self.buildDirectory(for: projectTarget,
+                                                     target: target,
+                                                     configuration: configuration,
+                                                     sdk: sdk)
+
+        try exportFrameworksAndDSYMs(from: buildDirectory,
+                                     into: outputDirectory,
+                                     target: target)
+    }
+
+    fileprivate func buildDirectory(for projectTarget: XcodeBuildTarget,
+                                    target: Target,
+                                    configuration: String,
+                                    sdk: String) throws -> AbsolutePath
+    {
+        let projectPath = projectTarget.path
+        let pathString = projectPath.pathString
+
+        if let existing = projectPathHashes[pathString] {
+            return existing
+        }
+
+        let derivedDataPath = developerEnvironment.derivedDataDirectory
+        let hash = try XcodeProjectPathHasher.hashString(for: pathString)
+        let buildDirectory = derivedDataPath
+            .appending(component: "\(projectTarget.path.basenameWithoutExt)-\(hash)")
+            .appending(component: "Build")
+            .appending(component: "Products")
+            .appending(component: "\(configuration)-\(sdk)")
+        projectPathHashes[pathString] = buildDirectory
+
+        return buildDirectory
     }
 
     fileprivate func arguments(target: Target,
                                sdk: String,
-                               configuration: String,
-                               builtProductsDirFingerprint: String) throws -> [XcodeBuildArgument]
+                               configuration: String) throws -> [XcodeBuildArgument]
     {
         try destination(target: target)
             .map { (destination: String) -> [XcodeBuildArgument] in
@@ -128,7 +158,6 @@ public final class CacheFrameworkBuilder: CacheArtifactBuilding {
                     .configuration(configuration),
                     .xcarg("DEBUG_INFORMATION_FORMAT", "dwarf-with-dsym"),
                     .xcarg("GCC_GENERATE_DEBUGGING_SYMBOLS", "YES"),
-                    .xcarg(target.targetLocatorBuildPhaseVariable, builtProductsDirFingerprint),
                     .destination(destination),
                 ]
             }
@@ -147,7 +176,7 @@ public final class CacheFrameworkBuilder: CacheArtifactBuilding {
         case .macOS: return .just("platform=OS X,arch=x86_64")
         }
 
-        return simulatorController.findAvailableDevice(platform: target.platform)
+        return simulatorController.findAvailableDevice(platform: platform)
             .flatMap { (deviceAndRuntime) -> Single<String> in
                 .just("id=\(deviceAndRuntime.device.udid)")
             }
@@ -179,23 +208,22 @@ public final class CacheFrameworkBuilder: CacheArtifactBuilding {
             .last()
     }
 
-    fileprivate func exportFrameworksAndDSYMs(into outputDirectory: AbsolutePath,
-                                              target: Target,
-                                              builtProductsDirFingerprint: String) throws
+    fileprivate func exportFrameworksAndDSYMs(from buildDirectory: AbsolutePath,
+                                              into outputDirectory: AbsolutePath,
+                                              target: Target) throws
     {
-        let globPattern = "**/.\(builtProductsDirFingerprint).tuist"
-        let derivedDataPath = developerEnvironment.derivedDataDirectory
-        logger.info("Locating the built products generated by target \(target.name)...")
-        guard let directory = FileHandler.shared.glob(derivedDataPath, glob: globPattern).first?.parentDirectory else {
-            throw CacheFrameworkBuilderError.builtProductsDirectoryNotFound(targetName: target.name)
-        }
-        guard let framework = FileHandler.shared.glob(directory, glob: target.productNameWithExtension).first else {
+        logger.info("Exporting built \(target.name) framework and dsym...")
+
+        guard let framework = FileHandler.shared.glob(buildDirectory, glob: target.productNameWithExtension).first else {
+            let derivedDataPath = developerEnvironment.derivedDataDirectory
             throw CacheFrameworkBuilderError.frameworkNotFound(name: target.productNameWithExtension, derivedDataPath: derivedDataPath)
         }
-        let dsyms = FileHandler.shared.glob(directory, glob: "\(target.productNameWithExtension).dSYM")
+        let dsyms = FileHandler.shared.glob(buildDirectory, glob: "\(target.productNameWithExtension).dSYM")
         try FileHandler.shared.copy(from: framework, to: outputDirectory.appending(component: framework.basename))
         try dsyms.forEach { dsym in
             try FileHandler.shared.copy(from: dsym, to: outputDirectory.appending(component: dsym.basename))
         }
+
+        logger.info("Done exporting from \(target.name) into Tuist cache")
     }
 }

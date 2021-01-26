@@ -29,17 +29,6 @@ extension Target {
         }
     }
 
-    /// It returns the name of the variable that should be used to create an empty file
-    /// in the $BUILT_PRODUCTS_DIR directory that is used after builds to reliably locate the
-    /// directories where the products have been exported into.
-    public var targetLocatorBuildPhaseVariable: String {
-        let upperCasedSnakeCasedProductName = productName
-            .camelCaseToSnakeCase()
-            .components(separatedBy: .whitespaces).joined(separator: "_")
-            .uppercased()
-        return "\(upperCasedSnakeCasedProductName)_LOCATE_HASH"
-    }
-
     /// Returns true if the file at the given path is a resource.
     /// - Parameter path: Path to the file to be checked.
     public static func isResource(path: AbsolutePath) -> Bool {

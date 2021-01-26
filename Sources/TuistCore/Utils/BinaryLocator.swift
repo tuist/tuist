@@ -5,6 +5,7 @@ import TuistSupport
 enum BinaryLocatorError: FatalError, Equatable {
     case swiftLintNotFound
     case swiftDocNotFound
+    case xcbeautifyNotFound
 
     var description: String {
         switch self {
@@ -12,13 +13,16 @@ enum BinaryLocatorError: FatalError, Equatable {
             return "Couldn't find the swift-lint binary."
         case .swiftDocNotFound:
             return "Couldn't find the swift-doc binary."
+        case .xcbeautifyNotFound:
+            return "Couldn't find the xcbeautify binary."
         }
     }
 
     var type: ErrorType {
         switch self {
         case .swiftLintNotFound,
-             .swiftDocNotFound:
+             .swiftDocNotFound,
+             .xcbeautifyNotFound:
             return .bug
         }
     }
@@ -31,6 +35,9 @@ public protocol BinaryLocating {
 
     /// Returns the path to the swift-doc binary.
     func swiftDocPath() throws -> AbsolutePath
+
+    /// Returns the path to the xcbeautify binary.
+    func xcbeautifyPath() throws -> AbsolutePath
 }
 
 public final class BinaryLocator: BinaryLocating {
@@ -73,6 +80,17 @@ public final class BinaryLocator: BinaryLocating {
 
         guard let existingPath = candidates.first(where: FileHandler.shared.exists) else {
             throw BinaryLocatorError.swiftDocNotFound
+        }
+        return existingPath
+    }
+
+    public func xcbeautifyPath() throws -> AbsolutePath {
+        let candidates = try binariesPaths().map { path in
+            path.appending(component: Constants.Vendor.xcbeautify)
+        }
+
+        guard let existingPath = candidates.first(where: FileHandler.shared.exists) else {
+            throw BinaryLocatorError.xcbeautifyNotFound
         }
         return existingPath
     }
