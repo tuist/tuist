@@ -68,12 +68,7 @@ final class StableXcodeProjIntegrationTests: TuistTestCase {
 
     private func findXcodeProjs(in workspace: XCWorkspace) throws -> [XcodeProj] {
         let temporaryPath = try self.temporaryPath()
-        let projectsPaths = workspace.data.children
-            .flatMap { child in
-                child.projectPaths.map {
-                    temporaryPath.appending(components: child.location.path, $0)
-                }
-            }
+        let projectsPaths = workspace.projectPaths.map { temporaryPath.appending(RelativePath($0)) }
         let xcodeProjs = try projectsPaths.map { try XcodeProj(path: $0.path) }
         return xcodeProjs
     }

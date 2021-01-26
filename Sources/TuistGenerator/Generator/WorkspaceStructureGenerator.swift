@@ -195,7 +195,7 @@ extension DirectoryStructure {
             case let .file(path):
                 return path
             case let .project(path):
-                return path
+                return path.parentDirectory
             case let .directory(path, _):
                 return path
             case let .folderReference(path):

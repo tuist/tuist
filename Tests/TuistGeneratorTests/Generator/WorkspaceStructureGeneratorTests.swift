@@ -42,19 +42,11 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
         // Then
         XCTAssertEqual(structure.contents, [
             .group("Modules", "/path/to/workspace/Modules", [
-                .group("A", "/path/to/workspace/Modules/A", [
-                    .project("/path/to/workspace/Modules/A/Project.xcodeproj"),
-                ]),
-                .group("B", "/path/to/workspace/Modules/B", [
-                    .project("/path/to/workspace/Modules/B/Project.xcodeproj"),
-                ]),
+                .project("/path/to/workspace/Modules/A/Project.xcodeproj"),
+                .project("/path/to/workspace/Modules/B/Project.xcodeproj"),
                 .group("Sub", "/path/to/workspace/Modules/Sub", [
-                    .group("C", "/path/to/workspace/Modules/Sub/C", [
-                        .project("/path/to/workspace/Modules/Sub/C/Project.xcodeproj"),
-                    ]),
-                    .group("D", "/path/to/workspace/Modules/Sub/D", [
-                        .project("/path/to/workspace/Modules/Sub/D/Project.xcodeproj"),
-                    ]),
+                    .project("/path/to/workspace/Modules/Sub/C/Project.xcodeproj"),
+                    .project("/path/to/workspace/Modules/Sub/D/Project.xcodeproj"),
                 ]),
             ]),
         ])
@@ -96,12 +88,8 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
                 ]),
             ]),
             .group("Modules", "/path/to/workspace/Modules", [
-                .group("A", "/path/to/workspace/Modules/A", [
-                    .project("/path/to/workspace/Modules/A/Project.xcodeproj"),
-                ]),
-                .group("B", "/path/to/workspace/Modules/B", [
-                    .project("/path/to/workspace/Modules/B/Project.xcodeproj"),
-                ]),
+                .project("/path/to/workspace/Modules/A/Project.xcodeproj"),
+                .project("/path/to/workspace/Modules/B/Project.xcodeproj"),
             ]),
             .file("/path/to/workspace/README.md"),
         ])
@@ -248,10 +236,8 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
         // Then
         XCTAssertEqual(structure.contents, [
             .group("Modules", "/path/to/workspace/Modules", [
+                .project("/path/to/workspace/Modules/A/Project.xcodeproj"),
                 .folderReference("/path/to/workspace/Modules/A"),
-                .group("A", "/path/to/workspace/Modules/A", [
-                    .project("/path/to/workspace/Modules/A/Project.xcodeproj"),
-                ]),
             ]),
         ])
     }
@@ -277,8 +263,8 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
         // Then
         XCTAssertEqual(structure.contents, [
             .group("Modules", "/path/to/workspace/Modules", [
+                .project("/path/to/workspace/Modules/A/Project.xcodeproj"),
                 .group("A", "/path/to/workspace/Modules/A", [
-                    .project("/path/to/workspace/Modules/A/Project.xcodeproj"),
                     .file("/path/to/workspace/Modules/A/README.md"),
                 ]),
             ]),
