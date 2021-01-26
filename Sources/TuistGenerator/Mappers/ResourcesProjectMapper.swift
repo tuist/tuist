@@ -22,7 +22,7 @@ public class ResourcesProjectMapper: ProjectMapping {
     }
 
     public func mapTarget(_ target: Target, project: Project) -> ([Target], [SideEffectDescriptor]) {
-        if target.resources.isEmpty { return ([target], []) }
+        if target.resources.isEmpty && target.coreDataModels.isEmpty { return ([target], []) }
         var additionalTargets: [Target] = []
         var sideEffects: [SideEffectDescriptor] = []
 
@@ -38,6 +38,7 @@ public class ResourcesProjectMapper: ProjectMapping {
                                          infoPlist: .extendingDefault(with: [:]),
                                          resources: target.resources,
                                          copyFiles: target.copyFiles,
+                                         coreDataModels: target.coreDataModels,
                                          filesGroup: target.filesGroup)
             modifiedTarget.resources = []
             modifiedTarget.copyFiles = []
