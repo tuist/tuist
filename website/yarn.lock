@@ -7825,13 +7825,13 @@ gatsby-plugin-page-creator@^2.9.0:
     globby "^11.0.1"
     lodash "^4.17.20"
 
-gatsby-plugin-postcss@^3.5.0:
-  version "3.5.0"
-  resolved "https://registry.yarnpkg.com/gatsby-plugin-postcss/-/gatsby-plugin-postcss-3.5.0.tgz#c575451f2fbc20a9a3d5f694e39ee21dcb34dc95"
-  integrity sha512-MzFIL4S3i2GqXHz0j46vE+yxCjYMheUsfRgXV5GqgTMzwYT3Z4maqK+IpkO0ttWJOskwhQmDY5KhOPSzct2+pw==
+gatsby-plugin-postcss@^3.6.0:
+  version "3.6.0"
+  resolved "https://registry.yarnpkg.com/gatsby-plugin-postcss/-/gatsby-plugin-postcss-3.6.0.tgz#f6ae9a9f9a09ff2e67b53f954a44719eeeeca5b1"
+  integrity sha512-wcC2u70Q4MYAeXwwPCknQGJoLKwI9vNsDMKrtSjxGsvpedkEacRwk3xsomCS4idZKDOb/f9fxc2jwfWgiaDxQw==
   dependencies:
     "@babel/runtime" "^7.12.5"
-    postcss-loader "^4.0.4"
+    postcss-loader "^4.1.0"
 
 gatsby-plugin-react-helmet@^3.9.0:
   version "3.9.0"
@@ -12793,16 +12793,16 @@ postcss-loader@^3.0.0:
     postcss-load-config "^2.0.0"
     schema-utils "^1.0.0"
 
-postcss-loader@^4.0.4:
-  version "4.1.0"
-  resolved "https://registry.yarnpkg.com/postcss-loader/-/postcss-loader-4.1.0.tgz#4647a6c8dad3cb6b253fbfaa21d62201086f6e39"
-  integrity sha512-vbCkP70F3Q9PIk6d47aBwjqAMI4LfkXCoyxj+7NPNuVIwfTGdzv2KVQes59/RuxMniIgsYQCFSY42P3+ykJfaw==
+postcss-loader@^4.1.0:
+  version "4.2.0"
+  resolved "https://registry.yarnpkg.com/postcss-loader/-/postcss-loader-4.2.0.tgz#f6993ea3e0f46600fb3ee49bbd010448123a7db4"
+  integrity sha512-mqgScxHqbiz1yxbnNcPdKYo/6aVt+XExURmEbQlviFVWogDbM4AJ0A/B+ZBpYsJrTRxKw7HyRazg9x0Q9SWwLA==
   dependencies:
     cosmiconfig "^7.0.0"
     klona "^2.0.4"
     loader-utils "^2.0.0"
     schema-utils "^3.0.0"
-    semver "^7.3.2"
+    semver "^7.3.4"
 
 postcss-merge-longhand@^4.0.11:
   version "4.0.11"
@@ -14765,7 +14765,7 @@ semver@^6.0.0, semver@^6.1.2, semver@^6.2.0, semver@^6.3.0:
   resolved "https://registry.yarnpkg.com/semver/-/semver-6.3.0.tgz#ee0a64c8af5e8ceea67687b133761e1becbd1d3d"
   integrity sha512-b39TBaTSfV6yBrapU89p5fKekE2m/NwnDocOVruQFS1/veMgdzuPcnOM34M6CwxW8jH/lxEa5rBoDeUwu5HHTw==
 
-semver@^7.3.2:
+semver@^7.3.2, semver@^7.3.4:
   version "7.3.4"
   resolved "https://registry.yarnpkg.com/semver/-/semver-7.3.4.tgz#27aaa7d2e4ca76452f98d3add093a72c943edc97"
   integrity sha512-tCfb2WLjqFAtXn4KEdxIhalnRtoKFN7nAwj0B3ZXCbQloV2tq5eDbcTmT68JJD3nRJq24/XgxtQKFIpQdtvmVw==
