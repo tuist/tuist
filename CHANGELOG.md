@@ -10,7 +10,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Changed
 
-- Improve the cache warm command significantly, (around 20-45 seconds per framework), by using `XcodeProjectPathHasher` instead of `CacheBuildPhaseProjectMapper` [#2356](https://github.com/tuist/tuist/pull/2318) by [@natanrolnik](https://github.com/natanrolnik).
+- Improve the cache warm command significantly (around 20-45 seconds per framework) by using `XcodeProjectPathHasher` instead of `CacheBuildPhaseProjectMapper` [#2356](https://github.com/tuist/tuist/pull/2318) by [@natanrolnik](https://github.com/natanrolnik).
 - Improve performance of project generation by removing unneeded Glob directory cache [#2318](https://github.com/tuist/tuist/pull/2318) by [@adellibovi](https://github.com/adellibovi).
 - Extracted graph models into `TuistGraph` [#2324](https://github.com/tuist/tuist/pull/2324) by [@pepibumur](https://github.com/pepibumur).
 
