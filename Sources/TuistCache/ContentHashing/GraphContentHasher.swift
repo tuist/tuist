@@ -29,7 +29,7 @@ public final class GraphContentHasher: GraphContentHashing {
 
     public func contentHashes(graphTraverser: GraphTraversing, cacheOutputType: CacheOutputType) throws -> [ValueGraphTarget: String] {
         var visitedNodes: [ValueGraphTarget: Bool] = [:]
-        
+
         let hashableTargets = graphTraverser.allTargets().compactMap { (target: ValueGraphTarget) -> ValueGraphTarget? in
             if self.isCacheable(target, visited: &visitedNodes, graphTraverser: graphTraverser) {
                 return target

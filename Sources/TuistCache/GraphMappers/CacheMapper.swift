@@ -92,9 +92,9 @@ public class CacheMapper: GraphMapping {
     }
 
     fileprivate func map(graph: ValueGraph, hashes: [ValueGraphTarget: String], sources: Set<String>) -> Single<ValueGraph> {
-        fetch(hashes: hashes).map { xcframeworkPaths in
+        fetch(hashes: hashes).map { precompiledTargets in
             try self.cacheGraphMutator.map(graph: graph,
-                                           precompiledFrameworks: xcframeworkPaths,
+                                           precompiledTargets: precompiledTargets,
                                            sources: sources)
         }
     }

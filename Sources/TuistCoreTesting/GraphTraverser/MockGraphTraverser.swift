@@ -4,7 +4,6 @@ import TuistGraph
 @testable import TuistCore
 
 final class MockGraphTraverser: GraphTraversing {
-
     var invokedNameGetter = false
     var invokedNameGetterCount = 0
     var stubbedName: String! = ""

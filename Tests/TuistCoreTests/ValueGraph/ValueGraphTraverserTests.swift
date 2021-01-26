@@ -1314,7 +1314,7 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         // Given
         let target = Target.test(name: "Main")
         let project = Project.test(targets: [target])
-        
+
         // Given: Value Graph
         let precompiledStaticBinaryB = FrameworkNode.test(
             path: AbsolutePath("/test/StaticFrameworkB.framework"),
@@ -1384,7 +1384,6 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         let target = Target.test(name: "Main")
         let dependency = Target.test(name: "Dependency", product: .staticLibrary)
         let project = Project.test(targets: [target])
-
 
         // Given: Value Graph
         let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
@@ -1757,7 +1756,6 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         let watchExtension = Target.test(name: "WatchExtension", product: .watch2Extension)
         let project = Project.test(targets: [watchExtension, frameworkA, frameworkB])
 
-
         // Given: Value Graph
         let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
             .target(name: watchExtension.name, path: project.path): Set(arrayLiteral: .target(name: frameworkA.name, path: project.path)),
@@ -1880,7 +1878,6 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         let app = Target.test(name: "App", product: .app)
         let tests = Target.test(name: "AppTests", product: .unitTests)
         let project = Project.test(path: "/path/a")
-
 
         // Given: Value Graph
         let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [

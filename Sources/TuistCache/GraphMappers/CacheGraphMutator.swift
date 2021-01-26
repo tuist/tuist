@@ -2,8 +2,8 @@ import Foundation
 import RxSwift
 import TSCBasic
 import TuistCore
-import TuistSupport
 import TuistGraph
+import TuistSupport
 
 /// It defines the interface to mutate a graph using information from the cache.
 protocol CacheGraphMutating {
@@ -11,13 +11,13 @@ protocol CacheGraphMutating {
     /// to the .xcframeworks in the cache, it mutates the graph to link the enry nodes against the .xcframeworks instead.
     /// - Parameters:
     ///   - graph: Dependency graph.
-    ///   - precompiledFrameworks: Dictionary that maps targets with the paths to their cached `.framework`s or `.xcframework`s.
+    ///   - precompiledTargets: Dictionary that maps targets with the paths to their cached `.framework`s or `.xcframework`s.
     ///   - source: Contains a list of targets that won't be replaced with their pre-compiled version from the cache.
-    func map(graph: ValueGraph, precompiledFrameworks: [ValueGraphTarget: AbsolutePath], sources: Set<String>) throws -> ValueGraph
+    func map(graph: ValueGraph, precompiledTargets: [ValueGraphTarget: AbsolutePath], sources: Set<String>) throws -> ValueGraph
 }
 
 class CacheGraphMutator: CacheGraphMutating {
-    struct VisitedPrecompiledFramework {
+    struct VisitedPrecompiledDependency {
         let path: AbsolutePath?
     }
 
@@ -40,20 +40,28 @@ class CacheGraphMutator: CacheGraphMutating {
 
     // MARK: - CacheGraphMapping
 
-    public func map(graph: ValueGraph, precompiledFrameworks: [ValueGraphTarget: AbsolutePath], sources: Set<String>) throws -> ValueGraph {
-        var visitedPrecompiledFrameworkPaths: [TargetNode: VisitedPrecompiledFramework?] = [:]
-        var loadedPrecompiledNodes: [AbsolutePath: PrecompiledNode] = [:]
-        let userSpecifiedSourceTargets = graph.targets.flatMap(\.value).filter { sources.contains($0.target.name) }
-        let userSpecifiedSourceTestTargets = userSpecifiedSourceTargets.flatMap { graph.testTargetsDependingOn(path: $0.path, name: $0.name) }
-        var sourceTargets: Set<TargetNode> = Set(userSpecifiedSourceTargets)
+    public func map(graph: ValueGraph, precompiledTargets: [ValueGraphTarget: AbsolutePath], sources: Set<String>) throws -> ValueGraph {
+        let graphTraverser = ValueGraphTraverser(graph: graph)
 
-        try (userSpecifiedSourceTargets + userSpecifiedSourceTestTargets)
-            .forEach { try visit(targetNode: $0,
-                                 precompiledFrameworks: precompiledFrameworks,
-                                 sources: sources,
-                                 sourceTargets: &sourceTargets,
-                                 visitedPrecompiledFrameworkPaths: &visitedPrecompiledFrameworkPaths,
-                                 loadedPrecompiledNodes: &loadedPrecompiledNodes) }
+        /// This dictionary keeps tracks of the pre-compiled targets of the graph that have already been visited to avoid
+        /// redundant traverses.
+        var visitedPrecompiledTargets: [ValueGraphTarget: VisitedPrecompiledDependency] = [:]
+
+        /// Since pre-compiled targets need metadata when inserted in the graph (e.g. linking, architecture), this dictionary
+        /// caches the loaded pre-compiled targets after loading them to avoid unnecessary IO.
+        var loadedPrecompiledTargets: [AbsolutePath: ValueGraphDependency] = [:]
+
+        /// It contains a list of targets that shouldn't
+        var sourceTargets = self.sourceTargets(graphTraverser: graphTraverser, sources: sources)
+
+        try sourceTargets.forEach {
+            try visit(target: $0,
+                      precompiledTargets: precompiledTargets,
+                      sources: sources,
+                      sourceTargets: &sourceTargets,
+                      visitedPrecompiledTargets: &visitedPrecompiledTargets,
+                      loadedPrecompiledTargets: &loadedPrecompiledTargets)
+        }
 
         // We mark them to be pruned during the tree-shaking
         graph.targets.flatMap(\.value).forEach {
@@ -63,12 +71,12 @@ class CacheGraphMutator: CacheGraphMutating {
         return graph
     }
 
-    fileprivate func visit(targetNode: TargetNode,
-                           precompiledFrameworks: [TargetNode: AbsolutePath],
+    fileprivate func visit(target _: ValueGraphTarget,
+                           precompiledTargets _: [ValueGraphTarget: AbsolutePath],
                            sources: Set<String>,
-                           sourceTargets: inout Set<TargetNode>,
-                           visitedPrecompiledFrameworkPaths: inout [TargetNode: VisitedPrecompiledFramework?],
-                           loadedPrecompiledNodes: inout [AbsolutePath: PrecompiledNode]) throws
+                           sourceTargets: inout Set<ValueGraphTarget>,
+                           visitedPrecompiledTargets _: inout [ValueGraphTarget: VisitedPrecompiledDependency],
+                           loadedPrecompiledTargets _: inout [AbsolutePath: ValueGraphDependency]) throws
     {
         sourceTargets.formUnion([targetNode])
         targetNode.dependencies = try mapDependencies(targetNode.dependencies,
@@ -138,7 +146,9 @@ class CacheGraphMutator: CacheGraphMutating {
         return newDependencies
     }
 
-    fileprivate func loadPrecompiledFramework(path: AbsolutePath, loadedPrecompiledFrameworks: inout [AbsolutePath: PrecompiledNode]) throws -> PrecompiledNode {
+    fileprivate func loadPrecompiledFramework(path: AbsolutePath,
+                                              loadedPrecompiledFrameworks: inout [AbsolutePath: PrecompiledNode]) throws -> PrecompiledNode
+    {
         if let cachedFramework = loadedPrecompiledFrameworks[path] {
             return cachedFramework
         } else if let framework = try? frameworkLoader.load(path: path) {
@@ -151,6 +161,17 @@ class CacheGraphMutator: CacheGraphMutating {
         }
     }
 
+    /// Returns the list of targets and its dependents that should remain as sources.
+    /// - Parameters:
+    ///   - graphTraverser: Graph traverser instance.
+    ///   - sources: List of targets that should remain as sources.
+    /// - Returns: List of targets and its dependents that should remain as sources.
+    fileprivate func sourceTargets(graphTraverser: GraphTraversing, sources: Set<String>) -> Set<ValueGraphTarget> {
+        let sourceTargets = graphTraverser.allTargets().filter { sources.contains($0.target.name) }
+        let sourceDependentTargets = sourceTargets.flatMap { graphTraverser.testTargetsDependingOn(path: $0.path, name: $0.target.name) }
+        return Set(sourceTargets + sourceDependentTargets)
+    }
+
     fileprivate func precompiledFrameworkPath(target: TargetNode,
                                               precompiledFrameworks: [TargetNode: AbsolutePath],
                                               visitedPrecompiledFrameworkPaths: inout [TargetNode: VisitedPrecompiledFramework?]) -> AbsolutePath?
@@ -160,7 +181,7 @@ class CacheGraphMutator: CacheGraphMutating {
 
         // The target doesn't have a cached .(xc)framework
         if precompiledFrameworks[target] == nil {
-            visitedPrecompiledFrameworkPaths[target] = VisitedPrecompiledFramework(path: nil)
+            visitedPrecompiledFrameworkPaths[target] = VisitedPrecompiledDependency(path: nil)
             return nil
         }
         // The target can be replaced
@@ -169,10 +190,10 @@ class CacheGraphMutator: CacheGraphMutating {
                                                                             precompiledFrameworks: precompiledFrameworks,
                                                                             visitedPrecompiledFrameworkPaths: &visitedPrecompiledFrameworkPaths) != nil })
         {
-            visitedPrecompiledFrameworkPaths[target] = VisitedPrecompiledFramework(path: path)
+            visitedPrecompiledFrameworkPaths[target] = VisitedPrecompiledDependency(path: path)
             return path
         } else {
-            visitedPrecompiledFrameworkPaths[target] = VisitedPrecompiledFramework(path: nil)
+            visitedPrecompiledFrameworkPaths[target] = VisitedPrecompiledDependency(path: nil)
             return nil
         }
     }

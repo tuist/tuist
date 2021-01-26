@@ -34,6 +34,9 @@ public struct Target: Equatable, Hashable, Comparable {
     public var scripts: [TargetScript]
     public var playgrounds: [AbsolutePath]
 
+    /// When true it indicates that the target should be stripped from the graph when tree-shaking the project.
+    public var prune: Bool = false
+
     // MARK: - Init
 
     public init(name: String,

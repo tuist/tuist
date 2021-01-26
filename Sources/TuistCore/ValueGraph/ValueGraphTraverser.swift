@@ -5,7 +5,6 @@ import TuistSupport
 
 // swiftlint:disable type_body_length
 public class ValueGraphTraverser: GraphTraversing {
-    
     public var name: String { graph.name }
     public var hasPackages: Bool { !graph.packages.flatMap(\.value).isEmpty }
     public var path: AbsolutePath { graph.path }
@@ -25,9 +24,9 @@ public class ValueGraphTraverser: GraphTraversing {
             result.formUnion(targets(at: path))
         })
     }
-    
+
     public func allTargets() -> Set<ValueGraphTarget> {
-        Set(self.projects.reduce(into: Set()) { result, project in
+        Set(projects.reduce(into: Set()) { result, project in
             result.formUnion(targets(at: project.key))
         })
     }
@@ -369,9 +368,9 @@ public class ValueGraphTraverser: GraphTraversing {
         }
         return references
     }
-    
+
     public func dependsOnXCTest(path: AbsolutePath, name: String) -> Bool {
-        self.directTargetDependencies(path: path, name: name)
+        directTargetDependencies(path: path, name: name)
             .first(where: { $0.target.name == "XCTest" || $0.target.product.testsBundle }) != nil
     }
 
