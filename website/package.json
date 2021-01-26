@@ -21,7 +21,7 @@
     "@theme-ui/prism": "^0.3.5",
     "@theme-ui/sidenav": "^0.3.5",
     "@theme-ui/typography": "^0.3.5",
-    "autoprefixer": "^10.2.1",
+    "autoprefixer": "^10.2.3",
     "copy-text-to-clipboard": "^2.2.0",
     "focus-visible": "^5.2.0",
     "gatsby": "^2.31.1",
