@@ -27,7 +27,7 @@ extension TuistGraph.Config {
         }
         return TuistGraph.Config(compatibleXcodeVersions: compatibleXcodeVersions,
                                 cloud: cloud,
-                                cache: cache ?? .default,
+                                cache: cache,
                                 plugins: plugins,
                                 generationOptions: generationOptions,
                                 path: path)

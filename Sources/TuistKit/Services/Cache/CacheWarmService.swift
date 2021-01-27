@@ -7,26 +7,18 @@ import TuistLoader
 import TuistSupport
 
 enum CacheWarmServiceError: FatalError, Equatable {
-    case missingDefaultProfile
     case missingProfile(name: String, availableProfiles: [String])
 
-    /// Error description.
     var description: String {
         switch self {
         case let .missingProfile(name, availableProfiles):
-            return "The profile '\(name)' is missing in your project's configuration. Available cache profiles: \(availableProfiles.listed())."
-
-        case .missingDefaultProfile:
-            return "The default profile has not been found."
+            return "The cache profile '\(name)' is missing in your project's configuration. Available cache profiles: \(availableProfiles.listed())."
         }
     }
 
-    /// Error type.
     var type: ErrorType {
         switch self {
         case .missingProfile:
-            return .abort
-        case .missingDefaultProfile:
             return .abort
         }
     }
@@ -43,7 +35,6 @@ final class CacheWarmService {
                                                     manifestLinter: manifestLinter)
     }
 
-    // TODO: Add unit tests
     func run(path: String?, profile: String?, xcframeworks: Bool) throws {
         let path = self.path(path)
         let config = try generatorModelLoader.loadConfig(at: currentPath)
@@ -71,19 +62,38 @@ final class CacheWarmService {
     }
 
     private func cacheProfile(named profileName: String?, from config: Config) throws -> TuistGraph.Cache.Profile {
-        let profiles = config.cache.profiles
-        switch profileName {
-        case .none:
-            guard let defaultProfile = profiles.first else {
-                throw CacheWarmServiceError.missingDefaultProfile
-            }
-            return defaultProfile
+        let resolvedCacheProfile = CacheProfileResolver().resolveCacheProfile(
+            named: profileName,
+            from: config
+        )
 
-        case let .some(name):
-            guard let profile = profiles.first(where: { $0.name == name }) else {
-                throw CacheWarmServiceError.missingProfile(name: name, availableProfiles: profiles.map(\.name))
-            }
-            return profile
+        switch resolvedCacheProfile {
+            case let .defaultFromTuist(profile):
+                logger.log(
+                    level: .info,
+                    "Default cache profile from Tuist's defaults has been selected: \(profile)"
+                )
+                return profile
+
+            case let .defaultFromConfig(profile):
+                logger.log(
+                    level: .info,
+                    "Default cache profile from project's configuration file has been selected: \(profile)"
+                )
+                return profile
+
+            case let .selectedFromConfig(profile):
+                logger.log(
+                    level: .info,
+                    "Selected cache profile: \(profile)"
+                )
+                return profile
+
+            case let .notFound(profile, availableProfiles):
+                throw CacheWarmServiceError.missingProfile(
+                    name: profile,
+                    availableProfiles: availableProfiles
+                )
         }
     }
 

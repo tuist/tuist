@@ -1,13 +1,17 @@
 import Foundation
 
 public struct Cache: Equatable, Hashable {
-    public struct Profile: Equatable, Hashable {
+    public struct Profile: Equatable, Hashable, CustomStringConvertible {
         public let name: String
         public let configuration: String
 
         public init(name: String, configuration: String) {
             self.name = name
             self.configuration = configuration
+        }
+
+        public var description: String {
+            "[name: \(name), configuration: \(configuration)]"
         }
     }
 
