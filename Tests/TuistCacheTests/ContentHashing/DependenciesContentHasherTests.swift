@@ -12,9 +12,11 @@ import XCTest
 final class DependenciesContentHasherTests: TuistUnitTestCase {
     private var subject: DependenciesContentHasher!
     private var mockContentHasher: MockContentHasher!
-    private let filePath1 = AbsolutePath("/file1")
-    private let filePath2 = AbsolutePath("/file2")
-    private let filePath3 = AbsolutePath("/file3")
+    private let filePath1 = AbsolutePath("/Briochify/file1")
+    private let filePath2 = AbsolutePath("/Briochify/file2")
+    private let filePath3 = AbsolutePath("/Briochify/file3")
+
+    private let sourceRootPath = AbsolutePath("/Briochify")
 
     override func setUp() {
         super.setUp()
@@ -33,7 +35,7 @@ final class DependenciesContentHasherTests: TuistUnitTestCase {
         let dependency = Dependency.target(name: "foo")
 
         // When
-        let hash = try subject.hash(dependencies: [dependency])
+        let hash = try subject.hash(dependencies: [dependency], sourceRootPath: sourceRootPath)
 
         // Then
         XCTAssertEqual(hash, "target-foo-hash")
@@ -45,10 +47,10 @@ final class DependenciesContentHasherTests: TuistUnitTestCase {
         let dependency = Dependency.project(target: "foo", path: filePath1)
 
         // When
-        let hash = try subject.hash(dependencies: [dependency])
+        let hash = try subject.hash(dependencies: [dependency], sourceRootPath: sourceRootPath)
 
         // Then
-        XCTAssertEqual(hash, "project-;foo;/file1")
+        XCTAssertEqual(hash, "project-;foo;file1")
         XCTAssertEqual(mockContentHasher.hashStringsCallCount, 1)
     }
 
@@ -57,10 +59,10 @@ final class DependenciesContentHasherTests: TuistUnitTestCase {
         let dependency = Dependency.framework(path: filePath1)
 
         // When
-        let hash = try subject.hash(dependencies: [dependency])
+        let hash = try subject.hash(dependencies: [dependency], sourceRootPath: sourceRootPath)
 
         // Then
-        XCTAssertEqual(hash, "framework-/file1-hash")
+        XCTAssertEqual(hash, "framework-file1-hash")
         XCTAssertEqual(mockContentHasher.hashStringCallCount, 1)
     }
 
@@ -69,10 +71,10 @@ final class DependenciesContentHasherTests: TuistUnitTestCase {
         let dependency = Dependency.xcFramework(path: filePath1)
 
         // When
-        let hash = try subject.hash(dependencies: [dependency])
+        let hash = try subject.hash(dependencies: [dependency], sourceRootPath: sourceRootPath)
 
         // Then
-        XCTAssertEqual(hash, "xcframework-/file1-hash")
+        XCTAssertEqual(hash, "xcframework-file1-hash")
         XCTAssertEqual(mockContentHasher.hashStringCallCount, 1)
     }
 
@@ -83,10 +85,10 @@ final class DependenciesContentHasherTests: TuistUnitTestCase {
                                             swiftModuleMap: filePath3)
 
         // When
-        let hash = try subject.hash(dependencies: [dependency])
+        let hash = try subject.hash(dependencies: [dependency], sourceRootPath: sourceRootPath)
 
         // Then
-        XCTAssertEqual(hash, "library;/file1;/file2;/file3")
+        XCTAssertEqual(hash, "library;file1;file2;file3")
         XCTAssertEqual(mockContentHasher.hashStringsCallCount, 1)
     }
 
@@ -95,7 +97,7 @@ final class DependenciesContentHasherTests: TuistUnitTestCase {
         let dependency = Dependency.package(product: "foo")
 
         // When
-        let hash = try subject.hash(dependencies: [dependency])
+        let hash = try subject.hash(dependencies: [dependency], sourceRootPath: sourceRootPath)
 
         // Then
         XCTAssertEqual(hash, "package-foo-hash")
@@ -107,7 +109,7 @@ final class DependenciesContentHasherTests: TuistUnitTestCase {
         let dependency = Dependency.sdk(name: "foo", status: .optional)
 
         // When
-        let hash = try subject.hash(dependencies: [dependency])
+        let hash = try subject.hash(dependencies: [dependency], sourceRootPath: sourceRootPath)
 
         // Then
         XCTAssertEqual(hash, "sdk-foo-optional-hash")
@@ -119,7 +121,7 @@ final class DependenciesContentHasherTests: TuistUnitTestCase {
         let dependency = Dependency.sdk(name: "foo", status: .required)
 
         // When
-        let hash = try subject.hash(dependencies: [dependency])
+        let hash = try subject.hash(dependencies: [dependency], sourceRootPath: sourceRootPath)
 
         // Then
         XCTAssertEqual(hash, "sdk-foo-required-hash")
@@ -131,10 +133,10 @@ final class DependenciesContentHasherTests: TuistUnitTestCase {
         let dependency = Dependency.cocoapods(path: filePath1)
 
         // When
-        let hash = try subject.hash(dependencies: [dependency])
+        let hash = try subject.hash(dependencies: [dependency], sourceRootPath: sourceRootPath)
 
         // Then
-        XCTAssertEqual(hash, "cocoapods;/file1")
+        XCTAssertEqual(hash, "cocoapods;file1")
         XCTAssertEqual(mockContentHasher.hashStringsCallCount, 1)
     }
 
@@ -143,7 +145,7 @@ final class DependenciesContentHasherTests: TuistUnitTestCase {
         let dependency = Dependency.xctest
 
         // When
-        let hash = try subject.hash(dependencies: [dependency])
+        let hash = try subject.hash(dependencies: [dependency], sourceRootPath: sourceRootPath)
 
         // Then
         XCTAssertEqual(hash, "xctest-hash")

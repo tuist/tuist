@@ -75,7 +75,7 @@ public final class TargetContentHasher: TargetContentHashing {
         let copyFilesHash = try copyFilesContentHasher.hash(copyFiles: target.copyFiles)
         let coreDataModelHash = try coreDataModelsContentHasher.hash(coreDataModels: target.coreDataModels)
         let targetActionsHash = try targetActionsContentHasher.hash(targetActions: target.actions)
-        let dependenciesHash = try dependenciesContentHasher.hash(dependencies: target.dependencies)
+        let dependenciesHash = try dependenciesContentHasher.hash(dependencies: target.dependencies, sourceRootPath: targetNode.project.sourceRootPath)
         let environmentHash = try contentHasher.hash(target.environment)
         var stringsToHash = [target.name,
                              target.platform.rawValue,
