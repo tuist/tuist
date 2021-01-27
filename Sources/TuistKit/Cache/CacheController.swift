@@ -55,7 +55,7 @@ protocol CacheControlling {
     /// - Parameters:
     ///   - path: Path to the directory that contains a workspace or a project.
     ///   - configuration: The configuration to be used when building the project.
-    func cache(path: AbsolutePath, configuration: String?) throws
+    func cache(path: AbsolutePath, configuration: String) throws
 }
 
 final class CacheController: CacheControlling {
@@ -98,7 +98,7 @@ final class CacheController: CacheControlling {
         self.cacheGraphLinter = cacheGraphLinter
     }
 
-    func cache(path: AbsolutePath, configuration: String?) throws {
+    func cache(path: AbsolutePath, configuration: String) throws {
         let generator = projectGeneratorProvider.generator()
         let (path, graph) = try generator.generateWithGraph(path: path, projectOnly: false)
 
@@ -139,7 +139,7 @@ final class CacheController: CacheControlling {
     ///   - hash: Hash of the target.
     fileprivate func buildAndCacheFramework(path: AbsolutePath,
                                             target: TargetNode,
-                                            configuration: String?,
+                                            configuration: String,
                                             hash: String) throws
     {
         let outputDirectory = try FileHandler.shared.temporaryDirectory()

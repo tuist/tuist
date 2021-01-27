@@ -70,7 +70,7 @@ public final class CacheFrameworkBuilder: CacheArtifactBuilding {
 
     public func build(workspacePath: AbsolutePath,
                       target: Target,
-                      configuration: String?,
+                      configuration: String,
                       into outputDirectory: AbsolutePath) throws
     {
         try build(.workspace(workspacePath),
@@ -81,7 +81,7 @@ public final class CacheFrameworkBuilder: CacheArtifactBuilding {
 
     public func build(projectPath: AbsolutePath,
                       target: Target,
-                      configuration: String?,
+                      configuration: String,
                       into outputDirectory: AbsolutePath) throws
     {
         try build(.project(projectPath),
@@ -94,7 +94,7 @@ public final class CacheFrameworkBuilder: CacheArtifactBuilding {
 
     fileprivate func build(_ projectTarget: XcodeBuildTarget,
                            target: Target,
-                           configuration: String?,
+                           configuration: String,
                            into outputDirectory: AbsolutePath) throws
     {
         guard target.product.isFramework else {
@@ -105,7 +105,6 @@ public final class CacheFrameworkBuilder: CacheArtifactBuilding {
         logger.notice("Building .framework for \(target.name)...", metadata: .section)
 
         let sdk = self.sdk(target: target)
-        let configuration = configuration ?? "Debug"
 
         let arguments = try self.arguments(target: target,
                                            sdk: sdk,
