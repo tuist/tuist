@@ -63,7 +63,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         subject = CacheRemoteStorage(cloudConfig: config, cloudClient: cloudClient, fileArchiverFactory: fileArchiverFactory, fileClient: fileClient)
 
         // When
-        let result = subject.exists(hash: "acho tio")
+        let result = subject.exists(hash: "acho tio", targetName: "AnyName")
             .toBlocking()
             .materialize()
 
@@ -89,7 +89,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         subject = CacheRemoteStorage(cloudConfig: config, cloudClient: cloudClient, fileArchiverFactory: fileArchiverFactory, fileClient: fileClient)
 
         // When
-        let result = try subject.exists(hash: "acho tio")
+        let result = try subject.exists(hash: "acho tio", targetName: "AnyName")
             .toBlocking()
             .single()
 
@@ -108,7 +108,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         subject = CacheRemoteStorage(cloudConfig: config, cloudClient: cloudClient, fileArchiverFactory: fileArchiverFactory, fileClient: fileClient)
 
         // When
-        let result = try subject.exists(hash: "acho tio")
+        let result = try subject.exists(hash: "acho tio", targetName: "AnyName")
             .toBlocking()
             .single()
 
@@ -128,7 +128,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         subject = CacheRemoteStorage(cloudConfig: config, cloudClient: cloudClient, fileArchiverFactory: fileArchiverFactory, fileClient: fileClient)
 
         // When
-        let result = try subject.exists(hash: "acho tio")
+        let result = try subject.exists(hash: "acho tio", targetName: "AnyName")
             .toBlocking()
             .single()
 
@@ -148,7 +148,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         subject = CacheRemoteStorage(cloudConfig: config, cloudClient: cloudClient, fileArchiverFactory: fileArchiverFactory, fileClient: fileClient)
 
         // When
-        let result = subject.fetch(hash: "acho tio")
+        let result = subject.fetch(hash: "acho tio", targetName: "AnyName")
             .toBlocking()
             .materialize()
 
@@ -179,7 +179,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         fileUnarchiver.stubbedUnzipResult = paths.first
 
         // When
-        let result = subject.fetch(hash: hash)
+        let result = subject.fetch(hash: hash, targetName: "AnyName")
             .toBlocking()
             .materialize()
 
@@ -211,7 +211,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         fileUnarchiver.stubbedUnzipResult = paths.first?.parentDirectory
 
         // When
-        let result = try subject.fetch(hash: hash)
+        let result = try subject.fetch(hash: hash, targetName: "AnyName")
             .toBlocking()
             .single()
 
@@ -238,7 +238,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         fileUnarchiver.stubbedUnzipResult = paths.first!.parentDirectory
 
         // When
-        _ = try subject.fetch(hash: hash)
+        _ = try subject.fetch(hash: hash, targetName: "AnyName")
             .toBlocking()
             .single()
 
@@ -264,7 +264,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         let hash = "foo_bar"
 
         // When
-        _ = try subject.fetch(hash: hash)
+        _ = try subject.fetch(hash: hash, targetName: "AnyName")
             .toBlocking()
             .single()
 
@@ -284,7 +284,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         subject = CacheRemoteStorage(cloudConfig: config, cloudClient: cloudClient, fileArchiverFactory: fileArchiverFactory, fileClient: fileClient)
 
         // When
-        let result = subject.store(hash: "acho tio", paths: [.root])
+        let result = subject.store(hash: "acho tio", targetName: "AnyName", paths: [.root])
             .toBlocking()
             .materialize()
 
@@ -315,7 +315,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         subject = CacheRemoteStorage(cloudConfig: config, cloudClient: cloudClient, fileArchiverFactory: fileArchiverFactory, fileClient: fileClient)
 
         // When
-        _ = subject.store(hash: "foo_bar", paths: [.root])
+        _ = subject.store(hash: "foo_bar", targetName: "AnyName", paths: [.root])
             .toBlocking()
             .materialize()
 
@@ -343,7 +343,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         subject = CacheRemoteStorage(cloudConfig: config, cloudClient: cloudClient, fileArchiverFactory: fileArchiverFactory, fileClient: fileClient)
 
         // When
-        _ = subject.store(hash: hash, paths: [.root])
+        _ = subject.store(hash: hash, targetName: "AnyName", paths: [.root])
             .toBlocking()
             .materialize()
 
@@ -373,7 +373,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         subject = CacheRemoteStorage(cloudConfig: config, cloudClient: cloudClient, fileArchiverFactory: fileArchiverFactory, fileClient: fileClient)
 
         // When
-        _ = subject.store(hash: hash, paths: [.root])
+        _ = subject.store(hash: hash, targetName: "AnyName", paths: [.root])
             .toBlocking()
             .materialize()
 

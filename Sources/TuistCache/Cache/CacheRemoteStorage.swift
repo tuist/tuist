@@ -53,10 +53,10 @@ public final class CacheRemoteStorage: CacheStoring {
 
     // MARK: - CacheStoring
 
-    public func exists(hash: String) -> Single<Bool> {
+    public func exists(hash: String, targetName: String) -> Single<Bool> {
         do {
             let successRange = 200 ..< 300
-            let resource = try CloudHEADResponse.existsResource(hash: hash, cloud: cloudConfig)
+            let resource = try CloudHEADResponse.existsResource(hash: hash, targetName: targetName, cloud: cloudConfig)
             return cloudClient.request(resource)
                 .flatMap { _, response in
                     .just(successRange.contains(response.statusCode))
@@ -73,9 +73,9 @@ public final class CacheRemoteStorage: CacheStoring {
         }
     }
 
-    public func fetch(hash: String) -> Single<AbsolutePath> {
+    public func fetch(hash: String, targetName: String) -> Single<AbsolutePath> {
         do {
-            let resource = try CloudCacheResponse.fetchResource(hash: hash, cloud: cloudConfig)
+            let resource = try CloudCacheResponse.fetchResource(hash: hash, targetName: targetName, cloud: cloudConfig)
             return cloudClient
                 .request(resource)
                 .map(\.object.data.url)
@@ -96,22 +96,23 @@ public final class CacheRemoteStorage: CacheStoring {
         }
     }
 
-    public func store(hash: String, paths: [AbsolutePath]) -> Completable {
+    public func store(hash: String, targetName: String, paths: [AbsolutePath]) -> Completable {
         do {
             let archiver = try fileArchiverFactory.makeFileArchiver(for: paths)
             let destinationZipPath = try archiver.zip(name: hash)
             let resource = try CloudCacheResponse.storeResource(
                 hash: hash,
+                targetName: targetName,
                 cloud: cloudConfig,
                 contentMD5: try FileHandler.shared.base64MD5(path: destinationZipPath)
             )
 
             return cloudClient
                 .request(resource)
-                .map { (responseTuple) -> URL in responseTuple.object.data.url }
-                .flatMapCompletable { (url: URL) in
+                .map { (responseTuple) -> CloudCacheResponse in responseTuple.object.data }
+                .flatMapCompletable { (cloudResponse: CloudCacheResponse) in
                     let deleteCompletable = self.deleteZipArchiveCompletable(archiver: archiver)
-                    return self.fileClient.upload(file: destinationZipPath, hash: hash, to: url).asCompletable()
+                    return self.fileClient.upload(file: destinationZipPath, hash: hash, to: cloudResponse.url, additionalHeaders: cloudResponse.additionalHeaders).asCompletable()
                         .andThen(deleteCompletable)
                         .catchError { deleteCompletable.concat(.error($0)) }
                 }

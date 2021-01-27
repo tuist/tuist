@@ -100,10 +100,10 @@ public class CacheMapper: GraphMapping {
 
     fileprivate func fetch(hashes: [TargetNode: String]) -> Single<[TargetNode: AbsolutePath]> {
         Single.zip(hashes.map { target, hash in
-            self.cache.exists(hash: hash)
+            self.cache.exists(hash: hash, targetName: target.name)
                 .flatMap { (exists) -> Single<(target: TargetNode, path: AbsolutePath?)> in
                     guard exists else { return Single.just((target: target, path: nil)) }
-                    return self.cache.fetch(hash: hash).map { (target: target, path: $0) }
+                    return self.cache.fetch(hash: hash, targetName: target.name).map { (target: target, path: $0) }
                 }
         })
             .map { result in

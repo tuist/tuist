@@ -32,7 +32,7 @@ final class CacheLocalStorageIntegrationTests: TuistTestCase {
         try FileHandler.shared.createFolder(xcframeworkPath)
 
         // When
-        let got = try subject.exists(hash: hash).toBlocking().first()
+        let got = try subject.exists(hash: hash, targetName: "AnyName").toBlocking().first()
 
         // Then
         XCTAssertTrue(got == true)
@@ -42,7 +42,7 @@ final class CacheLocalStorageIntegrationTests: TuistTestCase {
         // When
         let hash = "abcde"
 
-        let got = try subject.exists(hash: hash).toBlocking().first()
+        let got = try subject.exists(hash: hash, targetName: "AnyName").toBlocking().first()
 
         // Then
         XCTAssertTrue(got == false)
@@ -58,7 +58,7 @@ final class CacheLocalStorageIntegrationTests: TuistTestCase {
         try FileHandler.shared.createFolder(xcframeworkPath)
 
         // When
-        let got = try subject.fetch(hash: hash).toBlocking().first()
+        let got = try subject.fetch(hash: hash, targetName: "AnyName").toBlocking().first()
 
         // Then
         XCTAssertTrue(got == xcframeworkPath)
@@ -67,7 +67,7 @@ final class CacheLocalStorageIntegrationTests: TuistTestCase {
     func test_fetch_when_a_cached_xcframework_does_not_exist() throws {
         let hash = "abcde"
 
-        XCTAssertThrowsSpecific(try subject.fetch(hash: hash).toBlocking().first(),
+        XCTAssertThrowsSpecific(try subject.fetch(hash: hash, targetName: "AnyName").toBlocking().first(),
                                 CacheLocalStorageError.xcframeworkNotFound(hash: hash))
     }
 
@@ -79,7 +79,7 @@ final class CacheLocalStorageIntegrationTests: TuistTestCase {
         try FileHandler.shared.createFolder(xcframeworkPath)
 
         // When
-        _ = try subject.store(hash: hash, paths: [xcframeworkPath]).toBlocking().first()
+        _ = try subject.store(hash: hash, targetName: "AnyName", paths: [xcframeworkPath]).toBlocking().first()
 
         // Then
         XCTAssertTrue(FileHandler.shared.exists(cacheDirectory.appending(RelativePath("\(hash)/framework.xcframework"))))

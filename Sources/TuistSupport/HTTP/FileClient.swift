@@ -53,7 +53,7 @@ enum FileClientError: LocalizedError, FatalError {
 }
 
 public protocol FileClienting {
-    func upload(file: AbsolutePath, hash: String, to url: URL) -> Single<Bool>
+    func upload(file: AbsolutePath, hash: String, to url: URL, additionalHeaders: [String: String]?) -> Single<Bool>
     func download(url: URL) -> Single<AbsolutePath>
 }
 
@@ -75,13 +75,13 @@ public class FileClient: FileClienting {
         dispatchDownload(request: URLRequest(url: url)).map { AbsolutePath($0.path) }
     }
 
-    public func upload(file: AbsolutePath, hash _: String, to url: URL) -> Single<Bool> {
+    public func upload(file: AbsolutePath, hash _: String, to url: URL, additionalHeaders: [String: String]?) -> Single<Bool> {
         Single<Bool>.create { observer -> Disposable in
             do {
                 let fileSize = try FileHandler.shared.fileSize(path: file)
                 let fileData = try Data(contentsOf: file.url)
 
-                let request = self.uploadRequest(url: url, fileSize: fileSize, data: fileData)
+                let request = self.uploadRequest(url: url, fileSize: fileSize, data: fileData, additionalHeaders: additionalHeaders)
                 let uploadTask = self.session.dataTask(with: request) { _, response, error in
                     if let error = error {
                         observer(.error(FileClientError.urlSessionError(error, file)))
@@ -106,12 +106,18 @@ public class FileClient: FileClienting {
 
     // MARK: - Private
 
-    private func uploadRequest(url: URL, fileSize: UInt64, data: Data) -> URLRequest {
+    private func uploadRequest(url: URL, fileSize: UInt64, data: Data, additionalHeaders: [String: String]?) -> URLRequest {
         var request = URLRequest(url: url)
         request.httpMethod = "PUT"
+
+        additionalHeaders?.forEach {
+            request.setValue($0.key, forHTTPHeaderField: $0.value)
+        }
+
         request.setValue("application/zip", forHTTPHeaderField: "Content-Type")
         request.setValue(String(fileSize), forHTTPHeaderField: "Content-Length")
         request.setValue("zip", forHTTPHeaderField: "Content-Encoding")
+
         request.httpBody = data
         return request
     }

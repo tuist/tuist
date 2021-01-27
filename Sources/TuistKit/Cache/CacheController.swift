@@ -123,7 +123,7 @@ final class CacheController: CacheControlling {
     fileprivate func cacheableTargets(graph: Graph) throws -> [TargetNode: String] {
         try graphContentHasher.contentHashes(for: graph, cacheOutputType: artifactBuilder.cacheOutputType)
             .filter { target, hash in
-                if let exists = try self.cache.exists(hash: hash).toBlocking().first(), exists {
+                if let exists = try self.cache.exists(hash: hash, targetName: target.name).toBlocking().first(), exists {
                     logger.pretty("The target \(.bold(.raw(target.name))) with hash \(.bold(.raw(hash))) and type \(artifactBuilder.cacheOutputType.description) is already in the cache. Skipping...")
                     return false
                 }
@@ -155,6 +155,6 @@ final class CacheController: CacheControlling {
                                       into: outputDirectory)
         }
 
-        _ = try cache.store(hash: hash, paths: FileHandler.shared.glob(outputDirectory, glob: "*")).toBlocking().last()
+        _ = try cache.store(hash: hash, targetName: target.name, paths: FileHandler.shared.glob(outputDirectory, glob: "*")).toBlocking().last()
     }
 }

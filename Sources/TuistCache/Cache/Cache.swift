@@ -19,10 +19,10 @@ public final class Cache: CacheStoring {
 
     // MARK: - CacheStoring
 
-    public func exists(hash: String) -> Single<Bool> {
+    public func exists(hash: String, targetName: String) -> Single<Bool> {
         /// It calls exists sequentially until one of the storages returns true.
         let storages = storageProvider.storages()
-        return storages.map { $0.exists(hash: hash) }.reduce(Single.just(false)) { (result, next) -> Single<Bool> in
+        return storages.map { $0.exists(hash: hash, targetName: targetName) }.reduce(Single.just(false)) { (result, next) -> Single<Bool> in
             result.flatMap { exists in
                 if exists {
                     return Single.just(exists)
@@ -35,10 +35,10 @@ public final class Cache: CacheStoring {
         }
     }
 
-    public func fetch(hash: String) -> Single<AbsolutePath> {
+    public func fetch(hash: String, targetName: String) -> Single<AbsolutePath> {
         let storages = storageProvider.storages()
         return storages
-            .map { $0.fetch(hash: hash) }
+            .map { $0.fetch(hash: hash, targetName: targetName) }
             .reduce(nil) { (result, next) -> Single<AbsolutePath> in
                 if let result = result {
                     return result.catchError { _ in next }
@@ -48,8 +48,8 @@ public final class Cache: CacheStoring {
             }!
     }
 
-    public func store(hash: String, paths: [AbsolutePath]) -> Completable {
+    public func store(hash: String, targetName: String, paths: [AbsolutePath]) -> Completable {
         let storages = storageProvider.storages()
-        return Completable.zip(storages.map { $0.store(hash: hash, paths: paths) })
+        return Completable.zip(storages.map { $0.store(hash: hash, targetName: targetName, paths: paths) })
     }
 }

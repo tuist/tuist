@@ -8,17 +8,18 @@ import TuistSupport
 public final class MockFileClient: FileClienting {
     public init() {}
 
+    public typealias UploadParameters = (file: AbsolutePath, hash: String, url: URL, additionalHeaders: [String: String]?)
     public var invokedUpload = false
     public var invokedUploadCount = 0
-    public var invokedUploadParameters: (file: AbsolutePath, hash: String, url: URL)?
-    public var invokedUploadParametersList = [(file: AbsolutePath, hash: String, url: URL)]()
+    public var invokedUploadParameters: UploadParameters?
+    public var invokedUploadParametersList = [UploadParameters]()
     public var stubbedUploadResult: Single<Bool> = Single.just(true)
 
-    public func upload(file: AbsolutePath, hash: String, to url: URL) -> Single<Bool> {
+    public func upload(file: AbsolutePath, hash: String, to url: URL, additionalHeaders: [String: String]?) -> Single<Bool> {
         invokedUpload = true
         invokedUploadCount += 1
-        invokedUploadParameters = (file, hash, url)
-        invokedUploadParametersList.append((file, hash, url))
+        invokedUploadParameters = (file, hash, url, additionalHeaders)
+        invokedUploadParametersList.append((file, hash, url, additionalHeaders))
         return stubbedUploadResult
     }
 
