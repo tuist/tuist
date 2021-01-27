@@ -4,10 +4,10 @@ let project = Project(name: "MyFramework",
                       targets: [
                         Target(name: "MyFramework",
                              platform: .iOS,
-                             product: .framework,
+                             product: .staticFramework,
                              bundleId: "io.tuist.framework",
                              infoPlist: .default,
-                             sources: ["Sources/Model.swift"],
+                             sources: ["Sources/**"],
                              coreDataModels: [
                                CoreDataModel("CoreData/Users.xcdatamodeld", currentVersion: "1")
                              ])

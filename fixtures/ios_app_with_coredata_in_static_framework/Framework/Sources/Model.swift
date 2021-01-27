@@ -2,7 +2,7 @@ import Foundation
 import CoreData
 
 public final class MyModel {
-    private lazy var persistentContainer: NSPersistentContainer = {
+    private var persistentContainer: NSPersistentContainer = {
         
         let momdName = "Users"
         
@@ -28,7 +28,9 @@ public final class MyModel {
 
     public func save() {
         let context = persistentContainer.viewContext
+        
         let user = User(context: context)
+        
         let identifier = Int64.random(in: 0...1000)
         user.name = "Foo_\(identifier)"
         user.identifier = identifier
