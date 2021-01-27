@@ -71,21 +71,21 @@ final class CacheWarmService {
         case let .defaultFromTuist(profile):
             logger.log(
                 level: .info,
-                "Default cache profile from Tuist's defaults has been selected: \(profile)"
+                "Selected '\(profile)' cache profile from Tuist's defaults"
             )
             return profile
 
         case let .defaultFromConfig(profile):
             logger.log(
                 level: .info,
-                "Default cache profile from project's configuration file has been selected: \(profile)"
+                "Selected default '\(profile)' cache profile from project's configuration file"
             )
             return profile
 
         case let .selectedFromConfig(profile):
             logger.log(
                 level: .info,
-                "Selected cache profile: \(profile)"
+                "Selected '\(profile)' cache profile"
             )
             return profile
 

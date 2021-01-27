@@ -11,7 +11,7 @@ public struct Cache: Equatable, Hashable {
         }
 
         public var description: String {
-            "[name: \(name), configuration: \(configuration)]"
+            name
         }
     }
 
