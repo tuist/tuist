@@ -86,7 +86,34 @@ final class ContentHasherTests: TuistUnitTestCase {
         }
     }
 
+    func test_hash_sortedContentsOfADirectorySkippingDSStore() throws {
+        //given
+        let folderPath = try temporaryPath().appending(component: "assets.xcassets")
+        try mockFileHandler.createFolder(folderPath)
+
+        let files = ["foo.strings": "bar",
+                     "foo2.strings": "bar2",
+                     ".ds_store": "should be ignored",
+                     ".DS_STORE": "should be ignored too"]
+
+        try writeFilesTo(folder: folderPath, files: files)
+
+        // When
+        let hash = try subject.hash(path: folderPath)
+
+        // Then
+        XCTAssertEqual(hash, "37b51d194a7513e45b56f6524f2d51f2-224e2539f52203eb33728acd228b4432")
+        // This is the md5 of "bar", a dash, md5 of "bar2", in sorted order according to the file name
+        // and .DS_STORE should be ignored
+    }
+
     // MARK: - Private
+
+    private func writeFilesTo(folder: AbsolutePath, files: [String: String]) throws {
+        try files.forEach {
+            try mockFileHandler.write($0.value, path: folder.appending(.init($0.key)), atomically: true)
+        }
+    }
 
     private func writeToTemporaryPath(fileName: String = "foo", content: String = "foo") throws -> AbsolutePath {
         let path = try temporaryPath().appending(component: fileName)
