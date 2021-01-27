@@ -51,57 +51,61 @@ class CacheGraphMutator: CacheGraphMutating {
         /// caches the loaded pre-compiled targets after loading them to avoid unnecessary IO.
         var loadedPrecompiledTargets: [AbsolutePath: ValueGraphDependency] = [:]
 
-        /// It contains a list of targets that shouldn't
-        var sourceTargets = self.sourceTargets(graphTraverser: graphTraverser, sources: sources)
+        /// A dictionary that contains the new targets that should be in the graph after replacing some of them with their pre-compiled version.
+        var mappedTargets: [AbsolutePath: [String: Target]] = [:]
+        
+        /// A dictionary that contains the new dependency graph after replacing some nodes with their pre-compiled version.
+        var mappedDependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [:]
+        
 
-        try sourceTargets.forEach {
+        try self.sourceTargets(graphTraverser: graphTraverser, sources: sources).forEach {
             try visit(target: $0,
                       precompiledTargets: precompiledTargets,
                       sources: sources,
-                      sourceTargets: &sourceTargets,
+                      graph: graph,
+                      mappedTargets: &mappedTargets,
+                      mappedDependencies: &mappedDependencies,
                       visitedPrecompiledTargets: &visitedPrecompiledTargets,
                       loadedPrecompiledTargets: &loadedPrecompiledTargets)
         }
-
-        // We mark them to be pruned during the tree-shaking
-        graph.targets.flatMap(\.value).forEach {
-            if !sourceTargets.contains($0) { $0.prune = true }
-        }
-
+        
+        var graph = graph
+        graph.targets = mappedTargets
+        graph.dependencies = mappedDependencies
+    
         return graph
     }
 
-    fileprivate func visit(target _: ValueGraphTarget,
-                           precompiledTargets _: [ValueGraphTarget: AbsolutePath],
+    fileprivate func visit(target: ValueGraphTarget,
+                           precompiledTargets : [ValueGraphTarget: AbsolutePath],
                            sources: Set<String>,
-                           sourceTargets: inout Set<ValueGraphTarget>,
-                           visitedPrecompiledTargets _: inout [ValueGraphTarget: VisitedPrecompiledDependency],
-                           loadedPrecompiledTargets _: inout [AbsolutePath: ValueGraphDependency]) throws
+                           graph: ValueGraph,
+                           mappedTargets: inout [AbsolutePath: [String: Target]],
+                           mappedDependencies: inout [ValueGraphDependency: Set<ValueGraphDependency>],
+                           visitedPrecompiledTargets: inout [ValueGraphTarget: VisitedPrecompiledDependency],
+                           loadedPrecompiledTargets: inout [AbsolutePath: ValueGraphDependency]) throws
     {
-        sourceTargets.formUnion([targetNode])
-        targetNode.dependencies = try mapDependencies(targetNode.dependencies,
-                                                      precompiledFrameworks: precompiledFrameworks,
-                                                      sources: sources,
-                                                      sourceTargets: &sourceTargets,
-                                                      visitedPrecompiledFrameworkPaths: &visitedPrecompiledFrameworkPaths,
-                                                      loadedPrecompiledFrameworks: &loadedPrecompiledNodes)
-    }
-
-    // swiftlint:disable line_length
-    fileprivate func mapDependencies(_ dependencies: [GraphNode],
-                                     precompiledFrameworks: [TargetNode: AbsolutePath],
-                                     sources: Set<String>,
-                                     sourceTargets: inout Set<TargetNode>,
-                                     visitedPrecompiledFrameworkPaths: inout [TargetNode: VisitedPrecompiledFramework?],
-                                     loadedPrecompiledFrameworks: inout [AbsolutePath: PrecompiledNode]) throws -> [GraphNode]
-    {
-        var newDependencies: [GraphNode] = []
-        try dependencies.forEach { dependency in
-            // If the dependency is not a target node we keep it.
-            guard let targetDependency = dependency as? TargetNode else {
-                newDependencies.append(dependency)
-                return
+        // Target
+        var projectTargets = mappedTargets[target.path, default: [:]]
+        projectTargets[target.target.name] = target.target
+        mappedTargets[target.path] = projectTargets
+        
+        // Dependencies
+        var mappedTargetDependencies = mappedDependencies[ValueGraphDependency.target(name: target.target.name, path: target.path), default: Set()]
+        var targetDependencies = graph.dependencies[ValueGraphDependency.target(name: target.target.name, path: target.path), default: Set()]
+        
+        targetDependencies.forEach { (targetDependency) in
+            // Pre-compiled dependency (e.g. xcframework, framework, library)
+            guard case let ValueGraphDependency.target(targetDependencyName, targetDependencyPath) = targetDependency else  {
+                mappedTargetDependencies.formUnion([targetDependency])
             }
+            
+            let shouldRemainAsSources = sources.contains(targetDependencyName)
+            let precompiledTargetPath = precompiledFrameworkPath(target: <#T##TargetNode#>, precompiledFrameworks: <#T##[TargetNode : AbsolutePath]#>, visitedPrecompiledFrameworkPaths: &<#T##<<error type>>#>)
+            
+        }
+        try dependencies.forEach { dependency in
+  
 
             // Transitive bundles
             // get all the transitive bundles
@@ -145,13 +149,18 @@ class CacheGraphMutator: CacheGraphMutating {
         }
         return newDependencies
     }
+    
+    
 
-    fileprivate func loadPrecompiledFramework(path: AbsolutePath,
-                                              loadedPrecompiledFrameworks: inout [AbsolutePath: PrecompiledNode]) throws -> PrecompiledNode
+
+    fileprivate func loadedPrecompiledDependency(path: AbsolutePath,
+                                              loadedPrecompiledTargets: inout [AbsolutePath: ValueGraphDependency]) throws -> ValueGraphDependency
     {
-        if let cachedFramework = loadedPrecompiledFrameworks[path] {
-            return cachedFramework
+        if let loadedDependency = loadedPrecompiledTargets[path] {
+            return loadedDependency
         } else if let framework = try? frameworkLoader.load(path: path) {
+            
+            
             loadedPrecompiledFrameworks[path] = framework
             return framework
         } else {
@@ -172,28 +181,28 @@ class CacheGraphMutator: CacheGraphMutating {
         return Set(sourceTargets + sourceDependentTargets)
     }
 
-    fileprivate func precompiledFrameworkPath(target: TargetNode,
-                                              precompiledFrameworks: [TargetNode: AbsolutePath],
-                                              visitedPrecompiledFrameworkPaths: inout [TargetNode: VisitedPrecompiledFramework?]) -> AbsolutePath?
+    fileprivate func precompiledTargetPath(target: ValueGraphTarget,
+                                           precompiledTargets : [ValueGraphTarget: AbsolutePath],
+                                           visitedPrecompiledTargets: inout [ValueGraphTarget: VisitedPrecompiledDependency?]) -> AbsolutePath?
     {
         // Already visited
-        if let visited = visitedPrecompiledFrameworkPaths[target] { return visited?.path }
-
-        // The target doesn't have a cached .(xc)framework
-        if precompiledFrameworks[target] == nil {
-            visitedPrecompiledFrameworkPaths[target] = VisitedPrecompiledDependency(path: nil)
+        if let visited = visitedPrecompiledTargets[target] { return visited?.path }
+        
+        // The target doesn't have a cached pre-compiled version
+        if precompiledTargets[target] == nil {
+            visitedPrecompiledTargets[target] = VisitedPrecompiledDependency(path: nil)
             return nil
         }
         // The target can be replaced
-        else if let path = precompiledFrameworks[target],
-            target.targetDependencies.allSatisfy({ precompiledFrameworkPath(target: $0,
-                                                                            precompiledFrameworks: precompiledFrameworks,
-                                                                            visitedPrecompiledFrameworkPaths: &visitedPrecompiledFrameworkPaths) != nil })
+        else if let path = precompiledTargets[target],
+                target.targetDependencies.allSatisfy({ precompiledFrameworkPath(target: $0,
+                                                                                precompiledFrameworks: precompiledFrameworks,
+                                                                                visitedPrecompiledFrameworkPaths: &visitedPrecompiledFrameworkPaths) != nil })
         {
-            visitedPrecompiledFrameworkPaths[target] = VisitedPrecompiledDependency(path: path)
+            visitedPrecompiledTargets[target] = VisitedPrecompiledDependency(path: path)
             return path
         } else {
-            visitedPrecompiledFrameworkPaths[target] = VisitedPrecompiledDependency(path: nil)
+            visitedPrecompiledTargets[target] = VisitedPrecompiledDependency(path: nil)
             return nil
         }
     }
