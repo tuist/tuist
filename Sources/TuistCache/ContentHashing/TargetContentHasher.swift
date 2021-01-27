@@ -70,12 +70,14 @@ public final class TargetContentHasher: TargetContentHashing {
 
     public func contentHash(for targetNode: TargetNode, cacheOutputType: CacheOutputType) throws -> String {
         let target = targetNode.target
+        let sourceRootPath = targetNode.project.sourceRootPath
+
         let sourcesHash = try sourceFilesContentHasher.hash(sources: target.sources)
-        let resourcesHash = try resourcesContentHasher.hash(resources: target.resources)
+        let resourcesHash = try resourcesContentHasher.hash(resources: target.resources, sourceRootPath: sourceRootPath)
         let copyFilesHash = try copyFilesContentHasher.hash(copyFiles: target.copyFiles)
         let coreDataModelHash = try coreDataModelsContentHasher.hash(coreDataModels: target.coreDataModels)
         let targetActionsHash = try targetActionsContentHasher.hash(targetActions: target.actions)
-        let dependenciesHash = try dependenciesContentHasher.hash(dependencies: target.dependencies, sourceRootPath: targetNode.project.sourceRootPath)
+        let dependenciesHash = try dependenciesContentHasher.hash(dependencies: target.dependencies, sourceRootPath: sourceRootPath)
         let environmentHash = try contentHasher.hash(target.environment)
         var stringsToHash = [target.name,
                              target.platform.rawValue,
@@ -111,6 +113,7 @@ public final class TargetContentHasher: TargetContentHashing {
         }
 
         stringsToHash.append(cacheOutputType.description)
+
         return try contentHasher.hash(stringsToHash)
     }
 }

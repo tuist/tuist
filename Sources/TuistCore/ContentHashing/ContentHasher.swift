@@ -50,19 +50,26 @@ public final class ContentHasher: ContentHashing {
 
     public func hash(path filePath: AbsolutePath) throws -> String {
         if fileHandler.isFolder(filePath) {
-            let paths = try fileHandler.contentsOfDirectory(filePath)
-            let sortedPaths = paths.sorted(by: { $0 < $1 })
-            return try sortedPaths.map { try hash(path: $0) }.joined(separator: "-")
+            return try fileHandler
+                .contentsOfDirectory(filePath)
+                .filter { $0.basename.uppercased() != ".DS_STORE" }
+                .sorted { $0 < $1 }
+                .map(hash(path:))
+                .joined(separator: "-")
         }
+
         guard fileHandler.exists(filePath) else {
             throw FileHandlerError.fileNotFound(filePath)
         }
+
         guard let sourceData = try? fileHandler.readFile(filePath) else {
             throw ContentHashingError.failedToReadFile(filePath)
         }
+
         guard let hash = sourceData.checksum(algorithm: .md5) else {
             throw ContentHashingError.fileHashingFailed(filePath)
         }
+
         return hash
     }
 }

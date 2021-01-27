@@ -1,9 +1,10 @@
 import Foundation
 import TuistCore
 import TuistGraph
+import TSCBasic
 
 public protocol ResourcesContentHashing {
-    func hash(resources: [FileElement]) throws -> String
+    func hash(resources: [FileElement], sourceRootPath: AbsolutePath) throws -> String
 }
 
 /// `ResourcesContentHasher`
@@ -19,10 +20,14 @@ public final class ResourcesContentHasher: ResourcesContentHashing {
 
     // MARK: - ResourcesContentHashing
 
-    public func hash(resources: [FileElement]) throws -> String {
+    public func hash(resources: [FileElement], sourceRootPath: AbsolutePath) throws -> String {
         let hashes = try resources
-            .sorted(by: { $0.path < $1.path })
-            .map { try contentHasher.hash(path: $0.path) }
+            .sorted { $0.path.pathString < $1.path.pathString }
+            .map {
+                try contentHasher.hash($0.path.relative(to: sourceRootPath).pathString)
+                    + ":"
+                    + contentHasher.hash(path: $0.path)
+            }
 
         return try contentHasher.hash(hashes)
     }

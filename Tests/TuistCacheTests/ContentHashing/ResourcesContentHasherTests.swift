@@ -12,8 +12,9 @@ import XCTest
 final class ResourcesContentHasherTests: TuistUnitTestCase {
     private var subject: ResourcesContentHasher!
     private var mockContentHasher: MockContentHasher!
-    private let filePath1 = AbsolutePath("/file1")
-    private let filePath2 = AbsolutePath("/file2")
+    private let filePath1 = AbsolutePath("/Briochify/file1")
+    private let filePath2 = AbsolutePath("/Briochify/file2")
+    private let sourceRootPath = AbsolutePath("/Briochify")
 
     override func setUp() {
         super.setUp()
@@ -37,7 +38,7 @@ final class ResourcesContentHasherTests: TuistUnitTestCase {
         mockContentHasher.stubHashForPath[filePath2] = "2"
 
         // When
-        let hash = try subject.hash(resources: [file1, file2])
+        let hash = try subject.hash(resources: [file1, file2], sourceRootPath: sourceRootPath)
 
         // Then
         XCTAssertEqual(mockContentHasher.hashPathCallCount, 2)
@@ -52,7 +53,7 @@ final class ResourcesContentHasherTests: TuistUnitTestCase {
         mockContentHasher.stubHashForPath[filePath2] = "2"
 
         // When
-        let hash = try subject.hash(resources: [file1, file2])
+        let hash = try subject.hash(resources: [file1, file2], sourceRootPath: sourceRootPath)
 
         // Then
         XCTAssertEqual(mockContentHasher.hashPathCallCount, 2)
@@ -67,6 +68,6 @@ final class ResourcesContentHasherTests: TuistUnitTestCase {
         mockContentHasher.stubHashForPath[filePath2] = "2"
 
         // When/Then
-        XCTAssertEqual(try subject.hash(resources: [file1, file2]), try subject.hash(resources: [file2, file1]))
+        XCTAssertEqual(try subject.hash(resources: [file1, file2], sourceRootPath: sourceRootPath), try subject.hash(resources: [file2, file1], sourceRootPath: sourceRootPath))
     }
 }

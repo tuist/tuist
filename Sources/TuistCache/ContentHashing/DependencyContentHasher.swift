@@ -27,9 +27,9 @@ public final class DependenciesContentHasher: DependenciesContentHashing {
 
     // MARK: - Private
 
-    private func hash(dependency: Dependency, sourceRootPath rootPath: AbsolutePath) throws -> String {
+    private func hash(dependency: Dependency, sourceRootPath: AbsolutePath) throws -> String {
         func relativeToRoot(_ path: AbsolutePath) -> String {
-            path.relative(to: rootPath).pathString
+            path.relative(to: sourceRootPath).pathString
         }
 
         switch dependency {
