@@ -8,7 +8,7 @@ Then(/^tuist warms the cache with xcframeworks$/) do
   system("swift", "run", "tuist", "cache", "warm", "--path", @dir, "--xcframeworks")
 end
 
-Then(/^tuist warms the cache with profile ([a-zA-Z]+)$/) do |profile|
+Then(/^tuist warms the cache with ([a-zA-Z]+) profile/) do |profile|
   system("swift", "run", "tuist", "cache", "warm", "--path", @dir, "--profile", profile)
 end
 
