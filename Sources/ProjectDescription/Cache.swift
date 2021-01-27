@@ -4,7 +4,6 @@ import Foundation
 public struct Cache: Codable, Equatable {
     /// It represents a cache profile.
     public struct Profile: Codable, Equatable {
-
         /// The unique name of a profile
         public let name: String
 

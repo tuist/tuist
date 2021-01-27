@@ -35,7 +35,8 @@ final class CacheProfileResolverTests: TuistUnitTestCase {
             ResolvedCacheProfile.defaultFromTuist(
                 .init(
                     name: "development",
-                    configuration: "Debug")
+                    configuration: "Debug"
+                )
             ),
             resolvedProfile
         )
@@ -53,7 +54,8 @@ final class CacheProfileResolverTests: TuistUnitTestCase {
             ResolvedCacheProfile.defaultFromTuist(
                 .init(
                     name: "development",
-                    configuration: "Debug")
+                    configuration: "Debug"
+                )
             ),
             resolvedProfile
         )
@@ -71,7 +73,8 @@ final class CacheProfileResolverTests: TuistUnitTestCase {
             ResolvedCacheProfile.defaultFromConfig(
                 .init(
                     name: "foo",
-                    configuration: "configuration")
+                    configuration: "configuration"
+                )
             ),
             resolvedProfile
         )
@@ -96,7 +99,8 @@ final class CacheProfileResolverTests: TuistUnitTestCase {
             ResolvedCacheProfile.selectedFromConfig(
                 .init(
                     name: "bar",
-                    configuration: "release")
+                    configuration: "release"
+                )
             ),
             resolvedProfile
         )

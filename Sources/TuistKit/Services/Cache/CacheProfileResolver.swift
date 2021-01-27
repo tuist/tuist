@@ -18,7 +18,8 @@ struct CacheProfileResolver {
         if
             case .none = profileName,
             let cacheConfig = config.cache,
-            let defaultProfile = cacheConfig.profiles.first {
+            let defaultProfile = cacheConfig.profiles.first
+        {
             return .defaultFromConfig(defaultProfile)
         }
 

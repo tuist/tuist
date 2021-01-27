@@ -26,11 +26,11 @@ extension TuistGraph.Config {
             cache = TuistGraph.Cache.from(manifest: manifestCache)
         }
         return TuistGraph.Config(compatibleXcodeVersions: compatibleXcodeVersions,
-                                cloud: cloud,
-                                cache: cache,
-                                plugins: plugins,
-                                generationOptions: generationOptions,
-                                path: path)
+                                 cloud: cloud,
+                                 cache: cache,
+                                 plugins: plugins,
+                                 generationOptions: generationOptions,
+                                 path: path)
     }
 }
 

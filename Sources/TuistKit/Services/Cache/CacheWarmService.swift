@@ -68,32 +68,32 @@ final class CacheWarmService {
         )
 
         switch resolvedCacheProfile {
-            case let .defaultFromTuist(profile):
-                logger.log(
-                    level: .info,
-                    "Default cache profile from Tuist's defaults has been selected: \(profile)"
-                )
-                return profile
+        case let .defaultFromTuist(profile):
+            logger.log(
+                level: .info,
+                "Default cache profile from Tuist's defaults has been selected: \(profile)"
+            )
+            return profile
 
-            case let .defaultFromConfig(profile):
-                logger.log(
-                    level: .info,
-                    "Default cache profile from project's configuration file has been selected: \(profile)"
-                )
-                return profile
+        case let .defaultFromConfig(profile):
+            logger.log(
+                level: .info,
+                "Default cache profile from project's configuration file has been selected: \(profile)"
+            )
+            return profile
 
-            case let .selectedFromConfig(profile):
-                logger.log(
-                    level: .info,
-                    "Selected cache profile: \(profile)"
-                )
-                return profile
+        case let .selectedFromConfig(profile):
+            logger.log(
+                level: .info,
+                "Selected cache profile: \(profile)"
+            )
+            return profile
 
-            case let .notFound(profile, availableProfiles):
-                throw CacheWarmServiceError.missingProfile(
-                    name: profile,
-                    availableProfiles: availableProfiles
-                )
+        case let .notFound(profile, availableProfiles):
+            throw CacheWarmServiceError.missingProfile(
+                name: profile,
+                availableProfiles: availableProfiles
+            )
         }
     }
 
