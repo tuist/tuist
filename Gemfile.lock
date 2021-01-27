@@ -154,7 +154,7 @@ GEM
     middleware (0.1.0)
     mini_mime (1.0.2)
     minitest (5.14.3)
-    minitest-reporters (1.4.2)
+    minitest-reporters (1.4.3)
       ansi
       builder
       minitest (>= 5.0)
@@ -216,7 +216,7 @@ GEM
       naturally
     sys-uname (1.2.2)
       ffi (~> 1.1)
-    thor (1.0.1)
+    thor (1.1.0)
     thread_safe (0.3.6)
     typhoeus (1.4.0)
       ethon (>= 0.9.0)
@@ -253,7 +253,7 @@ DEPENDENCIES
   ruby-macho (~> 1.4)
   rubyzip (~> 2.3.0)
   simctl (~> 1.6)
-  thor (~> 1.0)
+  thor (~> 1.1)
   xcodeproj (~> 1.19)
 
 BUNDLED WITH

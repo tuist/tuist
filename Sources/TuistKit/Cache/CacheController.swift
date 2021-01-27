@@ -22,7 +22,7 @@ class CacheControllerProjectMapperProvider: ProjectMapperProviding {
     func mapper(config: Config) -> ProjectMapping {
         let defaultProjectMapperProvider = ProjectMapperProvider(contentHasher: contentHasher)
         let defaultMapper = defaultProjectMapperProvider.mapper(config: config)
-        return SequentialProjectMapper(mappers: [defaultMapper, CacheBuildPhaseProjectMapper()])
+        return SequentialProjectMapper(mappers: [defaultMapper])
     }
 }
 

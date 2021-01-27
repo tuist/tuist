@@ -7,15 +7,9 @@ public extension Observable where Element == SystemEvent<XcodeBuildOutput> {
         `do`(onNext: { event in
             switch event {
             case let .standardError(error):
-                if let string = error.formatted {
-                    logger.error("\(string.dropLast())")
-                }
-                logger.debug("\(error.raw.dropLast())")
+                logger.error("\(error.raw.dropLast())")
             case let .standardOutput(output):
-                if let string = output.formatted {
-                    logger.notice("\(string.dropLast())")
-                }
-                logger.debug("\(output.raw.dropLast())")
+                logger.notice("\(output.raw.dropLast())")
             }
         })
     }

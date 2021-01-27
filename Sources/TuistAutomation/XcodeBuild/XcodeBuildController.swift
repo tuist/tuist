@@ -3,7 +3,6 @@ import RxSwift
 import TSCBasic
 import TuistCore
 import TuistSupport
-import XcbeautifyLib
 
 public final class XcodeBuildController: XcodeBuildControlling {
     // MARK: - Attributes
@@ -17,15 +16,19 @@ public final class XcodeBuildController: XcodeBuildControlling {
         options: [.caseInsensitive, .anchorsMatchLines]
     )
 
-    /// Instance to format xcodebuild output.
-    private let parser: Parsing
+    private let formatter: Formatting
+    private let environment: Environmenting
 
     public convenience init() {
-        self.init(parser: Parser())
+        self.init(formatter: Formatter(),
+                  environment: Environment.shared)
     }
 
-    init(parser: Parsing) {
-        self.parser = parser
+    init(formatter: Formatting,
+         environment: Environmenting)
+    {
+        self.formatter = formatter
+        self.environment = environment
     }
 
     public func build(_ target: XcodeBuildTarget,
@@ -50,7 +53,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
         // Arguments
         command.append(contentsOf: arguments.flatMap(\.arguments))
 
-        return run(command: command)
+        return run(command: command, isVerbose: environment.isVerbose)
     }
 
     public func test(
@@ -84,7 +87,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
             break
         }
 
-        return run(command: command)
+        return run(command: command, isVerbose: environment.isVerbose)
     }
 
     public func archive(_ target: XcodeBuildTarget,
@@ -113,7 +116,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
         // Arguments
         command.append(contentsOf: arguments.flatMap(\.arguments))
 
-        return run(command: command)
+        return run(command: command, isVerbose: environment.isVerbose)
     }
 
     public func createXCFramework(frameworks: [AbsolutePath], output: AbsolutePath) -> Observable<SystemEvent<XcodeBuildOutput>> {
@@ -121,7 +124,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
         command.append(contentsOf: frameworks.flatMap { ["-framework", $0.pathString] })
         command.append(contentsOf: ["-output", output.pathString])
         command.append("-allow-internal-distribution")
-        return run(command: command)
+        return run(command: command, isVerbose: environment.isVerbose)
     }
 
     public func showBuildSettings(_ target: XcodeBuildTarget,
@@ -195,23 +198,49 @@ public final class XcodeBuildController: XcodeBuildControlling {
             .asSingle()
     }
 
+    fileprivate func run(command: [String], isVerbose: Bool) -> Observable<SystemEvent<XcodeBuildOutput>> {
+        if isVerbose {
+            return run(command: command)
+        } else {
+            // swiftlint:disable:next force_try
+            return run(command: command, pipedToArguments: try! formatter.buildArguments())
+        }
+    }
+
     fileprivate func run(command: [String]) -> Observable<SystemEvent<XcodeBuildOutput>> {
-        let colored = Environment.shared.shouldOutputBeColoured
-        return System.shared.observable(command, verbose: false)
+        System.shared.observable(command)
             .flatMap { event -> Observable<SystemEvent<XcodeBuildOutput>> in
                 switch event {
                 case let .standardError(errorData):
                     guard let line = String(data: errorData, encoding: .utf8) else { return Observable.empty() }
                     let output = line.split(separator: "\n").map { line -> SystemEvent<XcodeBuildOutput> in
-                        let formatedOutput = self.parser.parse(line: String(line), colored: colored)
-                        return SystemEvent.standardError(XcodeBuildOutput(raw: "\(String(line))\n", formatted: formatedOutput.map { "\($0)\n" }))
+                        SystemEvent.standardError(XcodeBuildOutput(raw: "\(String(line))\n"))
                     }
                     return Observable.from(output)
                 case let .standardOutput(outputData):
                     guard let line = String(data: outputData, encoding: .utf8) else { return Observable.empty() }
                     let output = line.split(separator: "\n").map { line -> SystemEvent<XcodeBuildOutput> in
-                        let formatedOutput = self.parser.parse(line: String(line), colored: colored)
-                        return SystemEvent.standardOutput(XcodeBuildOutput(raw: "\(String(line))\n", formatted: formatedOutput.map { "\($0)\n" }))
+                        SystemEvent.standardOutput(XcodeBuildOutput(raw: "\(String(line))\n"))
+                    }
+                    return Observable.from(output)
+                }
+            }
+    }
+
+    fileprivate func run(command: [String], pipedToArguments: [String]) -> Observable<SystemEvent<XcodeBuildOutput>> {
+        System.shared.observable(command, pipedToArguments: pipedToArguments)
+            .flatMap { event -> Observable<SystemEvent<XcodeBuildOutput>> in
+                switch event {
+                case let .standardError(errorData):
+                    guard let line = String(data: errorData, encoding: .utf8) else { return Observable.empty() }
+                    let output = line.split(separator: "\n").map { line -> SystemEvent<XcodeBuildOutput> in
+                        SystemEvent.standardError(XcodeBuildOutput(raw: "\(String(line))\n"))
+                    }
+                    return Observable.from(output)
+                case let .standardOutput(outputData):
+                    guard let line = String(data: outputData, encoding: .utf8) else { return Observable.empty() }
+                    let output = line.split(separator: "\n").map { line -> SystemEvent<XcodeBuildOutput> in
+                        SystemEvent.standardOutput(XcodeBuildOutput(raw: "\(String(line))\n"))
                     }
                     return Observable.from(output)
                 }

@@ -15,26 +15,6 @@ import XCTest
 @testable import TuistKit
 @testable import TuistSupportTesting
 
-final class CacheControllerProjectMapperProviderTests: TuistUnitTestCase {
-    var subject: CacheControllerProjectMapperProvider!
-
-    override func setUp() {
-        subject = CacheControllerProjectMapperProvider(contentHasher: ContentHasher())
-    }
-
-    func test_mapper_includes_the_cache_build_phase_project_mapper() throws {
-        // Given
-        let config = Config.test()
-
-        // When
-        let got = subject.mapper(config: config)
-
-        // Then
-        let sequentialMapper = try XCTUnwrap(got as? SequentialProjectMapper)
-        XCTAssertTrue(sequentialMapper.mappers.last is CacheBuildPhaseProjectMapper)
-    }
-}
-
 final class CacheControllerTests: TuistUnitTestCase {
     var generator: MockGenerator!
     var graphContentHasher: MockGraphContentHasher!
