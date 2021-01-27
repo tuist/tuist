@@ -37,7 +37,7 @@ final class CacheWarmService {
 
     func run(path: String?, profile: String?, xcframeworks: Bool) throws {
         let path = self.path(path)
-        let config = try generatorModelLoader.loadConfig(at: currentPath)
+        let config = try generatorModelLoader.loadConfig(at: path)
         let cache = Cache(storageProvider: CacheStorageProvider(config: config))
         let cacheControllerFactory = CacheControllerFactory(cache: cache)
         let contentHasher = CacheContentHasher()
