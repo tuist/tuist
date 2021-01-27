@@ -18,7 +18,7 @@ struct CacheWarmCommand: ParsableCommand {
     var path: String?
 
     @Option(
-        name: .shortAndLong,
+        name: [.customShort("P"), .long],
         help: "The name of the profile to be used when warming up the cache."
     )
     var profile: String?
