@@ -16,6 +16,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Changed
 
+- Improve `tuist migration list-targets` by sorting using topological order [#2383](https://github.com/tuist/tuist/pull/2383) by [@adellibovi](https://github.com/adellibovi).
 - Use project generated for automation and always leverage `XXX-Scheme` [#2057](https://github.com/tuist/tuist/pull/2057) by [@fortmarek](https://github.com/fortmarek)
 - Improve the cache warm command significantly by avoiding to recompile already in-cache dependency targets [#2377](https://github.com/tuist/tuist/pull/2377) by [@adellibovi](https://github.com/adellibovi).
 - Improve the cache warm command significantly (around 20-45 seconds per framework) by using `XcodeProjectPathHasher` instead of `CacheBuildPhaseProjectMapper` [#2356](https://github.com/tuist/tuist/pull/2318) by [@natanrolnik](https://github.com/natanrolnik).
