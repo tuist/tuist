@@ -14,7 +14,7 @@ enum CacheWarmServiceError: FatalError, Equatable {
     var description: String {
         switch self {
         case let .missingProfile(name, availableProfiles):
-            return "The profile '\(name)' is missing in your project's configuration. Available cache profiles: \(availableProfiles.joined(separator: ", "))."
+            return "The profile '\(name)' is missing in your project's configuration. Available cache profiles: \(availableProfiles.listed())."
 
         case .missingDefaultProfile:
             return "The default profile has not been found."
