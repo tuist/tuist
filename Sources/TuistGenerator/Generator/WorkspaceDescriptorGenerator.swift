@@ -93,7 +93,7 @@ final class WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
             let targets = pbxproj.nativeTargets.map {
                 ($0.name, $0)
             }
-            return (project.path,
+            return (project.xcodeprojPath,
                     GeneratedProject(pbxproj: pbxproj,
                                      path: project.xcodeprojPath,
                                      targets: Dictionary(targets, uniquingKeysWith: { $1 }),
@@ -101,27 +101,33 @@ final class WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
         })
 
         // Workspace structure
-        let structure = workspaceStructureGenerator.generateStructure(path: graphTraverser.path,
-                                                                      workspace: graphTraverser.workspace,
-                                                                      fileHandler: FileHandler.shared)
+        let structure = workspaceStructureGenerator.generateStructure(
+            path: graphTraverser.workspace.xcWorkspacePath.parentDirectory,
+            workspace: graphTraverser.workspace,
+            xcodeProjPaths: generatedProjects.keys.map { $0 },
+            fileHandler: FileHandler.shared
+        )
 
-        let workspacePath = graphTraverser.path.appending(component: workspaceName)
         let workspaceData = XCWorkspaceData(children: [])
         let xcWorkspace = XCWorkspace(data: workspaceData)
         try workspaceData.children = structure.contents.map {
-            try recursiveChildElement(generatedProjects: generatedProjects,
-                                      element: $0,
-                                      path: graphTraverser.path)
+            try recursiveChildElement(
+                generatedProjects: generatedProjects,
+                element: $0,
+                path: graphTraverser.workspace.xcWorkspacePath.parentDirectory
+            )
         }
 
         // Schemes
-        let schemes = try schemeDescriptorsGenerator.generateWorkspaceSchemes(workspace: graphTraverser.workspace,
-                                                                              generatedProjects: generatedProjects,
-                                                                              graphTraverser: graphTraverser)
+        let schemes = try schemeDescriptorsGenerator.generateWorkspaceSchemes(
+            workspace: graphTraverser.workspace,
+            generatedProjects: generatedProjects,
+            graphTraverser: graphTraverser
+        )
 
         return WorkspaceDescriptor(
-            path: graphTraverser.path,
-            xcworkspacePath: workspacePath,
+            path: graphTraverser.workspace.path,
+            xcworkspacePath: graphTraverser.workspace.xcWorkspacePath,
             xcworkspace: xcWorkspace,
             projectDescriptors: projects,
             schemeDescriptors: schemes,
@@ -213,10 +219,10 @@ final class WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
             return .group(groupReference)
 
         case let .project(path: projectPath):
-            guard let generatedProject = generatedProjects[projectPath] else {
+            guard generatedProjects[projectPath] != nil else {
                 throw WorkspaceDescriptorGeneratorError.projectNotFound(path: projectPath)
             }
-            let relativePath = generatedProject.path.relative(to: path)
+            let relativePath = projectPath.relative(to: path)
             return workspaceFileElement(path: relativePath)
         }
     }

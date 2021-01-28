@@ -11,9 +11,9 @@ final class TuistWorkspaceIdentifierMapper: WorkspaceMapping {
         let tuistGeneratedFileDescriptor = FileDescriptor(
             path: workspace
                 .workspace
-                .path
+                .xcWorkspacePath
                 .appending(
-                    components: "\(workspace.workspace.name).xcworkspace", Constants.tuistGeneratedFileName
+                    component: Constants.tuistGeneratedFileName
                 )
         )
 

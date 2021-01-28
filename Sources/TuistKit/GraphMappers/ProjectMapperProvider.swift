@@ -19,7 +19,7 @@ final class ProjectMapperProvider: ProjectMapperProviding {
 
     /// Initializes the project mapper provider.
     /// - Parameter contentHasher: Content hasher.
-    init(contentHasher: ContentHashing) {
+    init(contentHasher: ContentHashing = ContentHasher()) {
         self.contentHasher = contentHasher
     }
 
