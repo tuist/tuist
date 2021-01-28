@@ -42,6 +42,8 @@ final class DependenciesFetchServiceTests: TuistUnitTestCase {
         let stubbedDependencies = Dependencies(
             carthageDependencies: [
                 CarthageDependency(origin: .github(path: "Dependency1"), requirement: .exact("1.1.1"), platforms: [.iOS, .macOS]),
+            ],
+            swiftPackageManagerDependencies: [
             ]
         )
         dependenciesModelLoader.loadDependenciesStub = { _ in stubbedDependencies }

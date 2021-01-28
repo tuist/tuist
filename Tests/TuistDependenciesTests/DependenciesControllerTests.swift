@@ -47,7 +47,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             CarthageDependency(origin: .github(path: "Moya"), requirement: .exact("1.1.1"), platforms: [.iOS]),
             CarthageDependency(origin: .github(path: "RxSwift"), requirement: .exact("2.0.0"), platforms: [.iOS]),
         ]
-        let stubbedDependencies = Dependencies(carthageDependencies: stubbedCarthageDependencies)
+        let stubbedDependencies = Dependencies(carthageDependencies: stubbedCarthageDependencies, swiftPackageManagerDependencies: [])
 
         // When
         try subject.fetch(at: rootPath, dependencies: stubbedDependencies)

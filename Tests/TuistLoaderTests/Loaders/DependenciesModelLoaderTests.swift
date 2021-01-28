@@ -32,24 +32,32 @@ final class DependenciesModelLoaderTests: TuistUnitTestCase {
 
     func test_loadDependencies() throws {
         // Given
-        let stubbedPath = try temporaryPath()
+        let temporaryPath = try self.temporaryPath()
+        let localSwiftPackagePath = temporaryPath.appending(component: "LocalPackage")
+        
         manifestLoader.loadDependenciesStub = { _ in
             Dependencies([
                 .carthage(origin: .github(path: "Dependency1"), requirement: .exact("1.1.1"), platforms: [.iOS]),
                 .carthage(origin: .git(path: "Dependency1"), requirement: .exact("2.3.4"), platforms: [.macOS, .tvOS]),
+                .swiftPackageManager(package: .local(path: Path(localSwiftPackagePath.pathString))),
+                .swiftPackageManager(package: .remote(url: "RemoteUrl.com", requirement: .exact("1.2.3")))
             ])
         }
 
         // When
-        let model = try subject.loadDependencies(at: stubbedPath)
+        let got = try subject.loadDependencies(at: temporaryPath)
 
         // Then
-        let expectedCarthageModels: [TuistGraph.CarthageDependency] = [
-            CarthageDependency(origin: .github(path: "Dependency1"), requirement: .exact("1.1.1"), platforms: Set([.iOS])),
-            CarthageDependency(origin: .git(path: "Dependency1"), requirement: .exact("2.3.4"), platforms: Set([.macOS, .tvOS])),
-        ]
-        let expectedDependenciesModel = TuistGraph.Dependencies(carthageDependencies: expectedCarthageModels)
-
-        XCTAssertEqual(model, expectedDependenciesModel)
+        let expected = TuistGraph.Dependencies(
+            carthageDependencies: [
+                CarthageDependency(origin: .github(path: "Dependency1"), requirement: .exact("1.1.1"), platforms: Set([.iOS])),
+                CarthageDependency(origin: .git(path: "Dependency1"), requirement: .exact("2.3.4"), platforms: Set([.macOS, .tvOS])),
+            ],
+            swiftPackageManagerDependencies: [
+                SwiftPackageManagerDependency(package: .local(path: localSwiftPackagePath)),
+                SwiftPackageManagerDependency(package: .remote(url: "RemoteUrl.com", requirement: .exact("1.2.3")))
+            ]
+        )
+        XCTAssertEqual(got, expected)
     }
 }

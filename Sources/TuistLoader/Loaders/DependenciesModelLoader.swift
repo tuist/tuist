@@ -5,9 +5,9 @@ import TuistCore
 import TuistGraph
 import TuistSupport
 
-/// Entity responsible for providing dependencies model
+/// Entity responsible for providing dependencies model.
 public protocol DependenciesModelLoading {
-    /// Load array of Carthage Dependency models at the specified path.
+    /// Load the Dependencies model at the specified path.
     /// - Parameter path: The absolute path for the dependency models to load.
     /// - Returns: The Dependencies loaded from the specified path.
     /// - Throws: Error encountered during the loading process (e.g. Missing Dependencies file).
@@ -23,6 +23,8 @@ public class DependenciesModelLoader: DependenciesModelLoading {
 
     public func loadDependencies(at path: AbsolutePath) throws -> TuistGraph.Dependencies {
         let manifest = try manifestLoader.loadDependencies(at: path)
-        return try TuistGraph.Dependencies.from(manifest: manifest)
+        let generatorPaths = GeneratorPaths(manifestDirectory: path)
+        
+        return try TuistGraph.Dependencies.from(manifest: manifest, generatorPaths: generatorPaths)
     }
 }
