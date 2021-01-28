@@ -7,9 +7,9 @@ import Foundation
 private class BundleFinder {}
 
 extension Foundation.Bundle {
-    /// Since MyFramework is a staticFramework, the bundle for classes within this module can be used directly.
+    /// Since Framework is a staticFramework, the bundle for classes within this module can be used directly.
     static var module: Bundle = {
-        let bundleName = "MyFrameworkResources"
+        let bundleName = "FrameworkResources"
 
         let candidates = [
             Bundle.main.resourceURL,
@@ -23,14 +23,14 @@ extension Foundation.Bundle {
                 return bundle
             }
         }
-        fatalError("unable to find bundle named MyFrameworkResources")
+        fatalError("unable to find bundle named FrameworkResources")
     }()
 }
 
 // MARK: - Objective-C Bundle Accessor
 
 @objc
-public class MyFrameworkResources: NSObject {
+public class FrameworkResources: NSObject {
    @objc public class var bundle: Bundle {
          return .module
    }

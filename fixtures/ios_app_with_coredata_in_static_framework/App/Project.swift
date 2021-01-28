@@ -9,6 +9,6 @@ let project = Project(name: "App",
                                  infoPlist: "Config/App-Info.plist",
                                  sources: "Sources/**",
                                  dependencies: [
-                                     .project(target: "MyFramework", path: "../Framework")
+                                     .project(target: "Framework", path: "../Framework")
                           ])
                       ])

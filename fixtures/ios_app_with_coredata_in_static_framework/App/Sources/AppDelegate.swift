@@ -1,4 +1,4 @@
-import MyFramework
+import Framework
 import UIKit
 
 @UIApplicationMain

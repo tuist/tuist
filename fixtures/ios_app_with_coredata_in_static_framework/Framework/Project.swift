@@ -1,14 +1,14 @@
 import ProjectDescription
 
-let project = Project(name: "MyFramework",
+let project = Project(name: "Framework",
                       targets: [
-                        Target(name: "MyFramework",
+                        Target(name: "Framework",
                              platform: .iOS,
                              product: .staticFramework,
                              bundleId: "io.tuist.framework",
                              infoPlist: .default,
                              sources: ["Sources/**"],
                              coreDataModels: [
-                               CoreDataModel("CoreData/Users.xcdatamodeld", currentVersion: "1")
+                               CoreDataModel("CoreData/Users.xcdatamodeld")
                              ])
                       ])
