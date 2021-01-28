@@ -4,7 +4,11 @@ on:
   push:
     branches:
       - main
+    paths:
+      - tools/fourier/**
   pull_request:
+    paths:
+      - tools/fourier/**
 
 env:
   RUBY_VERSION: '2.7.2'
