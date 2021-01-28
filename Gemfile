@@ -31,3 +31,5 @@ end
 group :development, :test do
   gem "byebug", "~> 11.1"
 end
+
+gem "octokit", "~> 4.20"
