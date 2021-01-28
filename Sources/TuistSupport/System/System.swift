@@ -545,6 +545,8 @@ public final class System: Systeming {
                 }
             }
             return Disposables.create {
+                pipes.stdOut.fileHandleForReading.readabilityHandler = nil
+                pipes.stdErr.fileHandleForReading.readabilityHandler = nil
                 if processOne.isRunning {
                     processOne.terminate()
                 }

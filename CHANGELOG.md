@@ -9,6 +9,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Support for dynamic library dependencies for command line tool projects [#2332]((https://github.com/tuist/tuist/pull/2332) by [@danyf90](https://github.com/danyf90).
 - Disable SwiftFormat in the generated synthesized interface for resources [#2328](https://github.com/tuist/tuist/pull/2328) by [@natanrolnik](https://github.com/natanrolnik).
 
+### Fixed
+
+- Fix memory leak related to xcbeautify [#2380](https://github.com/tuist/tuist/pull/2380) by [@adellibovi](https://github.com/adellibovi).
+
 ### Changed
 
 - Improve the cache warm command significantly (around 20-45 seconds per framework) by using `XcodeProjectPathHasher` instead of `CacheBuildPhaseProjectMapper` [#2356](https://github.com/tuist/tuist/pull/2318) by [@natanrolnik](https://github.com/natanrolnik).
