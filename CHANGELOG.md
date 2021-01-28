@@ -11,6 +11,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Fixed
 
+- Fix missing autocompletion link on website [#2396](https://github.com/tuist/tuist/pull/2396) by [@fortmarek](https://github.com/fortmarek).
 - Fix memory leak related to xcbeautify [#2380](https://github.com/tuist/tuist/pull/2380) by [@adellibovi](https://github.com/adellibovi).
 
 ### Changed
