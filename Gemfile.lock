@@ -168,6 +168,9 @@ GEM
     nap (1.1.0)
     naturally (2.2.0)
     netrc (0.11.0)
+    octokit (4.20.0)
+      faraday (>= 0.9)
+      sawyer (~> 0.8.0, >= 0.5.3)
     os (1.1.1)
     parallel (1.20.1)
     parser (3.0.0.0)
@@ -206,6 +209,9 @@ GEM
     ruby-progressbar (1.11.0)
     ruby2_keywords (0.0.2)
     rubyzip (2.3.0)
+    sawyer (0.8.2)
+      addressable (>= 2.3.5)
+      faraday (> 0.8, < 2.0)
     signet (0.14.0)
       addressable (~> 2.3)
       faraday (>= 0.17.3, < 2.0)
@@ -246,6 +252,7 @@ DEPENDENCIES
   minitest
   minitest-reporters
   mocha (~> 1.12)
+  octokit (~> 4.20)
   rake (~> 13.0)
   rubocop (~> 1.8.1)
   rubocop-minitest (~> 0.10.3)

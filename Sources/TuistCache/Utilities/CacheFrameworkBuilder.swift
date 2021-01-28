@@ -124,7 +124,7 @@ public final class CacheFrameworkBuilder: CacheArtifactBuilding {
     }
 
     fileprivate func buildDirectory(for projectTarget: XcodeBuildTarget,
-                                    target: Target,
+                                    target _: Target,
                                     configuration: String,
                                     sdk: String) throws -> AbsolutePath
     {

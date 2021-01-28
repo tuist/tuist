@@ -4,7 +4,11 @@ on:
   push:
     branches:
       - main
+    paths:
+      - next/**
   pull_request:
+    paths:
+      - next/**
 
 jobs:
   build:

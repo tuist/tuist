@@ -1,5 +1,5 @@
-import Foundation
 import CryptoKit
+import Foundation
 
 // Thanks to https://pewpewthespells.com/blog/xcode_deriveddata_hashes.html for
 // the initial Objective-C implementation.
@@ -20,12 +20,13 @@ internal class XcodeProjectPathHasher {
 
         // Split 16 bytes into two chunks of 8 bytes each.
         let partitions = stride(from: 0, to: digest.count, by: 8).map {
-            Array(digest[$0..<Swift.min($0 + 8, digest.count)])
+            Array(digest[$0 ..< Swift.min($0 + 8, digest.count)])
         }
 
         guard
             let firstHalf = partitions.first,
-            let secondHalf = partitions.last else {
+            let secondHalf = partitions.last
+        else {
             throw HashingError.invalidPartitioning
         }
 

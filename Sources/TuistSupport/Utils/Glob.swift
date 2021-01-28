@@ -133,7 +133,6 @@ public class Glob: Collection {
             }
         } catch {
             directories = []
-            print("Error parsing file system item: \(error)")
         }
 
         if behavior.includesFilesFromRootOfGlobstar {
