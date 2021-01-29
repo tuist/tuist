@@ -54,6 +54,7 @@ final class BuildServiceTests: TuistUnitTestCase {
         let workspacePath = path.appending(component: "App.xcworkspace")
         let graph = Graph.test()
         let scheme = Scheme.test()
+        let project = Project.test()
         let target = Target.test()
         let buildArguments: [XcodeBuildArgument] = [.sdk("iphoneos")]
         let skipSigning = false
@@ -68,13 +69,14 @@ final class BuildServiceTests: TuistUnitTestCase {
         }
         buildgraphInspector.buildableTargetStub = { _scheme, _ in
             XCTAssertEqual(_scheme, scheme)
-            return target
+            return (project, target)
         }
         buildgraphInspector.workspacePathStub = { _path in
             XCTAssertEqual(_path, path)
             return workspacePath
         }
-        buildgraphInspector.buildArgumentsStub = { _target, _, _skipSigning in
+        buildgraphInspector.buildArgumentsStub = { _project, _target, _, _skipSigning in
+            XCTAssertEqual(_project, project)
             XCTAssertEqual(_target, target)
             XCTAssertEqual(_skipSigning, skipSigning)
             return buildArguments
@@ -100,6 +102,7 @@ final class BuildServiceTests: TuistUnitTestCase {
         let workspacePath = path.appending(component: "App.xcworkspace")
         let graph = Graph.test()
         let scheme = Scheme.test()
+        let project = Project.test()
         let target = Target.test()
         let buildArguments: [XcodeBuildArgument] = [.sdk("iphoneos")]
         let skipSigning = false
@@ -113,13 +116,14 @@ final class BuildServiceTests: TuistUnitTestCase {
         }
         buildgraphInspector.buildableTargetStub = { _scheme, _ in
             XCTAssertEqual(_scheme, scheme)
-            return target
+            return (project, target)
         }
         buildgraphInspector.workspacePathStub = { _path in
             XCTAssertEqual(_path, path)
             return workspacePath
         }
-        buildgraphInspector.buildArgumentsStub = { _target, _, _skipSigning in
+        buildgraphInspector.buildArgumentsStub = { _project, _target, _, _skipSigning in
+            XCTAssertEqual(_project, project)
             XCTAssertEqual(_target, target)
             XCTAssertEqual(_skipSigning, skipSigning)
             return buildArguments
@@ -144,6 +148,7 @@ final class BuildServiceTests: TuistUnitTestCase {
         let path = try temporaryPath()
         let workspacePath = path.appending(component: "App.xcworkspace")
         let graph = Graph.test()
+        let project = Project.test()
         let schemeA = Scheme.test(name: "A")
         let schemeB = Scheme.test(name: "B")
         let targetA = Target.test(name: "A")
@@ -159,15 +164,15 @@ final class BuildServiceTests: TuistUnitTestCase {
             [schemeA, schemeB]
         }
         buildgraphInspector.buildableTargetStub = { _scheme, _ in
-            if _scheme == schemeA { return targetA }
-            else if _scheme == schemeB { return targetB }
-            else { XCTFail("unexpected scheme"); return targetA }
+            if _scheme == schemeA { return (project, targetA) }
+            else if _scheme == schemeB { return (project, targetB) }
+            else { XCTFail("unexpected scheme"); return (project, targetA) }
         }
         buildgraphInspector.workspacePathStub = { _path in
             XCTAssertEqual(_path, path)
             return workspacePath
         }
-        buildgraphInspector.buildArgumentsStub = { _, _, _skipSigning in
+        buildgraphInspector.buildArgumentsStub = { _, _, _, _skipSigning in
             XCTAssertEqual(_skipSigning, skipSigning)
             return buildArguments
         }
@@ -199,6 +204,7 @@ final class BuildServiceTests: TuistUnitTestCase {
         let path = try temporaryPath()
         let workspacePath = path.appending(component: "App.xcworkspace")
         let graph = Graph.test()
+        let project = Project.test()
         let schemeA = Scheme.test(name: "A")
         let schemeB = Scheme.test(name: "B")
         let targetA = Target.test(name: "A")
@@ -214,15 +220,15 @@ final class BuildServiceTests: TuistUnitTestCase {
             [schemeA, schemeB]
         }
         buildgraphInspector.buildableTargetStub = { _scheme, _ in
-            if _scheme == schemeA { return targetA }
-            else if _scheme == schemeB { return targetB }
-            else { XCTFail("unexpected scheme"); return targetA }
+            if _scheme == schemeA { return (project, targetA) }
+            else if _scheme == schemeB { return (project, targetB) }
+            else { XCTFail("unexpected scheme"); return (project, targetA) }
         }
         buildgraphInspector.workspacePathStub = { _path in
             XCTAssertEqual(_path, path)
             return workspacePath
         }
-        buildgraphInspector.buildArgumentsStub = { _, _, _skipSigning in
+        buildgraphInspector.buildArgumentsStub = { _, _, _, _skipSigning in
             XCTAssertEqual(_skipSigning, skipSigning)
             return buildArguments
         }

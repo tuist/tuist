@@ -27,7 +27,7 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         let target = Target.test(platform: .macOS)
 
         // When
-        let got = subject.buildArguments(target: target, configuration: nil, skipSigning: false)
+        let got = subject.buildArguments(project: .test(), target: target, configuration: nil, skipSigning: false)
 
         // Then
         XCTAssertEqual(got, [
@@ -41,7 +41,7 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         let iosSimulatorSDK = try XCTUnwrap(Platform.iOS.xcodeSimulatorSDK)
 
         // When
-        let got = subject.buildArguments(target: target, configuration: nil, skipSigning: false)
+        let got = subject.buildArguments(project: .test(), target: target, configuration: nil, skipSigning: false)
 
         // Then
         XCTAssertEqual(got, [
@@ -55,7 +55,7 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         let watchosSimulatorSDK = try XCTUnwrap(Platform.watchOS.xcodeSimulatorSDK)
 
         // When
-        let got = subject.buildArguments(target: target, configuration: nil, skipSigning: false)
+        let got = subject.buildArguments(project: .test(), target: target, configuration: nil, skipSigning: false)
 
         // Then
         XCTAssertEqual(got, [
@@ -69,7 +69,7 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         let tvosSimulatorSDK = try XCTUnwrap(Platform.tvOS.xcodeSimulatorSDK)
 
         // When
-        let got = subject.buildArguments(target: target, configuration: nil, skipSigning: false)
+        let got = subject.buildArguments(project: .test(), target: target, configuration: nil, skipSigning: false)
 
         // Then
         XCTAssertEqual(got, [
@@ -83,7 +83,7 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         let iosSimulatorSDK = try XCTUnwrap(Platform.iOS.xcodeSimulatorSDK)
 
         // When
-        let got = subject.buildArguments(target: target, configuration: nil, skipSigning: true)
+        let got = subject.buildArguments(project: .test(), target: target, configuration: nil, skipSigning: true)
 
         // Then
         XCTAssertEqual(got, [
@@ -101,7 +101,19 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         let target = Target.test(settings: settings)
 
         // When
-        let got = subject.buildArguments(target: target, configuration: "Release", skipSigning: false)
+        let got = subject.buildArguments(project: .test(), target: target, configuration: "Release", skipSigning: false)
+
+        // Then
+        XCTAssertTrue(got.contains(.configuration("Release")))
+    }
+
+    func test_buildArguments_when_theGivenConfigurationExistsInTheProject() throws {
+        // Given
+        let settings = Settings.test(base: [:], debug: .test(), release: .test())
+        let target = Target.test(settings: nil)
+
+        // When
+        let got = subject.buildArguments(project: .test(settings: settings), target: target, configuration: "Release", skipSigning: false)
 
         // Then
         XCTAssertTrue(got.contains(.configuration("Release")))
@@ -113,7 +125,7 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         let target = Target.test(settings: settings)
 
         // When
-        let got = subject.buildArguments(target: target, configuration: "Release", skipSigning: false)
+        let got = subject.buildArguments(project: .test(), target: target, configuration: "Release", skipSigning: false)
 
         // Then
         XCTAssertFalse(got.contains(.configuration("Release")))
@@ -134,7 +146,8 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         let got = subject.buildableTarget(scheme: scheme, graph: graph)
 
         // Then
-        XCTAssertEqual(got, target)
+        XCTAssertEqual(got?.0, project)
+        XCTAssertEqual(got?.1, target)
     }
 
     func test_buildableSchemes() throws {
