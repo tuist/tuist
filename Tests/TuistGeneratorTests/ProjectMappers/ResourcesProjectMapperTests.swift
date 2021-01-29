@@ -68,12 +68,11 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         XCTAssertEqual(resourcesTarget.filesGroup, target.filesGroup)
         XCTAssertEqual(resourcesTarget.resources, resources)
     }
-    
+
     func test_map_when_a_target_that_has_core_data_models_and_doesnt_supports_them() throws {
-        
         // Given
-        
-        let coreDataModels: [CoreDataModel] = [CoreDataModel.init(path: "/data.xcdatamodeld", versions: ["/data.xcdatamodeld"], currentVersion: "1")]
+
+        let coreDataModels: [CoreDataModel] = [CoreDataModel(path: "/data.xcdatamodeld", versions: ["/data.xcdatamodeld"], currentVersion: "1")]
         let target = Target.test(product: .staticLibrary, coreDataModels: coreDataModels)
         project = Project.test(targets: [target])
 
@@ -151,10 +150,10 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         XCTAssertEqual(gotTarget.sources.first?.path, expectedPath)
         XCTAssertEqual(gotTarget.dependencies.count, 0)
     }
-    
+
     func test_map_when_a_target_that_has_core_data_models_and_supports_them() throws {
         // Given
-        let coreDataModels: [CoreDataModel] = [CoreDataModel.init(path: "/data.xcdatamodeld", versions: ["/data.xcdatamodeld"], currentVersion: "1")]
+        let coreDataModels: [CoreDataModel] = [CoreDataModel(path: "/data.xcdatamodeld", versions: ["/data.xcdatamodeld"], currentVersion: "1")]
         let target = Target.test(product: .framework, coreDataModels: coreDataModels)
         project = Project.test(targets: [target])
 

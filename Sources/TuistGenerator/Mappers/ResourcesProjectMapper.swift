@@ -22,7 +22,7 @@ public class ResourcesProjectMapper: ProjectMapping {
     }
 
     public func mapTarget(_ target: Target, project: Project) -> ([Target], [SideEffectDescriptor]) {
-        if target.resources.isEmpty && target.coreDataModels.isEmpty { return ([target], []) }
+        if target.resources.isEmpty, target.coreDataModels.isEmpty { return ([target], []) }
         var additionalTargets: [Target] = []
         var sideEffects: [SideEffectDescriptor] = []
 
