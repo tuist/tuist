@@ -14,7 +14,7 @@ final class DependenciesManifestMapperTests: TuistUnitTestCase {
         // Given
         let temporaryPath = try self.temporaryPath()
         let localPackagePath = temporaryPath.appending(component: "LocalPackage")
-        
+
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
         let manifest: ProjectDescription.Dependencies = Dependencies([
             .carthage(origin: .github(path: "Dependency1"), requirement: .exact("1.1.1"), platforms: [.iOS]),
@@ -36,7 +36,7 @@ final class DependenciesManifestMapperTests: TuistUnitTestCase {
             ],
             swiftPackageManagerDependencies: [
                 TuistGraph.SwiftPackageManagerDependency(package: .local(path: localPackagePath)),
-                TuistGraph.SwiftPackageManagerDependency(package: .remote(url: "RemotePackage.com", requirement: .exact("1.2.3")))
+                TuistGraph.SwiftPackageManagerDependency(package: .remote(url: "RemotePackage.com", requirement: .exact("1.2.3"))),
             ]
         )
         XCTAssertEqual(got, expected)

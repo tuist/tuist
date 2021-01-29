@@ -4,7 +4,7 @@ import Foundation
 public struct SwiftPackageManagerDependency: Equatable {
     /// Type of package.
     public let package: Package
-    
+
     /// Initializes the Swift Package Manager dependency with its attributes.
     ///
     /// - Parameter package: Type of package.

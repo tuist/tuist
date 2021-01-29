@@ -24,7 +24,7 @@ public class DependenciesModelLoader: DependenciesModelLoading {
     public func loadDependencies(at path: AbsolutePath) throws -> TuistGraph.Dependencies {
         let manifest = try manifestLoader.loadDependencies(at: path)
         let generatorPaths = GeneratorPaths(manifestDirectory: path)
-        
+
         return try TuistGraph.Dependencies.from(manifest: manifest, generatorPaths: generatorPaths)
     }
 }

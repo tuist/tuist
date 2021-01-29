@@ -12,7 +12,7 @@ extension TuistGraph.Dependencies {
     ///   - generatorPaths: Generator paths.
     static func from(manifest: ProjectDescription.Dependencies, generatorPaths: GeneratorPaths) throws -> Self {
         let dependencies = try manifest.dependencies
-            .reduce(into: ([CarthageDependency](), [SwiftPackageManagerDependency]()), { result, manifest in
+            .reduce(into: ([CarthageDependency](), [SwiftPackageManagerDependency]())) { result, manifest in
                 switch manifest {
                 case let .carthage(origin, requirement, platforms):
                     let origin = try TuistGraph.CarthageDependency.Origin.from(manifest: origin)
@@ -22,10 +22,10 @@ extension TuistGraph.Dependencies {
                     result.0.append(CarthageDependency(origin: origin, requirement: requirement, platforms: Set(platforms)))
                 case let .swiftPackageManager(package):
                     let package = try TuistGraph.Package.from(manifest: package, generatorPaths: generatorPaths)
-                    
+
                     result.1.append(SwiftPackageManagerDependency(package: package))
                 }
-            })
+            }
 
         return Self(carthageDependencies: dependencies.0,
                     swiftPackageManagerDependencies: dependencies.1)

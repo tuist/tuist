@@ -34,13 +34,13 @@ final class DependenciesModelLoaderTests: TuistUnitTestCase {
         // Given
         let temporaryPath = try self.temporaryPath()
         let localSwiftPackagePath = temporaryPath.appending(component: "LocalPackage")
-        
+
         manifestLoader.loadDependenciesStub = { _ in
             Dependencies([
                 .carthage(origin: .github(path: "Dependency1"), requirement: .exact("1.1.1"), platforms: [.iOS]),
                 .carthage(origin: .git(path: "Dependency1"), requirement: .exact("2.3.4"), platforms: [.macOS, .tvOS]),
                 .swiftPackageManager(package: .local(path: Path(localSwiftPackagePath.pathString))),
-                .swiftPackageManager(package: .remote(url: "RemoteUrl.com", requirement: .exact("1.2.3")))
+                .swiftPackageManager(package: .remote(url: "RemoteUrl.com", requirement: .exact("1.2.3"))),
             ])
         }
 
@@ -55,7 +55,7 @@ final class DependenciesModelLoaderTests: TuistUnitTestCase {
             ],
             swiftPackageManagerDependencies: [
                 SwiftPackageManagerDependency(package: .local(path: localSwiftPackagePath)),
-                SwiftPackageManagerDependency(package: .remote(url: "RemoteUrl.com", requirement: .exact("1.2.3")))
+                SwiftPackageManagerDependency(package: .remote(url: "RemoteUrl.com", requirement: .exact("1.2.3"))),
             ]
         )
         XCTAssertEqual(got, expected)
