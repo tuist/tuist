@@ -392,12 +392,13 @@ class ProjectFileElements {
                                 toGroup: PBXGroup,
                                 pbxproj: PBXProj) -> (element: PBXFileElement, path: AbsolutePath)
     {
-        let versionGroupType = Xcode.filetype(extension: folderRelativePath.extension!)
-        let group = XCVersionGroup(currentVersion: nil,
-                                   path: folderRelativePath.pathString,
-                                   name: name,
-                                   sourceTree: .group,
-                                   versionGroupType: versionGroupType)
+        let group = XCVersionGroup(
+            currentVersion: nil,
+            path: folderRelativePath.pathString,
+            name: name,
+            sourceTree: .group,
+            versionGroupType: versionGroupType(for: folderRelativePath)
+        )
         pbxproj.add(object: group)
         toGroup.children.append(group)
         elements[folderAbsolutePath] = group
@@ -547,6 +548,17 @@ class ProjectFileElements {
             return RelativePath(relativePathComponents.first!)
         } else {
             return RelativePath(firstElementComponents.joined(separator: "/"))
+        }
+    }
+
+    private func versionGroupType(for filePath: RelativePath) -> String? {
+        switch filePath.extension {
+        case "xcdatamodeld":
+            return "wrapper.xcdatamodel"
+        case let fileExtension?:
+            return Xcode.filetype(extension: fileExtension)
+        default:
+            return nil
         }
     }
 }

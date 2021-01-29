@@ -11,6 +11,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Fixed
 
 - Fix reading configuration from project if `Target.settings` is nil [#2399](https://github.com/tuist/tuist/pull/2399) by [@danyf90](https://github.com/danyf90).
+- Fix CoreData project attributes [#2397](https://github.com/tuist/tuist/pull/2397) by [@kwridan](https://github.com/kwridan).
 
 ## 1.32.0 - Neubau
 

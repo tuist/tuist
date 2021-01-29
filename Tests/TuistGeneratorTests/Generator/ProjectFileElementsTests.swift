@@ -538,23 +538,30 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
     }
 
     func test_addVersionGroupElement() throws {
+        // Given
         let from = AbsolutePath("/project/")
-        let folderAbsolutePath = AbsolutePath("/project/model.xcdatamodel")
-        let folderRelativePath = RelativePath("./model.xcdatamodel")
+        let folderAbsolutePath = AbsolutePath("/project/model.xcdatamodeld")
+        let folderRelativePath = RelativePath("./model.xcdatamodeld")
         let group = PBXGroup()
         let pbxproj = PBXProj()
         pbxproj.add(object: group)
-        _ = subject.addVersionGroupElement(from: from,
-                                           folderAbsolutePath: folderAbsolutePath,
-                                           folderRelativePath: folderRelativePath,
-                                           name: nil,
-                                           toGroup: group,
-                                           pbxproj: pbxproj)
-        let versionGroup: XCVersionGroup? = group.children.first as? XCVersionGroup
-        XCTAssertEqual(versionGroup?.path, "model.xcdatamodel")
-        XCTAssertEqual(versionGroup?.sourceTree, .group)
-        XCTAssertNil(versionGroup?.name)
-        XCTAssertEqual(versionGroup?.versionGroupType, Xcode.filetype(extension: "xcdatamodel"))
+
+        // When
+        _ = subject.addVersionGroupElement(
+            from: from,
+            folderAbsolutePath: folderAbsolutePath,
+            folderRelativePath: folderRelativePath,
+            name: nil,
+            toGroup: group,
+            pbxproj: pbxproj
+        )
+
+        // Then
+        let versionGroup = try XCTUnwrap(group.children.first as? XCVersionGroup)
+        XCTAssertEqual(versionGroup.path, "model.xcdatamodeld")
+        XCTAssertEqual(versionGroup.sourceTree, .group)
+        XCTAssertNil(versionGroup.name)
+        XCTAssertEqual(versionGroup.versionGroupType, "wrapper.xcdatamodel")
     }
 
     func test_addFileElement() throws {
