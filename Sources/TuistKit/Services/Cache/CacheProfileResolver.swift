@@ -13,31 +13,24 @@ struct CacheProfileResolver {
         named profileName: String?,
         from config: Config
     ) -> ResolvedCacheProfile {
-        // The name of the profile was not passed &&
-        // the list of profiles in Config file exists.
         if
-            case .none = profileName,
-            let cacheConfig = config.cache,
-            let defaultProfile = cacheConfig.profiles.first
-        {
-            return .defaultFromConfig(defaultProfile)
-        }
-
-        // The name of the profile was not passed &&
-        // the list of profiles in Config file is empty.
-        guard
             let name = profileName,
-            let cacheConfig = config.cache,
-            !cacheConfig.profiles.isEmpty
-        else {
-            return .defaultFromTuist(TuistGraph.Cache.default.profiles[0])
+            let profiles = config.cache?.profiles {
+            guard let profile = profiles.first(where: { $0.name == name }) else {
+                // The name of the profile has not been found.
+                return .notFound(profileName: name, availableProfiles: profiles.map(\.name))
+            }
+            return .selectedFromConfig(profile)
+        } else {
+            if let defaultProfile = config.cache?.profiles.first {
+                // The name of the profile was not passed &&
+                // the list of profiles in Config file exists.
+                return .defaultFromConfig(defaultProfile)
+            } else {
+                // The name of the profile was not passed &&
+                // the list of profiles in Config file is empty.
+                return .defaultFromTuist(TuistGraph.Cache.default.profiles[0])
+            }
         }
-
-        let profiles = cacheConfig.profiles
-        guard let profile = profiles.first(where: { $0.name == name }) else {
-            // The name of the profile has not been found.
-            return .notFound(profileName: name, availableProfiles: profiles.map(\.name))
-        }
-        return .selectedFromConfig(profile)
     }
 }
