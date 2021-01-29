@@ -138,25 +138,20 @@ public final class CacheXCFrameworkBuilder: CacheArtifactBuilding {
     fileprivate func simulatorBuild(projectTarget: XcodeBuildTarget,
                                     scheme: String,
                                     target: Target,
-                                    configuration: String?,
+                                    configuration: String,
                                     archivePath: AbsolutePath) throws
     {
-        var arguments: [XcodeBuildArgument] = [
-            .sdk(target.platform.xcodeSimulatorSDK!),
-            .xcarg("SKIP_INSTALL", "NO"),
-            .xcarg("BUILD_LIBRARY_FOR_DISTRIBUTION", "YES"),
-        ]
-
-        if let configuration = configuration {
-            arguments.append(.configuration(configuration))
-        }
-
         // Without the BUILD_LIBRARY_FOR_DISTRIBUTION argument xcodebuild doesn't generate the .swiftinterface file
         _ = try xcodeBuildController.archive(projectTarget,
                                              scheme: scheme,
                                              clean: false,
                                              archivePath: archivePath,
-                                             arguments: arguments)
+                                             arguments: [
+                                                .sdk(target.platform.xcodeSimulatorSDK!),
+                                                .xcarg("SKIP_INSTALL", "NO"),
+                                                .xcarg("BUILD_LIBRARY_FOR_DISTRIBUTION", "YES"),
+                                                .configuration(configuration)
+                                             ])
             .printFormattedOutput()
             .do(onSubscribed: {
                 logger.notice("Building \(target.name) for simulator...", metadata: .subsection)
