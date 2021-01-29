@@ -23,7 +23,7 @@ final class CacheProfileResolverTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func testItResolvesDefaultProfileFromTuistDefaults() {
+    func test_resolves_default_profile_from_tuist_defaults() {
         // When
         let resolvedProfile = subject.resolveCacheProfile(
             named: nil,
@@ -42,7 +42,7 @@ final class CacheProfileResolverTests: TuistUnitTestCase {
         )
     }
 
-    func testItResolvesDefaultProfileFromTuistDefaultsWhenProfilesListIsEmpty() {
+    func test_resolves_default_profile_from_tuist_defaults_when_profiles_list_is_empty() {
         // When
         let resolvedProfile = subject.resolveCacheProfile(
             named: nil,
@@ -61,7 +61,7 @@ final class CacheProfileResolverTests: TuistUnitTestCase {
         )
     }
 
-    func testItResolvesDefaultProfileFromConfig() {
+    func test_resolves_default_profile_from_config() {
         // When
         let resolvedProfile = subject.resolveCacheProfile(
             named: nil,
@@ -80,7 +80,7 @@ final class CacheProfileResolverTests: TuistUnitTestCase {
         )
     }
 
-    func testItResolvesSelectedProfileFromConfig() {
+    func test_resolves_selected_profile_from_config() {
         // When
         let resolvedProfile = subject.resolveCacheProfile(
             named: "bar",
@@ -106,7 +106,7 @@ final class CacheProfileResolverTests: TuistUnitTestCase {
         )
     }
 
-    func testItResolvesNotFoundProfile() {
+    func test_resolves_not_found_profile() {
         // When
         let resolvedProfile = subject.resolveCacheProfile(
             named: "foo",
