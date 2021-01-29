@@ -39,7 +39,7 @@ final class StableXcodeProjIntegrationTests: TuistTestCase {
             let workspaceDescriptor = try subject.generateWorkspace(graphTraverser: graphTraverser)
 
             // Note: While we already have access to the `XcodeProj` models in `workspaceDescriptor`
-            // unfortunately they are not equtable, however once serialized & deserialized back they are
+            // unfortunately they are not equatable, however once serialized & deserialized back they are
             try writer.write(workspace: workspaceDescriptor)
             let xcworkspace = try XCWorkspace(path: workspaceDescriptor.xcworkspacePath.path)
             let xcodeProjs = try findXcodeProjs(in: xcworkspace)

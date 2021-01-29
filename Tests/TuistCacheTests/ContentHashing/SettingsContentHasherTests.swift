@@ -11,12 +11,12 @@ import XCTest
 
 final class SettingsContentHasherTests: TuistUnitTestCase {
     private var subject: SettingsContentHasher!
-    private var mockContentHasher: MockContentHashing!
+    private var mockContentHasher: MockContentHasher!
     private let filePath1 = AbsolutePath("/file1")
 
     override func setUp() {
         super.setUp()
-        mockContentHasher = MockContentHashing()
+        mockContentHasher = MockContentHasher()
         subject = SettingsContentHasher(contentHasher: mockContentHasher)
     }
 

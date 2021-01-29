@@ -69,7 +69,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
     {
         let schemes = try workspace.schemes.map { scheme in
             try generateScheme(scheme: scheme,
-                               path: workspace.path,
+                               path: workspace.xcWorkspacePath.parentDirectory,
                                graphTraverser: graphTraverser,
                                generatedProjects: generatedProjects)
         }
@@ -83,9 +83,9 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
     {
         try project.schemes.map { scheme in
             try generateScheme(scheme: scheme,
-                               path: project.path,
+                               path: project.xcodeProjPath.parentDirectory,
                                graphTraverser: graphTraverser,
-                               generatedProjects: [project.path: generatedProject])
+                               generatedProjects: [project.xcodeProjPath: generatedProject])
         }
     }
 
@@ -470,9 +470,10 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
                                generatedProjects: [AbsolutePath: GeneratedProject],
                                rootPath _: AbsolutePath) throws -> XCScheme.ExecutionAction
     {
-        guard let targetReference = action.target,
+        guard
+            let targetReference = action.target,
             let graphTarget = graphTraverser.target(path: targetReference.projectPath, name: targetReference.name),
-            let generatedProject = generatedProjects[targetReference.projectPath]
+            let generatedProject = generatedProjects[graphTarget.project.xcodeProjPath]
         else {
             return schemeExecutionAction(action: action)
         }
@@ -519,10 +520,10 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
     // MARK: - Helpers
 
     private func resolveRelativeProjectPath(graphTarget: ValueGraphTarget,
-                                            generatedProject: GeneratedProject,
+                                            generatedProject _: GeneratedProject,
                                             rootPath: AbsolutePath) -> RelativePath
     {
-        let xcodeProjectPath = graphTarget.project.path.appending(component: generatedProject.name)
+        let xcodeProjectPath = graphTarget.project.xcodeProjPath
         return xcodeProjectPath.relative(to: rootPath)
     }
 
@@ -538,7 +539,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
                                           rootPath: AbsolutePath,
                                           generatedProjects: [AbsolutePath: GeneratedProject]) throws -> XCScheme.BuildableReference?
     {
-        let projectPath = graphTarget.project.path
+        let projectPath = graphTarget.project.xcodeProjPath
         guard let target = graphTraverser.target(path: graphTarget.project.path, name: graphTarget.target.name) else { return nil }
         guard let generatedProject = generatedProjects[projectPath] else { return nil }
         guard let pbxTarget = generatedProject.targets[graphTarget.target.name] else { return nil }

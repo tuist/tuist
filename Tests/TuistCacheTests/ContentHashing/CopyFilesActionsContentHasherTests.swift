@@ -4,19 +4,20 @@ import TuistCore
 import TuistCoreTesting
 import TuistGraph
 import TuistSupport
+import TuistSupportTesting
 import XCTest
 @testable import TuistCache
 @testable import TuistSupportTesting
 
 final class CopyFilesActionsContentHasherTests: TuistUnitTestCase {
     private var subject: CopyFilesContentHasher!
-    private var mockContentHasher: MockContentHashing!
+    private var contentHasher: MockContentHasher!
     private var temporaryDirectory: TemporaryDirectory!
 
     override func setUp() {
         super.setUp()
-        mockContentHasher = MockContentHashing()
-        subject = CopyFilesContentHasher(contentHasher: mockContentHasher)
+        contentHasher = MockContentHasher()
+        subject = CopyFilesContentHasher(contentHasher: contentHasher)
         do {
             temporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
         } catch {
@@ -27,7 +28,7 @@ final class CopyFilesActionsContentHasherTests: TuistUnitTestCase {
     override func tearDown() {
         subject = nil
         temporaryDirectory = nil
-        mockContentHasher = nil
+        contentHasher = nil
 
         super.tearDown()
     }
@@ -50,16 +51,16 @@ final class CopyFilesActionsContentHasherTests: TuistUnitTestCase {
         let file1Hash = "file1-content-hash"
         let file2Hash = "file2-content-hash"
         let copyFilesAction = makeCopyFilesAction()
-        mockContentHasher.stubHashForPath[AbsolutePath("/file1.ttf")] = file1Hash
-        mockContentHasher.stubHashForPath[AbsolutePath("/file2.ttf")] = file2Hash
+        contentHasher.stubHashForPath[AbsolutePath("/file1.ttf")] = file1Hash
+        contentHasher.stubHashForPath[AbsolutePath("/file2.ttf")] = file2Hash
 
         // When
         _ = try subject.hash(copyFiles: [copyFilesAction])
 
         // Then
         let expected = [file1Hash, file2Hash, "Copy Fonts", "resources", "Fonts"]
-        XCTAssertEqual(mockContentHasher.hashPathCallCount, 2)
-        XCTAssertEqual(mockContentHasher.hashStringsSpy, expected)
+        XCTAssertEqual(contentHasher.hashPathCallCount, 2)
+        XCTAssertEqual(contentHasher.hashStringsSpy, expected)
     }
 
     func test_hash__copyFilesAction_valuesAreNotHarcoded() throws {
@@ -70,14 +71,14 @@ final class CopyFilesActionsContentHasherTests: TuistUnitTestCase {
                                                   subpath: "Templates",
                                                   files: [.file(path: "/file1.template")])
 
-        mockContentHasher.stubHashForPath[AbsolutePath("/file1.template")] = file1Hash
+        contentHasher.stubHashForPath[AbsolutePath("/file1.template")] = file1Hash
 
         // When
         _ = try subject.hash(copyFiles: [copyFilesAction])
 
         // Then
         let expected = [file1Hash, "Copy Templates", "sharedSupport", "Templates"]
-        XCTAssertEqual(mockContentHasher.hashPathCallCount, 1)
-        XCTAssertEqual(mockContentHasher.hashStringsSpy, expected)
+        XCTAssertEqual(contentHasher.hashPathCallCount, 1)
+        XCTAssertEqual(contentHasher.hashStringsSpy, expected)
     }
 }

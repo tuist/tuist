@@ -20,6 +20,9 @@ public protocol Environmenting: AnyObject {
     /// Returns the directory where the project description helper modules are cached.
     var projectDescriptionHelpersCacheDirectory: AbsolutePath { get }
 
+    /// Directory where the projects generated for automation are located.
+    var projectsCacheDirectory: AbsolutePath { get }
+
     /// Returns the directory where the build artifacts are cached.
     var buildCacheDirectory: AbsolutePath { get }
 
@@ -116,6 +119,10 @@ public class Environment: Environmenting {
     /// Returns the directory where the project description helper modules are cached.
     public var projectDescriptionHelpersCacheDirectory: AbsolutePath {
         cacheDirectory.appending(component: "ProjectDescriptionHelpers")
+    }
+
+    public var projectsCacheDirectory: AbsolutePath {
+        cacheDirectory.appending(component: "Projects")
     }
 
     /// Returns the cache directory
