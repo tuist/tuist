@@ -6,11 +6,6 @@ on:
   push:
     branches:
       - main
-    paths:
-      - Sources/**
-      - Tests/**
-      - tools/fixturegen/**
-      - tools/tuistbench/**
   pull_request:
     paths:
       - Sources/**
