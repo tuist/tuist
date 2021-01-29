@@ -15,7 +15,8 @@ struct CacheProfileResolver {
     ) -> ResolvedCacheProfile {
         if
             let name = profileName,
-            let profiles = config.cache?.profiles {
+            let profiles = config.cache?.profiles
+        {
             guard let profile = profiles.first(where: { $0.name == name }) else {
                 // The name of the profile has not been found.
                 return .notFound(profileName: name, availableProfiles: profiles.map(\.name))
