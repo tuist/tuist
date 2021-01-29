@@ -4,13 +4,6 @@ on:
   push:
     branches:
       - main
-    paths:
-      - Gemfile*
-      - Package.swift
-      - Package.resolved
-      - Sources/**
-      - Tests/**
-      - features/**
   pull_request:
     paths:
       - Gemfile*

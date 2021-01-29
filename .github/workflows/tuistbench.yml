@@ -4,8 +4,6 @@ on:
   push:
     branches:
       - main
-    paths:
-      - tools/tuistbench/**
   pull_request:
     paths:
       - tools/tuistbench/**
