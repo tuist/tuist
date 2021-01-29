@@ -5,6 +5,13 @@ on:
     branches:
       - main
   pull_request:
+    paths:
+      - Gemfile*
+      - Package.swift
+      - Package.resolved
+      - Sources/**
+      - Tests/**
+      - features/**
 
 env:
   RUBY_VERSION: '2.7.2'

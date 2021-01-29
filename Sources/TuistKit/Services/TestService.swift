@@ -6,6 +6,7 @@ import TuistAutomation
 import TuistCache
 import TuistCore
 import TuistGraph
+import TuistLoader
 import TuistSupport
 
 enum TestServiceError: FatalError {
@@ -46,12 +47,35 @@ final class TestService {
     /// Simulator controller
     let simulatorController: SimulatorControlling
 
+    private let temporaryDirectory: TemporaryDirectory
+
+    convenience init(
+        xcodebuildController _: XcodeBuildControlling = XcodeBuildController(),
+        buildGraphInspector _: BuildGraphInspecting = BuildGraphInspector(),
+        simulatorController _: SimulatorControlling = SimulatorController()
+    ) throws {
+        let temporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
+        self.init(
+            temporaryDirectory: temporaryDirectory,
+            generator: Generator(
+                projectMapperProvider: AutomationProjectMapperProvider(),
+                graphMapperProvider: GraphMapperProvider(),
+                workspaceMapperProvider: AutomationWorkspaceMapperProvider(
+                    workspaceDirectory: temporaryDirectory.path
+                ),
+                manifestLoaderFactory: ManifestLoaderFactory()
+            )
+        )
+    }
+
     init(
-        generator: Generating = Generator(contentHasher: ContentHasher()),
+        temporaryDirectory: TemporaryDirectory,
+        generator: Generating,
         xcodebuildController: XcodeBuildControlling = XcodeBuildController(),
         buildGraphInspector: BuildGraphInspecting = BuildGraphInspector(),
         simulatorController: SimulatorControlling = SimulatorController()
     ) {
+        self.temporaryDirectory = temporaryDirectory
         self.generator = generator
         self.xcodebuildController = xcodebuildController
         self.buildGraphInspector = buildGraphInspector
@@ -60,20 +84,17 @@ final class TestService {
 
     func run(
         schemeName: String?,
-        generate: Bool,
         clean: Bool,
         configuration: String?,
         path: AbsolutePath,
         deviceName: String?,
         osVersion: String?
     ) throws {
-        let graph: Graph
-        if try (generate || buildGraphInspector.workspacePath(directory: path) == nil) {
-            graph = try generator.generateWithGraph(path: path, projectOnly: false).1
-        } else {
-            graph = try generator.load(path: path)
-        }
-
+        logger.notice("Generating project for testing", metadata: .section)
+        let graph: Graph = try generator.generateWithGraph(
+            path: path,
+            projectOnly: false
+        ).1
         let version = osVersion?.version()
 
         let testableSchemes = buildGraphInspector.testableSchemes(graph: graph)
@@ -82,12 +103,32 @@ final class TestService {
             "Found the following testable schemes: \(testableSchemes.map(\.name).joined(separator: ", "))"
         )
 
+        let testSchemes: [Scheme]
         if let schemeName = schemeName {
-            guard let scheme = testableSchemes.first(where: { $0.name == schemeName }) else {
-                throw TestServiceError.schemeNotFound(scheme: schemeName, existing: testableSchemes.map(\.name))
+            guard
+                let scheme = testableSchemes.first(where: { $0.name == schemeName })
+            else {
+                throw TestServiceError.schemeNotFound(
+                    scheme: schemeName,
+                    existing: testableSchemes.map(\.name)
+                )
             }
-            try testScheme(
-                scheme: scheme,
+            testSchemes = [scheme]
+        } else {
+            testSchemes = buildGraphInspector.projectSchemes(graph: graph)
+            guard
+                !testSchemes.isEmpty
+            else {
+                throw TestServiceError.schemeNotFound(
+                    scheme: "\(graph.workspace.name)-Project",
+                    existing: testableSchemes.map(\.name)
+                )
+            }
+        }
+
+        try testSchemes.forEach { testScheme in
+            try self.testScheme(
+                scheme: testScheme,
                 graph: graph,
                 path: path,
                 clean: clean,
@@ -95,21 +136,6 @@ final class TestService {
                 version: version,
                 deviceName: deviceName
             )
-        } else {
-            var cleaned: Bool = false
-            let testSchemes = buildGraphInspector.testSchemes(graph: graph)
-            try testSchemes.forEach {
-                try testScheme(
-                    scheme: $0,
-                    graph: graph,
-                    path: path,
-                    clean: !cleaned && clean,
-                    configuration: configuration,
-                    version: version,
-                    deviceName: deviceName
-                )
-                cleaned = true
-            }
         }
 
         logger.log(level: .notice, "The project tests ran successfully", metadata: .success)
@@ -120,7 +146,7 @@ final class TestService {
     private func testScheme(
         scheme: Scheme,
         graph: Graph,
-        path: AbsolutePath,
+        path _: AbsolutePath,
         clean: Bool,
         configuration: String?,
         version: Version?,
@@ -131,7 +157,36 @@ final class TestService {
             throw TestServiceError.schemeWithoutTestableTargets(scheme: scheme.name)
         }
 
-        let destination: XcodeBuildDestination
+        let destination = try findDestination(
+            buildableTarget: buildableTarget,
+            scheme: scheme,
+            graph: graph,
+            version: version,
+            deviceName: deviceName
+        )
+        _ = try xcodebuildController.test(
+            .workspace(graph.workspace.xcWorkspacePath),
+            scheme: scheme.name,
+            clean: clean,
+            destination: destination,
+            arguments: buildGraphInspector.buildArguments(
+                target: buildableTarget,
+                configuration: configuration,
+                skipSigning: true
+            )
+        )
+        .printFormattedOutput()
+        .toBlocking()
+        .last()
+    }
+
+    private func findDestination(
+        buildableTarget: Target,
+        scheme: Scheme,
+        graph: Graph,
+        version: Version?,
+        deviceName: String?
+    ) throws -> XcodeBuildDestination {
         switch buildableTarget.platform {
         case .iOS, .tvOS, .watchOS:
             let minVersion: Version?
@@ -140,7 +195,10 @@ final class TestService {
             } else {
                 minVersion = scheme.targetDependencies()
                     .compactMap { graph.findTargetNode(path: $0.projectPath, name: $0.name) }
-                    .flatMap { $0.targetDependencies.compactMap { $0.target.deploymentTarget?.version } }
+                    .flatMap {
+                        $0.targetDependencies
+                            .compactMap { $0.target.deploymentTarget?.version }
+                    }
                     .compactMap { $0.version() }
                     .sorted()
                     .first
@@ -153,21 +211,9 @@ final class TestService {
             )
             .toBlocking()
             .single()
-            destination = .device(deviceAndRuntime.device.udid)
+            return .device(deviceAndRuntime.device.udid)
         case .macOS:
-            destination = .mac
+            return .mac
         }
-
-        let workspacePath = try buildGraphInspector.workspacePath(directory: path)!
-        _ = try xcodebuildController.test(
-            .workspace(workspacePath),
-            scheme: scheme.name,
-            clean: clean,
-            destination: destination,
-            arguments: buildGraphInspector.buildArguments(target: buildableTarget, configuration: configuration, skipSigning: true)
-        )
-        .printFormattedOutput()
-        .toBlocking()
-        .last()
     }
 }

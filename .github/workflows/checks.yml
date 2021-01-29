@@ -1,11 +1,17 @@
 # https://help.github.com/en/github/automating-your-workflow-with-github-actions/workflow-syntax-for-github-actions#jobsjob_idname
 name: Checks
 
+# This workflow only runs when there are changes to the Swift code.
 on:
   push:
     branches:
       - main
   pull_request:
+    paths:
+      - Sources/**
+      - Tests/**
+      - tools/fixturegen/**
+      - tools/tuistbench/**
 
 env:
   RUBY_VERSION: '2.7.2'

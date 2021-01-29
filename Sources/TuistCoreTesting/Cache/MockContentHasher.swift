@@ -2,7 +2,7 @@ import Foundation
 import TSCBasic
 import TuistCore
 
-public class MockContentHashing: ContentHashing {
+public final class MockContentHasher: ContentHashing {
     public init() {}
 
     public var hashDataSpy: Data?
@@ -13,12 +13,11 @@ public class MockContentHashing: ContentHashing {
         return "\(String(describing: hashDataSpy?.base64EncodedString()))-hash"
     }
 
-    public var hashStringSpy: String?
-    public var hashStringCallCount = 0
+    public var hashStringCallCount: Int = 0
+    public var hashStub: ((String) throws -> String)?
     public func hash(_ string: String) throws -> String {
-        hashStringSpy = string
         hashStringCallCount += 1
-        return "\(string)-hash"
+        return try hashStub?(string) ?? "\(string)-hash"
     }
 
     public var hashStringsSpy: [String]?

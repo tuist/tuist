@@ -5,6 +5,7 @@ import TSCBasic
 public extension Workspace {
     static func test(
         path: AbsolutePath = AbsolutePath("/"),
+        xcWorkspacePath: AbsolutePath = AbsolutePath("/"),
         name: String = "test",
         projects: [AbsolutePath] = [],
         schemes: [Scheme] = [],
@@ -12,6 +13,7 @@ public extension Workspace {
     ) -> Workspace {
         Workspace(
             path: path,
+            xcWorkspacePath: xcWorkspacePath,
             name: name,
             projects: projects,
             schemes: schemes,

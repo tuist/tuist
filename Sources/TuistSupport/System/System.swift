@@ -504,9 +504,9 @@ public final class System: Systeming {
             var errorData: [UInt8] = []
             var processOne = System.process(arguments, environment: environment)
             var processTwo = System.process(secondArguments, environment: environment)
-            
+
             System.pipe(&processOne, &processTwo)
-            
+
             let pipes = System.pipeOutput(&processTwo)
 
             pipes.stdOut.fileHandleForReading.readabilityHandler = { fileHandle in
@@ -545,6 +545,8 @@ public final class System: Systeming {
                 }
             }
             return Disposables.create {
+                pipes.stdOut.fileHandleForReading.readabilityHandler = nil
+                pipes.stdErr.fileHandleForReading.readabilityHandler = nil
                 if processOne.isRunning {
                     processOne.terminate()
                 }
@@ -604,16 +606,17 @@ public final class System: Systeming {
     public func which(_ name: String) throws -> String {
         try capture("/usr/bin/env", "which", name).spm_chomp()
     }
-    
+
     // MARK: Helpers
-    
+
     /// Converts an array of arguments into a `Foundation.Process`
     /// - Parameters:
     ///   - arguments: Arguments for the process, first item being the executable URL.
     ///   - environment: Environment
     /// - Returns: A `Foundation.Process`
     static func process(_ arguments: [String],
-                        environment: [String: String]) -> Foundation.Process {
+                        environment: [String: String]) -> Foundation.Process
+    {
         let executablePath = arguments.first!
         let process = Foundation.Process()
         process.executableURL = URL(fileURLWithPath: executablePath)
@@ -621,7 +624,7 @@ public final class System: Systeming {
         process.environment = environment
         return process
     }
-    
+
     /// Pipe the output of one Process to another
     /// - Parameters:
     ///   - processOne: First Process
@@ -629,25 +632,26 @@ public final class System: Systeming {
     /// - Returns: The pipe
     @discardableResult
     static func pipe(_ processOne: inout Foundation.Process,
-                     _ processTwo: inout Foundation.Process) -> Pipe {
+                     _ processTwo: inout Foundation.Process) -> Pipe
+    {
         let processPipe = Pipe()
-        
+
         processOne.standardOutput = processPipe
         processTwo.standardInput = processPipe
         return processPipe
     }
-    
+
     /// PIpe the output of a process into separate output and error pipes
     /// - Parameter process: The process to pipe
     /// - Returns: Tuple that contains the output and error Pipe.
     static func pipeOutput(_ process: inout Foundation.Process) -> (stdOut: Pipe, stdErr: Pipe) {
         let stdOut: Pipe = Pipe()
         let stdErr: Pipe = Pipe()
-        
+
         // Redirect output of Process Two
         process.standardOutput = stdOut
         process.standardError = stdErr
-        
+
         return (stdOut, stdErr)
     }
 }

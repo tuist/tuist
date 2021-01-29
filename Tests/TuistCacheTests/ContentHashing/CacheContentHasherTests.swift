@@ -8,11 +8,11 @@ import XCTest
 
 final class CacheContentHasherTests: TuistUnitTestCase {
     private var subject: CacheContentHasher!
-    private var mockContentHashing: MockContentHashing!
+    private var mockContentHashing: MockContentHasher!
 
     override func setUp() {
         super.setUp()
-        mockContentHashing = MockContentHashing()
+        mockContentHashing = MockContentHasher()
         subject = CacheContentHasher(contentHasher: mockContentHashing)
     }
 
@@ -26,11 +26,18 @@ final class CacheContentHasherTests: TuistUnitTestCase {
 
     func test_hashString_callsContentHasherWithExpectedString() throws {
         // When
+        var hashedStrings: [String] = []
+        mockContentHashing.hashStub = {
+            hashedStrings.append($0)
+            return $0
+        }
         _ = try subject.hash("foo")
 
         // Then
-        XCTAssertEqual(mockContentHashing.hashStringCallCount, 1)
-        XCTAssertEqual(mockContentHashing.hashStringSpy, "foo")
+        XCTAssertEqual(
+            hashedStrings,
+            ["foo"]
+        )
     }
 
     func test_hashStrings_callsContentHasherWithExpectedStrings() throws {

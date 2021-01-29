@@ -8,7 +8,7 @@ import XCTest
 @testable import TuistGenerator
 @testable import TuistSupportTesting
 
-class WorkspaceStructureGeneratorTests: XCTestCase {
+final class WorkspaceStructureGeneratorTests: XCTestCase {
     fileprivate var fileHandler: InMemoryFileHandler!
     var subject: WorkspaceStructureGenerator!
 
@@ -24,26 +24,29 @@ class WorkspaceStructureGeneratorTests: XCTestCase {
 
     func test_generateStructure_projects() throws {
         // Given
-        let projects = try createFolders([
-            "/path/to/workspace/Modules/A",
-            "/path/to/workspace/Modules/B",
-            "/path/to/workspace/Modules/Sub/C",
-            "/path/to/workspace/Modules/Sub/D",
+        let xcodeProjPaths = try createFolders([
+            "/path/to/workspace/Modules/A/Project.xcodeproj",
+            "/path/to/workspace/Modules/B/Project.xcodeproj",
+            "/path/to/workspace/Modules/Sub/C/Project.xcodeproj",
+            "/path/to/workspace/Modules/Sub/D/Project.xcodeproj",
         ])
 
         // When
-        let structure = subject.generateStructure(path: "/path/to/workspace",
-                                                  workspace: Workspace.test(projects: projects),
-                                                  fileHandler: fileHandler)
+        let structure = subject.generateStructure(
+            path: "/path/to/workspace",
+            workspace: Workspace.test(),
+            xcodeProjPaths: xcodeProjPaths,
+            fileHandler: fileHandler
+        )
 
         // Then
         XCTAssertEqual(structure.contents, [
             .group("Modules", "/path/to/workspace/Modules", [
-                .project("/path/to/workspace/Modules/A"),
-                .project("/path/to/workspace/Modules/B"),
+                .project("/path/to/workspace/Modules/A/Project.xcodeproj"),
+                .project("/path/to/workspace/Modules/B/Project.xcodeproj"),
                 .group("Sub", "/path/to/workspace/Modules/Sub", [
-                    .project("/path/to/workspace/Modules/Sub/C"),
-                    .project("/path/to/workspace/Modules/Sub/D"),
+                    .project("/path/to/workspace/Modules/Sub/C/Project.xcodeproj"),
+                    .project("/path/to/workspace/Modules/Sub/D/Project.xcodeproj"),
                 ]),
             ]),
         ])
@@ -51,9 +54,9 @@ class WorkspaceStructureGeneratorTests: XCTestCase {
 
     func test_generateStructure_projectsAndFiles() throws {
         // Given
-        let projects = try createFolders([
-            "/path/to/workspace/Modules/A",
-            "/path/to/workspace/Modules/B",
+        let xcodeProjPaths = try createFolders([
+            "/path/to/workspace/Modules/A/Project.xcodeproj",
+            "/path/to/workspace/Modules/B/Project.xcodeproj",
         ])
 
         let files = try createFiles([
@@ -63,12 +66,14 @@ class WorkspaceStructureGeneratorTests: XCTestCase {
             "/path/to/workspace/README.md",
         ])
 
-        let workspace = Workspace.test(projects: projects,
-                                       additionalFiles: files.map { .file(path: $0) })
+        let workspace = Workspace.test(
+            additionalFiles: files.map { .file(path: $0) }
+        )
 
         // When
         let structure = subject.generateStructure(path: "/path/to/workspace",
                                                   workspace: workspace,
+                                                  xcodeProjPaths: xcodeProjPaths,
                                                   fileHandler: fileHandler)
 
         // Then
@@ -83,8 +88,8 @@ class WorkspaceStructureGeneratorTests: XCTestCase {
                 ]),
             ]),
             .group("Modules", "/path/to/workspace/Modules", [
-                .project("/path/to/workspace/Modules/A"),
-                .project("/path/to/workspace/Modules/B"),
+                .project("/path/to/workspace/Modules/A/Project.xcodeproj"),
+                .project("/path/to/workspace/Modules/B/Project.xcodeproj"),
             ]),
             .file("/path/to/workspace/README.md"),
         ])
@@ -111,6 +116,7 @@ class WorkspaceStructureGeneratorTests: XCTestCase {
         // When
         let structure = subject.generateStructure(path: "/path/to/workspace",
                                                   workspace: workspace,
+                                                  xcodeProjPaths: [],
                                                   fileHandler: fileHandler)
 
         // Then
@@ -144,6 +150,7 @@ class WorkspaceStructureGeneratorTests: XCTestCase {
         // When
         let structure = subject.generateStructure(path: "/path/to/workspace",
                                                   workspace: workspace,
+                                                  xcodeProjPaths: [],
                                                   fileHandler: fileHandler)
 
         // Then
@@ -173,6 +180,7 @@ class WorkspaceStructureGeneratorTests: XCTestCase {
         // When
         let structure = subject.generateStructure(path: "/path/to/workspace",
                                                   workspace: workspace,
+                                                  xcodeProjPaths: [],
                                                   fileHandler: fileHandler)
 
         // Then
@@ -196,6 +204,7 @@ class WorkspaceStructureGeneratorTests: XCTestCase {
         // When
         let structure = subject.generateStructure(path: "/path/to/workspace",
                                                   workspace: workspace,
+                                                  xcodeProjPaths: [],
                                                   fileHandler: fileHandler)
 
         // Then
@@ -207,25 +216,27 @@ class WorkspaceStructureGeneratorTests: XCTestCase {
 
     func test_generateStructure_projectsAndFilesOverlap() throws {
         // Given
-        let projects = try createFolders([
-            "/path/to/workspace/Modules/A",
+        let xcodeProjPaths = try createFolders([
+            "/path/to/workspace/Modules/A/Project.xcodeproj",
         ])
 
         let files: [FileElement] = [
             .folderReference(path: "/path/to/workspace/Modules/A"),
         ]
-        let workspace = Workspace.test(projects: projects,
-                                       additionalFiles: files)
+        let workspace = Workspace.test(
+            additionalFiles: files
+        )
 
         // When
         let structure = subject.generateStructure(path: "/path/to/workspace",
                                                   workspace: workspace,
+                                                  xcodeProjPaths: xcodeProjPaths,
                                                   fileHandler: fileHandler)
 
         // Then
         XCTAssertEqual(structure.contents, [
             .group("Modules", "/path/to/workspace/Modules", [
-                .project("/path/to/workspace/Modules/A"),
+                .project("/path/to/workspace/Modules/A/Project.xcodeproj"),
                 .folderReference("/path/to/workspace/Modules/A"),
             ]),
         ])
@@ -233,26 +244,26 @@ class WorkspaceStructureGeneratorTests: XCTestCase {
 
     func test_generateStructure_projectsAndNestedFiles() throws {
         // Given
-        let projects = try createFolders([
-            "/path/to/workspace/Modules/A",
+        let xcodeProjPaths = try createFolders([
+            "/path/to/workspace/Modules/A/Project.xcodeproj",
         ])
 
         let files = try createFiles([
             "/path/to/workspace/Modules/A/README.md",
         ])
 
-        let workspace = Workspace.test(projects: projects,
-                                       additionalFiles: files.map { .file(path: $0) })
+        let workspace = Workspace.test(additionalFiles: files.map { .file(path: $0) })
 
         // When
         let structure = subject.generateStructure(path: "/path/to/workspace",
                                                   workspace: workspace,
+                                                  xcodeProjPaths: xcodeProjPaths,
                                                   fileHandler: fileHandler)
 
         // Then
         XCTAssertEqual(structure.contents, [
             .group("Modules", "/path/to/workspace/Modules", [
-                .project("/path/to/workspace/Modules/A"),
+                .project("/path/to/workspace/Modules/A/Project.xcodeproj"),
                 .group("A", "/path/to/workspace/Modules/A", [
                     .file("/path/to/workspace/Modules/A/README.md"),
                 ]),

@@ -10,11 +10,19 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Disable SwiftFormat in the generated synthesized interface for resources [#2328](https://github.com/tuist/tuist/pull/2328) by [@natanrolnik](https://github.com/natanrolnik).
 - Add `profile` option to `cache warm` command [#2190](https://github.com/tuist/tuist/issues/2190) by [@mollyIV](https://github.com/mollyIV).
 
+### Fixed
+
+- Fix missing autocompletion link on website [#2396](https://github.com/tuist/tuist/pull/2396) by [@fortmarek](https://github.com/fortmarek).
+- Fix memory leak related to xcbeautify [#2380](https://github.com/tuist/tuist/pull/2380) by [@adellibovi](https://github.com/adellibovi).
+
 ### Changed
 
+- Use project generated for automation and always leverage `XXX-Scheme` [#2057](https://github.com/tuist/tuist/pull/2057) by [@fortmarek](https://github.com/fortmarek)
+- Improve the cache warm command significantly by avoiding to recompile already in-cache dependency targets [#2377](https://github.com/tuist/tuist/pull/2377) by [@adellibovi](https://github.com/adellibovi).
 - Improve the cache warm command significantly (around 20-45 seconds per framework) by using `XcodeProjectPathHasher` instead of `CacheBuildPhaseProjectMapper` [#2356](https://github.com/tuist/tuist/pull/2318) by [@natanrolnik](https://github.com/natanrolnik).
 - Improve performance of project generation by removing unneeded Glob directory cache [#2318](https://github.com/tuist/tuist/pull/2318) by [@adellibovi](https://github.com/adellibovi).
 - Extracted graph models into `TuistGraph` [#2324](https://github.com/tuist/tuist/pull/2324) by [@pepibumur](https://github.com/pepibumur).
+- Improved the CI workflows to run only when their logic is impacted by the file changes [#2390](https://github.com/tuist/tuist/pull/2390) by [@pepibumur](https://github.com/pepibumur).
 
 ### Fixed
 
