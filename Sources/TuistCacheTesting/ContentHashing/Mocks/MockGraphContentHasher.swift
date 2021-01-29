@@ -3,20 +3,19 @@ import TuistCore
 @testable import TuistCache
 
 public final class MockGraphContentHasher: GraphContentHashing {
-    public var invokedContentHashes = false
-    public var invokedContentHashesCount = 0
-    public var invokedContentHashesParameters: (graph: TuistCore.Graph, cacheOutputType: CacheOutputType)?
-    public var invokedContentHashesParametersList = [(graph: TuistCore.Graph, cacheOutputType: CacheOutputType)]()
-    public var stubbedContentHashesError: Error?
-    public var stubbedContentHashesResult: [TargetNode: String]! = [:]
 
-    public init() {}
+    var invokedContentHashes = false
+    var invokedContentHashesCount = 0
+    var invokedContentHashesParameters: (graphTraverser: GraphTraversing, cacheOutputType: CacheOutputType)?
+    var invokedContentHashesParametersList = [(graphTraverser: GraphTraversing, cacheOutputType: CacheOutputType)]()
+    var stubbedContentHashesError: Error?
+    var stubbedContentHashesResult: [ValueGraphTarget: String]! = [:]
 
-    public func contentHashes(for graph: TuistCore.Graph, cacheOutputType: CacheOutputType) throws -> [TargetNode: String] {
+    func contentHashes(graphTraverser: GraphTraversing, cacheOutputType: CacheOutputType) throws -> [ValueGraphTarget: String] {
         invokedContentHashes = true
         invokedContentHashesCount += 1
-        invokedContentHashesParameters = (graph, cacheOutputType)
-        invokedContentHashesParametersList.append((graph, cacheOutputType))
+        invokedContentHashesParameters = (graphTraverser, cacheOutputType)
+        invokedContentHashesParametersList.append((graphTraverser, cacheOutputType))
         if let error = stubbedContentHashesError {
             throw error
         }

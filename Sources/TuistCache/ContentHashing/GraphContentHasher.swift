@@ -28,10 +28,9 @@ public final class GraphContentHasher: GraphContentHashing {
     // MARK: - GraphContentHashing
 
     public func contentHashes(graphTraverser: GraphTraversing, cacheOutputType: CacheOutputType) throws -> [ValueGraphTarget: String] {
-        var visitedNodes: [ValueGraphTarget: Bool] = [:]
-
         let hashableTargets = graphTraverser.allTargets().compactMap { (target: ValueGraphTarget) -> ValueGraphTarget? in
-            if self.isCacheable(target, visited: &visitedNodes, graphTraverser: graphTraverser) {
+            let isCacheable = target.target.product == .framework || target.target.product == .staticFramework
+            if isCacheable {
                 return target
             }
             return nil
@@ -40,18 +39,5 @@ public final class GraphContentHasher: GraphContentHashing {
             try targetContentHasher.contentHash(for: $0, cacheOutputType: cacheOutputType)
         }
         return Dictionary(uniqueKeysWithValues: zip(hashableTargets, hashes))
-    }
-
-    // MARK: - Private
-
-    fileprivate func isCacheable(_ target: ValueGraphTarget, visited: inout [ValueGraphTarget: Bool], graphTraverser: GraphTraversing) -> Bool {
-        if let visitedValue = visited[target] { return visitedValue }
-        let isFramework = target.target.product == .framework || target.target.product == .staticFramework
-        let noXCTestDependency = !graphTraverser.dependsOnXCTest(path: target.path, name: target.target.name)
-        let directDependencies = graphTraverser.directTargetDependencies(path: target.path, name: target.target.name)
-        let allTargetDependenciesAreHasheable = directDependencies.allSatisfy { isCacheable($0, visited: &visited, graphTraverser: graphTraverser) }
-        let cacheable = isFramework && noXCTestDependency && allTargetDependenciesAreHasheable
-        visited[target] = cacheable
-        return cacheable
     }
 }

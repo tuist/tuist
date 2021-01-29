@@ -11,7 +11,7 @@ public final class CacheTreeShakingGraphMapper: GraphMapping {
             let targets = next.value.values
             let projectPath = next.key
 
-            acc.formUnion(targets.filter { !$0.prune }.map { TargetReference(projectPath: projectPath, name: $0.name) })
+            acc.formUnion(targets.map { TargetReference(projectPath: projectPath, name: $0.name) })
         }
         // If the number of source targets matches the number of targets in the graph there's nothing to be pruned.
         if sourceTargets.count == graph.targets.flatMap(\.value).count { return (graph, []) }

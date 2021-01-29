@@ -64,193 +64,193 @@ final class ContentHashingIntegrationTests: TuistTestCase {
 
     // MARK: - Sources
 
-    func test_contentHashes_frameworksWithSameSources() throws {
-        // Given
-        let temporaryDirectoryPath = try temporaryPath()
-        let framework1 = makeFramework(named: "f1", sources: [source1, source2])
-        let framework2 = makeFramework(named: "f2", sources: [source2, source1])
-        let graph = Graph.test(targets: [
-            temporaryDirectoryPath: [framework1, framework2],
-        ])
-
-        // When
-        let contentHash = try subject.contentHashes(for: graph, cacheOutputType: .framework)
-
-        // Then
-        XCTAssertEqual(contentHash[framework1], contentHash[framework2])
-    }
-
-    func test_contentHashes_frameworksWithDifferentSources() throws {
-        // Given
-        let temporaryDirectoryPath = try temporaryPath()
-        let framework1 = makeFramework(named: "f1", sources: [source1, source2])
-        let framework2 = makeFramework(named: "f2", sources: [source3, source4])
-        let graph = Graph.test(targets: [
-            temporaryDirectoryPath: [framework1, framework2],
-        ])
-
-        // When
-        let contentHash = try subject.contentHashes(for: graph, cacheOutputType: .framework)
-
-        // Then
-        XCTAssertNotEqual(contentHash[framework1], contentHash[framework2])
-    }
-
-    func test_contentHashes_hashIsConsistent() throws {
-        // Given
-        let temporaryDirectoryPath = try temporaryPath()
-        let framework1 = makeFramework(named: "f1", sources: [source1, source2])
-        let framework2 = makeFramework(named: "f2", sources: [source3, source4])
-        let graph = Graph.test(targets: [
-            temporaryDirectoryPath: [framework1, framework2],
-        ])
-
-        // When
-        let contentHash = try subject.contentHashes(for: graph, cacheOutputType: .framework)
-
-        // Then
-        XCTAssertEqual(contentHash[framework1], "cb93cd96c5af9deb87fad78fd14b5664")
-        XCTAssertEqual(contentHash[framework2], "f224c9df7a44ce5c7849f10e58142718")
-    }
-
-    func test_contentHashes_hashChangesWithCacheOutputType() throws {
-        // Given
-        let temporaryDirectoryPath = try temporaryPath()
-        let framework1 = makeFramework(named: "f1", sources: [source1, source2])
-        let framework2 = makeFramework(named: "f2", sources: [source3, source4])
-        let graph = Graph.test(targets: [
-            temporaryDirectoryPath: [framework1, framework2],
-        ])
-
-        // When
-        let contentFrameworkHash = try subject.contentHashes(for: graph, cacheOutputType: .framework)
-        let contentXCFrameworkHash = try subject.contentHashes(for: graph, cacheOutputType: .xcframework)
-
-        // Then
-        XCTAssertNotEqual(contentFrameworkHash[framework1], contentXCFrameworkHash[framework1])
-        XCTAssertNotEqual(contentFrameworkHash[framework2], contentXCFrameworkHash[framework2])
-    }
-
-    // MARK: - Resources
-
-    func test_contentHashes_differentResourceFiles() throws {
-        // Given
-        let temporaryDirectoryPath = try temporaryPath()
-        let framework1 = makeFramework(named: "f1", resources: [resourceFile1])
-        let framework2 = makeFramework(named: "f2", resources: [resourceFile2])
-        let graph = Graph.test(targets: [
-            temporaryDirectoryPath: [framework1, framework2],
-        ])
-
-        // When
-        let contentHash = try subject.contentHashes(for: graph, cacheOutputType: .framework)
-
-        // Then
-        XCTAssertNotEqual(contentHash[framework1], contentHash[framework2])
-    }
-
-    func test_contentHashes_differentResourcesFolderReferences() throws {
-        // Given
-        let temporaryDirectoryPath = try temporaryPath()
-        let framework1 = makeFramework(named: "f1", resources: [resourceFolderReference1])
-        let framework2 = makeFramework(named: "f2", resources: [resourceFolderReference2])
-        let graph = Graph.test(targets: [
-            temporaryDirectoryPath: [framework1, framework2],
-        ])
-
-        // When
-        let contentHash = try subject.contentHashes(for: graph, cacheOutputType: .framework)
-
-        // Then
-        XCTAssertNotEqual(contentHash[framework1], contentHash[framework2])
-    }
-
-    func test_contentHashes_sameResources() throws {
-        // Given
-        let temporaryDirectoryPath = try temporaryPath()
-        let resources: [FileElement] = [resourceFile1, resourceFolderReference1]
-        let framework1 = makeFramework(named: "f1", resources: resources)
-        let framework2 = makeFramework(named: "f2", resources: resources)
-        let graph = Graph.test(targets: [
-            temporaryDirectoryPath: [framework1, framework2],
-        ])
-
-        // When
-        let contentHash = try subject.contentHashes(for: graph, cacheOutputType: .framework)
-
-        // Then
-        XCTAssertEqual(contentHash[framework1], contentHash[framework2])
-    }
-
-    // MARK: - Core Data Models
-
-    func test_contentHashes_differentCoreDataModels() throws {
-        // Given
-        let temporaryDirectoryPath = try temporaryPath()
-        let framework1 = makeFramework(named: "f1", coreDataModels: [coreDataModel1])
-        let framework2 = makeFramework(named: "f2", coreDataModels: [coreDataModel2])
-        let graph = Graph.test(targets: [
-            temporaryDirectoryPath: [framework1, framework2],
-        ])
-
-        // When
-        let contentHash = try subject.contentHashes(for: graph, cacheOutputType: .framework)
-
-        // Then
-        XCTAssertNotEqual(contentHash[framework1], contentHash[framework2])
-    }
-
-    func test_contentHashes_sameCoreDataModels() throws {
-        // Given
-        let temporaryDirectoryPath = try temporaryPath()
-        let framework1 = makeFramework(named: "f1", coreDataModels: [coreDataModel1])
-        let framework2 = makeFramework(named: "f2", coreDataModels: [coreDataModel1])
-        let graph = Graph.test(targets: [
-            temporaryDirectoryPath: [framework1, framework2],
-        ])
-
-        // When
-        let contentHash = try subject.contentHashes(for: graph, cacheOutputType: .framework)
-
-        // Then
-        XCTAssertEqual(contentHash[framework1], contentHash[framework2])
-    }
-
-    // MARK: - Target Actions
-
-    // MARK: - Platform
-
-    func test_contentHashes_differentPlatform() throws {
-        // Given
-        let temporaryDirectoryPath = try temporaryPath()
-        let framework1 = makeFramework(named: "f1", platform: .iOS)
-        let framework2 = makeFramework(named: "f2", platform: .macOS)
-        let graph = Graph.test(targets: [
-            temporaryDirectoryPath: [framework1, framework2],
-        ])
-
-        // When
-        let contentHash = try subject.contentHashes(for: graph, cacheOutputType: .framework)
-
-        XCTAssertNotEqual(contentHash[framework1], contentHash[framework2])
-    }
-
-    // MARK: - ProductName
-
-    func test_contentHashes_differentProductName() throws {
-        // Given
-        let temporaryDirectoryPath = try temporaryPath()
-        let framework1 = makeFramework(named: "f1", productName: "1")
-        let framework2 = makeFramework(named: "f2", productName: "2")
-        let graph = Graph.test(targets: [
-            temporaryDirectoryPath: [framework1, framework2],
-        ])
-
-        // When
-        let contentHash = try subject.contentHashes(for: graph, cacheOutputType: .framework)
-
-        XCTAssertNotEqual(contentHash[framework1], contentHash[framework2])
-    }
+//    func test_contentHashes_frameworksWithSameSources() throws {
+//        // Given
+//        let temporaryDirectoryPath = try temporaryPath()
+//        let framework1 = makeFramework(named: "f1", sources: [source1, source2])
+//        let framework2 = makeFramework(named: "f2", sources: [source2, source1])
+//        let graph = Graph.test(targets: [
+//            temporaryDirectoryPath: [framework1, framework2],
+//        ])
+//
+//        // When
+//        let contentHash = try subject.contentHashes(for: graph, cacheOutputType: .framework)
+//
+//        // Then
+//        XCTAssertEqual(contentHash[framework1], contentHash[framework2])
+//    }
+//
+//    func test_contentHashes_frameworksWithDifferentSources() throws {
+//        // Given
+//        let temporaryDirectoryPath = try temporaryPath()
+//        let framework1 = makeFramework(named: "f1", sources: [source1, source2])
+//        let framework2 = makeFramework(named: "f2", sources: [source3, source4])
+//        let graph = Graph.test(targets: [
+//            temporaryDirectoryPath: [framework1, framework2],
+//        ])
+//
+//        // When
+//        let contentHash = try subject.contentHashes(for: graph, cacheOutputType: .framework)
+//
+//        // Then
+//        XCTAssertNotEqual(contentHash[framework1], contentHash[framework2])
+//    }
+//
+//    func test_contentHashes_hashIsConsistent() throws {
+//        // Given
+//        let temporaryDirectoryPath = try temporaryPath()
+//        let framework1 = makeFramework(named: "f1", sources: [source1, source2])
+//        let framework2 = makeFramework(named: "f2", sources: [source3, source4])
+//        let graph = Graph.test(targets: [
+//            temporaryDirectoryPath: [framework1, framework2],
+//        ])
+//
+//        // When
+//        let contentHash = try subject.contentHashes(for: graph, cacheOutputType: .framework)
+//
+//        // Then
+//        XCTAssertEqual(contentHash[framework1], "cb93cd96c5af9deb87fad78fd14b5664")
+//        XCTAssertEqual(contentHash[framework2], "f224c9df7a44ce5c7849f10e58142718")
+//    }
+//
+//    func test_contentHashes_hashChangesWithCacheOutputType() throws {
+//        // Given
+//        let temporaryDirectoryPath = try temporaryPath()
+//        let framework1 = makeFramework(named: "f1", sources: [source1, source2])
+//        let framework2 = makeFramework(named: "f2", sources: [source3, source4])
+//        let graph = Graph.test(targets: [
+//            temporaryDirectoryPath: [framework1, framework2],
+//        ])
+//
+//        // When
+//        let contentFrameworkHash = try subject.contentHashes(for: graph, cacheOutputType: .framework)
+//        let contentXCFrameworkHash = try subject.contentHashes(for: graph, cacheOutputType: .xcframework)
+//
+//        // Then
+//        XCTAssertNotEqual(contentFrameworkHash[framework1], contentXCFrameworkHash[framework1])
+//        XCTAssertNotEqual(contentFrameworkHash[framework2], contentXCFrameworkHash[framework2])
+//    }
+//
+//    // MARK: - Resources
+//
+//    func test_contentHashes_differentResourceFiles() throws {
+//        // Given
+//        let temporaryDirectoryPath = try temporaryPath()
+//        let framework1 = makeFramework(named: "f1", resources: [resourceFile1])
+//        let framework2 = makeFramework(named: "f2", resources: [resourceFile2])
+//        let graph = Graph.test(targets: [
+//            temporaryDirectoryPath: [framework1, framework2],
+//        ])
+//
+//        // When
+//        let contentHash = try subject.contentHashes(for: graph, cacheOutputType: .framework)
+//
+//        // Then
+//        XCTAssertNotEqual(contentHash[framework1], contentHash[framework2])
+//    }
+//
+//    func test_contentHashes_differentResourcesFolderReferences() throws {
+//        // Given
+//        let temporaryDirectoryPath = try temporaryPath()
+//        let framework1 = makeFramework(named: "f1", resources: [resourceFolderReference1])
+//        let framework2 = makeFramework(named: "f2", resources: [resourceFolderReference2])
+//        let graph = Graph.test(targets: [
+//            temporaryDirectoryPath: [framework1, framework2],
+//        ])
+//
+//        // When
+//        let contentHash = try subject.contentHashes(for: graph, cacheOutputType: .framework)
+//
+//        // Then
+//        XCTAssertNotEqual(contentHash[framework1], contentHash[framework2])
+//    }
+//
+//    func test_contentHashes_sameResources() throws {
+//        // Given
+//        let temporaryDirectoryPath = try temporaryPath()
+//        let resources: [FileElement] = [resourceFile1, resourceFolderReference1]
+//        let framework1 = makeFramework(named: "f1", resources: resources)
+//        let framework2 = makeFramework(named: "f2", resources: resources)
+//        let graph = Graph.test(targets: [
+//            temporaryDirectoryPath: [framework1, framework2],
+//        ])
+//
+//        // When
+//        let contentHash = try subject.contentHashes(for: graph, cacheOutputType: .framework)
+//
+//        // Then
+//        XCTAssertEqual(contentHash[framework1], contentHash[framework2])
+//    }
+//
+//    // MARK: - Core Data Models
+//
+//    func test_contentHashes_differentCoreDataModels() throws {
+//        // Given
+//        let temporaryDirectoryPath = try temporaryPath()
+//        let framework1 = makeFramework(named: "f1", coreDataModels: [coreDataModel1])
+//        let framework2 = makeFramework(named: "f2", coreDataModels: [coreDataModel2])
+//        let graph = Graph.test(targets: [
+//            temporaryDirectoryPath: [framework1, framework2],
+//        ])
+//
+//        // When
+//        let contentHash = try subject.contentHashes(for: graph, cacheOutputType: .framework)
+//
+//        // Then
+//        XCTAssertNotEqual(contentHash[framework1], contentHash[framework2])
+//    }
+//
+//    func test_contentHashes_sameCoreDataModels() throws {
+//        // Given
+//        let temporaryDirectoryPath = try temporaryPath()
+//        let framework1 = makeFramework(named: "f1", coreDataModels: [coreDataModel1])
+//        let framework2 = makeFramework(named: "f2", coreDataModels: [coreDataModel1])
+//        let graph = Graph.test(targets: [
+//            temporaryDirectoryPath: [framework1, framework2],
+//        ])
+//
+//        // When
+//        let contentHash = try subject.contentHashes(for: graph, cacheOutputType: .framework)
+//
+//        // Then
+//        XCTAssertEqual(contentHash[framework1], contentHash[framework2])
+//    }
+//
+//    // MARK: - Target Actions
+//
+//    // MARK: - Platform
+//
+//    func test_contentHashes_differentPlatform() throws {
+//        // Given
+//        let temporaryDirectoryPath = try temporaryPath()
+//        let framework1 = makeFramework(named: "f1", platform: .iOS)
+//        let framework2 = makeFramework(named: "f2", platform: .macOS)
+//        let graph = Graph.test(targets: [
+//            temporaryDirectoryPath: [framework1, framework2],
+//        ])
+//
+//        // When
+//        let contentHash = try subject.contentHashes(for: graph, cacheOutputType: .framework)
+//
+//        XCTAssertNotEqual(contentHash[framework1], contentHash[framework2])
+//    }
+//
+//    // MARK: - ProductName
+//
+//    func test_contentHashes_differentProductName() throws {
+//        // Given
+//        let temporaryDirectoryPath = try temporaryPath()
+//        let framework1 = makeFramework(named: "f1", productName: "1")
+//        let framework2 = makeFramework(named: "f2", productName: "2")
+//        let graph = Graph.test(targets: [
+//            temporaryDirectoryPath: [framework1, framework2],
+//        ])
+//
+//        // When
+//        let contentHash = try subject.contentHashes(for: graph, cacheOutputType: .framework)
+//
+//        XCTAssertNotEqual(contentHash[framework1], contentHash[framework2])
+//    }
 
     // MARK: - Private helpers
 
