@@ -54,6 +54,11 @@ One the cache is warmed, you can use the [focus](/docs/commands/focus/) command 
 ### Caching profile 
 
 The caching profile allows users to specify how targets will be cached, for example setting a configuration. Instead of passing the configuration through CLI arguments, developers can define a profile and reference it with `tuist cache warm --profile MyProfile`.
+You can define a caching profile in `Config.swift`, for example:
+
+```
+let config = Config(cache: .cache(profiles: [.profile(name: "Simulator", configuration: "Debug")]))
+```
 
 ## Debugging
 
