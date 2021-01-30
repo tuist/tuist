@@ -1,4 +1,5 @@
 import ArgumentParser
+import Combine
 import Foundation
 import TuistAnalytics
 import TuistAsyncQueueTesting
@@ -38,9 +39,10 @@ final class TrackableCommandTests: TuistUnitTestCase {
         var didPersisteEvent = false
 
         // When
-        try subject.run(didPersistEvent: {
+        let future = try subject.run()
+        _ = future.sink {
             didPersisteEvent = true
-        })
+        }
 
         // Then
         XCTAssertEqual(mockAsyncQueue.invokedDispatchCount, 1)
@@ -56,9 +58,10 @@ final class TrackableCommandTests: TuistUnitTestCase {
         let expectedParams = ["flag": "false"]
         var didPersisteEvent = false
         // When
-        try subject.run(didPersistEvent: {
+        let future = try subject.run()
+        _ = future.sink {
             didPersisteEvent = true
-        })
+        }
 
         // Then
         XCTAssertEqual(mockAsyncQueue.invokedDispatchCount, 1)

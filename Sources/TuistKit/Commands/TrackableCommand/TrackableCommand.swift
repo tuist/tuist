@@ -1,4 +1,5 @@
 import ArgumentParser
+import Combine
 import Foundation
 import TuistAsyncQueue
 import TuistSupport
@@ -31,7 +32,7 @@ public class TrackableCommand: TrackableParametersDelegate {
         self.asyncQueue = asyncQueue
     }
 
-    func run(didPersistEvent: @escaping () -> Void) throws {
+    func run() throws -> Future<Void, Never> {
         let timer = clock.startTimer()
         if let command = command as? HasTrackableParameters {
             type(of: command).analyticsDelegate = self
@@ -48,7 +49,11 @@ public class TrackableCommand: TrackableParametersDelegate {
             durationInMs: durationInMs
         )
         let commandEvent = commandEventFactory.make(from: info)
-        asyncQueue.dispatch(event: commandEvent, didPersistEvent: didPersistEvent)
+        return Future { promise in
+            self.asyncQueue.dispatch(event: commandEvent) {
+                promise(.success(()))
+            }
+        }
     }
 
     func willRun(withParameters parameters: [String: String]) {

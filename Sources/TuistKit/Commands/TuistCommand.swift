@@ -63,7 +63,7 @@ public struct TuistCommand: ParsableCommand {
         }
         do {
             try execute(command)
-            exit()
+            TuistProcess.shared.asyncExit()
         } catch let error as FatalError {
             errorHandler.fatal(error: error)
             _exit(exitCode(for: error).rawValue)
@@ -80,21 +80,10 @@ public struct TuistCommand: ParsableCommand {
 
     private static func execute(_ command: ParsableCommand) throws {
         var command = command
-        guard Environment.shared.isStatsEnabled else {
-            try command.run()
-            return
-        }
-        let commandCompletionGroup = DispatchGroup()
-        commandCompletionGroup.enter()
+        guard Environment.shared.isStatsEnabled else { try command.run(); return }
         let trackableCommand = TrackableCommand(command: command)
-        try trackableCommand.run {
-            commandCompletionGroup.leave()
-        }
-        let maximumWaitingTime = DispatchTimeInterval.seconds(2)
-        // Block Tuist to wait until the event is persisted, otherwise it could get lost
-        // Note: Tuist is not waiting for the event to be successfully sent, but only persisted
-        // Set 2 seconds as a parachute timeout in case something goes wrong and the event is not persisted
-        _ = commandCompletionGroup.wait(timeout: DispatchTime.now() + maximumWaitingTime)
+        let future = try trackableCommand.run()
+        TuistProcess.shared.add(futureTask: future)
     }
 
     // MARK: - Helpers
