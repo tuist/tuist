@@ -169,6 +169,8 @@ final class TestService {
             scheme: scheme.name,
             clean: clean,
             destination: destination,
+            derivedDataPath: nil, // TODO: Add derived data path  Data/Logs/Test/Test-App-Project-iOS-2021.01.29_21-54-34-+0100.xcresult
+            // resultBundlePath
             arguments: buildGraphInspector.buildArguments(
                 target: buildableTarget,
                 configuration: configuration,

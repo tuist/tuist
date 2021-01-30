@@ -83,7 +83,7 @@ final class TestServiceTests: TuistUnitTestCase {
             (path, Graph.test())
         }
         var testedSchemes: [String] = []
-        xcodebuildController.testStub = { _, scheme, _, _, _ in
+        xcodebuildController.testStub = { _, scheme, _, _, _, _ in
             testedSchemes.append(scheme)
             return .just(.standardOutput(.init(raw: "success")))
         }
@@ -115,7 +115,7 @@ final class TestServiceTests: TuistUnitTestCase {
             (path, Graph.test())
         }
         var testedSchemes: [String] = []
-        xcodebuildController.testStub = { _, scheme, _, _, _ in
+        xcodebuildController.testStub = { _, scheme, _, _, _, _ in
             testedSchemes.append(scheme)
             return .just(.standardOutput(.init(raw: "success")))
         }

@@ -19,16 +19,17 @@ final class MockXcodeBuildController: XcodeBuildControlling {
         }
     }
 
-    var testStub: ((XcodeBuildTarget, String, Bool, XcodeBuildDestination, [XcodeBuildArgument]) -> Observable<SystemEvent<XcodeBuildOutput>>)?
+    var testStub: ((XcodeBuildTarget, String, Bool, XcodeBuildDestination, AbsolutePath?, [XcodeBuildArgument]) -> Observable<SystemEvent<XcodeBuildOutput>>)?
     func test(
         _ target: XcodeBuildTarget,
         scheme: String,
         clean: Bool,
         destination: XcodeBuildDestination,
+        derivedDataPath: AbsolutePath?,
         arguments: [XcodeBuildArgument]
     ) -> Observable<SystemEvent<XcodeBuildOutput>> {
         if let testStub = testStub {
-            return testStub(target, scheme, clean, destination, arguments)
+            return testStub(target, scheme, clean, destination, derivedDataPath, arguments)
         } else {
             return Observable.error(TestError("\(String(describing: MockXcodeBuildController.self)) received an unexpected call to test"))
         }
