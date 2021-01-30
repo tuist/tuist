@@ -19,7 +19,7 @@ tuist --generate-completion-script > ~/.oh-my-zsh/completions/_tuist
 
 Without `oh-my-zsh`, you'll need to add a path for completion scripts to your function path, and turn on completion script autoloading. First, add these lines to `~/.zshrc`:
 
-```
+```sh
 fpath=(~/.zsh/completion $fpath)
 autoload -U compinit
 compinit
@@ -39,7 +39,8 @@ tuist --generate-completion-script > /usr/local/etc/bash_completion.d/_tuist
 
 Without `bash-completion`, you'll need to source the completion script directly. Copy it to a directory such as `~/.bash_completions/`, and then add the following line to `~/.bash_profile` or `~/.bashrc`:
 
-```
+```sh
 source ~/.bash_completions/example.bash
+```
 
 To learn more about how completions work, we refer you to [Swift Argument Parser documentation](https://github.com/apple/swift-argument-parser/blob/280700d361c1b3af6e2345f5e24f67fa9450bec6/Documentation/07%20Completion%20Scripts.md).
