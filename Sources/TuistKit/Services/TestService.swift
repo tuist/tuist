@@ -1,5 +1,6 @@
 import Foundation
 import RxBlocking
+import RxSwift
 import TSCBasic
 import struct TSCUtility.Version
 import TuistAutomation
@@ -12,7 +13,7 @@ import TuistSupport
 enum TestServiceError: FatalError {
     case schemeNotFound(scheme: String, existing: [String])
     case schemeWithoutTestableTargets(scheme: String)
-
+    
     // Error description
     var description: String {
         switch self {
@@ -22,7 +23,7 @@ enum TestServiceError: FatalError {
             return "The scheme \(scheme) cannot be built because it contains no buildable targets."
         }
     }
-
+    
     // Error type
     var type: ErrorType {
         switch self {
@@ -36,24 +37,15 @@ enum TestServiceError: FatalError {
 
 final class TestService {
     /// Project generator
-    let generator: Generating
-
-    /// Xcode build controller.
-    let xcodebuildController: XcodeBuildControlling
-
-    /// Build graph inspector.
-    let buildGraphInspector: BuildGraphInspecting
-
-    /// Simulator controller
-    let simulatorController: SimulatorControlling
-
+    private let generator: Generating
+    private let xcodebuildController: XcodeBuildControlling
+    private let buildGraphInspector: BuildGraphInspecting
+    private let simulatorController: SimulatorControlling
+    private let testsTargetsContentHasher: TestsTargetsContentHashing
+    
     private let temporaryDirectory: TemporaryDirectory
-
-    convenience init(
-        xcodebuildController _: XcodeBuildControlling = XcodeBuildController(),
-        buildGraphInspector _: BuildGraphInspecting = BuildGraphInspector(),
-        simulatorController _: SimulatorControlling = SimulatorController()
-    ) throws {
+    
+    convenience init() throws {
         let temporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
         self.init(
             temporaryDirectory: temporaryDirectory,
@@ -67,21 +59,23 @@ final class TestService {
             )
         )
     }
-
+    
     init(
         temporaryDirectory: TemporaryDirectory,
         generator: Generating,
         xcodebuildController: XcodeBuildControlling = XcodeBuildController(),
         buildGraphInspector: BuildGraphInspecting = BuildGraphInspector(),
-        simulatorController: SimulatorControlling = SimulatorController()
+        simulatorController: SimulatorControlling = SimulatorController(),
+        testsTargetsContentHasher: TestsTargetsContentHashing = TestsTargetsContentHasher()
     ) {
         self.temporaryDirectory = temporaryDirectory
         self.generator = generator
         self.xcodebuildController = xcodebuildController
         self.buildGraphInspector = buildGraphInspector
         self.simulatorController = simulatorController
+        self.testsTargetsContentHasher = testsTargetsContentHasher
     }
-
+    
     func run(
         schemeName: String?,
         clean: Bool,
@@ -96,13 +90,13 @@ final class TestService {
             projectOnly: false
         ).1
         let version = osVersion?.version()
-
+        
         let testableSchemes = buildGraphInspector.testableSchemes(graph: graph)
         logger.log(
             level: .debug,
             "Found the following testable schemes: \(testableSchemes.map(\.name).joined(separator: ", "))"
         )
-
+        
         let testSchemes: [Scheme]
         if let schemeName = schemeName {
             guard
@@ -125,7 +119,7 @@ final class TestService {
                 )
             }
         }
-
+        
         try testSchemes.forEach { testScheme in
             try self.testScheme(
                 scheme: testScheme,
@@ -137,12 +131,26 @@ final class TestService {
                 deviceName: deviceName
             )
         }
-
+        
         logger.log(level: .notice, "The project tests ran successfully", metadata: .success)
     }
-
-    // MARK: - private
-
+    
+    // MARK: - Helpers
+    
+    private func hashes(for testsTargets: [TargetNode]) -> Single<[TargetNode: String]> {
+        Single.create { (observer) -> Disposable in
+            do {
+                let hashes = try self.testsTargetsContentHasher.contentHashes(
+                    for: testsTargets
+                )
+                observer(.success(hashes))
+            } catch {
+                observer(.error(error))
+            }
+            return Disposables.create {}
+        }
+    }
+    
     private func testScheme(
         scheme: Scheme,
         graph: Graph,
@@ -156,7 +164,7 @@ final class TestService {
         guard let buildableTarget = buildGraphInspector.testableTarget(scheme: scheme, graph: graph) else {
             throw TestServiceError.schemeWithoutTestableTargets(scheme: scheme.name)
         }
-
+        
         let destination = try findDestination(
             buildableTarget: buildableTarget,
             scheme: scheme,
@@ -164,24 +172,53 @@ final class TestService {
             version: version,
             deviceName: deviceName
         )
-        _ = try xcodebuildController.test(
-            .workspace(graph.workspace.xcWorkspacePath),
-            scheme: scheme.name,
-            clean: clean,
-            destination: destination,
-            derivedDataPath: nil, // TODO: Add derived data path  Data/Logs/Test/Test-App-Project-iOS-2021.01.29_21-54-34-+0100.xcresult
-            // resultBundlePath
-            arguments: buildGraphInspector.buildArguments(
-                target: buildableTarget,
-                configuration: configuration,
-                skipSigning: true
+        
+        let testsTargetNodes = scheme.testAction
+            .map(\.targets)
+            .map { testableTargets in
+                testableTargets.compactMap {
+                    graph.findTargetNode(
+                        path: $0.target.projectPath,
+                        name: $0.target.name
+                    )
+                }
+            } ?? []
+        
+        let graphHashes = try Observable.combineLatest(
+            xcodebuildController.test(
+                .workspace(graph.workspace.xcWorkspacePath),
+                scheme: scheme.name,
+                clean: clean,
+                destination: destination,
+                derivedDataPath: nil,
+                arguments: buildGraphInspector.buildArguments(
+                    target: buildableTarget,
+                    configuration: configuration,
+                    skipSigning: true
+                )
             )
+            .printFormattedOutput(),
+            hashes(
+                for: testsTargetNodes
+            )
+            .asObservable()
         )
-        .printFormattedOutput()
         .toBlocking()
-        .last()
+        .last()?.1 ?? [:]
+        
+        if !FileHandler.shared.exists(
+            Environment.shared.testsCacheDirectory
+        ) {
+            try FileHandler.shared.createFolder(Environment.shared.testsCacheDirectory)
+        }
+        
+        try graphHashes.values.forEach { hash in
+            try FileHandler.shared.touch(
+                Environment.shared.testsCacheDirectory.appending(component: hash)
+            )
+        }
     }
-
+    
     private func findDestination(
         buildableTarget: Target,
         scheme: Scheme,

@@ -25,6 +25,9 @@ public protocol Environmenting: AnyObject {
 
     /// Returns the directory where the build artifacts are cached.
     var buildCacheDirectory: AbsolutePath { get }
+    
+    /// Returns the directory where hashes of modules that have been a part of successful test are cached
+    var testsCacheDirectory: AbsolutePath { get }
 
     /// Returns all the environment variables that are specific to Tuist (prefixed with TUIST_)
     var tuistVariables: [String: String] { get }
@@ -111,6 +114,10 @@ public class Environment: Environmenting {
         }
     }
 
+    public var testsCacheDirectory: AbsolutePath {
+        cacheDirectory.appending(component: "TestsCache")
+    }
+    
     /// Returns the directory where the build artifacts are cached.
     public var buildCacheDirectory: AbsolutePath {
         cacheDirectory.appending(component: "BuildCache")
