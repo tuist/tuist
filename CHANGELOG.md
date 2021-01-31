@@ -28,6 +28,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Fix cache's hash calculation of resources [#2325](https://github.com/tuist/tuist/pull/2325) by [@natanrolnik](https://github.com/natanrolnik).
 - Fixed known issue that causes the `xcodebuild` process hang when running `tuist test` and `tuist build`. [#2297](https://github.com/tuist/tuist/pull/2297) by [@Jake-Prickett](https://github.com/Jake-Prickett).
+- Fix missing vendor directory in built from source versions [#2388](https://github.com/tuist/tuist/pull/2388) by [@natanrolnik](https://github.com/natanrolnik).
 
 ## 1.31.0 - Arctic
 
