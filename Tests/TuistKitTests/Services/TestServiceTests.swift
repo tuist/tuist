@@ -29,6 +29,7 @@ final class TestServiceTests: TuistUnitTestCase {
 
         subject = TestService(
             temporaryDirectory: try TemporaryDirectory(removeTreeOnDeinit: true),
+            testsCacheTemporaryDirectory: try TemporaryDirectory(removeTreeOnDeinit: true),
             generator: generator,
             xcodebuildController: xcodebuildController,
             buildGraphInspector: buildGraphInspector,
@@ -75,8 +76,10 @@ final class TestServiceTests: TuistUnitTestCase {
             ]
         }
         buildGraphInspector.testableTargetStub = { scheme, _ in
-            Target.test(
-                name: scheme.name
+            TargetNode.test(
+                target: Target.test(
+                    name: scheme.name
+                )
             )
         }
         generator.generateWithGraphStub = { path, _ in

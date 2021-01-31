@@ -41,17 +41,21 @@ final class TestService {
     private let xcodebuildController: XcodeBuildControlling
     private let buildGraphInspector: BuildGraphInspecting
     private let simulatorController: SimulatorControlling
-    private let testsTargetsContentHasher: TestsTargetsContentHashing
     
     private let temporaryDirectory: TemporaryDirectory
+    private let testsCacheTemporaryDirectory: TemporaryDirectory
     
     convenience init() throws {
         let temporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
+        let testsCacheTemporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
         self.init(
             temporaryDirectory: temporaryDirectory,
+            testsCacheTemporaryDirectory: testsCacheTemporaryDirectory,
             generator: Generator(
                 projectMapperProvider: AutomationProjectMapperProvider(),
-                graphMapperProvider: GraphMapperProvider(),
+                graphMapperProvider: AutomationGraphMapperProvider(
+                    testsCacheDirectory: testsCacheTemporaryDirectory.path
+                ),
                 workspaceMapperProvider: AutomationWorkspaceMapperProvider(
                     workspaceDirectory: temporaryDirectory.path
                 ),
@@ -62,18 +66,18 @@ final class TestService {
     
     init(
         temporaryDirectory: TemporaryDirectory,
+        testsCacheTemporaryDirectory: TemporaryDirectory,
         generator: Generating,
         xcodebuildController: XcodeBuildControlling = XcodeBuildController(),
         buildGraphInspector: BuildGraphInspecting = BuildGraphInspector(),
-        simulatorController: SimulatorControlling = SimulatorController(),
-        testsTargetsContentHasher: TestsTargetsContentHashing = TestsTargetsContentHasher()
+        simulatorController: SimulatorControlling = SimulatorController()
     ) {
         self.temporaryDirectory = temporaryDirectory
+        self.testsCacheTemporaryDirectory = testsCacheTemporaryDirectory
         self.generator = generator
         self.xcodebuildController = xcodebuildController
         self.buildGraphInspector = buildGraphInspector
         self.simulatorController = simulatorController
-        self.testsTargetsContentHasher = testsTargetsContentHasher
     }
     
     func run(
@@ -132,24 +136,25 @@ final class TestService {
             )
         }
         
+        if !FileHandler.shared.exists(
+            Environment.shared.testsCacheDirectory
+        ) {
+            try FileHandler.shared.createFolder(Environment.shared.testsCacheDirectory)
+        }
+        
+        try FileHandler.shared
+            .contentsOfDirectory(testsCacheTemporaryDirectory.path)
+            .forEach {
+                try FileHandler.shared.move(
+                    from: $0,
+                    to: Environment.shared.testsCacheDirectory.appending(component: $0.basename)
+                )
+            }
+        
         logger.log(level: .notice, "The project tests ran successfully", metadata: .success)
     }
     
     // MARK: - Helpers
-    
-    private func hashes(for testsTargets: [TargetNode]) -> Single<[TargetNode: String]> {
-        Single.create { (observer) -> Disposable in
-            do {
-                let hashes = try self.testsTargetsContentHasher.contentHashes(
-                    for: testsTargets
-                )
-                observer(.success(hashes))
-            } catch {
-                observer(.error(error))
-            }
-            return Disposables.create {}
-        }
-    }
     
     private func testScheme(
         scheme: Scheme,
@@ -166,57 +171,28 @@ final class TestService {
         }
         
         let destination = try findDestination(
-            buildableTarget: buildableTarget,
+            buildableTarget: buildableTarget.target,
             scheme: scheme,
             graph: graph,
             version: version,
             deviceName: deviceName
         )
         
-        let testsTargetNodes = scheme.testAction
-            .map(\.targets)
-            .map { testableTargets in
-                testableTargets.compactMap {
-                    graph.findTargetNode(
-                        path: $0.target.projectPath,
-                        name: $0.target.name
-                    )
-                }
-            } ?? []
-        
-        let graphHashes = try Observable.combineLatest(
-            xcodebuildController.test(
-                .workspace(graph.workspace.xcWorkspacePath),
-                scheme: scheme.name,
-                clean: clean,
-                destination: destination,
-                derivedDataPath: nil,
-                arguments: buildGraphInspector.buildArguments(
-                    target: buildableTarget,
-                    configuration: configuration,
-                    skipSigning: true
-                )
+        _ = try xcodebuildController.test(
+            .workspace(graph.workspace.xcWorkspacePath),
+            scheme: scheme.name,
+            clean: clean,
+            destination: destination,
+            derivedDataPath: nil,
+            arguments: buildGraphInspector.buildArguments(
+                target: buildableTarget.target,
+                configuration: configuration,
+                skipSigning: true
             )
-            .printFormattedOutput(),
-            hashes(
-                for: testsTargetNodes
-            )
-            .asObservable()
         )
+        .printFormattedOutput()
         .toBlocking()
-        .last()?.1 ?? [:]
-        
-        if !FileHandler.shared.exists(
-            Environment.shared.testsCacheDirectory
-        ) {
-            try FileHandler.shared.createFolder(Environment.shared.testsCacheDirectory)
-        }
-        
-        try graphHashes.values.forEach { hash in
-            try FileHandler.shared.touch(
-                Environment.shared.testsCacheDirectory.appending(component: hash)
-            )
-        }
+        .last()
     }
     
     private func findDestination(

@@ -45,12 +45,12 @@ public final class MockBuildGraphInspector: BuildGraphInspecting {
         }
     }
 
-    public var testableTargetStub: ((Scheme, Graph) -> Target?)?
-    public func testableTarget(scheme: Scheme, graph: Graph) -> Target? {
+    public var testableTargetStub: ((Scheme, Graph) -> TargetNode?)?
+    public func testableTarget(scheme: Scheme, graph: Graph) -> TargetNode? {
         if let testableTargetStub = testableTargetStub {
             return testableTargetStub(scheme, graph)
         } else {
-            return Target.test()
+            return TargetNode.test()
         }
     }
 
