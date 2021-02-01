@@ -8,11 +8,12 @@ on:
 jobs:
   release:
     name: Release Tuist
+    if: "!contains(github.event.head_commit.author.name, 'GitHub Action')"
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v2
         with:
-          token: ${{ secrets.GH_TOKEN_2 }}
+          token: ${{ secrets.GH_TOKEN }}
           ref: main
           fetch-depth: 0
       - uses: actions/setup-ruby@v1
