@@ -57,8 +57,7 @@ final class TestService {
                     testsCacheDirectory: testsCacheTemporaryDirectory.path
                 ),
                 workspaceMapperProvider: AutomationWorkspaceMapperProvider(
-//                    workspaceDirectory: FileHandler.shared.resolveSymlinks(temporaryDirectory.path)
-                    workspaceDirectory: FileHandler.shared.resolveSymlinks(AbsolutePath("/Users/marekfort/Development/ackee/flash-news/tmp"))
+                    workspaceDirectory: FileHandler.shared.resolveSymlinks(temporaryDirectory.path)
                 ),
                 manifestLoaderFactory: ManifestLoaderFactory()
             )
@@ -183,7 +182,7 @@ final class TestService {
             scheme: scheme.name,
             clean: clean,
             destination: destination,
-            derivedDataPath: AbsolutePath("/Users/marekfort/Development/ackee/flash-news/DerivedData"),
+            derivedDataPath: nil,
             arguments: buildGraphInspector.buildArguments(
                 target: buildableTarget.target,
                 configuration: configuration,
