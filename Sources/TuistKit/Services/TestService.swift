@@ -101,7 +101,6 @@ final class TestService {
             "Found the following testable schemes: \(testableSchemes.map(\.name).joined(separator: ", "))"
         )
         
-        let testSchemes: [Scheme]
         if let schemeName = schemeName {
             guard
                 let scheme = testableSchemes.first(where: { $0.name == schemeName })
@@ -111,44 +110,57 @@ final class TestService {
                     existing: testableSchemes.map(\.name)
                 )
             }
-            testSchemes = [scheme]
+            let testSchemes: [Scheme] = [scheme]
+            
+            try testSchemes.forEach { testScheme in
+                try self.testScheme(
+                    scheme: testScheme,
+                    graph: graph,
+                    path: path,
+                    clean: clean,
+                    configuration: configuration,
+                    version: version,
+                    deviceName: deviceName
+                )
+            }
         } else {
-            testSchemes = buildGraphInspector.projectSchemes(graph: graph)
+            let testSchemes: [Scheme] = buildGraphInspector.projectSchemes(graph: graph)
             
             if testSchemes.isEmpty {
                 logger.log(level: .info, "There are no tests to run, finishing early")
                 return
             }
-        }
-        
-        try testSchemes.forEach { testScheme in
-            try self.testScheme(
-                scheme: testScheme,
-                graph: graph,
-                path: path,
-                clean: clean,
-                configuration: configuration,
-                version: version,
-                deviceName: deviceName
-            )
-        }
-        
-        if !FileHandler.shared.exists(
-            Environment.shared.testsCacheDirectory
-        ) {
-            try FileHandler.shared.createFolder(Environment.shared.testsCacheDirectory)
-        }
-        
-        try FileHandler.shared
-            .contentsOfDirectory(testsCacheTemporaryDirectory.path)
-            .forEach { hashPath in
-                let destination = Environment.shared.testsCacheDirectory.appending(component: hashPath.basename)
-                guard !FileHandler.shared.exists(destination) else { return }
-                try FileHandler.shared.move(
-                    from: hashPath,
-                    to: destination
+            
+            try testSchemes.forEach { testScheme in
+                try self.testScheme(
+                    scheme: testScheme,
+                    graph: graph,
+                    path: path,
+                    clean: clean,
+                    configuration: configuration,
+                    version: version,
+                    deviceName: deviceName
                 )
             }
+            
+            if !FileHandler.shared.exists(
+                Environment.shared.testsCacheDirectory
+            ) {
+                try FileHandler.shared.createFolder(Environment.shared.testsCacheDirectory)
+            }
+            
+            try FileHandler.shared
+                .contentsOfDirectory(testsCacheTemporaryDirectory.path)
+                .forEach { hashPath in
+                    let destination = Environment.shared.testsCacheDirectory.appending(component: hashPath.basename)
+                    guard !FileHandler.shared.exists(destination) else { return }
+                    try FileHandler.shared.move(
+                        from: hashPath,
+                        to: destination
+                    )
+                }
+        }
+
         
         logger.log(level: .notice, "The project tests ran successfully", metadata: .success)
     }
