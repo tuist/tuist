@@ -25,6 +25,7 @@ final class CacheControllerTests: TuistUnitTestCase {
     var projectGeneratorProvider: MockCacheControllerProjectGeneratorProvider!
     var config: Config!
     var cacheGraphLinter: MockCacheGraphLinter!
+    var focusServiceProjectGeneratorFactory: MockFocusServiceProjectGeneratorFactory!
 
     override func setUp() {
         generator = MockGenerator()
@@ -36,12 +37,15 @@ final class CacheControllerTests: TuistUnitTestCase {
         projectGeneratorProvider = MockCacheControllerProjectGeneratorProvider()
         projectGeneratorProvider.stubbedGeneratorResult = generator
         cacheGraphLinter = MockCacheGraphLinter()
+        focusServiceProjectGeneratorFactory = MockFocusServiceProjectGeneratorFactory()
+        focusServiceProjectGeneratorFactory.stubbedGeneratorResult = generator
         subject = CacheController(
             cache: cache,
             artifactBuilder: artifactBuilder,
             projectGeneratorProvider: projectGeneratorProvider,
             cacheGraphContentHasher: cacheGraphContentHasher,
-            cacheGraphLinter: cacheGraphLinter
+            cacheGraphLinter: cacheGraphLinter,
+            focusServiceProjectGeneratorFactory: focusServiceProjectGeneratorFactory
         )
 
         super.setUp()
@@ -56,6 +60,7 @@ final class CacheControllerTests: TuistUnitTestCase {
         cache = nil
         subject = nil
         config = nil
+        focusServiceProjectGeneratorFactory = nil
     }
 
     func test_cache_builds_and_caches_the_frameworks() throws {
@@ -120,8 +125,11 @@ final class CacheControllerTests: TuistUnitTestCase {
         Hashing cacheable targets
         Building cacheable targets
         Building cacheable targets: \(aTarget.name), 1 out of 3
+        Focusing cacheable targets: \(aTarget.name)
         Building cacheable targets: \(bTarget.name), 2 out of 3
+        Focusing cacheable targets: \(bTarget.name)
         Building cacheable targets: \(cTarget.name), 3 out of 3
+        Focusing cacheable targets: \(cTarget.name)
         All cacheable targets have been cached successfully as xcframeworks
         """)
         XCTAssertEqual(cacheGraphLinter.invokedLintCount, 1)
@@ -192,7 +200,9 @@ final class CacheControllerTests: TuistUnitTestCase {
         Hashing cacheable targets
         Building cacheable targets
         Building cacheable targets: \(aTarget.name), 1 out of 2
+        Focusing cacheable targets: \(aTarget.name)
         Building cacheable targets: \(bTarget.name), 2 out of 2
+        Focusing cacheable targets: \(bTarget.name)
         All cacheable targets have been cached successfully as xcframeworks
         """)
         XCTAssertEqual(cacheGraphLinter.invokedLintCount, 1)

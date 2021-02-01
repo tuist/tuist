@@ -157,6 +157,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Changed
 
 - Update post-generation interactors to use the graph traverser [#2451](https://github.com/tuist/tuist/pull/2451) by [@pepibumur](https://github.com/pepibumur).
+- Improve the cache warm command significantly by avoiding to recompile already in-cache dependency targets [#2377](https://github.com/tuist/tuist/pull/2377) by [@adellibovi](https://github.com/adellibovi).
 
 ## 1.33.0 - Plugin
 

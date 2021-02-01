@@ -77,6 +77,9 @@ final class CacheController: CacheControlling {
     /// Cache graph linter.
     private let cacheGraphLinter: CacheGraphLinting
 
+    /// Focus service project generator factory.
+    private let focusServiceProjectGeneratorFactory: FocusServiceProjectGeneratorFactorying
+
     convenience init(cache: CacheStoring,
                      artifactBuilder: CacheArtifactBuilding,
                      contentHasher: ContentHashing)
@@ -86,7 +89,8 @@ final class CacheController: CacheControlling {
             artifactBuilder: artifactBuilder,
             projectGeneratorProvider: CacheControllerProjectGeneratorProvider(contentHasher: contentHasher),
             cacheGraphContentHasher: CacheGraphContentHasher(contentHasher: contentHasher),
-            cacheGraphLinter: CacheGraphLinter()
+            cacheGraphLinter: CacheGraphLinter(),
+            focusServiceProjectGeneratorFactory: FocusServiceProjectGeneratorFactory()
         )
     }
 
@@ -94,13 +98,15 @@ final class CacheController: CacheControlling {
          artifactBuilder: CacheArtifactBuilding,
          projectGeneratorProvider: CacheControllerProjectGeneratorProviding,
          cacheGraphContentHasher: CacheGraphContentHashing,
-         cacheGraphLinter: CacheGraphLinting)
+         cacheGraphLinter: CacheGraphLinting,
+         focusServiceProjectGeneratorFactory: FocusServiceProjectGeneratorFactorying)
     {
         self.cache = cache
         self.projectGeneratorProvider = projectGeneratorProvider
         self.artifactBuilder = artifactBuilder
         self.cacheGraphContentHasher = cacheGraphContentHasher
         self.cacheGraphLinter = cacheGraphLinter
+        self.focusServiceProjectGeneratorFactory = focusServiceProjectGeneratorFactory
     }
 
     func cache(path: AbsolutePath, cacheProfile: TuistGraph.Cache.Profile, targetsToFilter: [String]) throws {
@@ -144,6 +150,12 @@ final class CacheController: CacheControlling {
                 logger.pretty("The target \(.bold(.raw(target.target.name))) with hash \(.bold(.raw(hash))) and type \(artifactBuilder.cacheOutputType.description) is already in the cache. Skipping...")
                 continue
             }
+
+            // Focus
+            logger.notice("Focusing cacheable targets: \(target.name)")
+            _ = try focusServiceProjectGeneratorFactory
+                .generator(sources: [target.name], xcframeworks: false, ignoreCache: false)
+                .generate(path: path, projectOnly: false)
 
             // Build
             try buildAndCacheFramework(path: projectPath, target: target, configuration: cacheProfile.configuration, hash: hash)
