@@ -4,11 +4,6 @@ on:
   push:
     branches:
       - main
-    paths:
-      - tools/fixturegen/**
-      - Package.swift
-      - Package.resolved
-      - Sources/**
   pull_request:
     paths:
       - tools/fixturegen/**

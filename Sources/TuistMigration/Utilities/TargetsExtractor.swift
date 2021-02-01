@@ -42,7 +42,8 @@ public protocol TargetsExtracting {
 
 public struct TargetDependencyCount: Encodable {
     public let targetName: String
-    public let dependenciesCount: Int
+    public let targetDependenciesNames: [String]
+    public let linkedFrameworksCount: Int
 }
 
 public final class TargetsExtractor: TargetsExtracting {
@@ -63,22 +64,12 @@ public final class TargetsExtractor: TargetsExtracting {
     }
 
     private func sortTargetsByDependenciesCount(_ targets: [PBXTarget]) throws -> [TargetDependencyCount] {
-        let sortedTargets = try targets.sorted { lTarget, rTarget -> Bool in
-            let lCount = try countDependencies(of: lTarget)
-            let rCount = try countDependencies(of: rTarget)
-            if lCount == rCount {
-                return lTarget.name < rTarget.name
-            }
-            return lCount < rCount
-        }
-        return try sortedTargets.map { TargetDependencyCount(targetName: $0.name, dependenciesCount: try countDependencies(of: $0)) }
-    }
-
-    private func countDependencies(of target: PBXTarget) throws -> Int {
-        var count = target.dependencies.count
-        if let frameworkFiles = try target.frameworksBuildPhase()?.files {
-            count += frameworkFiles.count
-        }
-        return count
+        try topologicalSort(targets, successors: { $0.dependencies.compactMap(\.target) })
+            .reversed()
+            .map { TargetDependencyCount(
+                targetName: $0.name,
+                targetDependenciesNames: $0.dependencies.compactMap { $0.target?.name },
+                linkedFrameworksCount: try $0.frameworksBuildPhase()?.files?.count ?? 0
+            ) }
     }
 }

@@ -53,8 +53,13 @@ public struct TuistCommand: ParsableCommand {
             }
             command = try parseAsRoot(processedArguments)
         } catch {
-            logger.error("\(fullMessage(for: error))")
-            _exit(exitCode(for: error).rawValue)
+            let exitCode = self.exitCode(for: error).rawValue
+            if exitCode == 0 {
+                logger.info("\(fullMessage(for: error))")
+            } else {
+                logger.error("\(fullMessage(for: error))")
+            }
+            _exit(exitCode)
         }
         do {
             let trackableCommand = TrackableCommand(command: command)

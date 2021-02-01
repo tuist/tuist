@@ -42,7 +42,10 @@ final class WorkspaceDescriptorGeneratorTests: TuistUnitTestCase {
             .folderReference(path: temporaryPath.appending(RelativePath("Website"))),
         ]
 
-        let workspace = Workspace.test(additionalFiles: additionalFiles)
+        let workspace = Workspace.test(
+            xcWorkspacePath: temporaryPath.appending(component: "Test.xcworkspace"),
+            additionalFiles: additionalFiles
+        )
         let graph = Graph.test(entryPath: temporaryPath, workspace: workspace)
 
         // When
@@ -88,7 +91,10 @@ final class WorkspaceDescriptorGeneratorTests: TuistUnitTestCase {
                                    settings: .default,
                                    targets: [target])
 
-        let workspace = Workspace.test(projects: [project.path])
+        let workspace = Workspace.test(
+            xcWorkspacePath: temporaryPath.appending(component: "Test.xcworkspace"),
+            projects: [project.path]
+        )
         let graph = Graph.create(project: project,
                                  dependencies: [(target, [])])
         let valueGraph = ValueGraph(graph: graph.with(workspace: workspace))

@@ -11,7 +11,7 @@ import XCTest
 
 final class HeadersContentHasherTests: TuistUnitTestCase {
     private var subject: HeadersContentHasher!
-    private var mockContentHasher: MockContentHashing!
+    private var mockContentHasher: MockContentHasher!
     private let filePath1 = AbsolutePath("/file1")
     private let filePath2 = AbsolutePath("/file2")
     private let filePath3 = AbsolutePath("/file3")
@@ -21,7 +21,7 @@ final class HeadersContentHasherTests: TuistUnitTestCase {
 
     override func setUp() {
         super.setUp()
-        mockContentHasher = MockContentHashing()
+        mockContentHasher = MockContentHasher()
         subject = HeadersContentHasher(contentHasher: mockContentHasher)
     }
 

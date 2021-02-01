@@ -40,6 +40,7 @@ extension TuistGraph.Workspace {
         let schemes = try manifest.schemes.map { try TuistGraph.Scheme.from(manifest: $0, generatorPaths: generatorPaths) }
 
         return TuistGraph.Workspace(path: path,
+                                    xcWorkspacePath: path.appending(component: "\(manifest.name).xcworkspace"),
                                     name: manifest.name,
                                     projects: try manifest.projects.flatMap(globProjects),
                                     schemes: schemes,

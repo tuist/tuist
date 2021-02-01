@@ -14,7 +14,7 @@ final class WorkspaceMapperProvider: WorkspaceMapperProviding {
         self.init(projectMapperProvider: ProjectMapperProvider(contentHasher: contentHasher))
     }
 
-    init(projectMapperProvider: ProjectMapperProviding) {
+    init(projectMapperProvider: ProjectMapperProviding = ProjectMapperProvider()) {
         self.projectMapperProvider = projectMapperProvider
     }
 

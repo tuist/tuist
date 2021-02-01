@@ -11,12 +11,12 @@ import XCTest
 
 final class TargetActionsContentHasherTests: TuistUnitTestCase {
     private var subject: TargetActionsContentHasher!
-    private var mockContentHasher: MockContentHashing!
+    private var mockContentHasher: MockContentHasher!
     private var temporaryDirectory: TemporaryDirectory!
 
     override func setUp() {
         super.setUp()
-        mockContentHasher = MockContentHashing()
+        mockContentHasher = MockContentHasher()
         subject = TargetActionsContentHasher(contentHasher: mockContentHasher)
         do {
             temporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)

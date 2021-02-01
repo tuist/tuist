@@ -73,6 +73,7 @@ public final class ValueGraphLoader: ValueGraphLoading {
 
         let workspace = Workspace(
             path: path,
+            xcWorkspacePath: path.appending(component: "\(rootProject.name).xcworkspace"),
             name: rootProject.name,
             projects: cache.loadedProjects.keys.sorted()
         )
