@@ -57,7 +57,8 @@ final class TestService {
                     testsCacheDirectory: testsCacheTemporaryDirectory.path
                 ),
                 workspaceMapperProvider: AutomationWorkspaceMapperProvider(
-                    workspaceDirectory: temporaryDirectory.path
+//                    workspaceDirectory: FileHandler.shared.resolveSymlinks(temporaryDirectory.path)
+                    workspaceDirectory: FileHandler.shared.resolveSymlinks(AbsolutePath("/Users/marekfort/Development/ackee/flash-news/tmp"))
                 ),
                 manifestLoaderFactory: ManifestLoaderFactory()
             )
@@ -144,10 +145,12 @@ final class TestService {
         
         try FileHandler.shared
             .contentsOfDirectory(testsCacheTemporaryDirectory.path)
-            .forEach {
+            .forEach { hashPath in
+                let destination = Environment.shared.testsCacheDirectory.appending(component: hashPath.basename)
+                guard !FileHandler.shared.exists(destination) else { return }
                 try FileHandler.shared.move(
-                    from: $0,
-                    to: Environment.shared.testsCacheDirectory.appending(component: $0.basename)
+                    from: hashPath,
+                    to: destination
                 )
             }
         
@@ -183,7 +186,7 @@ final class TestService {
             scheme: scheme.name,
             clean: clean,
             destination: destination,
-            derivedDataPath: nil,
+            derivedDataPath: AbsolutePath("/Users/marekfort/Development/ackee/flash-news/DerivedData"),
             arguments: buildGraphInspector.buildArguments(
                 target: buildableTarget.target,
                 configuration: configuration,

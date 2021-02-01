@@ -98,7 +98,7 @@ public final class TestsCacheGraphMapper: GraphMapping {
         }
         
         scheme.testAction?.targets = testAction.targets.filter { testTarget in
-            cachedTestableTargets.contains(where: { $0.name == testTarget.target.name })
+            !cachedTestableTargets.contains(where: { $0.name == testTarget.target.name })
         }
         
         if scheme.testAction?.targets.isEmpty ?? true {

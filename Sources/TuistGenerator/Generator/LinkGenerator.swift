@@ -230,7 +230,9 @@ final class LinkGenerator: LinkGenerating {
                                                          includeSymbolsInFileLists: !target.product.testsBundle)
 
             precompiledEmbedPhase.shellScript = script.script
-            precompiledEmbedPhase.inputPaths = script.inputPaths.map(\.pathString)
+            precompiledEmbedPhase.inputPaths = script.inputPaths
+                .map(sourceRootPath.appending)
+                .map(\.pathString)
             precompiledEmbedPhase.outputPaths = script.outputPaths
         }
     }

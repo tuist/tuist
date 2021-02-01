@@ -37,7 +37,6 @@ public final class AutomationPathWorkspaceMapper: WorkspaceMapping {
     private func map(project: Project) throws -> (Project, [SideEffectDescriptor]) {
         var project = project
         let xcodeProjBasename = project.xcodeProjPath.basename
-        project.sourceRootPath = workspaceDirectory
         project.xcodeProjPath = workspaceDirectory.appending(component: xcodeProjBasename)
         return (
             project,

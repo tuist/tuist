@@ -345,6 +345,10 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
         func throwingGlob(_: AbsolutePath, glob _: String) throws -> [AbsolutePath] {
             []
         }
+        
+        func resolveSymlinks(_ path: AbsolutePath) -> AbsolutePath {
+            path
+        }
 
         func write(_: String, path _: AbsolutePath, atomically _: Bool) throws {
             // Do nothing
