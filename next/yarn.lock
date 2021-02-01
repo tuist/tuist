@@ -15521,10 +15521,10 @@ tweetnacl@^0.14.3, tweetnacl@~0.14.0:
   resolved "https://registry.yarnpkg.com/tweetnacl/-/tweetnacl-0.14.5.tgz#5ae68177f192d4456269d108afa93ff8743f4f64"
   integrity sha1-WuaBd/GS1EViadEIr6k/+HQ/T2Q=
 
-twin.macro@^2.1.1:
-  version "2.1.1"
-  resolved "https://registry.yarnpkg.com/twin.macro/-/twin.macro-2.1.1.tgz#387b64af2094b4f987455e258df0a0584ae9fee4"
-  integrity sha512-luotfMXdMsgdQpRq5yS6oSQEJqvLjM7/amAavWlux1z/yQ6Dh3Y5P56FQJpD+6dcIKRio7AcIE8jx4lrpzkLJQ==
+twin.macro@^2.2.0:
+  version "2.2.0"
+  resolved "https://registry.yarnpkg.com/twin.macro/-/twin.macro-2.2.0.tgz#dde81d5fa0a19240d1eed0e7469be3e5564c54c2"
+  integrity sha512-SBtviYQHAs29ZPGqJz6b2Cu7pNPYLefkB/ukPTpYHLkmb750mGvz7E/hLdbbxft7VpNPWI+l+9MA/uVyfaGPog==
   dependencies:
     "@babel/parser" "^7.12.5"
     babel-plugin-macros "^2.8.0"
