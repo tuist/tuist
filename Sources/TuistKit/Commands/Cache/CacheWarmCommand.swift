@@ -17,7 +17,6 @@ struct CacheWarmCommand: ParsableCommand {
     )
     var path: String?
 
-
     @Flag(
         name: [.customShort("x"), .long],
         help: "When passed it caches the targets for simulator and device using xcframeworks."
