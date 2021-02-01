@@ -28,12 +28,6 @@ tuist cache warm
 <ArgumentsTable
   args={[
     {
-      long: '`--profile`',
-      short: '`-P`',
-      description: 'The name of the profile to be used when warming up the cache.',
-      default: '',
-    },
-    {
       long: '`--path`',
       short: '`-p`',
       description: 'The path to the directory that contains the manifest file.',
@@ -50,15 +44,6 @@ tuist cache warm
 />
 
 One the cache is warmed, you can use the [focus](/docs/commands/focus/) command to generate a project replacing direct and transitive dependencies with artifacts from the cache.
-
-### Caching profile 
-
-The caching profile allows users to specify how targets will be cached, for example setting a configuration. Instead of passing the configuration through CLI arguments, developers can define a profile and reference it with `tuist cache warm --profile MyProfile`.
-You can define a caching profile in `Config.swift`, for example:
-
-```
-let config = Config(cache: .cache(profiles: [.profile(name: "Simulator", configuration: "Debug")]))
-```
 
 ## Debugging
 

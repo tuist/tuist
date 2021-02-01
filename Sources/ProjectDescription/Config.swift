@@ -34,9 +34,6 @@ public struct Config: Codable, Equatable {
     /// Cloud configuration.
     public let cloud: Cloud?
 
-    /// Cache configuration.
-    public let cache: Cache?
-
     /// Initializes the tuist configuration.
     ///
     /// - Parameters:
@@ -48,7 +45,6 @@ public struct Config: Codable, Equatable {
     public init(
         compatibleXcodeVersions: CompatibleXcodeVersions = .all,
         cloud: Cloud? = nil,
-        cache: Cache? = nil,
         plugins: [PluginLocation] = [],
         generationOptions: [GenerationOptions]
     ) {
@@ -56,7 +52,6 @@ public struct Config: Codable, Equatable {
         self.plugins = plugins
         self.generationOptions = generationOptions
         self.cloud = cloud
-        self.cache = cache
         dumpIfNeeded(self)
     }
 }

@@ -8,7 +8,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Support for dynamic library dependencies for command line tool projects [#2332]((https://github.com/tuist/tuist/pull/2332) by [@danyf90](https://github.com/danyf90).
 - Disable SwiftFormat in the generated synthesized interface for resources [#2328](https://github.com/tuist/tuist/pull/2328) by [@natanrolnik](https://github.com/natanrolnik).
-- Add `profile` option to `cache warm` command [#2190](https://github.com/tuist/tuist/issues/2190) by [@mollyIV](https://github.com/mollyIV).
+- Implement foundations for caching profiles [#2190](https://github.com/tuist/tuist/issues/2190) by [@mollyIV](https://github.com/mollyIV).
 
 ### Fixed
 

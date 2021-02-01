@@ -19,11 +19,3 @@ Feature: Focuses projects with pre-compiled cached xcframeworks
     When I remove derived data directory
     When tuist focuses the target App
     Then I should be able to build for iOS the scheme App
-
-  Scenario: The project is an iOS application with custom configuration and cache profile (ios_app_with_custom_configuration)
-    Given that tuist is available
-    And I have a working directory
-    Then I copy the fixture ios_app_with_custom_configuration into the working directory
-    Then tuist warms the cache with simulator profile
-    When tuist focuses the target App
-    Then I should be able to build for iOS the scheme App
