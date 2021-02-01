@@ -115,13 +115,10 @@ final class TestService {
             testSchemes = [scheme]
         } else {
             testSchemes = buildGraphInspector.projectSchemes(graph: graph)
-            guard
-                !testSchemes.isEmpty
-            else {
-                throw TestServiceError.schemeNotFound(
-                    scheme: "\(graph.workspace.name)-Project",
-                    existing: testableSchemes.map(\.name)
-                )
+            
+            if testSchemes.isEmpty {
+                logger.log(level: .info, "There are no tests to run, finishing early")
+                return
             }
         }
         
