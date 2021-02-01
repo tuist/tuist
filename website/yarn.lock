@@ -13757,10 +13757,10 @@ react-refresh@^0.8.3:
   resolved "https://registry.yarnpkg.com/react-refresh/-/react-refresh-0.8.3.tgz#721d4657672d400c5e3c75d063c4a85fb2d5d68f"
   integrity sha512-X8jZHc7nCMjaCqoU+V2I0cOhNW+QMBwSUkeXnTi8IPe6zaRWfn60ZzvFDZqWPfmSJfjub7dDW1SP0jaHWLu/hg==
 
-react-select-country-list@^2.2.1:
-  version "2.2.1"
-  resolved "https://registry.yarnpkg.com/react-select-country-list/-/react-select-country-list-2.2.1.tgz#d87fd3d2f079c7d0165ec4ef7d38a2556d202d46"
-  integrity sha512-sH5/nV7J5QreB75iGSFFPjuSeHr0B1oDtSximzlZj/LXoVw47SsOv2WvzPhwYcHMwgXiLI+gvdXY9Cp0MGasjA==
+react-select-country-list@^2.2.3:
+  version "2.2.3"
+  resolved "https://registry.yarnpkg.com/react-select-country-list/-/react-select-country-list-2.2.3.tgz#af263072a7797a660e7bd67702495dd1f95268ab"
+  integrity sha512-eRgXL613dVyJiE99yKDYLvSBKDxvIlhkmvO2DVIjdKVyUQq6kBqoMUV/2zuRIAsbRXgBGmKjeL1dxjf7zTfszg==
 
 react-select@^4.0.2:
   version "4.0.2"
