@@ -191,6 +191,12 @@ final class Installer: Installing {
                                             to: buildDirectory.appending(component: Constants.templatesDirectoryName))
             }
 
+            let vendorDirectory = temporaryDirectory.appending(component: Constants.vendorDirectoryName)
+            if FileHandler.shared.exists(vendorDirectory) {
+                try FileHandler.shared.copy(from: vendorDirectory,
+                                            to: buildDirectory.appending(component: Constants.vendorDirectoryName))
+            }
+
             try buildCopier.copy(from: buildDirectory,
                                  to: installationDirectory)
 
