@@ -4,6 +4,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+## 1.32.0
+
 ### Added
 
 - Generate resource mapping and synthesized Bundle accessors for targets with Core Data models [#2376](https://github.com/tuist/tuist/pull/2376) by [@thedavidharris](https://github.com/thedavidharris).
