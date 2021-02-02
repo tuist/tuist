@@ -251,6 +251,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "SergeyPetrachkov",
+      "name": "Sergey Petrachkov",
+      "avatar_url": "https://avatars.githubusercontent.com/u/7995896?v=4",
+      "profile": "https://www.facebook.com/PetrachkovSergey",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,

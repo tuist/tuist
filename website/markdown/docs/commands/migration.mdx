@@ -80,10 +80,10 @@ tuist migration check-empty-settings -p Project.xcodeproj -t MyApp
   ]}
 />
 
-## List targets sorted by dependencies
+## List targets sorted by topological order
 
-Migration of big Xcode projects to Tuist can happen iteratively, one target at a time. It makes sense to start from the target with the lowest number of dependencies.
-To help with that, Tuist includes a command that lists the targets of a project sorted by number dependencies ascending. The count only includes dependencies that are declared in build phases.
+Migration of big Xcode projects to Tuist can happen iteratively, one target at a time.
+To help with that, Tuist includes a command that lists the targets of a project sorted by topological order, suggesting which target to resolve first.
 
 ```bash
 tuist migration list-targets -p Project.xcodeproj
