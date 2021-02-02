@@ -20,8 +20,10 @@ extension TuistGraph.Config {
         if let manifestCloud = manifest.cloud {
             cloud = try TuistGraph.Cloud.from(manifest: manifestCloud)
         }
+
         return TuistGraph.Config(compatibleXcodeVersions: compatibleXcodeVersions,
                                  cloud: cloud,
+                                 cache: nil, // TODO: Support caching proiles mapping
                                  plugins: plugins,
                                  generationOptions: generationOptions,
                                  path: path)
