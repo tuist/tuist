@@ -170,6 +170,7 @@ final class TestService {
             clean: clean,
             destination: destination,
             arguments: buildGraphInspector.buildArguments(
+                project: project,
                 target: target,
                 configuration: configuration,
                 skipSigning: true
