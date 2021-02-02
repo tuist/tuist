@@ -54,7 +54,8 @@ protocol CacheControlling {
     /// Caches the cacheable targets that are part of the workspace or project at the given path.
     /// - Parameters:
     ///   - path: Path to the directory that contains a workspace or a project.
-    func cache(path: AbsolutePath) throws
+    ///   - configuration: The configuration to be used when building the project.
+    func cache(path: AbsolutePath, configuration: String) throws
 }
 
 final class CacheController: CacheControlling {
@@ -97,7 +98,7 @@ final class CacheController: CacheControlling {
         self.cacheGraphLinter = cacheGraphLinter
     }
 
-    func cache(path: AbsolutePath) throws {
+    func cache(path: AbsolutePath, configuration: String) throws {
         let generator = projectGeneratorProvider.generator()
         let (path, graph) = try generator.generateWithGraph(path: path, projectOnly: false)
 
@@ -112,7 +113,7 @@ final class CacheController: CacheControlling {
         logger.notice("Building cacheable targets")
 
         try cacheableTargets.sorted(by: { $0.key.target.name < $1.key.target.name }).forEach { target, hash in
-            try self.buildAndCacheFramework(path: path, target: target, hash: hash)
+            try self.buildAndCacheFramework(path: path, target: target, configuration: configuration, hash: hash)
         }
 
         logger.notice("All cacheable targets have been cached successfully as \(artifactBuilder.cacheOutputType.description)s", metadata: .success)
@@ -135,9 +136,11 @@ final class CacheController: CacheControlling {
     /// - Parameters:
     ///   - path: Path to either the .xcodeproj or .xcworkspace that contains the framework to be cached.
     ///   - target: Target whose .(xc)framework will be built and cached.
+    ///   - configuration: The configuration.
     ///   - hash: Hash of the target.
     fileprivate func buildAndCacheFramework(path: AbsolutePath,
                                             target: TargetNode,
+                                            configuration: String,
                                             hash: String) throws
     {
         let outputDirectory = try FileHandler.shared.temporaryDirectory()
@@ -148,10 +151,12 @@ final class CacheController: CacheControlling {
         if path.extension == "xcworkspace" {
             try artifactBuilder.build(workspacePath: path,
                                       target: target.target,
+                                      configuration: configuration,
                                       into: outputDirectory)
         } else {
             try artifactBuilder.build(projectPath: path,
                                       target: target.target,
+                                      configuration: configuration,
                                       into: outputDirectory)
         }
 
