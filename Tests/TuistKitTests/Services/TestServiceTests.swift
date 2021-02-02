@@ -75,7 +75,7 @@ final class TestServiceTests: TuistUnitTestCase {
             ]
         }
         buildGraphInspector.testableTargetStub = { scheme, _ in
-          (Project.test(), Target.test(name: scheme.name))
+            (Project.test(), Target.test(name: scheme.name))
         }
         generator.generateWithGraphStub = { path, _ in
             (path, Graph.test())
