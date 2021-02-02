@@ -23,7 +23,10 @@ struct CacheWarmCommand: ParsableCommand {
     )
     var xcframeworks: Bool = false
 
+    @Argument(help: "A list of targets to cache. Those and their dependent targets will be cached.")
+    var targets: [String] = []
+
     func run() throws {
-        try CacheWarmService().run(path: path, profile: nil, xcframeworks: xcframeworks)
+        try CacheWarmService().run(path: path, profile: nil, xcframeworks: xcframeworks, targets: targets)
     }
 }
