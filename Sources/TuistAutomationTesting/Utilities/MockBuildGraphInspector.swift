@@ -13,12 +13,12 @@ public final class MockBuildGraphInspector: BuildGraphInspecting {
         workspacePathStub?(directory) ?? directory
     }
 
-    public var buildableTargetStub: ((Scheme, Graph) -> Target?)?
-    public func buildableTarget(scheme: Scheme, graph: Graph) -> Target? {
+    public var buildableTargetStub: ((Scheme, Graph) -> (Project, Target)?)?
+    public func buildableTarget(scheme: Scheme, graph: Graph) -> (Project, Target)? {
         if let buildableTargetStub = buildableTargetStub {
             return buildableTargetStub(scheme, graph)
         } else {
-            return Target.test()
+            return (Project.test(), Target.test())
         }
     }
 
@@ -36,21 +36,21 @@ public final class MockBuildGraphInspector: BuildGraphInspecting {
         buildableEntrySchemesStub?(graph) ?? []
     }
 
-    public var buildArgumentsStub: ((Target, String?, Bool) -> [XcodeBuildArgument])?
-    public func buildArguments(target: Target, configuration: String?, skipSigning: Bool) -> [XcodeBuildArgument] {
+    public var buildArgumentsStub: ((Project, Target, String?, Bool) -> [XcodeBuildArgument])?
+    public func buildArguments(project: Project, target: Target, configuration: String?, skipSigning: Bool) -> [XcodeBuildArgument] {
         if let buildArgumentsStub = buildArgumentsStub {
-            return buildArgumentsStub(target, configuration, skipSigning)
+            return buildArgumentsStub(project, target, configuration, skipSigning)
         } else {
             return []
         }
     }
 
-    public var testableTargetStub: ((Scheme, Graph) -> Target?)?
-    public func testableTarget(scheme: Scheme, graph: Graph) -> Target? {
+    public var testableTargetStub: ((Scheme, Graph) -> (Project, Target)?)?
+    public func testableTarget(scheme: Scheme, graph: Graph) -> (Project, Target)? {
         if let testableTargetStub = testableTargetStub {
             return testableTargetStub(scheme, graph)
         } else {
-            return Target.test()
+            return (Project.test(), Target.test())
         }
     }
 

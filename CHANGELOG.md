@@ -8,6 +8,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Send Tuist usage analytics event to https://stats.tuist.io/ [#2331]((https://github.com/tuist/tuist/pull/2331) by [@andreacipriani](https://github.com/andreacipriani).
 
+### Fixed
+
+- Fix reading configuration from project if `Target.settings` is nil [#2399](https://github.com/tuist/tuist/pull/2399) by [@danyf90](https://github.com/danyf90).
+
 ## 1.32.0 - Neubau
 
 ### Added
