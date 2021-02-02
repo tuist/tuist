@@ -128,6 +128,7 @@ final class PluginServiceTests: TuistTestCase {
         Config(
             compatibleXcodeVersions: .all,
             cloud: nil,
+            cache: nil,
             plugins: plugins,
             generationOptions: [],
             path: nil

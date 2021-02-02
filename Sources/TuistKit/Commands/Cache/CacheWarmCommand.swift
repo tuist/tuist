@@ -24,6 +24,6 @@ struct CacheWarmCommand: ParsableCommand {
     var xcframeworks: Bool = false
 
     func run() throws {
-        try CacheWarmService().run(path: path, xcframeworks: xcframeworks)
+        try CacheWarmService().run(path: path, profile: nil, xcframeworks: xcframeworks)
     }
 }
