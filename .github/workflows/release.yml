@@ -1,41 +1,41 @@
-# name: Release
+name: Release
 
-# on:
-#   push:
-#     tags:
-#       - '*'
+on:
+  push:
+    tags:
+      - '*'
 
-# jobs:
-#   release:
-#     name: Release Tuist
-#     if: "!contains(github.event.head_commit.author.name, 'GitHub Action')"
-#     runs-on: macos-latest
-#     steps:
-#       - uses: actions/checkout@v2
-#         with:
-#           token: ${{ secrets.GH_TOKEN }}
-#           ref: main
-#           fetch-depth: 0
-#       - uses: actions/setup-ruby@v1
-#         with:
-#           ruby-version: '2.x'
-#       - name: Install Bundler 2.1.4
-#         run: gem install bundler --version 2.1.4
-#       - uses: actions/cache@v2
-#         with:
-#           path: gems/bundle
-#           key: ${{ runner.os }}-gems-${{ hashFiles('**/Gemfile.lock') }}
-#           restore-keys: |
-#             ${{ runner.os }}-gems-
-#       - name: Bundle install
-#         run: |
-#           bundle config path gems/bundle
-#           bundle install --jobs 4 --retry 3
-#       - name: Select Xcode 11.5
-#         run: sudo xcode-select -switch /Applications/Xcode_11.5.app
-#       - name: Create a new release
-#         uses: fortmarek/tapestry-action@0.2.0
-#         env:
-#           RELEASE_ACTOR: xcoderobot
-#           GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
-#           SECRET_KEY: ${{ secrets.SECRET_KEY }}
+jobs:
+  release:
+    name: Release Tuist
+    if: "!contains(github.event.head_commit.author.name, 'GitHub Action')"
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          token: ${{ secrets.GH_TOKEN }}
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-ruby@v1
+        with:
+          ruby-version: '2.x'
+      - name: Install Bundler 2.1.4
+        run: gem install bundler --version 2.1.4
+      - uses: actions/cache@v2
+        with:
+          path: gems/bundle
+          key: ${{ runner.os }}-gems-${{ hashFiles('**/Gemfile.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-gems-
+      - name: Bundle install
+        run: |
+          bundle config path gems/bundle
+          bundle install --jobs 4 --retry 3
+      - name: Select Xcode 11.5
+        run: sudo xcode-select -switch /Applications/Xcode_11.5.app
+      - name: Create a new release
+        uses: fortmarek/tapestry-action@0.2.0
+        env:
+          RELEASE_ACTOR: xcoderobot
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+          SECRET_KEY: ${{ secrets.SECRET_KEY }}
