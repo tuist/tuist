@@ -701,6 +701,7 @@ let package = Package(
             name: "TuistAnalytics",
             dependencies: [
                 "TuistAsyncQueue",
+                "TuistCore",
             ]
         ),
         .testTarget(

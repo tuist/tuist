@@ -8,5 +8,5 @@ protocol HasTrackableParameters {
 /// `TrackableParametersDelegate` contains the callback that should be called
 /// before running a command, with extra parameters that are only known at runtime
 protocol TrackableParametersDelegate {
-    func willRun(withParamters: [String: String])
+    func willRun(withParameters: [String: String])
 }

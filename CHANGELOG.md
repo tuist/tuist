@@ -4,6 +4,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Added
+
+- Send Tuist usage analytics event to https://stats.tuist.io/ [#2331]((https://github.com/tuist/tuist/pull/2331) by [@andreacipriani](https://github.com/andreacipriani).
+
 ## 1.32.0 - Neubau
 
 ### Added
@@ -11,6 +15,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Generate resource mapping and synthesized Bundle accessors for targets with Core Data models [#2376](https://github.com/tuist/tuist/pull/2376) by [@thedavidharris](https://github.com/thedavidharris).
 - Support for dynamic library dependencies for command line tool projects [#2332](https://github.com/tuist/tuist/pull/2332) by [@danyf90](https://github.com/danyf90).
 - Disable SwiftFormat in the generated synthesized interface for resources [#2328](https://github.com/tuist/tuist/pull/2328) by [@natanrolnik](https://github.com/natanrolnik).
+- Send Tuist usage analytics event to https://stats.tuist.io/ [#2331]((https://github.com/tuist/tuist/pull/2331) by [@andreacipriani](https://github.com/andreacipriani).
 - Implement foundations for caching profiles [#2190](https://github.com/tuist/tuist/issues/2190) by [@mollyIV](https://github.com/mollyIV).
 
 ### Fixed
