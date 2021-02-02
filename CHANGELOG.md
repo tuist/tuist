@@ -7,6 +7,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Added
 
 - Send Tuist usage analytics event to https://stats.tuist.io/ [#2331]((https://github.com/tuist/tuist/pull/2331) by [@andreacipriani](https://github.com/andreacipriani).
+- Set parallelizable tests on auto-generated test target schemas. [#2426](https://github.com/tuist/tuist/issues/2426) by [@jakeatoms](https://github.com/jakeatoms).
 
 ## 1.32.0 - Neubau
 

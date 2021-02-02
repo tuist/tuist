@@ -58,6 +58,9 @@ public struct Target: Codable, Equatable {
 
     /// Launch argument to be exposed to the target.
     public let launchArguments: [LaunchArgument]
+    
+    /// Parallelizable flag for the scheme test action
+    public let parallelizableTests: Bool
 
     public enum CodingKeys: String, CodingKey {
         case name
@@ -78,6 +81,7 @@ public struct Target: Codable, Equatable {
         case environment
         case launchArguments
         case deploymentTarget
+        case parallelizableTests = "parallelizable_tests"
     }
 
     /// Initializes the target.
@@ -137,6 +141,7 @@ public struct Target: Codable, Equatable {
         self.environment = environment
         self.launchArguments = .init(launchArguments: launchArguments)
         self.deploymentTarget = deploymentTarget
+        self.parallelizableTests = false
     }
 
     /// Initializes the target.
@@ -175,7 +180,8 @@ public struct Target: Codable, Equatable {
                 settings: Settings? = nil,
                 coreDataModels: [CoreDataModel] = [],
                 environment: [String: String] = [:],
-                launchArguments: [LaunchArgument] = [])
+                launchArguments: [LaunchArgument] = [],
+                parallelizableTests: Bool = false)
     {
         self.name = name
         self.platform = platform
@@ -195,5 +201,6 @@ public struct Target: Codable, Equatable {
         self.environment = environment
         self.launchArguments = launchArguments
         self.deploymentTarget = deploymentTarget
+        self.parallelizableTests = parallelizableTests
     }
 }

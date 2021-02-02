@@ -65,6 +65,7 @@ extension TuistGraph.Target {
 
         let environment = manifest.environment
         let launchArguments = manifest.launchArguments.map(LaunchArgument.from)
+        let parellizableTests = manifest.parallelizableTests
 
         let playgrounds = sourcesPlaygrounds + resourcesPlaygrounds
 
@@ -87,7 +88,8 @@ extension TuistGraph.Target {
                                  launchArguments: launchArguments,
                                  filesGroup: .group(name: "Project"),
                                  dependencies: dependencies,
-                                 playgrounds: playgrounds)
+                                 playgrounds: playgrounds,
+                                 parallelizableTests: parellizableTests)
     }
 
     // MARK: - Fileprivate

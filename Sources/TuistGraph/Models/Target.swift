@@ -33,6 +33,7 @@ public struct Target: Equatable, Hashable, Comparable {
     public var filesGroup: ProjectGroup
     public var scripts: [TargetScript]
     public var playgrounds: [AbsolutePath]
+    public var parallelizableTests: Bool
 
     // MARK: - Init
 
@@ -56,7 +57,8 @@ public struct Target: Equatable, Hashable, Comparable {
                 filesGroup: ProjectGroup,
                 dependencies: [Dependency] = [],
                 scripts: [TargetScript] = [],
-                playgrounds: [AbsolutePath] = [])
+                playgrounds: [AbsolutePath] = [],
+                parallelizableTests: Bool = false)
     {
         self.name = name
         self.product = product
@@ -79,6 +81,7 @@ public struct Target: Equatable, Hashable, Comparable {
         self.dependencies = dependencies
         self.scripts = scripts
         self.playgrounds = playgrounds
+        self.parallelizableTests = parallelizableTests
     }
 
     /// Target can be included in the link phase of other targets
@@ -166,7 +169,8 @@ public struct Target: Equatable, Hashable, Comparable {
             lhs.coreDataModels == rhs.coreDataModels &&
             lhs.actions == rhs.actions &&
             lhs.dependencies == rhs.dependencies &&
-            lhs.environment == rhs.environment
+            lhs.environment == rhs.environment &&
+            lhs.parallelizableTests == rhs.parallelizableTests
     }
 
     public func hash(into hasher: inout Hasher) {
@@ -177,6 +181,7 @@ public struct Target: Equatable, Hashable, Comparable {
         hasher.combine(productName)
         hasher.combine(entitlements)
         hasher.combine(environment)
+        hasher.combine(parallelizableTests)
     }
 
     /// Returns a new copy of the target with the given InfoPlist set.

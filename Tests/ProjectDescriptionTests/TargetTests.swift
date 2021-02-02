@@ -34,7 +34,8 @@ final class TargetTests: XCTestCase {
                                                 release: Configuration(settings: ["a": .string("b")],
                                                                        xcconfig: "config")),
                              coreDataModels: [CoreDataModel("pat", currentVersion: "version")],
-                             environment: ["a": "b"])
+                             environment: ["a": "b"],
+                             parallelizableTests: true)
         XCTAssertCodable(subject)
     }
 
