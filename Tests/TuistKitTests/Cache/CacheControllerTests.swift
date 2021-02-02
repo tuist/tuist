@@ -86,7 +86,7 @@ final class CacheControllerTests: TuistUnitTestCase {
         graphContentHasher.stubbedContentHashesResult = nodeWithHashes
         artifactBuilder.stubbedCacheOutputType = .xcframework
 
-        try subject.cache(path: path)
+        try subject.cache(path: path, configuration: "Debug")
 
         // Then
         XCTAssertPrinterOutputContains("""
