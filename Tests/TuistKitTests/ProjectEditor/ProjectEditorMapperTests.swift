@@ -256,7 +256,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(manifestOneTarget.platform, .macOS)
         XCTAssertEqual(manifestOneTarget.product, .staticFramework)
         XCTAssertEqual(manifestOneTarget.settings, expectedSettings(sourceRootPath: sourceRootPath))
-        XCTAssertEqual(manifestOneTarget.sources.map(\.path), [manifestPaths.last])
+        XCTAssertEqual(manifestOneTarget.sources.map(\.path), [try XCTUnwrap(manifestPaths.last)])
         XCTAssertEqual(manifestOneTarget.filesGroup, .group(name: "Manifests"))
         XCTAssertEmpty(manifestOneTarget.dependencies)
 
@@ -267,7 +267,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(manifestTwoTarget.platform, .macOS)
         XCTAssertEqual(manifestTwoTarget.product, .staticFramework)
         XCTAssertEqual(manifestTwoTarget.settings, expectedSettings(sourceRootPath: sourceRootPath))
-        XCTAssertEqual(manifestTwoTarget.sources.map(\.path), [manifestPaths.first])
+        XCTAssertEqual(manifestTwoTarget.sources.map(\.path), [try XCTUnwrap(manifestPaths.first)])
         XCTAssertEqual(manifestTwoTarget.filesGroup, .group(name: "Manifests"))
         XCTAssertEmpty(manifestTwoTarget.dependencies)
 

@@ -10,14 +10,6 @@ public enum PluginLocation: Hashable, Equatable {
     /// ```
     case local(path: String)
 
-    /// A `URL` to a `git` repository pointing at a `branch`.
-    ///
-    /// Example:
-    /// ```
-    /// .gitWithBranch(url: "https://git/helpers.git", branch: "main")
-    /// ```
-    case gitWithBranch(url: String, branch: String)
-
     /// A `URL` to a `git` repository pointing at a `tag`.
     ///
     /// Example:
@@ -42,8 +34,6 @@ extension PluginLocation: CustomStringConvertible {
         switch self {
         case let .local(path):
             return "local path: \(path)"
-        case let .gitWithBranch(url, branch):
-            return "git url: \(url), branch: \(branch)"
         case let .gitWithTag(url, tag):
             return "git url: \(url), tag: \(tag)"
         case let .gitWithSha(url, sha):

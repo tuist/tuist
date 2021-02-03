@@ -2,8 +2,10 @@ import Foundation
 @testable import ProjectDescription
 
 extension Config {
-    public static func test(generationOptions: [Config.GenerationOptions] = []) -> Config {
-        Config(generationOptions: generationOptions)
+    public static func test(generationOptions: [Config.GenerationOptions] = [],
+                            plugins: [PluginLocation] = []) -> Config
+    {
+        Config(plugins: plugins, generationOptions: generationOptions)
     }
 }
 
@@ -163,5 +165,11 @@ extension Arguments {
 extension Dependencies {
     public static func test(dependencies: [Dependency] = []) -> Dependencies {
         Dependencies(dependencies)
+    }
+}
+
+extension Plugin {
+    public static func test(name: String = "Plugin") -> Plugin {
+        Plugin(name: name)
     }
 }
