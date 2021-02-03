@@ -15,16 +15,6 @@ public struct PluginLocation: Codable, Equatable {
         PluginLocation(type: .local(path: path))
     }
 
-    /// A `URL` to a `git` repository pointing at a `branch`.
-    ///
-    /// Example:
-    /// ```
-    /// .git(url: "https://git/plugin.git", branch: "main")
-    /// ```
-    public static func git(url: String, branch: String) -> Self {
-        PluginLocation(type: .gitWithBranch(url: url, branch: branch))
-    }
-
     /// A `URL` to a `git` repository pointing at a `tag`.
     ///
     /// Example:
@@ -51,13 +41,11 @@ public struct PluginLocation: Codable, Equatable {
 extension PluginLocation {
     public enum LocationType: Codable, Equatable {
         case local(path: Path)
-        case gitWithBranch(url: String, branch: String)
         case gitWithTag(url: String, tag: String)
         case gitWithSha(url: String, sha: String)
 
         enum CodingKeys: CodingKey {
             case local
-            case gitWithBranch
             case gitWithTag
             case gitWithSha
         }
@@ -67,10 +55,6 @@ extension PluginLocation {
             switch self {
             case let .local(path):
                 try container.encode(path, forKey: .local)
-            case let .gitWithBranch(url, branch):
-                var nestedContainer = container.nestedUnkeyedContainer(forKey: .gitWithBranch)
-                try nestedContainer.encode(url)
-                try nestedContainer.encode(branch)
             case let .gitWithTag(url, tag):
                 var nestedContainer = container.nestedUnkeyedContainer(forKey: .gitWithTag)
                 try nestedContainer.encode(url)
@@ -90,11 +74,6 @@ extension PluginLocation {
             case .local:
                 let path = try container.decode(Path.self, forKey: .local)
                 self = .local(path: path)
-            case .gitWithBranch:
-                var nestedContainer = try container.nestedUnkeyedContainer(forKey: .gitWithBranch)
-                let url = try nestedContainer.decode(String.self)
-                let branch = try nestedContainer.decode(String.self)
-                self = .gitWithBranch(url: url, branch: branch)
             case .gitWithTag:
                 var nestedContainer = try container.nestedUnkeyedContainer(forKey: .gitWithTag)
                 let url = try nestedContainer.decode(String.self)

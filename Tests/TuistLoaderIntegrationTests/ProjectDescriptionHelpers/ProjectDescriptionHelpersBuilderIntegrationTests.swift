@@ -1,6 +1,7 @@
 import Foundation
 import TSCBasic
 import TuistCore
+import TuistGraph
 import TuistSupport
 import XCTest
 
@@ -38,13 +39,44 @@ final class ProjectDescriptionHelpersBuilderIntegrationTests: TuistTestCase {
         let searchPaths = ProjectDescriptionSearchPaths.paths(for: projectDescriptionPath)
 
         // When
-        let paths = try (0 ..< 3).map { _ in try subject.build(at: path, projectDescriptionSearchPaths: searchPaths) }
+        let paths = try (0 ..< 3).map { _ in
+            try subject.build(at: path, projectDescriptionSearchPaths: searchPaths, projectDescriptionHelperPlugins: [])
+        }
 
         // Then
         XCTAssertEqual(Set(paths).count, 1)
         XCTAssertNotNil(FileHandler.shared.glob(path, glob: "*/*/ProjectDescriptionHelpers.swiftmodule").first)
         XCTAssertNotNil(FileHandler.shared.glob(path, glob: "*/*/libProjectDescriptionHelpers.dylib").first)
         XCTAssertNotNil(FileHandler.shared.glob(path, glob: "*/*/ProjectDescriptionHelpers.swiftdoc").first)
-        XCTAssertTrue(FileHandler.shared.exists(paths.first!!))
+        let helpersModule = try XCTUnwrap(paths.first?.first)
+        XCTAssertTrue(FileHandler.shared.exists(helpersModule.path))
+    }
+
+    func test_build_when_the_helpers_is_a_plugin() throws {
+        // Given
+        let path = try temporaryPath()
+        subject = ProjectDescriptionHelpersBuilder(cacheDirectory: path, helpersDirectoryLocator: helpersDirectoryLocator)
+
+        let helpersPluginPath = path.appending(components: "Plugin", Constants.helpersDirectoryName)
+        try FileHandler.shared.createFolder(path.appending(component: "Plugin"))
+        try FileHandler.shared.createFolder(helpersPluginPath)
+        try FileHandler.shared.write("import Foundation; class Test {}", path: helpersPluginPath.appending(component: "Helper.swift"), atomically: true)
+        let projectDescriptionPath = try resourceLocator.projectDescription()
+        let searchPaths = ProjectDescriptionSearchPaths.paths(for: projectDescriptionPath)
+        let plugins = [ProjectDescriptionHelpersPlugin(name: "Plugin", path: helpersPluginPath)]
+
+        // When
+        let paths = try (0 ..< 3).map { _ in
+            try subject.build(at: path, projectDescriptionSearchPaths: searchPaths, projectDescriptionHelperPlugins: plugins)
+        }
+
+        // Then
+        XCTAssertEqual(Set(paths).count, 1)
+        XCTAssertNotNil(FileHandler.shared.glob(path, glob: "*/*/Plugin.swiftsourceinfo").first)
+        XCTAssertNotNil(FileHandler.shared.glob(path, glob: "*/*/Plugin.swiftmodule").first)
+        XCTAssertNotNil(FileHandler.shared.glob(path, glob: "*/*/libPlugin.dylib").first)
+        XCTAssertNotNil(FileHandler.shared.glob(path, glob: "*/*/Plugin.swiftdoc").first)
+        let helpersModule = try XCTUnwrap(paths.first?.first)
+        XCTAssertTrue(FileHandler.shared.exists(helpersModule.path))
     }
 }

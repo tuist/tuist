@@ -77,10 +77,6 @@ extension GeneratorModelLoader: GeneratorModelLoading {
 
         return TuistGraph.Config.default
     }
-
-    public func loadPlugin(at _: AbsolutePath) throws -> TuistGraph.Plugin {
-        Plugin(name: "TODO")
-    }
 }
 
 extension GeneratorModelLoader: ManifestModelConverting {

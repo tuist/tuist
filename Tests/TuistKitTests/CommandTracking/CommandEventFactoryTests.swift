@@ -7,20 +7,19 @@ import XCTest
 @testable import TuistKit
 @testable import TuistSupportTesting
 
-final class CommandEventTaggerTests: TuistUnitTestCase {
-    private var subject: CommandEventTagger!
-    private var mockAnalyticsTagger: MockTuistAnalyticsTagging!
+final class CommandEventFactoryTests: TuistUnitTestCase {
+    private var subject: CommandEventFactory!
+    private var mockMachineEnv: MachineEnvironmentRetrieving!
 
     override func setUp() {
         super.setUp()
-        mockAnalyticsTagger = MockTuistAnalyticsTagging()
-        subject = CommandEventTagger(analyticsTagger: mockAnalyticsTagger,
-                                     machineEnvironment: MockMachineEnvironment())
+        mockMachineEnv = MockMachineEnvironment()
+        subject = CommandEventFactory(machineEnvironment: mockMachineEnv)
     }
 
     override func tearDown() {
         subject = nil
-        mockAnalyticsTagger = nil
+        mockMachineEnv = nil
         super.tearDown()
     }
 
@@ -31,12 +30,12 @@ final class CommandEventTaggerTests: TuistUnitTestCase {
         let info = TrackableCommandInfo(name: "cache",
                                         subcommand: "warm",
                                         parameters: ["foo": "bar"],
-                                        duration: TimeInterval(5000))
+                                        durationInMs: 5000)
         let expectedEvent = CommandEvent(
             name: "cache",
             subcommand: "warm",
             params: ["foo": "bar"],
-            duration: TimeInterval(5000),
+            durationInMs: 5000,
             clientId: "123",
             tuistVersion: Constants.version,
             swiftVersion: "5.1",
@@ -45,21 +44,18 @@ final class CommandEventTaggerTests: TuistUnitTestCase {
         )
 
         // When
-        subject.tagCommand(from: info)
+        let event = subject.make(from: info)
 
         // Then
-        XCTAssertEqual(mockAnalyticsTagger.comandEventCallCount, 1)
-        let taggedEvent = try XCTUnwrap(mockAnalyticsTagger.commandEventSpy)
-        XCTAssertEqual(taggedEvent, expectedEvent)
-    }
-}
-
-private final class MockTuistAnalyticsTagging: TuistAnalyticsTagging {
-    var comandEventCallCount = 0
-    var commandEventSpy: CommandEvent?
-    func tag(commandEvent: CommandEvent) {
-        comandEventCallCount += 1
-        commandEventSpy = commandEvent
+        XCTAssertEqual(event.name, expectedEvent.name)
+        XCTAssertEqual(event.subcommand, expectedEvent.subcommand)
+        XCTAssertEqual(event.params, expectedEvent.params)
+        XCTAssertEqual(event.durationInMs, expectedEvent.durationInMs)
+        XCTAssertEqual(event.clientId, expectedEvent.clientId)
+        XCTAssertEqual(event.tuistVersion, expectedEvent.tuistVersion)
+        XCTAssertEqual(event.swiftVersion, expectedEvent.swiftVersion)
+        XCTAssertEqual(event.macOSVersion, expectedEvent.macOSVersion)
+        XCTAssertEqual(event.machineHardwareName, expectedEvent.machineHardwareName)
     }
 }
 
