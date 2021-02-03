@@ -21,5 +21,5 @@ public struct Cache: Equatable, Hashable {
         self.profiles = profiles
     }
 
-    public static let `default` = Cache(profiles: [Profile(name: "development", configuration: "Debug")])
+    public static let `default` = Cache(profiles: [Profile(name: "Development", configuration: "Debug")])
 }

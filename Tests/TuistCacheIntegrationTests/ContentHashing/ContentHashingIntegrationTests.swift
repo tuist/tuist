@@ -74,7 +74,7 @@ final class ContentHashingIntegrationTests: TuistTestCase {
         ])
 
         // When
-        let contentHash = try subject.contentHashes(for: graph, cacheOutputType: .framework)
+        let contentHash = try subject.contentHashes(for: graph, cacheProfile: .test(), cacheOutputType: .framework)
 
         // Then
         XCTAssertEqual(contentHash[framework1], contentHash[framework2])
@@ -90,7 +90,7 @@ final class ContentHashingIntegrationTests: TuistTestCase {
         ])
 
         // When
-        let contentHash = try subject.contentHashes(for: graph, cacheOutputType: .framework)
+        let contentHash = try subject.contentHashes(for: graph, cacheProfile: .test(), cacheOutputType: .framework)
 
         // Then
         XCTAssertNotEqual(contentHash[framework1], contentHash[framework2])
@@ -106,7 +106,7 @@ final class ContentHashingIntegrationTests: TuistTestCase {
         ])
 
         // When
-        let contentHash = try subject.contentHashes(for: graph, cacheOutputType: .framework)
+        let contentHash = try subject.contentHashes(for: graph, cacheProfile: .test(), cacheOutputType: .framework)
 
         // Then
         XCTAssertEqual(contentHash[framework1], "cb93cd96c5af9deb87fad78fd14b5664")
@@ -123,8 +123,8 @@ final class ContentHashingIntegrationTests: TuistTestCase {
         ])
 
         // When
-        let contentFrameworkHash = try subject.contentHashes(for: graph, cacheOutputType: .framework)
-        let contentXCFrameworkHash = try subject.contentHashes(for: graph, cacheOutputType: .xcframework)
+        let contentFrameworkHash = try subject.contentHashes(for: graph, cacheProfile: .test(), cacheOutputType: .framework)
+        let contentXCFrameworkHash = try subject.contentHashes(for: graph, cacheProfile: .test(), cacheOutputType: .xcframework)
 
         // Then
         XCTAssertNotEqual(contentFrameworkHash[framework1], contentXCFrameworkHash[framework1])
@@ -143,7 +143,7 @@ final class ContentHashingIntegrationTests: TuistTestCase {
         ])
 
         // When
-        let contentHash = try subject.contentHashes(for: graph, cacheOutputType: .framework)
+        let contentHash = try subject.contentHashes(for: graph, cacheProfile: .test(), cacheOutputType: .framework)
 
         // Then
         XCTAssertNotEqual(contentHash[framework1], contentHash[framework2])
@@ -159,7 +159,7 @@ final class ContentHashingIntegrationTests: TuistTestCase {
         ])
 
         // When
-        let contentHash = try subject.contentHashes(for: graph, cacheOutputType: .framework)
+        let contentHash = try subject.contentHashes(for: graph, cacheProfile: .test(), cacheOutputType: .framework)
 
         // Then
         XCTAssertNotEqual(contentHash[framework1], contentHash[framework2])
@@ -176,7 +176,7 @@ final class ContentHashingIntegrationTests: TuistTestCase {
         ])
 
         // When
-        let contentHash = try subject.contentHashes(for: graph, cacheOutputType: .framework)
+        let contentHash = try subject.contentHashes(for: graph, cacheProfile: .test(), cacheOutputType: .framework)
 
         // Then
         XCTAssertEqual(contentHash[framework1], contentHash[framework2])
@@ -194,7 +194,7 @@ final class ContentHashingIntegrationTests: TuistTestCase {
         ])
 
         // When
-        let contentHash = try subject.contentHashes(for: graph, cacheOutputType: .framework)
+        let contentHash = try subject.contentHashes(for: graph, cacheProfile: .test(), cacheOutputType: .framework)
 
         // Then
         XCTAssertNotEqual(contentHash[framework1], contentHash[framework2])
@@ -210,7 +210,7 @@ final class ContentHashingIntegrationTests: TuistTestCase {
         ])
 
         // When
-        let contentHash = try subject.contentHashes(for: graph, cacheOutputType: .framework)
+        let contentHash = try subject.contentHashes(for: graph, cacheProfile: .test(), cacheOutputType: .framework)
 
         // Then
         XCTAssertEqual(contentHash[framework1], contentHash[framework2])
@@ -230,7 +230,7 @@ final class ContentHashingIntegrationTests: TuistTestCase {
         ])
 
         // When
-        let contentHash = try subject.contentHashes(for: graph, cacheOutputType: .framework)
+        let contentHash = try subject.contentHashes(for: graph, cacheProfile: .test(), cacheOutputType: .framework)
 
         XCTAssertNotEqual(contentHash[framework1], contentHash[framework2])
     }
@@ -247,7 +247,7 @@ final class ContentHashingIntegrationTests: TuistTestCase {
         ])
 
         // When
-        let contentHash = try subject.contentHashes(for: graph, cacheOutputType: .framework)
+        let contentHash = try subject.contentHashes(for: graph, cacheProfile: .test(), cacheOutputType: .framework)
 
         XCTAssertNotEqual(contentHash[framework1], contentHash[framework2])
     }

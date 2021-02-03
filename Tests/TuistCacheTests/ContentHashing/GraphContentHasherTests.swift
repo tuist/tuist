@@ -25,7 +25,7 @@ final class GraphContentHasherTests: TuistUnitTestCase {
         let graph = Graph.test()
 
         // When
-        let hashes = try subject.contentHashes(for: graph, cacheOutputType: .framework)
+        let hashes = try subject.contentHashes(for: graph, cacheProfile: .test(), cacheOutputType: .framework)
 
         // Then
         XCTAssertEqual(hashes, Dictionary())
@@ -51,7 +51,7 @@ final class GraphContentHasherTests: TuistUnitTestCase {
         let expectedCachableTargets = [frameworkTarget, secondFrameworkTarget, staticFrameworkTarget].sorted(by: { $0.target.name < $1.target.name })
 
         // When
-        let hashes = try subject.contentHashes(for: graph, cacheOutputType: .framework)
+        let hashes = try subject.contentHashes(for: graph, cacheProfile: .test(), cacheOutputType: .framework)
         let hashedTargets: [TargetNode] = hashes.keys.sorted { left, right -> Bool in
             left.project.path.pathString < right.project.path.pathString
         }.sorted(by: { $0.target.name < $1.target.name })

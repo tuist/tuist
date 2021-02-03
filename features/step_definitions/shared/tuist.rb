@@ -39,6 +39,12 @@ Then(/^tuist focuses the target ([a-zA-Z]+)$/) do |target|
   @xcodeproj_path = Dir.glob(File.join(@dir, "*.xcodeproj")).first
 end
 
+Then(/^tuist focuses the target ([a-zA-Z]+) with ([a-zA-Z]+) profile$/) do |target, cache_profile|
+  system("swift", "run", "tuist", "focus", "--no-open", "--path", @dir, target, "--profile", cache_profile)
+  @workspace_path = Dir.glob(File.join(@dir, "*.xcworkspace")).first
+  @xcodeproj_path = Dir.glob(File.join(@dir, "*.xcodeproj")).first
+end
+
 Then(/^tuist focuses the target ([a-zA-Z]+) at ([a-zA-Z]\/+)$/) do |target, path|
   system("swift", "run", "tuist", "focus", "--no-open", "--path", File.join(@dir, path), target)
   @workspace_path = Dir.glob(File.join(@dir, path, "*.xcworkspace")).first

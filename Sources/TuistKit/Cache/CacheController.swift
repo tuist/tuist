@@ -54,8 +54,8 @@ protocol CacheControlling {
     /// Caches the cacheable targets that are part of the workspace or project at the given path.
     /// - Parameters:
     ///   - path: Path to the directory that contains a workspace or a project.
-    ///   - configuration: The configuration to be used when building the project.
-    func cache(path: AbsolutePath, configuration: String) throws
+    ///   - cacheProfile: The caching profile.
+    func cache(path: AbsolutePath, cacheProfile: TuistGraph.Cache.Profile) throws
 }
 
 final class CacheController: CacheControlling {
@@ -98,7 +98,7 @@ final class CacheController: CacheControlling {
         self.cacheGraphLinter = cacheGraphLinter
     }
 
-    func cache(path: AbsolutePath, configuration: String) throws {
+    func cache(path: AbsolutePath, cacheProfile: TuistGraph.Cache.Profile) throws {
         let generator = projectGeneratorProvider.generator()
         let (path, graph) = try generator.generateWithGraph(path: path, projectOnly: false)
 
@@ -107,13 +107,13 @@ final class CacheController: CacheControlling {
 
         // Hash
         logger.notice("Hashing cacheable targets")
-        let cacheableTargets = try self.cacheableTargets(graph: graph)
+        let cacheableTargets = try self.cacheableTargets(graph: graph, cacheProfile: cacheProfile)
 
         // Build
         logger.notice("Building cacheable targets")
 
         try cacheableTargets.sorted(by: { $0.key.target.name < $1.key.target.name }).forEach { target, hash in
-            try self.buildAndCacheFramework(path: path, target: target, configuration: configuration, hash: hash)
+            try self.buildAndCacheFramework(path: path, target: target, configuration: cacheProfile.configuration, hash: hash)
         }
 
         logger.notice("All cacheable targets have been cached successfully as \(artifactBuilder.cacheOutputType.description)s", metadata: .success)
@@ -121,8 +121,8 @@ final class CacheController: CacheControlling {
 
     /// Returns all the targets that are cacheable and their hashes.
     /// - Parameter graph: Graph that contains all the dependency graph nodes.
-    fileprivate func cacheableTargets(graph: Graph) throws -> [TargetNode: String] {
-        try graphContentHasher.contentHashes(for: graph, cacheOutputType: artifactBuilder.cacheOutputType)
+    fileprivate func cacheableTargets(graph: Graph, cacheProfile: TuistGraph.Cache.Profile) throws -> [TargetNode: String] {
+        try graphContentHasher.contentHashes(for: graph, cacheProfile: cacheProfile, cacheOutputType: artifactBuilder.cacheOutputType)
             .filter { target, hash in
                 if let exists = try self.cache.exists(hash: hash).toBlocking().first(), exists {
                     logger.pretty("The target \(.bold(.raw(target.name))) with hash \(.bold(.raw(hash))) and type \(artifactBuilder.cacheOutputType.description) is already in the cache. Skipping...")

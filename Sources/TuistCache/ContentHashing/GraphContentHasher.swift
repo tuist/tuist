@@ -1,10 +1,11 @@
 import Foundation
 import TSCBasic
 import TuistCore
+import TuistGraph
 import TuistSupport
 
 public protocol GraphContentHashing {
-    func contentHashes(for graph: TuistCore.Graph, cacheOutputType: CacheOutputType) throws -> [TargetNode: String]
+    func contentHashes(for graph: TuistCore.Graph, cacheProfile: TuistGraph.Cache.Profile, cacheOutputType: CacheOutputType) throws -> [TargetNode: String]
 }
 
 /// `GraphContentHasher`
@@ -26,7 +27,7 @@ public final class GraphContentHasher: GraphContentHashing {
 
     // MARK: - GraphContentHashing
 
-    public func contentHashes(for graph: TuistCore.Graph, cacheOutputType: CacheOutputType) throws -> [TargetNode: String] {
+    public func contentHashes(for graph: TuistCore.Graph, cacheProfile: TuistGraph.Cache.Profile, cacheOutputType: CacheOutputType) throws -> [TargetNode: String] {
         var visitedNodes: [TargetNode: Bool] = [:]
         let hashableTargets = graph.targets.values.flatMap { (targets: [TargetNode]) -> [TargetNode] in
             targets.compactMap { target in
@@ -38,6 +39,7 @@ public final class GraphContentHasher: GraphContentHashing {
         }
         let hashes = try hashableTargets.map {
             try targetContentHasher.contentHash(for: $0,
+                                                cacheProfile: cacheProfile,
                                                 cacheOutputType: cacheOutputType)
         }
         return Dictionary(uniqueKeysWithValues: zip(hashableTargets, hashes))

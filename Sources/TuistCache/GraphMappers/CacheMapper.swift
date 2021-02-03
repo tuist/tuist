@@ -30,11 +30,15 @@ public class CacheMapper: GraphMapping {
     /// The type of artifact that the hasher is configured with.
     private let cacheOutputType: CacheOutputType
 
+    /// The caching profile.
+    private let cacheProfile: TuistGraph.Cache.Profile
+
     // MARK: - Init
 
     public convenience init(config: Config,
                             cacheStorageProvider: CacheStorageProviding,
                             sources: Set<String>,
+                            cacheProfile: TuistGraph.Cache.Profile,
                             cacheOutputType: CacheOutputType,
                             contentHasher: ContentHashing)
     {
@@ -42,6 +46,7 @@ public class CacheMapper: GraphMapping {
                   cache: Cache(storageProvider: cacheStorageProvider),
                   graphContentHasher: GraphContentHasher(contentHasher: contentHasher),
                   sources: sources,
+                  cacheProfile: cacheProfile,
                   cacheOutputType: cacheOutputType)
     }
 
@@ -49,6 +54,7 @@ public class CacheMapper: GraphMapping {
          cache: CacheStoring,
          graphContentHasher: GraphContentHashing,
          sources: Set<String>,
+         cacheProfile: TuistGraph.Cache.Profile,
          cacheOutputType: CacheOutputType,
          cacheGraphMutator: CacheGraphMutating = CacheGraphMutator(),
          queue: DispatchQueue = CacheMapper.dispatchQueue())
@@ -59,6 +65,7 @@ public class CacheMapper: GraphMapping {
         self.queue = queue
         self.cacheGraphMutator = cacheGraphMutator
         self.sources = sources
+        self.cacheProfile = cacheProfile
         self.cacheOutputType = cacheOutputType
     }
 
@@ -80,6 +87,7 @@ public class CacheMapper: GraphMapping {
         Single.create { (observer) -> Disposable in
             do {
                 let hashes = try self.graphContentHasher.contentHashes(for: graph,
+                                                                       cacheProfile: self.cacheProfile,
                                                                        cacheOutputType: self.cacheOutputType)
                 observer(.success(hashes))
             } catch {
