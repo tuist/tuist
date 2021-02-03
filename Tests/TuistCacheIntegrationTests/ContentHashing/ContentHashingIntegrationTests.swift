@@ -104,13 +104,14 @@ final class ContentHashingIntegrationTests: TuistTestCase {
         let graph = Graph.test(targets: [
             temporaryDirectoryPath: [framework1, framework2],
         ])
+        let cacheProfile = TuistGraph.Cache.Profile(name: "Simulator", configuration: "Debug")
 
         // When
-        let contentHash = try subject.contentHashes(for: graph, cacheProfile: .test(), cacheOutputType: .framework)
+        let contentHash = try subject.contentHashes(for: graph, cacheProfile: cacheProfile, cacheOutputType: .framework)
 
         // Then
-        XCTAssertEqual(contentHash[framework1], "cb93cd96c5af9deb87fad78fd14b5664")
-        XCTAssertEqual(contentHash[framework2], "f224c9df7a44ce5c7849f10e58142718")
+        XCTAssertEqual(contentHash[framework1], "bf717d4a38fcedf24a1f8803bec6bdc3")
+        XCTAssertEqual(contentHash[framework2], "6efe8f842470a298b689cf0e132a162d")
     }
 
     func test_contentHashes_hashChangesWithCacheOutputType() throws {
