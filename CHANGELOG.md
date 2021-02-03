@@ -4,6 +4,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Added
+
+- Introduce caching profiles [#2356](https://github.com/tuist/tuist/pull/2431) by [@mollyIV](https://github.com/mollyIV).
+
 ## 1.32.0 - Neubau
 
 ### Added
