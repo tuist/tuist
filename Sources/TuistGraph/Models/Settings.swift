@@ -87,6 +87,14 @@ public class Settings: Equatable {
         self.configurations = configurations
         self.defaultSettings = defaultSettings
     }
+    
+    public func with(base: SettingsDictionary) -> Settings {
+        .init(
+            base: base,
+            configurations: configurations,
+            defaultSettings: defaultSettings
+        )
+    }
 
     // MARK: - Equatable
 

@@ -88,9 +88,6 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
         var settings: SettingsDictionary = [:]
         settingsHelper.extend(buildSettings: &settings, with: projectDefaultAll)
         settingsHelper.extend(buildSettings: &settings, with: projectDefaultVariant)
-        settingsHelper.extend(buildSettings: &settings, with: [
-            "SRCROOT": SettingValue(stringLiteral: project.sourceRootPath.pathString),
-        ])
         return settings.filter(filter)
     }
 

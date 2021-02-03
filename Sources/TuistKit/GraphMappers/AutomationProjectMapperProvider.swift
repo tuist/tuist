@@ -28,6 +28,10 @@ final class AutomationProjectMapperProvider: ProjectMapperProviding {
                 )
             )
         }
+        
+        mappers.append(
+            SourceRootPathProjectMapper()
+        )
 
         return SequentialProjectMapper(mappers: mappers)
     }
