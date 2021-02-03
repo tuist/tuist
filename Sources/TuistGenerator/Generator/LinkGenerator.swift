@@ -231,8 +231,7 @@ final class LinkGenerator: LinkGenerating {
 
             precompiledEmbedPhase.shellScript = script.script
             precompiledEmbedPhase.inputPaths = script.inputPaths
-                .map(sourceRootPath.appending)
-                .map(\.pathString)
+                .map { "$(SRCROOT)/\($0.pathString)" }
             precompiledEmbedPhase.outputPaths = script.outputPaths
         }
     }

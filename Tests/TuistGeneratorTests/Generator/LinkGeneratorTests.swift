@@ -73,7 +73,7 @@ final class LinkGeneratorTests: XCTestCase {
         let scriptBuildPhase: PBXShellScriptBuildPhase? = pbxTarget.buildPhases.first as? PBXShellScriptBuildPhase
         XCTAssertEqual(scriptBuildPhase?.name, "Embed Precompiled Frameworks")
         XCTAssertEqual(scriptBuildPhase?.shellScript, "script")
-        XCTAssertEqual(scriptBuildPhase?.inputPaths, ["frameworks/A.framework"])
+        XCTAssertEqual(scriptBuildPhase?.inputPaths, ["$(SRCROOT)/frameworks/A.framework"])
         XCTAssertEqual(scriptBuildPhase?.outputPaths, ["output/A.framework"])
 
         let embedBuildPhase = try XCTUnwrap(pbxTarget.embedFrameworksBuildPhases().first)
