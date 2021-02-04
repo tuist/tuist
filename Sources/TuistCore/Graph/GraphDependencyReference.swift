@@ -53,6 +53,32 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
         }
     }
 
+    init(_ dependency: ValueGraphDependency) {
+        switch dependency {
+        case let .framework(path, binaryPath, dsymPath, bcsymbolmapPaths, linking, architectures, isCarthage):
+            self = .framework(path: path,
+                              binaryPath: binaryPath,
+                              isCarthage: isCarthage,
+                              dsymPath: dsymPath,
+                              bcsymbolmapPaths: bcsymbolmapPaths,
+                              linking: linking,
+                              architectures: architectures,
+                              product: (linking == .static) ? .staticFramework : .framework)
+        case let .library(path, publicHeaders, linking, architectures, swiftModuleMap):
+            self = .library(path: path,
+                            linking: linking,
+                            architectures: architectures,
+                            product: (linking == .static) ? .staticLibrary : .dynamicLibrary)
+        case let .xcframework(path, infoPlist, primaryBinaryPath, linking):
+            self = .xcframework(path: path,
+                                infoPlist: infoPlist,
+                                primaryBinaryPath: primaryBinaryPath,
+                                binaryPath: primaryBinaryPath)
+        default:
+            preconditionFailure("unsupported dependencies")
+        }
+    }
+
     public func hash(into hasher: inout Hasher) {
         switch self {
         case let .library(path, _, _, _):
