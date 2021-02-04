@@ -128,6 +128,9 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
     <td align="center"><a href="https://github.com/danyf90"><img src="https://avatars.githubusercontent.com/u/2794031?v=4" width="100px;" alt=""/><br /><sub><b>Daniele Formichelli</b></sub></a></td>
     <td align="center"><a href="https://www.facebook.com/PetrachkovSergey"><img src="https://avatars.githubusercontent.com/u/7995896?v=4" width="100px;" alt=""/><br /><sub><b>Sergey Petrachkov</b></sub></a></td>
   </tr>
+  <tr>
+    <td align="center"><a href="http://jinuman.github.io/resume"><img src="https://avatars.githubusercontent.com/u/26243835?v=4" width="100px;" alt=""/><br /><sub><b>Jinwoo, Kim</b></sub></a></td>
+  </tr>
 </table>
 
 <!-- markdownlint-restore -->
