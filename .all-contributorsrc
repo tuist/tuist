@@ -260,6 +260,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "jinuman",
+      "name": "Jinwoo, Kim",
+      "avatar_url": "https://avatars.githubusercontent.com/u/26243835?v=4",
+      "profile": "http://jinuman.github.io/resume",
+      "contributions": [
+        "content"
+      ]
     }
   ],
   "contributorsPerLine": 7,
