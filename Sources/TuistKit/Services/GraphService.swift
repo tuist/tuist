@@ -78,7 +78,7 @@ final class GraphService {
     }
 
     private func isGraphVizInstalled() throws -> Bool {
-        try System.shared.capture(["brew", "list"]).contains("graphviz")
+        try System.shared.capture(["brew", "list", "--formula"]).contains("graphviz")
     }
 
     private func installGraphViz() throws {
