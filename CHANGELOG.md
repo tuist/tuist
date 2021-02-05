@@ -4,6 +4,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+## 1.33.0
+
 ### Added
 
 - Add support for `tuist graph` to show the graph of a subset of targets via `tuist graph FrameworkA FrameworkB` [#2434]((https://github.com/tuist/tuist/pull/2434) by [@adellibovi](https://github.com/adellibovi).
