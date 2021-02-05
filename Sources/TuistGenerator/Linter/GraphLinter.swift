@@ -41,6 +41,7 @@ public class GraphLinter: GraphLinting {
         issues.append(contentsOf: lintDependencies(graphTraverser: graphTraverser))
         issues.append(contentsOf: lintMismatchingConfigurations(graphTraverser: graphTraverser))
         issues.append(contentsOf: lintWatchBundleIndentifiers(graphTraverser: graphTraverser))
+        issues.append(contentsOf: lintBundleIdentifiers(graphTraverser: graphTraverser))
 
         return issues
     }
@@ -237,6 +238,33 @@ public class GraphLinter: GraphLinting {
         }
 
         return foundIssues
+    }
+
+    private func lintBundleIdentifiers(graphTraverser: GraphTraversing) -> [LintingIssue] {
+        var dict = [String: [String]]()
+        let generatedBundleIdRegex = try! NSRegularExpression(pattern: "\\$\\{.*\\}", options: [])
+
+        graphTraverser.targets
+            .flatMap { $0.value.map(\.value) }
+            .forEach { target in
+                let bundleId = target.bundleId
+                if generatedBundleIdRegex.numberOfMatches(in: bundleId, options: [], range: NSRange(location: 0, length: bundleId.count)) > 0 {
+                    return
+                }
+
+                var targetsWithThisBundleId = dict[target.bundleId] ?? []
+                targetsWithThisBundleId.append(target.name)
+                dict[target.bundleId] = targetsWithThisBundleId
+            }
+
+        return dict.compactMap { bundleId, targetNames in
+            guard targetNames.count > 1 else {
+                return nil
+            }
+
+            let reason = "The bundle identifier '\(bundleId)' is being used by multiple targets: \(targetNames.sorted().listed())."
+            return LintingIssue(reason: reason, severity: .error)
+        }.sorted(by: { $0.reason < $1.reason })
     }
 
     struct LintableTarget: Equatable, Hashable {
