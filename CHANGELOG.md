@@ -6,6 +6,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Added
 
+- Add support for `tuist graph` to show the graph of a subset of targets via `tuist graph FrameworkA FrameworkB` [#2434]((https://github.com/tuist/tuist/pull/2434) by [@adellibovi](https://github.com/adellibovi).
 - Send Tuist usage analytics event to https://stats.tuist.io/ [#2331]((https://github.com/tuist/tuist/pull/2331) by [@andreacipriani](https://github.com/andreacipriani).
 - Plugin integration for local and git plugins by [@luispadron](https://github.com/luispadron) and [@kwridan](https://github.com/kwridan).
 
@@ -14,6 +15,9 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Fixed homebrew invocation for `graph` functionality when looking up graphviz installation [#2466](https://github.com/tuist/tuist/pull/2446) by [@thedavidharris](https://github.com/danyf90)
 - Fix reading configuration from project if `Target.settings` is nil [#2399](https://github.com/tuist/tuist/pull/2399) by [@danyf90](https://github.com/danyf90).
 - Fix CoreData project attributes [#2397](https://github.com/tuist/tuist/pull/2397) by [@kwridan](https://github.com/kwridan).
+
+### Changed
+- The parameter `--path` of `tuist graph` now specifies where the manifest is. To specify the output directory of the graph, use `--output-path` [#2434]((https://github.com/tuist/tuist/pull/2434) by [@adellibovi](https://github.com/adellibovi).
 
 ## 1.32.0 - Neubau
 

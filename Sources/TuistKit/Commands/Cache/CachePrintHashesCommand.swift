@@ -11,7 +11,7 @@ struct CachePrintHashesCommand: ParsableCommand {
 
     @Option(
         name: .shortAndLong,
-        help: "The path where the project will be generated.",
+        help: "The path to the directory that contains the project whose targets will be cached.",
         completion: .directory
     )
     var path: String?
