@@ -240,8 +240,14 @@ public class GraphLinter: GraphLinting {
         return foundIssues
     }
 
+    private struct BundleIdKey: Hashable {
+        let bundleId: String
+        let platform: Platform
+    }
+
     private func lintBundleIdentifiers(graphTraverser: GraphTraversing) -> [LintingIssue] {
-        var dict = [String: [String]]()
+        var bundleIds = [BundleIdKey: [String]]()
+        // swiftlint:disable:next force_try
         let generatedBundleIdRegex = try! NSRegularExpression(pattern: "\\$\\{.*\\}", options: [])
 
         graphTraverser.targets
@@ -252,17 +258,23 @@ public class GraphLinter: GraphLinting {
                     return
                 }
 
-                var targetsWithThisBundleId = dict[target.bundleId] ?? []
+                let key = BundleIdKey(bundleId: target.bundleId, platform: target.platform)
+
+                var targetsWithThisBundleId = bundleIds[key] ?? []
                 targetsWithThisBundleId.append(target.name)
-                dict[target.bundleId] = targetsWithThisBundleId
+                bundleIds[key] = targetsWithThisBundleId
             }
 
-        return dict.compactMap { bundleId, targetNames in
+        return duplicateBundleIdLintingIssue(for: bundleIds)
+    }
+
+    private func duplicateBundleIdLintingIssue(for targets: [BundleIdKey: [String]]) -> [LintingIssue] {
+        targets.compactMap { bundleIdKey, targetNames in
             guard targetNames.count > 1 else {
                 return nil
             }
 
-            let reason = "The bundle identifier '\(bundleId)' is being used by multiple targets: \(targetNames.sorted().listed())."
+            let reason = "The bundle identifier '\(bundleIdKey.bundleId)' is being used by multiple targets: \(targetNames.sorted().listed())."
             return LintingIssue(reason: reason, severity: .error)
         }.sorted(by: { $0.reason < $1.reason })
     }
