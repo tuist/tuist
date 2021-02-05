@@ -260,6 +260,24 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "jinuman",
+      "name": "Jinwoo, Kim",
+      "avatar_url": "https://avatars.githubusercontent.com/u/26243835?v=4",
+      "profile": "http://jinuman.github.io/resume",
+      "contributions": [
+        "content"
+      ]
+    },
+    {
+      "login": "thedavidharris",
+      "name": "David Harris",
+      "avatar_url": "https://avatars.githubusercontent.com/u/5666250?v=4",
+      "profile": "https://github.com/thedavidharris",
+      "contributions": [
+        "bug"
+      ]
     }
   ],
   "contributorsPerLine": 7,
