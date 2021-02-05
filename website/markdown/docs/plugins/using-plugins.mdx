@@ -1,0 +1,58 @@
+---
+name: Using plugins
+excerpt: Learn how to extend Tuist with plugins.
+---
+
+# Using Plugins
+
+## Plugins
+
+With plugins you can extend Tuist to add support for custom project description helpers, custom templates, and much more!
+Plugins are meant to be separate isolated directories that contain custom code or templates used to extend existing Tuist functionality. 
+You may use plugins that exist locally on your machine or better yet, upload them to the internet and keep them under source control.
+
+## Adding plugins
+
+In order to tell Tuist you'd like to use plugins in your project, you can start by defining the plugins in the [`Config.swift`](/docs/usage/config/) manifest.
+
+```swift
+import ProjectDescription
+
+let config = Config(
+    plugins: [
+        .local(path: "/Plugins/MyPlugin"),
+        .git(url: "https://url/to/plugin.git", tag: "1.0.0"),
+        .git(url: "https://url/to/plugin.git", sha: "e34c5ba")
+    ]
+)
+```
+
+By defining plugins in the [`Config.swift`](/docs/usage/config/) manifest Tuist is able to collect, cache and use your plugins to add or extend functionality.
+
+## Example
+
+Let's say we have a plugin called `MyTuistPlugin`. This plugin is designed to add functionality to `ProjectDescription`, in this example the plugin will add a new method to `Project` which allow us to define an application.
+This plugin is stored in git on some remote server, and we'd like to use version `1.0.0` of the plugin.
+
+We must first configure Tuist to use our plugin, we can do that by adding the plugin to the [`Config.swift`](/docs/usage/config/) manifest.
+
+```swift
+import ProjectDescription
+
+let config = Config(
+    plugins: [
+        .git(url: "https://url/to/MyTuistPlugin", tag: "1.0.0")
+    ]
+)
+```
+
+### Project description helpers
+
+You can import a project description helper plugin with the name defined in the [`Plugin.swift`](/docs/plugins/creating-plugins/) manifest, which can then be used in a project manfiest:
+
+```swift
+import ProjectDescription
+import MyTuistPlugin
+
+let project = Project.app(name: "MyCoolApp", platform: .iOS)
+```
