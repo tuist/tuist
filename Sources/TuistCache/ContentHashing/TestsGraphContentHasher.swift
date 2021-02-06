@@ -16,24 +16,29 @@ final class TestsGraphContentHasher: TestsGraphContentHashing {
 
     // MARK: - Init
 
-    init(targetContentHasher: TargetContentHashing = TargetContentHasher(contentHasher: ContentHasher())) {
+    init(
+        targetContentHasher: TargetContentHashing = TargetContentHasher(
+            contentHasher: ContentHasher()
+        )
+    ) {
         self.targetContentHasher = targetContentHasher
     }
 
     // MARK: - TestsGraphContentHashing
 
     func contentHashes(graphTraverser: GraphTraversing) throws -> [ValueGraphTarget: String] {
-        var visitedNodes: [ValueGraphTarget: Bool] = [:]
+        var visitedTargets: [ValueGraphTarget: Bool] = [:]
         let hashableTargets = graphTraverser.allTargets()
-            .compactMap { target -> ValueGraphTarget? in
-                if self.isCacheable(
+            // UI tests depend on the device they are run on
+            // This can be done in the future if we hash the ID of the device
+            // But currently, we consider for hashing only unit tests and its dependencies
+            .filter { $0.target.product == .unitTests }
+            .flatMap { target -> [ValueGraphTarget] in
+                targetDependencies(
                     target,
                     graphTraverser: graphTraverser,
-                    visited: &visitedNodes
-                ) {
-                    return target
-                }
-                return nil
+                    visited: &visitedTargets
+                )
             }
         let hashes = try hashableTargets.map {
             try targetContentHasher.contentHash(
@@ -46,30 +51,25 @@ final class TestsGraphContentHasher: TestsGraphContentHashing {
 
     // MARK: - Helpers
 
-    private func isCacheable(
+    private func targetDependencies(
         _ target: ValueGraphTarget,
         graphTraverser: GraphTraversing,
         visited: inout [ValueGraphTarget: Bool]
-    ) -> Bool {
-        if let visitedValue = visited[target] { return visitedValue }
-        // UI tests depend on the device they are run on
-        // This can be done in the future if we hash the ID of the device
-        // But currently we consider these targets non-hashable
-        let noXCUITestDependency = target.target.product != .uiTests
-        let allTargetDependenciesAreHasheable = graphTraverser
+    ) -> [ValueGraphTarget] {
+        if visited[target] == true { return [] }
+        let targetDependencies = graphTraverser
             .directTargetDependencies(
                 path: target.path,
                 name: target.target.name
             )
-            .allSatisfy {
-                isCacheable(
+            .flatMap {
+                self.targetDependencies(
                     $0,
                     graphTraverser: graphTraverser,
                     visited: &visited
                 )
             }
-        let cacheable = noXCUITestDependency && allTargetDependenciesAreHasheable
-        visited[target] = cacheable
-        return cacheable
+        visited[target] = true
+        return targetDependencies + [target]
     }
 }
