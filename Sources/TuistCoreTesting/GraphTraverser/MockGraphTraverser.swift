@@ -24,6 +24,16 @@ final class MockGraphTraverser: GraphTraversing {
         return stubbedHasPackages
     }
 
+    var invokedHasRemotePackagesGetter = false
+    var invokedHasRemotePackagesGetterCount = 0
+    var stubbedHasRemotePackages: Bool! = false
+
+    var hasRemotePackages: Bool {
+        invokedHasRemotePackagesGetter = true
+        invokedHasRemotePackagesGetterCount += 1
+        return stubbedHasRemotePackages
+    }
+
     var invokedPathGetter = false
     var invokedPathGetterCount = 0
     var stubbedPath: AbsolutePath!
@@ -92,6 +102,26 @@ final class MockGraphTraverser: GraphTraversing {
         invokedRootTargets = true
         invokedRootTargetsCount += 1
         return stubbedRootTargetsResult
+    }
+
+    var invokedAllTargets = false
+    var invokedAllTargetsCount = 0
+    var stubbedAllTargetsResult: Set<ValueGraphTarget>! = []
+
+    func allTargets() -> Set<ValueGraphTarget> {
+        invokedAllTargets = true
+        invokedAllTargetsCount += 1
+        return stubbedAllTargetsResult
+    }
+
+    var invokedCocoapodsPaths = false
+    var invokedCocoapodsPathsCount = 0
+    var stubbedCocoapodsPathsResult: Set<AbsolutePath>! = []
+
+    func cocoapodsPaths() -> Set<AbsolutePath> {
+        invokedCocoapodsPaths = true
+        invokedCocoapodsPathsCount += 1
+        return stubbedCocoapodsPathsResult
     }
 
     var invokedRootProjects = false

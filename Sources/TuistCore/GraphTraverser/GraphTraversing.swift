@@ -9,6 +9,9 @@ public protocol GraphTraversing {
     /// Returns true if the project has package dependencies.
     var hasPackages: Bool { get }
 
+    /// Returns true if the graph has remote packages.
+    var hasRemotePackages: Bool { get }
+
     /// The path to the directory from where the graph has been loaded.
     var path: AbsolutePath { get }
 
@@ -32,6 +35,12 @@ public protocol GraphTraversing {
     
     /// Returns all the targets that are part of the graph.
     func allTargets() -> Set<ValueGraphTarget>
+
+    /// Returns all the targets of the project.
+    func allTargets() -> Set<ValueGraphTarget>
+
+    /// Returns the paths to directories containing a Podfile
+    func cocoapodsPaths() -> Set<AbsolutePath>
 
     /// Returns the project from which the graph has been loaded.
     func rootProjects() -> Set<Project>

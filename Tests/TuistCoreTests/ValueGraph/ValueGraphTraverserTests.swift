@@ -2032,6 +2032,52 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         XCTAssertTrue(got.contains(ValueGraphTarget(path: project.path, target: tvosApp, project: project)))
     }
 
+    func test_allTargets_returns_all_the_targets() {
+        // Given
+        let firstPath = AbsolutePath("/first")
+        let firstProject = Project.test(path: firstPath)
+        let secondPath = AbsolutePath("/second")
+        let secondProject = Project.test(path: secondPath)
+        let firstTarget = Target.test(name: "first")
+        let secondTarget = Target.test(name: "second")
+        let graph = ValueGraph.test(projects: [firstPath: firstProject,
+                                               secondPath: secondProject],
+                                    targets: [firstPath: [firstTarget.name: firstTarget],
+                                              secondPath: [secondTarget.name: secondTarget]])
+        let graphTraverser = ValueGraphTraverser(graph: graph)
+
+        // When
+        let got = graphTraverser.allTargets().sorted()
+
+        // Then
+        XCTAssertEqual(got.count, 2)
+        XCTAssertEqual(got.first?.project, firstProject)
+        XCTAssertEqual(got.first?.target, firstTarget)
+        XCTAssertEqual(got.last?.project, secondProject)
+        XCTAssertEqual(got.last?.target, secondTarget)
+    }
+
+    func test_hasRemotePackages_when_has_remotePackages() {
+        // Given
+        let path = AbsolutePath("/project")
+        let package = Package.remote(url: "https://git.tuist.io", requirement: .branch("main"))
+        let graph = ValueGraph.test(packages: [path: ["Test": package]],
+                                    dependencies: [.packageProduct(path: path, product: "Test"): Set()])
+        let graphTraverser = ValueGraphTraverser(graph: graph)
+
+        // Then
+        XCTAssertTrue(graphTraverser.hasRemotePackages)
+    }
+
+    func test_hasRemotePackages_when_doesnt_have_remove_packages() {
+        // Given
+        let graph = ValueGraph.test()
+        let graphTraverser = ValueGraphTraverser(graph: graph)
+
+        // Then
+        XCTAssertFalse(graphTraverser.hasRemotePackages)
+    }
+
     // MARK: - Helpers
 
     private func sdkDependency(from dependency: GraphDependencyReference) -> SDKPathAndStatus? {

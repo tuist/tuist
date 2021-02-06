@@ -2,6 +2,7 @@ import Foundation
 import RxBlocking
 import TSCBasic
 import TuistCore
+import TuistGraph
 import TuistSupport
 
 /// Swift Package Manager Interactor
@@ -21,9 +22,9 @@ public protocol SwiftPackageManagerInteracting {
     ///         and workspaces to disk.
     ///
     /// - Parameters:
-    ///   - graph: The graph of projects
-    ///   - workspaceName: The name of the generated workspace (e.g. `MyWorkspace.xcworkspace`)
-    func install(graph: Graph, workspaceName: String) throws
+    ///   - graph: The graph traverser.
+    ///   - workspaceName: The name GraphTraversing the generated workspace (e.g. `MyWorkspace.xcworkspace`)
+    func install(graphTraverser: GraphTraversing, workspaceName: String) throws
 }
 
 public class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting {
@@ -32,19 +33,18 @@ public class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting {
         self.fileHandler = fileHandler
     }
 
-    public func install(graph: Graph, workspaceName: String) throws {
-        try generatePackageDependencyManager(at: graph.entryPath,
+    public func install(graphTraverser: GraphTraversing, workspaceName: String) throws {
+        try generatePackageDependencyManager(at: graphTraverser.path,
                                              workspaceName: workspaceName,
-                                             graph: graph)
+                                             graphTraverser: graphTraverser)
     }
 
     private func generatePackageDependencyManager(
         at path: AbsolutePath,
         workspaceName: String,
-        graph: Graph
+        graphTraverser: GraphTraversing
     ) throws {
-        let packages = graph.packages.compactMap { $0 }
-        guard !packages.remotePackages.isEmpty else {
+        guard graphTraverser.hasRemotePackages else {
             return
         }
 
@@ -81,18 +81,5 @@ public class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting {
         }
 
         try fileHandler.linkFile(atPath: workspacePackageResolvedPath, toPath: rootPackageResolvedPath)
-    }
-}
-
-private extension Array where Element == PackageNode {
-    var remotePackages: [PackageNode] {
-        compactMap { node in
-            switch node.package {
-            case .remote:
-                return node
-            default:
-                return nil
-            }
-        }
     }
 }

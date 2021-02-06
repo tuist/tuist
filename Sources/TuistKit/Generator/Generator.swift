@@ -152,7 +152,7 @@ class Generator: Generating {
         try sideEffectDescriptorExecutor.execute(sideEffects: sideEffects)
 
         // Post Generate Actions
-        try postGenerationActions(for: graph, workspaceName: projectDescriptor.xcodeprojPath.basename)
+        try postGenerationActions(graphTraverser: graphTraverser, workspaceName: projectDescriptor.xcodeprojPath.basename)
 
         return (projectDescriptor.xcodeprojPath, graph)
     }
@@ -176,7 +176,7 @@ class Generator: Generating {
         try sideEffectDescriptorExecutor.execute(sideEffects: sideEffects)
 
         // Post Generate Actions
-        try postGenerationActions(for: graph, workspaceName: workspaceDescriptor.xcworkspacePath.basename)
+        try postGenerationActions(graphTraverser: graphTraverser, workspaceName: workspaceDescriptor.xcworkspacePath.basename)
 
         return (workspaceDescriptor.xcworkspacePath, graph)
     }
@@ -200,7 +200,7 @@ class Generator: Generating {
         try sideEffectDescriptorExecutor.execute(sideEffects: sideEffects)
 
         // Post Generate Actions
-        try postGenerationActions(for: graph, workspaceName: workspaceDescriptor.xcworkspacePath.basename)
+        try postGenerationActions(graphTraverser: graphTraverser, workspaceName: workspaceDescriptor.xcworkspacePath.basename)
 
         return (workspaceDescriptor.xcworkspacePath, graph)
     }
@@ -212,10 +212,10 @@ class Generator: Generating {
         try graphLinter.lint(graphTraverser: graphTraverser).printAndThrowIfNeeded()
     }
 
-    private func postGenerationActions(for graph: Graph, workspaceName: String) throws {
-        try signingInteractor.install(graph: graph)
-        try swiftPackageManagerInteractor.install(graph: graph, workspaceName: workspaceName)
-        try cocoapodsInteractor.install(graph: graph)
+    private func postGenerationActions(graphTraverser: GraphTraversing, workspaceName: String) throws {
+        try signingInteractor.install(graphTraverser: graphTraverser)
+        try swiftPackageManagerInteractor.install(graphTraverser: graphTraverser, workspaceName: workspaceName)
+        try cocoapodsInteractor.install(graphTraverser: graphTraverser)
     }
 
     // swiftlint:disable:next large_tuple
