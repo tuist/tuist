@@ -34,8 +34,8 @@ public final class TestsCacheGraphMapper: GraphMapping {
         
         var visitedNodes: [TargetNode: Bool] = [:]
         var workspace = graph.workspace
-        workspace.schemes = try workspace.schemes
-            .compactMap { scheme in
+        let mappedSchemes = try workspace.schemes
+            .map { scheme -> (Scheme?, [TargetNode]) in
                 try map(
                     scheme: scheme,
                     graph: graph,
@@ -43,6 +43,12 @@ public final class TestsCacheGraphMapper: GraphMapping {
                     visited: &visitedNodes
                 )
             }
+        let schemes = mappedSchemes.compactMap(\.0)
+        let cachedTestableTargets = mappedSchemes.flatMap(\.1)
+        Set(cachedTestableTargets).forEach {
+            logger.notice("\($0.target.name) has not changed from last successful run, skipping...")
+        }
+        workspace.schemes = schemes
         return (
             graph.with(
                 workspace: workspace
@@ -72,29 +78,25 @@ public final class TestsCacheGraphMapper: GraphMapping {
             } ?? []
     }
     
+    /// - Returns: Mapped scheme and cached testable targets
     private func map(
         scheme: Scheme,
         graph: Graph,
         hashes: [TargetNode: String],
         visited: inout [TargetNode: Bool]
-    ) throws -> Scheme? {
+    ) throws -> (Scheme?, [TargetNode]) {
         var scheme = scheme
-        guard let testAction = scheme.testAction else { return scheme }
+        guard let testAction = scheme.testAction else { return (scheme, []) }
         let cachedTestableTargets = testableTargets(
             scheme: scheme,
             graph: graph
         )
         .filter { testableTarget in
-            if isCached(
+            isCached(
                 testableTarget,
                 hashes: hashes,
                 visited: &visited
-            ) {
-                logger.notice("\(testableTarget.target.name) has not changed from last successful run, skipping...")
-                return true
-            } else {
-                return false
-            }
+            )
         }
         
         scheme.testAction?.targets = testAction.targets.filter { testTarget in
@@ -102,9 +104,9 @@ public final class TestsCacheGraphMapper: GraphMapping {
         }
         
         if scheme.testAction?.targets.isEmpty ?? true {
-            return nil
+            return (nil, cachedTestableTargets)
         } else {
-            return scheme
+            return (scheme, cachedTestableTargets)
         }
     }
 
