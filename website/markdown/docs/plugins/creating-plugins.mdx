@@ -19,8 +19,7 @@ let plugin = Plugin(name: "MyPlugin")
 
 ## Project description helpers
 
-Project description helpers can be used to extend Tuists functionality and Tuist automatically grabs the sources for
-these, compiles it, and allows it to be imported during project generation.
+Project description helpers can be used to extend Tuist's functionality: Tuist automatically compiles the sources and allows it to be imported during project generation.
 
 In order for Tuist to find the source files for these helpers they must be placed in the same direcotry as the `Plugin.swift` manifest and in a
 directory called `ProjectDescriptionHelpers`
@@ -45,7 +44,7 @@ import MyPlugin
 
 ## Example
 
-Let's walkthrough creating a custom plugin for Tuist! Our plugin will be named `MyTuistPlugin` and we want to add a new method to `Project` that will
+Let's walk through creating a custom plugin for Tuist! Our plugin will be named `MyTuistPlugin` and we want to add a new method to `Project` that will
 allow other developers to easily create a project for an iOS app.
 
 ### Create the directory
