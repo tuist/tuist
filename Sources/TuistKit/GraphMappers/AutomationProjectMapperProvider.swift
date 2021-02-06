@@ -28,7 +28,7 @@ final class AutomationProjectMapperProvider: ProjectMapperProviding {
                 )
             )
         }
-        
+
         mappers.append(
             SourceRootPathProjectMapper()
         )

@@ -130,7 +130,7 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
             XCTFail("The command was not expected to fail")
         }
     }
-    
+
     func test_test_with_derived_data() throws {
         // Given
         let path = try temporaryPath()

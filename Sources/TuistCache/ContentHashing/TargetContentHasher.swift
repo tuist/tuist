@@ -1,8 +1,8 @@
 import Foundation
 import TSCBasic
 import TuistCore
-import TuistSupport
 import TuistGraph
+import TuistSupport
 
 public protocol TargetContentHashing {
     func contentHash(for target: TargetNode, cacheOutputType: CacheOutputType) throws -> String

@@ -2,8 +2,8 @@ import Foundation
 import TSCBasic
 import TuistCore
 import TuistCoreTesting
-import XCTest
 import TuistGraph
+import XCTest
 
 @testable import TuistCache
 @testable import TuistSupportTesting
@@ -119,7 +119,7 @@ final class TestsGraphContentHasherTests: TuistUnitTestCase {
                     unitTestsA,
                     unitTestsB,
                     uiTests,
-                ]
+                ],
             ]
         )
         let expectedCachableTargets = [

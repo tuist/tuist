@@ -253,7 +253,7 @@ public class FileHandler: FileHandling {
     public func contentsOfDirectory(_ path: AbsolutePath) throws -> [AbsolutePath] {
         try fileManager.contentsOfDirectory(atPath: path.pathString).map { AbsolutePath(path, $0) }
     }
-    
+
     public func resolveSymlinks(_ path: AbsolutePath) -> AbsolutePath {
         TSCBasic.resolveSymlinks(path)
     }

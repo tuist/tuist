@@ -94,7 +94,7 @@ public class BuildGraphInspector: BuildGraphInspecting {
 
         return graph.target(path: buildTarget.projectPath, name: buildTarget.name).map { ($0.project, $0.target) }
     }
-    
+
     public func testableTarget(scheme: Scheme, graph: Graph) -> TargetNode? {
         guard let testTarget = scheme.testAction?.targets.first else { return nil }
         return graph.target(path: testTarget.target.projectPath, name: testTarget.target.name)

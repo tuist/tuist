@@ -43,7 +43,7 @@ struct TestCommand: ParsableCommand {
         help: "The configuration to be used when testing the scheme."
     )
     var configuration: String?
-    
+
     @Option(
         name: .shortAndLong,
         help: "Path where the automation project will be generated."

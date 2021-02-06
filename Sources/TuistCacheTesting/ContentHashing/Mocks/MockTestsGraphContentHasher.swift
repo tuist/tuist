@@ -8,7 +8,7 @@ public final class MockTestsGraphContentHasher: TestsGraphContentHashing {
     public var contentHashesStub: ((Graph) throws -> [TargetNode: String])?
     public func contentHashes(
         graph: Graph
-    ) throws -> [TargetNode : String] {
+    ) throws -> [TargetNode: String] {
         try contentHashesStub?(graph) ?? [:]
     }
 }

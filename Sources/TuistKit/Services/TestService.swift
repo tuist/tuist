@@ -13,7 +13,7 @@ import TuistSupport
 enum TestServiceError: FatalError {
     case schemeNotFound(scheme: String, existing: [String])
     case schemeWithoutTestableTargets(scheme: String)
-    
+
     // Error description
     var description: String {
         switch self {
@@ -23,7 +23,7 @@ enum TestServiceError: FatalError {
             return "The scheme \(scheme) cannot be built because it contains no buildable targets."
         }
     }
-    
+
     // Error type
     var type: ErrorType {
         switch self {
@@ -41,10 +41,10 @@ final class TestService {
     private let xcodebuildController: XcodeBuildControlling
     private let buildGraphInspector: BuildGraphInspecting
     private let simulatorController: SimulatorControlling
-    
+
     private let temporaryDirectory: TemporaryDirectory
     private let testsCacheTemporaryDirectory: TemporaryDirectory
-    
+
     convenience init() throws {
         let temporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
         let testsCacheTemporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
@@ -65,7 +65,7 @@ final class TestService {
             }
         )
     }
-    
+
     init(
         temporaryDirectory: TemporaryDirectory,
         testsCacheTemporaryDirectory: TemporaryDirectory,
@@ -81,7 +81,7 @@ final class TestService {
         self.buildGraphInspector = buildGraphInspector
         self.simulatorController = simulatorController
     }
-    
+
     func run(
         schemeName: String?,
         clean: Bool,
@@ -101,13 +101,13 @@ final class TestService {
             projectOnly: false
         ).1
         let version = osVersion?.version()
-        
+
         let testableSchemes = buildGraphInspector.testableSchemes(graph: graph)
         logger.log(
             level: .debug,
             "Found the following testable schemes: \(testableSchemes.map(\.name).joined(separator: ", "))"
         )
-        
+
         if let schemeName = schemeName {
             guard
                 let scheme = testableSchemes.first(where: { $0.name == schemeName })
@@ -118,7 +118,7 @@ final class TestService {
                 )
             }
             let testSchemes: [Scheme] = [scheme]
-            
+
             try testSchemes.forEach { testScheme in
                 try self.testScheme(
                     scheme: testScheme,
@@ -132,15 +132,15 @@ final class TestService {
             }
         } else {
             let testSchemes: [Scheme] = buildGraphInspector.projectSchemes(graph: graph)
-            
+
             if testSchemes.isEmpty {
                 logger.log(level: .info, "There are no tests to run, finishing early")
                 return
             }
-            
-            try testSchemes.forEach { testScheme in
-                try self.testScheme(
-                    scheme: testScheme,
+
+            try testSchemes.forEach {
+                try testScheme(
+                    scheme: $0,
                     graph: graph,
                     path: path,
                     clean: clean,
@@ -149,13 +149,14 @@ final class TestService {
                     deviceName: deviceName
                 )
             }
-            
+
             if !FileHandler.shared.exists(
                 Environment.shared.testsCacheDirectory
             ) {
                 try FileHandler.shared.createFolder(Environment.shared.testsCacheDirectory)
             }
-            
+
+            // Saving hashes to `testsCacheTemporaryDirectory` after all the tests have run successfully
             try FileHandler.shared
                 .contentsOfDirectory(testsCacheTemporaryDirectory.path)
                 .forEach { hashPath in
@@ -168,12 +169,11 @@ final class TestService {
                 }
         }
 
-        
         logger.log(level: .notice, "The project tests ran successfully", metadata: .success)
     }
-    
+
     // MARK: - Helpers
-    
+
     private func testScheme(
         scheme: Scheme,
         graph: Graph,
@@ -187,7 +187,7 @@ final class TestService {
         guard let buildableTarget = buildGraphInspector.testableTarget(scheme: scheme, graph: graph) else {
             throw TestServiceError.schemeWithoutTestableTargets(scheme: scheme.name)
         }
-        
+
         let destination = try findDestination(
             target: buildableTarget.target,
             scheme: scheme,
@@ -195,7 +195,7 @@ final class TestService {
             version: version,
             deviceName: deviceName
         )
-        
+
         _ = try xcodebuildController.test(
             .workspace(graph.workspace.xcWorkspacePath),
             scheme: scheme.name,
@@ -213,7 +213,7 @@ final class TestService {
         .toBlocking()
         .last()
     }
-    
+
     private func findDestination(
         target: Target,
         scheme: Scheme,

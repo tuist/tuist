@@ -1,8 +1,8 @@
 import Foundation
 import TSCBasic
 import TuistCore
-import TuistSupport
 import TuistGraph
+import TuistSupport
 
 protocol TestsGraphContentHashing {
     func contentHashes(graph: Graph) throws -> [TargetNode: String]
@@ -10,7 +10,7 @@ protocol TestsGraphContentHashing {
 
 /// `TestsGraphContentHasher`
 /// is responsible for computing an hash that uniquely identifies a Tuist `Graph`.
-/// It considers only targets that are considered cacheable: frameworks without dependencies on XCTest or on non-cacheable targets
+/// It hashes only unit tests and its dependencies
 final class TestsGraphContentHasher: TestsGraphContentHashing {
     private let targetContentHasher: TargetContentHashing
 

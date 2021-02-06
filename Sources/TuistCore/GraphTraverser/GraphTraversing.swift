@@ -32,9 +32,6 @@ public protocol GraphTraversing {
 
     /// Returns the targets from the project that lives in the directory from which the graph has been loaded.
     func rootTargets() -> Set<ValueGraphTarget>
-    
-    /// Returns all the targets that are part of the graph.
-    func allTargets() -> Set<ValueGraphTarget>
 
     /// Returns all the targets of the project.
     func allTargets() -> Set<ValueGraphTarget>

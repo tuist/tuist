@@ -4,10 +4,12 @@ import TuistCore
 import TuistGraph
 import TuistSupport
 
+/// Tree-shakes testable targets which hashes have not changed from those in the tests cache directory
+/// Creates tests hash files into a `testsCacheDirectory`
 public final class TestsCacheGraphMapper: GraphMapping {
     private let testsCacheDirectory: AbsolutePath
     private let testsGraphContentHasher: TestsGraphContentHashing
-    
+
     /// - Parameters:
     ///     - testsCacheDirectory: Location where to save current hashes.
     /// This should be a temporary location if you don't want to save the hashes permanently.
@@ -20,7 +22,7 @@ public final class TestsCacheGraphMapper: GraphMapping {
             testsGraphContentHasher: TestsGraphContentHasher()
         )
     }
-    
+
     init(
         testsCacheDirectory: AbsolutePath,
         testsGraphContentHasher: TestsGraphContentHashing
@@ -28,10 +30,10 @@ public final class TestsCacheGraphMapper: GraphMapping {
         self.testsCacheDirectory = testsCacheDirectory
         self.testsGraphContentHasher = testsGraphContentHasher
     }
-    
+
     public func map(graph: Graph) throws -> (Graph, [SideEffectDescriptor]) {
         let hashes = try testsGraphContentHasher.contentHashes(graph: graph)
-        
+
         var visitedNodes: [TargetNode: Bool] = [:]
         var workspace = graph.workspace
         let mappedSchemes = try workspace.schemes
@@ -62,7 +64,7 @@ public final class TestsCacheGraphMapper: GraphMapping {
             }
         )
     }
-    
+
     // MARK: - Helpers
 
     private func testableTargets(scheme: Scheme, graph: Graph) -> [TargetNode] {
@@ -77,7 +79,7 @@ public final class TestsCacheGraphMapper: GraphMapping {
                 }
             } ?? []
     }
-    
+
     /// - Returns: Mapped scheme and cached testable targets
     private func map(
         scheme: Scheme,
@@ -98,19 +100,17 @@ public final class TestsCacheGraphMapper: GraphMapping {
                 visited: &visited
             )
         }
-        
+
         scheme.testAction?.targets = testAction.targets.filter { testTarget in
             !cachedTestableTargets.contains(where: { $0.target.name == testTarget.target.name })
         }
-        
+
         if scheme.testAction?.targets.isEmpty ?? true {
             return (nil, cachedTestableTargets)
         } else {
             return (scheme, cachedTestableTargets)
         }
     }
-
-    // MARK: - Helpers
 
     private func isCached(
         _ target: TargetNode,

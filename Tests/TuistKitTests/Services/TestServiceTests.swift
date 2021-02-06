@@ -151,7 +151,7 @@ final class TestServiceTests: TuistUnitTestCase {
             fileHandler.exists(environment.testsCacheDirectory.appending(component: "B"))
         )
     }
-    
+
     func test_run_tests_all_project_schemes_when_fails() throws {
         // Given
         buildGraphInspector.projectSchemesStub = { _ in
@@ -188,7 +188,7 @@ final class TestServiceTests: TuistUnitTestCase {
             fileHandler.exists(environment.testsCacheDirectory.appending(component: "A"))
         )
     }
-    
+
     func test_run_tests_when_no_project_schemes_present() throws {
         // Given
         buildGraphInspector.projectSchemesStub = { _ in

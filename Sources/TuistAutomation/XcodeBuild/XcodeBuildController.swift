@@ -88,7 +88,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
         case .mac:
             break
         }
-        
+
         // Derived data path
         if let derivedDataPath = derivedDataPath {
             command.append(contentsOf: ["-derivedDataPath", derivedDataPath.pathString])

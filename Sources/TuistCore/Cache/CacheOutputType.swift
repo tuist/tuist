@@ -7,7 +7,7 @@ public enum CacheOutputType: CustomStringConvertible {
 
     /// XCFrameworks built for the simulator and device.
     case xcframework
-    
+
     /// No output will be produced
     /// This is used eg. for testing where all we care about is whether a hash is present
     case none

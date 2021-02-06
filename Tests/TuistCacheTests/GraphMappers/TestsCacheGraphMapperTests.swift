@@ -31,7 +31,7 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
         subject = nil
         super.tearDown()
     }
-    
+
     // SchemeA: UnitTestsA -> FrameworkA (both cached)
     // SchemeB: UnitTestsA -> FrameworkA, UnitTestsB (UnitTestsB cached)
     func test_map_all_cached() throws {
@@ -47,11 +47,11 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
             target: Target.test(
                 name: "UnitTestsA",
                 dependencies: [
-                    .target(name: "FrameworkA")
+                    .target(name: "FrameworkA"),
                 ]
             ),
             dependencies: [
-                frameworkA
+                frameworkA,
             ]
         )
         let unitTestsB = TargetNode.test(
@@ -60,10 +60,10 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
                 name: "UnitTestsB"
             ),
             dependencies: [
-                frameworkA
+                frameworkA,
             ]
         )
-        
+
         let workspace = Workspace.test(
             schemes: [
                 Scheme.test(
@@ -100,7 +100,7 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
                 ),
             ]
         )
-        
+
         let graph = Graph.test(
             workspace: workspace,
             projects: [project],
@@ -109,23 +109,23 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
                     frameworkA,
                     unitTestsA,
                     unitTestsB,
-                ]
+                ],
             ]
         )
-        
+
         testsGraphContentHasher.contentHashesStub = {
             $0.targets.flatMap(\.value).reduce(into: [:]) { acc, target in
                 acc[target] = target.target.name
             }
         }
-        
+
         try fileHandler.touch(
             environment.testsCacheDirectory.appending(component: "FrameworkA")
         )
         try fileHandler.touch(
             environment.testsCacheDirectory.appending(component: "UnitTestsA")
         )
-        
+
         let expectedGraph = Graph.test(
             workspace: Workspace.test(
                 schemes: [
@@ -150,13 +150,13 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
                     frameworkA,
                     unitTestsA,
                     unitTestsB,
-                ]
+                ],
             ]
         )
-        
+
         // When
         let (gotGraph, gotSideEffects) = try subject.map(graph: graph)
-        
+
         // Then
         XCTAssertEqual(
             gotGraph,
@@ -183,14 +183,14 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
                 ),
             ]
         )
-        
+
         let output = TestingLogHandler.collected[.notice, ==]
         XCTAssertEqual(
             output.components(separatedBy: "UnitTestsA has not changed from last successful run, skipping...").count - 1,
             1
         )
     }
-    
+
     // SchemeA: UnitTestsA -> FrameworkA (only UnitTestsA cached)
     func test_map_only_tests_cached() throws {
         let project = Project.test()
@@ -205,14 +205,14 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
             target: Target.test(
                 name: "UnitTestsA",
                 dependencies: [
-                    .target(name: "FrameworkA")
+                    .target(name: "FrameworkA"),
                 ]
             ),
             dependencies: [
-                frameworkA
+                frameworkA,
             ]
         )
-        
+
         let schemeA = Scheme.test(
             name: "SchemeA",
             testAction: TestAction.test(
@@ -226,13 +226,13 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
                 ]
             )
         )
-        
+
         let workspace = Workspace.test(
             schemes: [
                 schemeA,
             ]
         )
-        
+
         let graph = Graph.test(
             workspace: workspace,
             projects: [project],
@@ -240,10 +240,10 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
                 project.path: [
                     frameworkA,
                     unitTestsA,
-                ]
+                ],
             ]
         )
-        
+
         testsGraphContentHasher.contentHashesStub = {
             $0.targets.flatMap(\.value).reduce(into: [:]) { acc, target in
                 acc[target] = target.target.name
@@ -253,7 +253,7 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
         try fileHandler.touch(
             environment.testsCacheDirectory.appending(component: "UnitTestsA")
         )
-        
+
         let expectedGraph = Graph.test(
             workspace: Workspace.test(
                 schemes: [
@@ -265,13 +265,13 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
                 project.path: [
                     frameworkA,
                     unitTestsA,
-                ]
+                ],
             ]
         )
-        
+
         // When
         let (gotGraph, gotSideEffects) = try subject.map(graph: graph)
-        
+
         // Then
         XCTAssertEqual(
             gotGraph,
