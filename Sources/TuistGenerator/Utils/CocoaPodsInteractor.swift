@@ -64,7 +64,7 @@ public final class CocoaPodsInteractor: CocoaPodsInteracting {
         let canUseBundler = canUseCocoaPodsThroughBundler()
         let canUseSystem = canUseSystemPod()
 
-        try graphTraverser.cocoapodsPaths().forEach { path in
+        try graphTraverser.cocoapodsPaths().sorted().forEach { path in
             var command: [String]
 
             if canUseBundler {

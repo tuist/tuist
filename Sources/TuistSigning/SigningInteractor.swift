@@ -68,7 +68,7 @@ public final class SigningInteractor: SigningInteracting {
 
         let (certificates, provisioningProfiles) = try signingMatcher.match(from: graphTraverser.path)
 
-        try graphTraverser.allTargets().forEach { target in
+        try graphTraverser.allTargets().sorted().forEach { target in
             try install(target: target,
                         keychainPath: keychainPath,
                         certificates: certificates,
