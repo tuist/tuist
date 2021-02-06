@@ -689,14 +689,14 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let preBuildPhase = try XCTUnwrap(pbxTarget.buildPhases.first as? PBXShellScriptBuildPhase)
         XCTAssertEqual(preBuildPhase.name, "pre")
         XCTAssertEqual(preBuildPhase.shellPath, "/bin/sh")
-        XCTAssertEqual(preBuildPhase.shellScript, "\"${SRCROOT}\"/script.sh arg")
+        XCTAssertEqual(preBuildPhase.shellScript, "\"$SRCROOT\"/script.sh arg")
         XCTAssertTrue(preBuildPhase.showEnvVarsInLog)
         XCTAssertFalse(preBuildPhase.alwaysOutOfDate)
 
         let postBuildPhase = try XCTUnwrap(pbxTarget.buildPhases.last as? PBXShellScriptBuildPhase)
         XCTAssertEqual(postBuildPhase.name, "post")
         XCTAssertEqual(postBuildPhase.shellPath, "/bin/sh")
-        XCTAssertEqual(postBuildPhase.shellScript, "\"${SRCROOT}\"/script.sh arg")
+        XCTAssertEqual(postBuildPhase.shellScript, "\"$SRCROOT\"/script.sh arg")
         XCTAssertFalse(postBuildPhase.showEnvVarsInLog)
         XCTAssertTrue(postBuildPhase.alwaysOutOfDate)
     }
