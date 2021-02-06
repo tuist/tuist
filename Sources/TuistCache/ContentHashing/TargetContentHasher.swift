@@ -6,7 +6,6 @@ import TuistGraph
 
 public protocol TargetContentHashing {
     func contentHash(for target: TargetNode, cacheOutputType: CacheOutputType) throws -> String
-    func contentHash(for target: ValueGraphTarget, cacheOutputType: CacheOutputType) throws -> String
 }
 
 /// `TargetContentHasher`
@@ -69,33 +68,12 @@ public final class TargetContentHasher: TargetContentHashing {
     }
 
     // MARK: - TargetContentHashing
-    
-    public func contentHash(
-        for target: ValueGraphTarget,
-        cacheOutputType: CacheOutputType
-    ) throws -> String {
-        try contentHash(
-            for: target.target,
-            cacheOutputType: cacheOutputType
-        )
-    }
 
     public func contentHash(
         for targetNode: TargetNode,
         cacheOutputType: CacheOutputType
     ) throws -> String {
-        try contentHash(
-            for: targetNode.target,
-            cacheOutputType: cacheOutputType
-        )
-    }
-    
-    // MARK: - Helpers
-    
-    private func contentHash(
-        for target: Target,
-        cacheOutputType: CacheOutputType
-    ) throws -> String {
+        let target = targetNode.target
         let sourcesHash = try sourceFilesContentHasher.hash(sources: target.sources)
         let resourcesHash = try resourcesContentHasher.hash(resources: target.resources)
         let copyFilesHash = try copyFilesContentHasher.hash(copyFiles: target.copyFiles)

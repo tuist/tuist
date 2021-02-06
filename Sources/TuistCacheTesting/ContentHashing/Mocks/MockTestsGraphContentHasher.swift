@@ -5,10 +5,10 @@ import TuistGraph
 public final class MockTestsGraphContentHasher: TestsGraphContentHashing {
     public init() {}
 
-    public var contentHashesStub: ((GraphTraversing) throws -> [ValueGraphTarget: String])?
+    public var contentHashesStub: ((Graph) throws -> [TargetNode: String])?
     public func contentHashes(
-        graphTraverser: GraphTraversing
-    ) throws -> [ValueGraphTarget : String] {
-        try contentHashesStub?(graphTraverser) ?? [:]
+        graph: Graph
+    ) throws -> [TargetNode : String] {
+        try contentHashesStub?(graph) ?? [:]
     }
 }

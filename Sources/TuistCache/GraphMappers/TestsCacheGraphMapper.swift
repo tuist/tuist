@@ -29,25 +29,24 @@ public final class TestsCacheGraphMapper: GraphMapping {
         self.testsGraphContentHasher = testsGraphContentHasher
     }
     
-    public func map(graph: Graph) throws -> (ValueGraph, [SideEffectDescriptor]) {
-        var graph = ValueGraph(graph: graph)
-        let graphTraverser = ValueGraphTraverser(graph: graph)
-        let hashes = try testsGraphContentHasher.contentHashes(graphTraverser: graphTraverser)
+    public func map(graph: Graph) throws -> (Graph, [SideEffectDescriptor]) {
+        let hashes = try testsGraphContentHasher.contentHashes(graph: graph)
         
-        var visitedNodes: [ValueGraphTarget: Bool] = [:]
+        var visitedNodes: [TargetNode: Bool] = [:]
         var workspace = graph.workspace
         workspace.schemes = try workspace.schemes
             .compactMap { scheme in
                 try map(
                     scheme: scheme,
-                    graphTraverser: graphTraverser,
+                    graph: graph,
                     hashes: hashes,
                     visited: &visitedNodes
                 )
             }
-        graph.workspace = workspace
         return (
-            graph,
+            graph.with(
+                workspace: workspace
+            ),
             hashes.values.map {
                 .file(
                     FileDescriptor(
@@ -60,12 +59,12 @@ public final class TestsCacheGraphMapper: GraphMapping {
     
     // MARK: - Helpers
 
-    private func testableTargets(scheme: Scheme, graphTraverser: GraphTraversing) -> [ValueGraphTarget] {
+    private func testableTargets(scheme: Scheme, graph: Graph) -> [TargetNode] {
         scheme.testAction
             .map(\.targets)
             .map { testTargets in
                 testTargets.compactMap { testTarget in
-                    graphTraverser.target(
+                    graph.target(
                         path: testTarget.target.projectPath,
                         name: testTarget.target.name
                     )
@@ -75,20 +74,19 @@ public final class TestsCacheGraphMapper: GraphMapping {
     
     private func map(
         scheme: Scheme,
-        graphTraverser: GraphTraversing,
-        hashes: [ValueGraphTarget: String],
-        visited: inout [ValueGraphTarget: Bool]
+        graph: Graph,
+        hashes: [TargetNode: String],
+        visited: inout [TargetNode: Bool]
     ) throws -> Scheme? {
         var scheme = scheme
         guard let testAction = scheme.testAction else { return scheme }
         let cachedTestableTargets = testableTargets(
             scheme: scheme,
-            graphTraverser: graphTraverser
+            graph: graph
         )
         .filter { testableTarget in
             if isCached(
                 testableTarget,
-                graphTraverser: graphTraverser,
                 hashes: hashes,
                 visited: &visited
             ) {
@@ -113,24 +111,19 @@ public final class TestsCacheGraphMapper: GraphMapping {
     // MARK: - Helpers
 
     private func isCached(
-        _ target: ValueGraphTarget,
-        graphTraverser: GraphTraversing,
-        hashes: [ValueGraphTarget: String],
-        visited: inout [ValueGraphTarget: Bool]
+        _ target: TargetNode,
+        hashes: [TargetNode: String],
+        visited: inout [TargetNode: Bool]
     ) -> Bool {
         if let visitedValue = visited[target] { return visitedValue }
-        let allTargetDependenciesAreHashed = graphTraverser.directTargetDependencies(
-            path: target.path,
-            name: target.target.name
-        )
-        .allSatisfy {
-            self.isCached(
-                $0,
-                graphTraverser: graphTraverser,
-                hashes: hashes,
-                visited: &visited
-            )
-        }
+        let allTargetDependenciesAreHashed = target.targetDependencies
+            .allSatisfy {
+                self.isCached(
+                    $0,
+                    hashes: hashes,
+                    visited: &visited
+                )
+            }
         guard let hash = hashes[target] else {
             visited[target] = false
             return false

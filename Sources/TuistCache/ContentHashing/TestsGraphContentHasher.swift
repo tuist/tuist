@@ -5,7 +5,7 @@ import TuistSupport
 import TuistGraph
 
 protocol TestsGraphContentHashing {
-    func contentHashes(graphTraverser: GraphTraversing) throws -> [ValueGraphTarget: String]
+    func contentHashes(graph: Graph) throws -> [TargetNode: String]
 }
 
 /// `TestsGraphContentHasher`
@@ -26,17 +26,17 @@ final class TestsGraphContentHasher: TestsGraphContentHashing {
 
     // MARK: - TestsGraphContentHashing
 
-    func contentHashes(graphTraverser: GraphTraversing) throws -> [ValueGraphTarget: String] {
-        var visitedTargets: [ValueGraphTarget: Bool] = [:]
-        let hashableTargets = graphTraverser.allTargets()
+    func contentHashes(graph: Graph) throws -> [TargetNode: String] {
+        var visitedTargets: [TargetNode: Bool] = [:]
+        let hashableTargets = graph.targets
+            .flatMap(\.value)
             // UI tests depend on the device they are run on
             // This can be done in the future if we hash the ID of the device
             // But currently, we consider for hashing only unit tests and its dependencies
             .filter { $0.target.product == .unitTests }
-            .flatMap { target -> [ValueGraphTarget] in
+            .flatMap { target -> [TargetNode] in
                 targetDependencies(
                     target,
-                    graphTraverser: graphTraverser,
                     visited: &visitedTargets
                 )
             }
@@ -52,20 +52,14 @@ final class TestsGraphContentHasher: TestsGraphContentHashing {
     // MARK: - Helpers
 
     private func targetDependencies(
-        _ target: ValueGraphTarget,
-        graphTraverser: GraphTraversing,
-        visited: inout [ValueGraphTarget: Bool]
-    ) -> [ValueGraphTarget] {
+        _ target: TargetNode,
+        visited: inout [TargetNode: Bool]
+    ) -> [TargetNode] {
         if visited[target] == true { return [] }
-        let targetDependencies = graphTraverser
-            .directTargetDependencies(
-                path: target.path,
-                name: target.target.name
-            )
+        let targetDependencies = target.targetDependencies
             .flatMap {
                 self.targetDependencies(
                     $0,
-                    graphTraverser: graphTraverser,
                     visited: &visited
                 )
             }

@@ -27,12 +27,11 @@ final class TestsGraphContentHasherTests: TuistUnitTestCase {
 
     func test_contentHashes_emptyGraph() throws {
         // Given
-        let graph = ValueGraph.test()
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let graph = Graph.test()
 
         // When
         let hashes = try subject.contentHashes(
-            graphTraverser: graphTraverser
+            graph: graph
         )
 
         // Then
@@ -42,121 +41,87 @@ final class TestsGraphContentHasherTests: TuistUnitTestCase {
     func test_contentHashes_returnsOnlyUnitTestsAndItsDependencies() throws {
         // Given
         let path: AbsolutePath = "/project"
-        let frameworkA = ValueGraphTarget.test(
-            path: path,
+        let project = Project.test(
+            path: path
+        )
+        let frameworkD = TargetNode.test(
+            project: project,
+            target: .test(
+                name: "FrameworkD",
+                product: .framework
+            )
+        )
+        let frameworkA = TargetNode.test(
+            project: project,
             target: .test(
                 name: "FrameworkA",
                 product: .framework
             ),
-            project: .test(path: path)
+            dependencies: [
+                frameworkD,
+            ]
         )
-        let frameworkB = ValueGraphTarget.test(
-            path: path,
+        let frameworkB = TargetNode.test(
+            project: project,
             target: .test(
                 name: "FrameworkB",
                 product: .framework
-            ),
-            project: .test(path: path)
+            )
         )
-        let frameworkC = ValueGraphTarget.test(
-            path: path,
+        let frameworkC = TargetNode.test(
+            project: project,
             target: .test(
                 name: "FrameworkC",
                 product: .framework
-            ),
-            project: .test(path: path)
+            )
         )
-        let frameworkD = ValueGraphTarget.test(
-            path: path,
-            target: .test(
-                name: "FrameworkD",
-                product: .framework
-            ),
-            project: .test(path: path)
-        )
-        let unitTestsA = ValueGraphTarget.test(
-            path: path,
+        let unitTestsA = TargetNode.test(
+            project: project,
             target: .test(
                 name: "UnitTestsA",
                 product: .unitTests
             ),
-            project: .test(path: path)
+            dependencies: [
+                frameworkA,
+            ]
         )
-        let unitTestsB = ValueGraphTarget.test(
-            path: path,
+        let unitTestsB = TargetNode.test(
+            project: project,
             target: .test(
                 name: "UnitTestsB",
                 product: .unitTests
             ),
-            project: .test(path: path)
+            dependencies: [
+                frameworkD,
+            ]
         )
-        let uiTests = ValueGraphTarget.test(
-            path: path,
+        let uiTests = TargetNode.test(
+            project: project,
             target: .test(
                 name: "UITests",
                 product: .uiTests
             ),
-            project: .test(path: path)
+            dependencies: [
+                frameworkB,
+            ]
         )
-        let project = Project.test(
-            path: path
-        )
-        let graph = ValueGraph.test(
-            path: path,
+
+        let graph = Graph.test(
             projects: [
-                path: project
+                project,
             ],
             targets: [
                 path: [
-                    frameworkA.target.name: frameworkA.target,
-                    frameworkB.target.name: frameworkB.target,
-                    frameworkC.target.name: frameworkC.target,
-                    frameworkD.target.name: frameworkD.target,
-                    unitTestsA.target.name: unitTestsA.target,
-                    unitTestsB.target.name: unitTestsB.target,
-                    uiTests.target.name: uiTests.target,
+                    frameworkA,
+                    frameworkB,
+                    frameworkC,
+                    frameworkD,
+                    unitTestsA,
+                    unitTestsB,
+                    uiTests,
                 ]
-            ],
-            dependencies: [
-                .target(
-                    name: unitTestsA.target.name,
-                    path: unitTestsA.path
-                ): Set([
-                    .target(
-                        name: frameworkA.target.name,
-                        path: frameworkA.path
-                    )
-                ]),
-                .target(
-                    name: unitTestsB.target.name,
-                    path: unitTestsB.path
-                ): Set([
-                    .target(
-                        name: frameworkD.target.name,
-                        path: frameworkD.path
-                    )
-                ]),
-                .target(
-                    name: frameworkA.target.name,
-                    path: frameworkA.path
-                ): Set([
-                    .target(
-                        name: frameworkD.target.name,
-                        path: frameworkD.path
-                    )
-                ]),
-                .target(
-                    name: uiTests.target.name,
-                    path: uiTests.path
-                ): Set([
-                    .target(
-                        name: frameworkB.target.name,
-                        path: frameworkB.path
-                    )
-                ]),
             ]
         )
-        let graphTraverser = ValueGraphTraverser(graph: graph)
         let expectedCachableTargets = [
             frameworkA,
             frameworkD,
@@ -166,8 +131,8 @@ final class TestsGraphContentHasherTests: TuistUnitTestCase {
         .sorted(by: { $0.target.name < $1.target.name })
 
         // When
-        let hashes = try subject.contentHashes(graphTraverser: graphTraverser)
-        let hashedTargets: [ValueGraphTarget] = hashes.keys
+        let hashes = try subject.contentHashes(graph: graph)
+        let hashedTargets: [TargetNode] = hashes.keys
             .sorted { left, right -> Bool in
                 left.project.path.pathString < right.project.path.pathString
             }
