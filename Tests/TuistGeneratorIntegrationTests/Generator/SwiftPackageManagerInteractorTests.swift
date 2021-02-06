@@ -36,16 +36,17 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
                                    settings: .default,
                                    targets: [target],
                                    packages: [package])
-        let packageNode = PackageNode(package: package, path: project.path)
-        let graph = Graph.create(project: project,
-                                 dependencies: [(target, [])],
-                                 packages: [packageNode])
+        let graph = ValueGraph.test(path: project.path,
+                                    packages: [project.path: ["Test": package]],
+                                    dependencies: [ValueGraphDependency.packageProduct(path: project.path, product: "Test"): Set()])
+        let graphTraverser = ValueGraphTraverser(graph: graph)
+
         let workspacePath = temporaryPath.appending(component: "\(project.name).xcworkspace")
         system.succeedCommand(["xcodebuild", "-resolvePackageDependencies", "-workspace", workspacePath.pathString, "-list"])
         try createFiles(["\(workspacePath.basename)/xcshareddata/swiftpm/Package.resolved"])
 
         // When
-        try subject.install(graph: graph, workspaceName: workspacePath.basename)
+        try subject.install(graphTraverser: graphTraverser, workspaceName: workspacePath.basename)
 
         // Then
         XCTAssertTrue(FileHandler.shared.exists(temporaryPath.appending(component: ".package.resolved")))
@@ -65,10 +66,10 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
                                    packages: [
                                        package,
                                    ])
-        let packageNode = PackageNode(package: package, path: project.path)
-        let graph = Graph.create(project: project,
-                                 dependencies: [(target, [])],
-                                 packages: [packageNode])
+        let graph = ValueGraph.test(path: project.path,
+                                    packages: [project.path: ["Test": package]],
+                                    dependencies: [ValueGraphDependency.packageProduct(path: project.path, product: "Test"): Set()])
+        let graphTraverser = ValueGraphTraverser(graph: graph)
 
         let workspace = Workspace.test(name: project.name,
                                        projects: [project.path])
@@ -79,7 +80,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         system.succeedCommand(["xcodebuild", "-resolvePackageDependencies", "-workspace", workspacePath.pathString, "-list"])
 
         // When
-        try subject.install(graph: graph, workspaceName: workspacePath.basename)
+        try subject.install(graphTraverser: graphTraverser, workspaceName: workspacePath.basename)
 
         // Then
         let workspacePackageResolvedPath = temporaryPath.appending(RelativePath("\(workspace.name).xcworkspace/xcshareddata/swiftpm/Package.resolved"))
@@ -102,14 +103,14 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
                                    name: "Test",
                                    settings: .default,
                                    targets: [target])
-        let graph = Graph.create(project: project,
-                                 dependencies: [(target, [])])
+        let graph = ValueGraph.test()
+        let graphTraverser = ValueGraphTraverser(graph: graph)
 
         let workspace = Workspace.test(projects: [project.path])
         let workspacePath = temporaryPath.appending(component: workspace.name + ".xcworkspace")
 
         // When
-        try subject.install(graph: graph, workspaceName: workspacePath.basename)
+        try subject.install(graphTraverser: graphTraverser, workspaceName: workspacePath.basename)
 
         // Then
         XCTAssertFalse(FileHandler.shared.exists(temporaryPath.appending(component: ".package.resolved")))
