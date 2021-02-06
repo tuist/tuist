@@ -25,6 +25,12 @@ public class ValueGraphTraverser: GraphTraversing {
         })
     }
 
+    public func allTargets() -> Set<ValueGraphTarget> {
+        Set(projects.reduce(into: Set()) { result, project in
+            result.formUnion(targets(at: project.key))
+        })
+    }
+    
     public func rootProjects() -> Set<Project> {
         Set(graph.workspace.projects.compactMap {
             projects[$0]

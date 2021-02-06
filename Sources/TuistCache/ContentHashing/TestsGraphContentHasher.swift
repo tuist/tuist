@@ -2,9 +2,10 @@ import Foundation
 import TSCBasic
 import TuistCore
 import TuistSupport
+import TuistGraph
 
 protocol TestsGraphContentHashing {
-    func contentHashes(for graph: TuistCore.Graph) throws -> [TargetNode: String]
+    func contentHashes(graphTraverser: GraphTraversing) throws -> [ValueGraphTarget: String]
 }
 
 /// `TestsGraphContentHasher`
@@ -21,16 +22,19 @@ final class TestsGraphContentHasher: TestsGraphContentHashing {
 
     // MARK: - TestsGraphContentHashing
 
-    func contentHashes(for graph: TuistCore.Graph) throws -> [TargetNode: String] {
-        var visitedNodes: [TargetNode: Bool] = [:]
-        let hashableTargets = graph.targets.values.flatMap { targets -> [TargetNode] in
-            targets.compactMap { target in
-                if self.isCacheable(target, visited: &visitedNodes) {
+    func contentHashes(graphTraverser: GraphTraversing) throws -> [ValueGraphTarget: String] {
+        var visitedNodes: [ValueGraphTarget: Bool] = [:]
+        let hashableTargets = graphTraverser.allTargets()
+            .compactMap { target -> ValueGraphTarget? in
+                if self.isCacheable(
+                    target,
+                    graphTraverser: graphTraverser,
+                    visited: &visitedNodes
+                ) {
                     return target
                 }
                 return nil
             }
-        }
         let hashes = try hashableTargets.map {
             try targetContentHasher.contentHash(
                 for: $0,
@@ -42,13 +46,28 @@ final class TestsGraphContentHasher: TestsGraphContentHashing {
 
     // MARK: - Helpers
 
-    private func isCacheable(_ target: TargetNode, visited: inout [TargetNode: Bool]) -> Bool {
+    private func isCacheable(
+        _ target: ValueGraphTarget,
+        graphTraverser: GraphTraversing,
+        visited: inout [ValueGraphTarget: Bool]
+    ) -> Bool {
         if let visitedValue = visited[target] { return visitedValue }
         // UI tests depend on the device they are run on
         // This can be done in the future if we hash the ID of the device
         // But currently we consider these targets non-hashable
         let noXCUITestDependency = target.target.product != .uiTests
-        let allTargetDependenciesAreHasheable = target.targetDependencies.allSatisfy { isCacheable($0, visited: &visited) }
+        let allTargetDependenciesAreHasheable = graphTraverser
+            .directTargetDependencies(
+                path: target.path,
+                name: target.target.name
+            )
+            .allSatisfy {
+                isCacheable(
+                    $0,
+                    graphTraverser: graphTraverser,
+                    visited: &visited
+                )
+            }
         let cacheable = noXCUITestDependency && allTargetDependenciesAreHasheable
         visited[target] = cacheable
         return cacheable

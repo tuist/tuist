@@ -17,6 +17,10 @@ public extension GraphMapping {
     func map(graph: ValueGraph) throws -> (ValueGraph, [SideEffectDescriptor]) {
         return (graph, [])
     }
+    
+    func map(graph: Graph) throws -> (Graph, [SideEffectDescriptor]) {
+        return (graph, [])
+    }
 }
 
 /// A mapper that is initialized with a mapping function.

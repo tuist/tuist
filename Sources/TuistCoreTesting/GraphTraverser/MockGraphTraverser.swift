@@ -103,6 +103,16 @@ final class MockGraphTraverser: GraphTraversing {
         invokedRootProjectsCount += 1
         return stubbedRootProjectsResult
     }
+    
+    var invokedAllTargets = false
+    var invokedAllTargetsCount = 0
+    var stubbedAllTargetsResult: Set<ValueGraphTarget>! = []
+
+    func allTargets() -> Set<ValueGraphTarget> {
+        invokedAllTargets = true
+        invokedAllTargetsCount += 1
+        return stubbedAllTargetsResult
+    }
 
     var invokedPrecompiledFrameworksPaths = false
     var invokedPrecompiledFrameworksPathsCount = 0
