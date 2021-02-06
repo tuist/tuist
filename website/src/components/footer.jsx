@@ -51,7 +51,7 @@ export default () => {
             <div className="px-5 py-2">
               <Link
                 alt="Opens the project documentation/"
-                to="/docs/usage/getting-started/"
+                to="/docs/usage/get-started/"
                 className="text-base leading-6"
                 sx={{ color: 'gray', ':hover': { color: 'primary' } }}
               >
