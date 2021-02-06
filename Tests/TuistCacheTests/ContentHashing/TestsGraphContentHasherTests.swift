@@ -74,10 +74,18 @@ final class TestsGraphContentHasherTests: TuistUnitTestCase {
             ),
             project: .test(path: path)
         )
-        let unitTests = ValueGraphTarget.test(
+        let unitTestsA = ValueGraphTarget.test(
             path: path,
             target: .test(
-                name: "UnitTests",
+                name: "UnitTestsA",
+                product: .unitTests
+            ),
+            project: .test(path: path)
+        )
+        let unitTestsB = ValueGraphTarget.test(
+            path: path,
+            target: .test(
+                name: "UnitTestsB",
                 product: .unitTests
             ),
             project: .test(path: path)
@@ -104,18 +112,28 @@ final class TestsGraphContentHasherTests: TuistUnitTestCase {
                     frameworkB.target.name: frameworkB.target,
                     frameworkC.target.name: frameworkC.target,
                     frameworkD.target.name: frameworkD.target,
-                    unitTests.target.name: unitTests.target,
+                    unitTestsA.target.name: unitTestsA.target,
+                    unitTestsB.target.name: unitTestsB.target,
                     uiTests.target.name: uiTests.target,
                 ]
             ],
             dependencies: [
                 .target(
-                    name: unitTests.target.name,
-                    path: unitTests.path
+                    name: unitTestsA.target.name,
+                    path: unitTestsA.path
                 ): Set([
                     .target(
                         name: frameworkA.target.name,
                         path: frameworkA.path
+                    )
+                ]),
+                .target(
+                    name: unitTestsB.target.name,
+                    path: unitTestsB.path
+                ): Set([
+                    .target(
+                        name: frameworkD.target.name,
+                        path: frameworkD.path
                     )
                 ]),
                 .target(
@@ -142,7 +160,8 @@ final class TestsGraphContentHasherTests: TuistUnitTestCase {
         let expectedCachableTargets = [
             frameworkA,
             frameworkD,
-            unitTests,
+            unitTestsA,
+            unitTestsB,
         ]
         .sorted(by: { $0.target.name < $1.target.name })
 
