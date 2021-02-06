@@ -27,19 +27,23 @@ public final class CacheXCFrameworkBuilder: CacheArtifactBuilding {
 
     public func build(workspacePath: AbsolutePath,
                       target: Target,
+                      configuration: String,
                       into outputDirectory: AbsolutePath) throws
     {
         try build(.workspace(workspacePath),
                   target: target,
+                  configuration: configuration,
                   into: outputDirectory)
     }
 
     public func build(projectPath: AbsolutePath,
                       target: Target,
+                      configuration: String,
                       into outputDirectory: AbsolutePath) throws
     {
         try build(.project(projectPath),
                   target: target,
+                  configuration: configuration,
                   into: outputDirectory)
     }
 
@@ -48,6 +52,7 @@ public final class CacheXCFrameworkBuilder: CacheArtifactBuilding {
     // swiftlint:disable:next function_body_length
     fileprivate func build(_ projectTarget: XcodeBuildTarget,
                            target: Target,
+                           configuration: String,
                            into outputDirectory: AbsolutePath) throws
     {
         guard target.product.isFramework else {
@@ -67,6 +72,7 @@ public final class CacheXCFrameworkBuilder: CacheArtifactBuilding {
                     projectTarget: projectTarget,
                     scheme: scheme,
                     target: target,
+                    configuration: configuration,
                     archivePath: simulatorArchivePath!
                 )
             }
@@ -77,6 +83,7 @@ public final class CacheXCFrameworkBuilder: CacheArtifactBuilding {
                 projectTarget: projectTarget,
                 scheme: scheme,
                 target: target,
+                configuration: configuration,
                 archivePath: deviceArchivePath
             )
 
@@ -105,6 +112,7 @@ public final class CacheXCFrameworkBuilder: CacheArtifactBuilding {
     fileprivate func deviceBuild(projectTarget: XcodeBuildTarget,
                                  scheme: String,
                                  target: Target,
+                                 configuration: String,
                                  archivePath: AbsolutePath) throws
     {
         // Without the BUILD_LIBRARY_FOR_DISTRIBUTION argument xcodebuild doesn't generate the .swiftinterface file
@@ -116,6 +124,7 @@ public final class CacheXCFrameworkBuilder: CacheArtifactBuilding {
                                                  .sdk(target.platform.xcodeDeviceSDK),
                                                  .xcarg("SKIP_INSTALL", "NO"),
                                                  .xcarg("BUILD_LIBRARY_FOR_DISTRIBUTION", "YES"),
+                                                 .configuration(configuration),
                                              ])
             .printFormattedOutput()
             .do(onSubscribed: {
@@ -129,6 +138,7 @@ public final class CacheXCFrameworkBuilder: CacheArtifactBuilding {
     fileprivate func simulatorBuild(projectTarget: XcodeBuildTarget,
                                     scheme: String,
                                     target: Target,
+                                    configuration: String,
                                     archivePath: AbsolutePath) throws
     {
         // Without the BUILD_LIBRARY_FOR_DISTRIBUTION argument xcodebuild doesn't generate the .swiftinterface file
@@ -140,6 +150,7 @@ public final class CacheXCFrameworkBuilder: CacheArtifactBuilding {
                                                  .sdk(target.platform.xcodeSimulatorSDK!),
                                                  .xcarg("SKIP_INSTALL", "NO"),
                                                  .xcarg("BUILD_LIBRARY_FOR_DISTRIBUTION", "YES"),
+                                                 .configuration(configuration),
                                              ])
             .printFormattedOutput()
             .do(onSubscribed: {

@@ -54,7 +54,8 @@ protocol CacheControlling {
     /// Caches the cacheable targets that are part of the workspace or project at the given path.
     /// - Parameters:
     ///   - path: Path to the directory that contains a workspace or a project.
-    func cache(path: AbsolutePath) throws
+    ///   - configuration: The configuration to be used when building the project.
+    func cache(path: AbsolutePath, configuration: String) throws
 }
 
 final class CacheController: CacheControlling {
@@ -73,9 +74,6 @@ final class CacheController: CacheControlling {
     /// Cache graph linter.
     private let cacheGraphLinter: CacheGraphLinting
 
-    /// Focus service project generator factory.
-    private let focusServiceProjectGeneratorFactory: FocusServiceProjectGeneratorFactorying
-
     convenience init(cache: CacheStoring,
                      artifactBuilder: CacheArtifactBuilding,
                      contentHasher: ContentHashing)
@@ -84,69 +82,65 @@ final class CacheController: CacheControlling {
                   artifactBuilder: artifactBuilder,
                   projectGeneratorProvider: CacheControllerProjectGeneratorProvider(contentHasher: contentHasher),
                   graphContentHasher: GraphContentHasher(contentHasher: contentHasher),
-                  cacheGraphLinter: CacheGraphLinter(),
-                  focusServiceProjectGeneratorFactory: FocusServiceProjectGeneratorFactory())
+                  cacheGraphLinter: CacheGraphLinter())
     }
 
     init(cache: CacheStoring,
          artifactBuilder: CacheArtifactBuilding,
          projectGeneratorProvider: CacheControllerProjectGeneratorProviding,
          graphContentHasher: GraphContentHashing,
-         cacheGraphLinter: CacheGraphLinting,
-         focusServiceProjectGeneratorFactory: FocusServiceProjectGeneratorFactorying)
+         cacheGraphLinter: CacheGraphLinting)
     {
         self.cache = cache
         self.projectGeneratorProvider = projectGeneratorProvider
         self.artifactBuilder = artifactBuilder
         self.graphContentHasher = graphContentHasher
         self.cacheGraphLinter = cacheGraphLinter
-        self.focusServiceProjectGeneratorFactory = focusServiceProjectGeneratorFactory
     }
 
-    func cache(path: AbsolutePath) throws {
+    func cache(path: AbsolutePath, configuration: String) throws {
         let generator = projectGeneratorProvider.generator()
-        let (projectPath, graph) = try generator.generateWithGraph(path: path, projectOnly: false)
+        let (path, graph) = try generator.generateWithGraph(path: path, projectOnly: false)
 
         // Lint
         cacheGraphLinter.lint(graph: graph)
 
         // Hash
         logger.notice("Hashing cacheable targets")
-        let hashesByCacheableTarget = try graphContentHasher.contentHashes(for: graph, cacheOutputType: artifactBuilder.cacheOutputType)
+        let cacheableTargets = try self.cacheableTargets(graph: graph)
 
+        // Build
         logger.notice("Building cacheable targets")
-        let sortedCacheableTargets = try topologicalSort(Array(hashesByCacheableTarget.keys), successors: \.targetDependencies)
 
-        for (index, target) in sortedCacheableTargets.reversed().enumerated() {
-            logger.notice("Building cacheable targets: \(target.name), \(index + 1) out of \(sortedCacheableTargets.count)")
-
-            let hash = hashesByCacheableTarget[target]!
-
-            if let exists = try cache.exists(hash: hash).toBlocking().first(), exists {
-                logger.pretty("The target \(.bold(.raw(target.name))) with hash \(.bold(.raw(hash))) and type \(artifactBuilder.cacheOutputType.description) is already in the cache. Skipping...")
-                continue
-            }
-
-            // Focus
-            logger.notice("Focusing cacheable targets: \(target.name)")
-            _ = try focusServiceProjectGeneratorFactory
-                .generator(sources: [target.name], xcframeworks: false, ignoreCache: false)
-                .generate(path: path, projectOnly: false)
-
-            // Build
-            try buildAndCacheFramework(path: projectPath, target: target, hash: hash)
+        try cacheableTargets.sorted(by: { $0.key.target.name < $1.key.target.name }).forEach { target, hash in
+            try self.buildAndCacheFramework(path: path, target: target, configuration: configuration, hash: hash)
         }
 
         logger.notice("All cacheable targets have been cached successfully as \(artifactBuilder.cacheOutputType.description)s", metadata: .success)
+    }
+
+    /// Returns all the targets that are cacheable and their hashes.
+    /// - Parameter graph: Graph that contains all the dependency graph nodes.
+    fileprivate func cacheableTargets(graph: Graph) throws -> [TargetNode: String] {
+        try graphContentHasher.contentHashes(for: graph, cacheOutputType: artifactBuilder.cacheOutputType)
+            .filter { target, hash in
+                if let exists = try self.cache.exists(hash: hash).toBlocking().first(), exists {
+                    logger.pretty("The target \(.bold(.raw(target.name))) with hash \(.bold(.raw(hash))) and type \(artifactBuilder.cacheOutputType.description) is already in the cache. Skipping...")
+                    return false
+                }
+                return true
+            }
     }
 
     /// Builds the .xcframework for the given target and returns an obervable to store them in the cache.
     /// - Parameters:
     ///   - path: Path to either the .xcodeproj or .xcworkspace that contains the framework to be cached.
     ///   - target: Target whose .(xc)framework will be built and cached.
+    ///   - configuration: The configuration.
     ///   - hash: Hash of the target.
     fileprivate func buildAndCacheFramework(path: AbsolutePath,
                                             target: TargetNode,
+                                            configuration: String,
                                             hash: String) throws
     {
         let outputDirectory = try FileHandler.shared.temporaryDirectory()
@@ -157,10 +151,12 @@ final class CacheController: CacheControlling {
         if path.extension == "xcworkspace" {
             try artifactBuilder.build(workspacePath: path,
                                       target: target.target,
+                                      configuration: configuration,
                                       into: outputDirectory)
         } else {
             try artifactBuilder.build(projectPath: path,
                                       target: target.target,
+                                      configuration: configuration,
                                       into: outputDirectory)
         }
 

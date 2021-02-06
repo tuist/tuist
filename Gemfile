@@ -2,7 +2,7 @@
 
 source "https://rubygems.org"
 
-gem "cucumber", "~> 5.2"
+gem "cucumber", "~> 5.3"
 gem "rake", "~> 13.0"
 gem "simctl", "~> 1.6"
 gem "encrypted-environment", "~> 0.2.0"
@@ -23,7 +23,7 @@ group :test do
 end
 
 group :development do
-  gem "rubocop", "~> 1.8.1"
+  gem "rubocop", "~> 1.9.1"
   gem "rubocop-minitest", "~> 0.10.3"
   gem "rubocop-rake", "~> 0.5.1"
 end

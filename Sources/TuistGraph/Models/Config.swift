@@ -28,12 +28,15 @@ public struct Config: Equatable, Hashable {
     /// Cloud configuration.
     public let cloud: Cloud?
 
+    /// Cache configuration.
+    public let cache: Cache?
+
     /// The path of the config file.
     public let path: AbsolutePath?
 
     /// Returns the default Tuist configuration.
     public static var `default`: Config {
-        Config(compatibleXcodeVersions: .all, cloud: nil, plugins: [], generationOptions: [], path: nil)
+        Config(compatibleXcodeVersions: .all, cloud: nil, cache: nil, plugins: [], generationOptions: [], path: nil)
     }
 
     /// Initializes the tuist cofiguration.
@@ -46,12 +49,14 @@ public struct Config: Equatable, Hashable {
     ///   - path: The path of the config file.
     public init(compatibleXcodeVersions: CompatibleXcodeVersions,
                 cloud: Cloud?,
+                cache: Cache?,
                 plugins: [PluginLocation],
                 generationOptions: [GenerationOption],
                 path: AbsolutePath?)
     {
         self.compatibleXcodeVersions = compatibleXcodeVersions
         self.cloud = cloud
+        self.cache = cache
         self.plugins = plugins
         self.generationOptions = generationOptions
         self.path = path
@@ -62,6 +67,7 @@ public struct Config: Equatable, Hashable {
     public func hash(into hasher: inout Hasher) {
         hasher.combine(generationOptions)
         hasher.combine(cloud)
+        hasher.combine(cache)
         hasher.combine(compatibleXcodeVersions)
     }
 }

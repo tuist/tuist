@@ -30,7 +30,7 @@ struct GenerateCommand: ParsableCommand, HasTrackableParameters {
     var open: Bool = false
 
     func run() throws {
-        GenerateCommand.analyticsDelegate?.willRun(withParamters: ["projectOnly": String(projectOnly), "open": String(open)])
+        GenerateCommand.analyticsDelegate?.willRun(withParameters: ["project_only": String(projectOnly), "open": String(open)])
         try GenerateService().run(path: path,
                                   projectOnly: projectOnly,
                                   open: open)

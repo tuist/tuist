@@ -182,7 +182,7 @@ final class TestService {
         }
         
         let destination = try findDestination(
-            buildableTarget: buildableTarget.target,
+            target: buildableTarget.target,
             scheme: scheme,
             graph: graph,
             version: version,
@@ -196,6 +196,7 @@ final class TestService {
             destination: destination,
             derivedDataPath: nil,
             arguments: buildGraphInspector.buildArguments(
+                project: buildableTarget.project,
                 target: buildableTarget.target,
                 configuration: configuration,
                 skipSigning: true
@@ -207,16 +208,16 @@ final class TestService {
     }
     
     private func findDestination(
-        buildableTarget: Target,
+        target: Target,
         scheme: Scheme,
         graph: Graph,
         version: Version?,
         deviceName: String?
     ) throws -> XcodeBuildDestination {
-        switch buildableTarget.platform {
+        switch target.platform {
         case .iOS, .tvOS, .watchOS:
             let minVersion: Version?
-            if let deploymentTarget = buildableTarget.deploymentTarget {
+            if let deploymentTarget = target.deploymentTarget {
                 minVersion = deploymentTarget.version.version()
             } else {
                 minVersion = scheme.targetDependencies()
@@ -230,7 +231,7 @@ final class TestService {
                     .first
             }
             let deviceAndRuntime = try simulatorController.findAvailableDevice(
-                platform: buildableTarget.platform,
+                platform: target.platform,
                 version: version,
                 minVersion: minVersion,
                 deviceName: deviceName

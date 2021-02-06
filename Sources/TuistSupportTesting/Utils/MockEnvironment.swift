@@ -22,6 +22,7 @@ public class MockEnvironment: Environmenting {
     public var isStandardOutputInteractive: Bool = false
     public var tuistVariables: [String: String] = [:]
     public var manifestLoadingVariables: [String: String] = [:]
+    public var isStatsEnabled: Bool = true
 
     public var versionsDirectory: AbsolutePath {
         directory.path.appending(component: "Versions")

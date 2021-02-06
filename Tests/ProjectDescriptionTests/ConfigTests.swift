@@ -19,7 +19,7 @@ final class ConfigTests: XCTestCase {
     }
 
     func test_config_toJSON_WITH_gitPlugin() {
-        let config = Config(plugins: [.git(url: "https://git.com/repo.git", branch: "main")],
+        let config = Config(plugins: [.git(url: "https://git.com/repo.git", tag: "1.0.0")],
                             generationOptions: [])
 
         XCTAssertCodable(config)

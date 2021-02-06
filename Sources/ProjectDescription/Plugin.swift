@@ -16,5 +16,6 @@ public struct Plugin: Codable, Equatable {
     ///     - name: The name of the plugin.
     public init(name: String) {
         self.name = name
+        dumpIfNeeded(self)
     }
 }

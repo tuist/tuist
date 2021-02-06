@@ -34,7 +34,7 @@ final class CacheFrameworkBuilderIntegrationTests: TuistTestCase {
         let target = Target.test(name: "iOS", platform: .iOS, product: .framework, productName: "iOS")
 
         // When
-        try subject.build(projectPath: projectPath, target: target, into: temporaryPath)
+        try subject.build(projectPath: projectPath, target: target, configuration: "Debug", into: temporaryPath)
 
         // Then
         XCTAssertEqual(FileHandler.shared.glob(temporaryPath, glob: "*.framework").count, 1)
@@ -53,7 +53,7 @@ final class CacheFrameworkBuilderIntegrationTests: TuistTestCase {
         let target = Target.test(name: "macOS", platform: .macOS, product: .framework, productName: "macOS")
 
         // When
-        try subject.build(projectPath: projectPath, target: target, into: temporaryPath)
+        try subject.build(projectPath: projectPath, target: target, configuration: "Debug", into: temporaryPath)
 
         // Then
         XCTAssertEqual(FileHandler.shared.glob(temporaryPath, glob: "*.framework").count, 1)
@@ -72,7 +72,7 @@ final class CacheFrameworkBuilderIntegrationTests: TuistTestCase {
         let target = Target.test(name: "tvOS", platform: .tvOS, product: .framework, productName: "tvOS")
 
         // When
-        try subject.build(projectPath: projectPath, target: target, into: temporaryPath)
+        try subject.build(projectPath: projectPath, target: target, configuration: "Debug", into: temporaryPath)
 
         // Then
         XCTAssertEqual(FileHandler.shared.glob(temporaryPath, glob: "*.framework").count, 1)
@@ -91,7 +91,7 @@ final class CacheFrameworkBuilderIntegrationTests: TuistTestCase {
         let target = Target.test(name: "watchOS", platform: .watchOS, product: .framework, productName: "watchOS")
 
         // When
-        try subject.build(projectPath: projectPath, target: target, into: temporaryPath)
+        try subject.build(projectPath: projectPath, target: target, configuration: "Debug", into: temporaryPath)
 
         // Then
         XCTAssertEqual(FileHandler.shared.glob(temporaryPath, glob: "*.framework").count, 1)

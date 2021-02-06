@@ -40,6 +40,9 @@ public protocol Environmenting: AnyObject {
 
     /// Returns the path to the directory where the async queue events are persisted.
     var queueDirectory: AbsolutePath { get }
+
+    /// Returns true unless the user specifically opted out from stats
+    var isStatsEnabled: Bool { get }
 }
 
 /// Local environment controller.
@@ -103,6 +106,12 @@ public class Environment: Environmenting {
     public var isVerbose: Bool {
         guard let variable = ProcessInfo.processInfo.environment[Constants.EnvironmentVariables.verbose] else { return false }
         return Constants.trueValues.contains(variable)
+    }
+
+    public var isStatsEnabled: Bool {
+        guard let variable = ProcessInfo.processInfo.environment[Constants.EnvironmentVariables.statsOptOut] else { return true }
+        let userOptedOut = Constants.trueValues.contains(variable)
+        return !userOptedOut
     }
 
     /// Returns the directory where all the versions are.

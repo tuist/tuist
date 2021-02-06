@@ -6,10 +6,11 @@ import TuistSupport
 
 public protocol BuildGraphInspecting {
     /// Returns the build arguments to be used with the given target.
+    /// - Parameter project: Project whose build arguments will be returned.
     /// - Parameter target: Target whose build arguments will be returned.
     /// - Parameter configuration: The configuration to be built. When nil, it defaults to the configuration specified in the scheme.
     /// - Parameter skipSigning: Skip code signing during build that is not required to be signed (eg. build for testing on iOS Simulator)
-    func buildArguments(target: Target, configuration: String?, skipSigning: Bool) -> [XcodeBuildArgument]
+    func buildArguments(project: Project, target: Target, configuration: String?, skipSigning: Bool) -> [XcodeBuildArgument]
 
     /// Given a directory, it returns the first .xcworkspace found.
     /// - Parameter path: Found .xcworkspace.
@@ -19,7 +20,7 @@ public protocol BuildGraphInspecting {
     /// - Parameters:
     ///   - scheme: Scheme in which to look up the target.
     ///   - graph: Dependency graph.
-    func buildableTarget(scheme: Scheme, graph: Graph) -> Target?
+    func buildableTarget(scheme: Scheme, graph: Graph) -> (Project, Target)?
 
     ///  From the list of testable targets of the given scheme, it returns the first one.
     /// - Parameters:
@@ -53,7 +54,7 @@ public protocol BuildGraphInspecting {
 public class BuildGraphInspector: BuildGraphInspecting {
     public init() {}
 
-    public func buildArguments(target: Target, configuration: String?, skipSigning: Bool) -> [XcodeBuildArgument] {
+    public func buildArguments(project: Project, target: Target, configuration: String?, skipSigning: Bool) -> [XcodeBuildArgument] {
         var arguments: [XcodeBuildArgument]
         if target.platform == .macOS {
             arguments = [.sdk(target.platform.xcodeDeviceSDK)]
@@ -63,7 +64,7 @@ public class BuildGraphInspector: BuildGraphInspecting {
 
         // Configuration
         if let configuration = configuration {
-            if target.settings?.configurations.first(where: { $0.key.name == configuration }) != nil {
+            if (target.settings ?? project.settings)?.configurations.first(where: { $0.key.name == configuration }) != nil {
                 arguments.append(.configuration(configuration))
             } else {
                 logger.warning("The scheme's targets don't have the given configuration \(configuration). Defaulting to the scheme's default.")
@@ -83,7 +84,7 @@ public class BuildGraphInspector: BuildGraphInspecting {
         return arguments
     }
 
-    public func buildableTarget(scheme: Scheme, graph: Graph) -> Target? {
+    public func buildableTarget(scheme: Scheme, graph: Graph) -> (Project, Target)? {
         guard
             scheme.buildAction?.targets.isEmpty == false,
             let buildTarget = scheme.buildAction?.targets.first
@@ -91,7 +92,7 @@ public class BuildGraphInspector: BuildGraphInspecting {
             return nil
         }
 
-        return graph.target(path: buildTarget.projectPath, name: buildTarget.name)?.target
+        return graph.target(path: buildTarget.projectPath, name: buildTarget.name).map { ($0.project, $0.target) }
     }
     
     public func testableTarget(scheme: Scheme, graph: Graph) -> TargetNode? {

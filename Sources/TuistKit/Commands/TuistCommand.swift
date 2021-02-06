@@ -53,13 +53,17 @@ public struct TuistCommand: ParsableCommand {
             }
             command = try parseAsRoot(processedArguments)
         } catch {
-            logger.error("\(fullMessage(for: error))")
-            _exit(exitCode(for: error).rawValue)
+            let exitCode = self.exitCode(for: error).rawValue
+            if exitCode == 0 {
+                logger.info("\(fullMessage(for: error))")
+            } else {
+                logger.error("\(fullMessage(for: error))")
+            }
+            _exit(exitCode)
         }
         do {
-            let trackableCommand = TrackableCommand(command: command)
-            try trackableCommand.run()
-            exit()
+            try execute(command)
+            TuistProcess.shared.asyncExit()
         } catch let error as FatalError {
             errorHandler.fatal(error: error)
             _exit(exitCode(for: error).rawValue)
@@ -72,6 +76,14 @@ public struct TuistCommand: ParsableCommand {
                 _exit(exitCode(for: error).rawValue)
             }
         }
+    }
+
+    private static func execute(_ command: ParsableCommand) throws {
+        var command = command
+        guard Environment.shared.isStatsEnabled else { try command.run(); return }
+        let trackableCommand = TrackableCommand(command: command)
+        let future = try trackableCommand.run()
+        TuistProcess.shared.add(futureTask: future)
     }
 
     // MARK: - Helpers

@@ -91,14 +91,15 @@ final class BuildService {
 
     private func buildScheme(scheme: Scheme, graph: Graph, path: AbsolutePath, clean: Bool, configuration: String?) throws {
         logger.log(level: .notice, "Building scheme \(scheme.name)", metadata: .section)
-        guard let buildableTarget = buildGraphInspector.buildableTarget(scheme: scheme, graph: graph) else {
+        guard let (project, target) = buildGraphInspector.buildableTarget(scheme: scheme, graph: graph) else {
             throw BuildServiceError.schemeWithoutBuildableTargets(scheme: scheme.name)
         }
         let workspacePath = try buildGraphInspector.workspacePath(directory: path)!
+        let buildArguments = buildGraphInspector.buildArguments(project: project, target: target, configuration: configuration, skipSigning: false)
         _ = try xcodebuildController.build(.workspace(workspacePath),
                                            scheme: scheme.name,
                                            clean: clean,
-                                           arguments: buildGraphInspector.buildArguments(target: buildableTarget, configuration: configuration, skipSigning: false))
+                                           arguments: buildArguments)
             .printFormattedOutput()
             .toBlocking()
             .last()
