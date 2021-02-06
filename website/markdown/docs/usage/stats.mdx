@@ -1,0 +1,22 @@
+---
+name: Stats
+exceprt: Learn about Tuist Stats
+---
+
+# Tuist Stats
+
+Tuist sends some **anonymous** analytics events to track the usage of the tool.
+Having statistics about Tuist's usage helps contributors to make informed decision and better prioritize future work.
+For example, if a command is only used by 1% of the users, it might not get prioritized for enhancements in the future.
+
+The list of tracked events is accessible in the documentation. The implementation is open source, mainly in the [TuistAnalytics](https://github.com/tuist/tuist/tree/main/Sources/TuistAnalytics) target.
+If you are thinking about adding another event, please remember that we would like to keep tracking minimal and unobtrusive.
+
+The data is collected on a server implemented in the [Tuist repository](https://github.com/tuist/stats) and published on the
+[Tuist Stats website](https://stats.tuist.io/).
+
+Users can opt out from Tuist stats by setting this environment variable to `TRUE`:
+
+```
+TUIST_STATS_OPT_OUT
+```
