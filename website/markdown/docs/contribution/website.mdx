@@ -5,11 +5,14 @@ excerpt: Learn about Tuist website, how to run it locally
 
 # Contributing
 
-Tuist's website is built using [Gatsby](https://www.gatsbyjs.com/).
+Tuist's website is a static website generated with [Gatsby](https://www.gatsbyjs.com/) and continuously deployed using [Netlify](https://netlify.com).
+With Gatsby, we we can describe the UI using React's mental models and have access to an extensive pool of resources and tools, which results in a great experience while building the website.
+Moreover, we can easily introduce dynamism into static pages with plugins like [MDX](https://mdxjs.com/).
 
 ### Installing dependencies
 
 Make sure you are on the correct version of Ruby and NodeJS, which are respectively declared on the `.ruby-version` and `.nvmrc` files.
+You can use programs like [chruby](https://github.com/postmodern/chruby) and [nvm](https://github.com/nvm-sh/nvm) to ensure you are using the expected versions.
 
 To install the packages needed to for the website, run:
 
@@ -22,5 +25,5 @@ yarn install
 To deploy Tuist's website on localhost, run:
 
 ```
-gatsby develop
+yarn run develop
 ```

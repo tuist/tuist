@@ -1,9 +1,15 @@
 ---
-name: Command Event
-exceprt: The definition of the event representing the execution of a Tuist Command
+name: Analytics Event
+exceprt: The definition of the analytics events sent to tuist.stats.io
 ---
+# Analytics Events
 
-# CommandEvent schema:
+This document shows the list of all analytics events sent by Tuist.
+
+### CommandEvent
+
+A `CommandEvent` is sent every time a Tuist command successfully completes.
+Schema:
 
 <EventsTable
   args={[
