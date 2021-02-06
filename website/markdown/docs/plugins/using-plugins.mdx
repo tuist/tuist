@@ -59,6 +59,8 @@ You may also collect a plugin at a specific git sha:
 PluginLocation.git(url: "https://url/to/plugin.git", sha: "e34c5ba")
 ```
 
+The [`Plugin.swift`](/docs/plugins/creating-plugins/) manifest in a git repository should be located at the root of the repository.
+
 ## Example
 
 Let's say we have a plugin called `MyTuistPlugin`. This plugin is designed to add functionality to `ProjectDescription`, in this example the plugin will add a new method to `Project` which allow us to define an application.
