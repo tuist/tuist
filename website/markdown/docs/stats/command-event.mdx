@@ -16,10 +16,17 @@ exceprt: The definition of the event representing the execution of a Tuist Comma
     },
     {
       name: '`subcommand`',
+      type: '`String`',
+      description: 'The name of the Tuist sub-command',
+      example: 'warm',
+      required: false,
+    },
+    {
+      name: '`parameters`',
       type: '`[String: String]`',
       description: 'A dictionary containing the parameters of the command',
       example: '["verbose" : "true"]',
-      required: true,
+      required: false,
     },
     {
       name: '`durationInMs`',
