@@ -32,7 +32,7 @@ final class TestServiceTests: TuistUnitTestCase {
         subject = TestService(
             temporaryDirectory: try TemporaryDirectory(removeTreeOnDeinit: true),
             testsCacheTemporaryDirectory: testsCacheTemporaryDirectory,
-            generator: generator,
+            generatorInit: { _ in self.generator },
             xcodebuildController: xcodebuildController,
             buildGraphInspector: buildGraphInspector,
             simulatorController: simulatorController
@@ -223,6 +223,7 @@ private extension TestService {
         clean: Bool = false,
         configuration: String? = nil,
         path: AbsolutePath,
+        automationPath: AbsolutePath? = nil,
         deviceName: String? = nil,
         osVersion: String? = nil
     ) throws {
@@ -231,6 +232,7 @@ private extension TestService {
             clean: clean,
             configuration: configuration,
             path: path,
+            automationPath: automationPath,
             deviceName: deviceName,
             osVersion: osVersion
         )

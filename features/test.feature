@@ -19,3 +19,10 @@ Feature: Tests projects using Tuist test
     Then tuist tests the project
     Then tuist tests the scheme App from the project
     Then tuist tests the scheme App-Project from the project
+
+  Scenario: The project is an iOS application with tests (ios_app_with_tests)
+    Given that tuist is available 
+    And I have a working directory
+    Then tuist generates the project
+    Then tuist tests the project
+    Then tuist tests the project

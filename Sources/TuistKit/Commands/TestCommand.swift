@@ -43,6 +43,12 @@ struct TestCommand: ParsableCommand {
         help: "The configuration to be used when testing the scheme."
     )
     var configuration: String?
+    
+    @Option(
+        name: .shortAndLong,
+        help: "Path where the automation project will be generated."
+    )
+    var automationPath: String?
 
     func run() throws {
         let absolutePath: AbsolutePath
@@ -58,6 +64,10 @@ struct TestCommand: ParsableCommand {
             clean: clean,
             configuration: configuration,
             path: absolutePath,
+            automationPath: automationPath
+                .map {
+                    AbsolutePath($0, relativeTo: FileHandler.shared.currentPath)
+                },
             deviceName: device,
             osVersion: os
         )
