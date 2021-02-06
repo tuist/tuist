@@ -2,25 +2,25 @@ import Foundation
 import TuistGraph
 import TuistSupport
 
-struct CacheProfileResolver {
-    enum Error: FatalError, Equatable {
-        case missingProfile(name: String, availableProfiles: [String])
+enum CacheProfileResolverError: FatalError, Equatable {
+    case missingProfile(name: String, availableProfiles: [String])
 
-        var description: String {
-            switch self {
-            case let .missingProfile(name, availableProfiles):
-                return "The cache profile '\(name)' is missing in your project's configuration. Available cache profiles: \(availableProfiles.listed())."
-            }
-        }
-
-        var type: ErrorType {
-            switch self {
-            case .missingProfile:
-                return .abort
-            }
+    var description: String {
+        switch self {
+        case let .missingProfile(name, availableProfiles):
+            return "The cache profile '\(name)' is missing in your project's configuration. Available cache profiles: \(availableProfiles.listed())."
         }
     }
 
+    var type: ErrorType {
+        switch self {
+        case .missingProfile:
+            return .abort
+        }
+    }
+}
+
+struct CacheProfileResolver {
     public static let defaultCacheProfileFromTuist = TuistGraph.Cache.default.profiles[0]
 
     func resolveCacheProfile(
@@ -33,7 +33,7 @@ struct CacheProfileResolver {
         {
             guard let profile = profiles.first(where: { $0.name == name }) else {
                 // The name of the profile has not been found.
-                throw Error.missingProfile(name: name, availableProfiles: profiles.map(\.name))
+                throw CacheProfileResolverError.missingProfile(name: name, availableProfiles: profiles.map(\.name))
             }
 
             logger.notice(

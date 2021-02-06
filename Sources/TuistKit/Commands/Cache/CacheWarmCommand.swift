@@ -10,6 +10,17 @@ struct CacheWarmCommand: ParsableCommand {
                              abstract: "Warms the local and remote cache.")
     }
 
+    @OptionGroup()
+    var options: CacheOptions
+
+    func run() throws {
+        try CacheWarmService().run(path: options.path, profile: options.profile, xcframeworks: options.xcframeworks)
+    }
+}
+
+// MARK: - Options
+
+struct CacheOptions: ParsableArguments {
     @Option(
         name: .shortAndLong,
         help: "The path to the directory that contains the project whose targets will be cached.",
@@ -28,8 +39,4 @@ struct CacheWarmCommand: ParsableCommand {
         help: "When passed it caches the targets for simulator and device using xcframeworks."
     )
     var xcframeworks: Bool = false
-
-    func run() throws {
-        try CacheWarmService().run(path: path, profile: profile, xcframeworks: xcframeworks)
-    }
 }

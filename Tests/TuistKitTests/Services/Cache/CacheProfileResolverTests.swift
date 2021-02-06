@@ -105,7 +105,7 @@ final class CacheProfileResolverTests: TuistUnitTestCase {
                 named: "foo",
                 from: .test(cache: Cache(profiles: [.init(name: "bar", configuration: "debug")]))
             ),
-            CacheProfileResolver.Error.missingProfile(name: "foo", availableProfiles: ["bar"])
+            CacheProfileResolverError.missingProfile(name: "foo", availableProfiles: ["bar"])
         )
     }
 }

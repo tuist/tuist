@@ -109,12 +109,13 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
     }
 
     func test_run_gives_correct_cache_profile_type_to_hasher() throws {
-        // When
+        // Given
         let profile: Cache.Profile = .test(name: "Simulator", configuration: "Debug")
         generatorModelLoader.mockConfig("") { (_) -> Config in
             Config.test(cache: .test(profiles: [profile]))
         }
 
+        // When
         _ = try subject.run(path: path, xcframeworks: false, profile: "Simulator")
 
         // Then
