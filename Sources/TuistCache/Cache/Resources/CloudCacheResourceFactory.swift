@@ -61,4 +61,3 @@ class CloudCacheResourceFactory: CloudCacheResourceManufacturing {
         return .jsonResource { request }
     }
 }
-
