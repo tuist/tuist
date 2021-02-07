@@ -100,7 +100,7 @@ public final class CacheRemoteStorage: CacheStoring {
         do {
             let archiver = try fileArchiverFactory.makeFileArchiver(for: paths)
             let destinationZipPath = try archiver.zip(name: hash)
-            let md5 = try FileHandler.shared.base64MD5(path: destinationZipPath)
+            let md5 = try FileHandler.shared.urlSafeBase64MD5(path: destinationZipPath)
             let storeResource = try cloudCacheResponseFactory.storeResource(
                 hash: hash,
                 contentMD5: md5

@@ -66,7 +66,7 @@ public protocol FileHandling: AnyObject {
     func isFolder(_ path: AbsolutePath) -> Bool
     func touch(_ path: AbsolutePath) throws
     func contentsOfDirectory(_ path: AbsolutePath) throws -> [AbsolutePath]
-    func base64MD5(path: AbsolutePath) throws -> String
+    func urlSafeBase64MD5(path: AbsolutePath) throws -> String
     func fileSize(path: AbsolutePath) throws -> UInt64
     func changeExtension(path: AbsolutePath, to newExtension: String) throws -> AbsolutePath
 }
@@ -252,7 +252,7 @@ public class FileHandler: FileHandling {
 
     // MARK: - MD5
 
-    public func base64MD5(path: AbsolutePath) throws -> String {
+    public func urlSafeBase64MD5(path: AbsolutePath) throws -> String {
         let data = try Data(contentsOf: path.url)
         let length = Int(CC_MD5_DIGEST_LENGTH)
         var digestData = Data(count: length)

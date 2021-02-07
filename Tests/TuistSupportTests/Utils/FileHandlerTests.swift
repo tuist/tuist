@@ -74,7 +74,7 @@ final class FileHandlerTests: TuistUnitTestCase {
         let testZippedFrameworkPath = fixturePath(path: RelativePath("uUI.xcframework.zip"))
 
         // When
-        let result = try subject.base64MD5(path: testZippedFrameworkPath)
+        let result = try subject.urlSafeBase64MD5(path: testZippedFrameworkPath)
 
         // Then
         XCTAssertEqual(result, "X0vsGS0PGIT9z0l1s3Bn3A==")
