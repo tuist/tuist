@@ -6,6 +6,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Added
 
+- Selective tests [#2422](https://github.com/tuist/tuist/pull/2422) by [@fortmarek](https://github.com/fortmarek)
 - Add documentation on how to use & create plugins by [@luispadron](https://github.com/luispadron)
 
 ### Changed
