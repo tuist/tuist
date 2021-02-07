@@ -130,6 +130,12 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
             workspace: Workspace.test(
                 schemes: [
                     Scheme.test(
+                        name: "SchemeA",
+                        testAction: TestAction.test(
+                            targets: []
+                        )
+                    ),
+                    Scheme.test(
                         name: "SchemeB",
                         testAction: TestAction.test(
                             targets: [

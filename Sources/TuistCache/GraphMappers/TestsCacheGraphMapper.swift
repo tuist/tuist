@@ -37,7 +37,7 @@ public final class TestsCacheGraphMapper: GraphMapping {
         var visitedNodes: [TargetNode: Bool] = [:]
         var workspace = graph.workspace
         let mappedSchemes = try workspace.schemes
-            .map { scheme -> (Scheme?, [TargetNode]) in
+            .map { scheme -> (Scheme, [TargetNode]) in
                 try map(
                     scheme: scheme,
                     graph: graph,
@@ -45,7 +45,7 @@ public final class TestsCacheGraphMapper: GraphMapping {
                     visited: &visitedNodes
                 )
             }
-        let schemes = mappedSchemes.compactMap(\.0)
+        let schemes = mappedSchemes.map(\.0)
         let cachedTestableTargets = mappedSchemes.flatMap(\.1)
         Set(cachedTestableTargets).forEach {
             logger.notice("\($0.target.name) has not changed from last successful run, skipping...")
@@ -86,7 +86,7 @@ public final class TestsCacheGraphMapper: GraphMapping {
         graph: Graph,
         hashes: [TargetNode: String],
         visited: inout [TargetNode: Bool]
-    ) throws -> (Scheme?, [TargetNode]) {
+    ) throws -> (Scheme, [TargetNode]) {
         var scheme = scheme
         guard let testAction = scheme.testAction else { return (scheme, []) }
         let cachedTestableTargets = testableTargets(
@@ -105,11 +105,7 @@ public final class TestsCacheGraphMapper: GraphMapping {
             !cachedTestableTargets.contains(where: { $0.target.name == testTarget.target.name })
         }
 
-        if scheme.testAction?.targets.isEmpty ?? true {
-            return (nil, cachedTestableTargets)
-        } else {
-            return (scheme, cachedTestableTargets)
-        }
+        return (scheme, cachedTestableTargets)
     }
 
     private func isCached(

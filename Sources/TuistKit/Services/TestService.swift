@@ -102,10 +102,10 @@ final class TestService {
         ).1
         let version = osVersion?.version()
 
-        let testableSchemes = buildGraphInspector.testableSchemes(graph: graph)
+        let testableSchemes = buildGraphInspector.testableSchemes(graph: graph) + buildGraphInspector.projectSchemes(graph: graph)
         logger.log(
             level: .debug,
-            "Found the following testable schemes: \(testableSchemes.map(\.name).joined(separator: ", "))"
+            "Found the following testable schemes: \(Set(testableSchemes.map(\.name)).joined(separator: ", "))"
         )
 
         if let schemeName = schemeName {
@@ -117,6 +117,12 @@ final class TestService {
                     existing: testableSchemes.map(\.name)
                 )
             }
+            
+            if scheme.testAction.map({ $0.targets.isEmpty }) ?? true {
+                logger.log(level: .info, "There are no tests to run, finishing early")
+                return
+            }
+            
             let testSchemes: [Scheme] = [scheme]
 
             try testSchemes.forEach { testScheme in
@@ -132,8 +138,12 @@ final class TestService {
             }
         } else {
             let testSchemes: [Scheme] = buildGraphInspector.projectSchemes(graph: graph)
-
-            if testSchemes.isEmpty {
+            
+            if testSchemes
+                .filter({
+                    $0.testAction.map { !$0.targets.isEmpty } ?? false
+                })
+                .isEmpty {
                 logger.log(level: .info, "There are no tests to run, finishing early")
                 return
             }
