@@ -26,29 +26,29 @@ enum CacheRemoteStorageError: FatalError, Equatable {
 public final class CacheRemoteStorage: CacheStoring {
     // MARK: - Attributes
 
-    private let cloudConfig: Cloud
     private let cloudClient: CloudClienting
     private let fileClient: FileClienting
     private let fileArchiverFactory: FileArchivingFactorying
+    private let cloudCacheResponseFactory: CloudCacheResourceManufacturing
 
     // MARK: - Init
 
     public convenience init(cloudConfig: Cloud, cloudClient: CloudClienting) {
-        self.init(cloudConfig: cloudConfig,
-                  cloudClient: cloudClient,
+        self.init(cloudClient: cloudClient,
                   fileArchiverFactory: FileArchivingFactory(),
-                  fileClient: FileClient())
+                  fileClient: FileClient(),
+                  cloudCacheResponseFactory: CloudCacheResourceFactory(cloudConfig: cloudConfig))
     }
 
-    init(cloudConfig: Cloud,
-         cloudClient: CloudClienting,
+    init(cloudClient: CloudClienting,
          fileArchiverFactory: FileArchivingFactorying,
-         fileClient: FileClienting)
+         fileClient: FileClienting,
+         cloudCacheResponseFactory: CloudCacheResourceManufacturing)
     {
-        self.cloudConfig = cloudConfig
         self.cloudClient = cloudClient
         self.fileArchiverFactory = fileArchiverFactory
         self.fileClient = fileClient
+        self.cloudCacheResponseFactory = cloudCacheResponseFactory
     }
 
     // MARK: - CacheStoring
@@ -56,7 +56,7 @@ public final class CacheRemoteStorage: CacheStoring {
     public func exists(hash: String) -> Single<Bool> {
         do {
             let successRange = 200 ..< 300
-            let resource = try CloudHEADResponse.existsResource(hash: hash, cloud: cloudConfig)
+            let resource = try cloudCacheResponseFactory.existsResource(hash: hash)
             return cloudClient.request(resource)
                 .flatMap { _, response in
                     .just(successRange.contains(response.statusCode))
@@ -75,7 +75,7 @@ public final class CacheRemoteStorage: CacheStoring {
 
     public func fetch(hash: String) -> Single<AbsolutePath> {
         do {
-            let resource = try CloudCacheResponse.fetchResource(hash: hash, cloud: cloudConfig)
+            let resource = try cloudCacheResponseFactory.fetchResource(hash: hash)
             return cloudClient
                 .request(resource)
                 .map(\.object.data.url)
@@ -101,15 +101,8 @@ public final class CacheRemoteStorage: CacheStoring {
             let archiver = try fileArchiverFactory.makeFileArchiver(for: paths)
             let destinationZipPath = try archiver.zip(name: hash)
             let contentMD5 = try FileHandler.shared.base64MD5(path: destinationZipPath)
-            let storeResource = try CloudCacheResponse.storeResource(
+            let storeResource = try cloudCacheResponseFactory.storeResource(
                 hash: hash,
-                cloud: cloudConfig,
-                contentMD5: contentMD5
-            )
-
-            let verifyUploadResource = try CloudCacheResponse.verifyUploadResource(
-                hash: hash,
-                cloud: cloudConfig,
                 contentMD5: contentMD5
             )
 
@@ -119,9 +112,12 @@ public final class CacheRemoteStorage: CacheStoring {
                 .flatMapCompletable { (url: URL) in
                     let deleteCompletable = self.deleteZipArchiveCompletable(archiver: archiver)
                     return self.fileClient.upload(file: destinationZipPath, hash: hash, to: url).asCompletable()
-                        .andThen(self.cloudClient.request(verifyUploadResource).asCompletable())
-                        .andThen(deleteCompletable)
-                        .catchError { deleteCompletable.concat(.error($0)) }
+                        .andThen(self.verify(hash: hash,
+                                             contentMD5: contentMD5,
+                                             deleteCompletable: deleteCompletable))
+                        .catchError {
+                            deleteCompletable.concat(.error($0))
+                        }
                 }
         } catch {
             return Completable.error(error)
@@ -129,6 +125,24 @@ public final class CacheRemoteStorage: CacheStoring {
     }
 
     // MARK: - Private
+
+    public func verify(hash: String, contentMD5: String, deleteCompletable: Completable) -> Completable {
+        do {
+            let verifyUploadResource = try cloudCacheResponseFactory.verifyUploadResource(
+                hash: hash,
+                contentMD5: contentMD5
+            )
+
+            return cloudClient
+                .request(verifyUploadResource).asCompletable()
+                .andThen(deleteCompletable)
+                .catchError {
+                    deleteCompletable.concat(.error($0))
+                }
+        } catch {
+            return Completable.error(error)
+        }
+    }
 
     private func frameworkPath(in archive: AbsolutePath) -> AbsolutePath? {
         if let xcframeworkPath = FileHandler.shared.glob(archive, glob: "*.xcframework").first {
