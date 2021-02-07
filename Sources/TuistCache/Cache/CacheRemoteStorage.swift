@@ -100,10 +100,10 @@ public final class CacheRemoteStorage: CacheStoring {
         do {
             let archiver = try fileArchiverFactory.makeFileArchiver(for: paths)
             let destinationZipPath = try archiver.zip(name: hash)
-            let contentMD5 = try FileHandler.shared.base64MD5(path: destinationZipPath)
+            let md5 = try FileHandler.shared.base64MD5(path: destinationZipPath)
             let storeResource = try cloudCacheResponseFactory.storeResource(
                 hash: hash,
-                contentMD5: contentMD5
+                contentMD5: md5
             )
 
             return cloudClient
@@ -111,10 +111,10 @@ public final class CacheRemoteStorage: CacheStoring {
                 .map { (responseTuple) -> URL in responseTuple.object.data.url }
                 .flatMapCompletable { (url: URL) in
                     let deleteCompletable = self.deleteZipArchiveCompletable(archiver: archiver)
-                    return self.fileClient.upload(file: destinationZipPath, hash: hash, to: url).asCompletable()
-                        .andThen(self.verify(hash: hash,
-                                             contentMD5: contentMD5,
-                                             deleteCompletable: deleteCompletable))
+                    return self.fileClient.upload(file: destinationZipPath, hash: hash, to: url)
+                        .flatMapCompletable { _ in
+                            self.verify(hash: hash, contentMD5: md5)
+                        }
                         .catchError {
                             deleteCompletable.concat(.error($0))
                         }
@@ -126,7 +126,7 @@ public final class CacheRemoteStorage: CacheStoring {
 
     // MARK: - Private
 
-    public func verify(hash: String, contentMD5: String, deleteCompletable: Completable) -> Completable {
+    private func verify(hash: String, contentMD5: String) -> Completable {
         do {
             let verifyUploadResource = try cloudCacheResponseFactory.verifyUploadResource(
                 hash: hash,
@@ -135,10 +135,6 @@ public final class CacheRemoteStorage: CacheStoring {
 
             return cloudClient
                 .request(verifyUploadResource).asCompletable()
-                .andThen(deleteCompletable)
-                .catchError {
-                    deleteCompletable.concat(.error($0))
-                }
         } catch {
             return Completable.error(error)
         }

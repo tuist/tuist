@@ -8,7 +8,7 @@ public extension CloudResponseError.Error {
 }
 
 public extension CloudResponseError {
-    static func test(status: String = "Status", errors: [Error]? = [.test()]) -> CloudResponseError {
+    static func test(status: String = "Error status", errors: [Error]? = [.test()]) -> CloudResponseError {
         .init(status: status, errors: errors)
     }
 }
