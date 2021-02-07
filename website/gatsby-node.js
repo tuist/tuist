@@ -7,7 +7,12 @@ exports.onCreateNode = ({ node, getNode, actions }) => {
   // Redirects
   createRedirect({
     fromPath: '/docs',
-    toPath: '/docs/usage/getting-started/',
+    toPath: '/docs/usage/get-started/',
+    isPermanent: true,
+  })
+  createRedirect({
+    fromPath: '/docs/usage/getting-started/',
+    toPath: '/docs/usage/get-started/',
     isPermanent: true,
   })
   createRedirect({

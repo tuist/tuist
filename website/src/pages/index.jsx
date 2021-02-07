@@ -107,7 +107,7 @@ const Steroids = () => {
             </div>
             <GradientButton
               title="GET STARTED"
-              link="/docs/usage/getting-started/"
+              link="/docs/usage/get-started/"
             />
 
             <div
@@ -569,7 +569,7 @@ const Contribute = () => {
           <div className="mt-8 flex justify-center">
             <div className="inline-flex rounded-md shadow">
               <Link
-                to="/docs/usage/getting-started/"
+                to="/docs/usage/get-started/"
                 sx={{
                   color: 'background',
                   bg: 'primary',
@@ -582,7 +582,7 @@ const Contribute = () => {
             </div>
             <div className="ml-3 inline-flex">
               <Link
-                to="/docs/contribution/getting-started/"
+                to="/docs/contribution/get-started/"
                 sx={{
                   color: 'background',
                   bg: lighten('secondary', 0.2),
