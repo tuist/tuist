@@ -42,9 +42,9 @@ final class EmbedScriptGeneratorTests: TuistUnitTestCase {
             "${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/\(path.basename)",
         ])
 
-        XCTAssertTrue(got.script.contains("install_framework \"$(SRCROOT)/\(path.basename)\""))
-        XCTAssertTrue(got.script.contains("install_dsym \"$(SRCROOT)/\(dsymPath.basename)\""))
-        XCTAssertTrue(got.script.contains("install_bcsymbolmap \"$(SRCROOT)/\(bcsymbolPath.basename)\""))
+        XCTAssertTrue(got.script.contains("install_framework \"$SRCROOT/\(path.basename)\""))
+        XCTAssertTrue(got.script.contains("install_dsym \"$SRCROOT/\(dsymPath.basename)\""))
+        XCTAssertTrue(got.script.contains("install_bcsymbolmap \"$SRCROOT/\(bcsymbolPath.basename)\""))
     }
 
     func test_script_when_not_includingSymbolsInFileLists() throws {
@@ -69,8 +69,8 @@ final class EmbedScriptGeneratorTests: TuistUnitTestCase {
             "${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/\(path.basename)",
         ])
 
-        XCTAssertTrue(got.script.contains("install_framework \"$(SRCROOT)/\(path.basename)\""))
-        XCTAssertTrue(got.script.contains("install_dsym \"$(SRCROOT)/\(dsymPath.basename)\""))
-        XCTAssertTrue(got.script.contains("install_bcsymbolmap \"$(SRCROOT)/\(bcsymbolPath.basename)\""))
+        XCTAssertTrue(got.script.contains("install_framework \"$SRCROOT/\(path.basename)\""))
+        XCTAssertTrue(got.script.contains("install_dsym \"$SRCROOT/\(dsymPath.basename)\""))
+        XCTAssertTrue(got.script.contains("install_bcsymbolmap \"$SRCROOT/\(bcsymbolPath.basename)\""))
     }
 }
