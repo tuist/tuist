@@ -4,6 +4,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Added
+
+- Fail linting when targets with duplicate bundle identifiers exist per platform [#2444](https://github.com/tuist/tuist/pull/2444) by [@natanrolnik](https://github.com/natanrolnik).
+
 ### Changed
 
 - Update post-generation interactors to use the graph traverser [#2451](https://github.com/tuist/tuist/pull/2451) by [@pepibumur](https://github.com/pepibumur).
@@ -15,7 +19,6 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Add support for `tuist graph` to show the graph of a subset of targets via `tuist graph FrameworkA FrameworkB` [#2434]((https://github.com/tuist/tuist/pull/2434) by [@adellibovi](https://github.com/adellibovi).
 - Send Tuist usage analytics event to https://stats.tuist.io/ [#2331](https://github.com/tuist/tuist/pull/2331) by [@andreacipriani](https://github.com/andreacipriani).
 - Plugin integration for local and git plugins by [@luispadron](https://github.com/luispadron) and [@kwridan](https://github.com/kwridan).
-- Fail linting when targets with duplicate bundle identifiers exist per platform [#2444](https://github.com/tuist/tuist/pull/2444) by [@natanrolnik](https://github.com/natanrolnik).
 
 ### Fixed
 

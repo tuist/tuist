@@ -247,14 +247,12 @@ public class GraphLinter: GraphLinting {
 
     private func lintBundleIdentifiers(graphTraverser: GraphTraversing) -> [LintingIssue] {
         var bundleIds = [BundleIdKey: [String]]()
-        // swiftlint:disable:next force_try
-        let generatedBundleIdRegex = try! NSRegularExpression(pattern: "\\$\\{.*\\}", options: [])
+        let buildSettingRegex = "\\$[\\({](.*)[\\)}]"
 
         graphTraverser.targets
             .flatMap { $0.value.map(\.value) }
             .forEach { target in
-                let bundleId = target.bundleId
-                if generatedBundleIdRegex.numberOfMatches(in: bundleId, options: [], range: NSRange(location: 0, length: bundleId.count)) > 0 {
+                if target.bundleId.matches(pattern: buildSettingRegex) {
                     return
                 }
 

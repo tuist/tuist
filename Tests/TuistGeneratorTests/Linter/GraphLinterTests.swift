@@ -903,7 +903,7 @@ final class GraphLinterTests: TuistUnitTestCase {
     }
 
     func test_lintDifferentBundleIdentifiers() {
-        // given
+        // Given
         let path: AbsolutePath = "/project"
         let appTarget = Target.test(name: "AppTarget", product: .app)
         let frameworkA = Target.test(name: "frameworkA", product: .framework, bundleId: "com.tuist.frameworks.test")
@@ -933,11 +933,11 @@ final class GraphLinterTests: TuistUnitTestCase {
         let got = subject.lint(graphTraverser: graphTraverser)
 
         // Then
-        XCTAssertEqual(got.count, 0)
+        XCTAssertEmpty(got)
     }
 
     func test_lintDuplicateBundleIdentifiers() {
-        // given
+        // Given
         let path: AbsolutePath = "/project"
         let appTarget = Target.test(name: "AppTarget", product: .app)
         let frameworkA = Target.test(name: "frameworkA", product: .framework, bundleId: "com.tuist.frameworks.test")
@@ -983,22 +983,14 @@ final class GraphLinterTests: TuistUnitTestCase {
         let got = subject.lint(graphTraverser: graphTraverser)
 
         // Then
-        XCTAssertEqual(got.count, 2)
-
-        if got.count == 2 {
-            let firstIssue = got[0]
-            let secondIssue = got[1]
-
-            XCTAssertEqual(firstIssue.severity, LintingIssue.Severity.error)
-            XCTAssertEqual(firstIssue.reason, "The bundle identifier 'com.tuist.frameworks.test' is being used by multiple targets: frameworkA, frameworkB, and frameworkF.")
-
-            XCTAssertEqual(secondIssue.severity, LintingIssue.Severity.error)
-            XCTAssertEqual(secondIssue.reason, "The bundle identifier 'com.tuist.frameworks.test2' is being used by multiple targets: frameworkC and frameworkE.")
-        }
+        XCTAssertEqual(got, [
+            LintingIssue(reason: "The bundle identifier 'com.tuist.frameworks.test' is being used by multiple targets: frameworkA, frameworkB, and frameworkF.", severity: .error),
+            LintingIssue(reason: "The bundle identifier 'com.tuist.frameworks.test2' is being used by multiple targets: frameworkC and frameworkE.", severity: .error),
+        ]
     }
 
     func test_lintBundleIdentifiersShouldIgnoreVariables() {
-        // given
+        // Given
         let path: AbsolutePath = "/project"
         let appTarget = Target.test(name: "AppTarget", product: .app)
         let frameworkA = Target.test(name: "frameworkA", product: .framework, bundleId: "${ANY_VARIABLE}")
@@ -1028,6 +1020,6 @@ final class GraphLinterTests: TuistUnitTestCase {
         let got = subject.lint(graphTraverser: graphTraverser)
 
         // Then
-        XCTAssertEqual(got.count, 0)
+        XCTAssertEmpty(got)
     }
 }

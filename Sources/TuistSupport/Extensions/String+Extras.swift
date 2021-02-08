@@ -193,8 +193,8 @@ public extension Array where Element: CustomStringConvertible {
     /// ["Framework", "App", "Tests"] results in "Framework, App, and Tests"
     /// - Returns: <#description#>
     func listed() -> String {
-        let l = ListFormatter()
-        l.locale = Locale(identifier: "en-US")
-        return l.string(from: self) ?? ""
+        let listFormatter = ListFormatter()
+        listFormatter.locale = Locale(identifier: "en-US")
+        return listFormatter.string(from: self) ?? ""
     }
 }
