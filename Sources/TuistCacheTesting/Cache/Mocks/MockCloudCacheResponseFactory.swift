@@ -7,7 +7,7 @@ import TuistSupportTesting
 @testable import TuistCache
 @testable import TuistCoreTesting
 
-public class MockCloudCacheResourceFactory: CloudCacheResourceManufacturing {
+public class MockCloudCacheResourceFactory: CloudCacheResourceFactorying {
     public init() {}
 
     public var invokedExistsResource = false

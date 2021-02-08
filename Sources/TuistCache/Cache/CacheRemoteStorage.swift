@@ -29,7 +29,7 @@ public final class CacheRemoteStorage: CacheStoring {
     private let cloudClient: CloudClienting
     private let fileClient: FileClienting
     private let fileArchiverFactory: FileArchivingFactorying
-    private let cloudCacheResponseFactory: CloudCacheResourceManufacturing
+    private let cloudCacheResponseFactory: CloudCacheResourceFactorying
 
     // MARK: - Init
 
@@ -43,7 +43,7 @@ public final class CacheRemoteStorage: CacheStoring {
     init(cloudClient: CloudClienting,
          fileArchiverFactory: FileArchivingFactorying,
          fileClient: FileClienting,
-         cloudCacheResponseFactory: CloudCacheResourceManufacturing)
+         cloudCacheResponseFactory: CloudCacheResourceFactorying)
     {
         self.cloudClient = cloudClient
         self.fileArchiverFactory = fileArchiverFactory
