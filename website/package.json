@@ -33,7 +33,7 @@
     "gatsby-plugin-meta-redirect": "^1.1.1",
     "gatsby-plugin-netlify": "^2.10.0",
     "gatsby-plugin-next-seo": "^1.7.0",
-    "gatsby-plugin-postcss": "^3.6.0",
+    "gatsby-plugin-postcss": "^3.7.0",
     "gatsby-plugin-react-helmet": "^3.9.0",
     "gatsby-plugin-react-svg": "^3.0.0",
     "gatsby-plugin-robots-txt": "^1.5.5",
