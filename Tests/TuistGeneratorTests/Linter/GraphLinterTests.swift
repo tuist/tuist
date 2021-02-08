@@ -986,7 +986,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         XCTAssertEqual(got, [
             LintingIssue(reason: "The bundle identifier 'com.tuist.frameworks.test' is being used by multiple targets: frameworkA, frameworkB, and frameworkF.", severity: .warning),
             LintingIssue(reason: "The bundle identifier 'com.tuist.frameworks.test2' is being used by multiple targets: frameworkC and frameworkE.", severity: .warning),
-        ]
+        ])
     }
 
     func test_lintBundleIdentifiersShouldIgnoreVariables() {
