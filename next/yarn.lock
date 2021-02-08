@@ -6721,6 +6721,15 @@ filenamify@^2.0.0:
     strip-outer "^1.0.0"
     trim-repeated "^1.0.0"
 
+filenamify@^4.2.0:
+  version "4.2.0"
+  resolved "https://registry.yarnpkg.com/filenamify/-/filenamify-4.2.0.tgz#c99716d676869585b3b5d328b3f06590d032e89f"
+  integrity sha512-pkgE+4p7N1n7QieOopmn3TqJaefjdWXwEkj2XLZJLKfOgcQKkn11ahvGNgTD8mLggexLiDFQxeTs14xVU22XPA==
+  dependencies:
+    filename-reserved-regex "^2.0.0"
+    strip-outer "^1.0.1"
+    trim-repeated "^1.0.0"
+
 filesize@3.5.11:
   version "3.5.11"
   resolved "https://registry.yarnpkg.com/filesize/-/filesize-3.5.11.tgz#1919326749433bb3cf77368bd158caabcc19e9ee"
@@ -6955,15 +6964,15 @@ fs-extra@^8.1.0:
     jsonfile "^4.0.0"
     universalify "^0.1.0"
 
-fs-extra@^9.0.1:
-  version "9.0.1"
-  resolved "https://registry.yarnpkg.com/fs-extra/-/fs-extra-9.0.1.tgz#910da0062437ba4c39fedd863f1675ccfefcb9fc"
-  integrity sha512-h2iAoN838FqAFJY2/qVpzFXy+EBxfVE220PalAqQLDVsFOHLJrZvut5puAbCdNv6WJk+B8ihI+k0c7JK5erwqQ==
+fs-extra@^9.0.1, fs-extra@^9.1.0:
+  version "9.1.0"
+  resolved "https://registry.yarnpkg.com/fs-extra/-/fs-extra-9.1.0.tgz#5954460c764a8da2094ba3554bf839e6b9a7c86d"
+  integrity sha512-hcg3ZmepS30/7BSFqRvoo3DOMQu7IjqxO5nCDt+zM9XWjb33Wg7ziNT+Qvqbuc3+gWpzO02JubVyk2G4Zvo1OQ==
   dependencies:
     at-least-node "^1.0.0"
     graceful-fs "^4.2.0"
     jsonfile "^6.0.1"
-    universalify "^1.0.0"
+    universalify "^2.0.0"
 
 fs-minipass@^2.0.0:
   version "2.1.0"
@@ -7059,10 +7068,10 @@ gatsby-cli@^2.18.0:
     yoga-layout-prebuilt "^1.9.6"
     yurnalist "^2.1.0"
 
-gatsby-core-utils@^1.9.0:
-  version "1.9.0"
-  resolved "https://registry.yarnpkg.com/gatsby-core-utils/-/gatsby-core-utils-1.9.0.tgz#ff349cc2013fd06a85099b3aee061b01f64ceabb"
-  integrity sha512-AWq9E+rBY+fWJrhdOx0rn/LlZ0eCjpqLYlDcUmLZ5NjwLARgkEXNf4JsvDETLtThcNlSOibEMQex8arsYatmkA==
+gatsby-core-utils@^1.10.0, gatsby-core-utils@^1.9.0:
+  version "1.10.0"
+  resolved "https://registry.yarnpkg.com/gatsby-core-utils/-/gatsby-core-utils-1.10.0.tgz#7df5bc7b7e810c71602d5ec18a925e8a7890fb45"
+  integrity sha512-uI5gJXmVHegn8E/vttoX0BaXRJPC73RzxuZDtl2U5WBEgeg+VVkKCmNVQE9Xk+Qstm2Wd6RU+QJ4LMx5ywYZhQ==
   dependencies:
     ci-info "2.0.0"
     configstore "^5.0.1"
@@ -7215,17 +7224,18 @@ gatsby-plugin-react-helmet@^3.9.0:
   dependencies:
     "@babel/runtime" "^7.12.5"
 
-gatsby-plugin-sharp@^2.13.4:
-  version "2.13.4"
-  resolved "https://registry.yarnpkg.com/gatsby-plugin-sharp/-/gatsby-plugin-sharp-2.13.4.tgz#67f730418113072e8c8a011d37416a25a241f680"
-  integrity sha512-51k2/aCHGw3Cic8wRyPR5ny59OVUTXs+AhHOe3BwEOTWiAtpZ5eDKVMPHNviYDHOmiUpn17L08Ht6njbohs39g==
+gatsby-plugin-sharp@^2.14.1:
+  version "2.14.1"
+  resolved "https://registry.yarnpkg.com/gatsby-plugin-sharp/-/gatsby-plugin-sharp-2.14.1.tgz#163b4b2456b7f5125bccb8e6a6bef73d9cab9941"
+  integrity sha512-JhYaVtXJeocJ6VWaZqDMLbKVbvfUh5zZcvRTDtCGjZsBqFaVxffnkBI46b/nxpDzfJQwmixDU7Chyxu0Dbzh+A==
   dependencies:
     "@babel/runtime" "^7.12.5"
     async "^3.2.0"
     bluebird "^3.7.2"
-    fs-extra "^9.0.1"
-    gatsby-core-utils "^1.9.0"
-    gatsby-telemetry "^1.9.0"
+    filenamify "^4.2.0"
+    fs-extra "^9.1.0"
+    gatsby-core-utils "^1.10.0"
+    gatsby-telemetry "^1.10.0"
     got "^10.7.0"
     imagemin "^7.0.1"
     imagemin-mozjpeg "^9.0.0"
@@ -7376,10 +7386,10 @@ gatsby-source-filesystem@^2.10.0:
     valid-url "^1.0.9"
     xstate "^4.14.0"
 
-gatsby-telemetry@^1.9.0:
-  version "1.9.0"
-  resolved "https://registry.yarnpkg.com/gatsby-telemetry/-/gatsby-telemetry-1.9.0.tgz#91083de2f85c3dc69a38653fddd5e33af0daab75"
-  integrity sha512-RWjA7/oG+Z2m/gNhv9/rvOjcKxSNm9n+PaVfTJGcQa5M3BTLwkf9tPSswpo8WAPu2kgnlql3bH12eKB61f5VAw==
+gatsby-telemetry@^1.10.0, gatsby-telemetry@^1.9.0:
+  version "1.10.0"
+  resolved "https://registry.yarnpkg.com/gatsby-telemetry/-/gatsby-telemetry-1.10.0.tgz#8c8552df575e66d58ca785554e47306d9cbe53d2"
+  integrity sha512-lGUCwAASThIK5KtFwbVnQfthcKJRosxK70BrXy7c7h3FPSdbahy8DZvpuNz6beCAets3ZDGTXVzPGtzPZI1u6Q==
   dependencies:
     "@babel/code-frame" "^7.10.4"
     "@babel/runtime" "^7.12.5"
@@ -7389,7 +7399,7 @@ gatsby-telemetry@^1.9.0:
     boxen "^4.2.0"
     configstore "^5.0.1"
     fs-extra "^8.1.0"
-    gatsby-core-utils "^1.9.0"
+    gatsby-core-utils "^1.10.0"
     git-up "^4.0.2"
     is-docker "^2.1.1"
     lodash "^4.17.20"
@@ -14864,7 +14874,7 @@ strip-json-comments@~2.0.1:
   resolved "https://registry.yarnpkg.com/strip-json-comments/-/strip-json-comments-2.0.1.tgz#3c531942e908c2697c0ec344858c286c7ca0a60a"
   integrity sha1-PFMZQukIwml8DsNEhYwobHygpgo=
 
-strip-outer@^1.0.0:
+strip-outer@^1.0.0, strip-outer@^1.0.1:
   version "1.0.1"
   resolved "https://registry.yarnpkg.com/strip-outer/-/strip-outer-1.0.1.tgz#b2fd2abf6604b9d1e6013057195df836b8a9d631"
   integrity sha512-k55yxKHwaXnpYGsOzg4Vl8+tDrWylxDEpknGjhTiZB8dFRU5rTo9CAzeycivxV3s+zlTKwrs6WxMxR95n26kwg==
@@ -15810,11 +15820,6 @@ universalify@^0.1.0:
   version "0.1.2"
   resolved "https://registry.yarnpkg.com/universalify/-/universalify-0.1.2.tgz#b646f69be3942dabcecc9d6639c80dc105efaa66"
   integrity sha512-rBJeI5CXAlmy1pV+617WB9J63U6XcazHHF2f2dbJix4XzpUF0RS3Zbj0FGIOCAva5P/d/GBOYaACQ1w+0azUkg==
-
-universalify@^1.0.0:
-  version "1.0.0"
-  resolved "https://registry.yarnpkg.com/universalify/-/universalify-1.0.0.tgz#b61a1da173e8435b2fe3c67d29b9adf8594bd16d"
-  integrity sha512-rb6X1W158d7pRQBg5gkR8uPaSfiids68LTJQYOtEUhoJUWBdaQHsuT/EUduxXYxcrt4r5PJ4fuHW1MHT6p0qug==
 
 universalify@^2.0.0:
   version "2.0.0"
