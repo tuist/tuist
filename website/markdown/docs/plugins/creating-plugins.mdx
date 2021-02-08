@@ -1,0 +1,101 @@
+---
+name: Creating plugins
+excerpt: Learn how to create plugins for Tuist.
+---
+
+# Creating plugins
+
+## Plugin
+
+A plugin to Tuist is a directory with a `Plugin.swift` manifest. This manifest is used to define specific attributes of a plugin.
+
+## Plugin.swift manifest
+
+```swift
+import ProjectDescription
+
+let plugin = Plugin(name: "MyPlugin")
+```
+
+## Project description helpers
+
+Project description helpers can be used to extend Tuist's functionality: Tuist automatically compiles the sources and allows it to be imported during project generation.
+
+In order for Tuist to find the source files for these helpers they must be placed in the same direcotry as the `Plugin.swift` manifest and in a
+directory called `ProjectDescriptionHelpers`
+
+```
+.
+├── ...
+├── Plugin.swift
+├── ProjectDescriptionHelpers
+└── ...
+```
+
+The `.swift` files in the `ProjectDescriptionHelpers` directory are collected and compiled and can then be imported using the name
+of the plugin:
+
+```swift
+import ProjectDescription
+import MyPlugin
+
+...
+```
+
+## Example
+
+Let's walk through creating a custom plugin for Tuist! Our plugin will be named `MyTuistPlugin` and we want to add a new method to `Project` that will
+allow other developers to easily create a project for an iOS app.
+
+### Create the directory
+
+We must first create a directory for our plugin, it may look something like:
+
+```
+MyTuistPlugin/
+├── Plugin.swift
+├── ProjectDescriptionHelpers
+```
+
+### Create the Plugin manifest
+
+Next we create the `Plugin.swift` manifest and give our plugin a name:
+
+```swift
+// Plugin.swift
+import ProjectDescription
+
+let plugin = Plugin(name: "MyTuistPlugin")
+```
+
+### Add project description helpers
+
+In order for our plugin to be useful we decide we want to add custom project description helpers so that other developers can easily make an iOS app project. 
+For example we can create a file named `Project+App.swift` and place it in a `ProjectDescriptionHelpers` directory next to the `Plugin.swift`
+
+```swift
+// Project+App.swift (in ProjectDescriptionHelpers/)
+import ProjectDescription
+
+public extension Project {
+    static func app(name: String) -> Project {
+        return Project(...)
+    }
+}
+```
+
+Notice how you label extensions, methods, classes and structs as `public` if you'd like them to be usable by others when they import your plugin.
+
+### Use the plugin
+
+We can follow the [using plugins](/docs/plugins/using-plugins/) to learn more about how to use plugins. For this exmaple we may want to include the plugin and use it like so:
+
+```swift
+// Project.swift
+import ProjectDescription
+import MyTuistPlugin
+
+let project = Project.app(name: "MyApp")
+```
+
+Notice how we import our plugin using the name defined in the `Plugin.swift` manifest and this now allows us to use the `app` method defined in the `ProjectDescriptionHelpers` of the plugin!
