@@ -9,6 +9,7 @@ typealias CloudCacheResource = HTTPResource<CloudResponse<CloudCacheResponse>, C
 
 typealias CloudVerifyUploadResource = HTTPResource<CloudResponse<CloudVerifyUploadResponse>, CloudResponseError>
 
+/// Entity responsible for providing cache-related resources
 protocol CloudCacheResourceManufacturing {
     func existsResource(hash: String) throws -> CloudExistsResource
     func fetchResource(hash: String) throws -> CloudCacheResource
