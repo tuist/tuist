@@ -15,7 +15,7 @@ module.exports = {
     twitterUrl: 'http://twitter.com/tuistio',
     editUrl: 'https://github.com/tuist/tuist/edit/master/website',
     contributeUrl: 'https://docs.tuist.io/contribution-1-getting-started',
-    firstDocumentationPagePath: '/docs/usage/getting-started/',
+    firstDocumentationPagePath: '/docs/usage/get-started/',
     documentationCategories: [
       { folderName: 'usage', name: 'Usage' },
       { folderName: 'contribution', name: 'Contributors' },

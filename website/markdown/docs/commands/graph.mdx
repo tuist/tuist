@@ -29,6 +29,11 @@ If you prefer to have the dot representation of the graph and render it separate
 tuist graph --format dot
 ```
 
+To show the graph of only specific targets and their dependencies, you can run:
+```
+tuist graph FrameworkA FrameworkB
+```
+
 ### Legend
 
 The graph command will style every type of target or dependency differently. This makes it easier to understand
@@ -85,8 +90,22 @@ If you prefer the old style, without different colors and shapes, pass the `--si
       long: '`--path`',
       short: '`-p`',
       description:
+        'The path to the directory that contains the definition of the project.',
+      default: 'Current directory',
+    },
+    {
+      long: '`--output-path`',
+      short: '`-o`',
+      description:
         'The path to where the image will be exported. When not specified, it exports the image in the current directory.',
       default: '',
+    },
+    {
+      long: '`--targets`',
+      short: '`-t`',
+      description:
+        'A list of targets to filter. Those and their dependent targets will be showed in the graph. If empty, every target will be showed.',
+      default: '`Empty list`',
     },
   ]}
 />

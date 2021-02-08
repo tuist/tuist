@@ -1,0 +1,82 @@
+---
+name: Analytics Event
+exceprt: The definition of the analytics events sent to tuist.stats.io
+---
+# Analytics Events
+
+This document shows the list of all analytics events sent by Tuist.
+
+### CommandEvent
+
+A `CommandEvent` is sent every time a Tuist command successfully completes.
+Schema:
+
+<EventsTable
+  args={[
+    {
+      name: '`name`',
+      type: '`String`',
+      description: 'The name of the Tuist command',
+      example: 'cache',
+      required: true,
+    },
+    {
+      name: '`subcommand`',
+      type: '`String`',
+      description: 'The name of the Tuist sub-command',
+      example: 'warm',
+      required: false,
+    },
+    {
+      name: '`parameters`',
+      type: '`[String: String]`',
+      description: 'A dictionary containing the parameters of the command',
+      example: '["verbose" : "true"]',
+      required: false,
+    },
+    {
+      name: '`durationInMs`',
+      type: '`Int`',
+      description: 'The duration of the command, in milliseconds',
+      example: '1200',
+      required: true,
+    },
+    {
+      name: '`clientId`',
+      type: '`String`',
+      description:
+        'An anonymous identifier for the client executing the command',
+      example: '202cb962ac59075b964b07152d234b70',
+      required: true,
+    },
+    {
+      name: '`tuistVersion`',
+      type: '`String`',
+      description: 'The version of Tuist when the command run',
+      example: '1.27.0',
+      required: true,
+    },
+    {
+      name: '`swiftVersion`',
+      type: '`String`',
+      description: 'The version of Swift when the command run',
+      example: '5.0',
+      required: true,
+    },
+    {
+      name: '`macOSVersion`',
+      type: '`String`',
+      description: 'The version of macOS when the command run',
+      example: '10.15.7',
+      required: true,
+    },
+    {
+      name: '`machineHardwareName`',
+      type: '`String`',
+      description:
+        'A string identifing the architecture of the operating system',
+      example: 'arm64',
+      required: true,
+    },
+  ]}
+/>
