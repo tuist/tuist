@@ -50,12 +50,12 @@ extension TuistGraph.FileElement {
         }
 
         switch manifest {
-        case let .glob(pattern: pattern):
+        case let .glob(pattern: pattern, tags: tags):
             let resolvedPath = try generatorPaths.resolve(path: pattern)
-            return try globFiles(resolvedPath).map(FileElement.file)
-        case let .folderReference(path: folderReferencePath):
+            return try globFiles(resolvedPath).map { FileElement.file(path: $0, tags: tags) }
+        case let .folderReference(path: folderReferencePath, tags: tags):
             let resolvedPath = try generatorPaths.resolve(path: folderReferencePath)
-            return folderReferences(resolvedPath).map(FileElement.folderReference)
+            return folderReferences(resolvedPath).map { FileElement.folderReference(path: $0, tags: tags) }
         }
     }
 }

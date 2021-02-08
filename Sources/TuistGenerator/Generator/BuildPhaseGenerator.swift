@@ -251,7 +251,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         pbxproj.add(object: resourcesBuildPhase)
         pbxTarget.buildPhases.append(resourcesBuildPhase)
 
-        try generateResourcesBuildFile(files: target.resources.map(\.path),
+        try generateResourcesBuildFile(files: target.resources,
                                        fileElements: fileElements,
                                        pbxproj: pbxproj,
                                        resourcesBuildPhase: resourcesBuildPhase)
@@ -318,13 +318,15 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         }
     }
 
-    private func generateResourcesBuildFile(files: [AbsolutePath],
+    private func generateResourcesBuildFile(files: [FileElement],
                                             fileElements: ProjectFileElements,
                                             pbxproj: PBXProj,
                                             resourcesBuildPhase: PBXResourcesBuildPhase) throws
     {
         var buildFilesCache = Set<AbsolutePath>()
-        try files.sorted().forEach { buildFilePath in
+        try files.sorted(by: { $0.path < $1.path }).forEach { resource in
+            let buildFilePath = resource.path
+            
             let pathString = buildFilePath.pathString
             let isLocalized = pathString.contains(".lproj/")
             let isLproj = buildFilePath.extension == "lproj"
@@ -353,7 +355,10 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                 element = (fileReference, buildFilePath)
             }
             if let element = element, buildFilesCache.contains(element.path) == false {
-                let pbxBuildFile = PBXBuildFile(file: element.element)
+                let tags = resource.tags.sorted()
+                let settings: [String: Any]? = !tags.isEmpty ? ["ASSET_TAGS": tags] : nil
+                
+                let pbxBuildFile = PBXBuildFile(file: element.element, settings: settings)
                 pbxproj.add(object: pbxBuildFile)
                 resourcesBuildPhase.files?.append(pbxBuildFile)
                 buildFilesCache.insert(element.path)

@@ -25,7 +25,8 @@ let project = Project(name: "MyProject",
                                  sources: ["Sources/**"],
                                  resources: [
                                    "Resources/**",
-                                   .folderReference(path: "Stubs")
+                                   .folderReference(path: "Stubs"),
+                                   .folderReference(path: "ODR", tags: ["odr_tag"])
                                  ],
                                  headers: Headers(public: ["Sources/public/A/**", "Sources/public/B/**"],
                                                   private: "Sources/private/**",
@@ -1585,13 +1586,13 @@ A `FileElement` can be one of the following options:
 <EnumTable
   cases={[
     {
-      case: '.glob(pattern: Path)',
+      case: '.glob(pattern: Path, tags: [String])',
       description:
-        'A file path (or glob pattern) to include. For convenience, a string literal can be used as an alternate way to specify this option.',
+        'A file path (or glob pattern) to include and ODR tags list. For convenience, a string literal can be used as an alternate way to specify this option.',
     },
     {
-      case: '.folderReference(path: Path)',
-      description: 'A directory path to include as a folder reference.',
+      case: '.folderReference(path: Path, tags: [String])',
+      description: 'A directory path to include as a folder reference and ODR tags list. ',
     },
   ]}
 />

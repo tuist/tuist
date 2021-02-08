@@ -118,7 +118,7 @@ extension TuistGraph.Target {
         allResources.forEach { fileElement in
             switch fileElement {
             case .folderReference: resourcesWithoutPlaygrounds.append(fileElement)
-            case let .file(path):
+            case let .file(path, _):
                 if path.pathString.contains(".playground/") {
                     playgrounds.insert(path.upToComponentMatching(extension: "playground"))
                 } else {
@@ -133,7 +133,7 @@ extension TuistGraph.Target {
     fileprivate static func resourcesFlatteningBundles(resources: [TuistGraph.FileElement]) -> [TuistGraph.FileElement] {
         Array(resources.reduce(into: Set<TuistGraph.FileElement>()) { flattenedResources, resourceElement in
             switch resourceElement {
-            case let .file(path):
+            case let .file(path, _):
                 if path.pathString.contains(".bundle/") {
                     flattenedResources.formUnion([.file(path: path.upToComponentMatching(extension: "bundle"))])
                 } else {
