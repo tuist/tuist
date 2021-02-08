@@ -109,8 +109,8 @@ final class ContentHashingIntegrationTests: TuistTestCase {
         let contentHash = try subject.contentHashes(for: graph, cacheOutputType: .framework)
 
         // Then
-        XCTAssertEqual(contentHash[framework1], "cb93cd96c5af9deb87fad78fd14b5664")
-        XCTAssertEqual(contentHash[framework2], "f224c9df7a44ce5c7849f10e58142718")
+        XCTAssertEqual(contentHash[framework1], "5627efce7c307c2bef2b1c4a1e2673c9")
+        XCTAssertEqual(contentHash[framework2], "d593a9717a2d197ae5906096dd678a46")
     }
 
     func test_contentHashes_hashChangesWithCacheOutputType() throws {

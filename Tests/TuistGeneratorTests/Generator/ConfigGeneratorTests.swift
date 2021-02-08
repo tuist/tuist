@@ -475,6 +475,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
             .release("CustomRelease"): Configuration(settings: ["CustomRelease": "CustomRelease"], xcconfig: nil),
         ]
         let target = Target.test(name: "Test",
+                                 bundleId: "com.test.bundle_id",
                                  infoPlist: .file(path: AbsolutePath("/Info.plist")),
                                  entitlements: AbsolutePath("/Test.entitlements"),
                                  settings: Settings(base: ["Base": "Base"], configurations: configurations))
