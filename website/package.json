@@ -46,7 +46,7 @@
     "gatsby-remark-embedder": "^4.1.0",
     "gatsby-remark-images": "^3.11.0",
     "gatsby-remark-smartypants": "^2.10.0",
-    "gatsby-source-filesystem": "^2.10.0",
+    "gatsby-source-filesystem": "^2.11.0",
     "gatsby-transformer-yaml": "^2.10.0",
     "graphviz-react": "^1.1.1",
     "is-absolute-url": "^3.0.3",
