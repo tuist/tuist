@@ -7349,10 +7349,10 @@ gatsby-plugin-sitemap@^2.12.0:
     pify "^3.0.0"
     sitemap "^1.13.0"
 
-gatsby-plugin-styled-components@^3.9.0:
-  version "3.9.0"
-  resolved "https://registry.yarnpkg.com/gatsby-plugin-styled-components/-/gatsby-plugin-styled-components-3.9.0.tgz#510de14e77da898c24a6e74ced39f5d01b2c7e7a"
-  integrity sha512-/jvjbeUOHk3X38G67va6n2yUQujNn1e74r0a6977+6MJihELXLskLrGpZF58ZWbV36YryIq0rrSpa5DAxzDaVw==
+gatsby-plugin-styled-components@^3.10.0:
+  version "3.10.0"
+  resolved "https://registry.yarnpkg.com/gatsby-plugin-styled-components/-/gatsby-plugin-styled-components-3.10.0.tgz#beeafee695b1a42df6584ca5afcaa9b461eb29f5"
+  integrity sha512-CDNNvRxLS4dsQI2fv57T+0VUqapRtiDXm6SUsxyuVuEhJCyDGu1g9jg+9ty0HfUEDcW8JexlRJO5srkdYp1x1g==
   dependencies:
     "@babel/runtime" "^7.12.5"
 
