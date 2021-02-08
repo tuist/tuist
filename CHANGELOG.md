@@ -7,6 +7,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Added
 
 - Add documentation on how to use & create plugins by [@luispadron](https://github.com/luispadron)
+- Add ODR support by [@DimaMishchenko](https://github.com/DimaMishchenko)
 
 ### Changed
 
