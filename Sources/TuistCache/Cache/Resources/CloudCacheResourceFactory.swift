@@ -3,6 +3,12 @@ import TuistCore
 import TuistGraph
 import TuistSupport
 
+typealias CloudExistsResource = HTTPResource<CloudResponse<CloudHEADResponse>, CloudHEADResponseError>
+
+typealias CloudCacheResource = HTTPResource<CloudResponse<CloudCacheResponse>, CloudResponseError>
+
+typealias CloudVerifyUploadResource = HTTPResource<CloudResponse<CloudVerifyUploadResponse>, CloudResponseError>
+
 protocol CloudCacheResourceManufacturing {
     func existsResource(hash: String) throws -> CloudExistsResource
     func fetchResource(hash: String) throws -> CloudCacheResource
