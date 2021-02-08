@@ -24,7 +24,7 @@ class CloudCacheResourceFactory: CloudCacheResourceManufacturing {
     }
 
     func existsResource(hash: String) throws -> CloudExistsResource {
-        let url = try URL.apiCacheURL(hash: hash, cacheURL: cloudConfig.url, projectId: cloudConfig.projectId)
+        let url = try apiCacheURL(hash: hash, cacheURL: cloudConfig.url, projectId: cloudConfig.projectId)
         var request = URLRequest(url: url)
         request.httpMethod = "HEAD"
         return HTTPResource(request: { request },
@@ -33,37 +33,67 @@ class CloudCacheResourceFactory: CloudCacheResourceManufacturing {
     }
 
     func fetchResource(hash: String) throws -> CloudCacheResource {
-        let url = try URL.apiCacheURL(
+        let url = try apiCacheURL(
             hash: hash,
             cacheURL: cloudConfig.url,
             projectId: cloudConfig.projectId
         )
-        return jsonResource(for: url, httpMethod: "GET")
+        return HTTPResource.jsonResource(for: url, httpMethod: "GET")
     }
 
     func storeResource(hash: String, contentMD5: String) throws -> CloudCacheResource {
-        let url = try URL.apiCacheURL(
+        let url = try apiCacheURL(
             hash: hash,
             cacheURL: cloudConfig.url,
             projectId: cloudConfig.projectId,
             contentMD5: contentMD5
         )
-        return jsonResource(for: url, httpMethod: "POST")
+        return HTTPResource.jsonResource(for: url, httpMethod: "POST")
     }
 
     func verifyUploadResource(hash: String, contentMD5: String) throws -> CloudVerifyUploadResource {
-        let url = try URL.apiCacheVerifyUploadURL(
+        let url = try apiCacheVerifyUploadURL(
             hash: hash,
             cacheURL: cloudConfig.url,
             projectId: cloudConfig.projectId,
             contentMD5: contentMD5
         )
-        return jsonResource(for: url, httpMethod: "POST")
+        return HTTPResource.jsonResource(for: url, httpMethod: "POST")
     }
 
-    private func jsonResource<R: Decodable>(for url: URL, httpMethod: String) -> HTTPResource<CloudResponse<R>, CloudResponseError> {
-        var request = URLRequest(url: url)
-        request.httpMethod = httpMethod
-        return .jsonResource { request }
+    // MARK: Private
+
+    private func apiCacheURL(hash: String,
+                             cacheURL: URL,
+                             projectId: String,
+                             contentMD5: String? = nil) throws -> URL
+    {
+        var urlComponents = URLComponents(url: cacheURL, resolvingAgainstBaseURL: false)!
+        var queryItems: [URLQueryItem] = [
+            URLQueryItem(name: "project_id", value: projectId),
+            URLQueryItem(name: "hash", value: hash),
+        ]
+        if let contentMD5 = contentMD5 {
+            queryItems.append(URLQueryItem(name: "content_md5", value: contentMD5))
+        }
+
+        urlComponents.path = "/api/cache"
+        urlComponents.queryItems = queryItems
+        return urlComponents.url!
+    }
+
+    private func apiCacheVerifyUploadURL(hash: String,
+                                         cacheURL: URL,
+                                         projectId: String,
+                                         contentMD5: String) throws -> URL
+    {
+        var urlComponents = URLComponents(url: cacheURL, resolvingAgainstBaseURL: false)!
+        urlComponents.path = "/api/cache/verify_upload"
+        urlComponents.queryItems = [
+            URLQueryItem(name: "project_id", value: projectId),
+            URLQueryItem(name: "hash", value: hash),
+            URLQueryItem(name: "content_md5", value: contentMD5),
+        ]
+        return urlComponents.url!
     }
 }
