@@ -273,7 +273,7 @@ public class GraphLinter: GraphLinting {
             }
 
             let reason = "The bundle identifier '\(bundleIdKey.bundleId)' is being used by multiple targets: \(targetNames.sorted().listed())."
-            return LintingIssue(reason: reason, severity: .error)
+            return LintingIssue(reason: reason, severity: .warning)
         }.sorted(by: { $0.reason < $1.reason })
     }
 
