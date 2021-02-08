@@ -9,12 +9,12 @@ final class MockGraphVizGenerator: GraphVizGenerating {
     var generateProjectStub = GraphViz.Graph()
     var generateWorkspaceStub = GraphViz.Graph()
 
-    func generateProject(at path: AbsolutePath, skipTestTargets _: Bool, skipExternalDependencies _: Bool) throws -> GraphViz.Graph {
+    func generateProject(at path: AbsolutePath, skipTestTargets _: Bool, skipExternalDependencies _: Bool, targetsToFilter _: [String]) throws -> GraphViz.Graph {
         generateProjectArgs.append(path)
         return generateProjectStub
     }
 
-    func generateWorkspace(at path: AbsolutePath, skipTestTargets _: Bool, skipExternalDependencies _: Bool) throws -> GraphViz.Graph {
+    func generateWorkspace(at path: AbsolutePath, skipTestTargets _: Bool, skipExternalDependencies _: Bool, targetsToFilter _: [String]) throws -> GraphViz.Graph {
         generateWorkspaceArgs.append(path)
         return generateWorkspaceStub
     }

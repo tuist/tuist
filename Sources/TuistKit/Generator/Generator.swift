@@ -4,6 +4,7 @@ import TuistCore
 import TuistGenerator
 import TuistGraph
 import TuistLoader
+import TuistPlugin
 import TuistSigning
 import TuistSupport
 
@@ -34,16 +35,13 @@ class Generator: Generating {
     private let projectMapperProvider: ProjectMapperProviding
     private let workspaceMapperProvider: WorkspaceMapperProviding
     private let manifestLoader: ManifestLoading
+    private let pluginsService: PluginServicing
 
-    convenience init(
-        contentHasher: ContentHashing
-    ) {
-        self.init(
-            projectMapperProvider: ProjectMapperProvider(contentHasher: contentHasher),
-            graphMapperProvider: GraphMapperProvider(),
-            workspaceMapperProvider: WorkspaceMapperProvider(contentHasher: contentHasher),
-            manifestLoaderFactory: ManifestLoaderFactory()
-        )
+    convenience init(contentHasher: ContentHashing) {
+        self.init(projectMapperProvider: ProjectMapperProvider(contentHasher: contentHasher),
+                  graphMapperProvider: GraphMapperProvider(),
+                  workspaceMapperProvider: WorkspaceMapperProvider(contentHasher: contentHasher),
+                  manifestLoaderFactory: ManifestLoaderFactory())
     }
 
     init(
@@ -64,6 +62,7 @@ class Generator: Generating {
         self.projectMapperProvider = projectMapperProvider
         self.workspaceMapperProvider = workspaceMapperProvider
         self.manifestLoader = manifestLoader
+        pluginsService = PluginService(manifestLoader: manifestLoader)
     }
 
     func generate(path: AbsolutePath, projectOnly: Bool) throws -> AbsolutePath {
@@ -99,6 +98,13 @@ class Generator: Generating {
 
     // swiftlint:disable:next large_tuple
     func loadProject(path: AbsolutePath) throws -> (Project, Graph, [SideEffectDescriptor]) {
+        // Load config
+        let config = try graphLoader.loadConfig(path: path)
+
+        // Load Plugins
+        let plugins = try pluginsService.loadPlugins(using: config)
+        manifestLoader.register(plugins: plugins)
+
         // Load all manifests
         let manifests = try recursiveManifestLoader.loadProject(at: path)
 
@@ -106,9 +112,6 @@ class Generator: Generating {
         try manifests.projects.flatMap {
             manifestLinter.lint(project: $0.value)
         }.printAndThrowIfNeeded()
-
-        // Load config
-        let config = try graphLoader.loadConfig(path: path)
 
         // Convert to models
         let models = try convert(manifests: manifests)
@@ -149,7 +152,7 @@ class Generator: Generating {
         try sideEffectDescriptorExecutor.execute(sideEffects: sideEffects)
 
         // Post Generate Actions
-        try postGenerationActions(for: graph, workspaceName: projectDescriptor.xcodeprojPath.basename)
+        try postGenerationActions(graphTraverser: graphTraverser, workspaceName: projectDescriptor.xcodeprojPath.basename)
 
         return (projectDescriptor.xcodeprojPath, graph)
     }
@@ -173,7 +176,7 @@ class Generator: Generating {
         try sideEffectDescriptorExecutor.execute(sideEffects: sideEffects)
 
         // Post Generate Actions
-        try postGenerationActions(for: graph, workspaceName: workspaceDescriptor.xcworkspacePath.basename)
+        try postGenerationActions(graphTraverser: graphTraverser, workspaceName: workspaceDescriptor.xcworkspacePath.basename)
 
         return (workspaceDescriptor.xcworkspacePath, graph)
     }
@@ -197,7 +200,7 @@ class Generator: Generating {
         try sideEffectDescriptorExecutor.execute(sideEffects: sideEffects)
 
         // Post Generate Actions
-        try postGenerationActions(for: graph, workspaceName: workspaceDescriptor.xcworkspacePath.basename)
+        try postGenerationActions(graphTraverser: graphTraverser, workspaceName: workspaceDescriptor.xcworkspacePath.basename)
 
         return (workspaceDescriptor.xcworkspacePath, graph)
     }
@@ -209,14 +212,21 @@ class Generator: Generating {
         try graphLinter.lint(graphTraverser: graphTraverser).printAndThrowIfNeeded()
     }
 
-    private func postGenerationActions(for graph: Graph, workspaceName: String) throws {
-        try signingInteractor.install(graph: graph)
-        try swiftPackageManagerInteractor.install(graph: graph, workspaceName: workspaceName)
-        try cocoapodsInteractor.install(graph: graph)
+    private func postGenerationActions(graphTraverser: GraphTraversing, workspaceName: String) throws {
+        try signingInteractor.install(graphTraverser: graphTraverser)
+        try swiftPackageManagerInteractor.install(graphTraverser: graphTraverser, workspaceName: workspaceName)
+        try cocoapodsInteractor.install(graphTraverser: graphTraverser)
     }
 
     // swiftlint:disable:next large_tuple
     private func loadProjectWorkspace(path: AbsolutePath) throws -> (Project, Graph, [SideEffectDescriptor]) {
+        // Load config
+        let config = try graphLoader.loadConfig(path: path)
+
+        // Load Plugins
+        let plugins = try pluginsService.loadPlugins(using: config)
+        manifestLoader.register(plugins: plugins)
+
         // Load all manifests
         let manifests = try recursiveManifestLoader.loadProject(at: path)
 
@@ -224,9 +234,6 @@ class Generator: Generating {
         try manifests.projects.flatMap {
             manifestLinter.lint(project: $0.value)
         }.printAndThrowIfNeeded()
-
-        // Load config
-        let config = try graphLoader.loadConfig(path: path)
 
         // Convert to models
         let projects = try convert(manifests: manifests)
@@ -267,6 +274,13 @@ class Generator: Generating {
 
     // swiftlint:disable:next large_tuple
     private func loadWorkspace(path: AbsolutePath) throws -> (Graph, [SideEffectDescriptor]) {
+        // Load config
+        let config = try graphLoader.loadConfig(path: path)
+
+        // Load Plugins
+        let plugins = try pluginsService.loadPlugins(using: config)
+        manifestLoader.register(plugins: plugins)
+
         // Load all manifests
         let manifests = try recursiveManifestLoader.loadWorkspace(at: path)
 
@@ -274,9 +288,6 @@ class Generator: Generating {
         try manifests.projects.flatMap {
             manifestLinter.lint(project: $0.value)
         }.printAndThrowIfNeeded()
-
-        // Load config
-        let config = try graphLoader.loadConfig(path: path)
 
         // Convert to models
         let models = try convert(manifests: manifests)

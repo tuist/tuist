@@ -24,27 +24,22 @@ final class GraphService {
              layoutAlgorithm: GraphViz.LayoutAlgorithm,
              skipTestTargets: Bool,
              skipExternalDependencies: Bool,
-             path: String?) throws
+             targetsToFilter: [String],
+             path: AbsolutePath,
+             outputPath: AbsolutePath) throws
     {
-        let graphVizGraph = try graphVizGenerator.generate(at: FileHandler.shared.currentPath,
+        let graphVizGraph = try graphVizGenerator.generate(at: path,
                                                            manifestLoader: manifestLoader,
                                                            skipTestTargets: skipTestTargets,
-                                                           skipExternalDependencies: skipExternalDependencies)
-        let filePath = makeAbsolutePath(from: path).appending(component: "graph.\(format.rawValue)")
+                                                           skipExternalDependencies: skipExternalDependencies,
+                                                           targetsToFilter: targetsToFilter)
+        let filePath = outputPath.appending(component: "graph.\(format.rawValue)")
         if FileHandler.shared.exists(filePath) {
             logger.notice("Deleting existing graph at \(filePath.pathString)")
             try FileHandler.shared.delete(filePath)
         }
         try export(graph: graphVizGraph, at: filePath, withFormat: format, layoutAlgorithm: layoutAlgorithm)
         logger.notice("Graph exported to \(filePath.pathString).", metadata: .success)
-    }
-
-    private func makeAbsolutePath(from path: String?) -> AbsolutePath {
-        if let path = path {
-            return AbsolutePath(path, relativeTo: FileHandler.shared.currentPath)
-        } else {
-            return FileHandler.shared.currentPath
-        }
     }
 
     private func export(graph: GraphViz.Graph,
@@ -78,7 +73,7 @@ final class GraphService {
     }
 
     private func isGraphVizInstalled() throws -> Bool {
-        try System.shared.capture(["brew", "list"]).contains("graphviz")
+        try System.shared.capture(["brew", "list", "--formula"]).contains("graphviz")
     }
 
     private func installGraphViz() throws {

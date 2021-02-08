@@ -68,7 +68,7 @@ struct FocusCommand: ParsableCommand, HasTrackableParameters {
         if sources.isEmpty {
             throw FocusCommandError.noSources
         }
-        FocusCommand.analyticsDelegate?.willRun(withParamters: [
+        FocusCommand.analyticsDelegate?.willRun(withParameters: [
             "xcframeworks": String(xcframeworks),
             "no-cache": String(ignoreCache),
             "n_targets": String(sources.count),

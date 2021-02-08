@@ -36,6 +36,21 @@ final class ManifestLoaderTests: TuistTestCase {
         _ = try subject.loadConfig(at: temporaryPath)
     }
 
+    func test_loadPlugin() throws {
+        // Given
+        let temporaryPath = try self.temporaryPath()
+        let content = """
+        import ProjectDescription
+        let plugin = Plugin(name: "TestPlugin")
+        """
+
+        let manifestPath = temporaryPath.appending(component: Manifest.plugin.fileName(temporaryPath))
+        try content.write(to: manifestPath.url, atomically: true, encoding: .utf8)
+
+        // When
+        _ = try subject.loadPlugin(at: temporaryPath)
+    }
+
     func test_loadProject() throws {
         // Given
         let temporaryPath = try self.temporaryPath()

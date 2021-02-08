@@ -1,5 +1,6 @@
 import Foundation
 import TSCBasic
+import TuistGraph
 import TuistSupport
 
 /// This protocol defines the interface to compile a temporary module with the
@@ -8,15 +9,20 @@ import TuistSupport
 protocol ProjectDescriptionHelpersBuilding: AnyObject {
     /// Builds the helpers module and returns it.
     /// - Parameters:
-    ///   - at: Path to the directory that contains the manifest being loaded.
+    ///   - path: Path to the directory that contains the manifest being loaded.
     ///   - projectDescriptionPath: Path to the project description module.
-    func build(at: AbsolutePath, projectDescriptionSearchPaths: ProjectDescriptionSearchPaths) throws -> AbsolutePath?
+    ///   - projectDescriptionHelperPlugins: List of custom project description helper plugins to include and build.
+    func build(
+        at path: AbsolutePath,
+        projectDescriptionSearchPaths: ProjectDescriptionSearchPaths,
+        projectDescriptionHelperPlugins: [ProjectDescriptionHelpersPlugin]
+    ) throws -> [ProjectDescriptionHelpersModule]
 }
 
 final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding {
     /// A dictionary that keeps in memory the helpers (value of the dictionary) that have been built
     /// in the current process for helpers directories (key of the dictionary)
-    fileprivate var builtHelpers: [AbsolutePath: AbsolutePath] = [:]
+    private var builtHelpers: [AbsolutePath: ProjectDescriptionHelpersModule] = [:]
 
     /// Path to the cache directory.
     let cacheDirectory: AbsolutePath
@@ -27,37 +33,92 @@ final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding 
     /// Project description helpers hasher.
     let projectDescriptionHelpersHasher: ProjectDescriptionHelpersHashing
 
+    /// The name of the default project description helpers module
+    static let defaultHelpersName = "ProjectDescriptionHelpers"
+
     /// Initializes the builder with its attributes.
     /// - Parameters:
     ///   - projectDescriptionHelpersHasher: Project description helpers hasher.
     ///   - cacheDirectory: Path to the cache directory.
     ///   - helpersDirectoryLocating: Instance to locate the helpers directory.
-    init(projectDescriptionHelpersHasher: ProjectDescriptionHelpersHashing = ProjectDescriptionHelpersHasher(),
-         cacheDirectory: AbsolutePath = Environment.shared.projectDescriptionHelpersCacheDirectory,
-         helpersDirectoryLocator: HelpersDirectoryLocating = HelpersDirectoryLocator())
-    {
+    init(
+        projectDescriptionHelpersHasher: ProjectDescriptionHelpersHashing = ProjectDescriptionHelpersHasher(),
+        cacheDirectory: AbsolutePath = Environment.shared.projectDescriptionHelpersCacheDirectory,
+        helpersDirectoryLocator: HelpersDirectoryLocating = HelpersDirectoryLocator()
+    ) {
         self.projectDescriptionHelpersHasher = projectDescriptionHelpersHasher
         self.cacheDirectory = cacheDirectory
         self.helpersDirectoryLocator = helpersDirectoryLocator
     }
 
-    func build(at: AbsolutePath, projectDescriptionSearchPaths: ProjectDescriptionSearchPaths) throws -> AbsolutePath? {
-        guard let helpersDirectory = helpersDirectoryLocator.locate(at: at) else { return nil }
-        if let cachedPath = builtHelpers[helpersDirectory] { return cachedPath }
+    func build(
+        at path: AbsolutePath,
+        projectDescriptionSearchPaths: ProjectDescriptionSearchPaths,
+        projectDescriptionHelperPlugins: [ProjectDescriptionHelpersPlugin]
+    ) throws -> [ProjectDescriptionHelpersModule] {
+        let customHelpers = try projectDescriptionHelperPlugins.map {
+            try buildHelpers(name: $0.name, in: $0.path, projectDescriptionSearchPaths: projectDescriptionSearchPaths)
+        }
 
-        let hash = try projectDescriptionHelpersHasher.hash(helpersDirectory: helpersDirectory)
-        let prefixHash = projectDescriptionHelpersHasher.prefixHash(helpersDirectory: helpersDirectory)
+        let defaultHelpers = try buildDefaultHelpers(
+            in: path,
+            projectDescriptionSearchPaths: projectDescriptionSearchPaths,
+            customProjectDescriptionHelperModules: customHelpers
+        )
 
-        // Get paths
+        guard let builtDefaultHelpers = defaultHelpers else { return customHelpers }
+
+        return [builtDefaultHelpers] + customHelpers
+    }
+
+    private func buildDefaultHelpers(
+        in path: AbsolutePath,
+        projectDescriptionSearchPaths: ProjectDescriptionSearchPaths,
+        customProjectDescriptionHelperModules: [ProjectDescriptionHelpersModule]
+    ) throws -> ProjectDescriptionHelpersModule? {
+        guard let tuistHelpersDirectory = helpersDirectoryLocator.locate(at: path) else { return nil }
+        return try buildHelpers(
+            name: Self.defaultHelpersName,
+            in: tuistHelpersDirectory,
+            projectDescriptionSearchPaths: projectDescriptionSearchPaths,
+            customProjectDescriptionHelperModules: customProjectDescriptionHelperModules
+        )
+    }
+
+    /// Builds the `ProjectDescription` helper with the given name at the given path.
+    ///
+    /// - Parameters:
+    ///   - name: The name of the helper.
+    ///   - path: The path for the helper.
+    ///   - projectDescriptionSearchPaths: The search paths for `ProjectDescription`.
+    ///   - customProjectDescriptionHelperModules: Any extra helper modules that should be included when building the given helper.
+    ///
+    /// - Note:
+    ///   `customProjectDescriptionHelperModules` should be already built modules without a dependency on this module being built.
+    ///
+    /// - Throws: An error if unable to build the helper.
+    /// - Returns: A built helpers modules.
+    private func buildHelpers(
+        name: String,
+        in path: AbsolutePath,
+        projectDescriptionSearchPaths: ProjectDescriptionSearchPaths,
+        customProjectDescriptionHelperModules: [ProjectDescriptionHelpersModule] = []
+    ) throws -> ProjectDescriptionHelpersModule {
+        if let cachedModule = builtHelpers[path] { return cachedModule }
+
+        let hash = try projectDescriptionHelpersHasher.hash(helpersDirectory: path)
+        let prefixHash = projectDescriptionHelpersHasher.prefixHash(helpersDirectory: path)
+
         let helpersCachePath = cacheDirectory.appending(component: prefixHash)
         let helpersModuleCachePath = helpersCachePath.appending(component: hash)
-        let dylibName = "libProjectDescriptionHelpers.dylib"
+        let dylibName = "lib\(name).dylib"
         let modulePath = helpersModuleCachePath.appending(component: dylibName)
+        let projectDescriptionHelpersModule = ProjectDescriptionHelpersModule(name: name, path: modulePath)
 
-        builtHelpers[helpersDirectory] = modulePath
+        builtHelpers[path] = projectDescriptionHelpersModule
 
         if FileHandler.shared.exists(helpersModuleCachePath) {
-            return modulePath
+            return projectDescriptionHelpersModule
         }
 
         // If the same helpers directory has been previously compiled
@@ -65,28 +126,37 @@ final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding 
         if FileHandler.shared.exists(helpersCachePath) {
             try FileHandler.shared.delete(helpersCachePath)
         }
+
         try FileHandler.shared.createFolder(helpersModuleCachePath)
 
-        let command = self.command(outputDirectory: helpersModuleCachePath,
-                                   helpersDirectory: helpersDirectory,
-                                   projectDescriptionSearchPaths: projectDescriptionSearchPaths)
+        let command = createCommand(
+            moduleName: name,
+            directory: path,
+            outputDirectory: helpersModuleCachePath,
+            projectDescriptionSearchPaths: projectDescriptionSearchPaths,
+            customProjectDescriptionHelperModules: customProjectDescriptionHelperModules
+        )
+
         try System.shared.runAndPrint(command, verbose: false, environment: Environment.shared.manifestLoadingVariables)
 
-        return modulePath
+        return projectDescriptionHelpersModule
     }
 
-    // MARK: - Fileprivate
+    private func createCommand(
+        moduleName: String,
+        directory: AbsolutePath,
+        outputDirectory: AbsolutePath,
+        projectDescriptionSearchPaths: ProjectDescriptionSearchPaths,
+        customProjectDescriptionHelperModules: [ProjectDescriptionHelpersModule] = []
+    ) -> [String] {
+        let swiftFilesGlob = "**/*.swift"
+        let files = FileHandler.shared.glob(directory, glob: swiftFilesGlob)
 
-    fileprivate func command(outputDirectory: AbsolutePath,
-                             helpersDirectory: AbsolutePath,
-                             projectDescriptionSearchPaths: ProjectDescriptionSearchPaths) -> [String]
-    {
-        let files = FileHandler.shared.glob(helpersDirectory, glob: "**/*.swift")
         var command: [String] = [
             "/usr/bin/xcrun", "swiftc",
-            "-module-name", "ProjectDescriptionHelpers",
+            "-module-name", moduleName,
             "-emit-module",
-            "-emit-module-path", outputDirectory.appending(component: "ProjectDescriptionHelpers.swiftmodule").pathString,
+            "-emit-module-path", outputDirectory.appending(component: "\(moduleName).swiftmodule").pathString,
             "-parse-as-library",
             "-emit-library",
             "-suppress-warnings",
@@ -95,6 +165,17 @@ final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding 
             "-F", projectDescriptionSearchPaths.frameworkSearchPath.pathString,
             "-working-directory", outputDirectory.pathString,
         ]
+
+        let helperModuleCommands = customProjectDescriptionHelperModules
+            .flatMap { [
+                "-I", $0.path.parentDirectory.pathString,
+                "-L", $0.path.parentDirectory.pathString,
+                "-F", $0.path.parentDirectory.pathString,
+                "-l\($0.name)",
+            ] }
+
+        command.append(contentsOf: helperModuleCommands)
+
         if projectDescriptionSearchPaths.path.extension == "dylib" {
             command.append(contentsOf: ["-lProjectDescription"])
         } else {

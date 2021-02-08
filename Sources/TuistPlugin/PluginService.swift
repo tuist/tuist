@@ -1,48 +1,33 @@
 import TSCBasic
-import TuistCore
 import TuistGraph
 import TuistLoader
 import TuistSupport
 
-/// A default implementation of `PluginServicing` which loads `Plugins` using
-/// the `Config` description without it needing to be loaded. The  plugins are first fetched/copied into
-/// a cache and the loaded `Plugins` model is returned.
+/// A default implementation of `PluginServicing` which loads `Plugins` using the `Config` manifest.
 public final class PluginService: PluginServicing {
-    private let modelLoader: GeneratorModelLoading
+    private let manifestLoader: ManifestLoading
     private let fileHandler: FileHandling
     private let gitHandler: GitHandling
-    private let manifestFilesLocator: ManifestFilesLocating
 
     /// Creates a `PluginService`.
     /// - Parameters:
-    ///   - modelLoader: A model loader for loading plugins.
+    ///   - manifestLoader: A manifest loader for loading plugins.
+    ///   - configLoader: A configuration loader
     ///   - fileHandler: A file handler for creating plugin directories/related files.
     ///   - gitHandler: A git handler for cloning and interacting with remote plugins.
-    ///   - manifestFilesLocator: A locator for manifest files, used to find location of `Config` manifest in order to load plugins.
     public init(
-        modelLoader: GeneratorModelLoading = GeneratorModelLoader(manifestLoader: ManifestLoader(), manifestLinter: ManifestLinter()),
+        manifestLoader: ManifestLoading = ManifestLoader(),
         fileHandler: FileHandling = FileHandler.shared,
-        gitHandler: GitHandling = GitHandler(),
-        manifestFilesLocator: ManifestFilesLocating = ManifestFilesLocator()
+        gitHandler: GitHandling = GitHandler()
     ) {
-        self.modelLoader = modelLoader
+        self.manifestLoader = manifestLoader
         self.fileHandler = fileHandler
         self.gitHandler = gitHandler
-        self.manifestFilesLocator = manifestFilesLocator
-    }
-
-    public func loadPlugins(at path: AbsolutePath) throws -> Plugins {
-        guard let configPath = manifestFilesLocator.locateConfig(at: path) else {
-            throw PluginServiceError.configNotFound(path)
-        }
-
-        let config = try modelLoader.loadConfig(at: configPath)
-        return try loadPlugins(using: config)
     }
 
     public func loadPlugins(using config: Config) throws -> Plugins {
         let pluginPaths = try fetchPlugins(config: config)
-        let pluginManifests = try pluginPaths.map(modelLoader.loadPlugin)
+        let pluginManifests = try pluginPaths.map(manifestLoader.loadPlugin)
         let projectDescriptionHelpers = zip(pluginManifests, pluginPaths)
             .compactMap { plugin, path -> ProjectDescriptionHelpersPlugin? in
                 let helpersPath = path.appending(RelativePath(Constants.helpersDirectoryName))
@@ -60,8 +45,7 @@ public final class PluginService: PluginServicing {
                 case let .local(path):
                     logger.debug("Fetching \(plugin.description) at: \(path)")
                     return AbsolutePath(path)
-                case let .gitWithBranch(url, id),
-                     let .gitWithTag(url, id),
+                case let .gitWithTag(url, id),
                      let .gitWithSha(url, id):
                     logger.debug("Fetching \(plugin.description) at: \(url) @ \(id)")
                     return try fetchGitPlugin(at: url, with: id)

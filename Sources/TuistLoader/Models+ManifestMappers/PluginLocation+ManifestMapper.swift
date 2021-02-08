@@ -11,8 +11,6 @@ extension TuistGraph.PluginLocation {
         switch manifest.type {
         case let .local(path):
             return .local(path: try generatorPaths.resolve(path: path).pathString)
-        case let .gitWithBranch(url, branch):
-            return .gitWithBranch(url: url, branch: branch)
         case let .gitWithTag(url, tag):
             return .gitWithTag(url: url, tag: tag)
         case let .gitWithSha(url, sha):

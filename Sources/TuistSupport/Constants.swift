@@ -6,7 +6,7 @@ public enum Constants {
     public static let binName = "tuist"
     public static let gitRepositoryURL = "https://github.com/tuist/tuist.git"
     public static let communityURL = "https://community.tuist.io"
-    public static let version = "1.32.0"
+    public static let version = "1.33.0"
     public static let bundleName: String = "tuist.zip"
     public static let trueValues: [String] = ["1", "true", "TRUE", "yes", "YES"]
     public static let tuistDirectoryName: String = "Tuist"
@@ -54,6 +54,7 @@ public enum Constants {
         public static let queueDirectory = "TUIST_QUEUE_DIRECTORY"
         public static let cloudToken = "TUIST_CLOUD_TOKEN"
         public static let cacheManifests = "TUIST_CACHE_MANIFESTS"
+        public static let statsOptOut = "TUIST_STATS_OPT_OUT"
     }
 
     public enum GoogleCloud {
