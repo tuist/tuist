@@ -40,7 +40,7 @@ tuist generate # Generates Xcode project & workspace
 tuist build # Builds your project
 ```
 
-[Check out](https://tuist.io/docs) the project "Getting Started" guide to learn more about Tuist and all its features.
+[Check out](https://tuist.io/docs) the project "Get Started" guide to learn more about Tuist and all its features.
 
 ## Repository structure
 
@@ -51,7 +51,7 @@ The repository is a monorepo with multiple projects:
 
 ## Documentation 📝
 
-Do you want to know more about what Tuist can offer you? Or perhaps want to contribute to the project and you need a starting point? You can check out the [project documentation](https://tuist.io/docs/usage/getting-started/).
+Do you want to know more about what Tuist can offer you? Or perhaps want to contribute to the project and you need a starting point? You can check out the [project documentation](https://tuist.io/docs/usage/get-started/).
 
 ## Supported by great companies
 
@@ -65,7 +65,7 @@ MacStadium supports this project by providing Mac mini hardware that we can use 
 
 ## Contribute 👩‍💻
 
-If you are interested in contributed to the project, our documentation has a section with resources for contributors. We recommend starting from [this page](https://tuist.io/docs/contribution/getting-started/).
+If you are interested in contributed to the project, our documentation has a section with resources for contributors. We recommend starting from [this page](https://tuist.io/docs/contribution/get-started/).
 
 ## Core Team ✨
 

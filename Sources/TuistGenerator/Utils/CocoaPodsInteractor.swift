@@ -33,7 +33,7 @@ public protocol CocoaPodsInteracting {
     ///
     /// - Parameter graph: Project graph.
     /// - Throws: An error if the installation of the pods fails.
-    func install(graph: Graph) throws
+    func install(graphTraverser: GraphTraversing) throws
 }
 
 public final class CocoaPodsInteractor: CocoaPodsInteracting {
@@ -43,28 +43,28 @@ public final class CocoaPodsInteractor: CocoaPodsInteracting {
     ///
     /// - Parameter graph: Project graph.
     /// - Throws: An error if the installation of the pods fails.
-    public func install(graph: Graph) throws {
+    public func install(graphTraverser: GraphTraversing) throws {
         do {
-            try install(graph: graph, updatingRepo: false)
+            try install(graphTraverser: graphTraverser, updatingRepo: false)
         } catch let error as CocoaPodsInteractorError {
             if case CocoaPodsInteractorError.outdatedRepository = error {
                 logger.warning("The local CocoaPods specs repository is outdated. Re-running 'pod install' updating the repository.")
-                try self.install(graph: graph, updatingRepo: true)
+                try self.install(graphTraverser: graphTraverser, updatingRepo: true)
             } else {
                 throw error
             }
         }
     }
 
-    fileprivate func install(graph: Graph, updatingRepo: Bool) throws {
-        guard !graph.cocoapods.isEmpty else {
+    fileprivate func install(graphTraverser: GraphTraversing, updatingRepo: Bool) throws {
+        guard !graphTraverser.cocoapodsPaths().isEmpty else {
             return
         }
 
         let canUseBundler = canUseCocoaPodsThroughBundler()
         let canUseSystem = canUseSystemPod()
 
-        try graph.cocoapods.forEach { node in
+        try graphTraverser.cocoapodsPaths().sorted().forEach { path in
             var command: [String]
 
             if canUseBundler {
@@ -75,7 +75,7 @@ public final class CocoaPodsInteractor: CocoaPodsInteracting {
                 throw CocoaPodsInteractorError.cocoapodsNotFound
             }
 
-            command.append(contentsOf: ["install", "--project-directory=\(node.path.pathString)"])
+            command.append(contentsOf: ["install", "--project-directory=\(path.pathString)"])
 
             if updatingRepo {
                 command.append("--repo-update")
@@ -83,7 +83,7 @@ public final class CocoaPodsInteractor: CocoaPodsInteracting {
 
             // The installation of Pods might fail if the local repository that contains the specs
             // is outdated.
-            logger.notice("Installing CocoaPods dependencies defined in \(node.podfilePath)", metadata: .section)
+            logger.notice("Installing CocoaPods dependencies defined in \(path.pathString)", metadata: .section)
 
             var mightNeedRepoUpdate: Bool = false
             let outputClosure: ([UInt8]) -> Void = { bytes in

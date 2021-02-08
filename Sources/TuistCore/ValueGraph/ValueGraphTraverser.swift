@@ -19,9 +19,27 @@ public class ValueGraphTraverser: GraphTraversing {
         self.graph = graph
     }
 
+    public var hasRemotePackages: Bool {
+        graph.packages.values.flatMap(\.values).first(where: {
+            switch $0 {
+            case .remote: return true
+            case .local: return false
+            }
+        }) != nil
+    }
+
     public func rootTargets() -> Set<ValueGraphTarget> {
         Set(graph.workspace.projects.reduce(into: Set()) { result, path in
             result.formUnion(targets(at: path))
+        })
+    }
+
+    public func allTargets() -> Set<ValueGraphTarget> {
+        Set(projects.flatMap { (projectPath, project) -> [ValueGraphTarget] in
+            let targets = graph.targets[projectPath, default: [:]]
+            return targets.values.map { target in
+                ValueGraphTarget(path: projectPath, target: target, project: project)
+            }
         })
     }
 
@@ -29,6 +47,21 @@ public class ValueGraphTraverser: GraphTraversing {
         Set(graph.workspace.projects.compactMap {
             projects[$0]
         })
+    }
+
+    public func cocoapodsPaths() -> Set<AbsolutePath> {
+        dependencies.reduce(into: Set<AbsolutePath>()) { acc, next in
+            let fromDependency = next.key
+            let toDependencies = next.value
+            if case let ValueGraphDependency.cocoapods(path) = fromDependency {
+                acc.insert(path)
+            }
+            toDependencies.forEach { toDependency in
+                if case let ValueGraphDependency.cocoapods(path) = toDependency {
+                    acc.insert(path)
+                }
+            }
+        }
     }
 
     public func precompiledFrameworksPaths() -> Set<AbsolutePath> {
