@@ -67,7 +67,7 @@ public final class TestsCacheGraphMapper: GraphMapping {
     }
 
     // MARK: - Helpers
-    
+
     private func hashableTargets(graph: Graph) -> Set<TargetNode> {
         var visitedTargets: [TargetNode: Bool] = [:]
         return Set(
@@ -85,7 +85,7 @@ public final class TestsCacheGraphMapper: GraphMapping {
                 }
         )
     }
-    
+
     private func targetDependencies(
         _ target: TargetNode,
         visited: inout [TargetNode: Bool]

@@ -52,10 +52,10 @@ public final class GraphContentHasher: GraphContentHashing {
         return Dictionary(uniqueKeysWithValues: zip(hashableTargets, hashes))
     }
 
-    public func contentHashes(for graph: Graph) throws -> [TargetNode : String] {
+    public func contentHashes(for graph: Graph) throws -> [TargetNode: String] {
         try contentHashes(for: graph, filter: { _ in true })
     }
-    
+
     // MARK: - Private
 
     private func isHashable(

@@ -36,7 +36,7 @@ public class CacheMapper: GraphMapping {
                             cacheStorageProvider: CacheStorageProviding,
                             sources: Set<String>,
                             cacheOutputType: CacheOutputType,
-                            contentHasher: ContentHashing)
+                            contentHasher _: ContentHashing)
     {
         self.init(config: config,
                   cache: Cache(storageProvider: cacheStorageProvider),

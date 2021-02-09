@@ -14,7 +14,7 @@ public protocol CacheGraphContentHashing {
 public final class CacheGraphContentHasher: CacheGraphContentHashing {
     private let graphContentHasher: GraphContentHashing
     private let contentHasher: ContentHashing
-    
+
     public init(
         graphContentHasher: GraphContentHashing = GraphContentHasher(contentHasher: ContentHasher()),
         contentHasher: ContentHashing = ContentHasher()
@@ -22,23 +22,23 @@ public final class CacheGraphContentHasher: CacheGraphContentHashing {
         self.graphContentHasher = graphContentHasher
         self.contentHasher = contentHasher
     }
-    
+
     public func contentHashes(
         for graph: Graph,
         cacheOutputType: CacheOutputType
-    ) throws -> [TargetNode : String] {
-        try self.graphContentHasher.contentHashes(
+    ) throws -> [TargetNode: String] {
+        try graphContentHasher.contentHashes(
             for: graph,
-            filter: self.filterHashTarget
+            filter: filterHashTarget
         )
         .mapValues { hash in
             try self.contentHasher.hash([
                 hash,
-                cacheOutputType.description
+                cacheOutputType.description,
             ])
         }
     }
-    
+
     private func filterHashTarget(_ target: TargetNode) -> Bool {
         let isFramework = target.target.product == .framework || target.target.product == .staticFramework
         let noXCTestDependency = !target.dependsOnXCTest

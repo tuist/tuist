@@ -117,12 +117,12 @@ final class TestService {
                     existing: testableSchemes.map(\.name)
                 )
             }
-            
-            if scheme.testAction.map({ $0.targets.isEmpty }) ?? true {
+
+            if scheme.testAction.map(\.targets.isEmpty) ?? true {
                 logger.log(level: .info, "There are no tests to run, finishing early")
                 return
             }
-            
+
             let testSchemes: [Scheme] = [scheme]
 
             try testSchemes.forEach { testScheme in
@@ -138,12 +138,13 @@ final class TestService {
             }
         } else {
             let testSchemes: [Scheme] = buildGraphInspector.projectSchemes(graph: graph)
-            
+
             if testSchemes
                 .filter({
                     $0.testAction.map { !$0.targets.isEmpty } ?? false
                 })
-                .isEmpty {
+                .isEmpty
+            {
                 logger.log(level: .info, "There are no tests to run, finishing early")
                 return
             }

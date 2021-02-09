@@ -10,7 +10,7 @@ public final class MockGraphContentHasher: GraphContentHashing {
         try contentHashesStub?(graph, filter) ?? [:]
     }
 
-    public func contentHashes(for graph: Graph) throws -> [TargetNode : String] {
+    public func contentHashes(for graph: Graph) throws -> [TargetNode: String] {
         try contentHashesStub?(graph, { _ in true }) ?? [:]
     }
 }

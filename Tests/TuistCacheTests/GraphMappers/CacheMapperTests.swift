@@ -161,7 +161,7 @@ final class CacheMapperTests: TuistUnitTestCase {
         let inputGraph = Graph.test(name: "output", entryNodes: [appNode])
         let outputGraph = Graph.test(name: "output")
         cacheGraphMutator.stubbedMapResult = outputGraph
-        
+
         var invokedCacheOutputType: CacheOutputType?
         cacheGraphContentHasher.contentHashesStub = { _, cacheOutputType in
             invokedCacheOutputType = cacheOutputType

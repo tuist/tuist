@@ -44,6 +44,7 @@ final class TestServiceTests: TuistUnitTestCase {
         xcodebuildController = nil
         buildGraphInspector = nil
         simulatorController = nil
+        testsCacheTemporaryDirectory = nil
         subject = nil
         super.tearDown()
     }

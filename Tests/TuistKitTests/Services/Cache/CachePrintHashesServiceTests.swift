@@ -56,13 +56,13 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
                                           clock: clock)
         let graph = Graph.test()
         generator.loadStub = { _ in graph }
-        
+
         var invokedGraph: Graph?
         cacheGraphContentHasher.contentHashesStub = { graph, _ in
             invokedGraph = graph
             return [:]
         }
-        
+
         // When
         _ = try subject.run(path: path, xcframeworks: false)
 
@@ -97,13 +97,13 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
             xcframeworkOutputType = cacheOutputType
             return [:]
         }
-        
+
         // When
         _ = try subject.run(path: path, xcframeworks: true)
 
         // Then
         XCTAssertEqual(xcframeworkOutputType, .xcframework)
-        
+
         // Given
         var frameworkOutputType: CacheOutputType?
         cacheGraphContentHasher.contentHashesStub = { _, cacheOutputType in
