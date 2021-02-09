@@ -8,7 +8,7 @@ import TuistSupport
 /// Creates tests hash files into a `testsCacheDirectory`
 public final class TestsCacheGraphMapper: GraphMapping {
     private let testsCacheDirectory: AbsolutePath
-    private let testsGraphContentHasher: TestsGraphContentHashing
+    private let graphContentHasher: GraphContentHashing
 
     /// - Parameters:
     ///     - testsCacheDirectory: Location where to save current hashes.
@@ -19,20 +19,21 @@ public final class TestsCacheGraphMapper: GraphMapping {
     ) {
         self.init(
             testsCacheDirectory: testsCacheDirectory,
-            testsGraphContentHasher: TestsGraphContentHasher()
+            graphContentHasher: GraphContentHasher(contentHasher: ContentHasher())
         )
     }
 
     init(
         testsCacheDirectory: AbsolutePath,
-        testsGraphContentHasher: TestsGraphContentHashing
+        graphContentHasher: GraphContentHashing
     ) {
         self.testsCacheDirectory = testsCacheDirectory
-        self.testsGraphContentHasher = testsGraphContentHasher
+        self.graphContentHasher = graphContentHasher
     }
 
     public func map(graph: Graph) throws -> (Graph, [SideEffectDescriptor]) {
-        let hashes = try testsGraphContentHasher.contentHashes(graph: graph)
+        let hashableTargets = self.hashableTargets(graph: graph)
+        let hashes = try graphContentHasher.contentHashes(for: graph, filter: hashableTargets.contains)
 
         var visitedNodes: [TargetNode: Bool] = [:]
         var workspace = graph.workspace
@@ -66,6 +67,40 @@ public final class TestsCacheGraphMapper: GraphMapping {
     }
 
     // MARK: - Helpers
+    
+    private func hashableTargets(graph: Graph) -> Set<TargetNode> {
+        var visitedTargets: [TargetNode: Bool] = [:]
+        return Set(
+            graph.targets
+                .flatMap(\.value)
+                // UI tests depend on the device they are run on
+                // This can be done in the future if we hash the ID of the device
+                // But currently, we consider for hashing only unit tests and its dependencies
+                .filter { $0.target.product == .unitTests }
+                .flatMap { target -> [TargetNode] in
+                    targetDependencies(
+                        target,
+                        visited: &visitedTargets
+                    )
+                }
+        )
+    }
+    
+    private func targetDependencies(
+        _ target: TargetNode,
+        visited: inout [TargetNode: Bool]
+    ) -> [TargetNode] {
+        if visited[target] == true { return [] }
+        let targetDependencies = target.targetDependencies
+            .flatMap {
+                self.targetDependencies(
+                    $0,
+                    visited: &visited
+                )
+            }
+        visited[target] = true
+        return targetDependencies + [target]
+    }
 
     private func testableTargets(scheme: Scheme, graph: Graph) -> [TargetNode] {
         scheme.testAction

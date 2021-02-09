@@ -9,18 +9,18 @@ final class CachePrintHashesService {
     /// Project generator
     let generator: Generating
 
-    let graphContentHasher: GraphContentHashing
+    let cacheGraphContentHasher: CacheGraphContentHashing
     private let clock: Clock
 
     convenience init(contentHasher: ContentHashing = CacheContentHasher()) {
         self.init(generator: Generator(contentHasher: contentHasher),
-                  graphContentHasher: GraphContentHasher(contentHasher: contentHasher),
+                  cacheGraphContentHasher: CacheGraphContentHasher(contentHasher: contentHasher),
                   clock: WallClock())
     }
 
-    init(generator: Generating, graphContentHasher: GraphContentHashing, clock: Clock) {
+    init(generator: Generating, cacheGraphContentHasher: CacheGraphContentHashing, clock: Clock) {
         self.generator = generator
-        self.graphContentHasher = graphContentHasher
+        self.cacheGraphContentHasher = cacheGraphContentHasher
         self.clock = clock
     }
 
@@ -29,7 +29,7 @@ final class CachePrintHashesService {
 
         let graph = try generator.load(path: path)
         let cacheOutputType: CacheOutputType = xcframeworks ? .xcframework : .framework
-        let hashes = try graphContentHasher.contentHashes(for: graph, cacheOutputType: cacheOutputType)
+        let hashes = try cacheGraphContentHasher.contentHashes(for: graph, cacheOutputType: cacheOutputType)
         let duration = timer.stop()
         let time = String(format: "%.3f", duration)
         guard hashes.count > 0 else {

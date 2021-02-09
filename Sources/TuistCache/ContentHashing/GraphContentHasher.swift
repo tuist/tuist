@@ -4,7 +4,12 @@ import TuistCore
 import TuistSupport
 
 public protocol GraphContentHashing {
-    func contentHashes(for graph: TuistCore.Graph, cacheOutputType: CacheOutputType) throws -> [TargetNode: String]
+    /// Hashes graph
+    /// - Parameters:
+    ///     - filter: If `true`, `TargetNode` is hashed, otherwise it is skipped
+    func contentHashes(for graph: TuistCore.Graph, filter: (TargetNode) -> Bool) throws -> [TargetNode: String]
+    /// Hashes all of graph's targets
+    func contentHashes(for graph: TuistCore.Graph) throws -> [TargetNode: String]
 }
 
 /// `GraphContentHasher`
@@ -26,32 +31,52 @@ public final class GraphContentHasher: GraphContentHashing {
 
     // MARK: - GraphContentHashing
 
-    public func contentHashes(for graph: TuistCore.Graph, cacheOutputType: CacheOutputType) throws -> [TargetNode: String] {
+    public func contentHashes(for graph: TuistCore.Graph, filter: (TargetNode) -> Bool) throws -> [TargetNode: String] {
         var visitedNodes: [TargetNode: Bool] = [:]
         let hashableTargets = graph.targets.values.flatMap { (targets: [TargetNode]) -> [TargetNode] in
             targets.compactMap { target in
-                if self.isCacheable(target, visited: &visitedNodes) {
+                if isHashable(
+                    target,
+                    visited: &visitedNodes,
+                    filter: filter
+                ) {
                     return target
+                } else {
+                    return nil
                 }
-                return nil
             }
         }
         let hashes = try hashableTargets.map {
-            try targetContentHasher.contentHash(for: $0,
-                                                cacheOutputType: cacheOutputType)
+            try targetContentHasher.contentHash(for: $0)
         }
         return Dictionary(uniqueKeysWithValues: zip(hashableTargets, hashes))
     }
 
+    public func contentHashes(for graph: Graph) throws -> [TargetNode : String] {
+        try contentHashes(for: graph, filter: { _ in true })
+    }
+    
     // MARK: - Private
 
-    fileprivate func isCacheable(_ target: TargetNode, visited: inout [TargetNode: Bool]) -> Bool {
+    private func isHashable(
+        _ target: TargetNode,
+        visited: inout [TargetNode: Bool],
+        filter: (TargetNode) -> Bool
+    ) -> Bool {
+        guard filter(target) else {
+            visited[target] = false
+            return false
+        }
         if let visitedValue = visited[target] { return visitedValue }
-        let isFramework = target.target.product == .framework || target.target.product == .staticFramework
-        let noXCTestDependency = !target.dependsOnXCTest
-        let allTargetDependenciesAreHasheable = target.targetDependencies.allSatisfy { isCacheable($0, visited: &visited) }
-        let cacheable = isFramework && noXCTestDependency && allTargetDependenciesAreHasheable
-        visited[target] = cacheable
-        return cacheable
+        let allTargetDependenciesAreHashable = target.targetDependencies
+            .allSatisfy {
+                isHashable(
+                    $0,
+                    visited: &visited,
+                    filter: filter
+                )
+            }
+        visited[target] = allTargetDependenciesAreHashable
+        return allTargetDependenciesAreHashable
     }
 }

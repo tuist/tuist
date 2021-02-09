@@ -12,22 +12,22 @@ import XCTest
 
 final class TestsCacheMapperTests: TuistUnitTestCase {
     private var testsCacheDirectory: AbsolutePath!
-    private var testsGraphContentHasher: MockTestsGraphContentHasher!
+    private var graphContentHasher: MockGraphContentHasher!
     private var subject: TestsCacheGraphMapper!
 
     override func setUpWithError() throws {
         try super.setUpWithError()
         testsCacheDirectory = try temporaryPath()
-        testsGraphContentHasher = MockTestsGraphContentHasher()
+        graphContentHasher = MockGraphContentHasher()
         subject = TestsCacheGraphMapper(
             testsCacheDirectory: testsCacheDirectory,
-            testsGraphContentHasher: testsGraphContentHasher
+            graphContentHasher: graphContentHasher
         )
     }
 
     override func tearDown() {
         testsCacheDirectory = nil
-        testsGraphContentHasher = nil
+        graphContentHasher = nil
         subject = nil
         super.tearDown()
     }
@@ -113,8 +113,8 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
             ]
         )
 
-        testsGraphContentHasher.contentHashesStub = {
-            $0.targets.flatMap(\.value).reduce(into: [:]) { acc, target in
+        graphContentHasher.contentHashesStub = { graph, _ in
+            graph.targets.flatMap(\.value).reduce(into: [:]) { acc, target in
                 acc[target] = target.target.name
             }
         }
@@ -250,8 +250,8 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
             ]
         )
 
-        testsGraphContentHasher.contentHashesStub = {
-            $0.targets.flatMap(\.value).reduce(into: [:]) { acc, target in
+        graphContentHasher.contentHashesStub = { graph, _ in
+            graph.targets.flatMap(\.value).reduce(into: [:]) { acc, target in
                 acc[target] = target.target.name
             }
         }

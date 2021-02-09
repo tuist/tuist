@@ -13,19 +13,19 @@ import XCTest
 
 final class CacheMapperTests: TuistUnitTestCase {
     var cache: MockCacheStorage!
-    var graphContentHasher: MockGraphContentHasher!
+    var cacheGraphContentHasher: MockCacheGraphContentHasher!
     var cacheGraphMutator: MockCacheGraphMutator!
     var subject: CacheMapper!
     var config: Config!
 
     override func setUp() {
         cache = MockCacheStorage()
-        graphContentHasher = MockGraphContentHasher()
+        cacheGraphContentHasher = MockCacheGraphContentHasher()
         cacheGraphMutator = MockCacheGraphMutator()
         config = .test()
         subject = CacheMapper(config: config,
                               cache: cache,
-                              graphContentHasher: graphContentHasher,
+                              cacheGraphContentHasher: cacheGraphContentHasher,
                               sources: [],
                               cacheOutputType: .framework,
                               cacheGraphMutator: cacheGraphMutator,
@@ -37,7 +37,7 @@ final class CacheMapperTests: TuistUnitTestCase {
         super.tearDown()
         config = nil
         cache = nil
-        graphContentHasher = nil
+        cacheGraphContentHasher = nil
         cacheGraphMutator = nil
         subject = nil
     }
@@ -68,7 +68,9 @@ final class CacheMapperTests: TuistUnitTestCase {
             bNode: bHash,
             appNode: appHash,
         ]
-        graphContentHasher.stubbedContentHashesResult = contentHashes
+        cacheGraphContentHasher.contentHashesStub = { _, _ in
+            contentHashes
+        }
 
         cache.existsStub = { hash in
             if hash == bHash { return true }
@@ -116,7 +118,9 @@ final class CacheMapperTests: TuistUnitTestCase {
             appNode: appHash,
         ]
         let error = TestError("error downloading C")
-        graphContentHasher.stubbedContentHashesResult = contentHashes
+        cacheGraphContentHasher.contentHashesStub = { _, _ in
+            contentHashes
+        }
 
         cache.existsStub = { hash in
             if hash == bHash { return true }
@@ -139,7 +143,7 @@ final class CacheMapperTests: TuistUnitTestCase {
         // Given
         subject = CacheMapper(config: config,
                               cache: cache,
-                              graphContentHasher: graphContentHasher,
+                              cacheGraphContentHasher: cacheGraphContentHasher,
                               sources: [],
                               cacheOutputType: .xcframework,
                               cacheGraphMutator: cacheGraphMutator,
@@ -157,11 +161,17 @@ final class CacheMapperTests: TuistUnitTestCase {
         let inputGraph = Graph.test(name: "output", entryNodes: [appNode])
         let outputGraph = Graph.test(name: "output")
         cacheGraphMutator.stubbedMapResult = outputGraph
+        
+        var invokedCacheOutputType: CacheOutputType?
+        cacheGraphContentHasher.contentHashesStub = { _, cacheOutputType in
+            invokedCacheOutputType = cacheOutputType
+            return [:]
+        }
 
         // When
         _ = try subject.map(graph: inputGraph)
 
         // Then
-        XCTAssertEqual(graphContentHasher.invokedContentHashesParameters?.cacheOutputType, .xcframework)
+        XCTAssertEqual(invokedCacheOutputType, .xcframework)
     }
 }

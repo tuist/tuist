@@ -11,7 +11,7 @@ import XCTest
 @testable import TuistSupportTesting
 
 final class ContentHashingIntegrationTests: TuistTestCase {
-    var subject: GraphContentHasher!
+    var subject: CacheGraphContentHasher!
     var temporaryDirectoryPath: String!
     var source1: SourceFile!
     var source2: SourceFile!
@@ -44,7 +44,7 @@ final class ContentHashingIntegrationTests: TuistTestCase {
         } catch {
             XCTFail("Error while creating files for stub project")
         }
-        subject = GraphContentHasher(contentHasher: CacheContentHasher())
+        subject = CacheGraphContentHasher(contentHasher: CacheContentHasher())
     }
 
     override func tearDown() {
@@ -109,8 +109,8 @@ final class ContentHashingIntegrationTests: TuistTestCase {
         let contentHash = try subject.contentHashes(for: graph, cacheOutputType: .framework)
 
         // Then
-        XCTAssertEqual(contentHash[framework1], "cb93cd96c5af9deb87fad78fd14b5664")
-        XCTAssertEqual(contentHash[framework2], "f224c9df7a44ce5c7849f10e58142718")
+        XCTAssertEqual(contentHash[framework1], "e815c36359303e3421cf6ba55b9405c7")
+        XCTAssertEqual(contentHash[framework2], "ed81c50cbe09adf4eb402befc537d576")
     }
 
     func test_contentHashes_hashChangesWithCacheOutputType() throws {

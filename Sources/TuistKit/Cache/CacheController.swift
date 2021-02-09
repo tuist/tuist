@@ -65,8 +65,8 @@ final class CacheController: CacheControlling {
     /// Utility to build the (xc)frameworks.
     private let artifactBuilder: CacheArtifactBuilding
 
-    /// Graph content hasher.
-    private let graphContentHasher: GraphContentHashing
+    /// Cache graph content hasher.
+    private let cacheGraphContentHasher: CacheGraphContentHashing
 
     /// Cache.
     private let cache: CacheStoring
@@ -81,20 +81,20 @@ final class CacheController: CacheControlling {
         self.init(cache: cache,
                   artifactBuilder: artifactBuilder,
                   projectGeneratorProvider: CacheControllerProjectGeneratorProvider(contentHasher: contentHasher),
-                  graphContentHasher: GraphContentHasher(contentHasher: contentHasher),
+                  cacheGraphContentHasher: CacheGraphContentHasher(contentHasher: contentHasher),
                   cacheGraphLinter: CacheGraphLinter())
     }
 
     init(cache: CacheStoring,
          artifactBuilder: CacheArtifactBuilding,
          projectGeneratorProvider: CacheControllerProjectGeneratorProviding,
-         graphContentHasher: GraphContentHashing,
+         cacheGraphContentHasher: CacheGraphContentHashing,
          cacheGraphLinter: CacheGraphLinting)
     {
         self.cache = cache
         self.projectGeneratorProvider = projectGeneratorProvider
         self.artifactBuilder = artifactBuilder
-        self.graphContentHasher = graphContentHasher
+        self.cacheGraphContentHasher = cacheGraphContentHasher
         self.cacheGraphLinter = cacheGraphLinter
     }
 
@@ -122,7 +122,7 @@ final class CacheController: CacheControlling {
     /// Returns all the targets that are cacheable and their hashes.
     /// - Parameter graph: Graph that contains all the dependency graph nodes.
     fileprivate func cacheableTargets(graph: Graph) throws -> [TargetNode: String] {
-        try graphContentHasher.contentHashes(for: graph, cacheOutputType: artifactBuilder.cacheOutputType)
+        try cacheGraphContentHasher.contentHashes(for: graph, cacheOutputType: artifactBuilder.cacheOutputType)
             .filter { target, hash in
                 if let exists = try self.cache.exists(hash: hash).toBlocking().first(), exists {
                     logger.pretty("The target \(.bold(.raw(target.name))) with hash \(.bold(.raw(hash))) and type \(artifactBuilder.cacheOutputType.description) is already in the cache. Skipping...")
