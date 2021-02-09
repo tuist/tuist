@@ -58,4 +58,10 @@ extension HTTPResource where T: Decodable, E: Decodable {
             parseError: { data, _ in try jsonDecoder.decode(E.self, from: data) }
         )
     }
+
+    public static func jsonResource(for url: URL, httpMethod: String) -> HTTPResource<T, E> {
+        var request = URLRequest(url: url)
+        request.httpMethod = httpMethod
+        return .jsonResource { request }
+    }
 }
