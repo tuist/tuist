@@ -34,7 +34,7 @@
     "gatsby-plugin-typescript": "^2.11.0",
     "gatsby-plugin-web-font-loader": "^1.0.4",
     "gatsby-source-filesystem": "^2.11.0",
-    "gatsby-transformer-sharp": "^2.11.0",
+    "gatsby-transformer-sharp": "^2.12.0",
     "node-fetch": "^2.6.1",
     "react": "^16.13.1",
     "react-dom": "^16.13.1",
