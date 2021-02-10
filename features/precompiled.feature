@@ -39,6 +39,7 @@ Feature: A set of tests that run with pre-compiled binaries that are only compat
     Then I should be able to build for macOS the scheme Framework1-macOS
     Then I should be able to build for iOS the scheme Framework1Tests-iOS
     Then I should be able to build for macOS the scheme Framework1Tests-macOS
+    Then I should be able to build for iOS the scheme StaticFramework1Tests
 
   Scenario: The project is an iOS application with frameworks and tests (ios_app_with_static_library_and_package)
     Given that tuist is available
