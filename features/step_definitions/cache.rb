@@ -4,6 +4,10 @@ Then(/^tuist warms the cache$/) do
   system("swift", "run", "tuist", "cache", "warm", "--path", @dir)
 end
 
+Then(/^tuist warms the cache of ([a-zA-Z]+)$/) do |target_name|
+  system("swift", "run", "tuist", "cache", "warm", "--path", @dir, target_name)
+end
+
 Then(/^tuist warms the cache with xcframeworks$/) do
   system("swift", "run", "tuist", "cache", "warm", "--path", @dir, "--xcframeworks")
 end
