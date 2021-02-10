@@ -217,10 +217,10 @@ Each target in the list of project targets can be initialized with the following
       name: 'Resources',
       description:
         'List of files to include in the resources build phase. Note that localizable files, `*.lproj`, are supported.',
-      type: '[FileElement]',
-      typeLink: '#fileelement',
+      type: 'ResourceFileElements',
+      typeLink: '#resourcefileelements',
       optional: true,
-      default: '[]',
+      default: 'nil',
     },
     {
       name: 'Copy Files',
@@ -1582,6 +1582,42 @@ It conforms the `ExpressibleByStringLiteral` and `ExpressibleByArrayLiteral` pro
 ## FileElement
 
 A `FileElement` can be one of the following options:
+
+<EnumTable
+  cases={[
+    {
+      case: '.glob(pattern: Path)',
+      description:
+        'A file path (or glob pattern) to include. For convenience, a string literal can be used as an alternate way to specify this option.',
+    },
+    {
+      case: '.folderReference(path: Path)',
+      description: 'A directory path to include as a folder reference. ',
+    },
+  ]}
+/>
+
+## ResourceFileElements
+
+List of files to include in the resources build phase. 
+
+<PropertiesTable
+  properties={[
+    {
+      name: 'resources',
+      description: 'Resources list.',
+      type: '[ResourceFileElement]',
+      typeLink: '#resourcefileelement',
+      optional: false
+    }
+  ]}
+/>
+
+It conforms the `ExpressibleByStringLiteral` and `ExpressibleByArrayLiteral` protocols and therefore it can be initialized with a string or an array directly.
+
+## ResourceFileElement
+
+A `ResourceFileElement` can be one of the following options:
 
 <EnumTable
   cases={[
