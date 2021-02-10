@@ -61,16 +61,24 @@ final class CacheControllerTests: TuistUnitTestCase {
         let path = try temporaryPath()
         let xcworkspacePath = path.appending(component: "Project.xcworkspace")
         let project = Project.test(path: path, name: "Cache")
-        let aTarget = Target.test(name: "A")
-        let bTarget = Target.test(name: "B")
-        let aFrameworkPath = path.appending(component: "A.framework")
-        let bFrameworkPath = path.appending(component: "B.framework")
+        let targetNames = ["foo", "bar", "baz"].shuffled()
+        let aTarget = Target.test(name: targetNames[0])
+        let bTarget = Target.test(name: targetNames[1])
+        let cTarget = Target.test(name: targetNames[2])
+        let aFrameworkPath = path.appending(component: "\(aTarget.name).framework")
+        let bFrameworkPath = path.appending(component: "\(bTarget.name).framework")
+        let cFrameworkPath = path.appending(component: "\(cTarget.name).framework")
         try FileHandler.shared.createFolder(aFrameworkPath)
         try FileHandler.shared.createFolder(bFrameworkPath)
+        try FileHandler.shared.createFolder(cFrameworkPath)
 
+        let aTargetNode = TargetNode.test(project: project, target: aTarget)
+        let bTargetNode = TargetNode.test(project: project, target: bTarget, dependencies: [aTargetNode])
+        let cTargetNode = TargetNode.test(project: project, target: cTarget, dependencies: [bTargetNode])
         let nodeWithHashes = [
-            TargetNode.test(project: project, target: aTarget): "A_HASH",
-            TargetNode.test(project: project, target: bTarget): "B_HASH",
+            aTargetNode: "\(aTarget.name)_HASH",
+            bTargetNode: "\(bTarget.name)_HASH",
+            cTargetNode: "\(cTarget.name)_HASH",
         ]
         let graph = Graph.test(projects: [project],
                                targets: nodeWithHashes.keys.reduce(into: [project.path: [TargetNode]()]) { $0[project.path]?.append($1) })
@@ -83,19 +91,86 @@ final class CacheControllerTests: TuistUnitTestCase {
             XCTAssertEqual(loadPath, path)
             return (xcworkspacePath, graph)
         }
+        generator.generateStub = { (loadPath, _) -> AbsolutePath in
+            XCTAssertEqual(loadPath, path)
+            return xcworkspacePath
+        }
         graphContentHasher.stubbedContentHashesResult = nodeWithHashes
         artifactBuilder.stubbedCacheOutputType = .xcframework
 
-        try subject.cache(path: path, cacheProfile: .test(configuration: "Debug"))
+        // When
+        try subject.cache(path: path, cacheProfile: .test(configuration: "Debug"), targetsToFilter: [])
 
         // Then
         XCTAssertPrinterOutputContains("""
         Hashing cacheable targets
         Building cacheable targets
+        Building cacheable targets: \(aTarget.name), 1 out of 3
+        Building cacheable targets: \(bTarget.name), 2 out of 3
+        Building cacheable targets: \(cTarget.name), 3 out of 3
         All cacheable targets have been cached successfully as xcframeworks
         """)
         XCTAssertEqual(cacheGraphLinter.invokedLintCount, 1)
-        XCTAssertEqual(artifactBuilder.invokedBuildWorkspacePathParametersList.first?.target, aTarget)
-        XCTAssertEqual(artifactBuilder.invokedBuildWorkspacePathParametersList.last?.target, bTarget)
+        XCTAssertEqual(artifactBuilder.invokedBuildWorkspacePathParametersList[0].target, aTarget)
+        XCTAssertEqual(artifactBuilder.invokedBuildWorkspacePathParametersList[1].target, bTarget)
+        XCTAssertEqual(artifactBuilder.invokedBuildWorkspacePathParametersList[2].target, cTarget)
+    }
+
+    func test_filtered_cache_builds_and_caches_the_frameworks() throws {
+        // Given
+        let path = try temporaryPath()
+        let xcworkspacePath = path.appending(component: "Project.xcworkspace")
+        let project = Project.test(path: path, name: "Cache")
+        let targetNames = ["foo", "bar", "baz"].shuffled()
+        let aTarget = Target.test(name: targetNames[0])
+        let bTarget = Target.test(name: targetNames[1])
+        let cTarget = Target.test(name: targetNames[2])
+        let aFrameworkPath = path.appending(component: "\(aTarget.name).framework")
+        let bFrameworkPath = path.appending(component: "\(bTarget.name).framework")
+        let cFrameworkPath = path.appending(component: "\(cTarget.name).framework")
+        try FileHandler.shared.createFolder(aFrameworkPath)
+        try FileHandler.shared.createFolder(bFrameworkPath)
+        try FileHandler.shared.createFolder(cFrameworkPath)
+
+        let aTargetNode = TargetNode.test(project: project, target: aTarget)
+        let bTargetNode = TargetNode.test(project: project, target: bTarget, dependencies: [aTargetNode])
+        let cTargetNode = TargetNode.test(project: project, target: cTarget, dependencies: [bTargetNode])
+        let nodeWithHashes = [
+            aTargetNode: "\(aTarget.name)_HASH",
+            bTargetNode: "\(bTarget.name)_HASH",
+            cTargetNode: "\(cTarget.name)_HASH",
+        ]
+        let graph = Graph.test(projects: [project],
+                               targets: nodeWithHashes.keys.reduce(into: [project.path: [TargetNode]()]) { $0[project.path]?.append($1) })
+
+        manifestLoader.manifestsAtStub = { (loadPath: AbsolutePath) -> Set<Manifest> in
+            XCTAssertEqual(loadPath, path)
+            return Set(arrayLiteral: .project)
+        }
+        generator.generateWithGraphStub = { (loadPath, _) -> (AbsolutePath, Graph) in
+            XCTAssertEqual(loadPath, path)
+            return (xcworkspacePath, graph)
+        }
+        generator.generateStub = { (loadPath, _) -> AbsolutePath in
+            XCTAssertEqual(loadPath, path)
+            return xcworkspacePath
+        }
+        graphContentHasher.stubbedContentHashesResult = nodeWithHashes
+        artifactBuilder.stubbedCacheOutputType = .xcframework
+
+        // When
+        try subject.cache(path: path, cacheProfile: .test(configuration: "Debug"), targetsToFilter: [bTarget.name])
+
+        // Then
+        XCTAssertPrinterOutputContains("""
+        Hashing cacheable targets
+        Building cacheable targets
+        Building cacheable targets: \(aTarget.name), 1 out of 2
+        Building cacheable targets: \(bTarget.name), 2 out of 2
+        All cacheable targets have been cached successfully as xcframeworks
+        """)
+        XCTAssertEqual(cacheGraphLinter.invokedLintCount, 1)
+        XCTAssertEqual(artifactBuilder.invokedBuildWorkspacePathParametersList[0].target, aTarget)
+        XCTAssertEqual(artifactBuilder.invokedBuildWorkspacePathParametersList[1].target, bTarget)
     }
 }

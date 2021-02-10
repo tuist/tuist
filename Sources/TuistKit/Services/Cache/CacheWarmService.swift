@@ -17,7 +17,7 @@ final class CacheWarmService {
                                                     manifestLinter: manifestLinter)
     }
 
-    func run(path: String?, profile: String?, xcframeworks: Bool) throws {
+    func run(path: String?, profile: String?, xcframeworks: Bool, targets: [String]) throws {
         let path = self.path(path)
         let config = try generatorModelLoader.loadConfig(at: path)
         let cache = Cache(storageProvider: CacheStorageProvider(config: config))
@@ -29,8 +29,9 @@ final class CacheWarmService {
         } else {
             cacheController = cacheControllerFactory.makeForSimulatorFramework(contentHasher: contentHasher)
         }
+
         let profile = try CacheProfileResolver().resolveCacheProfile(named: profile, from: config)
-        try cacheController.cache(path: path, cacheProfile: profile)
+        try cacheController.cache(path: path, cacheProfile: profile, targetsToFilter: targets)
     }
 
     // MARK: - Helpers
