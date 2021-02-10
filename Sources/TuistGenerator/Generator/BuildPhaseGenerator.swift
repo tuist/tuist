@@ -318,7 +318,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         }
     }
 
-    private func generateResourcesBuildFile(files: [FileElement],
+    private func generateResourcesBuildFile(files: [ResourceFileElement],
                                             fileElements: ProjectFileElements,
                                             pbxproj: PBXProj,
                                             resourcesBuildPhase: PBXResourcesBuildPhase) throws

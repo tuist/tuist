@@ -5,15 +5,15 @@ import TuistCore
 import TuistGraph
 import TuistSupport
 
-extension TuistGraph.FileElement {
-    /// Maps a ProjectDescription.FileElement instance into a [TuistCore.FileElement] instance.
+extension TuistGraph.ResourceFileElement {
+    /// Maps a ProjectDescription.ResourceFileElement instance into a [TuistCore.ResourceFileElement] instance.
     /// Glob patterns in file elements are unfolded as part of the mapping.
     /// - Parameters:
     ///   - manifest: Manifest representation of  the file element.
     ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.FileElement,
+    static func from(manifest: ProjectDescription.ResourceFileElement,
                      generatorPaths: GeneratorPaths,
-                     includeFiles: @escaping (AbsolutePath) -> Bool = { _ in true }) throws -> [TuistGraph.FileElement]
+                     includeFiles: @escaping (AbsolutePath) -> Bool = { _ in true }) throws -> [TuistGraph.ResourceFileElement]
     {
         func globFiles(_ path: AbsolutePath) throws -> [AbsolutePath] {
             if FileHandler.shared.exists(path), !FileHandler.shared.isFolder(path) { return [path] }
@@ -50,12 +50,13 @@ extension TuistGraph.FileElement {
         }
 
         switch manifest {
-        case let .glob(pattern: pattern):
+        case let .glob(pattern: pattern, tags: tags):
             let resolvedPath = try generatorPaths.resolve(path: pattern)
-            return try globFiles(resolvedPath).map(FileElement.file)
-        case let .folderReference(path: folderReferencePath):
+            return try globFiles(resolvedPath).map { ResourceFileElement.file(path: $0, tags: tags) }
+        case let .folderReference(path: folderReferencePath, tags: tags):
             let resolvedPath = try generatorPaths.resolve(path: folderReferencePath)
-            return folderReferences(resolvedPath).map(FileElement.folderReference)
+            return folderReferences(resolvedPath).map { ResourceFileElement.folderReference(path: $0, tags: tags) }
         }
     }
 }
+

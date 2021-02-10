@@ -2,14 +2,14 @@ import Foundation
 import TSCBasic
 
 public enum FileElement: Equatable, Hashable {
-    case file(path: AbsolutePath, tags: [String] = [])
-    case folderReference(path: AbsolutePath, tags: [String] = [])
+    case file(path: AbsolutePath)
+    case folderReference(path: AbsolutePath)
 
     public var path: AbsolutePath {
         switch self {
-        case let .file(path, _):
+        case let .file(path):
             return path
-        case let .folderReference(path, _):
+        case let .folderReference(path):
             return path
         }
     }
@@ -20,15 +20,6 @@ public enum FileElement: Equatable, Hashable {
             return false
         case .folderReference:
             return true
-        }
-    }
-    
-    public var tags: [String] {
-        switch self {
-        case let .file(_, tags):
-            return tags
-        case let .folderReference(_, tags):
-            return tags
         }
     }
 }

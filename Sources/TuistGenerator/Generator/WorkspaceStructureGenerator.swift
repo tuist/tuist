@@ -108,9 +108,9 @@ private class DirectoryStructure {
 
     private func fileNode(from element: FileElement) -> Node {
         switch element {
-        case let .file(path: path, _):
+        case let .file(path: path):
             return .file(path)
-        case let .folderReference(path: path, _):
+        case let .folderReference(path: path):
             return .folderReference(path)
         }
     }
@@ -123,7 +123,7 @@ private class DirectoryStructure {
         switch element {
         case .folderReference:
             return true
-        case let .file(path, _):
+        case let .file(path):
             if fileHandler.isFolder(path) {
                 return path.suffix.map(containers.contains) ?? false
             }

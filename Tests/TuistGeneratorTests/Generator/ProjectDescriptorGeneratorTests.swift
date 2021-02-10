@@ -225,8 +225,8 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
         let graph = Graph.test(entryPath: path)
         let valueGraph = ValueGraph(graph: graph)
         let graphTraverser = ValueGraphTraverser(graph: valueGraph)
-        let resources: [FileElement] = [.file(path: "/", tags: ["fileTag", "commonTag"]),
-                                        .folderReference(path: "/", tags: ["folderTag", "commonTag"])]
+        let resources: [ResourceFileElement] = [.file(path: "/", tags: ["fileTag", "commonTag"]),
+                                                .folderReference(path: "/", tags: ["folderTag", "commonTag"])]
         let project = Project.test(path: path,
                                    targets: [.test(resources: resources)])
 

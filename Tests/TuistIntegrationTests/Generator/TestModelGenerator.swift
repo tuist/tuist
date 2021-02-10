@@ -155,14 +155,14 @@ final class TestModelGenerator {
         return Headers(public: publicHeaders, private: privateHeaders, project: projectHeaders)
     }
 
-    private func createResources(path: AbsolutePath) -> [FileElement] {
+    private func createResources(path: AbsolutePath) -> [ResourceFileElement] {
         let files = (0 ..< config.resources)
             .map { "Resources/Resource\($0).png" }
-            .map { FileElement.file(path: path.appending(RelativePath($0))) }
+            .map { ResourceFileElement.file(path: path.appending(RelativePath($0))) }
 
         let folderReferences = (0 ..< 10)
             .map { "Resources/Folder\($0)" }
-            .map { FileElement.folderReference(path: path.appending(RelativePath($0))) }
+            .map { ResourceFileElement.folderReference(path: path.appending(RelativePath($0))) }
 
         return (files + folderReferences).shuffled()
     }

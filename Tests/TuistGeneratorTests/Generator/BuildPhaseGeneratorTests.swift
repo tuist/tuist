@@ -293,7 +293,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
             "/path/resources/fr.lproj/App.strings",
         ]
 
-        let resources = files.map { FileElement.file(path: $0) }
+        let resources = files.map { ResourceFileElement.file(path: $0) }
         let fileElements = createLocalizedResourceFileElements(for: [
             "/path/resources/Main.storyboard",
             "/path/resources/App.strings",
@@ -389,8 +389,8 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
     func test_generateResourcesBuildPhase_whenContainsResourcesTags() throws {
         // Given
         let temporaryPath = try self.temporaryPath()
-        let resources: [FileElement] = [.file(path: "/file.type", tags: ["fileTag"]),
-                                        .folderReference(path: "/folder", tags: ["folderTag"])]
+        let resources: [ResourceFileElement] = [.file(path: "/file.type", tags: ["fileTag"]),
+                                                .folderReference(path: "/folder", tags: ["folderTag"])]
         let target = Target.test(resources: resources)
         let fileElements = ProjectFileElements()
         let pbxproj = PBXProj()
@@ -401,9 +401,6 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         pbxproj.add(object: folderElement)
         fileElements.elements["/file.type"] = fileElement
         fileElements.elements["/folder"] = folderElement
-        
-        let expectedFileSettings: [String: AnyHashable] = ["ASSET_TAGS": resources.first?.tags]
-        let expectedFolderSettings: [String: AnyHashable] = ["ASSET_TAGS": resources[1].tags]
 
         let nativeTarget = PBXNativeTarget(name: "Test")
 
@@ -423,10 +420,12 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         XCTAssertNotNil(pbxBuildPhase)
         XCTAssertTrue(pbxBuildPhase is PBXResourcesBuildPhase)
         
-        let fileSettings = pbxBuildPhase?.files?.first?.settings as? [String: AnyHashable]
-        let folderSettings = pbxBuildPhase?.files?[1].settings as? [String: AnyHashable]
-        XCTAssertEqual(fileSettings, expectedFileSettings)
-        XCTAssertEqual(folderSettings, expectedFolderSettings)
+        let resourceBuildPhase = try XCTUnwrap(nativeTarget.buildPhases.first as? PBXResourcesBuildPhase)
+        let allFileSettings = resourceBuildPhase.files?.map { $0.settings as? [String: AnyHashable] }
+        XCTAssertEqual(allFileSettings, [
+            ["ASSET_TAGS": ["fileTag"]],
+            ["ASSET_TAGS": ["folderTag"]],
+        ])
     }
 
     func test_generateResourceBundle() throws {

@@ -17,10 +17,10 @@ final class ContentHashingIntegrationTests: TuistTestCase {
     var source2: SourceFile!
     var source3: SourceFile!
     var source4: SourceFile!
-    var resourceFile1: FileElement!
-    var resourceFile2: FileElement!
-    var resourceFolderReference1: FileElement!
-    var resourceFolderReference2: FileElement!
+    var resourceFile1: ResourceFileElement!
+    var resourceFile2: ResourceFileElement!
+    var resourceFolderReference1: ResourceFileElement!
+    var resourceFolderReference2: ResourceFileElement!
     var coreDataModel1: CoreDataModel!
     var coreDataModel2: CoreDataModel!
 
@@ -168,7 +168,7 @@ final class ContentHashingIntegrationTests: TuistTestCase {
     func test_contentHashes_sameResources() throws {
         // Given
         let temporaryDirectoryPath = try temporaryPath()
-        let resources: [FileElement] = [resourceFile1, resourceFolderReference1]
+        let resources: [ResourceFileElement] = [resourceFile1, resourceFolderReference1]
         let framework1 = makeFramework(named: "f1", resources: resources)
         let framework2 = makeFramework(named: "f2", resources: resources)
         let graph = Graph.test(targets: [
@@ -261,25 +261,31 @@ final class ContentHashingIntegrationTests: TuistTestCase {
         return SourceFile(path: filePath, compilerFlags: nil)
     }
 
-    private func createTemporaryResourceFile(on temporaryDirectoryPath: AbsolutePath, name: String, content: String) throws -> FileElement {
+    private func createTemporaryResourceFile(on temporaryDirectoryPath: AbsolutePath,
+                                             name: String,
+                                             content: String) throws -> ResourceFileElement
+    {
         let filePath = temporaryDirectoryPath.appending(component: name)
         try FileHandler.shared.touch(filePath)
         try FileHandler.shared.write(content, path: filePath, atomically: true)
-        return FileElement.file(path: filePath)
+        return ResourceFileElement.file(path: filePath)
     }
 
-    private func createTemporaryResourceFolderReference(on temporaryDirectoryPath: AbsolutePath, name: String, content: String) throws -> FileElement {
+    private func createTemporaryResourceFolderReference(on temporaryDirectoryPath: AbsolutePath,
+                                                        name: String,
+                                                        content: String) throws -> ResourceFileElement
+    {
         let filePath = temporaryDirectoryPath.appending(component: name)
         try FileHandler.shared.touch(filePath)
         try FileHandler.shared.write(content, path: filePath, atomically: true)
-        return FileElement.folderReference(path: filePath)
+        return ResourceFileElement.folderReference(path: filePath)
     }
 
     private func makeFramework(named: String,
                                platform: Platform = .iOS,
                                productName: String? = nil,
                                sources: [SourceFile] = [],
-                               resources: [FileElement] = [],
+                               resources: [ResourceFileElement] = [],
                                coreDataModels: [CoreDataModel] = [],
                                targetActions: [TargetAction] = []) -> TargetNode
     {
