@@ -43,37 +43,41 @@ final class DependenciesContentHasherTests: TuistUnitTestCase {
     func test_hash_whenDependencyIsProject_callsContentHasherAsExpected() throws {
         // Given
         let dependency = Dependency.project(target: "foo", path: filePath1)
+        mockContentHasher.stubHashForPath[filePath1] = "file-hashed"
 
         // When
         let hash = try subject.hash(dependencies: [dependency])
 
         // Then
-        XCTAssertEqual(hash, "project-;foo;/file1")
-        XCTAssertEqual(mockContentHasher.hashStringsCallCount, 1)
+        XCTAssertEqual(hash, "project-file-hashed-foo-hash")
+        XCTAssertEqual(mockContentHasher.hashStringCallCount, 1)
+        XCTAssertEqual(mockContentHasher.hashPathCallCount, 1)
     }
 
     func test_hash_whenDependencyIsFramework_callsContentHasherAsExpected() throws {
         // Given
         let dependency = Dependency.framework(path: filePath1)
+        mockContentHasher.stubHashForPath[filePath1] = "file-hashed"
 
         // When
         let hash = try subject.hash(dependencies: [dependency])
 
         // Then
-        XCTAssertEqual(hash, "framework-/file1-hash")
-        XCTAssertEqual(mockContentHasher.hashStringCallCount, 1)
+        XCTAssertEqual(hash, "file-hashed")
+        XCTAssertEqual(mockContentHasher.hashPathCallCount, 1)
     }
 
     func test_hash_whenDependencyIsXCFramework_callsContentHasherAsExpected() throws {
         // Given
         let dependency = Dependency.xcFramework(path: filePath1)
+        mockContentHasher.stubHashForPath[filePath1] = "file-hashed"
 
         // When
         let hash = try subject.hash(dependencies: [dependency])
 
         // Then
-        XCTAssertEqual(hash, "xcframework-/file1-hash")
-        XCTAssertEqual(mockContentHasher.hashStringCallCount, 1)
+        XCTAssertEqual(hash, "file-hashed")
+        XCTAssertEqual(mockContentHasher.hashPathCallCount, 1)
     }
 
     func test_hash_whenDependencyIsLibrary_callsContentHasherAsExpected() throws {
@@ -81,13 +85,34 @@ final class DependenciesContentHasherTests: TuistUnitTestCase {
         let dependency = Dependency.library(path: filePath1,
                                             publicHeaders: filePath2,
                                             swiftModuleMap: filePath3)
+        mockContentHasher.stubHashForPath[filePath1] = "file1-hashed"
+        mockContentHasher.stubHashForPath[filePath2] = "file2-hashed"
+        mockContentHasher.stubHashForPath[filePath3] = "file3-hashed"
 
         // When
         let hash = try subject.hash(dependencies: [dependency])
 
         // Then
-        XCTAssertEqual(hash, "library;/file1;/file2;/file3")
-        XCTAssertEqual(mockContentHasher.hashStringsCallCount, 1)
+        XCTAssertEqual(hash, "library-file1-hashed-file2-hashed-file3-hashed-hash")
+        XCTAssertEqual(mockContentHasher.hashPathCallCount, 3)
+        XCTAssertEqual(mockContentHasher.hashStringCallCount, 1)
+    }
+
+    func test_hash_whenDependencyIsLibrary_swiftModuleMapIsNil_callsContentHasherAsExpected() throws {
+        // Given
+        let dependency = Dependency.library(path: filePath1,
+                                            publicHeaders: filePath2,
+                                            swiftModuleMap: nil)
+        mockContentHasher.stubHashForPath[filePath1] = "file1-hashed"
+        mockContentHasher.stubHashForPath[filePath2] = "file2-hashed"
+
+        // When
+        let hash = try subject.hash(dependencies: [dependency])
+
+        // Then
+        XCTAssertEqual(hash, "library-file1-hashed-file2-hashed-hash")
+        XCTAssertEqual(mockContentHasher.hashPathCallCount, 2)
+        XCTAssertEqual(mockContentHasher.hashStringCallCount, 1)
     }
 
     func test_hash_whenDependencyIsPackage_callsContentHasherAsExpected() throws {
@@ -129,13 +154,14 @@ final class DependenciesContentHasherTests: TuistUnitTestCase {
     func test_hash_whenDependencyIsCocoapods_callsContentHasherAsExpected() throws {
         // Given
         let dependency = Dependency.cocoapods(path: filePath1)
+        mockContentHasher.stubHashForPath[filePath1] = "file1-hashed"
 
         // When
         let hash = try subject.hash(dependencies: [dependency])
 
         // Then
-        XCTAssertEqual(hash, "cocoapods;/file1")
-        XCTAssertEqual(mockContentHasher.hashStringsCallCount, 1)
+        XCTAssertEqual(hash, "cocoapods-file1-hashed-hash")
+        XCTAssertEqual(mockContentHasher.hashPathCallCount, 1)
     }
 
     func test_hash_whenDependencyIsXCTest_callsContentHasherAsExpected() throws {

@@ -31,19 +31,28 @@ public final class DependenciesContentHasher: DependenciesContentHashing {
         case let .target(name):
             return try contentHasher.hash("target-\(name)")
         case let .project(target, path):
-            return try contentHasher.hash(["project-", target, path.pathString])
+            let projectHash = try contentHasher.hash(path: path)
+            return try contentHasher.hash("project-\(projectHash)-\(target)")
         case let .framework(path):
-            return try contentHasher.hash("framework-\(path.pathString)")
+            return try contentHasher.hash(path: path)
         case let .xcFramework(path):
-            return try contentHasher.hash("xcframework-\(path.pathString)")
+            return try contentHasher.hash(path: path)
         case let .library(path, publicHeaders, swiftModuleMap):
-            return try contentHasher.hash(["library", path.pathString, publicHeaders.pathString, swiftModuleMap?.pathString].compactMap { $0 })
+            let libraryHash = try contentHasher.hash(path: path)
+            let publicHeadersHash = try contentHasher.hash(path: publicHeaders)
+            if let swiftModuleMap = swiftModuleMap {
+                let swiftModuleHash = try contentHasher.hash(path: swiftModuleMap)
+                return try contentHasher.hash("library-\(libraryHash)-\(publicHeadersHash)-\(swiftModuleHash)")
+            } else {
+                return try contentHasher.hash("library-\(libraryHash)-\(publicHeadersHash)")
+            }
         case let .package(product):
             return try contentHasher.hash("package-\(product)")
         case let .sdk(name, status):
             return try contentHasher.hash("sdk-\(name)-\(status)")
         case let .cocoapods(path):
-            return try contentHasher.hash(["cocoapods", path.pathString])
+            let podsHash = try contentHasher.hash(path: path)
+            return try contentHasher.hash("cocoapods-\(podsHash)")
         case .xctest:
             return try contentHasher.hash("xctest")
         }

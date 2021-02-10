@@ -13,13 +13,13 @@ let project = Project(name: "App",
                                     .target(name: "NotificationServiceExtension"),
                                     .target(name: "WidgetExtension"),
                                 ]),
-                        // We need a seperate app to test out Message Extensions
+                        // We need a separate app to test out Message Extensions
                         // as having both stickers pack and message extensions in one app
                         // doesn't seem to be supported.
                         Target(name: "AppWithMessagesExtension",
                                platform: .iOS,
                                product: .app,
-                               bundleId: "io.tuist.App",
+                               bundleId: "io.tuist.App2",
                                infoPlist: "Info.plist",
                                sources: ["Sources/**"],
                                dependencies: [
@@ -60,7 +60,7 @@ let project = Project(name: "App",
                         Target(name: "MessageExtension",
                                platform: .iOS,
                                product: .messagesExtension,
-                               bundleId: "io.tuist.App.MessageExtension",
+                               bundleId: "io.tuist.App2.MessageExtension",
                                infoPlist: .extendingDefault(with: [
                                        "CFBundleDisplayName": "$(PRODUCT_NAME)",
                                        "NSExtension": [

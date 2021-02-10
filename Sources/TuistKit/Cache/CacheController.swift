@@ -55,7 +55,8 @@ protocol CacheControlling {
     /// - Parameters:
     ///   - path: Path to the directory that contains a workspace or a project.
     ///   - configuration: The configuration to be used when building the project.
-    func cache(path: AbsolutePath, configuration: String) throws
+    ///   - targets: If present, a list of target to build.
+    func cache(path: AbsolutePath, configuration: String, targetsToFilter: [String]) throws
 }
 
 final class CacheController: CacheControlling {
@@ -98,38 +99,42 @@ final class CacheController: CacheControlling {
         self.cacheGraphLinter = cacheGraphLinter
     }
 
-    func cache(path: AbsolutePath, configuration: String) throws {
+    func cache(path: AbsolutePath, configuration: String, targetsToFilter: [String]) throws {
         let generator = projectGeneratorProvider.generator()
-        let (path, graph) = try generator.generateWithGraph(path: path, projectOnly: false)
+        let (projectPath, graph) = try generator.generateWithGraph(path: path, projectOnly: false)
 
         // Lint
         cacheGraphLinter.lint(graph: graph)
 
         // Hash
         logger.notice("Hashing cacheable targets")
-        let cacheableTargets = try self.cacheableTargets(graph: graph)
+        let hashesByCacheableTarget = try cacheGraphContentHasher.contentHashes(for: graph, cacheOutputType: artifactBuilder.cacheOutputType)
 
-        // Build
+        let filteredTargets: [TargetNode]
+        if targetsToFilter.isEmpty {
+            filteredTargets = Array(hashesByCacheableTarget.keys)
+        } else {
+            filteredTargets = Array(hashesByCacheableTarget.keys.filter { targetsToFilter.contains($0.name) })
+        }
+
         logger.notice("Building cacheable targets")
+        let sortedCacheableTargets = try topologicalSort(filteredTargets, successors: \.targetDependencies)
 
-        try cacheableTargets.sorted(by: { $0.key.target.name < $1.key.target.name }).forEach { target, hash in
-            try self.buildAndCacheFramework(path: path, target: target, configuration: configuration, hash: hash)
+        for (index, target) in sortedCacheableTargets.reversed().enumerated() {
+            logger.notice("Building cacheable targets: \(target.name), \(index + 1) out of \(sortedCacheableTargets.count)")
+
+            let hash = hashesByCacheableTarget[target]!
+
+            if let exists = try cache.exists(hash: hash).toBlocking().first(), exists {
+                logger.pretty("The target \(.bold(.raw(target.name))) with hash \(.bold(.raw(hash))) and type \(artifactBuilder.cacheOutputType.description) is already in the cache. Skipping...")
+                continue
+            }
+
+            // Build
+            try buildAndCacheFramework(path: projectPath, target: target, configuration: configuration, hash: hash)
         }
 
         logger.notice("All cacheable targets have been cached successfully as \(artifactBuilder.cacheOutputType.description)s", metadata: .success)
-    }
-
-    /// Returns all the targets that are cacheable and their hashes.
-    /// - Parameter graph: Graph that contains all the dependency graph nodes.
-    fileprivate func cacheableTargets(graph: Graph) throws -> [TargetNode: String] {
-        try cacheGraphContentHasher.contentHashes(for: graph, cacheOutputType: artifactBuilder.cacheOutputType)
-            .filter { target, hash in
-                if let exists = try self.cache.exists(hash: hash).toBlocking().first(), exists {
-                    logger.pretty("The target \(.bold(.raw(target.name))) with hash \(.bold(.raw(hash))) and type \(artifactBuilder.cacheOutputType.description) is already in the cache. Skipping...")
-                    return false
-                }
-                return true
-            }
     }
 
     /// Builds the .xcframework for the given target and returns an obervable to store them in the cache.

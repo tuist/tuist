@@ -1,3 +1,4 @@
+import CommonCrypto
 import Foundation
 import TSCBasic
 
@@ -6,7 +7,6 @@ public enum FileHandlerError: FatalError, Equatable {
     case writingError(AbsolutePath)
     case fileNotFound(AbsolutePath)
     case unreachableFileSize(AbsolutePath)
-    case unconvertibleToData(AbsolutePath)
     case expectedAFile(AbsolutePath)
 
     public var description: String {
@@ -19,8 +19,6 @@ public enum FileHandlerError: FatalError, Equatable {
             return "File not found at \(path.pathString)"
         case let .unreachableFileSize(path):
             return "Could not get the file size at path \(path.pathString)"
-        case let .unconvertibleToData(path):
-            return "Could not convert to Data the file content (at path \(path.pathString))"
         case let .expectedAFile(path):
             return "Could not find a file at path \(path.pathString))"
         }
@@ -30,7 +28,7 @@ public enum FileHandlerError: FatalError, Equatable {
         switch self {
         case .invalidTextEncoding:
             return .bug
-        case .writingError, .fileNotFound, .unreachableFileSize, .unconvertibleToData, .expectedAFile:
+        case .writingError, .fileNotFound, .unreachableFileSize, .expectedAFile:
             return .abort
         }
     }
@@ -68,8 +66,7 @@ public protocol FileHandling: AnyObject {
     func isFolder(_ path: AbsolutePath) -> Bool
     func touch(_ path: AbsolutePath) throws
     func contentsOfDirectory(_ path: AbsolutePath) throws -> [AbsolutePath]
-    func md5(path: AbsolutePath) throws -> String
-    func base64MD5(path: AbsolutePath) throws -> String
+    func urlSafeBase64MD5(path: AbsolutePath) throws -> String
     func fileSize(path: AbsolutePath) throws -> UInt64
     func changeExtension(path: AbsolutePath, to newExtension: String) throws -> AbsolutePath
     func resolveSymlinks(_ path: AbsolutePath) -> AbsolutePath
@@ -260,15 +257,23 @@ public class FileHandler: FileHandling {
 
     // MARK: - MD5
 
-    public func md5(path: AbsolutePath) throws -> String {
-        try Data(contentsOf: path.url).md5
-    }
+    public func urlSafeBase64MD5(path: AbsolutePath) throws -> String {
+        let data = try Data(contentsOf: path.url)
+        let length = Int(CC_MD5_DIGEST_LENGTH)
+        var digestData = Data(count: length)
 
-    public func base64MD5(path: AbsolutePath) throws -> String {
-        guard let utf8str = try md5(path: path).data(using: .utf8) else {
-            throw FileHandlerError.unconvertibleToData(path)
+        _ = digestData.withUnsafeMutableBytes { digestBytes -> UInt8 in
+            data.withUnsafeBytes { messageBytes -> UInt8 in
+                if let messageBytesBaseAddress = messageBytes.baseAddress, let digestBytesBlindMemory = digestBytes.bindMemory(to: UInt8.self).baseAddress {
+                    let messageLength = CC_LONG(data.count)
+                    CC_MD5(messageBytesBaseAddress, messageLength, digestBytesBlindMemory)
+                }
+                return 0
+            }
         }
-        return utf8str.base64EncodedString()
+        return digestData.base64EncodedString()
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "+", with: "-")
     }
 
     // MARK: - File Attributes
