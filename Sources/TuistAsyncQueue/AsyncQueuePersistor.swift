@@ -39,6 +39,7 @@ final class AsyncQueuePersistor: AsyncQueuePersisting {
         Completable.create { (observer) -> Disposable in
             let path = self.directory.appending(component: self.filename(event: event))
             do {
+                try self.createDirectoryIfNeeded()
                 let data = try self.jsonEncoder.encode(event)
                 try data.write(to: path.url)
                 observer(.completed)
@@ -104,5 +105,10 @@ final class AsyncQueuePersistor: AsyncQueuePersisting {
 
     private func filename<T: AsyncQueueEvent>(event: T) -> String {
         "\(Int(event.date.timeIntervalSince1970)).\(event.dispatcherId).\(event.id.uuidString).json"
+    }
+
+    private func createDirectoryIfNeeded() throws {
+        guard !FileManager.default.fileExists(atPath: directory.pathString) else { return }
+        try FileManager.default.createDirectory(atPath: directory.pathString, withIntermediateDirectories: true)
     }
 }
