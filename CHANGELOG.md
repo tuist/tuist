@@ -8,6 +8,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Add documentation on how to use & create plugins by [@luispadron](https://github.com/luispadron)
 
+### Fixed
+
+- Fixed a bug in reporting stats event when Queue folder isn't created [#2497](https://github.com/tuist/tuist/pull/2497) by [@andreacipriani](https://github.com/andreacipriani).
+
 ### Changed
 
 - Update post-generation interactors to use the graph traverser [#2451](https://github.com/tuist/tuist/pull/2451) by [@pepibumur](https://github.com/pepibumur).
