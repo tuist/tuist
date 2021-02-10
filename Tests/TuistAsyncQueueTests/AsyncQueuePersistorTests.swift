@@ -4,6 +4,7 @@ import RxSwift
 import TuistCore
 import TuistSupport
 import XCTest
+import TSCBasic
 
 @testable import TuistAsyncQueue
 @testable import TuistSupportTesting
@@ -37,6 +38,26 @@ final class AsyncQueuePersistorTests: TuistUnitTestCase {
         let normalizedDate = Date(timeIntervalSince1970: Double(Int(Double(event.date.timeIntervalSince1970))))
         XCTAssertEqual(gotEvent.date, normalizedDate)
     }
+
+    func test_write_whenDirectoryDoesntExist_itCreatesDirectory() throws {
+        let temporaryDirectory = try! temporaryPath()
+        subject = AsyncQueuePersistor(directory: temporaryDirectory.appending(RelativePath("test/")))
+
+        // Given
+        let event = AnyAsyncQueueEvent(dispatcherId: "dispatcher")
+
+        // When
+        _ = try subject.write(event: event).toBlocking().last()
+
+        // Then
+        let got = try subject.readAll().toBlocking().last()
+        let gotEvent = try XCTUnwrap(got?.first)
+        XCTAssertEqual(gotEvent.dispatcherId, "dispatcher")
+        XCTAssertEqual(gotEvent.id, event.id)
+        let normalizedDate = Date(timeIntervalSince1970: Double(Int(Double(event.date.timeIntervalSince1970))))
+        XCTAssertEqual(gotEvent.date, normalizedDate)
+    }
+
 
     func test_delete() throws {
         // Given
