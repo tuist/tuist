@@ -26,18 +26,14 @@ Then(/^generated project is deleted/) do
   FileUtils.rm_rf(@xcodeproj_path)
 end
 
-Then(/^project does not contain ([a-zA-Z\-]+) scheme/) do |scheme_name|
-  scheme = Xcodeproj::Workspace.new_from_xcworkspace(@workspace_path)
-  .schemes
-  .keys
-  .detect { |scheme| scheme == scheme_name }
-  flunk("Project contains #{scheme_name} scheme") if !scheme.nil?
+Then(/^([a-zA-Z\-]+) scheme has nothing to test/) do |scheme_name|
+  scheme_file = File.join(Xcodeproj::Workspace.new_from_xcworkspace(@workspace_path).schemes[scheme_name], "xcshareddata", "xcschemes", "#{scheme_name}.xcscheme")
+  scheme = Xcodeproj::XCScheme.new scheme_file
+  flunk("Project #{scheme_name} scheme has nothing to test") if !scheme.test_action.testables.empty?
 end
 
-Then(/^project contains ([a-zA-Z\-]+) scheme/) do |scheme_name|
-  scheme = Xcodeproj::Workspace.new_from_xcworkspace(@workspace_path)
-  .schemes
-  .keys
-  .detect { |scheme| scheme == scheme_name }
-  flunk("Project does not contain #{scheme_name} scheme") if scheme.nil?
+Then(/^([a-zA-Z\-]+) scheme has something to test/) do |scheme_name|
+  scheme_file = File.join(Xcodeproj::Workspace.new_from_xcworkspace(@workspace_path).schemes[scheme_name], "xcshareddata", "xcschemes", "#{scheme_name}.xcscheme")
+  scheme = Xcodeproj::XCScheme.new scheme_file
+  flunk("Project #{scheme_name} scheme has nothing to test") if scheme.test_action.testables.empty?
 end

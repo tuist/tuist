@@ -138,13 +138,11 @@ final class TestService {
             }
         } else {
             let testSchemes: [Scheme] = buildGraphInspector.projectSchemes(graph: graph)
-
-            if testSchemes
-                .filter({
+                .filter {
                     $0.testAction.map { !$0.targets.isEmpty } ?? false
-                })
-                .isEmpty
-            {
+                }
+
+            if testSchemes.isEmpty {
                 logger.log(level: .info, "There are no tests to run, finishing early")
                 return
             }
