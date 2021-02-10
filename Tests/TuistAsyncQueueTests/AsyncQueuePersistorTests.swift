@@ -1,10 +1,10 @@
 import Foundation
 import RxBlocking
 import RxSwift
+import TSCBasic
 import TuistCore
 import TuistSupport
 import XCTest
-import TSCBasic
 
 @testable import TuistAsyncQueue
 @testable import TuistSupportTesting
@@ -57,7 +57,6 @@ final class AsyncQueuePersistorTests: TuistUnitTestCase {
         let normalizedDate = Date(timeIntervalSince1970: Double(Int(Double(event.date.timeIntervalSince1970))))
         XCTAssertEqual(gotEvent.date, normalizedDate)
     }
-
 
     func test_delete() throws {
         // Given
