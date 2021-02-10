@@ -29,14 +29,9 @@ public final class CacheGraphContentHasher: CacheGraphContentHashing {
     ) throws -> [TargetNode: String] {
         try graphContentHasher.contentHashes(
             for: graph,
-            filter: filterHashTarget
+            filter: filterHashTarget,
+            additionalStrings: [cacheOutputType.description]
         )
-        .mapValues { hash in
-            try self.contentHasher.hash([
-                hash,
-                cacheOutputType.description,
-            ])
-        }
     }
 
     private func filterHashTarget(_ target: TargetNode) -> Bool {

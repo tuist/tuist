@@ -6,6 +6,7 @@ import TuistSupport
 
 public protocol TargetContentHashing {
     func contentHash(for target: TargetNode) throws -> String
+    func contentHash(for target: TargetNode, additionalStrings: [String]) throws -> String
 }
 
 /// `TargetContentHasher`
@@ -68,8 +69,12 @@ public final class TargetContentHasher: TargetContentHashing {
     }
 
     // MARK: - TargetContentHashing
-
+    
     public func contentHash(for target: TargetNode) throws -> String {
+        try contentHash(for: target, additionalStrings: [])
+    }
+    
+    public func contentHash(for target: TargetNode, additionalStrings: [String]) throws -> String {
         let target = target.target
         let sourcesHash = try sourceFilesContentHasher.hash(sources: target.sources)
         let resourcesHash = try resourcesContentHasher.hash(resources: target.resources)
@@ -110,6 +115,7 @@ public final class TargetContentHasher: TargetContentHashing {
             let settingsHash = try settingsContentHasher.hash(settings: settings)
             stringsToHash.append(settingsHash)
         }
+        stringsToHash += additionalStrings
 
         return try contentHasher.hash(stringsToHash)
     }

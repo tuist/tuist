@@ -6,10 +6,33 @@ import TuistSupport
 public protocol GraphContentHashing {
     /// Hashes graph
     /// - Parameters:
+    ///     - graph: Graph to hash
     ///     - filter: If `true`, `TargetNode` is hashed, otherwise it is skipped
-    func contentHashes(for graph: TuistCore.Graph, filter: (TargetNode) -> Bool) throws -> [TargetNode: String]
-    /// Hashes all of graph's targets
-    func contentHashes(for graph: TuistCore.Graph) throws -> [TargetNode: String]
+    ///     - additionalStrings: Additional strings to be used when hashing graph
+    func contentHashes(
+        for graph: TuistCore.Graph,
+        filter: (TargetNode) -> Bool,
+        additionalStrings: [String]
+    ) throws -> [TargetNode: String]
+}
+
+public extension GraphContentHashing {
+    /// Hashes graph
+    /// - Parameters:
+    ///     - graph: Graph to hash
+    ///     - filter: If `true`, `TargetNode` is hashed, otherwise it is skipped
+    ///     - additionalStrings: Additional strings to be used when hashing graph
+    func contentHashes(
+        for graph: TuistCore.Graph,
+        filter: (TargetNode) -> Bool = { _ in true },
+        additionalStrings: [String] = []
+    ) throws -> [TargetNode: String] {
+        try contentHashes(
+            for: graph,
+            filter: filter,
+            additionalStrings: additionalStrings
+        )
+    }
 }
 
 /// `GraphContentHasher`
@@ -31,7 +54,11 @@ public final class GraphContentHasher: GraphContentHashing {
 
     // MARK: - GraphContentHashing
 
-    public func contentHashes(for graph: TuistCore.Graph, filter: (TargetNode) -> Bool) throws -> [TargetNode: String] {
+    public func contentHashes(
+        for graph: TuistCore.Graph,
+        filter: (TargetNode) -> Bool,
+        additionalStrings: [String]
+    ) throws -> [TargetNode: String] {
         var visitedNodes: [TargetNode: Bool] = [:]
         let hashableTargets = graph.targets.values.flatMap { (targets: [TargetNode]) -> [TargetNode] in
             targets.compactMap { target in
@@ -47,7 +74,10 @@ public final class GraphContentHasher: GraphContentHashing {
             }
         }
         let hashes = try hashableTargets.map {
-            try targetContentHasher.contentHash(for: $0)
+            try targetContentHasher.contentHash(
+                for: $0,
+                additionalStrings: additionalStrings
+            )
         }
         return Dictionary(uniqueKeysWithValues: zip(hashableTargets, hashes))
     }
