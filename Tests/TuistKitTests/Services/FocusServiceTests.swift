@@ -1,6 +1,7 @@
 import Foundation
 import TSCBasic
 import TuistCore
+import TuistGraph
 import TuistLoader
 import XcodeProj
 import XCTest
@@ -9,7 +10,7 @@ import XCTest
 @testable import TuistLoaderTesting
 @testable import TuistSupportTesting
 
-private typealias GeneratorParameters = (sources: Set<String>, xcframeworks: Bool, ignoreCache: Bool)
+private typealias GeneratorParameters = (sources: Set<String>, xcframeworks: Bool, cacheProfile: TuistGraph.Cache.Profile, ignoreCache: Bool)
 
 final class MockFocusServiceProjectGeneratorFactory: FocusServiceProjectGeneratorFactorying {
     var invokedGenerator = false
@@ -18,11 +19,11 @@ final class MockFocusServiceProjectGeneratorFactory: FocusServiceProjectGenerato
     fileprivate var invokedGeneratorParametersList = [GeneratorParameters]()
     var stubbedGeneratorResult: Generating!
 
-    func generator(sources: Set<String>, xcframeworks: Bool, ignoreCache: Bool) -> Generating {
+    func generator(sources: Set<String>, xcframeworks: Bool, cacheProfile: TuistGraph.Cache.Profile, ignoreCache: Bool) -> Generating {
         invokedGenerator = true
         invokedGeneratorCount += 1
-        invokedGeneratorParameters = (sources, xcframeworks, ignoreCache)
-        invokedGeneratorParametersList.append((sources, xcframeworks, ignoreCache))
+        invokedGeneratorParameters = (sources, xcframeworks, cacheProfile, ignoreCache)
+        invokedGeneratorParametersList.append((sources, xcframeworks, cacheProfile, ignoreCache))
         return stubbedGeneratorResult
     }
 }
@@ -56,7 +57,7 @@ final class FocusServiceTests: TuistUnitTestCase {
             throw error
         }
 
-        XCTAssertThrowsError(try subject.run(path: nil, sources: Set(), noOpen: true, xcframeworks: false, ignoreCache: false)) {
+        XCTAssertThrowsError(try subject.run(path: nil, sources: Set(), noOpen: true, xcframeworks: false, profile: nil, ignoreCache: false)) {
             XCTAssertEqual($0 as NSError?, error)
         }
     }
@@ -68,7 +69,7 @@ final class FocusServiceTests: TuistUnitTestCase {
             workspacePath
         }
 
-        try subject.run(path: nil, sources: Set(), noOpen: false, xcframeworks: false, ignoreCache: false)
+        try subject.run(path: nil, sources: Set(), noOpen: false, xcframeworks: false, profile: nil, ignoreCache: false)
 
         XCTAssertEqual(opener.openArgs.last?.0, workspacePath.pathString)
     }

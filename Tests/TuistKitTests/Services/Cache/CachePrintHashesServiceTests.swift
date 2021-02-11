@@ -2,6 +2,8 @@ import Foundation
 import TSCBasic
 import TuistCacheTesting
 import TuistCore
+import TuistGraph
+import TuistLoaderTesting
 import TuistSupport
 import XCTest
 
@@ -14,6 +16,7 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
     var graphContentHasher: MockGraphContentHasher!
     var clock: Clock!
     var path: AbsolutePath!
+    var generatorModelLoader: MockGeneratorModelLoader!
 
     override func setUp() {
         super.setUp()
@@ -23,9 +26,15 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
         graphContentHasher = MockGraphContentHasher()
         clock = StubClock()
 
+        generatorModelLoader = MockGeneratorModelLoader(basePath: path)
+        generatorModelLoader.mockConfig("") { (_) -> Config in
+            Config.test()
+        }
+
         subject = CachePrintHashesService(generator: generator,
                                           graphContentHasher: graphContentHasher,
-                                          clock: clock)
+                                          clock: clock,
+                                          generatorModelLoader: generatorModelLoader)
     }
 
     override func tearDown() {
@@ -40,10 +49,11 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
         // Given
         subject = CachePrintHashesService(generator: generator,
                                           graphContentHasher: graphContentHasher,
-                                          clock: clock)
+                                          clock: clock,
+                                          generatorModelLoader: generatorModelLoader)
 
         // When
-        _ = try subject.run(path: path, xcframeworks: false)
+        _ = try subject.run(path: path, xcframeworks: false, profile: nil)
 
         // Then
         XCTAssertEqual(generator.invokedLoadParameterPath, path)
@@ -53,12 +63,13 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
         // Given
         subject = CachePrintHashesService(generator: generator,
                                           graphContentHasher: graphContentHasher,
-                                          clock: clock)
+                                          clock: clock,
+                                          generatorModelLoader: generatorModelLoader)
         let graph = Graph.test()
         generator.loadStub = { _ in graph }
 
         // When
-        _ = try subject.run(path: path, xcframeworks: false)
+        _ = try subject.run(path: path, xcframeworks: false, profile: nil)
 
         // Then
         XCTAssertEqual(graphContentHasher.invokedContentHashesParameters?.graph, graph)
@@ -72,10 +83,11 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
 
         subject = CachePrintHashesService(generator: generator,
                                           graphContentHasher: graphContentHasher,
-                                          clock: clock)
+                                          clock: clock,
+                                          generatorModelLoader: generatorModelLoader)
 
         // When
-        _ = try subject.run(path: path, xcframeworks: false)
+        _ = try subject.run(path: path, xcframeworks: false, profile: nil)
 
         // Then
         XCTAssertPrinterOutputContains("ShakiOne - hash1")
@@ -84,15 +96,29 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
 
     func test_run_gives_correct_artifact_type_to_hasher() throws {
         // When
-        _ = try subject.run(path: path, xcframeworks: true)
+        _ = try subject.run(path: path, xcframeworks: true, profile: nil)
 
         // Then
         XCTAssertEqual(graphContentHasher.invokedContentHashesParameters?.cacheOutputType, .xcframework)
 
         // When
-        _ = try subject.run(path: path, xcframeworks: false)
+        _ = try subject.run(path: path, xcframeworks: false, profile: nil)
 
         // Then
         XCTAssertEqual(graphContentHasher.invokedContentHashesParameters?.cacheOutputType, .framework)
+    }
+
+    func test_run_gives_correct_cache_profile_type_to_hasher() throws {
+        // Given
+        let profile: Cache.Profile = .test(name: "Simulator", configuration: "Debug")
+        generatorModelLoader.mockConfig("") { (_) -> Config in
+            Config.test(cache: .test(profiles: [profile]))
+        }
+
+        // When
+        _ = try subject.run(path: path, xcframeworks: false, profile: "Simulator")
+
+        // Then
+        XCTAssertEqual(graphContentHasher.invokedContentHashesParameters?.cacheProfile, profile)
     }
 }

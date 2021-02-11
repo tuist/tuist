@@ -9,7 +9,7 @@ public extension Cache {
 }
 
 public extension Cache.Profile {
-    static func test() -> Cache.Profile {
-        Cache.Profile(name: "development", configuration: "Debug")
+    static func test(name: String = "Development", configuration: String = "Debug") -> Cache.Profile {
+        Cache.Profile(name: name, configuration: configuration)
     }
 }

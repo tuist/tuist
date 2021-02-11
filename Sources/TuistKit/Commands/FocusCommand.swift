@@ -58,6 +58,12 @@ struct FocusCommand: ParsableCommand, HasTrackableParameters {
     )
     var xcframeworks: Bool = false
 
+    @Option(
+        name: [.customShort("P"), .long],
+        help: "The name of the cache profile to be used when focusing on the target."
+    )
+    var profile: String?
+
     @Flag(
         name: [.customLong("no-cache")],
         help: "Ignore cached targets, and use their sources instead."
@@ -77,6 +83,7 @@ struct FocusCommand: ParsableCommand, HasTrackableParameters {
                                sources: Set(sources),
                                noOpen: noOpen,
                                xcframeworks: xcframeworks,
+                               profile: profile,
                                ignoreCache: ignoreCache)
     }
 }

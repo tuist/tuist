@@ -27,6 +27,7 @@ final class CacheMapperTests: TuistUnitTestCase {
                               cache: cache,
                               graphContentHasher: graphContentHasher,
                               sources: [],
+                              cacheProfile: .test(),
                               cacheOutputType: .framework,
                               cacheGraphMutator: cacheGraphMutator,
                               queue: DispatchQueue.main)
@@ -141,6 +142,7 @@ final class CacheMapperTests: TuistUnitTestCase {
                               cache: cache,
                               graphContentHasher: graphContentHasher,
                               sources: [],
+                              cacheProfile: .test(),
                               cacheOutputType: .xcframework,
                               cacheGraphMutator: cacheGraphMutator,
                               queue: DispatchQueue.main)

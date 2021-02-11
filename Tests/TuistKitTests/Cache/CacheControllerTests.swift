@@ -99,7 +99,7 @@ final class CacheControllerTests: TuistUnitTestCase {
         artifactBuilder.stubbedCacheOutputType = .xcframework
 
         // When
-        try subject.cache(path: path, configuration: "Debug", targetsToFilter: [])
+        try subject.cache(path: path, cacheProfile: .test(configuration: "Debug"), targetsToFilter: [])
 
         // Then
         XCTAssertPrinterOutputContains("""
@@ -159,7 +159,7 @@ final class CacheControllerTests: TuistUnitTestCase {
         artifactBuilder.stubbedCacheOutputType = .xcframework
 
         // When
-        try subject.cache(path: path, configuration: "Debug", targetsToFilter: [bTarget.name])
+        try subject.cache(path: path, cacheProfile: .test(configuration: "Debug"), targetsToFilter: [bTarget.name])
 
         // Then
         XCTAssertPrinterOutputContains("""
