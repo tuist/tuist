@@ -13,27 +13,27 @@ public final class MockBuildGraphInspector: BuildGraphInspecting {
         workspacePathStub?(directory) ?? directory
     }
 
-    public var buildableTargetStub: ((Scheme, Graph) -> (Project, Target)?)?
-    public func buildableTarget(scheme: Scheme, graph: Graph) -> (Project, Target)? {
+    public var buildableTargetStub: ((Scheme, GraphTraversing) -> (Project, Target)?)?
+    public func buildableTarget(scheme: Scheme, graphTraverser: GraphTraversing) -> (Project, Target)? {
         if let buildableTargetStub = buildableTargetStub {
-            return buildableTargetStub(scheme, graph)
+            return buildableTargetStub(scheme, graphTraverser)
         } else {
             return (Project.test(), Target.test())
         }
     }
 
-    public var buildableSchemesStub: ((Graph) -> [Scheme])?
-    public func buildableSchemes(graph: Graph) -> [Scheme] {
+    public var buildableSchemesStub: ((GraphTraversing) -> [Scheme])?
+    public func buildableSchemes(graphTraverser: GraphTraversing) -> [Scheme] {
         if let buildableSchemesStub = buildableSchemesStub {
-            return buildableSchemesStub(graph)
+            return buildableSchemesStub(graphTraverser)
         } else {
             return []
         }
     }
 
-    public var buildableEntrySchemesStub: ((Graph) -> [Scheme])?
-    public func buildableEntrySchemes(graph: Graph) -> [Scheme] {
-        buildableEntrySchemesStub?(graph) ?? []
+    public var buildableEntrySchemesStub: ((GraphTraversing) -> [Scheme])?
+    public func buildableEntrySchemes(graphTraverser: GraphTraversing) -> [Scheme] {
+        buildableEntrySchemesStub?(graphTraverser) ?? []
     }
 
     public var buildArgumentsStub: ((Project, Target, String?, Bool) -> [XcodeBuildArgument])?

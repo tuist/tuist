@@ -48,6 +48,10 @@ public class ValueGraphTraverser: GraphTraversing {
             projects[$0]
         })
     }
+    
+    public func schemes() -> [Scheme] {
+        projects.values.flatMap(\.schemes) + graph.workspace.schemes
+    }
 
     public func cocoapodsPaths() -> Set<AbsolutePath> {
         dependencies.reduce(into: Set<AbsolutePath>()) { acc, next in

@@ -403,4 +403,9 @@ final class MockGraphTraverser: GraphTraversing {
         }
         return stubbedAllProjectDependenciesResult
     }
+    
+    var schemesStub: (() -> [Scheme])?
+    func schemes() -> [Scheme] {
+        schemesStub?() ?? []
+    }
 }

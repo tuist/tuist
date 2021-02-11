@@ -19,8 +19,8 @@ public protocol BuildGraphInspecting {
     ///  From the list of buildable targets of the given scheme, it returns the first one.
     /// - Parameters:
     ///   - scheme: Scheme in which to look up the target.
-    ///   - graph: Dependency graph.
-    func buildableTarget(scheme: Scheme, graph: Graph) -> (Project, Target)?
+    ///   - graphTraverser: Graph traverser.
+    func buildableTarget(scheme: Scheme, graphTraverser: GraphTraversing) -> (Project, Target)?
 
     ///  From the list of testable targets of the given scheme, it returns the first one.
     /// - Parameters:
@@ -29,13 +29,13 @@ public protocol BuildGraphInspecting {
     func testableTarget(scheme: Scheme, graph: Graph) -> (Project, Target)?
 
     /// Given a graph, it returns a list of buildable schemes.
-    /// - Parameter graph: Dependency graph.
-    func buildableSchemes(graph: Graph) -> [Scheme]
+    /// - Parameter graphTraverser: Graph traverser.
+    func buildableSchemes(graphTraverser: GraphTraversing) -> [Scheme]
 
     /// Given a graph, it returns a list of buildable schemes that are part of the entry node
     /// - Parameters:
-    ///     - graph: Dependency graph
-    func buildableEntrySchemes(graph: Graph) -> [Scheme]
+    ///     - graphTraverser: Graph traverser
+    func buildableEntrySchemes(graphTraverser: GraphTraversing) -> [Scheme]
 
     /// Given a graph, it returns a list of test schemes (those that include only one test target).
     /// - Parameter graph: Dependency graph.
@@ -84,7 +84,7 @@ public class BuildGraphInspector: BuildGraphInspecting {
         return arguments
     }
 
-    public func buildableTarget(scheme: Scheme, graph: Graph) -> (Project, Target)? {
+    public func buildableTarget(scheme: Scheme, graphTraverser: GraphTraversing) -> (Project, Target)? {
         guard
             scheme.buildAction?.targets.isEmpty == false,
             let buildTarget = scheme.buildAction?.targets.first
@@ -92,7 +92,11 @@ public class BuildGraphInspector: BuildGraphInspecting {
             return nil
         }
 
-        return graph.target(path: buildTarget.projectPath, name: buildTarget.name).map { ($0.project, $0.target) }
+        return graphTraverser.target(
+            path: buildTarget.projectPath,
+            name: buildTarget.name
+        )
+        .map { ($0.project, $0.target) }
     }
 
     public func testableTarget(scheme: Scheme, graph: Graph) -> (Project, Target)? {
@@ -103,14 +107,14 @@ public class BuildGraphInspector: BuildGraphInspecting {
         return graph.target(path: testTarget.target.projectPath, name: testTarget.target.name).map { ($0.project, $0.target) }
     }
 
-    public func buildableSchemes(graph: Graph) -> [Scheme] {
-        graph.schemes
+    public func buildableSchemes(graphTraverser: GraphTraversing) -> [Scheme] {
+        graphTraverser.schemes()
             .filter { $0.buildAction?.targets.isEmpty == false }
             .sorted(by: { $0.name < $1.name })
     }
 
-    public func buildableEntrySchemes(graph: Graph) -> [Scheme] {
-        let projects = Set(graph.entryNodes.compactMap { ($0 as? TargetNode)?.project })
+    public func buildableEntrySchemes(graphTraverser: GraphTraversing) -> [Scheme] {
+        let projects = Set(graphTraverser.rootTargets().map(\.project))
         return projects
             .flatMap(\.schemes)
             .filter { $0.buildAction?.targets.isEmpty == false }
