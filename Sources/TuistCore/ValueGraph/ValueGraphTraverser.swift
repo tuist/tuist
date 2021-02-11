@@ -399,6 +399,11 @@ public class ValueGraphTraverser: GraphTraversing {
         }
         return references
     }
+    
+    public func dependsOnXCTest(path: AbsolutePath, name: String) -> Bool {
+        directTargetDependencies(path: path, name: name)
+            .first(where: { $0.target.name == "XCTest" || $0.target.product.testsBundle }) != nil
+    }
 
     // MARK: - Internal
 
