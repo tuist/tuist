@@ -63,12 +63,6 @@ tuist cache warm FrameworkA FrameworkB
 
 One the cache is warmed, you can use the [focus](/docs/commands/focus/) command to generate a project replacing direct and transitive dependencies with artifacts from the cache.
 
-You can change the location of cache on your local machine the by setting the environment variable:
-
-```
-TUIST_CACHE_DIRECTORY
-```
-
 ### Caching profile 
 
 The caching profile allows users to specify how targets will be cached, for example setting a configuration. Instead of passing the configuration through CLI arguments, developers can define a profile and reference it with `tuist cache warm --profile MyProfile`.
