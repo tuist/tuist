@@ -113,7 +113,7 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
             ]
         )
 
-        graphContentHasher.contentHashesStub = { graph, _ in
+        graphContentHasher.contentHashesStub = { graph, _, _ in
             graph.targets.flatMap(\.value).reduce(into: [:]) { acc, target in
                 acc[target] = target.target.name
             }
@@ -250,7 +250,7 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
             ]
         )
 
-        graphContentHasher.contentHashesStub = { graph, _ in
+        graphContentHasher.contentHashesStub = { graph, _, _ in
             graph.targets.flatMap(\.value).reduce(into: [:]) { acc, target in
                 acc[target] = target.target.name
             }

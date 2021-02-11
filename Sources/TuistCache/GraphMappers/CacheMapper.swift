@@ -30,18 +30,22 @@ public class CacheMapper: GraphMapping {
     /// The type of artifact that the hasher is configured with.
     private let cacheOutputType: CacheOutputType
 
+    /// The caching profile.
+    private let cacheProfile: TuistGraph.Cache.Profile
+
     // MARK: - Init
 
     public convenience init(config: Config,
                             cacheStorageProvider: CacheStorageProviding,
                             sources: Set<String>,
-                            cacheOutputType: CacheOutputType,
-                            contentHasher _: ContentHashing)
+                            cacheProfile: TuistGraph.Cache.Profile,
+                            cacheOutputType: CacheOutputType)
     {
         self.init(config: config,
                   cache: Cache(storageProvider: cacheStorageProvider),
-                  cacheGraphContentHasher: CacheGraphContentHasher(contentHasher: ContentHasher()),
+                  cacheGraphContentHasher: CacheGraphContentHasher(),
                   sources: sources,
+                  cacheProfile: cacheProfile,
                   cacheOutputType: cacheOutputType)
     }
 
@@ -49,6 +53,7 @@ public class CacheMapper: GraphMapping {
          cache: CacheStoring,
          cacheGraphContentHasher: CacheGraphContentHashing,
          sources: Set<String>,
+         cacheProfile: TuistGraph.Cache.Profile,
          cacheOutputType: CacheOutputType,
          cacheGraphMutator: CacheGraphMutating = CacheGraphMutator(),
          queue: DispatchQueue = CacheMapper.dispatchQueue())
@@ -59,6 +64,7 @@ public class CacheMapper: GraphMapping {
         self.queue = queue
         self.cacheGraphMutator = cacheGraphMutator
         self.sources = sources
+        self.cacheProfile = cacheProfile
         self.cacheOutputType = cacheOutputType
     }
 
@@ -81,6 +87,7 @@ public class CacheMapper: GraphMapping {
             do {
                 let hashes = try self.cacheGraphContentHasher.contentHashes(
                     for: graph,
+                    cacheProfile: self.cacheProfile,
                     cacheOutputType: self.cacheOutputType
                 )
                 observer(.success(hashes))

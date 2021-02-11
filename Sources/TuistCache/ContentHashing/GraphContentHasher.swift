@@ -1,6 +1,7 @@
 import Foundation
 import TSCBasic
 import TuistCore
+import TuistGraph
 import TuistSupport
 
 public protocol GraphContentHashing {
@@ -45,10 +46,10 @@ public final class GraphContentHasher: GraphContentHashing {
 
     public convenience init(contentHasher: ContentHashing) {
         let targetContentHasher = TargetContentHasher(contentHasher: contentHasher)
-        self.init(contentHasher: contentHasher, targetContentHasher: targetContentHasher)
+        self.init(targetContentHasher: targetContentHasher)
     }
 
-    public init(contentHasher _: ContentHashing, targetContentHasher: TargetContentHashing) {
+    public init(targetContentHasher: TargetContentHashing) {
         self.targetContentHasher = targetContentHasher
     }
 
@@ -80,10 +81,6 @@ public final class GraphContentHasher: GraphContentHashing {
             )
         }
         return Dictionary(uniqueKeysWithValues: zip(hashableTargets, hashes))
-    }
-
-    public func contentHashes(for graph: Graph) throws -> [TargetNode: String] {
-        try contentHashes(for: graph, filter: { _ in true })
     }
 
     // MARK: - Private

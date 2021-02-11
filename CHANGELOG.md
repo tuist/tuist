@@ -4,6 +4,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+## 1.34.0 - Shipit
+
 ### Added
 
 - Selective tests [#2422](https://github.com/tuist/tuist/pull/2422) by [@fortmarek](https://github.com/fortmarek)
@@ -14,9 +16,6 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Fixed
 
 - Fixed code coverage setting for project scheme [#2493](https://github.com/tuist/tuist/pull/2493) by [@adellibovi](https://github.com/adellibovi)
-
-### Fixed
-
 - Fixed a bug in reporting stats event when Queue folder isn't created [#2497](https://github.com/tuist/tuist/pull/2497) by [@andreacipriani](https://github.com/andreacipriani).
 
 ### Changed
@@ -30,6 +29,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Add support for `tuist graph` to show the graph of a subset of targets via `tuist graph FrameworkA FrameworkB` [#2434]((https://github.com/tuist/tuist/pull/2434) by [@adellibovi](https://github.com/adellibovi).
 - Send Tuist usage analytics event to https://stats.tuist.io/ [#2331](https://github.com/tuist/tuist/pull/2331) by [@andreacipriani](https://github.com/andreacipriani).
 - Plugin integration for local and git plugins by [@luispadron](https://github.com/luispadron) and [@kwridan](https://github.com/kwridan).
+- Introduce caching profiles [#2356](https://github.com/tuist/tuist/pull/2431) by [@mollyIV](https://github.com/mollyIV).
 
 ### Fixed
 

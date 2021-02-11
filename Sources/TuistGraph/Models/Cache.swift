@@ -1,6 +1,10 @@
 import Foundation
 
 public struct Cache: Equatable, Hashable {
+    // Warning ⚠️
+    //
+    // If new property is added to a caching profile,
+    // it must be added to `CacheProfileContentHasher` too.
     public struct Profile: Equatable, Hashable, CustomStringConvertible {
         public let name: String
         public let configuration: String
@@ -21,5 +25,5 @@ public struct Cache: Equatable, Hashable {
         self.profiles = profiles
     }
 
-    public static let `default` = Cache(profiles: [Profile(name: "development", configuration: "Debug")])
+    public static let `default` = Cache(profiles: [Profile(name: "Development", configuration: "Debug")])
 }

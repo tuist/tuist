@@ -54,9 +54,9 @@ protocol CacheControlling {
     /// Caches the cacheable targets that are part of the workspace or project at the given path.
     /// - Parameters:
     ///   - path: Path to the directory that contains a workspace or a project.
-    ///   - configuration: The configuration to be used when building the project.
+    ///   - cacheProfile: The caching profile.
     ///   - targets: If present, a list of target to build.
-    func cache(path: AbsolutePath, configuration: String, targetsToFilter: [String]) throws
+    func cache(path: AbsolutePath, cacheProfile: TuistGraph.Cache.Profile, targetsToFilter: [String]) throws
 }
 
 final class CacheController: CacheControlling {
@@ -99,7 +99,7 @@ final class CacheController: CacheControlling {
         self.cacheGraphLinter = cacheGraphLinter
     }
 
-    func cache(path: AbsolutePath, configuration: String, targetsToFilter: [String]) throws {
+    func cache(path: AbsolutePath, cacheProfile: TuistGraph.Cache.Profile, targetsToFilter: [String]) throws {
         let generator = projectGeneratorProvider.generator()
         let (projectPath, graph) = try generator.generateWithGraph(path: path, projectOnly: false)
 
@@ -108,7 +108,11 @@ final class CacheController: CacheControlling {
 
         // Hash
         logger.notice("Hashing cacheable targets")
-        let hashesByCacheableTarget = try cacheGraphContentHasher.contentHashes(for: graph, cacheOutputType: artifactBuilder.cacheOutputType)
+        let hashesByCacheableTarget = try cacheGraphContentHasher.contentHashes(
+            for: graph,
+            cacheProfile: cacheProfile,
+            cacheOutputType: artifactBuilder.cacheOutputType
+        )
 
         let filteredTargets: [TargetNode]
         if targetsToFilter.isEmpty {
@@ -131,7 +135,7 @@ final class CacheController: CacheControlling {
             }
 
             // Build
-            try buildAndCacheFramework(path: projectPath, target: target, configuration: configuration, hash: hash)
+            try buildAndCacheFramework(path: projectPath, target: target, configuration: cacheProfile.configuration, hash: hash)
         }
 
         logger.notice("All cacheable targets have been cached successfully as \(artifactBuilder.cacheOutputType.description)s", metadata: .success)

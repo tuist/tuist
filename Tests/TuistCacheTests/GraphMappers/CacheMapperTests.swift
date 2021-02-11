@@ -27,6 +27,7 @@ final class CacheMapperTests: TuistUnitTestCase {
                               cache: cache,
                               cacheGraphContentHasher: cacheGraphContentHasher,
                               sources: [],
+                              cacheProfile: .test(),
                               cacheOutputType: .framework,
                               cacheGraphMutator: cacheGraphMutator,
                               queue: DispatchQueue.main)
@@ -68,7 +69,7 @@ final class CacheMapperTests: TuistUnitTestCase {
             bNode: bHash,
             appNode: appHash,
         ]
-        cacheGraphContentHasher.contentHashesStub = { _, _ in
+        cacheGraphContentHasher.contentHashesStub = { _, _, _ in
             contentHashes
         }
 
@@ -118,7 +119,7 @@ final class CacheMapperTests: TuistUnitTestCase {
             appNode: appHash,
         ]
         let error = TestError("error downloading C")
-        cacheGraphContentHasher.contentHashesStub = { _, _ in
+        cacheGraphContentHasher.contentHashesStub = { _, _, _ in
             contentHashes
         }
 
@@ -145,6 +146,7 @@ final class CacheMapperTests: TuistUnitTestCase {
                               cache: cache,
                               cacheGraphContentHasher: cacheGraphContentHasher,
                               sources: [],
+                              cacheProfile: .test(),
                               cacheOutputType: .xcframework,
                               cacheGraphMutator: cacheGraphMutator,
                               queue: DispatchQueue.main)
@@ -163,8 +165,10 @@ final class CacheMapperTests: TuistUnitTestCase {
         cacheGraphMutator.stubbedMapResult = outputGraph
 
         var invokedCacheOutputType: CacheOutputType?
-        cacheGraphContentHasher.contentHashesStub = { _, cacheOutputType in
+        var invokedCacheProfile: TuistGraph.Cache.Profile?
+        cacheGraphContentHasher.contentHashesStub = { _, cacheProfile, cacheOutputType in
             invokedCacheOutputType = cacheOutputType
+            invokedCacheProfile = cacheProfile
             return [:]
         }
 
@@ -172,6 +176,7 @@ final class CacheMapperTests: TuistUnitTestCase {
         _ = try subject.map(graph: inputGraph)
 
         // Then
+        XCTAssertEqual(invokedCacheProfile, .test())
         XCTAssertEqual(invokedCacheOutputType, .xcframework)
     }
 }

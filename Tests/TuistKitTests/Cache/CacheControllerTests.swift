@@ -95,13 +95,13 @@ final class CacheControllerTests: TuistUnitTestCase {
             XCTAssertEqual(loadPath, path)
             return xcworkspacePath
         }
-        cacheGraphContentHasher.contentHashesStub = { _, _ in
+        cacheGraphContentHasher.contentHashesStub = { _, _, _ in
             nodeWithHashes
         }
         artifactBuilder.stubbedCacheOutputType = .xcframework
 
         // When
-        try subject.cache(path: path, configuration: "Debug", targetsToFilter: [])
+        try subject.cache(path: path, cacheProfile: .test(configuration: "Debug"), targetsToFilter: [])
 
         // Then
         XCTAssertPrinterOutputContains("""
@@ -157,13 +157,13 @@ final class CacheControllerTests: TuistUnitTestCase {
             XCTAssertEqual(loadPath, path)
             return xcworkspacePath
         }
-        cacheGraphContentHasher.contentHashesStub = { _, _ in
+        cacheGraphContentHasher.contentHashesStub = { _, _, _ in
             nodeWithHashes
         }
         artifactBuilder.stubbedCacheOutputType = .xcframework
 
         // When
-        try subject.cache(path: path, configuration: "Debug", targetsToFilter: [bTarget.name])
+        try subject.cache(path: path, cacheProfile: .test(configuration: "Debug"), targetsToFilter: [bTarget.name])
 
         // Then
         XCTAssertPrinterOutputContains("""
