@@ -15,6 +15,7 @@ on:
 
 env:
   RUBY_VERSION: '2.7.2'
+  TUIST_STATS_OPT_OUT: true
 
 jobs:
   unit_tests:
