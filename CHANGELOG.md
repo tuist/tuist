@@ -4,6 +4,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+- Fix crash when using `tuist graph` in a project that leverages plugins [#2507](https://github.com/tuist/tuist/pull/2507) by [@bolismauro](https://github.com/bolismauro).
+
 ## 1.34.0 - Shipit
 
 ### Added
