@@ -15,10 +15,10 @@ Then(/^tuist tests the project at (.+)$/) do |path|
   system("swift", "run", "tuist", "test", "--path", File.join(@dir, path))
 end
 
-Then(/^tuist tests the project with automation path at (.+)$/) do |path|
-  system("swift", "run", "tuist", "test", "--path", @dir, "--automation-path", File.join(@dir, path))
-  @workspace_path = Dir.glob(File.join(@dir, path, "*.xcworkspace")).first
-  @xcodeproj_path = Dir.glob(File.join(@dir, path, "*.xcodeproj")).first
+Then(/^tuist tests the project$/) do
+  system("swift", "run", "tuist", "test", "--path", @dir)
+  @workspace_path = Dir.glob(File.join(@dir, "Automation", "*.xcworkspace")).first
+  @xcodeproj_path = Dir.glob(File.join(@dir, "Automation", "*.xcodeproj")).first
 end
 
 Then(/^generated project is deleted/) do

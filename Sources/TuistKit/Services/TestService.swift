@@ -87,14 +87,10 @@ final class TestService {
         clean: Bool,
         configuration: String?,
         path: AbsolutePath,
-        automationPath: AbsolutePath?,
         deviceName: String?,
         osVersion: String?
     ) throws {
-        if let automationPath = automationPath {
-            try FileHandler.shared.createFolder(automationPath)
-        }
-        let generator = generatorInit(automationPath ?? temporaryDirectory.path)
+        let generator = generatorInit(Environment.shared.automationPath ?? temporaryDirectory.path)
         logger.notice("Generating project for testing", metadata: .section)
         let graph: Graph = try generator.generateWithGraph(
             path: path,
