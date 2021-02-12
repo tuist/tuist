@@ -16,6 +16,7 @@ import XCTest
 final class TestServiceTests: TuistUnitTestCase {
     private var subject: TestService!
     private var generator: MockGenerator!
+    private var testServiceGeneratorFactory: MockTestServiceGeneratorFactory!
     private var xcodebuildController: MockXcodeBuildController!
     private var buildGraphInspector: MockBuildGraphInspector!
     private var simulatorController: MockSimulatorController!
@@ -28,11 +29,15 @@ final class TestServiceTests: TuistUnitTestCase {
         buildGraphInspector = .init()
         simulatorController = .init()
         testsCacheTemporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
+        testServiceGeneratorFactory = .init()
+        testServiceGeneratorFactory.generatorStub = { _, _ in
+            self.generator
+        }
 
         subject = TestService(
             temporaryDirectory: try TemporaryDirectory(removeTreeOnDeinit: true),
             testsCacheTemporaryDirectory: testsCacheTemporaryDirectory,
-            generatorInit: { _ in self.generator },
+            testServiceGeneratorFactory: testServiceGeneratorFactory,
             xcodebuildController: xcodebuildController,
             buildGraphInspector: buildGraphInspector,
             simulatorController: simulatorController
@@ -45,6 +50,7 @@ final class TestServiceTests: TuistUnitTestCase {
         buildGraphInspector = nil
         simulatorController = nil
         testsCacheTemporaryDirectory = nil
+        testServiceGeneratorFactory = nil
         subject = nil
         super.tearDown()
     }
@@ -220,11 +226,9 @@ final class TestServiceTests: TuistUnitTestCase {
 private extension TestService {
     func testRun(
         schemeName: String? = nil,
-        generate _: Bool = false,
         clean: Bool = false,
         configuration: String? = nil,
         path: AbsolutePath,
-        automationPath: AbsolutePath? = nil,
         deviceName: String? = nil,
         osVersion: String? = nil
     ) throws {
@@ -233,7 +237,6 @@ private extension TestService {
             clean: clean,
             configuration: configuration,
             path: path,
-            automationPath: automationPath,
             deviceName: deviceName,
             osVersion: osVersion
         )

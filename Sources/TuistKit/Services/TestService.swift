@@ -36,8 +36,7 @@ enum TestServiceError: FatalError {
 }
 
 final class TestService {
-    /// Project generator
-    private let generatorInit: (AbsolutePath) -> Generating
+    private let testServiceGeneratorFactory: TestServiceGeneratorFactorying
     private let xcodebuildController: XcodeBuildControlling
     private let buildGraphInspector: BuildGraphInspecting
     private let simulatorController: SimulatorControlling
@@ -51,32 +50,21 @@ final class TestService {
         self.init(
             temporaryDirectory: temporaryDirectory,
             testsCacheTemporaryDirectory: testsCacheTemporaryDirectory,
-            generatorInit: { automationPath in
-                Generator(
-                    projectMapperProvider: AutomationProjectMapperProvider(),
-                    graphMapperProvider: AutomationGraphMapperProvider(
-                        testsCacheDirectory: testsCacheTemporaryDirectory.path
-                    ),
-                    workspaceMapperProvider: AutomationWorkspaceMapperProvider(
-                        workspaceDirectory: FileHandler.shared.resolveSymlinks(automationPath)
-                    ),
-                    manifestLoaderFactory: ManifestLoaderFactory()
-                )
-            }
+            testServiceGeneratorFactory: TestServiceGeneratorFactory()
         )
     }
 
     init(
         temporaryDirectory: TemporaryDirectory,
         testsCacheTemporaryDirectory: TemporaryDirectory,
-        generatorInit: @escaping (AbsolutePath) -> Generating,
+        testServiceGeneratorFactory: TestServiceGeneratorFactorying,
         xcodebuildController: XcodeBuildControlling = XcodeBuildController(),
         buildGraphInspector: BuildGraphInspecting = BuildGraphInspector(),
         simulatorController: SimulatorControlling = SimulatorController()
     ) {
         self.temporaryDirectory = temporaryDirectory
         self.testsCacheTemporaryDirectory = testsCacheTemporaryDirectory
-        self.generatorInit = generatorInit
+        self.testServiceGeneratorFactory = testServiceGeneratorFactory
         self.xcodebuildController = xcodebuildController
         self.buildGraphInspector = buildGraphInspector
         self.simulatorController = simulatorController
@@ -90,7 +78,10 @@ final class TestService {
         deviceName: String?,
         osVersion: String?
     ) throws {
-        let generator = generatorInit(Environment.shared.automationPath ?? temporaryDirectory.path)
+        let generator = testServiceGeneratorFactory.generator(
+            automationPath: Environment.shared.automationPath ?? temporaryDirectory.path,
+            testsCacheDirectory: testsCacheTemporaryDirectory.path
+        )
         logger.notice("Generating project for testing", metadata: .section)
         let graph: Graph = try generator.generateWithGraph(
             path: path,
