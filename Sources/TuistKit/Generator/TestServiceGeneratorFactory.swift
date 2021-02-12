@@ -1,8 +1,8 @@
 import Foundation
 import TSCBasic
-import TuistLoader
 import TuistCache
 import TuistCore
+import TuistLoader
 import TuistSupport
 
 protocol TestServiceGeneratorFactorying {

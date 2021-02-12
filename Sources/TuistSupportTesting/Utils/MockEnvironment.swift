@@ -31,7 +31,7 @@ public class MockEnvironment: Environmenting {
     public var settingsPath: AbsolutePath {
         directory.path.appending(component: "settings.json")
     }
-    
+
     public var automationPath: AbsolutePath? {
         nil
     }

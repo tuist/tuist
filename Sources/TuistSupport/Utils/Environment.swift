@@ -17,7 +17,7 @@ public protocol Environmenting: AnyObject {
     /// Returns automation path
     /// Only to be used for acceptance tests
     var automationPath: AbsolutePath? { get }
-    
+
     /// Returns the cache directory
     var cacheDirectory: AbsolutePath { get }
 
@@ -144,7 +144,7 @@ public class Environment: Environmenting {
     public var projectsCacheDirectory: AbsolutePath {
         cacheDirectory.appending(component: "Projects")
     }
-    
+
     public var automationPath: AbsolutePath? {
         ProcessInfo.processInfo.environment[Constants.EnvironmentVariables.automationPath].map { AbsolutePath($0) }
     }
