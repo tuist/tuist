@@ -22,7 +22,7 @@ public enum ResourceFileElement: Equatable, Hashable {
             return true
         }
     }
-    
+
     public var tags: [String] {
         switch self {
         case let .file(_, tags):
@@ -32,4 +32,3 @@ public enum ResourceFileElement: Equatable, Hashable {
         }
     }
 }
-

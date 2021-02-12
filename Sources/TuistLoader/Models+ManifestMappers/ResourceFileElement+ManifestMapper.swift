@@ -59,4 +59,3 @@ extension TuistGraph.ResourceFileElement {
         }
     }
 }
-

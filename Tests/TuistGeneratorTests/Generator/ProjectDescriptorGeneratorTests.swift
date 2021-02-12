@@ -218,7 +218,7 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
             "ORGANIZATIONNAME": "tuist",
         ])
     }
-    
+
     func test_generate_setsResourcesTagsName() throws {
         // Given
         let path = try temporaryPath()

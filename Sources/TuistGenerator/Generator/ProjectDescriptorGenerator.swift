@@ -237,18 +237,18 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
 
         pbxProject.packages = packageReferences.sorted { $0.key < $1.key }.map { $1 }
     }
-    
+
     private func generateAttributes(project: Project) -> [String: Any] {
         var attributes: [String: Any] = [:]
-        
+
         /// ODR tags
-        let tags = project.targets.map({ $0.resources.map({ $0.tags }).flatMap { $0 } }).flatMap { $0 }
+        let tags = project.targets.map { $0.resources.map(\.tags).flatMap { $0 } }.flatMap { $0 }
         let uniqueTags = Set(tags).sorted()
-        
+
         if !uniqueTags.isEmpty {
             attributes["KnownAssetTags"] = uniqueTags
         }
-        
+
         /// Organization name
         if let organizationName = project.organizationName {
             attributes["ORGANIZATIONNAME"] = organizationName

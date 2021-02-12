@@ -33,7 +33,6 @@ public enum FileElement: Codable, Equatable {
         case type
         case pattern
         case path
-        case tags
     }
 
     public init(from decoder: Decoder) throws {

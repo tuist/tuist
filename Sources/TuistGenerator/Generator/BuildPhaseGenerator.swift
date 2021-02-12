@@ -326,7 +326,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         var buildFilesCache = Set<AbsolutePath>()
         try files.sorted(by: { $0.path < $1.path }).forEach { resource in
             let buildFilePath = resource.path
-            
+
             let pathString = buildFilePath.pathString
             let isLocalized = pathString.contains(".lproj/")
             let isLproj = buildFilePath.extension == "lproj"
@@ -357,7 +357,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
             if let element = element, buildFilesCache.contains(element.path) == false {
                 let tags = resource.tags.sorted()
                 let settings: [String: Any]? = !tags.isEmpty ? ["ASSET_TAGS": tags] : nil
-                
+
                 let pbxBuildFile = PBXBuildFile(file: element.element, settings: settings)
                 pbxproj.add(object: pbxBuildFile)
                 resourcesBuildPhase.files?.append(pbxBuildFile)

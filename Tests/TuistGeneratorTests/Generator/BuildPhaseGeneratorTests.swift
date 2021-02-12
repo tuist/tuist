@@ -385,7 +385,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let pbxBuildFile: PBXBuildFile? = pbxBuildPhase?.files?.first
         XCTAssertEqual(pbxBuildFile?.file, fileElement)
     }
-    
+
     func test_generateResourcesBuildPhase_whenContainsResourcesTags() throws {
         // Given
         let temporaryPath = try self.temporaryPath()
@@ -394,7 +394,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let target = Target.test(resources: resources)
         let fileElements = ProjectFileElements()
         let pbxproj = PBXProj()
-        
+
         let fileElement = PBXFileReference()
         let folderElement = PBXFileReference()
         pbxproj.add(object: fileElement)
@@ -419,7 +419,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let pbxBuildPhase: PBXBuildPhase? = nativeTarget.buildPhases.first
         XCTAssertNotNil(pbxBuildPhase)
         XCTAssertTrue(pbxBuildPhase is PBXResourcesBuildPhase)
-        
+
         let resourceBuildPhase = try XCTUnwrap(nativeTarget.buildPhases.first as? PBXResourcesBuildPhase)
         let allFileSettings = resourceBuildPhase.files?.map { $0.settings as? [String: AnyHashable] }
         XCTAssertEqual(allFileSettings, [
