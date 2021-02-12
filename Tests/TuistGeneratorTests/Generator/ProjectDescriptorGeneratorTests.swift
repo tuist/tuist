@@ -219,6 +219,28 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
         ])
     }
 
+    func test_generate_setsResourcesTagsName() throws {
+        // Given
+        let path = try temporaryPath()
+        let graph = Graph.test(entryPath: path)
+        let valueGraph = ValueGraph(graph: graph)
+        let graphTraverser = ValueGraphTraverser(graph: valueGraph)
+        let resources: [ResourceFileElement] = [.file(path: "/", tags: ["fileTag", "commonTag"]),
+                                                .folderReference(path: "/", tags: ["folderTag", "commonTag"])]
+        let project = Project.test(path: path,
+                                   targets: [.test(resources: resources)])
+
+        // When
+        let got = try subject.generate(project: project, graphTraverser: graphTraverser)
+
+        // Then
+        let pbxProject = try XCTUnwrap(try got.xcodeProj.pbxproj.rootProject())
+        let attributes = try XCTUnwrap(pbxProject.attributes as? [String: AnyHashable])
+        XCTAssertEqual(attributes, [
+            "KnownAssetTags": ["fileTag", "folderTag", "commonTag"].sorted(),
+        ])
+    }
+
     func test_generate_setsDefaultDevelopmentRegion() throws {
         // Given
         let path = try temporaryPath()

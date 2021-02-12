@@ -129,7 +129,7 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
         let defaultRegions = ["en", "Base"]
         let knownRegions = Set(defaultRegions + projectFileElements.knownRegions).sorted()
         let developmentRegion = project.developmentRegion ?? Xcode.Default.developmentRegion
-        let attributes = project.organizationName.map { ["ORGANIZATIONNAME": $0] } ?? [:]
+        let attributes = generateAttributes(project: project)
         let pbxProject = PBXProject(name: project.name,
                                     buildConfigurationList: configurationList,
                                     compatibilityVersion: Xcode.Default.compatibilityVersion,
@@ -236,6 +236,25 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
         }
 
         pbxProject.packages = packageReferences.sorted { $0.key < $1.key }.map { $1 }
+    }
+
+    private func generateAttributes(project: Project) -> [String: Any] {
+        var attributes: [String: Any] = [:]
+
+        /// ODR tags
+        let tags = project.targets.map { $0.resources.map(\.tags).flatMap { $0 } }.flatMap { $0 }
+        let uniqueTags = Set(tags).sorted()
+
+        if !uniqueTags.isEmpty {
+            attributes["KnownAssetTags"] = uniqueTags
+        }
+
+        /// Organization name
+        if let organizationName = project.organizationName {
+            attributes["ORGANIZATIONNAME"] = organizationName
+        }
+
+        return attributes
     }
 
     private func determineProjectConstants(graphTraverser: GraphTraversing) throws -> ProjectConstants {

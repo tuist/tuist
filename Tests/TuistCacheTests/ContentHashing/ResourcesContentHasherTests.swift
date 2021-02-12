@@ -31,8 +31,8 @@ final class ResourcesContentHasherTests: TuistUnitTestCase {
 
     func test_hash_callsContentHasherWithTheExpectedParameter() throws {
         // Given
-        let file1 = FileElement.file(path: filePath1)
-        let file2 = FileElement.file(path: filePath2)
+        let file1 = ResourceFileElement.file(path: filePath1)
+        let file2 = ResourceFileElement.file(path: filePath2)
         mockContentHasher.stubHashForPath[filePath1] = "1"
         mockContentHasher.stubHashForPath[filePath2] = "2"
 
@@ -46,8 +46,8 @@ final class ResourcesContentHasherTests: TuistUnitTestCase {
 
     func test_hash_includesFolderReference() throws {
         // Given
-        let file1 = FileElement.file(path: filePath1)
-        let file2 = FileElement.folderReference(path: filePath2)
+        let file1 = ResourceFileElement.file(path: filePath1)
+        let file2 = ResourceFileElement.folderReference(path: filePath2)
         mockContentHasher.stubHashForPath[filePath1] = "1"
         mockContentHasher.stubHashForPath[filePath2] = "2"
 
@@ -61,8 +61,8 @@ final class ResourcesContentHasherTests: TuistUnitTestCase {
 
     func test_hash_sortsTheResourcesBeforeCalculatingTheHash() throws {
         // Given
-        let file1 = FileElement.file(path: filePath1)
-        let file2 = FileElement.folderReference(path: filePath2)
+        let file1 = ResourceFileElement.file(path: filePath1)
+        let file2 = ResourceFileElement.folderReference(path: filePath2)
         mockContentHasher.stubHashForPath[filePath1] = "1"
         mockContentHasher.stubHashForPath[filePath2] = "2"
 

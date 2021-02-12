@@ -54,7 +54,7 @@ extension Target {
                             bundleId: String = "com.some.bundle.id",
                             infoPlist: InfoPlist = .file(path: "Info.plist"),
                             sources: SourceFilesList = "Sources/**",
-                            resources: [FileElement] = "Resources/**",
+                            resources: ResourceFileElements = "Resources/**",
                             headers: Headers? = nil,
                             entitlements: Path? = Path("app.entitlements"),
                             actions: [TargetAction] = [],

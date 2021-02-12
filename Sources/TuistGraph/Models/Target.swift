@@ -23,7 +23,7 @@ public struct Target: Equatable, Hashable, Comparable {
     public var settings: Settings?
     public var dependencies: [Dependency]
     public var sources: [SourceFile]
-    public var resources: [FileElement]
+    public var resources: [ResourceFileElement]
     public var copyFiles: [CopyFilesAction]
     public var headers: Headers?
     public var coreDataModels: [CoreDataModel]
@@ -46,7 +46,7 @@ public struct Target: Equatable, Hashable, Comparable {
                 entitlements: AbsolutePath? = nil,
                 settings: Settings? = nil,
                 sources: [SourceFile] = [],
-                resources: [FileElement] = [],
+                resources: [ResourceFileElement] = [],
                 copyFiles: [CopyFilesAction] = [],
                 headers: Headers? = nil,
                 coreDataModels: [CoreDataModel] = [],
