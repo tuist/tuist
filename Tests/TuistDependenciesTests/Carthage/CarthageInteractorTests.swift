@@ -12,6 +12,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
     private var subject: CarthageInteractor!
 
     private var fileHandlerMock: MockFileHandler!
+    private var carthageController: MockCarthageController!
     private var carthageCommandGenerator: MockCarthageCommandGenerator!
     private var cartfileContentGenerator: MockCartfileContentGenerator!
 
@@ -27,16 +28,19 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         }
 
         fileHandlerMock = MockFileHandler(temporaryDirectory: { self.temporaryDirectoryPath })
+        carthageController = MockCarthageController()
         carthageCommandGenerator = MockCarthageCommandGenerator()
         cartfileContentGenerator = MockCartfileContentGenerator()
 
         subject = CarthageInteractor(fileHandler: fileHandlerMock,
+                                     carthageController: carthageController,
                                      carthageCommandGenerator: carthageCommandGenerator,
                                      cartfileContentGenerator: cartfileContentGenerator)
     }
 
     override func tearDown() {
         fileHandlerMock = nil
+        carthageController = nil
         carthageCommandGenerator = nil
         cartfileContentGenerator = nil
 
@@ -46,9 +50,29 @@ final class CarthageInteractorTests: TuistUnitTestCase {
 
         super.tearDown()
     }
-
-    func test_fetch_all_for_platforms() throws {
+    
+    func test_fetch_carthageUnavailableInEnvironment() throws {
         // Given
+        carthageController.canUseSystemCarthageStub = { false }
+        
+        let rootPath = try temporaryPath()
+        let dependenciesDirectory = rootPath
+            .appending(component: Constants.DependenciesDirectory.name)
+        let dependencies = [
+            CarthageDependency(origin: .github(path: "Moya"), requirement: .exact("1.1.1"), platforms: [.iOS]),
+        ]
+        
+        // When / Then
+        XCTAssertThrowsSpecific(
+            try subject.fetch(dependenciesDirectory: dependenciesDirectory, dependencies: dependencies),
+            CarthageInteractorError.carthageNotFound
+        )
+    }
+
+    func test_fetch_allPlatforms() throws {
+        // Given
+        carthageController.canUseSystemCarthageStub = { true }
+        
         let rootPath = try temporaryPath()
         let temporaryDependenciesDirectory = temporaryDirectoryPath
             .appending(component: Constants.DependenciesDirectory.carthageDirectoryName)
@@ -112,8 +136,10 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         XCTAssertEqual(cartfileContentGenerator.invokedCartfileContentParameters, stubbedDependencies)
     }
 
-    func test_fetch_only_one_platform() throws {
+    func test_fetch_onePlatform() throws {
         // Given
+        carthageController.canUseSystemCarthageStub = { true }
+        
         let rootPath = try temporaryPath()
         let temporaryDependenciesDirectory = temporaryDirectoryPath
             .appending(component: Constants.DependenciesDirectory.carthageDirectoryName)

@@ -49,15 +49,18 @@ public protocol CarthageInteracting {
 
 public final class CarthageInteractor: CarthageInteracting {
     private let fileHandler: FileHandling
+    private let carthageController: CarthageControlling
     private let carthageCommandGenerator: CarthageCommandGenerating
     private let cartfileContentGenerator: CartfileContentGenerating
 
     public init(
         fileHandler: FileHandling = FileHandler.shared,
+        carthageController: CarthageControlling = CarthageController(),
         carthageCommandGenerator: CarthageCommandGenerating = CarthageCommandGenerator(),
         cartfileContentGenerator: CartfileContentGenerating = CartfileContentGenerator()
     ) {
         self.fileHandler = fileHandler
+        self.carthageController = carthageController
         self.carthageCommandGenerator = carthageCommandGenerator
         self.cartfileContentGenerator = cartfileContentGenerator
     }
@@ -66,7 +69,7 @@ public final class CarthageInteractor: CarthageInteracting {
         logger.info("We are starting to fetch the Carthage dependencies.", metadata: .section)
 
         // check availability of `carthage`
-        guard canUseSystemCarthage() else {
+        guard carthageController.canUseSystemCarthage() else {
             throw CarthageInteractorError.carthageNotFound
         }
 
@@ -143,17 +146,6 @@ public final class CarthageInteractor: CarthageInteracting {
         }
 
         try fileHandler.copy(from: fromPath, to: toPath)
-    }
-
-    /// Returns true if Carthage is avaiable in the environment.
-    /// - Returns: True if Carthege is available globally in the system.
-    private func canUseSystemCarthage() -> Bool {
-        do {
-            _ = try System.shared.which("carthage")
-            return true
-        } catch {
-            return false
-        }
     }
 }
 
