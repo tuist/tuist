@@ -85,7 +85,9 @@ public final class CarthageInteractor: CarthageInteracting {
             try prepareForInstallation(pathsProvider: pathsProvider, dependencies: dependencies)
 
             // create `carthage` shell command
-            let command = carthageCommandGenerator.command(path: temporaryDirectoryPath, platforms: platforms)
+            #warning("WIP: Determine `produceXCFrameworks` value correctly.")
+            #warning("WIP: Check if `Carthage` installed in env supports xcframeworks.")
+            let command = carthageCommandGenerator.command(path: temporaryDirectoryPath, produceXCFrameworks: false, platforms: platforms)
 
             // run `carthage`
             try System.shared.runAndPrint(command)

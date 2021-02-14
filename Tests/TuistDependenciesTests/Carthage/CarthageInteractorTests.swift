@@ -99,7 +99,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         ]
         let stubbedCommand = ["carthage", "bootstrap", "--project-directory", temporaryDirectoryPath.pathString, "--platform iOS", "--cache-builds", "--new-resolver"]
 
-        carthageCommandGenerator.commandStub = { _, _ in stubbedCommand }
+        carthageCommandGenerator.commandStub = { _, _, _ in stubbedCommand }
 
         system.whichStub = { _ in "1.0.0" }
         system.succeedCommand(stubbedCommand)
@@ -157,7 +157,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         ]
         let stubbedCommand = ["carthage", "bootstrap", "--project-directory", temporaryDirectoryPath.pathString, "--platform iOS", "--cache-builds", "--new-resolver"]
 
-        carthageCommandGenerator.commandStub = { _, _ in stubbedCommand }
+        carthageCommandGenerator.commandStub = { _, _, _ in stubbedCommand }
 
         system.whichStub = { _ in "1.0.0" }
         system.succeedCommand(stubbedCommand)

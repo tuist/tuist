@@ -25,7 +25,7 @@ final class CarthageCommandGeneratorTests: TuistUnitTestCase {
 
         // When
         let got = subject
-            .command(path: stubbedPath, platforms: nil)
+            .command(path: stubbedPath, produceXCFrameworks: false, platforms: nil)
             .joined(separator: " ")
 
         // Then
@@ -39,7 +39,21 @@ final class CarthageCommandGeneratorTests: TuistUnitTestCase {
 
         // When
         let got = subject
-            .command(path: stubbedPath, platforms: [.iOS])
+            .command(path: stubbedPath, produceXCFrameworks: false, platforms: [.iOS])
+            .joined(separator: " ")
+
+        // Then
+        XCTAssertEqual(got, expected)
+    }
+    
+    func test_command_with_platforms_and_xcframeworks() throws {
+        // Given
+        let stubbedPath = try temporaryPath()
+        let expected = "carthage bootstrap --project-directory \(stubbedPath.pathString) --platform iOS,macOS,tvOS,watchOS --use-netrc --cache-builds --new-resolver --use-xcframeworks"
+
+        // When
+        let got = subject
+            .command(path: stubbedPath, produceXCFrameworks: true, platforms: [.iOS, .tvOS, .macOS, .watchOS])
             .joined(separator: " ")
 
         // Then

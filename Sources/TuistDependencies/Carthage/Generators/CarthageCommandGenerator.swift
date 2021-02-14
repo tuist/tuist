@@ -9,8 +9,9 @@ public protocol CarthageCommandGenerating {
     /// Builds `Carthage` command.
     /// - Parameters:
     ///   - path: Directory whose project's dependencies will be installed.
+    ///   - produceXCFrameworks: Indicates whether the `Carthage` produces XCFrameworks instead of universal frameworks.
     ///   - platforms: The platforms to build for.
-    func command(path: AbsolutePath, platforms: Set<Platform>?) -> [String]
+    func command(path: AbsolutePath, produceXCFrameworks: Bool, platforms: Set<Platform>?) -> [String]
 }
 
 // MARK: - Carthage Command Generator
@@ -18,7 +19,7 @@ public protocol CarthageCommandGenerating {
 public final class CarthageCommandGenerator: CarthageCommandGenerating {
     public init() {}
 
-    public func command(path: AbsolutePath, platforms: Set<Platform>?) -> [String] {
+    public func command(path: AbsolutePath,  produceXCFrameworks: Bool, platforms: Set<Platform>?) -> [String] {
         var commandComponents: [String] = []
         commandComponents.append("carthage")
         commandComponents.append("bootstrap")
@@ -35,6 +36,7 @@ public final class CarthageCommandGenerator: CarthageCommandGenerating {
             commandComponents.append(
                 platforms
                     .map(\.caseValue)
+                    .sorted()
                     .joined(separator: ",")
             )
         }
@@ -44,6 +46,10 @@ public final class CarthageCommandGenerator: CarthageCommandGenerating {
         commandComponents.append("--use-netrc")
         commandComponents.append("--cache-builds")
         commandComponents.append("--new-resolver")
+        
+        if produceXCFrameworks {
+            commandComponents.append("--use-xcframeworks")
+        }
 
         // Return
 
