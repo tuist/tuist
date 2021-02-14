@@ -6,6 +6,7 @@ import TuistSupport
 struct CachePrintHashesCommand: ParsableCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(commandName: "print-hashes",
+                             _superCommandName: "cache",
                              abstract: "Print the hashes of the cacheable frameworks in the given project.")
     }
 

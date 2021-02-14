@@ -6,6 +6,7 @@ import TSCBasic
 struct DependenciesFetchCommand: ParsableCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(commandName: "fetch",
+                             _superCommandName: "dependencies",
                              abstract: "Fetches the project's dependencies defined in `Dependencies.swift`.")
     }
 

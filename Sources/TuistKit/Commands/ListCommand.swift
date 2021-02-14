@@ -4,6 +4,7 @@ import Foundation
 struct ListCommand: ParsableCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(commandName: "list",
+                             _superCommandName: "scaffold",
                              abstract: "Lists available scaffold templates",
                              subcommands: [])
     }
