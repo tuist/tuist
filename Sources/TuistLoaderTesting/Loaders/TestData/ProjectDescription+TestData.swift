@@ -163,8 +163,8 @@ extension Arguments {
 }
 
 extension Dependencies {
-    public static func test(dependencies: [Dependency] = []) -> Dependencies {
-        Dependencies(dependencies)
+    public static func test(carthageDependencies: CarthageDependencies? = nil) -> Dependencies {
+        Dependencies(carthageDependencies: carthageDependencies)
     }
 }
 

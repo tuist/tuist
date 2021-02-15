@@ -42,7 +42,7 @@ public protocol CarthageInteracting {
     /// - Parameter dependenciesDirectory: The path to the directory that contains the `Tuist/Dependencies/` directory.
     /// - Parameter method: Installation method.
     /// - Parameter dependencies: List of dependencies to intall using `Carthage`.
-    func fetch(dependenciesDirectory: AbsolutePath, dependencies: [CarthageDependency]) throws
+    func fetch(dependenciesDirectory: AbsolutePath, dependencies: CarthageDependencies) throws
 }
 
 // MARK: - Carthage Interactor
@@ -51,31 +51,24 @@ public final class CarthageInteractor: CarthageInteracting {
     private let fileHandler: FileHandling
     private let carthageController: CarthageControlling
     private let carthageCommandGenerator: CarthageCommandGenerating
-    private let cartfileContentGenerator: CartfileContentGenerating
 
     public init(
         fileHandler: FileHandling = FileHandler.shared,
         carthageController: CarthageControlling = CarthageController(),
-        carthageCommandGenerator: CarthageCommandGenerating = CarthageCommandGenerator(),
-        cartfileContentGenerator: CartfileContentGenerating = CartfileContentGenerator()
+        carthageCommandGenerator: CarthageCommandGenerating = CarthageCommandGenerator()
     ) {
         self.fileHandler = fileHandler
         self.carthageController = carthageController
         self.carthageCommandGenerator = carthageCommandGenerator
-        self.cartfileContentGenerator = cartfileContentGenerator
     }
 
-    public func fetch(dependenciesDirectory: AbsolutePath, dependencies: [CarthageDependency]) throws {
+    public func fetch(dependenciesDirectory: AbsolutePath, dependencies: CarthageDependencies) throws {
         logger.info("We are starting to fetch the Carthage dependencies.", metadata: .section)
 
         // check availability of `carthage`
         guard carthageController.canUseSystemCarthage() else {
             throw CarthageInteractorError.carthageNotFound
         }
-
-        // determine platforms
-        let platforms: Set<Platform> = dependencies
-            .reduce(Set<Platform>()) { platforms, dependency in platforms.union(dependency.platforms) }
 
         try fileHandler.inTemporaryDirectory { temporaryDirectoryPath in
             // prepare paths
@@ -87,7 +80,8 @@ public final class CarthageInteractor: CarthageInteracting {
             // create `carthage` shell command
             #warning("WIP: Determine `produceXCFrameworks` value correctly.")
             #warning("WIP: Check if `Carthage` installed in env supports xcframeworks.")
-            let command = carthageCommandGenerator.command(path: temporaryDirectoryPath, produceXCFrameworks: false, platforms: platforms)
+            _ = dependencies.options.useXCFrameworks // use it
+            let command = carthageCommandGenerator.command(path: temporaryDirectoryPath, produceXCFrameworks: false, platforms: dependencies.options.platforms)
 
             // run `carthage`
             try System.shared.runAndPrint(command)
@@ -101,14 +95,14 @@ public final class CarthageInteractor: CarthageInteracting {
 
     // MARK: - Installation
 
-    private func prepareForInstallation(pathsProvider: CarthagePathsProvider, dependencies: [CarthageDependency]) throws {
+    private func prepareForInstallation(pathsProvider: CarthagePathsProvider, dependencies: CarthageDependencies) throws {
         // copy build directory from previous run if exist
         if fileHandler.exists(pathsProvider.destinationCarthageDirectory) {
             try copyDirectory(from: pathsProvider.destinationCarthageDirectory, to: pathsProvider.temporaryCarthageBuildDirectory)
         }
 
         // create `Cartfile`
-        let cartfileContent = cartfileContentGenerator.cartfileContent(for: dependencies)
+        let cartfileContent = dependencies.cartfileValue
         let cartfilePath = pathsProvider.temporaryDirectoryPath.appending(component: "Cartfile")
         try fileHandler.write(cartfileContent, path: cartfilePath, atomically: true)
     }

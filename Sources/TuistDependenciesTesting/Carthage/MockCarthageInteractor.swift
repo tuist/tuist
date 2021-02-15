@@ -8,11 +8,11 @@ public final class MockCarthageInteractor: CarthageInteracting {
 
     var invokedFetch = false
     var invokedFetchCount = 0
-    var invokedFetchParameters: (dependenciesDirectory: AbsolutePath, dependencies: [CarthageDependency])?
-    var invokedFetchParametersList = [(dependenciesDirectory: AbsolutePath, dependencies: [CarthageDependency])]()
+    var invokedFetchParameters: (dependenciesDirectory: AbsolutePath, dependencies: CarthageDependencies)?
+    var invokedFetchParametersList = [(dependenciesDirectory: AbsolutePath, dependencies: CarthageDependencies)]()
     var stubbedFetchError: Error?
 
-    public func fetch(dependenciesDirectory: AbsolutePath, dependencies: [CarthageDependency]) throws {
+    public func fetch(dependenciesDirectory: AbsolutePath, dependencies: CarthageDependencies) throws {
         invokedFetch = true
         invokedFetchCount += 1
         invokedFetchParameters = (dependenciesDirectory, dependencies)

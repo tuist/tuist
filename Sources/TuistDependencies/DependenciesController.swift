@@ -39,6 +39,8 @@ public final class DependenciesController: DependenciesControlling {
             .appending(component: Constants.tuistDirectoryName)
             .appending(component: Constants.DependenciesDirectory.name)
 
-        try carthageInteractor.fetch(dependenciesDirectory: dependenciesDirectory, dependencies: dependencies.carthageDependencies)
+        if let depedencies = dependencies.carthageDependencies {
+            try carthageInteractor.fetch(dependenciesDirectory: dependenciesDirectory, dependencies: depedencies)
+        }
     }
 }

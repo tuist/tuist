@@ -34,22 +34,30 @@ final class DependenciesModelLoaderTests: TuistUnitTestCase {
         // Given
         let stubbedPath = try temporaryPath()
         manifestLoader.loadDependenciesStub = { _ in
-            Dependencies([
-                .carthage(origin: .github(path: "Dependency1"), requirement: .exact("1.1.1"), platforms: [.iOS]),
-                .carthage(origin: .git(path: "Dependency1"), requirement: .exact("2.3.4"), platforms: [.macOS, .tvOS]),
-            ])
+            Dependencies(
+                carthageDependencies: .init(
+                    dependencies: [
+                        .github(path: "Dependency1", requirement: .exact("1.1.1")),
+                        .git(path: "Dependency1", requirement: .exact("2.3.4")),
+                    ],
+                    options: .init(platforms: [.iOS, .macOS], useXCFrameworks: true)
+                )
+            )
         }
 
         // When
         let model = try subject.loadDependencies(at: stubbedPath)
 
         // Then
-        let expectedCarthageModels: [TuistGraph.CarthageDependency] = [
-            CarthageDependency(origin: .github(path: "Dependency1"), requirement: .exact("1.1.1"), platforms: Set([.iOS])),
-            CarthageDependency(origin: .git(path: "Dependency1"), requirement: .exact("2.3.4"), platforms: Set([.macOS, .tvOS])),
-        ]
-        let expectedDependenciesModel = TuistGraph.Dependencies(carthageDependencies: expectedCarthageModels)
-
-        XCTAssertEqual(model, expectedDependenciesModel)
+        let expected: TuistGraph.Dependencies = .init(
+            carthageDependencies: .init(
+                dependencies: [
+                    .github(path: "Dependency1", requirement: .exact("1.1.1")),
+                    .git(path: "Dependency1", requirement: .exact("2.3.4")),
+                ],
+                options: .init(platforms: [.iOS, .macOS], useXCFrameworks: true)
+            )
+        )
+        XCTAssertEqual(model, expected)
     }
 }
