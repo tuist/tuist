@@ -1,7 +1,7 @@
 import Foundation
 
 /// Enum that represents all the Xcode versions that a project or set of projects is compatible with.
-public enum CompatibleXcodeVersions: ExpressibleByArrayLiteral, ExpressibleByStringLiteral, Codable, Equatable {
+public enum CompatibleXcodeVersions: ExpressibleByArrayLiteral, ExpressibleByStringInterpolation, Codable, Equatable {
     /// The project supports all Xcode versions.
     case all
 
@@ -23,7 +23,7 @@ public enum CompatibleXcodeVersions: ExpressibleByArrayLiteral, ExpressibleByStr
         case value
     }
 
-    // MARK: - ExpressibleByStringLiteral
+    // MARK: - ExpressibleByStringInterpolation
 
     public init(stringLiteral value: String) {
         self = .list([value])
