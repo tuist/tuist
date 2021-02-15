@@ -13626,10 +13626,10 @@ rc@^1.2.7, rc@^1.2.8:
     minimist "^1.2.0"
     strip-json-comments "~2.0.1"
 
-react-animated-term@^1.3.2:
-  version "1.3.2"
-  resolved "https://registry.yarnpkg.com/react-animated-term/-/react-animated-term-1.3.2.tgz#e222bf9fb5ccc3864c5498db0c8352c1cf897072"
-  integrity sha1-4iK/n7XMw4ZMVJjbDINSwc+JcHI=
+react-animated-term@^2.0.0:
+  version "2.0.0"
+  resolved "https://registry.yarnpkg.com/react-animated-term/-/react-animated-term-2.0.0.tgz#34980f1482efec51ba4fe0d1be8a6c48c554a125"
+  integrity sha512-cNGiHc/kbIc4HXIcU6Y8qCgoVaQWab7TlcedfEjTAo0SCQS1CLnNSyNq9IImveTnrX2ZrxmYp3qG9zS0iPAR8A==
   dependencies:
     babel-runtime "^6.26.0"
     classnames "^2.2.5"
