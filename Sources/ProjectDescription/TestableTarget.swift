@@ -1,6 +1,6 @@
 import Foundation
 
-public struct TestableTarget: Equatable, Codable, ExpressibleByStringLiteral {
+public struct TestableTarget: Equatable, Codable, ExpressibleByStringInterpolation {
     public let target: TargetReference
     public let isSkipped: Bool
     public let isParallelizable: Bool

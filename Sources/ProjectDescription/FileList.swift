@@ -16,7 +16,7 @@ public struct FileList: Codable, Equatable {
     }
 }
 
-extension FileList: ExpressibleByStringLiteral {
+extension FileList: ExpressibleByStringInterpolation {
     public init(stringLiteral value: String) {
         self.init(globs: [Path(value)])
     }

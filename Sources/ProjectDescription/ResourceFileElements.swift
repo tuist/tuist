@@ -9,13 +9,11 @@ public struct ResourceFileElements: Codable, Equatable {
     public let resources: [ResourceFileElement]
 }
 
-extension ResourceFileElements: ExpressibleByStringLiteral {
+extension ResourceFileElements: ExpressibleByStringInterpolation {
     public init(stringLiteral value: String) {
         self.init(resources: [.glob(pattern: Path(value))])
     }
 }
-
-extension ResourceFileElements: ExpressibleByStringInterpolation {}
 
 extension ResourceFileElements: ExpressibleByArrayLiteral {
     public init(arrayLiteral elements: ResourceFileElement...) {
