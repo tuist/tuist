@@ -19,7 +19,10 @@ let project = Project(
                 "Resources/**/*.plist",
                 "Resources/**/*.otf",
                 "Resources/resource_without_extension",
-                .folderReference(path: "Examples")
+                .glob(pattern: "ODRResources/*.png", tags: ["tag1"]),
+                .glob(pattern: "ODRResources/odr_text.txt", tags: ["tag2"]),
+                .folderReference(path: "Examples"),
+                .folderReference(path: "ODRExamples", tags: ["tag1", "tag2"])
             ],
             dependencies: [
                 .project(target: "Framework1", path: "../Framework1"),

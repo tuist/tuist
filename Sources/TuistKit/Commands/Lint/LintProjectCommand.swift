@@ -6,6 +6,7 @@ import TSCBasic
 struct LintProjectCommand: ParsableCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(commandName: "project",
+                             _superCommandName: "lint",
                              abstract: "Lints a workspace or a project that check whether they are well configured")
     }
 

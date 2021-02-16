@@ -61,6 +61,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
         scheme: String,
         clean: Bool = false,
         destination: XcodeBuildDestination,
+        derivedDataPath: AbsolutePath?,
         arguments: [XcodeBuildArgument]
     ) -> Observable<SystemEvent<XcodeBuildOutput>> {
         var command = ["/usr/bin/xcrun", "xcodebuild"]
@@ -80,11 +81,17 @@ public final class XcodeBuildController: XcodeBuildControlling {
         // Arguments
         command.append(contentsOf: arguments.flatMap(\.arguments))
 
+        // Destination
         switch destination {
         case let .device(udid):
             command.append(contentsOf: ["-destination", "id=\(udid)"])
         case .mac:
             break
+        }
+
+        // Derived data path
+        if let derivedDataPath = derivedDataPath {
+            command.append(contentsOf: ["-derivedDataPath", derivedDataPath.pathString])
         }
 
         return run(command: command, isVerbose: environment.isVerbose)

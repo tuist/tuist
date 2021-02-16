@@ -6,6 +6,7 @@ import TuistSupport
 struct MigrationCheckEmptyBuildSettingsCommand: ParsableCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(commandName: "check-empty-settings",
+                             _superCommandName: "migration",
                              abstract: "It checks if the build settings of a project or target are empty. Otherwise it exits unsuccessfully.")
     }
 

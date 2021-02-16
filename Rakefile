@@ -73,7 +73,7 @@ task :swift_lint_update do
   Dir.mktmpdir do |temporary_dir|
     Dir.chdir(temporary_dir) do
       system("curl", "-LO",
-"https://github.com/realm/SwiftLint/releases/download/#{SWIFTLINT_VERSION}/portable_swiftlint.zip")
+        "https://github.com/realm/SwiftLint/releases/download/#{SWIFTLINT_VERSION}/portable_swiftlint.zip")
       extract_zip("portable_swiftlint.zip", "portable_swiftlint")
       system("cp", "portable_swiftlint/swiftlint", "#{root_dir}/vendor/swiftlint")
     end
@@ -99,7 +99,7 @@ task :xcbeautify_update do
         system("make", "build")
       end
       release_dir = File.join(temporary_dir,
-"xcbeautify/xcbeautify-#{XCBEAUTIFY_VERSION}/.build/release")
+        "xcbeautify/xcbeautify-#{XCBEAUTIFY_VERSION}/.build/release")
       vendor_dir = File.join(root_dir, "vendor")
       dst_binary_path = File.join(vendor_dir, "xcbeautify")
 

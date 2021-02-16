@@ -6,6 +6,7 @@ import TSCBasic
 struct DependenciesUpdateCommand: ParsableCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(commandName: "update",
+                             _superCommandName: "dependencies",
                              abstract: "Updates the project's dependencies defined in `Dependencies.swift`.")
     }
 

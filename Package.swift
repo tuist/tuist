@@ -343,6 +343,7 @@ let package = Package(
                 rxSwiftDependency,
                 "TuistSupportTesting",
                 "TuistGraphTesting",
+                "TuistCoreTesting",
             ]
         ),
         .target(

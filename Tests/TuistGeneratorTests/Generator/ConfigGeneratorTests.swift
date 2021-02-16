@@ -65,7 +65,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         // Given
         let commonSettings = [
             "Base": "Base",
-            "INFOPLIST_FILE": "Info.plist",
+            "INFOPLIST_FILE": "$(SRCROOT)/Info.plist",
             "PRODUCT_BUNDLE_IDENTIFIER": "com.test.bundle_id",
             "CODE_SIGN_ENTITLEMENTS": "$(SRCROOT)/Test.entitlements",
             "SWIFT_VERSION": "5.2",

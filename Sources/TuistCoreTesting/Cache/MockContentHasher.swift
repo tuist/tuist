@@ -10,7 +10,7 @@ public final class MockContentHasher: ContentHashing {
     public func hash(_ data: Data) throws -> String {
         hashDataSpy = data
         hashDataCallCount += 1
-        return "\(String(describing: hashDataSpy?.base64EncodedString()))-hash"
+        return hashDataSpy.map { "\(String(describing: $0.base64EncodedString()))-hash" } ?? ""
     }
 
     public var hashStringCallCount: Int = 0

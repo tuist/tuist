@@ -14,6 +14,10 @@ public protocol Environmenting: AnyObject {
     /// Returns true if the output of Tuist should be coloured.
     var shouldOutputBeColoured: Bool { get }
 
+    /// Returns automation path
+    /// Only to be used for acceptance tests
+    var automationPath: AbsolutePath? { get }
+
     /// Returns the cache directory
     var cacheDirectory: AbsolutePath { get }
 
@@ -25,6 +29,9 @@ public protocol Environmenting: AnyObject {
 
     /// Returns the directory where the build artifacts are cached.
     var buildCacheDirectory: AbsolutePath { get }
+
+    /// Returns the directory where hashes of modules that have been a part of successful test are cached
+    var testsCacheDirectory: AbsolutePath { get }
 
     /// Returns all the environment variables that are specific to Tuist (prefixed with TUIST_)
     var tuistVariables: [String: String] { get }
@@ -120,6 +127,10 @@ public class Environment: Environmenting {
         }
     }
 
+    public var testsCacheDirectory: AbsolutePath {
+        cacheDirectory.appending(component: "TestsCache")
+    }
+
     /// Returns the directory where the build artifacts are cached.
     public var buildCacheDirectory: AbsolutePath {
         cacheDirectory.appending(component: "BuildCache")
@@ -132,6 +143,10 @@ public class Environment: Environmenting {
 
     public var projectsCacheDirectory: AbsolutePath {
         cacheDirectory.appending(component: "Projects")
+    }
+
+    public var automationPath: AbsolutePath? {
+        ProcessInfo.processInfo.environment[Constants.EnvironmentVariables.automationPath].map { AbsolutePath($0) }
     }
 
     /// Returns the cache directory

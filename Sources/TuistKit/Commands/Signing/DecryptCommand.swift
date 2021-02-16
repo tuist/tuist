@@ -8,6 +8,7 @@ import TuistSupport
 struct DecryptCommand: ParsableCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(commandName: "decrypt",
+                             _superCommandName: "signing",
                              abstract: "Decrypts all files in Tuist/Signing directory")
     }
 

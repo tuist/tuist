@@ -13,7 +13,7 @@ jobs:
     steps:
       - uses: actions/checkout@v2
         with:
-          token: ${{ secrets.GH_TOKEN }}
+          token: ${{ secrets.GH_RELEASE_TOKEN }}
           ref: main
           fetch-depth: 0
       - uses: actions/setup-ruby@v1
@@ -37,5 +37,5 @@ jobs:
         uses: fortmarek/tapestry-action@0.2.0
         env:
           RELEASE_ACTOR: fortmarek
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_RELEASE_TOKEN }}
           SECRET_KEY: ${{ secrets.SECRET_KEY }}

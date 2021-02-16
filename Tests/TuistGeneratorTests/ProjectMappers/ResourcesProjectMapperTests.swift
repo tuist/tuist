@@ -26,7 +26,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
 
     func test_map_when_a_target_that_has_resources_and_doesnt_supports_them() throws {
         // Given
-        let resources: [FileElement] = [.file(path: "/image.png")]
+        let resources: [ResourceFileElement] = [.file(path: "/image.png")]
         let target = Target.test(product: .staticLibrary, resources: resources)
         project = Project.test(targets: [target])
 
@@ -117,7 +117,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
 
     func test_map_when_a_target_that_has_resources_and_supports_them() throws {
         // Given
-        let resources: [FileElement] = [.file(path: "/image.png")]
+        let resources: [ResourceFileElement] = [.file(path: "/image.png")]
         let target = Target.test(product: .framework, resources: resources)
         project = Project.test(targets: [target])
 
@@ -189,7 +189,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
 
     func test_map_when_a_target_has_no_resources() throws {
         // Given
-        let resources: [FileElement] = []
+        let resources: [ResourceFileElement] = []
         let target = Target.test(product: .framework, resources: resources)
         project = Project.test(targets: [target])
 
@@ -203,7 +203,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
 
     func test_map_when_a_target_does_not_support_sources() throws {
         // Given
-        let resources: [FileElement] = [
+        let resources: [ResourceFileElement] = [
             .file(path: "/Some/ResourceA"),
             .file(path: "/Some/ResourceB"),
         ]

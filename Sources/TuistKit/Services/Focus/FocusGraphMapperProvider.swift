@@ -36,8 +36,7 @@ final class FocusGraphMapperProvider: GraphMapperProviding {
                                           cacheStorageProvider: CacheStorageProvider(config: config),
                                           sources: cacheSources,
                                           cacheProfile: cacheProfile,
-                                          cacheOutputType: cacheOutputType,
-                                          contentHasher: contentHasher)
+                                          cacheOutputType: cacheOutputType)
             mappers.append(cacheMapper)
             mappers.append(CacheTreeShakingGraphMapper())
         }
