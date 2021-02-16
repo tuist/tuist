@@ -66,8 +66,8 @@ final class CacheController: CacheControlling {
     /// Utility to build the (xc)frameworks.
     private let artifactBuilder: CacheArtifactBuilding
 
-    /// Graph content hasher.
-    private let graphContentHasher: GraphContentHashing
+    /// Cache graph content hasher.
+    private let cacheGraphContentHasher: CacheGraphContentHashing
 
     /// Cache.
     private let cache: CacheStoring
@@ -82,20 +82,20 @@ final class CacheController: CacheControlling {
         self.init(cache: cache,
                   artifactBuilder: artifactBuilder,
                   projectGeneratorProvider: CacheControllerProjectGeneratorProvider(contentHasher: contentHasher),
-                  graphContentHasher: GraphContentHasher(contentHasher: contentHasher),
+                  cacheGraphContentHasher: CacheGraphContentHasher(contentHasher: contentHasher),
                   cacheGraphLinter: CacheGraphLinter())
     }
 
     init(cache: CacheStoring,
          artifactBuilder: CacheArtifactBuilding,
          projectGeneratorProvider: CacheControllerProjectGeneratorProviding,
-         graphContentHasher: GraphContentHashing,
+         cacheGraphContentHasher: CacheGraphContentHashing,
          cacheGraphLinter: CacheGraphLinting)
     {
         self.cache = cache
         self.projectGeneratorProvider = projectGeneratorProvider
         self.artifactBuilder = artifactBuilder
-        self.graphContentHasher = graphContentHasher
+        self.cacheGraphContentHasher = cacheGraphContentHasher
         self.cacheGraphLinter = cacheGraphLinter
     }
 
@@ -108,7 +108,11 @@ final class CacheController: CacheControlling {
 
         // Hash
         logger.notice("Hashing cacheable targets")
-        let hashesByCacheableTarget = try graphContentHasher.contentHashes(for: graph, cacheProfile: cacheProfile, cacheOutputType: artifactBuilder.cacheOutputType)
+        let hashesByCacheableTarget = try cacheGraphContentHasher.contentHashes(
+            for: graph,
+            cacheProfile: cacheProfile,
+            cacheOutputType: artifactBuilder.cacheOutputType
+        )
 
         let filteredTargets: [TargetNode]
         if targetsToFilter.isEmpty {

@@ -26,7 +26,7 @@ public protocol BuildGraphInspecting {
     /// - Parameters:
     ///   - scheme: Scheme in which to look up the target.
     ///   - graph: Dependency graph.
-    func testableTarget(scheme: Scheme, graph: Graph) -> (Project, Target)?
+    func testableTarget(scheme: Scheme, graph: Graph) -> TargetNode?
 
     /// Given a graph, it returns a list of buildable schemes.
     /// - Parameter graph: Dependency graph.
@@ -95,12 +95,9 @@ public class BuildGraphInspector: BuildGraphInspecting {
         return graph.target(path: buildTarget.projectPath, name: buildTarget.name).map { ($0.project, $0.target) }
     }
 
-    public func testableTarget(scheme: Scheme, graph: Graph) -> (Project, Target)? {
-        if scheme.testAction?.targets.count == 0 {
-            return nil
-        }
-        let testTarget = scheme.testAction!.targets.first!
-        return graph.target(path: testTarget.target.projectPath, name: testTarget.target.name).map { ($0.project, $0.target) }
+    public func testableTarget(scheme: Scheme, graph: Graph) -> TargetNode? {
+        guard let testTarget = scheme.testAction?.targets.first else { return nil }
+        return graph.target(path: testTarget.target.projectPath, name: testTarget.target.name)
     }
 
     public func buildableSchemes(graph: Graph) -> [Scheme] {

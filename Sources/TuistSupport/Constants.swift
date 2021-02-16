@@ -46,11 +46,15 @@ public enum Constants {
         public static let directoryName: String = "Queue"
     }
 
+    /// Pass these variables to make custom configuration of tuist
+    /// These variables are not supposed to be used by end users
+    /// But only eg. for acceptance tests and other cases needed internally
     public enum EnvironmentVariables {
         public static let verbose = "TUIST_VERBOSE"
         public static let colouredOutput = "TUIST_COLOURED_OUTPUT"
         public static let versionsDirectory = "TUIST_VERSIONS_DIRECTORY"
         public static let cacheDirectory = "TUIST_CACHE_DIRECTORY"
+        public static let automationPath = "TUIST_AUTOMATION_PATH"
         public static let queueDirectory = "TUIST_QUEUE_DIRECTORY"
         public static let cloudToken = "TUIST_CLOUD_TOKEN"
         public static let cacheManifests = "TUIST_CACHE_MANIFESTS"

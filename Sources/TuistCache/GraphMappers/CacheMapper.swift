@@ -13,7 +13,7 @@ public class CacheMapper: GraphMapping {
     private let cache: CacheStoring
 
     /// Graph content hasher.
-    private let graphContentHasher: GraphContentHashing
+    private let cacheGraphContentHasher: CacheGraphContentHashing
 
     /// Cache graph mapper.
     private let cacheGraphMutator: CacheGraphMutating
@@ -39,12 +39,11 @@ public class CacheMapper: GraphMapping {
                             cacheStorageProvider: CacheStorageProviding,
                             sources: Set<String>,
                             cacheProfile: TuistGraph.Cache.Profile,
-                            cacheOutputType: CacheOutputType,
-                            contentHasher: ContentHashing)
+                            cacheOutputType: CacheOutputType)
     {
         self.init(config: config,
                   cache: Cache(storageProvider: cacheStorageProvider),
-                  graphContentHasher: GraphContentHasher(contentHasher: contentHasher),
+                  cacheGraphContentHasher: CacheGraphContentHasher(),
                   sources: sources,
                   cacheProfile: cacheProfile,
                   cacheOutputType: cacheOutputType)
@@ -52,7 +51,7 @@ public class CacheMapper: GraphMapping {
 
     init(config: Config,
          cache: CacheStoring,
-         graphContentHasher: GraphContentHashing,
+         cacheGraphContentHasher: CacheGraphContentHashing,
          sources: Set<String>,
          cacheProfile: TuistGraph.Cache.Profile,
          cacheOutputType: CacheOutputType,
@@ -61,7 +60,7 @@ public class CacheMapper: GraphMapping {
     {
         self.config = config
         self.cache = cache
-        self.graphContentHasher = graphContentHasher
+        self.cacheGraphContentHasher = cacheGraphContentHasher
         self.queue = queue
         self.cacheGraphMutator = cacheGraphMutator
         self.sources = sources
@@ -76,19 +75,21 @@ public class CacheMapper: GraphMapping {
         return try (single.toBlocking().single(), [])
     }
 
-    // MARK: - Fileprivate
+    // MARK: - Helpers
 
-    fileprivate static func dispatchQueue() -> DispatchQueue {
+    private static func dispatchQueue() -> DispatchQueue {
         let qos: DispatchQoS = .userInitiated
         return DispatchQueue(label: "io.tuist.generator-cache-mapper.\(qos)", qos: qos, attributes: [], target: nil)
     }
 
-    fileprivate func hashes(graph: Graph) -> Single<[TargetNode: String]> {
+    private func hashes(graph: Graph) -> Single<[TargetNode: String]> {
         Single.create { (observer) -> Disposable in
             do {
-                let hashes = try self.graphContentHasher.contentHashes(for: graph,
-                                                                       cacheProfile: self.cacheProfile,
-                                                                       cacheOutputType: self.cacheOutputType)
+                let hashes = try self.cacheGraphContentHasher.contentHashes(
+                    for: graph,
+                    cacheProfile: self.cacheProfile,
+                    cacheOutputType: self.cacheOutputType
+                )
                 observer(.success(hashes))
             } catch {
                 observer(.error(error))
@@ -98,7 +99,7 @@ public class CacheMapper: GraphMapping {
         .subscribeOn(ConcurrentDispatchQueueScheduler(queue: queue))
     }
 
-    fileprivate func map(graph: Graph, hashes: [TargetNode: String], sources: Set<String>) -> Single<Graph> {
+    private func map(graph: Graph, hashes: [TargetNode: String], sources: Set<String>) -> Single<Graph> {
         fetch(hashes: hashes).map { xcframeworkPaths in
             try self.cacheGraphMutator.map(graph: graph,
                                            precompiledFrameworks: xcframeworkPaths,
@@ -106,7 +107,7 @@ public class CacheMapper: GraphMapping {
         }
     }
 
-    fileprivate func fetch(hashes: [TargetNode: String]) -> Single<[TargetNode: AbsolutePath]> {
+    private func fetch(hashes: [TargetNode: String]) -> Single<[TargetNode: AbsolutePath]> {
         Single.zip(hashes.map { target, hash in
             self.cache.exists(hash: hash)
                 .flatMap { (exists) -> Single<(target: TargetNode, path: AbsolutePath?)> in

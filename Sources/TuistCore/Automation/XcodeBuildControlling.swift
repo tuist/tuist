@@ -25,12 +25,15 @@ public protocol XcodeBuildControlling {
     ///   - target: The project or workspace to be built.
     ///   - scheme: The scheme of the project that should be built.
     ///   - clean: True if xcodebuild should clean the project before building.
+    ///   - destination: Destination to run the tests on
+    ///   - derivedDataPath: Custom location for derived data. Use `xcodebuild`'s default if `nil`
     ///   - arguments: Extra xcodebuild arguments.
     func test(
         _ target: XcodeBuildTarget,
         scheme: String,
         clean: Bool,
         destination: XcodeBuildDestination,
+        derivedDataPath: AbsolutePath?,
         arguments: [XcodeBuildArgument]
     ) -> Observable<SystemEvent<XcodeBuildOutput>>
 
