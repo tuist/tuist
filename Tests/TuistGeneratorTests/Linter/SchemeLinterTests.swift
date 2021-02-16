@@ -140,7 +140,7 @@ class SchemeLinterTests: TuistTestCase {
         let got = subject.lint(project: project)
 
         // Then
-        XCTAssertEqual(got.first?.severity, .warning)
+        XCTAssertEqual(got.first?.severity, .error)
         XCTAssertEqual(got.first?.reason, "StoreKit configuration file not found at path /non/existing/path/configuration.storekit")
     }
 

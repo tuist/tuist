@@ -41,7 +41,7 @@ private extension SchemeLinter {
                 issues.append(
                     LintingIssue(
                         reason: "StoreKit configuration file not found at path \(storeKitPath.pathString)",
-                        severity: .warning
+                        severity: .error
                     ))
             }
         }
