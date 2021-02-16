@@ -4,6 +4,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+- Add support for StoreKit configuration files [#2524](https://github.com/tuist/tuist/pull/2524) by [@bolismauro](https://github.com/bolismauro)
+
 ## 1.34.0 - Shipit
 
 ### Added
