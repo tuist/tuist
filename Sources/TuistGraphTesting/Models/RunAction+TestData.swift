@@ -7,12 +7,14 @@ public extension RunAction {
                      executable: TargetReference? = TargetReference(projectPath: "/Project", name: "App"),
                      filePath: AbsolutePath? = nil,
                      arguments: Arguments? = Arguments.test(),
+                     options: RunActionOptions = .init(),
                      diagnosticsOptions: Set<SchemeDiagnosticsOption> = Set()) -> RunAction
     {
         RunAction(configurationName: configurationName,
                   executable: executable,
                   filePath: filePath,
                   arguments: arguments,
+                  options: options,
                   diagnosticsOptions: diagnosticsOptions)
     }
 }
