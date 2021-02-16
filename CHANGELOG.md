@@ -12,6 +12,9 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Replace `ExpressibleByStringLiteral` with `ExpressibleByStringInterpolation` for `ProjectDescription` objects by [@DimaMishchenko](https://github.com/DimaMishchenko)
 
+### Fixed
+- Installation of `tuist` on Big Sur [#2526](https://github.com/tuist/tuist/pull/2526) by [@pepibumur](https://github.com/pepibumur).
+
 ## 1.34.0 - Shipit
 
 ### Added
