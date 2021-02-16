@@ -14,7 +14,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Changed
 
-- Replace `ExpressibleByStringLiteral` with `ExpressibleByStringInterpolation` for `ProjectDescription` objects by [@DimaMishchenko](https://github.com/DimaMishchenko
+- Replace `ExpressibleByStringLiteral` with `ExpressibleByStringInterpolation` for `ProjectDescription` objects by [@DimaMishchenko](https://github.com/DimaMishchenko)
 
 ## 1.34.0 - Shipit
 
