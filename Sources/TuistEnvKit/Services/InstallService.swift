@@ -15,12 +15,12 @@ final class InstallService {
         self.installer = installer
     }
 
-    func run(version: String, force: Bool) throws {
+    func run(version: String) throws {
         let versions = versionsController.versions().map(\.description)
         if versions.contains(version) {
             logger.warning("Version \(version) already installed, skipping")
             return
         }
-        try installer.install(version: version, force: force)
+        try installer.install(version: version)
     }
 }

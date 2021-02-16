@@ -208,7 +208,7 @@ final class InstallerTests: TuistUnitTestCase {
         try FileHandler.shared.createFolder(temporaryDirectory.path.appending(component: Constants.templatesDirectoryName))
         try FileHandler.shared.createFolder(temporaryDirectory.path.appending(RelativePath(".build/release")))
 
-        try subject.install(version: version, temporaryDirectory: temporaryDirectory.path, force: true)
+        try subject.install(version: version, temporaryDirectory: temporaryDirectory.path)
 
         XCTAssertPrinterOutputContains("""
         Forcing the installation of 3.2.1 from the source code
