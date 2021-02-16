@@ -1,16 +1,91 @@
 #!/bin/bash
 
+shell_join() {
+  local arg
+  printf "%s" "$1"
+  shift
+  for arg in "$@"; do
+    printf " "
+    printf "%s" "${arg// /\ }"
+  done
+}
+
+shell_join() {
+  local arg
+  printf "%s" "$1"
+  shift
+  for arg in "$@"; do
+    printf " "
+    printf "%s" "${arg// /\ }"
+  done
+}
+
+execute() {
+  if ! "$@"; then
+    abort "$(printf "Failed during: %s" "$(shell_join "$@")")"
+  fi
+}
+
+have_sudo_access() {
+  local -a args
+  if [[ -n "${SUDO_ASKPASS-}" ]]; then
+    args=("-A")
+  elif [[ -n "${NONINTERACTIVE-}" ]]; then
+    args=("-n")
+  fi
+
+  if [[ -z "${HAVE_SUDO_ACCESS-}" ]]; then
+    if [[ -n "${args[*]-}" ]]; then
+      SUDO="/usr/bin/sudo ${args[*]}"
+    else
+      SUDO="/usr/bin/sudo"
+    fi
+    if [[ -n "${NONINTERACTIVE-}" ]]; then
+      ${SUDO} -l mkdir &>/dev/null
+    else
+      ${SUDO} -v && ${SUDO} -l mkdir &>/dev/null
+    fi
+    HAVE_SUDO_ACCESS="$?"
+  fi
+
+  if [[ -z "${HOMEBREW_ON_LINUX-}" ]] && [[ "$HAVE_SUDO_ACCESS" -ne 0 ]]; then
+    abort "Need sudo access on macOS (e.g. the user $USER to be an Administrator)!"
+  fi
+
+  return "$HAVE_SUDO_ACCESS"
+}
+
+ohai() {
+  printf "${tty_blue}==>${tty_bold} %s${tty_reset}\n" "$(shell_join "$@")"
+}
+
+warn() {
+  printf "${tty_red}Warning${tty_reset}: %s\n" "$(chomp "$1")"
+}
+
+execute_sudo() {
+  local -a args=("$@")
+  if have_sudo_access; then
+    if [[ -n "${SUDO_ASKPASS-}" ]]; then
+      args=("-A" "${args[@]}")
+    fi
+    execute "/usr/bin/sudo" "${args[@]}"
+  else
+    execute "${args[@]}"
+  fi
+}
+
+ohai "Downloading Tuist..."
 curl -LSs --output /tmp/tuistenv.zip https://storage.googleapis.com/tuist-releases/latest/tuistenv.zip
-
-echo "Installing Tuist"
+ohai "Unzipping Tuist..."
 unzip -o /tmp/tuistenv.zip -d /tmp/tuistenv > /dev/null
-mv /tmp/tuistenv/tuistenv /usr/local/bin/tuist
-ln -sf /usr/local/bin/tuist /usr/local/bin/swift-project
-
-chmod +x /usr/local/bin/tuist
+ohai "Installing Tuist..."
+execute_sudo mv /tmp/tuistenv/tuistenv /usr/local/bin/tuist
+execute_sudo ln -sf /usr/local/bin/tuist /usr/local/bin/swift-project
+execute_sudo chmod +x /usr/local/bin/tuist
 
 rm -rf /tmp/tuistenv
 rm /tmp/tuistenv.zip
 
-echo "Tuist installed. Try running 'tuist'"
-echo "Check out the documentation at https://tuist.io/docs"
+ohai "Tuist installed. Try running 'tuist'"
+ohai "Check out the documentation at https://tuist.io/docs"
