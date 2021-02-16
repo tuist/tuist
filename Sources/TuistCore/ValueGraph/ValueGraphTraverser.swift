@@ -48,7 +48,7 @@ public class ValueGraphTraverser: GraphTraversing {
             projects[$0]
         })
     }
-    
+
     public func schemes() -> [Scheme] {
         projects.values.flatMap(\.schemes) + graph.workspace.schemes
     }
@@ -399,7 +399,7 @@ public class ValueGraphTraverser: GraphTraversing {
         }
         return references
     }
-    
+
     public func dependsOnXCTest(path: AbsolutePath, name: String) -> Bool {
         directTargetDependencies(path: path, name: name)
             .first(where: { $0.target.name == "XCTest" || $0.target.product.testsBundle }) != nil

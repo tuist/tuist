@@ -175,7 +175,7 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
             workspace: workspace,
             projects: [
                 coreProject.path: coreProject,
-                kitProject.path: kitProject
+                kitProject.path: kitProject,
             ]
         )
         let graphTraverser = ValueGraphTraverser(graph: graph)
@@ -267,11 +267,11 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
             targets: [
                 projectPath: [
                     kitValueGraphTarget.target.name: kitValueGraphTarget.target,
-                    kitTestsValueGraphTarget.target.name: kitTestsValueGraphTarget.target
+                    kitTestsValueGraphTarget.target.name: kitTestsValueGraphTarget.target,
                 ],
                 coreProjectPath: [
                     coreValueGraphTarget.target.name: coreValueGraphTarget.target,
-                    coreTestsValueGraphTarget.target.name: coreTestsValueGraphTarget.target
+                    coreTestsValueGraphTarget.target.name: coreTestsValueGraphTarget.target,
                 ],
             ]
         )
@@ -322,8 +322,8 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
             ],
             targets: [
                 coreProject.path: [
-                    coreValueGraphTarget.target.name: coreValueGraphTarget.target
-                ]
+                    coreValueGraphTarget.target.name: coreValueGraphTarget.target,
+                ],
             ]
         )
         let graphTraverser = ValueGraphTraverser(graph: graph)
@@ -359,7 +359,7 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
             workspace: Workspace.test(projects: [projectA.path]),
             projects: [
                 projectA.path: projectA,
-                projectB.path: projectB
+                projectB.path: projectB,
             ],
             targets: [projectAPath: [targetA.name: targetA], projectBPath: [targetB.name: targetB]]
         )
