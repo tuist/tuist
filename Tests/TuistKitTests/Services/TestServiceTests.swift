@@ -85,7 +85,7 @@ final class TestServiceTests: TuistUnitTestCase {
             ]
         }
         buildGraphInspector.testableTargetStub = { scheme, _ in
-            TargetNode.test(
+            ValueGraphTarget.test(
                 target: Target.test(
                     name: scheme.name
                 )

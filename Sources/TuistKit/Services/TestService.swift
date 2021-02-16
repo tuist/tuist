@@ -83,13 +83,16 @@ final class TestService {
             testsCacheDirectory: testsCacheTemporaryDirectory.path
         )
         logger.notice("Generating project for testing", metadata: .section)
-        let graph: Graph = try generator.generateWithGraph(
-            path: path,
-            projectOnly: false
-        ).1
+        let graph = ValueGraph(
+            graph: try generator.generateWithGraph(
+                path: path,
+                projectOnly: false
+            ).1
+        )
+        let graphTraverser = ValueGraphTraverser(graph: graph)
         let version = osVersion?.version()
 
-        let testableSchemes = buildGraphInspector.testableSchemes(graph: graph) + buildGraphInspector.projectSchemes(graph: graph)
+        let testableSchemes = buildGraphInspector.testableSchemes(graphTraverser: graphTraverser) + buildGraphInspector.projectSchemes(graphTraverser: graphTraverser)
         logger.log(
             level: .debug,
             "Found the following testable schemes: \(Set(testableSchemes.map(\.name)).joined(separator: ", "))"
@@ -115,8 +118,7 @@ final class TestService {
             try testSchemes.forEach { testScheme in
                 try self.testScheme(
                     scheme: testScheme,
-                    graph: graph,
-                    path: path,
+                    graphTraverser: graphTraverser,
                     clean: clean,
                     configuration: configuration,
                     version: version,
@@ -124,7 +126,7 @@ final class TestService {
                 )
             }
         } else {
-            let testSchemes: [Scheme] = buildGraphInspector.projectSchemes(graph: graph)
+            let testSchemes: [Scheme] = buildGraphInspector.projectSchemes(graphTraverser: graphTraverser)
                 .filter {
                     $0.testAction.map { !$0.targets.isEmpty } ?? false
                 }
@@ -137,8 +139,7 @@ final class TestService {
             try testSchemes.forEach {
                 try testScheme(
                     scheme: $0,
-                    graph: graph,
-                    path: path,
+                    graphTraverser: graphTraverser,
                     clean: clean,
                     configuration: configuration,
                     version: version,
@@ -172,28 +173,27 @@ final class TestService {
 
     private func testScheme(
         scheme: Scheme,
-        graph: Graph,
-        path _: AbsolutePath,
+        graphTraverser: GraphTraversing,
         clean: Bool,
         configuration: String?,
         version: Version?,
         deviceName: String?
     ) throws {
         logger.log(level: .notice, "Testing scheme \(scheme.name)", metadata: .section)
-        guard let buildableTarget = buildGraphInspector.testableTarget(scheme: scheme, graph: graph) else {
+        guard let buildableTarget = buildGraphInspector.testableTarget(scheme: scheme, graphTraverser: graphTraverser) else {
             throw TestServiceError.schemeWithoutTestableTargets(scheme: scheme.name)
         }
 
         let destination = try findDestination(
             target: buildableTarget.target,
             scheme: scheme,
-            graph: graph,
+            graphTraverser: graphTraverser,
             version: version,
             deviceName: deviceName
         )
 
         _ = try xcodebuildController.test(
-            .workspace(graph.workspace.xcWorkspacePath),
+            .workspace(graphTraverser.workspace.xcWorkspacePath),
             scheme: scheme.name,
             clean: clean,
             destination: destination,
@@ -213,7 +213,7 @@ final class TestService {
     private func findDestination(
         target: Target,
         scheme: Scheme,
-        graph: Graph,
+        graphTraverser: GraphTraversing,
         version: Version?,
         deviceName: String?
     ) throws -> XcodeBuildDestination {
@@ -224,12 +224,13 @@ final class TestService {
                 minVersion = deploymentTarget.version.version()
             } else {
                 minVersion = scheme.targetDependencies()
-                    .compactMap { graph.findTargetNode(path: $0.projectPath, name: $0.name) }
                     .flatMap {
-                        $0.targetDependencies
-                            .compactMap { $0.target.deploymentTarget?.version }
+                        graphTraverser
+                            .directTargetDependencies(path: $0.projectPath, name: $0.name)
+                            .map(\.target)
+                            .map(\.deploymentTarget)
+                            .compactMap { $0?.version.version() }
                     }
-                    .compactMap { $0.version() }
                     .sorted()
                     .first
             }
