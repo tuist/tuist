@@ -35,19 +35,6 @@ final class UpdaterTests: TuistUnitTestCase {
         googleCloudStorageClient = nil
     }
 
-    func test_update_when_force() throws {
-        googleCloudStorageClient.latestVersionStub = Version(string: "3.2.1")!
-        var installArgs: [String] = []
-        installer.installStub = { version in installArgs.append(version) }
-
-        try subject.update()
-
-        XCTAssertPrinterOutputContains("Forcing the update of version 3.2.1")
-        XCTAssertEqual(installArgs.count, 1)
-        XCTAssertEqual(installArgs.first, "3.2.1")
-        XCTAssertEqual(envUpdater.updateCallCount, 1)
-    }
-
     func test_update_when_there_are_no_updates() throws {
         versionsController.semverVersionsStub = ["3.2.1"]
         googleCloudStorageClient.latestVersionStub = Version(string: "3.2.1")!
