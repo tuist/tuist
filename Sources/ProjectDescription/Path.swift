@@ -1,6 +1,6 @@
 import Foundation
 
-public struct Path: Codable, ExpressibleByStringLiteral, ExpressibleByStringInterpolation, Equatable {
+public struct Path: ExpressibleByStringInterpolation, Codable, Equatable {
     public enum PathType: String, Codable {
         case relativeToCurrentFile
         case relativeToManifest
@@ -36,7 +36,7 @@ public struct Path: Codable, ExpressibleByStringLiteral, ExpressibleByStringInte
         Path(pathString, type: .relativeToRoot)
     }
 
-    // MARK: - ExpressibleByStringLiteral
+    // MARK: - ExpressibleByStringInterpolation
 
     public init(stringLiteral: String) {
         if stringLiteral.starts(with: "//") {

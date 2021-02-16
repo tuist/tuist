@@ -121,7 +121,7 @@ final class TargetLinterTests: TuistUnitTestCase {
     func test_lint_when_library_has_resources() throws {
         let temporaryPath = try self.temporaryPath()
         let path = temporaryPath.appending(component: "Image.png")
-        let element = FileElement.file(path: path)
+        let element = ResourceFileElement.file(path: path)
 
         let staticLibrary = Target.test(product: .staticLibrary, resources: [element])
         let dynamicLibrary = Target.test(product: .dynamicLibrary, resources: [element])

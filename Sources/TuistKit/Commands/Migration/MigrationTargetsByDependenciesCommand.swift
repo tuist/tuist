@@ -6,6 +6,7 @@ import TuistSupport
 struct MigrationTargetsByDependenciesCommand: ParsableCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(commandName: "list-targets",
+                             _superCommandName: "migration",
                              abstract: "It lists the targets of a project sorted by number of dependencies.")
     }
 

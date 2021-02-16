@@ -13200,10 +13200,10 @@ postcss@^7.0.0, postcss@^7.0.1, postcss@^7.0.26, postcss@^7.0.27, postcss@^7.0.3
     source-map "^0.6.1"
     supports-color "^6.1.0"
 
-postcss@^8.1.6, postcss@^8.2.1, postcss@^8.2.5:
-  version "8.2.5"
-  resolved "https://registry.yarnpkg.com/postcss/-/postcss-8.2.5.tgz#3c75149ada4e93db9521913654c0144517f77c9a"
-  integrity sha512-wMcb7BpDcm3gxQOQx46NDNT36Kk0Ao6PJLLI2ed5vehbbbxCEuslSQzbQ2sfSKy+gkYxhWcGWSeaK+gwm4KIZg==
+postcss@^8.1.6, postcss@^8.2.1, postcss@^8.2.6:
+  version "8.2.6"
+  resolved "https://registry.yarnpkg.com/postcss/-/postcss-8.2.6.tgz#5d69a974543b45f87e464bc4c3e392a97d6be9fe"
+  integrity sha512-xpB8qYxgPuly166AGlpRjUdEYtmOWx2iCwGmrv4vqZL9YPVviDVPZPRXxnXr6xPZOdxQ9lp3ZBFCRgWJ7LE3Sg==
   dependencies:
     colorette "^1.2.1"
     nanoid "^3.1.20"
@@ -13626,10 +13626,10 @@ rc@^1.2.7, rc@^1.2.8:
     minimist "^1.2.0"
     strip-json-comments "~2.0.1"
 
-react-animated-term@^1.3.2:
-  version "1.3.2"
-  resolved "https://registry.yarnpkg.com/react-animated-term/-/react-animated-term-1.3.2.tgz#e222bf9fb5ccc3864c5498db0c8352c1cf897072"
-  integrity sha1-4iK/n7XMw4ZMVJjbDINSwc+JcHI=
+react-animated-term@^2.0.0:
+  version "2.0.0"
+  resolved "https://registry.yarnpkg.com/react-animated-term/-/react-animated-term-2.0.0.tgz#34980f1482efec51ba4fe0d1be8a6c48c554a125"
+  integrity sha512-cNGiHc/kbIc4HXIcU6Y8qCgoVaQWab7TlcedfEjTAo0SCQS1CLnNSyNq9IImveTnrX2ZrxmYp3qG9zS0iPAR8A==
   dependencies:
     babel-runtime "^6.26.0"
     classnames "^2.2.5"

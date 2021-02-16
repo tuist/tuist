@@ -60,7 +60,7 @@ public extension Target {
         name: String,
         product: Product,
         dependencies: [TargetDependency],
-        resources: [ProjectDescription.FileElement]? = nil
+        resources: ResourceFileElements? = nil
     ) -> Target {
         Target(
             name: name,

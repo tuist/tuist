@@ -293,7 +293,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
             "/path/resources/fr.lproj/App.strings",
         ]
 
-        let resources = files.map { FileElement.file(path: $0) }
+        let resources = files.map { ResourceFileElement.file(path: $0) }
         let fileElements = createLocalizedResourceFileElements(for: [
             "/path/resources/Main.storyboard",
             "/path/resources/App.strings",
@@ -384,6 +384,48 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         XCTAssertTrue(pbxBuildPhase is PBXResourcesBuildPhase)
         let pbxBuildFile: PBXBuildFile? = pbxBuildPhase?.files?.first
         XCTAssertEqual(pbxBuildFile?.file, fileElement)
+    }
+
+    func test_generateResourcesBuildPhase_whenContainsResourcesTags() throws {
+        // Given
+        let temporaryPath = try self.temporaryPath()
+        let resources: [ResourceFileElement] = [.file(path: "/file.type", tags: ["fileTag"]),
+                                                .folderReference(path: "/folder", tags: ["folderTag"])]
+        let target = Target.test(resources: resources)
+        let fileElements = ProjectFileElements()
+        let pbxproj = PBXProj()
+
+        let fileElement = PBXFileReference()
+        let folderElement = PBXFileReference()
+        pbxproj.add(object: fileElement)
+        pbxproj.add(object: folderElement)
+        fileElements.elements["/file.type"] = fileElement
+        fileElements.elements["/folder"] = folderElement
+
+        let nativeTarget = PBXNativeTarget(name: "Test")
+
+        let graph = ValueGraph.test(path: temporaryPath)
+        let graphTraverser = ValueGraphTraverser(graph: graph)
+
+        // When
+        try subject.generateResourcesBuildPhase(path: "/path",
+                                                target: target,
+                                                graphTraverser: graphTraverser,
+                                                pbxTarget: nativeTarget,
+                                                fileElements: fileElements,
+                                                pbxproj: pbxproj)
+
+        // Then
+        let pbxBuildPhase: PBXBuildPhase? = nativeTarget.buildPhases.first
+        XCTAssertNotNil(pbxBuildPhase)
+        XCTAssertTrue(pbxBuildPhase is PBXResourcesBuildPhase)
+
+        let resourceBuildPhase = try XCTUnwrap(nativeTarget.buildPhases.first as? PBXResourcesBuildPhase)
+        let allFileSettings = resourceBuildPhase.files?.map { $0.settings as? [String: AnyHashable] }
+        XCTAssertEqual(allFileSettings, [
+            ["ASSET_TAGS": ["fileTag"]],
+            ["ASSET_TAGS": ["folderTag"]],
+        ])
     }
 
     func test_generateResourceBundle() throws {

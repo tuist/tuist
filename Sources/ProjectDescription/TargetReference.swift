@@ -1,6 +1,6 @@
 import Foundation
 
-public struct TargetReference: Equatable, Codable, ExpressibleByStringLiteral {
+public struct TargetReference: Equatable, Codable, ExpressibleByStringInterpolation {
     public var projectPath: Path?
     public var targetName: String
 

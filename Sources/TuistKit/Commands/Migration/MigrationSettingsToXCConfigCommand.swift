@@ -6,6 +6,7 @@ import TuistSupport
 struct MigrationSettingsToXCConfigCommand: ParsableCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(commandName: "settings-to-xcconfig",
+                             _superCommandName: "migration",
                              abstract: "It extracts the build settings from a project or a target into an xcconfig file.")
     }
 

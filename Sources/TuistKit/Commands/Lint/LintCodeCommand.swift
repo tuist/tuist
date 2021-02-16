@@ -6,6 +6,7 @@ import TSCBasic
 struct LintCodeCommand: ParsableCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(commandName: "code",
+                             _superCommandName: "lint",
                              abstract: "Lints the code of your projects using Swiftlint.")
     }
 
