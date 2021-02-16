@@ -228,47 +228,57 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
             path: coreProjectPath,
             schemes: [coreScheme, coreTestsScheme]
         )
-        let coreTargetNode = TargetNode.test(
-            project: coreProject,
-            target: coreTarget
+        let coreValueGraphTarget = ValueGraphTarget.test(
+            target: coreTarget,
+            project: coreProject
         )
         let coreTestsTarget = Target.test(
             name: "CoreTests",
             product: .unitTests,
             dependencies: [.target(name: "Core")]
         )
-        let coreTestsTargetNode = TargetNode.test(
-            project: coreProject,
-            target: coreTestsTarget
+        let coreTestsValueGraphTarget = ValueGraphTarget.test(
+            target: coreTestsTarget,
+            project: coreProject
         )
         let kitTarget = Target.test(name: "Kit", dependencies: [.target(name: "Core")])
         let kitProject = Project.test(
             path: projectPath,
             schemes: [kitScheme, kitTestsScheme]
         )
-        let kitTargetNode = TargetNode.test(
-            project: kitProject,
-            target: kitTarget
+        let kitValueGraphTarget = ValueGraphTarget.test(
+            target: kitTarget,
+            project: kitProject
         )
         let kitTestsTarget = Target.test(
             name: "KitTests",
             product: .unitTests,
             dependencies: [.target(name: "Kit")]
         )
-        let kitTestsTargetNode = TargetNode.test(
-            project: kitProject,
-            target: kitTestsTarget
+        let kitTestsValueGraphTarget = ValueGraphTarget.test(
+            target: kitTestsTarget,
+            project: kitProject
         )
-        let graph = Graph.test(
-            entryNodes: [kitTargetNode],
+        let graph = ValueGraph.test(
+            projects: [
+                kitProject.path: kitProject,
+                coreProject.path: coreProject,
+            ],
             targets: [
-                projectPath: [kitTargetNode, kitTestsTargetNode],
-                coreProjectPath: [coreTargetNode, coreTestsTargetNode],
+                projectPath: [
+                    kitValueGraphTarget.target.name: kitValueGraphTarget.target,
+                    kitTestsValueGraphTarget.target.name: kitTestsValueGraphTarget.target
+                ],
+                coreProjectPath: [
+                    coreValueGraphTarget.target.name: coreValueGraphTarget.target,
+                    coreTestsValueGraphTarget.target.name: coreTestsValueGraphTarget.target
+                ],
             ]
         )
+        let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
-        let got = subject.testSchemes(graph: graph)
+        let got = subject.testSchemes(graphTraverser: graphTraverser)
 
         // Then
         XCTAssertEqual(
@@ -302,19 +312,24 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
             path: coreProjectPath,
             schemes: [coreScheme, coreTestsScheme]
         )
-        let coreTargetNode = TargetNode.test(
-            project: coreProject,
-            target: coreTarget
+        let coreValueGraphTarget = ValueGraphTarget.test(
+            target: coreTarget,
+            project: coreProject
         )
-        let graph = Graph.test(
-            entryNodes: [coreTargetNode],
+        let graph = ValueGraph.test(
             projects: [
-                coreProject,
+                coreProject.path: coreProject,
+            ],
+            targets: [
+                coreProject.path: [
+                    coreValueGraphTarget.target.name: coreValueGraphTarget.target
+                ]
             ]
         )
+        let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
-        let got = subject.testableSchemes(graph: graph)
+        let got = subject.testableSchemes(graphTraverser: graphTraverser)
 
         // Then
         XCTAssertEqual(
@@ -402,7 +417,7 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
 
     func test_projectSchemes_when_multiple_platforms() {
         // Given
-        let graph: Graph = .test(
+        let graph: ValueGraph = .test(
             workspace: .test(
                 name: "WorkspaceName",
                 schemes: [
@@ -412,9 +427,10 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
                 ]
             )
         )
+        let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
-        let got = subject.projectSchemes(graph: graph)
+        let got = subject.projectSchemes(graphTraverser: graphTraverser)
 
         // Then
         XCTAssertEqual(
@@ -428,7 +444,7 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
 
     func test_projectSchemes_when_single_platform() {
         // Given
-        let graph: Graph = .test(
+        let graph: ValueGraph = .test(
             workspace: .test(
                 name: "WorkspaceName",
                 schemes: [
@@ -437,9 +453,10 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
                 ]
             )
         )
+        let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
-        let got = subject.projectSchemes(graph: graph)
+        let got = subject.projectSchemes(graphTraverser: graphTraverser)
 
         // Then
         XCTAssertEqual(
