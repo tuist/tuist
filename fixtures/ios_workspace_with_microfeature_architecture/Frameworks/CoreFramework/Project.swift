@@ -1,11 +1,12 @@
 import ProjectDescription
+import BundlePlugin
 
 let project = Project(name: "Core",
                       targets: [
                         Target(name: "Core",
                                platform: .iOS,
                                product: .framework,
-                               bundleId: "io.tuist.Core",
+                               bundleId: .bundleId(for: "Core"),
                                infoPlist: "Info.plist",
                                sources: ["Sources/**"],
                                resources: [
@@ -15,7 +16,7 @@ let project = Project(name: "Core",
                         Target(name: "CoreTests",
                                platform: .iOS,
                                product: .unitTests,
-                               bundleId: "io.tuist.CoreTests",
+                               bundleId: .bundleId(for: "CoreTests"),
                                infoPlist: "Tests.plist",
                                sources: "Tests/**",
                                dependencies: [
