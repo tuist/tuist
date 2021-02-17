@@ -284,7 +284,19 @@ public class ValueGraphTraverser: GraphTraversing {
                     .compactMap(dependencyReference)
             }
 
-            references.formUnion(transitiveStaticTargetReferences + staticDependenciesDynamicLibrariesAndFrameworks)
+            let staticDependenciesPrecompiledDynamicLibrariesAndFrameworks = transitiveStaticTargets.flatMap { (dependency) -> [GraphDependencyReference] in
+                self.graph.dependencies[dependency, default: []]
+                    .lazy
+                    .filter(\.isPrecompiled)
+                    .filter(isDependencyPrecompiledDynamicAndLinkable)
+                    .compactMap(dependencyReference)
+            }
+
+            references.formUnion(
+                transitiveStaticTargetReferences
+                    + staticDependenciesDynamicLibrariesAndFrameworks
+                    + staticDependenciesPrecompiledDynamicLibrariesAndFrameworks
+            )
         }
 
         // Link dynamic libraries and frameworks

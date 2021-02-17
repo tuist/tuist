@@ -40,6 +40,6 @@ let project = Project(
                sources: "Tests/**",
                dependencies: [
                 .target(name: "Framework1-macOS"),
-            ]),
+            ])
     ]
 )

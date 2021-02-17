@@ -1632,6 +1632,151 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
                        [SDKPathAndStatus(name: "ThingOne.framework", status: .optional)])
     }
 
+    func test_linkableDependencies_includeTransitivePrecompiledDependenciesOfStaticFrameworks() throws {
+        // Given
+        // App > StaticFramework > PrecompiledDynamicFramework
+        let app = Target.test(name: "App", product: .app)
+        let staticFramework = Target.test(name: "StaticFramework", product: .staticFramework)
+        let precompiled = ValueGraphDependency.framework(
+            path: "/path/to/frameworks/precompiled.framework",
+            binaryPath: "/path/to/frameworks/precompiled.framework/precompiled",
+            dsymPath: nil,
+            bcsymbolmapPaths: [],
+            linking: .dynamic,
+            architectures: [.arm64],
+            isCarthage: false
+        )
+        let project = Project.test(path: "/path/project", targets: [app, staticFramework])
+        let valueGraph = ValueGraph.test(
+            projects: [project.path: project],
+            targets: [
+                project.path: [
+                    app.name: app,
+                    staticFramework.name: staticFramework,
+                ],
+            ],
+            dependencies: [
+                .target(name: app.name, path: project.path): Set([
+                    .target(name: staticFramework.name, path: project.path),
+                ]),
+                .target(name: staticFramework.name, path: project.path): Set([
+                    precompiled,
+                ]),
+            ]
+        )
+        let subject = ValueGraphTraverser(graph: valueGraph)
+
+        // When
+        let result = try subject.linkableDependencies(path: project.path, name: app.name)
+
+        // Then
+        XCTAssertEqual(result.sorted(), [
+            .product(target: "StaticFramework", productName: "StaticFramework.framework"),
+            .framework(
+                path: "/path/to/frameworks/precompiled.framework",
+                binaryPath: "/path/to/frameworks/precompiled.framework/precompiled",
+                isCarthage: false,
+                dsymPath: nil,
+                bcsymbolmapPaths: [],
+                linking: .dynamic,
+                architectures: [.arm64],
+                product: .framework
+            ),
+        ])
+    }
+
+    func test_linkableDependencies_doNotIncludeTransitivePrecompiledDependenciesOfDynamicFrameworks() throws {
+        // Given
+        // App > DynamicFramework > PrecompiledDynamicFramework
+        let app = Target.test(name: "App", product: .app)
+        let framework = Target.test(name: "DynamicFramework", product: .framework)
+        let precompiled = ValueGraphDependency.framework(
+            path: "/path/to/frameworks/precompiled.framework",
+            binaryPath: "/path/to/frameworks/precompiled.framework/precompiled",
+            dsymPath: nil,
+            bcsymbolmapPaths: [],
+            linking: .dynamic,
+            architectures: [.arm64],
+            isCarthage: false
+        )
+        let project = Project.test(path: "/path/project", targets: [app, framework])
+        let valueGraph = ValueGraph.test(
+            projects: [project.path: project],
+            targets: [
+                project.path: [
+                    app.name: app,
+                    framework.name: framework,
+                ],
+            ],
+            dependencies: [
+                .target(name: app.name, path: project.path): Set([
+                    .target(name: framework.name, path: project.path),
+                ]),
+                .target(name: framework.name, path: project.path): Set([
+                    precompiled,
+                ]),
+            ]
+        )
+        let subject = ValueGraphTraverser(graph: valueGraph)
+
+        // When
+        let result = try subject.linkableDependencies(path: project.path, name: app.name)
+
+        // Then
+        XCTAssertEqual(result.sorted(), [
+            .product(target: "DynamicFramework", productName: "DynamicFramework.framework"),
+        ])
+    }
+
+    func test_linkableDependencies_doNotIncludeTransitivePrecompiledDependenciesOfDynamicFrameworks2() throws {
+        // Given
+        // App > StaticFramework > DynamicFramework > PrecompiledDynamicFramework
+        let app = Target.test(name: "App", product: .app)
+        let staticFramework = Target.test(name: "StaticFramework", product: .staticFramework)
+        let framework = Target.test(name: "DynamicFramework", product: .framework)
+        let precompiled = ValueGraphDependency.framework(
+            path: "/path/to/frameworks/precompiled.framework",
+            binaryPath: "/path/to/frameworks/precompiled.framework/precompiled",
+            dsymPath: nil,
+            bcsymbolmapPaths: [],
+            linking: .dynamic,
+            architectures: [.arm64],
+            isCarthage: false
+        )
+        let project = Project.test(path: "/path/project", targets: [app, staticFramework, framework])
+        let valueGraph = ValueGraph.test(
+            projects: [project.path: project],
+            targets: [
+                project.path: [
+                    app.name: app,
+                    staticFramework.name: staticFramework,
+                    framework.name: framework,
+                ],
+            ],
+            dependencies: [
+                .target(name: app.name, path: project.path): Set([
+                    .target(name: staticFramework.name, path: project.path),
+                ]),
+                .target(name: staticFramework.name, path: project.path): Set([
+                    .target(name: framework.name, path: project.path),
+                ]),
+                .target(name: framework.name, path: project.path): Set([
+                    precompiled,
+                ]),
+            ]
+        )
+        let subject = ValueGraphTraverser(graph: valueGraph)
+
+        // When
+        let result = try subject.linkableDependencies(path: project.path, name: app.name)
+
+        // Then
+        XCTAssertEqual(result.sorted(), [
+            .product(target: "DynamicFramework", productName: "DynamicFramework.framework"),
+            .product(target: "StaticFramework", productName: "StaticFramework.framework"),
+        ])
+    }
+
     func test_linkableDependencies_when_watchExtension() throws {
         // Given
         let frameworkA = Target.test(name: "FrameworkA", product: .framework)

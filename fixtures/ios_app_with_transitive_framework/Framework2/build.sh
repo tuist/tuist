@@ -1,6 +1,6 @@
 #!/bin/sh
 
-swift run tuist generate
+tuist generate
 
 TEMP_DIR="/tmp/tuist-framework-2-fixture"
 IPHONE_SIM_DIR="$TEMP_DIR/Build/Products/Debug-iphoneos"
