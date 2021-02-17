@@ -32,4 +32,3 @@ public struct RunActionOptions: Equatable, Codable {
         self.init(storeKitConfigurationPath: storeKitConfigurationPath)
     }
 }
-
