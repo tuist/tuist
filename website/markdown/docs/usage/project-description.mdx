@@ -907,6 +907,14 @@ It represents the scheme action that runs the built products on the supported pl
       default: 'nil',
     },
     {
+      name: 'Options',
+      description: 'List of options to set to the action.',
+      type: 'RunActionOptions',
+      typeLink: '#run-action-options',
+      optional: true,
+      default: '.options()',
+    },    
+    {
       name: 'Diagnostics options',
       description: 'List of diagnostics options to set to the action.',
       type: '[SchemeDiagnosticsOption]',
@@ -1161,6 +1169,23 @@ Arguments contain commandline arguments passed on launch and Environment variabl
       optional: true,
       default: '[]',
     },
+  ]}
+/>
+
+### Run Action Options
+
+Run action options represent the configuration of a run action.
+
+<PropertiesTable
+  properties={[
+    {
+      name: 'StoreKitConfigurationPath',
+      description:
+        'Path of the StoreKit Configuration file that is used to control and debug StoreKit purchases. It only works with Xcode 12 and above.',
+      type: 'Path',
+      optional: true,
+      default: 'nil',
+    }
   ]}
 />
 

@@ -332,6 +332,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
 
         var commandlineArguments: XCScheme.CommandLineArguments?
         var environments: [XCScheme.EnvironmentVariable]?
+        var storeKitConfigurationFileReference: XCScheme.StoreKitConfigurationFileReference?
 
         if let arguments = scheme.runAction?.arguments {
             commandlineArguments = XCScheme.CommandLineArguments(arguments: commandlineArgruments(arguments.launchArguments))
@@ -343,6 +344,15 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         let isSchemeForAppExtension = self.isSchemeForAppExtension(scheme: scheme, graphTraverser: graphTraverser)
         let launchActionConstants: Constants.LaunchAction = isSchemeForAppExtension == true ? .extension : .default
 
+        if
+            let storeKitFilePath = scheme.runAction?.options.storeKitConfigurationPath,
+            let graphTarget = graphTraverser.target(path: target.projectPath, name: target.name)
+        {
+            // the identifier is the relative path between the storekit file, and the xcode project
+            let fileRelativePath = storeKitFilePath.relative(to: graphTarget.project.xcodeProjPath)
+            storeKitConfigurationFileReference = .init(identifier: fileRelativePath.pathString)
+        }
+
         return XCScheme.LaunchAction(runnable: buildableProductRunnable,
                                      buildConfiguration: buildConfiguration,
                                      macroExpansion: macroExpansion,
@@ -353,7 +363,8 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
                                      disableMainThreadChecker: disableMainThreadChecker,
                                      commandlineArguments: commandlineArguments,
                                      environmentVariables: environments,
-                                     launchAutomaticallySubstyle: launchActionConstants.launchAutomaticallySubstyle)
+                                     launchAutomaticallySubstyle: launchActionConstants.launchAutomaticallySubstyle,
+                                     storeKitConfigurationFileReference: storeKitConfigurationFileReference)
     }
 
     /// Generates the scheme profile action for a given target.

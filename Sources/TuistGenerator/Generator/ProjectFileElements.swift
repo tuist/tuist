@@ -93,6 +93,16 @@ class ProjectFileElements {
                              isReference: $0.isReference)
         })
 
+        // Add the .storekit files if needed. StoreKit files must be added to the
+        // project/workspace so that the scheme can correctly reference them.
+        // In case the configuration already contains such file, we should avoid adding it twice
+        let storekitFiles = project.schemes.compactMap { scheme -> GroupFileElement? in
+            guard let path = scheme.runAction?.options.storeKitConfigurationPath else { return nil }
+            return GroupFileElement(path: path, group: project.filesGroup)
+        }
+
+        fileElements.formUnion(storekitFiles)
+
         return fileElements
     }
 
