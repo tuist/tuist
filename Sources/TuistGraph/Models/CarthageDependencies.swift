@@ -6,7 +6,7 @@ import Foundation
 public struct CarthageDependencies: Equatable {
     public let dependencies: [Dependency]
     public let options: Options
-    
+
     /// Initializes the carthage dependency with its attributes.
     public init(dependencies: [Dependency], options: Options) {
         self.dependencies = dependencies
@@ -39,7 +39,7 @@ public extension CarthageDependencies {
             }
         }
     }
-    
+
     enum Requirement: Equatable {
         case exact(String)
         case upToNext(String)
@@ -63,11 +63,11 @@ public extension CarthageDependencies {
             }
         }
     }
-    
+
     struct Options: Equatable {
         public let platforms: Set<Platform>
         public let useXCFrameworks: Bool
-        
+
         public init(platforms: Set<Platform>, useXCFrameworks: Bool) {
             self.platforms = platforms
             self.useXCFrameworks = useXCFrameworks

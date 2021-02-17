@@ -27,7 +27,7 @@ final class DependenciesManifestMapperTests: TuistUnitTestCase {
         let model = try TuistGraph.Dependencies.from(manifest: manifest)
 
         // Then
-        let expected : TuistGraph.Dependencies = .init(
+        let expected: TuistGraph.Dependencies = .init(
             carthageDependencies: .init(
                 dependencies: [
                     .github(path: "Dependency1", requirement: .exact("1.1.1")),

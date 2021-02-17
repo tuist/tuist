@@ -93,7 +93,7 @@ public final class CarthageInteractor: CarthageInteracting {
                 guard try carthageController.isXCFrameworksProductionSupported() else {
                     throw CarthageInteractorError.xcFrameworksProductionNotSupported
                 }
-                
+
                 return true
             }()
             let command = carthageCommandGenerator.command(path: temporaryDirectoryPath, produceXCFrameworks: produceXCFrameworks, platforms: dependencies.options.platforms)
@@ -101,7 +101,7 @@ public final class CarthageInteractor: CarthageInteracting {
             // log
             logger.info("Command:", metadata: .subsection)
             logger.info("\(command.joined(separator: " "))")
-            
+
             // run `carthage`
             logger.info("Carthage:", metadata: .subsection)
             try System.shared.runAndPrint(command)
@@ -125,7 +125,7 @@ public final class CarthageInteractor: CarthageInteracting {
         let cartfileContent = dependencies.cartfileValue
         let cartfilePath = pathsProvider.temporaryDirectoryPath.appending(component: "Cartfile")
         try fileHandler.write(cartfileContent, path: cartfilePath, atomically: true)
-        
+
         // log
         logger.info("Cartfile:", metadata: .subsection)
         logger.info("\(cartfileContent)")

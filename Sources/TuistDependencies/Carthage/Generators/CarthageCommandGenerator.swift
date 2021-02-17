@@ -19,7 +19,7 @@ public protocol CarthageCommandGenerating {
 public final class CarthageCommandGenerator: CarthageCommandGenerating {
     public init() {}
 
-    public func command(path: AbsolutePath,  produceXCFrameworks: Bool, platforms: Set<Platform>?) -> [String] {
+    public func command(path: AbsolutePath, produceXCFrameworks: Bool, platforms: Set<Platform>?) -> [String] {
         var commandComponents: [String] = []
         commandComponents.append("carthage")
         commandComponents.append("bootstrap")
@@ -46,7 +46,7 @@ public final class CarthageCommandGenerator: CarthageCommandGenerating {
         commandComponents.append("--use-netrc")
         commandComponents.append("--cache-builds")
         commandComponents.append("--new-resolver")
-        
+
         if produceXCFrameworks {
             commandComponents.append("--use-xcframeworks")
         }

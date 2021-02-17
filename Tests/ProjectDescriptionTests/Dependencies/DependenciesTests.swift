@@ -9,7 +9,7 @@ final class DependenciesTests: XCTestCase {
             carthageDependencies: .init(
                 dependencies: [
                     .github(path: "Dependency1/Dependency1", requirement: .branch("BranchName")),
-                    .git(path: "Dependency2/Dependency2", requirement: .upToNext("1.2.3"))
+                    .git(path: "Dependency2/Dependency2", requirement: .upToNext("1.2.3")),
                 ],
                 options: .init(
                     platforms: [.iOS, .macOS],

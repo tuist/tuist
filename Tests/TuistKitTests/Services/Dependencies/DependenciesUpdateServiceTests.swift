@@ -44,7 +44,8 @@ final class DependenciesUpdateServiceTests: TuistUnitTestCase {
                 dependencies: [
                     .git(path: "Dependency1", requirement: .exact("1.1.1")),
                 ],
-                options: .init(platforms: [.iOS, .macOS], useXCFrameworks: false))
+                options: .init(platforms: [.iOS, .macOS], useXCFrameworks: false)
+            )
         )
         dependenciesModelLoader.loadDependenciesStub = { _ in stubbedDependencies }
 

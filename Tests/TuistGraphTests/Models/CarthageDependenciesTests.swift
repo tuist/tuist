@@ -22,7 +22,7 @@ final class CarthageDependenciesTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(got, expected)
     }
-    
+
     func test_cartfileValue_multipleDependencies() {
         // Given
         let carthageDependencies: CarthageDependencies = .init(
@@ -53,9 +53,9 @@ final class CarthageDependenciesTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(got, expected)
     }
-    
+
     // MARK: - CarthageDependency.Dependency tests
-    
+
     func test_dependency_cartfileValue_github() {
         // Given
         let origin: CarthageDependencies.Dependency = .github(path: "Alamofire/Alamofire", requirement: .exact("1.2.3"))
@@ -70,7 +70,7 @@ final class CarthageDependenciesTests: TuistUnitTestCase {
 
     func test_dependency_cartfileValue_git() {
         // Given
-        let origin: CarthageDependencies.Dependency  = .git(path: "https://enterprise.local/desktop/git-error-translations2.git", requirement: .atLeast("5.4.3"))
+        let origin: CarthageDependencies.Dependency = .git(path: "https://enterprise.local/desktop/git-error-translations2.git", requirement: .atLeast("5.4.3"))
         let expected = #"git "https://enterprise.local/desktop/git-error-translations2.git" >= 5.4.3"#
 
         // When
@@ -82,7 +82,7 @@ final class CarthageDependenciesTests: TuistUnitTestCase {
 
     func test_dependency_cartfileValue_binary() {
         // Given
-        let origin: CarthageDependencies.Dependency  = .binary(path: "file:///some/local/path/MyFramework.json", requirement: .upToNext("5.0.0"))
+        let origin: CarthageDependencies.Dependency = .binary(path: "file:///some/local/path/MyFramework.json", requirement: .upToNext("5.0.0"))
         let expected = #"binary "file:///some/local/path/MyFramework.json" ~> 5.0.0"#
 
         // When
@@ -91,7 +91,7 @@ final class CarthageDependenciesTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(got, expected)
     }
-    
+
     // MARK: - CarthageDependencies.Requirement tests
 
     func test_requirement_cartfileValue_exact() {

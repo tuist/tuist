@@ -6,7 +6,7 @@ public struct CarthageDependencies: Codable, Equatable {
     public let dependencies: [Dependency]
     /// Set of options that allows to adjust Carthage installation.
     public let options: Options
-    
+
     /// Initializes a new `CarthageDependencies` instance.
     /// - Parameters:
     ///   - dependencies: List of depedencies that can by installed using Carthage.
@@ -24,7 +24,7 @@ public extension CarthageDependencies {
         case git(path: String, requirement: Requirement)
         case binary(path: String, requirement: Requirement)
     }
-    
+
     /// Specifices version requirement for Carthage depedency.
     enum Requirement: Codable, Equatable {
         case exact(Version)
@@ -33,14 +33,14 @@ public extension CarthageDependencies {
         case branch(String)
         case revision(String)
     }
-    
+
     /// Contains set of options that allows to adjust the Carthage installation.
     struct Options: Codable, Equatable {
         /// List of platforms for which you want to install depedencies.
         public let platforms: Set<Platform>
         /// Indicates whether the Carthage produces XCFrameworks or regular frameworks.
         public let useXCFrameworks: Bool
-        
+
         /// Default options.
         public static var `default`: Self {
             .init(
@@ -48,7 +48,7 @@ public extension CarthageDependencies {
                 useXCFrameworks: false
             )
         }
-        
+
         /// Initializes a new `CarthageDependencies.Options` instance.
         /// - Parameters:
         ///   - platforms: List of platforms for which you want to install depedencies.
@@ -68,13 +68,13 @@ extension CarthageDependencies.Dependency {
         case git
         case binary
     }
-    
+
     private enum CodingKeys: String, CodingKey {
         case kind
         case path
         case requirement
     }
-    
+
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let kind = try container.decode(Kind.self, forKey: .kind)
@@ -130,7 +130,7 @@ extension CarthageDependencies.Requirement {
         case branch
         case revision
     }
-    
+
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let kind = try container.decode(Kind.self, forKey: .kind)

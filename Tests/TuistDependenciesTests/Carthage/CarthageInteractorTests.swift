@@ -56,7 +56,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
             .appending(component: Constants.DependenciesDirectory.name)
         let dependencies = CarthageDependencies(
             dependencies: [
-                .github(path: "Moya", requirement: .exact("1.1.1"))
+                .github(path: "Moya", requirement: .exact("1.1.1")),
             ],
             options: .init(platforms: [.iOS], useXCFrameworks: false)
         )
@@ -67,7 +67,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
             CarthageInteractorError.carthageNotFound
         )
     }
-    
+
     func test_fetch_throws_when_xcFrameworkdProductionUnsupported_and_useXCFrameworksSpecifiedInOptions() throws {
         // Given
         carthageController.canUseSystemCarthageStub = { true }
@@ -78,11 +78,11 @@ final class CarthageInteractorTests: TuistUnitTestCase {
             .appending(component: Constants.DependenciesDirectory.name)
         let dependencies = CarthageDependencies(
             dependencies: [
-                .github(path: "Moya", requirement: .exact("1.1.1"))
+                .github(path: "Moya", requirement: .exact("1.1.1")),
             ],
             options: .init(platforms: [.iOS], useXCFrameworks: true)
         )
-        
+
         XCTAssertThrowsSpecific(
             try subject.fetch(dependenciesDirectory: dependenciesDirectory, dependencies: dependencies),
             CarthageInteractorError.xcFrameworksProductionNotSupported
@@ -117,7 +117,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         let options = CarthageDependencies.Options(platforms: [.iOS, .watchOS, .macOS, .tvOS], useXCFrameworks: false)
         let stubbedDependencies = CarthageDependencies(
             dependencies: [
-                .github(path: "Moya", requirement: .exact("1.1.1"))
+                .github(path: "Moya", requirement: .exact("1.1.1")),
             ],
             options: options
         )
@@ -177,7 +177,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         let options = CarthageDependencies.Options(platforms: [.iOS], useXCFrameworks: false)
         let stubbedDependencies = CarthageDependencies(
             dependencies: [
-                .github(path: "Moya", requirement: .exact("1.1.1"))
+                .github(path: "Moya", requirement: .exact("1.1.1")),
             ],
             options: options
         )

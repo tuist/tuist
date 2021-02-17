@@ -13,7 +13,7 @@ extension TuistGraph.Dependencies {
             }
             return try TuistGraph.CarthageDependencies.from(manifest: carthageDependencies)
         }()
-        
+
         return Self(carthageDependencies: carthageDependencies)
     }
 }
