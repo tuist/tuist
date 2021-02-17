@@ -132,6 +132,7 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
     <td align="center"><a href="http://jinuman.github.io/resume"><img src="https://avatars.githubusercontent.com/u/26243835?v=4" width="100px;" alt=""/><br /><sub><b>Jinwoo, Kim</b></sub></a></td>
     <td align="center"><a href="https://github.com/thedavidharris"><img src="https://avatars.githubusercontent.com/u/5666250?v=4" width="100px;" alt=""/><br /><sub><b>David Harris</b></sub></a></td>
     <td align="center"><a href="https://github.com/DimaMishchenko"><img src="https://avatars.githubusercontent.com/u/25247301?v=4" width="100px;" alt=""/><br /><sub><b>Dmytro Mishchenko</b></sub></a></td>
+    <td align="center"><a href="http://www.sampettersson.com"><img src="https://avatars.githubusercontent.com/u/5459507?v=4" width="100px;" alt=""/><br /><sub><b>Sam Pettersson</b></sub></a></td>
   </tr>
 </table>
 
