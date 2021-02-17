@@ -98,14 +98,19 @@ public final class CarthageInteractor: CarthageInteracting {
             }()
             let command = carthageCommandGenerator.command(path: temporaryDirectoryPath, produceXCFrameworks: produceXCFrameworks, platforms: dependencies.options.platforms)
 
+            // log
+            logger.info("Command:", metadata: .subsection)
+            logger.info("\(command.joined(separator: " "))")
+            
             // run `carthage`
+            logger.info("Carthage:", metadata: .subsection)
             try System.shared.runAndPrint(command)
 
             // post intallation actions
             try postInstallationActions(pathsProvider: pathsProvider)
         }
 
-        logger.info("Carthage dependencies were fetched successfully.", metadata: .success)
+        logger.info("Carthage dependencies were fetched successfully.", metadata: .subsection)
     }
 
     // MARK: - Installation
@@ -120,6 +125,10 @@ public final class CarthageInteractor: CarthageInteracting {
         let cartfileContent = dependencies.cartfileValue
         let cartfilePath = pathsProvider.temporaryDirectoryPath.appending(component: "Cartfile")
         try fileHandler.write(cartfileContent, path: cartfilePath, atomically: true)
+        
+        // log
+        logger.info("Cartfile:", metadata: .subsection)
+        logger.info("\(cartfileContent)")
     }
 
     private func postInstallationActions(pathsProvider: CarthagePathsProvider) throws {
