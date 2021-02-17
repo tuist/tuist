@@ -1,6 +1,7 @@
 import Foundation
 import GraphViz
 import TuistCore
+import TuistGraph
 
 extension GraphViz.Node {
     mutating func applyAttributes(attributes: NodeStyleAttributes?) {
@@ -32,55 +33,48 @@ struct NodeStyleAttributes {
     }
 }
 
-extension GraphNode {
+extension ValueGraphTarget {
+    var styleAttributes: NodeStyleAttributes {
+        switch target.product {
+        case .app, .watch2App, .commandLineTool, .appClip:
+            return .init(fillColorName: .deepskyblue, strokeWidth: 1.5, shape: .box3d)
+        case .appExtension, .watch2Extension:
+            return .init(fillColorName: .deepskyblue2, shape: .component)
+        case .messagesExtension, .stickerPackExtension:
+            return .init(fillColorName: .springgreen2, shape: .component)
+        case .framework:
+            return .init(fillColorName: .darkgoldenrod1, shape: .cylinder)
+        case .staticLibrary:
+            return .init(fillColorName: .coral1)
+        case .staticFramework:
+            return .init(fillColorName: .coral1, shape: .cylinder)
+        case .dynamicLibrary:
+            return .init(fillColorName: .darkgoldenrod3)
+        case .bundle:
+            return .init(fillColorName: .grey90, shape: .rectangle)
+        case .uiTests, .unitTests:
+            return .init(fillColorName: .limegreen, shape: .octagon)
+        }
+    }
+}
+
+extension ValueGraphDependency {
     var styleAttributes: NodeStyleAttributes? {
-        if self is SDKNode {
+        switch self {
+        case .sdk:
             return .init(fillColorName: .violet, shape: .rectangle)
-        }
-
-        if self is CocoaPodsNode {
+        case .cocoapods:
             return .init(fillColorName: .red2, textColorName: .white)
-        }
-
-        if self is FrameworkNode {
+        case .framework:
             return .init(fillColorName: .darkgoldenrod3, shape: .trapezium)
-        }
-
-        if self is LibraryNode {
+        case .library:
             return .init(fillColorName: .lightgray, shape: .folder)
-        }
-
-        if self is PackageProductNode {
+        case .packageProduct:
             return .init(fillColorName: .tan4, textColorName: .white, shape: .tab)
-        }
-
-        if self is PrecompiledNode {
+        case .xcframework:
             return .init(fillColorName: .lightskyblue1, shape: .trapezium)
+        case .target:
+            return nil
         }
-
-        if let targetNode = self as? TargetNode {
-            switch targetNode.target.product {
-            case .app, .watch2App, .commandLineTool, .appClip:
-                return .init(fillColorName: .deepskyblue, strokeWidth: 1.5, shape: .box3d)
-            case .appExtension, .watch2Extension:
-                return .init(fillColorName: .deepskyblue2, shape: .component)
-            case .messagesExtension, .stickerPackExtension:
-                return .init(fillColorName: .springgreen2, shape: .component)
-            case .framework:
-                return .init(fillColorName: .darkgoldenrod1, shape: .cylinder)
-            case .staticLibrary:
-                return .init(fillColorName: .coral1)
-            case .staticFramework:
-                return .init(fillColorName: .coral1, shape: .cylinder)
-            case .dynamicLibrary:
-                return .init(fillColorName: .darkgoldenrod3)
-            case .bundle:
-                return .init(fillColorName: .grey90, shape: .rectangle)
-            case .uiTests, .unitTests:
-                return .init(fillColorName: .limegreen, shape: .octagon)
-            }
-        }
-
-        return nil
     }
 }

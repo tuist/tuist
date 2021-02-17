@@ -97,22 +97,33 @@ final class GraphToGraphVizMapperTests: XCTestCase {
         return graph
     }
 
-    private func makeGivenGraph() throws -> TuistCore.Graph {
-        let project = Project.test()
-        let framework = FrameworkNode.test(path: AbsolutePath("/XcodeProj.framework"))
-        let library = LibraryNode.test(path: AbsolutePath("/RxSwift.a"))
-        let sdk = try SDKNode(name: "CoreData.framework", platform: .iOS, status: .required, source: .developer)
+    private func makeGivenGraph() throws -> ValueGraph {
+        let project = Project.test(path: "/")
+        let framework = ValueGraphDependency.testFramework(path: AbsolutePath("/XcodeProj.framework"))
+        let library = ValueGraphDependency.testLibrary(path: AbsolutePath("/RxSwift.a"))
+        let sdk = ValueGraphDependency.testSDK(name: "CoreData.framework", status: .required, source: .developer)
 
-        let core = TargetNode.test(target: Target.test(name: "Core"), dependencies: [
-            framework, library, sdk,
-        ])
-        let iOSApp = TargetNode.test(target: Target.test(name: "Tuist iOS"), dependencies: [core])
-        let watchApp = TargetNode.test(target: Target.test(name: "Tuist watchOS"), dependencies: [core])
-
-        let graph = Graph.test(entryNodes: [iOSApp, watchApp],
-                               projects: [project],
-                               precompiled: [framework, library],
-                               targets: [project.path: [core, iOSApp, watchApp]])
+        let core = ValueGraphTarget.test(target: Target.test(name: "Core"))
+        let iOSApp = ValueGraphTarget.test(target: Target.test(name: "Tuist iOS"))
+        let watchApp = ValueGraphTarget.test(target: Target.test(name: "Tuist watchOS"))
+        
+        let graph = ValueGraph.test(
+            projects: [
+                project.path: project,
+            ],
+            targets: [
+                project.path: [
+                    core.target.name: core.target,
+                    iOSApp.target.name: iOSApp.target,
+                    watchApp.target.name: watchApp.target
+                ]
+            ],
+            dependencies: [
+                .target(name: core.target.name, path: core.path): Set([framework, library, sdk]),
+                .target(name: iOSApp.target.name, path: iOSApp.path): Set([.target(name: core.target.name, path: core.path)]),
+                .target(name: watchApp.target.name, path: watchApp.path): Set([.target(name: core.target.name, path: core.path)]),
+            ]
+        )
 
         return graph
     }

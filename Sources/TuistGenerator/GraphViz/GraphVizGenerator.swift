@@ -3,6 +3,7 @@ import GraphViz
 import TSCBasic
 import TuistCore
 import TuistSupport
+import TuistGraph
 
 public protocol GraphVizGenerating {
     /// Generates the dot graph from the project in the current directory and returns it.
@@ -65,7 +66,7 @@ public final class GraphVizGenerator: GraphVizGenerating {
                                 targetsToFilter: [String]) throws -> GraphViz.Graph
     {
         let (graph, _) = try graphLoader.loadProject(path: path)
-        return graphToGraphVizMapper.map(graph: graph,
+        return graphToGraphVizMapper.map(graph: ValueGraph(graph: graph),
                                          skipTestTargets: skipTestTargets,
                                          skipExternalDependencies: skipExternalDependencies,
                                          targetsToFilter: targetsToFilter)
@@ -81,7 +82,7 @@ public final class GraphVizGenerator: GraphVizGenerating {
                                   skipExternalDependencies: Bool,
                                   targetsToFilter: [String]) throws -> GraphViz.Graph
     {
-        let graph = try graphLoader.loadWorkspace(path: path)
+        let graph = ValueGraph(graph: try graphLoader.loadWorkspace(path: path))
         return graphToGraphVizMapper.map(graph: graph,
                                          skipTestTargets: skipTestTargets,
                                          skipExternalDependencies: skipExternalDependencies,
