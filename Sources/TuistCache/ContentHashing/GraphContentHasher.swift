@@ -94,6 +94,13 @@ public final class GraphContentHasher: GraphContentHashing {
             visited[target] = false
             return false
         }
+
+        // Ignore bundles becase they can not be cached
+        if target.target.product == .bundle {
+            visited[target] = true
+            return true
+        }
+
         if let visitedValue = visited[target] { return visitedValue }
         let allTargetDependenciesAreHashable = target.targetDependencies
             .allSatisfy {
