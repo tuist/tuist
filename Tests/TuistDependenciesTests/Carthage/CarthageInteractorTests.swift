@@ -47,7 +47,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_fetch_carthageUnavailableInEnvironment() throws {
+    func test_fetch_throws_when_carthageUnavailableInEnvironment() throws {
         // Given
         carthageController.canUseSystemCarthageStub = { false }
 
@@ -65,6 +65,27 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         XCTAssertThrowsSpecific(
             try subject.fetch(dependenciesDirectory: dependenciesDirectory, dependencies: dependencies),
             CarthageInteractorError.carthageNotFound
+        )
+    }
+    
+    func test_fetch_throws_when_xcFrameworkdProductionUnsupported_and_useXCFrameworksSpecifiedInOptions() throws {
+        // Given
+        carthageController.canUseSystemCarthageStub = { true }
+        carthageController.isXCFrameworksProductionSupportedStub = { false }
+
+        let rootPath = try temporaryPath()
+        let dependenciesDirectory = rootPath
+            .appending(component: Constants.DependenciesDirectory.name)
+        let dependencies = CarthageDependencies(
+            dependencies: [
+                .github(path: "Moya", requirement: .exact("1.1.1"))
+            ],
+            options: .init(platforms: [.iOS], useXCFrameworks: true)
+        )
+        
+        XCTAssertThrowsSpecific(
+            try subject.fetch(dependenciesDirectory: dependenciesDirectory, dependencies: dependencies),
+            CarthageInteractorError.xcFrameworksProductionNotSupported
         )
     }
 
@@ -93,11 +114,12 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         try fileHandler.touch(temporaryDependenciesDirectory.appending(components: "tvOS", "ReactiveMoya.framework", "Info.plist"))
         try fileHandler.touch(temporaryDependenciesDirectory.appending(components: "tvOS", "RxMoya.framework", "Info.plist"))
 
+        let options = CarthageDependencies.Options(platforms: [.iOS, .watchOS, .macOS, .tvOS], useXCFrameworks: false)
         let stubbedDependencies = CarthageDependencies(
             dependencies: [
                 .github(path: "Moya", requirement: .exact("1.1.1"))
             ],
-            options: .init(platforms: [.iOS, .watchOS, .macOS, .tvOS], useXCFrameworks: false)
+            options: options
         )
         let stubbedCommand = ["carthage", "bootstrap", "--project-directory", temporaryDirectoryPath.pathString, "--platform iOS,macOS,tvOS,watchOS", "--cache-builds", "--new-resolver"]
 
@@ -132,8 +154,8 @@ final class CarthageInteractorTests: TuistUnitTestCase {
 
         XCTAssertTrue(carthageCommandGenerator.invokedCommand)
         XCTAssertEqual(carthageCommandGenerator.invokedCommandParameters?.path, temporaryDirectoryPath)
-        XCTAssertEqual(carthageCommandGenerator.invokedCommandParameters?.platforms, [.iOS, .watchOS, .macOS, .tvOS])
-        XCTAssertEqual(carthageCommandGenerator.invokedCommandParameters?.produceXCFrameworks, false)
+        XCTAssertEqual(carthageCommandGenerator.invokedCommandParameters?.platforms, options.platforms)
+        XCTAssertEqual(carthageCommandGenerator.invokedCommandParameters?.produceXCFrameworks, options.useXCFrameworks)
     }
 
     func test_fetch_onePlatform() throws {
@@ -152,11 +174,12 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         try fileHandler.touch(temporaryDependenciesDirectory.appending(components: "iOS", "ReactiveMoya.framework", "Info.plist"))
         try fileHandler.touch(temporaryDependenciesDirectory.appending(components: "iOS", "RxMoya.framework", "Info.plist"))
 
+        let options = CarthageDependencies.Options(platforms: [.iOS], useXCFrameworks: false)
         let stubbedDependencies = CarthageDependencies(
             dependencies: [
                 .github(path: "Moya", requirement: .exact("1.1.1"))
             ],
-            options: .init(platforms: [.iOS], useXCFrameworks: false)
+            options: options
         )
         let stubbedCommand = ["carthage", "bootstrap", "--project-directory", temporaryDirectoryPath.pathString, "--platform iOS", "--cache-builds", "--new-resolver"]
 
@@ -191,7 +214,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
 
         XCTAssertTrue(carthageCommandGenerator.invokedCommand)
         XCTAssertEqual(carthageCommandGenerator.invokedCommandParameters?.path, temporaryDirectoryPath)
-        XCTAssertEqual(carthageCommandGenerator.invokedCommandParameters?.platforms, [.iOS])
-        XCTAssertEqual(carthageCommandGenerator.invokedCommandParameters?.produceXCFrameworks, false)
+        XCTAssertEqual(carthageCommandGenerator.invokedCommandParameters?.platforms, options.platforms)
+        XCTAssertEqual(carthageCommandGenerator.invokedCommandParameters?.produceXCFrameworks, options.useXCFrameworks)
     }
 }

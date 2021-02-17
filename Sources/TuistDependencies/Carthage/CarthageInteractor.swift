@@ -1,5 +1,6 @@
 import RxBlocking
 import TSCBasic
+import TSCUtility
 import TuistCore
 import TuistGraph
 import TuistSupport
@@ -13,11 +14,16 @@ enum CarthageInteractorError: FatalError, Equatable {
     case cartfileNotFound
     /// Thrown when `Carthage/Build` directory cannont be found in temporary directory after Carthage installation.
     case buildDirectoryNotFound
+    /// Thrown when version of Carthage installed in environment does not support XCFrameworks production.
+    case xcFrameworksProductionNotSupported
 
     /// Error type.
     var type: ErrorType {
         switch self {
-        case .carthageNotFound, .cartfileNotFound, .buildDirectoryNotFound:
+        case .carthageNotFound,
+             .cartfileNotFound,
+             .buildDirectoryNotFound,
+             .xcFrameworksProductionNotSupported:
             return .abort
         }
     }
@@ -31,6 +37,8 @@ enum CarthageInteractorError: FatalError, Equatable {
             return "Cartfile was not found after Carthage installation."
         case .buildDirectoryNotFound:
             return "Carthage/Build directory was not found after Carthage installation."
+        case .xcFrameworksProductionNotSupported:
+            return "The version of Carthage installed in your environment doesn't suppport production of XCFrameworks. Update the tool or disbale XCFrameworks in your Dependencies.swift manifest."
         }
     }
 }
@@ -78,10 +86,17 @@ public final class CarthageInteractor: CarthageInteracting {
             try prepareForInstallation(pathsProvider: pathsProvider, dependencies: dependencies)
 
             // create `carthage` shell command
-            #warning("WIP: Determine `produceXCFrameworks` value correctly.")
-            #warning("WIP: Check if `Carthage` installed in env supports xcframeworks.")
-            _ = dependencies.options.useXCFrameworks // use it
-            let command = carthageCommandGenerator.command(path: temporaryDirectoryPath, produceXCFrameworks: false, platforms: dependencies.options.platforms)
+            let produceXCFrameworks: Bool = try {
+                guard dependencies.options.useXCFrameworks else {
+                    return false
+                }
+                guard try carthageController.isXCFrameworksProductionSupported() else {
+                    throw CarthageInteractorError.xcFrameworksProductionNotSupported
+                }
+                
+                return true
+            }()
+            let command = carthageCommandGenerator.command(path: temporaryDirectoryPath, produceXCFrameworks: produceXCFrameworks, platforms: dependencies.options.platforms)
 
             // run `carthage`
             try System.shared.runAndPrint(command)
