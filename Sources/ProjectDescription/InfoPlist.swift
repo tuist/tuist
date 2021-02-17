@@ -156,21 +156,17 @@ public enum InfoPlist: Codable, Equatable {
     }
 }
 
-// MARK: - InfoPlist - ExpressibleByStringLiteral
+// MARK: - InfoPlist - ExpressibleByStringInterpolation
 
-extension InfoPlist: ExpressibleByStringLiteral, ExpressibleByUnicodeScalarLiteral, ExpressibleByExtendedGraphemeClusterLiteral {
-    public typealias UnicodeScalarLiteralType = String
-    public typealias ExtendedGraphemeClusterLiteralType = String
-    public typealias StringLiteralType = String
-
+extension InfoPlist: ExpressibleByStringInterpolation {
     public init(stringLiteral value: String) {
         self = .file(path: Path(value))
     }
 }
 
-// MARK: - InfoPlist.Value - ExpressibleByStringLiteral
+// MARK: - InfoPlist.Value - ExpressibleByStringInterpolation
 
-extension InfoPlist.Value: ExpressibleByStringLiteral {
+extension InfoPlist.Value: ExpressibleByStringInterpolation {
     public init(stringLiteral value: String) {
         self = .string(value)
     }

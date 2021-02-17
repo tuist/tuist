@@ -10,20 +10,27 @@ final class CachePrintHashesService {
     /// Project generator
     let generator: Generating
 
-    let graphContentHasher: GraphContentHashing
+    let cacheGraphContentHasher: CacheGraphContentHashing
     private let clock: Clock
     private let generatorModelLoader: GeneratorModelLoading
 
     convenience init(contentHasher: ContentHashing = CacheContentHasher()) {
-        self.init(generator: Generator(contentHasher: contentHasher),
-                  graphContentHasher: GraphContentHasher(contentHasher: contentHasher),
-                  clock: WallClock(),
-                  generatorModelLoader: GeneratorModelLoader())
+        self.init(
+            generator: Generator(contentHasher: contentHasher),
+            cacheGraphContentHasher: CacheGraphContentHasher(contentHasher: contentHasher),
+            clock: WallClock(),
+            generatorModelLoader: GeneratorModelLoader()
+        )
     }
 
-    init(generator: Generating, graphContentHasher: GraphContentHashing, clock: Clock, generatorModelLoader: GeneratorModelLoading) {
+    init(
+        generator: Generating,
+        cacheGraphContentHasher: CacheGraphContentHashing,
+        clock: Clock,
+        generatorModelLoader: GeneratorModelLoading
+    ) {
         self.generator = generator
-        self.graphContentHasher = graphContentHasher
+        self.cacheGraphContentHasher = cacheGraphContentHasher
         self.clock = clock
         self.generatorModelLoader = generatorModelLoader
     }
@@ -35,7 +42,11 @@ final class CachePrintHashesService {
         let config = try generatorModelLoader.loadConfig(at: path)
         let cacheOutputType: CacheOutputType = xcframeworks ? .xcframework : .framework
         let cacheProfile = try CacheProfileResolver().resolveCacheProfile(named: profile, from: config)
-        let hashes = try graphContentHasher.contentHashes(for: graph, cacheProfile: cacheProfile, cacheOutputType: cacheOutputType)
+        let hashes = try cacheGraphContentHasher.contentHashes(
+            for: graph,
+            cacheProfile: cacheProfile,
+            cacheOutputType: cacheOutputType
+        )
         let duration = timer.stop()
         let time = String(format: "%.3f", duration)
         guard hashes.count > 0 else {

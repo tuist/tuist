@@ -128,20 +128,12 @@ public extension Version {
     }
 }
 
-extension Version: ExpressibleByStringLiteral {
+extension Version: ExpressibleByStringInterpolation {
     public init(stringLiteral value: String) {
         guard let version = Version(string: value) else {
             fatalError("\(value) is not a valid version")
         }
         self = version
-    }
-
-    public init(extendedGraphemeClusterLiteral value: String) {
-        self.init(stringLiteral: value)
-    }
-
-    public init(unicodeScalarLiteral value: String) {
-        self.init(stringLiteral: value)
     }
 }
 

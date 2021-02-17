@@ -259,10 +259,13 @@ class Generator: Generating {
         let (graph, project) = try cachedGraphLoader.loadProject(path: path)
 
         // Apply graph mappers
-        let (updatedGraph, graphMapperSideEffects) = try graphMapperProvider.mapper(config: config).map(graph: graph)
-        var updatedWorkspace = updatedModels
-            .workspace
+        let (updatedGraph, graphMapperSideEffects) = try graphMapperProvider
+            .mapper(config: config)
+            .map(
+                graph: graph.with(workspace: updatedModels.workspace)
+            )
 
+        var updatedWorkspace = updatedGraph.workspace
         updatedWorkspace = updatedWorkspace.merging(projects: updatedGraph.projects.map(\.path))
 
         return (

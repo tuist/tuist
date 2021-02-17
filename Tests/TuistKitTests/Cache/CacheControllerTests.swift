@@ -17,7 +17,7 @@ import XCTest
 
 final class CacheControllerTests: TuistUnitTestCase {
     var generator: MockGenerator!
-    var graphContentHasher: MockGraphContentHasher!
+    var cacheGraphContentHasher: MockCacheGraphContentHasher!
     var artifactBuilder: MockCacheArtifactBuilder!
     var manifestLoader: MockManifestLoader!
     var cache: MockCacheStorage!
@@ -31,7 +31,7 @@ final class CacheControllerTests: TuistUnitTestCase {
         artifactBuilder = MockCacheArtifactBuilder()
         cache = MockCacheStorage()
         manifestLoader = MockManifestLoader()
-        graphContentHasher = MockGraphContentHasher()
+        cacheGraphContentHasher = MockCacheGraphContentHasher()
         config = .test()
         projectGeneratorProvider = MockCacheControllerProjectGeneratorProvider()
         projectGeneratorProvider.stubbedGeneratorResult = generator
@@ -39,7 +39,7 @@ final class CacheControllerTests: TuistUnitTestCase {
         subject = CacheController(cache: cache,
                                   artifactBuilder: artifactBuilder,
                                   projectGeneratorProvider: projectGeneratorProvider,
-                                  graphContentHasher: graphContentHasher,
+                                  cacheGraphContentHasher: cacheGraphContentHasher,
                                   cacheGraphLinter: cacheGraphLinter)
 
         super.setUp()
@@ -49,7 +49,7 @@ final class CacheControllerTests: TuistUnitTestCase {
         super.tearDown()
         generator = nil
         artifactBuilder = nil
-        graphContentHasher = nil
+        cacheGraphContentHasher = nil
         manifestLoader = nil
         cache = nil
         subject = nil
@@ -95,7 +95,9 @@ final class CacheControllerTests: TuistUnitTestCase {
             XCTAssertEqual(loadPath, path)
             return xcworkspacePath
         }
-        graphContentHasher.stubbedContentHashesResult = nodeWithHashes
+        cacheGraphContentHasher.contentHashesStub = { _, _, _ in
+            nodeWithHashes
+        }
         artifactBuilder.stubbedCacheOutputType = .xcframework
 
         // When
@@ -155,7 +157,9 @@ final class CacheControllerTests: TuistUnitTestCase {
             XCTAssertEqual(loadPath, path)
             return xcworkspacePath
         }
-        graphContentHasher.stubbedContentHashesResult = nodeWithHashes
+        cacheGraphContentHasher.contentHashesStub = { _, _, _ in
+            nodeWithHashes
+        }
         artifactBuilder.stubbedCacheOutputType = .xcframework
 
         // When

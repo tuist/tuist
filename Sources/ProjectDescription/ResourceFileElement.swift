@@ -66,10 +66,8 @@ public enum ResourceFileElement: Codable, Equatable {
     }
 }
 
-extension ResourceFileElement: ExpressibleByStringLiteral {
+extension ResourceFileElement: ExpressibleByStringInterpolation {
     public init(stringLiteral value: String) {
         self = .glob(pattern: Path(value))
     }
 }
-
-extension ResourceFileElement: ExpressibleByStringInterpolation {}

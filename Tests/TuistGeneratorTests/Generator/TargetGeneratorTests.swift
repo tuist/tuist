@@ -164,12 +164,12 @@ final class TargetGeneratorTests: XCTestCase {
         let preBuildPhase = pbxTarget.buildPhases.first as? PBXShellScriptBuildPhase
         XCTAssertEqual(preBuildPhase?.name, "pre")
         XCTAssertEqual(preBuildPhase?.shellPath, "/bin/sh")
-        XCTAssertEqual(preBuildPhase?.shellScript, "\"${PROJECT_DIR}\"/script.sh arg")
+        XCTAssertEqual(preBuildPhase?.shellScript, "\"$SRCROOT\"/script.sh arg")
 
         let postBuildPhase = pbxTarget.buildPhases.last as? PBXShellScriptBuildPhase
         XCTAssertEqual(postBuildPhase?.name, "post")
         XCTAssertEqual(postBuildPhase?.shellPath, "/bin/sh")
-        XCTAssertEqual(postBuildPhase?.shellScript, "\"${PROJECT_DIR}\"/script.sh arg")
+        XCTAssertEqual(postBuildPhase?.shellScript, "\"$SRCROOT\"/script.sh arg")
     }
 
     // MARK: - Helpers

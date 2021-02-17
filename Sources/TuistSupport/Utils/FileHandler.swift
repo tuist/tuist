@@ -69,6 +69,7 @@ public protocol FileHandling: AnyObject {
     func urlSafeBase64MD5(path: AbsolutePath) throws -> String
     func fileSize(path: AbsolutePath) throws -> UInt64
     func changeExtension(path: AbsolutePath, to newExtension: String) throws -> AbsolutePath
+    func resolveSymlinks(_ path: AbsolutePath) -> AbsolutePath
 }
 
 public class FileHandler: FileHandling {
@@ -248,6 +249,10 @@ public class FileHandler: FileHandling {
 
     public func contentsOfDirectory(_ path: AbsolutePath) throws -> [AbsolutePath] {
         try fileManager.contentsOfDirectory(atPath: path.pathString).map { AbsolutePath(path, $0) }
+    }
+
+    public func resolveSymlinks(_ path: AbsolutePath) -> AbsolutePath {
+        TSCBasic.resolveSymlinks(path)
     }
 
     // MARK: - MD5

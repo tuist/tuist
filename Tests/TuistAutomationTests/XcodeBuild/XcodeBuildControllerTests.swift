@@ -76,6 +76,7 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
             scheme: scheme,
             clean: true,
             destination: .device("device-id"),
+            derivedDataPath: nil,
             arguments: []
         )
         .toBlocking()
@@ -116,6 +117,48 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
             scheme: scheme,
             clean: true,
             destination: .mac,
+            derivedDataPath: nil,
+            arguments: []
+        )
+        .toBlocking()
+        .materialize()
+
+        switch events {
+        case let .completed(output):
+            XCTAssertEqual(output, [.standardOutput(XcodeBuildOutput(raw: "output\n"))])
+        case .failed:
+            XCTFail("The command was not expected to fail")
+        }
+    }
+
+    func test_test_with_derived_data() throws {
+        // Given
+        let path = try temporaryPath()
+        let xcworkspacePath = path.appending(component: "Project.xcworkspace")
+        let target = XcodeBuildTarget.workspace(xcworkspacePath)
+        let scheme = "Scheme"
+        let derivedDataPath = try temporaryPath()
+
+        var command = [
+            "/usr/bin/xcrun",
+            "xcodebuild",
+            "clean",
+            "test",
+            "-scheme",
+            scheme,
+        ]
+        command.append(contentsOf: target.xcodebuildArguments)
+        command.append(contentsOf: ["-derivedDataPath", derivedDataPath.pathString])
+
+        system.succeedCommand(command, output: "output")
+
+        // When
+        let events = subject.test(
+            target,
+            scheme: scheme,
+            clean: true,
+            destination: .mac,
+            derivedDataPath: derivedDataPath,
             arguments: []
         )
         .toBlocking()

@@ -287,6 +287,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "sampettersson",
+      "name": "Sam Pettersson",
+      "avatar_url": "https://avatars.githubusercontent.com/u/5459507?v=4",
+      "profile": "http://www.sampettersson.com",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,
