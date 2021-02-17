@@ -121,8 +121,11 @@ final class CacheController: CacheControlling {
             filteredTargets = Array(hashesByCacheableTarget.keys.filter { targetsToFilter.contains($0.name) })
         }
 
+        logger.notice("Removing Bundle targets")
+        let filteredTargetsWithoutBundles = filteredTargets.filter { $0.target.product != .bundle }
+
         logger.notice("Building cacheable targets")
-        let sortedCacheableTargets = try topologicalSort(filteredTargets, successors: \.targetDependencies)
+        let sortedCacheableTargets = try topologicalSort(filteredTargetsWithoutBundles, successors: \.targetDependencies)
 
         for (index, target) in sortedCacheableTargets.reversed().enumerated() {
             logger.notice("Building cacheable targets: \(target.name), \(index + 1) out of \(sortedCacheableTargets.count)")
