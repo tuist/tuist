@@ -403,4 +403,23 @@ final class MockGraphTraverser: GraphTraversing {
         }
         return stubbedAllProjectDependenciesResult
     }
+
+    var invokedDependsOnXCTest = false
+    var invokedDependsOnXCTestCount = 0
+    var invokedDependsOnXCTestParameters: (path: AbsolutePath, name: String)?
+    var invokedDependsOnXCTestParametersList = [(path: AbsolutePath, name: String)]()
+    var stubbedDependsOnXCTestResult: Bool! = false
+
+    func dependsOnXCTest(path: AbsolutePath, name: String) -> Bool {
+        invokedDependsOnXCTest = true
+        invokedDependsOnXCTestCount += 1
+        invokedDependsOnXCTestParameters = (path, name)
+        invokedDependsOnXCTestParametersList.append((path, name))
+        return stubbedDependsOnXCTestResult
+    }
+
+    var schemesStub: (() -> [Scheme])?
+    func schemes() -> [Scheme] {
+        schemesStub?() ?? []
+    }
 }

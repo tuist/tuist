@@ -49,6 +49,10 @@ public class ValueGraphTraverser: GraphTraversing {
         })
     }
 
+    public func schemes() -> [Scheme] {
+        projects.values.flatMap(\.schemes) + graph.workspace.schemes
+    }
+
     public func cocoapodsPaths() -> Set<AbsolutePath> {
         dependencies.reduce(into: Set<AbsolutePath>()) { acc, next in
             let fromDependency = next.key
@@ -394,6 +398,11 @@ public class ValueGraphTraverser: GraphTraversing {
             references.formUnion(self.copyProductDependencies(path: path, name: target.target.name))
         }
         return references
+    }
+
+    public func dependsOnXCTest(path: AbsolutePath, name: String) -> Bool {
+        directTargetDependencies(path: path, name: name)
+            .first(where: { $0.target.name == "XCTest" || $0.target.product.testsBundle }) != nil
     }
 
     // MARK: - Internal

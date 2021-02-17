@@ -114,10 +114,15 @@ final class TuistDocServiceTests: TuistUnitTestCase {
     }
 
     private func mockGraph(targetName: String, atPath path: AbsolutePath) {
-        let project = Project.test()
+        let project = Project.test(
+            path: path
+        )
         let target = Target.test(name: targetName)
         let targetNode = TargetNode(project: project, target: target, dependencies: [])
-        let graph = Graph.test(targets: [path: [targetNode]])
+        let graph = Graph.test(
+            projects: [project],
+            targets: [path: [targetNode]]
+        )
 
         generator.loadStub = { _ in
             graph

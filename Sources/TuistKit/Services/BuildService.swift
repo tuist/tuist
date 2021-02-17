@@ -58,14 +58,15 @@ final class BuildService {
         configuration: String?,
         path: AbsolutePath
     ) throws {
-        let graph: Graph
+        let graph: ValueGraph
         if try (generate || buildGraphInspector.workspacePath(directory: path) == nil) {
-            graph = try generator.generateWithGraph(path: path, projectOnly: false).1
+            graph = ValueGraph(graph: try generator.generateWithGraph(path: path, projectOnly: false).1)
         } else {
-            graph = try generator.load(path: path)
+            graph = ValueGraph(graph: try generator.load(path: path))
         }
+        let graphTraverser = ValueGraphTraverser(graph: graph)
 
-        let buildableSchemes = buildGraphInspector.buildableSchemes(graph: graph)
+        let buildableSchemes = buildGraphInspector.buildableSchemes(graphTraverser: graphTraverser)
 
         logger.log(level: .debug, "Found the following buildable schemes: \(buildableSchemes.map(\.name).joined(separator: ", "))")
 
@@ -73,13 +74,13 @@ final class BuildService {
             guard let scheme = buildableSchemes.first(where: { $0.name == schemeName }) else {
                 throw BuildServiceError.schemeNotFound(scheme: schemeName, existing: buildableSchemes.map(\.name))
             }
-            try buildScheme(scheme: scheme, graph: graph, path: path, clean: clean, configuration: configuration)
+            try buildScheme(scheme: scheme, graphTraverser: graphTraverser, path: path, clean: clean, configuration: configuration)
         } else {
             var cleaned: Bool = false
             // Run only buildable entry schemes when specific schemes has not been passed
-            let buildableEntrySchemes = buildGraphInspector.buildableEntrySchemes(graph: graph)
+            let buildableEntrySchemes = buildGraphInspector.buildableEntrySchemes(graphTraverser: graphTraverser)
             try buildableEntrySchemes.forEach {
-                try buildScheme(scheme: $0, graph: graph, path: path, clean: !cleaned && clean, configuration: configuration)
+                try buildScheme(scheme: $0, graphTraverser: graphTraverser, path: path, clean: !cleaned && clean, configuration: configuration)
                 cleaned = true
             }
         }
@@ -89,9 +90,9 @@ final class BuildService {
 
     // MARK: - private
 
-    private func buildScheme(scheme: Scheme, graph: Graph, path: AbsolutePath, clean: Bool, configuration: String?) throws {
+    private func buildScheme(scheme: Scheme, graphTraverser: GraphTraversing, path: AbsolutePath, clean: Bool, configuration: String?) throws {
         logger.log(level: .notice, "Building scheme \(scheme.name)", metadata: .section)
-        guard let (project, target) = buildGraphInspector.buildableTarget(scheme: scheme, graph: graph) else {
+        guard let (project, target) = buildGraphInspector.buildableTarget(scheme: scheme, graphTraverser: graphTraverser) else {
             throw BuildServiceError.schemeWithoutBuildableTargets(scheme: scheme.name)
         }
         let workspacePath = try buildGraphInspector.workspacePath(directory: path)!

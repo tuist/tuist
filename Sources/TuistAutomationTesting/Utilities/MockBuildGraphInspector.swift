@@ -13,27 +13,27 @@ public final class MockBuildGraphInspector: BuildGraphInspecting {
         workspacePathStub?(directory) ?? directory
     }
 
-    public var buildableTargetStub: ((Scheme, Graph) -> (Project, Target)?)?
-    public func buildableTarget(scheme: Scheme, graph: Graph) -> (Project, Target)? {
+    public var buildableTargetStub: ((Scheme, GraphTraversing) -> (Project, Target)?)?
+    public func buildableTarget(scheme: Scheme, graphTraverser: GraphTraversing) -> (Project, Target)? {
         if let buildableTargetStub = buildableTargetStub {
-            return buildableTargetStub(scheme, graph)
+            return buildableTargetStub(scheme, graphTraverser)
         } else {
             return (Project.test(), Target.test())
         }
     }
 
-    public var buildableSchemesStub: ((Graph) -> [Scheme])?
-    public func buildableSchemes(graph: Graph) -> [Scheme] {
+    public var buildableSchemesStub: ((GraphTraversing) -> [Scheme])?
+    public func buildableSchemes(graphTraverser: GraphTraversing) -> [Scheme] {
         if let buildableSchemesStub = buildableSchemesStub {
-            return buildableSchemesStub(graph)
+            return buildableSchemesStub(graphTraverser)
         } else {
             return []
         }
     }
 
-    public var buildableEntrySchemesStub: ((Graph) -> [Scheme])?
-    public func buildableEntrySchemes(graph: Graph) -> [Scheme] {
-        buildableEntrySchemesStub?(graph) ?? []
+    public var buildableEntrySchemesStub: ((GraphTraversing) -> [Scheme])?
+    public func buildableEntrySchemes(graphTraverser: GraphTraversing) -> [Scheme] {
+        buildableEntrySchemesStub?(graphTraverser) ?? []
     }
 
     public var buildArgumentsStub: ((Project, Target, String?, Bool) -> [XcodeBuildArgument])?
@@ -45,31 +45,31 @@ public final class MockBuildGraphInspector: BuildGraphInspecting {
         }
     }
 
-    public var testableTargetStub: ((Scheme, Graph) -> TargetNode?)?
-    public func testableTarget(scheme: Scheme, graph: Graph) -> TargetNode? {
+    public var testableTargetStub: ((Scheme, GraphTraversing) -> ValueGraphTarget?)?
+    public func testableTarget(scheme: Scheme, graphTraverser: GraphTraversing) -> ValueGraphTarget? {
         if let testableTargetStub = testableTargetStub {
-            return testableTargetStub(scheme, graph)
+            return testableTargetStub(scheme, graphTraverser)
         } else {
-            return TargetNode.test()
+            return ValueGraphTarget.test()
         }
     }
 
-    public var testableSchemesStub: ((Graph) -> [Scheme])?
-    public func testableSchemes(graph: Graph) -> [Scheme] {
+    public var testableSchemesStub: ((GraphTraversing) -> [Scheme])?
+    public func testableSchemes(graphTraverser: GraphTraversing) -> [Scheme] {
         if let testableSchemesStub = testableSchemesStub {
-            return testableSchemesStub(graph)
+            return testableSchemesStub(graphTraverser)
         } else {
             return []
         }
     }
 
-    public var testSchemesStub: ((Graph) -> [Scheme])?
-    public func testSchemes(graph: Graph) -> [Scheme] {
-        testSchemesStub?(graph) ?? []
+    public var testSchemesStub: ((GraphTraversing) -> [Scheme])?
+    public func testSchemes(graphTraverser: GraphTraversing) -> [Scheme] {
+        testSchemesStub?(graphTraverser) ?? []
     }
 
-    public var projectSchemesStub: ((Graph) -> [Scheme])?
-    public func projectSchemes(graph: Graph) -> [Scheme] {
-        projectSchemesStub?(graph) ?? []
+    public var projectSchemesStub: ((GraphTraversing) -> [Scheme])?
+    public func projectSchemes(graphTraverser: GraphTraversing) -> [Scheme] {
+        projectSchemesStub?(graphTraverser) ?? []
     }
 }
