@@ -53,7 +53,7 @@ public extension CarthageDependencies {
         /// - Parameters:
         ///   - platforms: List of platforms for which you want to install depedencies.
         ///   - useXCFrameworks: Indicates whether the Carthage produces XCFrameworks or regular frameworks.
-        public init(platforms: Set<Platform>, useXCFrameworks: Bool) {
+        public init(platforms: Set<Platform> = [], useXCFrameworks: Bool = false) {
             self.platforms = platforms
             self.useXCFrameworks = useXCFrameworks
         }
