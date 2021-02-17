@@ -55,6 +55,6 @@ final class SecurityController: SecurityControlling {
     }
 
     private func importToKeychain(at path: AbsolutePath, keychainPath: AbsolutePath) throws {
-        try System.shared.run("/usr/bin/security", "import", path.pathString, "-P", "", "-k", keychainPath.pathString)
+        try System.shared.run("/usr/bin/security", "import", path.pathString, "-P", "", "-T", "/usr/bin/codesign", "-T", "/usr/bin/security", "-k", keychainPath.pathString)
     }
 }
