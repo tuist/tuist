@@ -38,7 +38,10 @@ enum CarthageInteractorError: FatalError, Equatable {
         case .buildDirectoryNotFound:
             return "Carthage/Build directory was not found after Carthage installation."
         case .xcFrameworksProductionNotSupported:
-            return "The version of Carthage installed in your environment doesn't suppport production of XCFrameworks. Update the tool or disbale XCFrameworks in your Dependencies.swift manifest."
+            return """
+            The version of Carthage installed in your environment doesn't suppport production of XCFrameworks.
+            Update the tool or disbale XCFrameworks in your Dependencies.swift manifest.
+            """
         }
     }
 }
@@ -96,7 +99,11 @@ public final class CarthageInteractor: CarthageInteracting {
 
                 return true
             }()
-            let command = carthageCommandGenerator.command(path: temporaryDirectoryPath, produceXCFrameworks: produceXCFrameworks, platforms: dependencies.options.platforms)
+            let command = carthageCommandGenerator.command(
+                path: temporaryDirectoryPath,
+                produceXCFrameworks: produceXCFrameworks,
+                platforms: dependencies.options.platforms
+            )
 
             // log
             logger.info("Command:", metadata: .subsection)
