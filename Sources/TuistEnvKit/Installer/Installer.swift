@@ -9,9 +9,8 @@ protocol Installing: AnyObject {
     ///
     /// - Parameters:
     ///   - version: Version to be installed.
-    ///   - force: When true, it ignores the Swift version and compiles it from the source.
     /// - Throws: An error if the installation fails.
-    func install(version: String, force: Bool) throws
+    func install(version: String) throws
 }
 
 /// Error thrown by the installer.
@@ -71,29 +70,18 @@ final class Installer: Installing {
 
     // MARK: - Installing
 
-    func install(version: String, force: Bool) throws {
+    func install(version: String) throws {
         try withTemporaryDirectory { temporaryDirectory in
-            try install(version: version, temporaryDirectory: temporaryDirectory, force: force)
+            try install(version: version, temporaryDirectory: temporaryDirectory)
         }
     }
 
-    func install(version: String, temporaryDirectory: AbsolutePath, force: Bool = false) throws {
-        // We ignore the Swift version and install from the soruce code
-        if force {
-            logger.notice("Forcing the installation of \(version) from the source code")
-            try installFromSource(version: version,
-                                  temporaryDirectory: temporaryDirectory)
-            return
-        }
-
+    func install(version: String, temporaryDirectory: AbsolutePath) throws {
         let bundleURL: URL? = try googleCloudStorageClient.tuistBundleURL(version: version).toBlocking().first() ?? nil
 
         if let bundleURL = bundleURL {
             try installFromBundle(bundleURL: bundleURL,
                                   version: version,
-                                  temporaryDirectory: temporaryDirectory)
-        } else {
-            try installFromSource(version: version,
                                   temporaryDirectory: temporaryDirectory)
         }
     }
@@ -114,101 +102,7 @@ final class Installer: Installing {
             logger.notice("Installing...")
             try System.shared.run("/usr/bin/unzip", "-q", downloadPath.pathString, "-d", installationDirectory.pathString)
 
-            try createTuistVersionFile(version: version, path: installationDirectory)
             logger.notice("Version \(version) installed")
         })
-    }
-
-    // swiftlint:disable:next function_body_length
-    func installFromSource(version: String,
-                           temporaryDirectory: AbsolutePath) throws
-    {
-        try versionsController.install(version: version) { installationDirectory in
-            // Paths
-            let buildDirectory = temporaryDirectory.appending(RelativePath(".build/release/"))
-
-            // Cloning and building
-            logger.notice("Pulling source code")
-            _ = try System.shared.observable(["/usr/bin/env", "git", "clone", Constants.gitRepositoryURL, temporaryDirectory.pathString])
-                .mapToString()
-                .printStandardError()
-                .toBlocking()
-                .last()
-
-            let gitCheckoutResult = System.shared.observable(["/usr/bin/env", "git", "-C", temporaryDirectory.pathString, "checkout", version])
-                .mapToString()
-                .toBlocking()
-                .materialize()
-
-            if case let .failed(elements, error) = gitCheckoutResult {
-                if elements.map(\.value).first(where: { $0.contains("did not match any file(s) known to git") }) != nil {
-                    throw InstallerError.versionNotFound(version)
-                } else {
-                    throw error
-                }
-            }
-
-            logger.notice("Building using Swift (it might take a while)")
-            let swiftPath = try System.shared
-                .observable(["/usr/bin/xcrun", "-f", "swift"])
-                .mapToString()
-                .collectOutput()
-                .toBlocking()
-                .last()!
-                .standardOutput
-                .spm_chuzzle()!
-
-            _ = try System.shared.observable([swiftPath, "build",
-                                              "--product", "tuist",
-                                              "--package-path", temporaryDirectory.pathString,
-                                              "--configuration", "release"])
-                .mapToString()
-                .printStandardError()
-                .toBlocking()
-                .last()
-
-            _ = try System.shared.observable([swiftPath, "build",
-                                              "--product", "ProjectDescription",
-                                              "--package-path", temporaryDirectory.pathString,
-                                              "--configuration", "release",
-                                              "-Xswiftc", "-enable-library-evolution",
-                                              "-Xswiftc", "-emit-module-interface",
-                                              "-Xswiftc", "-emit-module-interface-path",
-                                              "-Xswiftc", temporaryDirectory.appending(RelativePath(".build/release/ProjectDescription.swiftinterface")).pathString]) // swiftlint:disable:this line_length
-                .mapToString()
-                .printStandardError()
-                .toBlocking()
-                .last()
-
-            if FileHandler.shared.exists(installationDirectory) {
-                try FileHandler.shared.delete(installationDirectory)
-            }
-            try FileHandler.shared.createFolder(installationDirectory)
-
-            let templatesDirectory = temporaryDirectory.appending(component: Constants.templatesDirectoryName)
-            if FileHandler.shared.exists(templatesDirectory) {
-                try FileHandler.shared.copy(from: templatesDirectory,
-                                            to: buildDirectory.appending(component: Constants.templatesDirectoryName))
-            }
-
-            let vendorDirectory = temporaryDirectory.appending(component: Constants.vendorDirectoryName)
-            if FileHandler.shared.exists(vendorDirectory) {
-                try FileHandler.shared.copy(from: vendorDirectory,
-                                            to: buildDirectory.appending(component: Constants.vendorDirectoryName))
-            }
-
-            try buildCopier.copy(from: buildDirectory,
-                                 to: installationDirectory)
-
-            try createTuistVersionFile(version: version, path: installationDirectory)
-            logger.notice("Version \(version) installed")
-        }
-    }
-
-    private func createTuistVersionFile(version: String, path: AbsolutePath) throws {
-        let tuistVersionPath = path.appending(component: Constants.versionFileName)
-        try "\(version)".write(to: tuistVersionPath.url,
-                               atomically: true,
-                               encoding: .utf8)
     }
 }
