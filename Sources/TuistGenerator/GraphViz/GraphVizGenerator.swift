@@ -2,8 +2,8 @@ import Foundation
 import GraphViz
 import TSCBasic
 import TuistCore
-import TuistSupport
 import TuistGraph
+import TuistSupport
 
 public protocol GraphVizGenerating {
     /// Generates the dot graph from the project in the current directory and returns it.

@@ -22,7 +22,7 @@ final class GraphToGraphVizMapper: GraphToGraphVizMapping {
         var nodes: [GraphViz.Node] = []
         var dependencies: [GraphViz.Edge] = []
         var graphVizGraph = GraphViz.Graph(directed: true)
-        
+
         let graphTraverser = ValueGraphTraverser(graph: graph)
 
         let filteredTargets: Set<ValueGraphTarget> = graphTraverser.allTargets().filter { target in
@@ -36,7 +36,7 @@ final class GraphToGraphVizMapper: GraphToGraphVizMapping {
 
             return true
         }
-        
+
         let filteredTargetsAndDependencies: Set<ValueGraphTarget> = filteredTargets.union(
             transitiveClosure(Array(filteredTargets)) { target in
                 Array(graphTraverser.directTargetDependencies(path: target.path, name: target.target.name))
@@ -51,7 +51,7 @@ final class GraphToGraphVizMapper: GraphToGraphVizMapping {
             var leftNode = GraphViz.Node(target.target.name)
             leftNode.applyAttributes(attributes: target.styleAttributes)
             nodes.append(leftNode)
-            
+
             guard
                 let targetDependencies = graphTraverser.dependencies[.target(name: target.target.name, path: target.path)]
             else { return }
@@ -86,43 +86,43 @@ private extension ValueGraphDependency {
             return true
         }
     }
-    
+
     var name: String {
         switch self {
         case let .target(name: name, path: _):
             return name
         case let .framework(
-                path: path,
-                binaryPath: _,
-                dsymPath: _,
-                bcsymbolmapPaths: _,
-                linking: _,
-                architectures: _,
-                isCarthage: _
+            path: path,
+            binaryPath: _,
+            dsymPath: _,
+            bcsymbolmapPaths: _,
+            linking: _,
+            architectures: _,
+            isCarthage: _
         ):
             return path.basenameWithoutExt
         case let .xcframework(
-                path: path,
-                infoPlist: _,
-                primaryBinaryPath: _,
-                linking: _
+            path: path,
+            infoPlist: _,
+            primaryBinaryPath: _,
+            linking: _
         ):
             return path.basenameWithoutExt
         case let .library(
-                path: path,
-                publicHeaders: _,
-                linking: _,
-                architectures: _,
-                swiftModuleMap: _
+            path: path,
+            publicHeaders: _,
+            linking: _,
+            architectures: _,
+            swiftModuleMap: _
         ):
             return path.basenameWithoutExt
         case let .packageProduct(path: _, product: product):
             return product
         case let .sdk(
-                name: name,
-                path: _,
-                status: _,
-                source: _
+            name: name,
+            path: _,
+            status: _,
+            source: _
         ):
             return String(name.split(separator: ".").first ?? "")
         case .cocoapods:

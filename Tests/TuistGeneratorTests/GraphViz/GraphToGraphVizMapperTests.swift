@@ -106,7 +106,7 @@ final class GraphToGraphVizMapperTests: XCTestCase {
         let core = ValueGraphTarget.test(target: Target.test(name: "Core"))
         let iOSApp = ValueGraphTarget.test(target: Target.test(name: "Tuist iOS"))
         let watchApp = ValueGraphTarget.test(target: Target.test(name: "Tuist watchOS"))
-        
+
         let graph = ValueGraph.test(
             projects: [
                 project.path: project,
@@ -115,8 +115,8 @@ final class GraphToGraphVizMapperTests: XCTestCase {
                 project.path: [
                     core.target.name: core.target,
                     iOSApp.target.name: iOSApp.target,
-                    watchApp.target.name: watchApp.target
-                ]
+                    watchApp.target.name: watchApp.target,
+                ],
             ],
             dependencies: [
                 .target(name: core.target.name, path: core.path): Set([framework, library, sdk]),

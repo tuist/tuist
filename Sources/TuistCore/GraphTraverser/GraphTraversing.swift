@@ -29,7 +29,7 @@ public protocol GraphTraversing {
 
     /// Returns all the apps from the graph.
     func apps() -> Set<ValueGraphTarget>
-    
+
     /// - Returns: All the schemes of the graph
     func schemes() -> [Scheme]
 
