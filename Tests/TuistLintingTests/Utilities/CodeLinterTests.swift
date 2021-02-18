@@ -46,7 +46,7 @@ final class CodeLinterTests: TuistUnitTestCase {
         binaryLocator.stubbedSwiftLintPathError = fakeError
 
         // When
-        XCTAssertThrowsSpecific(try subject.lint(sources: fakeSources, path: fakePath), fakeError)
+        XCTAssertThrowsSpecific(try subject.lint(sources: fakeSources, path: fakePath, strict: false), fakeError)
     }
 
     func test_lint_no_configuration() throws {
@@ -63,7 +63,24 @@ final class CodeLinterTests: TuistUnitTestCase {
                               "--use-script-input-files")
 
         // When
-        try subject.lint(sources: fakeSources, path: fakePath)
+        try subject.lint(sources: fakeSources, path: fakePath, strict: false)
+    }
+    func test_lint_no_configuration_strict() throws {
+        // Given
+        let fakeSources = [
+            AbsolutePath("/xyz/abc"),
+            AbsolutePath("/xyz/def"),
+            AbsolutePath("/xyz/hij"),
+        ]
+        let fakePath = AbsolutePath("/foo/bar")
+        binaryLocator.stubbedSwiftLintPathResult = "/swiftlint"
+        system.succeedCommand(binaryLocator.stubbedSwiftLintPathResult.pathString,
+                              "lint",
+                              "--use-script-input-files",
+                              "--strict")
+
+        // When
+        try subject.lint(sources: fakeSources, path: fakePath, strict: true)
     }
 
     func test_lint_with_configuration_yml() throws {
@@ -95,7 +112,7 @@ final class CodeLinterTests: TuistUnitTestCase {
                               swiftLintConfigPath.pathString)
 
         // When
-        try subject.lint(sources: fakeSources, path: fakePath)
+        try subject.lint(sources: fakeSources, path: fakePath, strict: false)
     }
 
     func test_lint_with_configuration_yaml() throws {
@@ -120,6 +137,6 @@ final class CodeLinterTests: TuistUnitTestCase {
                               swiftLintConfigPath.pathString)
 
         // When
-        try subject.lint(sources: fakeSources, path: fakePath)
+        try subject.lint(sources: fakeSources, path: fakePath, strict: false)
     }
 }

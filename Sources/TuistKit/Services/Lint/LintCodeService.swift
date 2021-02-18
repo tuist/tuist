@@ -43,8 +43,8 @@ final class LintCodeService {
     private let manifestLoading: ManifestLoading
 
     init(rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator(),
-         manifestLoading: ManifestLoading = ManifestLoader(),
          codeLinter: CodeLinting = CodeLinter(),
+         manifestLoading: ManifestLoading = ManifestLoader(),
          graphLoader: GraphLoading = GraphLoader(modelLoader: GeneratorModelLoader(manifestLoader: ManifestLoader(),
                                                                                    manifestLinter: AnyManifestLinter())))
     {
