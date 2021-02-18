@@ -88,7 +88,7 @@ class CommandRunner: CommandRunning {
         if let highgestVersion = versionsController.semverVersions().last?.description {
             version = highgestVersion
         } else {
-            try updater.update(force: false)
+            try updater.update()
             guard let highgestVersion = versionsController.semverVersions().last?.description else {
                 throw CommandRunnerError.versionNotFound
             }
@@ -102,7 +102,7 @@ class CommandRunner: CommandRunning {
     func runVersion(_ version: String) throws {
         if !versionsController.versions().contains(where: { $0.description == version }) {
             logger.notice("Version \(version) not found locally. Installing...")
-            try installer.install(version: version, force: false)
+            try installer.install(version: version)
         }
 
         let path = versionsController.path(version: version)

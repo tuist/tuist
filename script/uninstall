@@ -1,5 +1,81 @@
 #!/bin/bash
-rm -rf /usr/local/bin/tuist
-rm -rf ~/.tuist
 
-echo "Tuist uninstalled"
+shell_join() {
+  local arg
+  printf "%s" "$1"
+  shift
+  for arg in "$@"; do
+    printf " "
+    printf "%s" "${arg// /\ }"
+  done
+}
+
+shell_join() {
+  local arg
+  printf "%s" "$1"
+  shift
+  for arg in "$@"; do
+    printf " "
+    printf "%s" "${arg// /\ }"
+  done
+}
+
+execute() {
+  if ! "$@"; then
+    abort "$(printf "Failed during: %s" "$(shell_join "$@")")"
+  fi
+}
+
+have_sudo_access() {
+  local -a args
+  if [[ -n "${SUDO_ASKPASS-}" ]]; then
+    args=("-A")
+  elif [[ -n "${NONINTERACTIVE-}" ]]; then
+    args=("-n")
+  fi
+
+  if [[ -z "${HAVE_SUDO_ACCESS-}" ]]; then
+    if [[ -n "${args[*]-}" ]]; then
+      SUDO="/usr/bin/sudo ${args[*]}"
+    else
+      SUDO="/usr/bin/sudo"
+    fi
+    if [[ -n "${NONINTERACTIVE-}" ]]; then
+      ${SUDO} -l mkdir &>/dev/null
+    else
+      ${SUDO} -v && ${SUDO} -l mkdir &>/dev/null
+    fi
+    HAVE_SUDO_ACCESS="$?"
+  fi
+
+  if [[ -z "${HOMEBREW_ON_LINUX-}" ]] && [[ "$HAVE_SUDO_ACCESS" -ne 0 ]]; then
+    abort "Need sudo access on macOS (e.g. the user $USER to be an Administrator)!"
+  fi
+
+  return "$HAVE_SUDO_ACCESS"
+}
+
+ohai() {
+  printf "${tty_blue}==>${tty_bold} %s${tty_reset}\n" "$(shell_join "$@")"
+}
+
+warn() {
+  printf "${tty_red}Warning${tty_reset}: %s\n" "$(chomp "$1")"
+}
+
+execute_sudo() {
+  local -a args=("$@")
+  if have_sudo_access; then
+    if [[ -n "${SUDO_ASKPASS-}" ]]; then
+      args=("-A" "${args[@]}")
+    fi
+    execute "/usr/bin/sudo" "${args[@]}"
+  else
+    execute "${args[@]}"
+  fi
+}
+
+execute_sudo rm -rf /usr/local/bin/tuist
+execute_sudo rm -rf ~/.tuist
+
+ohai "Tuist uninstalled"

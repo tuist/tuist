@@ -4,6 +4,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+## 1.35.0 - Miracle
+
 - Fix missing linkable products for static frameworks with transitive precompiled dependencies [#2500](https://github.com/tuist/tuist/pull/2500) by [@kwridan](https://github.com/kwridan).
 
 ### Added
@@ -11,6 +13,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Add ODR support [#2490](https://github.com/tuist/tuist/pull/2490) by [@DimaMishchenko](https://github.com/DimaMishchenko)
 - Add support for StoreKit configuration files [#2524](https://github.com/tuist/tuist/pull/2524) by [@bolismauro](https://github.com/bolismauro)
 - Add --strict to 'lint code' command [#2534](https://github.com/tuist/tuist/pull/2534) by [@joshdholtz](https://github.com/joshdholtz)
+- Selective tests [#2422](https://github.com/tuist/tuist/pull/2422) by [@fortmarek](https://github.com/fortmarek)
+- Installation of `tuist` on Big Sur [#2526](https://github.com/tuist/tuist/pull/2526) by [@pepibumur](https://github.com/pepibumur).
 
 ### Fixed
 
@@ -25,7 +29,6 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Added
 
-- Selective tests [#2422](https://github.com/tuist/tuist/pull/2422) by [@fortmarek](https://github.com/fortmarek)
 - Add support for `tuist cache warm` to cache a subset of targets via `tuist cache warm FrameworkA FrameworkB` [#2393]((https://github.com/tuist/tuist/pull/2393) by [@adellibovi](https://github.com/adellibovi).
 - Add documentation on how to use & create plugins by [@luispadron](https://github.com/luispadron)
 - Warn when targets with duplicate bundle identifiers exist per platform [#2444](https://github.com/tuist/tuist/pull/2444) by [@natanrolnik](https://github.com/natanrolnik).

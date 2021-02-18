@@ -26,19 +26,19 @@ final class EnvUpdater: EnvUpdating {
     ///
     /// - Throws: An error if the installation fails.
     func update() throws {
-        try FileHandler.shared.inTemporaryDirectory { directory in
-            // Download
-            let outputPath = googleCloudStorageClient.latestTuistEnvBundleURL().absoluteString
-            let downloadPath = directory.appending(component: "tuistenv.zip")
-            try System.shared.run("/usr/bin/curl", "-LSs", "--output", downloadPath.pathString, outputPath)
-            try System.shared.run("/usr/bin/unzip", "-o", downloadPath.pathString, "-d", "/tmp/")
-            let binaryPath = "/tmp/tuistenv"
-            try System.shared.run(["/bin/chmod", "+x", binaryPath])
-
-            // Replace
-            try System.shared.async(["/bin/cp", "-rf", binaryPath, "/usr/local/bin/tuist"])
-            try System.shared.async(["/bin/ln", "-sf", "/usr/local/bin/tuist", "/usr/local/bin/swift-project"])
-            try System.shared.async(["/bin/rm", binaryPath])
-        }
+        // Download
+        let installScriptPath: AbsolutePath!
+        #if DEBUG
+            installScriptPath = AbsolutePath(#file.replacingOccurrences(of: "file://", with: ""))
+                .removingLastComponent()
+                .removingLastComponent()
+                .removingLastComponent()
+                .removingLastComponent()
+                .appending(RelativePath("script/install"))
+        #else
+            installScriptPath = AbsolutePath(Bundle(for: EnvUpdater.self).bundleURL.path)
+                .appending(RelativePath("script/install"))
+        #endif
+        try System.shared.runAndPrint([installScriptPath.pathString])
     }
 }

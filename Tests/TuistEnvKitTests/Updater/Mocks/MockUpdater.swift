@@ -3,10 +3,10 @@ import Foundation
 
 final class MockUpdater: Updating {
     var updateCallCount: UInt = 0
-    var updateStub: ((Bool) throws -> Void)?
+    var updateStub: (() throws -> Void)?
 
-    func update(force: Bool) throws {
+    func update() throws {
         updateCallCount += 1
-        try updateStub?(force)
+        try updateStub?()
     }
 }
