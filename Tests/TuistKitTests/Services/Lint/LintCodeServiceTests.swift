@@ -224,7 +224,7 @@ final class LintCodeServiceTests: TuistUnitTestCase {
         graphLoader.loadProjectStub = { _ in (graph, Project.test()) }
 
         // When
-        try subject.run(path: path.pathString, targetName: nil, strict: false)
+        try subject.run(path: path.pathString, targetName: nil, strict: true)
 
         // Then
         let invokedLintParameters = codeLinter.invokedLintParameters
