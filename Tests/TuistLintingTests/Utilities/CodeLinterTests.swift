@@ -65,6 +65,7 @@ final class CodeLinterTests: TuistUnitTestCase {
         // When
         try subject.lint(sources: fakeSources, path: fakePath, strict: false)
     }
+
     func test_lint_no_configuration_strict() throws {
         // Given
         let fakeSources = [
