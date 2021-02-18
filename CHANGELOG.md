@@ -4,6 +4,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Fixed
+
+- Fix adding framework targets to AppClip  [#2530](https://github.com/tuist/tuist/pull/2530) by [@sampettersson](https://github.com/sampettersson)
+
 ## 1.35.0 - Miracle
 
 - Fix missing linkable products for static frameworks with transitive precompiled dependencies [#2500](https://github.com/tuist/tuist/pull/2500) by [@kwridan](https://github.com/kwridan).
@@ -24,6 +28,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Migrate `BuildGraphInspector` to `ValueGraph` [#2527](https://github.com/tuist/tuist/pull/2527) by [@fortmarek](https://github.com/fortmarek/)
 - Replace `ExpressibleByStringLiteral` with `ExpressibleByStringInterpolation` for `ProjectDescription` objects by [@DimaMishchenko](https://github.com/DimaMishchenko)
+- Fix adding framework targets to AppClip by [@sampettersson](https://github.com/sampettersson)
 
 ## 1.34.0 - Shipit
 

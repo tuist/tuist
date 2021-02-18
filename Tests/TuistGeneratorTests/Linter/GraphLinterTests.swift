@@ -794,6 +794,48 @@ final class GraphLinterTests: TuistUnitTestCase {
         ])
     }
 
+    func test_lint_when_appClip_has_a_framework_dependency() throws {
+        // Given
+        let temporaryPath = try self.temporaryPath()
+
+        try createFiles([
+            "entitlements/AppClip.entitlements",
+        ])
+
+        let entitlementsPath = temporaryPath.appending(RelativePath("entitlements/AppClip.entitlements"))
+
+        let framework = Target.empty(name: "Framework", product: .framework)
+
+        let app = Target.test(name: "App",
+                              product: .app,
+                              bundleId: "com.example.app")
+        let appClip = Target.test(name: "AppClip",
+                                  platform: .iOS,
+                                  product: .appClip,
+                                  bundleId: "com.example.app.clip1",
+                                  entitlements: entitlementsPath)
+
+        let project = Project.test(path: temporaryPath, targets: [app, appClip, framework])
+
+        let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
+            .target(name: app.name, path: temporaryPath): Set([.target(name: appClip.name, path: temporaryPath)]),
+            .target(name: appClip.name, path: temporaryPath): Set([.target(name: framework.name, path: temporaryPath)]),
+        ]
+
+        let graph = ValueGraph.test(path: temporaryPath,
+                                    workspace: Workspace.test(projects: [temporaryPath]),
+                                    projects: [temporaryPath: project],
+                                    targets: [temporaryPath: [app.name: app, appClip.name: appClip, framework.name: framework]],
+                                    dependencies: dependencies)
+        let graphTraverser = ValueGraphTraverser(graph: graph)
+
+        // When
+        let got = subject.lint(graphTraverser: graphTraverser)
+
+        // Then
+        XCTAssertEmpty(got)
+    }
+
     func test_lint_when_cli_tool_links_dynamic_framework() throws {
         // Given
         let path: AbsolutePath = "/project"
