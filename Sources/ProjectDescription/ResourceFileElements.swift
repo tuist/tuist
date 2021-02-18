@@ -7,6 +7,10 @@ import Foundation
 public struct ResourceFileElements: Codable, Equatable {
     /// List of resource file elements
     public let resources: [ResourceFileElement]
+
+    public init(resources: [ResourceFileElement]) {
+        self.resources = resources
+    }
 }
 
 extension ResourceFileElements: ExpressibleByStringInterpolation {
