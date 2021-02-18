@@ -104,7 +104,6 @@ public class AsyncQueue: AsyncQueuing {
                 logger.debug("Dispatching persisted event with ID '\(event.id.uuidString)' to '\(dispatcher.identifier)'")
                 try dispatcher.dispatchPersisted(data: event.data) {
                     self.deletePersistedEvent(filename: event.filename)
-                    print("Deleted persisted \(event.filename)")
                 }
             } catch {
                 logger.debug("Failed to dispatch persisted event with ID '\(event.id.uuidString)' to '\(dispatcher.identifier)'")
