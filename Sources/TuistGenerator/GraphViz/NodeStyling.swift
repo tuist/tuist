@@ -59,7 +59,9 @@ extension ValueGraphTarget {
 }
 
 extension ValueGraphDependency {
-    var styleAttributes: NodeStyleAttributes? {
+    func styleAttributes(
+        graphTraverser: GraphTraversing
+    ) -> NodeStyleAttributes? {
         switch self {
         case .sdk:
             return .init(fillColorName: .violet, shape: .rectangle)
@@ -73,8 +75,9 @@ extension ValueGraphDependency {
             return .init(fillColorName: .tan4, textColorName: .white, shape: .tab)
         case .xcframework:
             return .init(fillColorName: .lightskyblue1, shape: .trapezium)
-        case .target:
-            return nil
+        case let .target(name: name, path: path):
+            return graphTraverser.target(path: path, name: name)
+                .map(\.styleAttributes)
         }
     }
 }
