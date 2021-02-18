@@ -403,7 +403,7 @@ final class MockGraphTraverser: GraphTraversing {
         }
         return stubbedAllProjectDependenciesResult
     }
-    
+
     var invokedDependsOnXCTest = false
     var invokedDependsOnXCTestCount = 0
     var invokedDependsOnXCTestParameters: (path: AbsolutePath, name: String)?
@@ -417,7 +417,7 @@ final class MockGraphTraverser: GraphTraversing {
         invokedDependsOnXCTestParametersList.append((path, name))
         return stubbedDependsOnXCTestResult
     }
-    
+
     var schemesStub: (() -> [Scheme])?
     func schemes() -> [Scheme] {
         schemesStub?() ?? []

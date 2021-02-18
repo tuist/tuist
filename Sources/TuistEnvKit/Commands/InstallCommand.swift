@@ -13,14 +13,7 @@ struct InstallCommand: ParsableCommand {
     )
     var version: String
 
-    @Flag(
-        name: .shortAndLong,
-        help: "Re-installs the version compiling it from the source"
-    )
-    var force: Bool = false
-
     func run() throws {
-        try InstallService().run(version: version,
-                                 force: force)
+        try InstallService().run(version: version)
     }
 }

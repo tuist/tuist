@@ -6,8 +6,9 @@ import TuistGraphTesting
 import TuistSupport
 import XCTest
 @testable import TuistGenerator
+@testable import TuistSupportTesting
 
-class SchemeLinterTests: XCTestCase {
+class SchemeLinterTests: TuistTestCase {
     var subject: SchemeLinter!
 
     override func setUp() {
@@ -116,5 +117,58 @@ class SchemeLinterTests: XCTestCase {
         // Then
         XCTAssertEqual(got.first?.severity, .error)
         XCTAssertEqual(got.first?.reason, "The target 'Target2' specified in scheme 'SchemeWithTargetThatDoesNotExist' is not defined in the project named 'Project'. Consider using a workspace scheme instead to reference a target in another project.")
+    }
+
+    func test_lint_missingStoreKitConfiguration() {
+        // Given
+        let project = Project.test(
+            settings: Settings(configurations: [
+                BuildConfiguration.debug: Configuration(settings: .init(), xcconfig: nil),
+            ]),
+            schemes: [
+                .init(
+                    name: "Scheme",
+                    shared: true,
+                    runAction: .test(
+                        options: .init(storeKitConfigurationPath: "/non/existing/path/configuration.storekit")
+                    )
+                ),
+            ]
+        )
+
+        // When
+        let got = subject.lint(project: project)
+
+        // Then
+        XCTAssertEqual(got.first?.severity, .error)
+        XCTAssertEqual(got.first?.reason, "StoreKit configuration file not found at path /non/existing/path/configuration.storekit")
+    }
+
+    func test_lint_existingStoreKitConfiguration() {
+        // Given
+        let project = Project.test(
+            settings: Settings(configurations: [
+                BuildConfiguration.debug: Configuration(settings: .init(), xcconfig: nil),
+            ]),
+            schemes: [
+                .init(
+                    name: "Scheme",
+                    shared: true,
+                    runAction: .test(
+                        options: .init(storeKitConfigurationPath: "/non/existing/path/configuration.storekit")
+                    )
+                ),
+            ]
+        )
+
+        fileHandler.stubExists = { path in
+            path.pathString == "/non/existing/path/configuration.storekit"
+        }
+
+        // When
+        let got = subject.lint(project: project)
+
+        // Then
+        XCTAssertEmpty(got)
     }
 }

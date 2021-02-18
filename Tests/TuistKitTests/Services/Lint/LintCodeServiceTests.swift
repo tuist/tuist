@@ -47,7 +47,7 @@ final class LintCodeServiceTests: TuistUnitTestCase {
         manifestLoader.manifestsAtStub = { _ in Set() }
 
         // When
-        XCTAssertThrowsSpecific(try subject.run(path: path.pathString, targetName: nil), LintCodeServiceError.manifestNotFound(path))
+        XCTAssertThrowsSpecific(try subject.run(path: path.pathString, targetName: nil, strict: false), LintCodeServiceError.manifestNotFound(path))
     }
 
     func test_run_throws_an_error_when_target_no_exist() throws {
@@ -65,7 +65,7 @@ final class LintCodeServiceTests: TuistUnitTestCase {
         graphLoader.loadWorkspaceStub = { _ in graph }
 
         // When
-        XCTAssertThrowsSpecific(try subject.run(path: path.pathString, targetName: fakeNoExistTargetName), LintCodeServiceError.targetNotFound(fakeNoExistTargetName))
+        XCTAssertThrowsSpecific(try subject.run(path: path.pathString, targetName: fakeNoExistTargetName, strict: false), LintCodeServiceError.targetNotFound(fakeNoExistTargetName))
     }
 
     func test_run_throws_an_error_when_target_to_lint_has_no_sources() throws {
@@ -84,7 +84,7 @@ final class LintCodeServiceTests: TuistUnitTestCase {
         graphLoader.loadWorkspaceStub = { _ in graph }
 
         // When
-        XCTAssertThrowsSpecific(try subject.run(path: path.pathString, targetName: target01.name), LintCodeServiceError.lintableFilesForTargetNotFound(target01.name))
+        XCTAssertThrowsSpecific(try subject.run(path: path.pathString, targetName: target01.name, strict: false), LintCodeServiceError.lintableFilesForTargetNotFound(target01.name))
     }
 
     func test_run_thorws_an_error_when_code_liner_throws_error() throws {
@@ -95,7 +95,7 @@ final class LintCodeServiceTests: TuistUnitTestCase {
         codeLinter.stubbedLintError = fakeError
 
         // When
-        XCTAssertThrowsSpecific(try subject.run(path: path.pathString, targetName: nil), fakeError)
+        XCTAssertThrowsSpecific(try subject.run(path: path.pathString, targetName: nil, strict: false), fakeError)
     }
 
     func test_run_lint_workspace() throws {
@@ -124,7 +124,7 @@ final class LintCodeServiceTests: TuistUnitTestCase {
         graphLoader.loadWorkspaceStub = { _ in graph }
 
         // When
-        try subject.run(path: path.pathString, targetName: nil)
+        try subject.run(path: path.pathString, targetName: nil, strict: false)
 
         // Then
         let invokedLintParameters = codeLinter.invokedLintParameters
@@ -139,6 +139,7 @@ final class LintCodeServiceTests: TuistUnitTestCase {
             "/target03/file1.swift",
         ])
         XCTAssertEqual(invokedLintParameters?.path, path)
+        XCTAssertEqual(invokedLintParameters?.strict, false)
 
         XCTAssertPrinterOutputContains("""
         Loading the dependency graph
@@ -173,7 +174,7 @@ final class LintCodeServiceTests: TuistUnitTestCase {
         graphLoader.loadProjectStub = { _ in (graph, Project.test()) }
 
         // When
-        try subject.run(path: path.pathString, targetName: nil)
+        try subject.run(path: path.pathString, targetName: nil, strict: false)
 
         // Then
         let invokedLintParameters = codeLinter.invokedLintParameters
@@ -188,6 +189,57 @@ final class LintCodeServiceTests: TuistUnitTestCase {
             "/target03/file1.swift",
         ])
         XCTAssertEqual(invokedLintParameters?.path, path)
+        XCTAssertEqual(invokedLintParameters?.strict, false)
+
+        XCTAssertPrinterOutputContains("""
+        Loading the dependency graph
+        Loading project at \(path.pathString)
+        Running code linting
+        """)
+    }
+
+    func test_run_lint_project_strict() throws {
+        // Given
+        let path = try temporaryPath()
+        manifestLoader.manifestsAtStub = { _ in Set([.project]) }
+
+        let target01 = Target.test(sources: [
+            SourceFile(path: "/target01/file1.swift", compilerFlags: nil),
+            SourceFile(path: "/target01/file2.swift", compilerFlags: nil),
+        ])
+        let target02 = Target.test(sources: [
+            SourceFile(path: "/target02/file1.swift", compilerFlags: nil),
+            SourceFile(path: "/target02/file2.swift", compilerFlags: nil),
+            SourceFile(path: "/target02/file3.swift", compilerFlags: nil),
+        ])
+        let target03 = Target.test(sources: [
+            SourceFile(path: "/target03/file1.swift", compilerFlags: nil),
+        ])
+        let graph = Graph.test(
+            entryPath: "/rootPath",
+            targets: [
+                "/path1": [.test(target: target01), .test(target: target02), .test(target: target03)],
+            ]
+        )
+        graphLoader.loadProjectStub = { _ in (graph, Project.test()) }
+
+        // When
+        try subject.run(path: path.pathString, targetName: nil, strict: true)
+
+        // Then
+        let invokedLintParameters = codeLinter.invokedLintParameters
+
+        XCTAssertEqual(codeLinter.invokedLintCount, 1)
+        XCTAssertEqual(invokedLintParameters?.sources, [
+            "/target01/file1.swift",
+            "/target01/file2.swift",
+            "/target02/file1.swift",
+            "/target02/file2.swift",
+            "/target02/file3.swift",
+            "/target03/file1.swift",
+        ])
+        XCTAssertEqual(invokedLintParameters?.path, path)
+        XCTAssertEqual(invokedLintParameters?.strict, true)
 
         XCTAssertPrinterOutputContains("""
         Loading the dependency graph
@@ -219,7 +271,7 @@ final class LintCodeServiceTests: TuistUnitTestCase {
         graphLoader.loadWorkspaceStub = { _ in graph }
 
         // When
-        try subject.run(path: path.pathString, targetName: target01.name)
+        try subject.run(path: path.pathString, targetName: target01.name, strict: false)
 
         // Then
         let invokedLintParameters = codeLinter.invokedLintParameters
@@ -230,6 +282,7 @@ final class LintCodeServiceTests: TuistUnitTestCase {
             "/target01/file2.swift",
         ])
         XCTAssertEqual(invokedLintParameters?.path, path)
+        XCTAssertEqual(invokedLintParameters?.strict, false)
 
         XCTAssertPrinterOutputContains("""
         Loading the dependency graph

@@ -2,8 +2,10 @@ import DOT
 import Foundation
 import GraphViz
 import TSCBasic
+import TuistCore
 import TuistGenerator
 import TuistLoader
+import TuistPlugin
 import TuistSupport
 
 final class GraphService {
@@ -13,11 +15,42 @@ final class GraphService {
     /// Manifest loader.
     private let manifestLoader: ManifestLoading
 
-    init(graphVizGenerator: GraphVizGenerating = GraphVizGenerator(modelLoader: GeneratorModelLoader(manifestLoader: ManifestLoader(),
-                                                                                                     manifestLinter: ManifestLinter())),
-    manifestLoader: ManifestLoading = ManifestLoader()) {
+    /// The plugin service
+    private let pluginsService: PluginServicing
+
+    /// The graph loader
+    private let graphLoader: GraphLoading
+
+    init() {
+        let manifestLinter = ManifestLinter()
+        manifestLoader = ManifestLoader()
+
+        graphVizGenerator = GraphVizGenerator(
+            modelLoader: GeneratorModelLoader(
+                manifestLoader: manifestLoader,
+                manifestLinter: manifestLinter
+            )
+        )
+
+        let modelLoader = GeneratorModelLoader(
+            manifestLoader: manifestLoader,
+            manifestLinter: manifestLinter
+        )
+
+        graphLoader = GraphLoader(modelLoader: modelLoader)
+        pluginsService = PluginService(manifestLoader: manifestLoader)
+    }
+
+    init(
+        graphVizGenerator: GraphVizGenerating,
+        manifestLoader: ManifestLoading,
+        pluginsService: PluginServicing,
+        graphLoader: GraphLoading
+    ) {
         self.graphVizGenerator = graphVizGenerator
         self.manifestLoader = manifestLoader
+        self.pluginsService = pluginsService
+        self.graphLoader = graphLoader
     }
 
     func run(format: GraphFormat,
@@ -28,6 +61,14 @@ final class GraphService {
              path: AbsolutePath,
              outputPath: AbsolutePath) throws
     {
+        // Load config
+        let config = try graphLoader.loadConfig(path: path)
+
+        // Load Plugins
+        let plugins = try pluginsService.loadPlugins(using: config)
+        manifestLoader.register(plugins: plugins)
+
+        // Generate the graph
         let graphVizGraph = try graphVizGenerator.generate(at: path,
                                                            manifestLoader: manifestLoader,
                                                            skipTestTargets: skipTestTargets,

@@ -2,10 +2,12 @@ import DOT
 import Foundation
 import GraphViz
 import TSCBasic
+import TuistPlugin
 import TuistSupport
 import XcodeProj
 import XCTest
 
+@testable import TuistCoreTesting
 @testable import TuistKit
 @testable import TuistLoaderTesting
 @testable import TuistSupportTesting
@@ -14,13 +16,24 @@ final class GraphServiceTests: TuistUnitTestCase {
     var subject: GraphService!
     var graphVizGenerator: MockGraphVizGenerator!
     var manifestLoader: MockManifestLoader!
+    var graphLoader: MockGraphLoader!
 
     override func setUp() {
         super.setUp()
         graphVizGenerator = MockGraphVizGenerator()
         manifestLoader = MockManifestLoader()
-        subject = GraphService(graphVizGenerator: graphVizGenerator,
-                               manifestLoader: manifestLoader)
+        graphLoader = MockGraphLoader()
+
+        subject = GraphService(
+            graphVizGenerator: graphVizGenerator,
+            manifestLoader: manifestLoader,
+            pluginsService: PluginService(
+                manifestLoader: manifestLoader,
+                fileHandler: fileHandler,
+                gitHandler: MockGitHandler()
+            ),
+            graphLoader: graphLoader
+        )
     }
 
     override func tearDown() {

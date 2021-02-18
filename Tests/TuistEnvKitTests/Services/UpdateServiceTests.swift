@@ -22,14 +22,14 @@ final class UpdateServiceTests: TuistUnitTestCase {
     }
 
     func test_run() throws {
-        var updateCalls: [Bool] = []
-        updater.updateStub = { force in
-            updateCalls.append(force)
+        var updateCallsCount: UInt = 0
+        updater.updateStub = {
+            updateCallsCount += 1
         }
 
-        try subject.run(force: true)
+        try subject.run()
 
         XCTAssertPrinterOutputContains("Checking for updates...")
-        XCTAssertEqual(updateCalls, [true])
+        XCTAssertEqual(updateCallsCount, 1)
     }
 }

@@ -42,6 +42,13 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
 
         let project = Project.test(path: AbsolutePath("/project/"),
                                    settings: settings,
+                                   schemes: [
+                                       .test(
+                                           runAction: .test(
+                                               options: .init(storeKitConfigurationPath: "/path/to/configuration.storekit")
+                                           )
+                                       ),
+                                   ],
                                    additionalFiles: [
                                        .file(path: "/path/to/file"),
                                        .folderReference(path: "/path/to/folder"),
@@ -56,6 +63,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
             GroupFileElement(path: "/project/release.xcconfig", group: project.filesGroup),
             GroupFileElement(path: "/path/to/file", group: project.filesGroup),
             GroupFileElement(path: "/path/to/folder", group: project.filesGroup, isReference: true),
+            GroupFileElement(path: "/path/to/configuration.storekit", group: project.filesGroup),
         ]))
     }
 

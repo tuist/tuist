@@ -9,7 +9,8 @@ public protocol CodeLinting {
     /// - Parameters:
     ///   - sources: Directory in which source code will be linted.
     ///   - path: Directory whose project will be linted.
-    func lint(sources: [AbsolutePath], path: AbsolutePath) throws
+    ///   - strict: Bool if warnings should error.
+    func lint(sources: [AbsolutePath], path: AbsolutePath, strict: Bool) throws
 }
 
 public final class CodeLinter: CodeLinting {
@@ -25,12 +26,13 @@ public final class CodeLinter: CodeLinting {
 
     // MARK: - CodeLinting
 
-    public func lint(sources: [AbsolutePath], path: AbsolutePath) throws {
+    public func lint(sources: [AbsolutePath], path: AbsolutePath, strict: Bool) throws {
         let swiftLintPath = try binaryLocator.swiftLintPath()
         let swiftLintConfigPath = self.swiftLintConfigPath(path: path)
         let swiftLintArguments = buildSwiftLintArguments(swiftLintPath: swiftLintPath,
                                                          sources: sources,
-                                                         configPath: swiftLintConfigPath)
+                                                         configPath: swiftLintConfigPath,
+                                                         strict: strict)
         let environment = buildEnvironment(sources: sources)
 
         _ = try System.shared.observable(swiftLintArguments,
@@ -62,7 +64,8 @@ public final class CodeLinter: CodeLinting {
 
     private func buildSwiftLintArguments(swiftLintPath: AbsolutePath,
                                          sources _: [AbsolutePath],
-                                         configPath: AbsolutePath?) -> [String]
+                                         configPath: AbsolutePath?,
+                                         strict: Bool) -> [String]
     {
         var arguments = [swiftLintPath.pathString,
                          "lint",
@@ -70,6 +73,10 @@ public final class CodeLinter: CodeLinting {
 
         if let configPath = configPath {
             arguments += ["--config", configPath.pathString]
+        }
+
+        if strict {
+            arguments += ["--strict"]
         }
 
         return arguments

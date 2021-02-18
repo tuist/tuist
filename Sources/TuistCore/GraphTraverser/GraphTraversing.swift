@@ -153,8 +153,7 @@ public protocol GraphTraversing {
     /// the groups.
     /// - Parameter path: Path to the directory where the project is defined.
     func allProjectDependencies(path: AbsolutePath) throws -> Set<GraphDependencyReference>
-    
-    
+
     /// Returns true if the given target depends on XCTest.
     /// - Parameters:
     ///   - path: Path to the project tha defines the target.

@@ -50,7 +50,7 @@ final class BundleServiceTests: TuistUnitTestCase {
         let tuistVersionPath = temporaryPath.appending(component: Constants.versionFileName)
         try "3.2.1".write(to: tuistVersionPath.url, atomically: true, encoding: .utf8)
 
-        installer.installStub = { version, _ in
+        installer.installStub = { version in
             let versionPath = self.versionsController.path(version: version)
             try FileHandler.shared.createFolder(versionPath)
             try Data().write(to: versionPath.appending(component: "test").url)
@@ -98,7 +98,7 @@ final class BundleServiceTests: TuistUnitTestCase {
 
         try "3.2.1".write(to: tuistVersionPath.url, atomically: true, encoding: .utf8)
 
-        installer.installStub = { version, _ in
+        installer.installStub = { version in
             let versionPath = self.versionsController.path(version: version)
             try FileHandler.shared.createFolder(versionPath)
             try Data().write(to: versionPath.appending(component: "test").url)

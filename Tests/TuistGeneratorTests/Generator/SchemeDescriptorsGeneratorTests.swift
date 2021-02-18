@@ -499,7 +499,9 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         let buildAction = BuildAction.test(targets: [TargetReference(projectPath: projectPath, name: "App")])
         let runAction = RunAction.test(configurationName: "Release",
                                        executable: TargetReference(projectPath: projectPath, name: "App"),
-                                       arguments: Arguments(environment: environment, launchArguments: launchArguments))
+                                       arguments: Arguments(environment: environment, launchArguments: launchArguments),
+                                       options: .init(storeKitConfigurationPath: "/somepath/Workspace/Projects/Project/nested/configuration/configuration.storekit"))
+
         let scheme = Scheme.test(buildAction: buildAction, runAction: runAction)
 
         let app = Target.test(name: "App", product: .app, environment: environment)
@@ -547,6 +549,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         XCTAssertEqual(buildableReference.buildableName, "App.app")
         XCTAssertEqual(buildableReference.blueprintName, "App")
         XCTAssertEqual(buildableReference.buildableIdentifier, "primary")
+        XCTAssertEqual(result.storeKitConfigurationFileReference, .init(identifier: "../nested/configuration/configuration.storekit"))
     }
 
     func test_schemeLaunchAction_argumentsOrder() throws {

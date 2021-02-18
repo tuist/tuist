@@ -34,6 +34,16 @@ private extension SchemeLinter {
                                                    actionDescription: "the scheme's run action")
                 )
             }
+
+            if let storeKitPath = runAction.options.storeKitConfigurationPath,
+                !FileHandler.shared.exists(storeKitPath)
+            {
+                issues.append(
+                    LintingIssue(
+                        reason: "StoreKit configuration file not found at path \(storeKitPath.pathString)",
+                        severity: .error
+                    ))
+            }
         }
 
         if let testAction = scheme.testAction {

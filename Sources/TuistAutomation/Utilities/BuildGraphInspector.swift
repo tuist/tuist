@@ -123,8 +123,8 @@ public final class BuildGraphInspector: BuildGraphInspecting {
                 target.project.schemes
                     .filter { $0.targetDependencies().map(\.name) == [target.target.name] }
             }
-        .filter { $0.testAction?.targets.isEmpty == false }
-        .sorted(by: { $0.name < $1.name })
+            .filter { $0.testAction?.targets.isEmpty == false }
+            .sorted(by: { $0.name < $1.name })
     }
 
     public func projectSchemes(graphTraverser: GraphTraversing) -> [Scheme] {

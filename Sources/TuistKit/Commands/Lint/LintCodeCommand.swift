@@ -22,7 +22,12 @@ struct LintCodeCommand: ParsableCommand {
     )
     var target: String?
 
+    @Flag(
+        help: "Fails on warnings."
+    )
+    var strict: Bool = false
+
     func run() throws {
-        try LintCodeService().run(path: path, targetName: target)
+        try LintCodeService().run(path: path, targetName: target, strict: strict)
     }
 }
