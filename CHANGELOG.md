@@ -6,7 +6,11 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Fixed
 
-- Fix adding framework targets to AppClip  [#2530](https://github.com/tuist/tuist/pull/2530) by [@sampettersson](https://github.com/sampettersson)
+- Fix adding framework targets to AppClip [#2530](https://github.com/tuist/tuist/pull/2530) by [@sampettersson](https://github.com/sampettersson)
+
+### Changed
+
+- Migrate `GraphViz` to `ValueGraph` [#2542](https://github.com/tuist/tuist/pull/2542) by [@fortmarek](https://github.com/fortmarek)
 
 ## 1.35.0 - Miracle
 
