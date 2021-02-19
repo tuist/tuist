@@ -61,7 +61,7 @@ final class PluginServiceTests: TuistTestCase {
         let pluginGitUrl = "https://url/to/repo.git"
         let pluginGitId = "1.0.0"
         let pluginFingerprint = "\(pluginGitUrl)-\(pluginGitId)".md5
-        let cachedPluginPath = environment.cacheDirectory.appending(components: Constants.PluginDirectory.name, pluginFingerprint)
+        let cachedPluginPath = environment.cacheDirectory.appending(components: Constants.pluginsDirectoryName, pluginFingerprint)
         let pluginName = "TestPlugin"
 
         manifestLoader.loadConfigStub = { _ in

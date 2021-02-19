@@ -1,7 +1,17 @@
+import Foundation
 import TSCBasic
+import TuistCore
 import TuistGraph
 import TuistLoader
 import TuistSupport
+
+/// A protocol defining a service for interacting with plugins.
+public protocol PluginServicing {
+    /// Loads the `Plugins` and returns them as defined in given config.
+    /// - Throws: An error if there are issues fetching or loading a plugin.
+    /// - Returns: The loaded `Plugins` representation.
+    func loadPlugins(using config: Config) throws -> Plugins
+}
 
 /// A default implementation of `PluginServicing` which loads `Plugins` using the `Config` manifest.
 public final class PluginService: PluginServicing {
@@ -58,7 +68,7 @@ public final class PluginService: PluginServicing {
     private func fetchGitPlugin(at url: String, with gitId: String) throws -> AbsolutePath {
         let fingerprint = "\(url)-\(gitId)".md5
         let pluginDirectory = Environment.shared.cacheDirectory
-            .appending(RelativePath(Constants.PluginDirectory.name))
+            .appending(RelativePath(Constants.pluginsDirectoryName))
             .appending(RelativePath(fingerprint))
 
         guard !fileHandler.exists(pluginDirectory) else {

@@ -38,7 +38,7 @@ final class ProjectDescriptionHelpersHasher: ProjectDescriptionHelpersHashing {
         return identifiers.joined(separator: "-").md5
     }
 
-    func prefixHash(helpersDirectory: AbsolutePath) -> String {
+    public func prefixHash(helpersDirectory: AbsolutePath) -> String {
         let pathString = helpersDirectory.pathString
         let index = pathString.index(pathString.startIndex, offsetBy: 7)
         return String(helpersDirectory.pathString.md5[..<index])

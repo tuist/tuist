@@ -74,7 +74,8 @@ playground.xcworkspace
 
 # End of https://www.gitignore.io/api/swift,macos
 
-*.xcodeproj
+**/*.xcodeproj
+**/*.xcworkspace
 .byebug_history
 *.xcarchive
 tmp/
@@ -91,3 +92,4 @@ mkmf.log
 .rubocop-http---shopify-github-io-ruby-style-guide-rubocop-yml
 generated_fixtures
 .fixtures.generated.json
+**/Derived/

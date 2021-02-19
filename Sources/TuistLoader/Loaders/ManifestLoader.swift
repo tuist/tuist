@@ -136,7 +136,7 @@ public class ManifestLoader: ManifestLoading {
     }
 
     public func manifests(at path: AbsolutePath) -> Set<Manifest> {
-        Set(manifestFilesLocator.locateProjectManifests(at: path).map(\.0))
+        Set(manifestFilesLocator.locateManifests(at: path).map(\.0))
     }
 
     public func loadConfig(at path: AbsolutePath) throws -> ProjectDescription.Config {
