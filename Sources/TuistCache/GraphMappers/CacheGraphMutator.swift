@@ -56,7 +56,7 @@ class CacheGraphMutator: CacheGraphMutating {
 
         // We mark them to be pruned during the tree-shaking
         graph.targets.flatMap(\.value).forEach {
-            if !sourceTargets.contains($0) { $0.prune = true }
+            if !sourceTargets.contains($0) { $0.target.prune = true }
         }
 
         return graph

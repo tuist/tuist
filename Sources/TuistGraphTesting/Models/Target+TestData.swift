@@ -25,7 +25,8 @@ public extension Target {
                      dependencies: [Dependency] = [],
                      scripts: [TargetScript] = [],
                      launchArguments: [LaunchArgument] = [],
-                     playgrounds: [AbsolutePath] = []) -> Target
+                     playgrounds: [AbsolutePath] = [],
+                     prune: Bool = false) -> Target
     {
         Target(name: name,
                platform: platform,
@@ -47,7 +48,8 @@ public extension Target {
                filesGroup: filesGroup,
                dependencies: dependencies,
                scripts: scripts,
-               playgrounds: playgrounds)
+               playgrounds: playgrounds,
+               prune: prune)
     }
 
     /// Creates a bare bones Target with as little data as possible
