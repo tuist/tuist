@@ -8,7 +8,9 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Fix adding framework targets to AppClip [#2530](https://github.com/tuist/tuist/pull/2530) by [@sampettersson](https://github.com/sampettersson)
 - Make sure security and codesign can access certificates in signing.keychain [#2528]((https://github.com/tuist/tuist/pull/2528) by [@rist](https://github.com/rist).
-
+- Expose `ResourceFileElements` initializer [#2541](https://github.com/tuist/tuist/pull/2541) by [@kwridan](https://github.com/kwridan).
+    - Note: This fixes an issue where `ResourceFileElements` could not be created using variables within helpers
+    
 ## 1.35.0 - Miracle
 
 - Fix missing linkable products for static frameworks with transitive precompiled dependencies [#2500](https://github.com/tuist/tuist/pull/2500) by [@kwridan](https://github.com/kwridan).
