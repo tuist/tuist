@@ -43,8 +43,8 @@ final class SecurityControllerTests: TuistUnitTestCase {
 
         system.errorCommand("/usr/bin/security", "find-certificate", certificatePath.pathString, "-P", "", "-k", keychainPath.pathString)
         system.errorCommand("/usr/bin/security", "find-key", privateKeyPath.pathString, "-P", "", "-k", keychainPath.pathString)
-        system.succeedCommand("/usr/bin/security", "import", certificatePath.pathString, "-P", "", "-k", keychainPath.pathString)
-        system.succeedCommand("/usr/bin/security", "import", privateKeyPath.pathString, "-P", "", "-k", keychainPath.pathString)
+        system.succeedCommand("/usr/bin/security", "import", certificatePath.pathString, "-P", "", "-T", "/usr/bin/codesign", "-T", "/usr/bin/security", "-k", keychainPath.pathString)
+        system.succeedCommand("/usr/bin/security", "import", privateKeyPath.pathString, "-P", "", "-T", "/usr/bin/codesign", "-T", "/usr/bin/security", "-k", keychainPath.pathString)
 
         // When
         try subject.importCertificate(certificate, keychainPath: keychainPath)
