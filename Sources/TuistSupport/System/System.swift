@@ -585,17 +585,24 @@ public final class System: Systeming {
         try process.launch()
     }
 
+    @Atomic
+    var cachedSwiftVersion: String?
+
     /// Returns the Swift version.
     ///
     /// - Returns: Swift version.
     /// - Throws: An error if Swift is not installed or it exists unsuccessfully.
     public func swiftVersion() throws -> String {
+        if let cachedSwiftVersion = cachedSwiftVersion {
+            return cachedSwiftVersion
+        }
         let output = try capture("/usr/bin/xcrun", "swift", "--version")
         let range = NSRange(location: 0, length: output.count)
         guard let match = System.swiftVersionRegex.firstMatch(in: output, options: [], range: range) else {
             throw SystemError.parseSwiftVersion(output)
         }
-        return NSString(string: output).substring(with: match.range(at: 1)).spm_chomp()
+        cachedSwiftVersion = NSString(string: output).substring(with: match.range(at: 1)).spm_chomp()
+        return cachedSwiftVersion!
     }
 
     /// Runs /usr/bin/which passing the given tool.
