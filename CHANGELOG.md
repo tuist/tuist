@@ -7,6 +7,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Fixed
 
 - Fix adding framework targets to AppClip  [#2530](https://github.com/tuist/tuist/pull/2530) by [@sampettersson](https://github.com/sampettersson)
+- Expose `ResourceFileElements` initializer [#2541](https://github.com/tuist/tuist/pull/2500) by [@kwridan](https://github.com/kwridan).
+    - Note: This fixes an issue where `ResourceFileElements` could not be created using variables within helpers
 
 ## 1.35.0 - Miracle
 
