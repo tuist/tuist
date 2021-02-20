@@ -33,14 +33,12 @@ The snippet below shows an example `Dependencies.swift` manifest file:
 import ProjectDescription
 
 let dependencies = Dependencies(
-    carthageDependencies: .init(
-        dependencies: [
+    carthage: .carthage(
+        [
             .github(path: "Alamofire/Alamofire", requirement: .exact("5.0.4"))
         ],
-        options: .init(
-            platforms: [.iOS, .macOS],
-            useXCFrameworks: true
-        )
+        platforms: [.iOS, .macOS],
+        useXCFrameworks: true
     )
 )
 ```
@@ -76,9 +74,9 @@ Link pulled dependencies in your project manifest file.
 
 1. Run `tuist edit` to start editing your manifest files.
 2. Open `Project.swift`.
-4. Define your project with dependencies.
+3. Define your project with dependencies.
 
-The snippet below shows an example `Project.swift` manifest file: 
+The snippet below shows an example `Project.swift` manifest file:
 
 ```swift
 import ProjectDescription
