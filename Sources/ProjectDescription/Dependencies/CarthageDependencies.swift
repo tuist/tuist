@@ -23,7 +23,7 @@ public struct CarthageDependencies: Codable, Equatable {
         self.platforms = platforms
         self.useXCFrameworks = useXCFrameworks
     }
-    
+
     /// Creates `CarthageDependencies` instance.
     /// - Parameters:
     ///   - dependencies: List of depedencies that can by installed using Carthage.
