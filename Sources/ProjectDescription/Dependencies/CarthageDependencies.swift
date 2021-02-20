@@ -4,16 +4,37 @@ import Foundation
 public struct CarthageDependencies: Codable, Equatable {
     /// List of depedencies that can by installed using Carthage.
     public let dependencies: [Dependency]
-    /// Set of options that allows to adjust Carthage installation.
-    public let options: Options
+    /// List of platforms for which you want to install depedencies.
+    public let platforms: Set<Platform>
+    /// Indicates whether the Carthage produces XCFrameworks or regular frameworks.
+    public let useXCFrameworks: Bool
 
     /// Initializes a new `CarthageDependencies` instance.
     /// - Parameters:
     ///   - dependencies: List of depedencies that can by installed using Carthage.
-    ///   - options: Set of options that allows to adjust Carthage installation.
-    public init(dependencies: [Dependency], options: Options = .default) {
+    ///   - platforms: List of platforms for which you want to install depedencies.
+    ///   - useXCFrameworks: Indicates whether the Carthage produces XCFrameworks or regular frameworks.
+    init(
+        dependencies: [Dependency],
+        platforms: Set<Platform> = Set(Platform.allCases),
+        useXCFrameworks: Bool = false
+    ) {
         self.dependencies = dependencies
-        self.options = options
+        self.platforms = platforms
+        self.useXCFrameworks = useXCFrameworks
+    }
+    
+    /// Creates `CarthageDependencies` instance.
+    /// - Parameters:
+    ///   - dependencies: List of depedencies that can by installed using Carthage.
+    ///   - platforms: List of platforms for which you want to install depedencies.
+    ///   - useXCFrameworks: Indicates whether the Carthage produces XCFrameworks or regular frameworks.
+    public static func carthage(
+        _ dependencies: [Dependency],
+        platforms: Set<Platform> = Set(Platform.allCases),
+        useXCFrameworks: Bool = false
+    ) -> Self {
+        .init(dependencies: dependencies, platforms: platforms, useXCFrameworks: useXCFrameworks)
     }
 }
 
@@ -32,31 +53,6 @@ public extension CarthageDependencies {
         case atLeast(Version)
         case branch(String)
         case revision(String)
-    }
-
-    /// Contains set of options that allows to adjust the Carthage installation.
-    struct Options: Codable, Equatable {
-        /// List of platforms for which you want to install depedencies.
-        public let platforms: Set<Platform>
-        /// Indicates whether the Carthage produces XCFrameworks or regular frameworks.
-        public let useXCFrameworks: Bool
-
-        /// Default options.
-        public static var `default`: Self {
-            .init(
-                platforms: .init(Platform.allCases),
-                useXCFrameworks: false
-            )
-        }
-
-        /// Initializes a new `CarthageDependencies.Options` instance.
-        /// - Parameters:
-        ///   - platforms: List of platforms for which you want to install depedencies.
-        ///   - useXCFrameworks: Indicates whether the Carthage produces XCFrameworks or regular frameworks.
-        public init(platforms: Set<Platform> = [], useXCFrameworks: Bool = false) {
-            self.platforms = platforms
-            self.useXCFrameworks = useXCFrameworks
-        }
     }
 }
 

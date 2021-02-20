@@ -4,13 +4,18 @@ import Foundation
 
 /// Contains the descriptions of a dependencies to be fetched with Carthage.
 public struct CarthageDependencies: Equatable {
+    /// List of depedencies that can by installed using Carthage.
     public let dependencies: [Dependency]
-    public let options: Options
+    /// List of platforms for which you want to install depedencies.
+    public let platforms: Set<Platform>
+    /// Indicates whether the Carthage produces XCFrameworks or regular frameworks.
+    public let useXCFrameworks: Bool
 
     /// Initializes the carthage dependency with its attributes.
-    public init(dependencies: [Dependency], options: Options) {
+    public init(_ dependencies: [Dependency], platforms: Set<Platform>, useXCFrameworks: Bool) {
         self.dependencies = dependencies
-        self.options = options
+        self.platforms = platforms
+        self.useXCFrameworks = useXCFrameworks
     }
 
     /// Returns `Cartfile` representation.
@@ -61,16 +66,6 @@ public extension CarthageDependencies {
             case let .revision(revision):
                 return #""\#(revision)""#
             }
-        }
-    }
-
-    struct Options: Equatable {
-        public let platforms: Set<Platform>
-        public let useXCFrameworks: Bool
-
-        public init(platforms: Set<Platform>, useXCFrameworks: Bool) {
-            self.platforms = platforms
-            self.useXCFrameworks = useXCFrameworks
         }
     }
 }

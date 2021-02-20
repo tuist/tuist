@@ -7,10 +7,11 @@ final class CarthageDependenciesTests: TuistUnitTestCase {
     func test_cartfileValue_singleDependency() {
         // Given
         let carthageDependencies: CarthageDependencies = .init(
-            dependencies: [
+            [
                 .github(path: "Dependency/Dependency", requirement: .exact("1.1.1")),
             ],
-            options: .init(platforms: [.iOS], useXCFrameworks: false)
+            platforms: [.iOS],
+            useXCFrameworks: false
         )
         let expected = """
         github "Dependency/Dependency" == 1.1.1
@@ -26,7 +27,7 @@ final class CarthageDependenciesTests: TuistUnitTestCase {
     func test_cartfileValue_multipleDependencies() {
         // Given
         let carthageDependencies: CarthageDependencies = .init(
-            dependencies: [
+            [
                 .github(path: "Dependency/Dependency", requirement: .exact("2.1.1")),
                 .github(path: "XYZ/Foo", requirement: .revision("revision")),
                 .git(path: "Foo/Bar", requirement: .atLeast("1.0.1")),
@@ -35,7 +36,8 @@ final class CarthageDependenciesTests: TuistUnitTestCase {
                 .binary(path: "https://my.domain.com/release/MyFramework.json", requirement: .upToNext("1.0.1")),
                 .binary(path: "file:///some/local/path/MyFramework.json", requirement: .atLeast("1.1.0")),
             ],
-            options: .init(platforms: [.iOS], useXCFrameworks: false)
+            platforms: [.iOS],
+            useXCFrameworks: false
         )
         let expected = """
         github "Dependency/Dependency" == 2.1.1

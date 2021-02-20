@@ -55,10 +55,11 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         let dependenciesDirectory = rootPath
             .appending(component: Constants.DependenciesDirectory.name)
         let dependencies = CarthageDependencies(
-            dependencies: [
+            [
                 .github(path: "Moya", requirement: .exact("1.1.1")),
             ],
-            options: .init(platforms: [.iOS], useXCFrameworks: false)
+            platforms: [.iOS],
+            useXCFrameworks: false
         )
 
         // When / Then
@@ -77,10 +78,11 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         let dependenciesDirectory = rootPath
             .appending(component: Constants.DependenciesDirectory.name)
         let dependencies = CarthageDependencies(
-            dependencies: [
+            [
                 .github(path: "Moya", requirement: .exact("1.1.1")),
             ],
-            options: .init(platforms: [.iOS], useXCFrameworks: true)
+            platforms: [.iOS],
+            useXCFrameworks: true
         )
 
         XCTAssertThrowsSpecific(
@@ -114,12 +116,14 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         try fileHandler.touch(temporaryDependenciesDirectory.appending(components: "tvOS", "ReactiveMoya.framework", "Info.plist"))
         try fileHandler.touch(temporaryDependenciesDirectory.appending(components: "tvOS", "RxMoya.framework", "Info.plist"))
 
-        let options = CarthageDependencies.Options(platforms: [.iOS, .watchOS, .macOS, .tvOS], useXCFrameworks: false)
+        let platforms = Set<Platform>([.iOS, .watchOS, .macOS, .tvOS])
+        let useXCFrameworks = false
         let stubbedDependencies = CarthageDependencies(
-            dependencies: [
+            [
                 .github(path: "Moya", requirement: .exact("1.1.1")),
             ],
-            options: options
+            platforms: platforms,
+            useXCFrameworks: useXCFrameworks
         )
         let stubbedCommand = ["carthage", "bootstrap", "--project-directory", temporaryDirectoryPath.pathString, "--platform iOS,macOS,tvOS,watchOS", "--cache-builds", "--new-resolver"]
 
@@ -154,8 +158,8 @@ final class CarthageInteractorTests: TuistUnitTestCase {
 
         XCTAssertTrue(carthageCommandGenerator.invokedCommand)
         XCTAssertEqual(carthageCommandGenerator.invokedCommandParameters?.path, temporaryDirectoryPath)
-        XCTAssertEqual(carthageCommandGenerator.invokedCommandParameters?.platforms, options.platforms)
-        XCTAssertEqual(carthageCommandGenerator.invokedCommandParameters?.produceXCFrameworks, options.useXCFrameworks)
+        XCTAssertEqual(carthageCommandGenerator.invokedCommandParameters?.platforms, platforms)
+        XCTAssertEqual(carthageCommandGenerator.invokedCommandParameters?.produceXCFrameworks, useXCFrameworks)
     }
 
     func test_fetch_onePlatform() throws {
@@ -174,12 +178,14 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         try fileHandler.touch(temporaryDependenciesDirectory.appending(components: "iOS", "ReactiveMoya.framework", "Info.plist"))
         try fileHandler.touch(temporaryDependenciesDirectory.appending(components: "iOS", "RxMoya.framework", "Info.plist"))
 
-        let options = CarthageDependencies.Options(platforms: [.iOS], useXCFrameworks: false)
+        let platforms = Set<Platform>([.iOS])
+        let useXCFrameworks = false
         let stubbedDependencies = CarthageDependencies(
-            dependencies: [
+            [
                 .github(path: "Moya", requirement: .exact("1.1.1")),
             ],
-            options: options
+            platforms: platforms,
+            useXCFrameworks: useXCFrameworks
         )
         let stubbedCommand = ["carthage", "bootstrap", "--project-directory", temporaryDirectoryPath.pathString, "--platform iOS", "--cache-builds", "--new-resolver"]
 
@@ -214,7 +220,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
 
         XCTAssertTrue(carthageCommandGenerator.invokedCommand)
         XCTAssertEqual(carthageCommandGenerator.invokedCommandParameters?.path, temporaryDirectoryPath)
-        XCTAssertEqual(carthageCommandGenerator.invokedCommandParameters?.platforms, options.platforms)
-        XCTAssertEqual(carthageCommandGenerator.invokedCommandParameters?.produceXCFrameworks, options.useXCFrameworks)
+        XCTAssertEqual(carthageCommandGenerator.invokedCommandParameters?.platforms, platforms)
+        XCTAssertEqual(carthageCommandGenerator.invokedCommandParameters?.produceXCFrameworks, useXCFrameworks)
     }
 }

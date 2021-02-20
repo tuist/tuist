@@ -1,11 +1,9 @@
 import Foundation
 
 public struct Dependencies: Equatable {
-    public let carthageDependencies: CarthageDependencies?
+    public let carthage: CarthageDependencies?
 
-    public init(
-        carthageDependencies: CarthageDependencies?
-    ) {
-        self.carthageDependencies = carthageDependencies
+    public init(carthage: CarthageDependencies?) {
+        self.carthage = carthage
     }
 }

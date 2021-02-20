@@ -7,13 +7,13 @@ import TuistSupport
 
 extension TuistGraph.Dependencies {
     static func from(manifest: ProjectDescription.Dependencies) throws -> Self {
-        let carthageDependencies: TuistGraph.CarthageDependencies? = try {
-            guard let carthageDependencies = manifest.carthageDependencies else {
+        let carthage: TuistGraph.CarthageDependencies? = try {
+            guard let carthage = manifest.carthage else {
                 return nil
             }
-            return try TuistGraph.CarthageDependencies.from(manifest: carthageDependencies)
+            return try TuistGraph.CarthageDependencies.from(manifest: carthage)
         }()
 
-        return Self(carthageDependencies: carthageDependencies)
+        return Self(carthage: carthage)
     }
 }

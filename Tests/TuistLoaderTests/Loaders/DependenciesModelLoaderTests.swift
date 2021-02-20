@@ -35,12 +35,13 @@ final class DependenciesModelLoaderTests: TuistUnitTestCase {
         let stubbedPath = try temporaryPath()
         manifestLoader.loadDependenciesStub = { _ in
             Dependencies(
-                carthageDependencies: .init(
-                    dependencies: [
+                carthage: .carthage(
+                    [
                         .github(path: "Dependency1", requirement: .exact("1.1.1")),
                         .git(path: "Dependency1", requirement: .exact("2.3.4")),
                     ],
-                    options: .init(platforms: [.iOS, .macOS], useXCFrameworks: true)
+                    platforms: [.iOS, .macOS],
+                    useXCFrameworks: true
                 )
             )
         }
@@ -50,12 +51,13 @@ final class DependenciesModelLoaderTests: TuistUnitTestCase {
 
         // Then
         let expected: TuistGraph.Dependencies = .init(
-            carthageDependencies: .init(
-                dependencies: [
+            carthage: .init(
+                [
                     .github(path: "Dependency1", requirement: .exact("1.1.1")),
                     .git(path: "Dependency1", requirement: .exact("2.3.4")),
                 ],
-                options: .init(platforms: [.iOS, .macOS], useXCFrameworks: true)
+                platforms: [.iOS, .macOS],
+                useXCFrameworks: true
             )
         )
         XCTAssertEqual(model, expected)

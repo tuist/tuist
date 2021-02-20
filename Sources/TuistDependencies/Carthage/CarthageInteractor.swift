@@ -90,7 +90,7 @@ public final class CarthageInteractor: CarthageInteracting {
 
             // create `carthage` shell command
             let produceXCFrameworks: Bool = try {
-                guard dependencies.options.useXCFrameworks else {
+                guard dependencies.useXCFrameworks else {
                     return false
                 }
                 guard try carthageController.isXCFrameworksProductionSupported() else {
@@ -102,7 +102,7 @@ public final class CarthageInteractor: CarthageInteracting {
             let command = carthageCommandGenerator.command(
                 path: temporaryDirectoryPath,
                 produceXCFrameworks: produceXCFrameworks,
-                platforms: dependencies.options.platforms
+                platforms: dependencies.platforms
             )
 
             // log

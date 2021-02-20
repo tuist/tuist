@@ -13,13 +13,14 @@ final class DependenciesManifestMapperTests: TuistUnitTestCase {
     func test_from() throws {
         // Given
         let manifest: ProjectDescription.Dependencies = Dependencies(
-            carthageDependencies: .init(
-                dependencies: [
+            carthage: .carthage(
+                [
                     .github(path: "Dependency1", requirement: .exact("1.1.1")),
                     .git(path: "Dependency.git", requirement: .branch("BranchName")),
                     .binary(path: "DependencyXYZ", requirement: .atLeast("2.3.1")),
                 ],
-                options: .init(platforms: [.iOS, .macOS, .tvOS], useXCFrameworks: true)
+                platforms: [.iOS, .macOS, .tvOS],
+                useXCFrameworks: true
             )
         )
 
@@ -28,13 +29,14 @@ final class DependenciesManifestMapperTests: TuistUnitTestCase {
 
         // Then
         let expected: TuistGraph.Dependencies = .init(
-            carthageDependencies: .init(
-                dependencies: [
+            carthage: .init(
+                [
                     .github(path: "Dependency1", requirement: .exact("1.1.1")),
                     .git(path: "Dependency.git", requirement: .branch("BranchName")),
                     .binary(path: "DependencyXYZ", requirement: .atLeast("2.3.1")),
                 ],
-                options: .init(platforms: [.iOS, .macOS, .tvOS], useXCFrameworks: true)
+                platforms: [.iOS, .macOS, .tvOS],
+                useXCFrameworks: true
             )
         )
         XCTAssertEqual(model, expected)
