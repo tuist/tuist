@@ -28,14 +28,13 @@ class Generator: Generating {
     private let cocoapodsInteractor: CocoaPodsInteracting = CocoaPodsInteractor()
     private let swiftPackageManagerInteractor: SwiftPackageManagerInteracting = SwiftPackageManagerInteractor()
     private let signingInteractor: SigningInteracting = SigningInteractor()
-    private let modelLoader: GeneratorModelLoading
-    private let graphLoader: GraphLoading
     private let sideEffectDescriptorExecutor: SideEffectDescriptorExecuting
     private let graphMapperProvider: GraphMapperProviding
     private let projectMapperProvider: ProjectMapperProviding
     private let workspaceMapperProvider: WorkspaceMapperProviding
     private let manifestLoader: ManifestLoading
     private let pluginsService: PluginServicing
+    private let configLoader: ConfigLoading
 
     convenience init(contentHasher: ContentHashing) {
         self.init(projectMapperProvider: ProjectMapperProvider(contentHasher: contentHasher),
@@ -52,17 +51,21 @@ class Generator: Generating {
     ) {
         let manifestLoader = manifestLoaderFactory.createManifestLoader()
         recursiveManifestLoader = RecursiveManifestLoader(manifestLoader: manifestLoader)
-        let modelLoader = GeneratorModelLoader(manifestLoader: manifestLoader,
-                                               manifestLinter: manifestLinter)
-        converter = modelLoader
-        graphLoader = GraphLoader(modelLoader: modelLoader)
+        converter = GeneratorModelLoader(
+            manifestLoader: manifestLoader,
+            manifestLinter: manifestLinter
+        )
         sideEffectDescriptorExecutor = SideEffectDescriptorExecutor()
-        self.modelLoader = modelLoader
         self.graphMapperProvider = graphMapperProvider
         self.projectMapperProvider = projectMapperProvider
         self.workspaceMapperProvider = workspaceMapperProvider
         self.manifestLoader = manifestLoader
         pluginsService = PluginService(manifestLoader: manifestLoader)
+        configLoader = ConfigLoader(
+            manifestLoader: manifestLoader,
+            rootDirectoryLocator: RootDirectoryLocator(),
+            fileHandler: FileHandler.shared
+        )
     }
 
     func generate(path: AbsolutePath, projectOnly: Bool) throws -> AbsolutePath {
@@ -99,7 +102,7 @@ class Generator: Generating {
     // swiftlint:disable:next large_tuple
     func loadProject(path: AbsolutePath) throws -> (Project, Graph, [SideEffectDescriptor]) {
         // Load config
-        let config = try graphLoader.loadConfig(path: path)
+        let config = try configLoader.loadConfig(path: path)
 
         // Load Plugins
         let plugins = try pluginsService.loadPlugins(using: config)
@@ -206,7 +209,7 @@ class Generator: Generating {
     }
 
     private func lint(graphTraverser: GraphTraversing) throws {
-        let config = try graphLoader.loadConfig(path: graphTraverser.path)
+        let config = try configLoader.loadConfig(path: graphTraverser.path)
 
         try environmentLinter.lint(config: config).printAndThrowIfNeeded()
         try graphLinter.lint(graphTraverser: graphTraverser).printAndThrowIfNeeded()
@@ -221,7 +224,7 @@ class Generator: Generating {
     // swiftlint:disable:next large_tuple
     private func loadProjectWorkspace(path: AbsolutePath) throws -> (Project, Graph, [SideEffectDescriptor]) {
         // Load config
-        let config = try graphLoader.loadConfig(path: path)
+        let config = try configLoader.loadConfig(path: path)
 
         // Load Plugins
         let plugins = try pluginsService.loadPlugins(using: config)
@@ -278,7 +281,7 @@ class Generator: Generating {
     // swiftlint:disable:next large_tuple
     private func loadWorkspace(path: AbsolutePath) throws -> (Graph, [SideEffectDescriptor]) {
         // Load config
-        let config = try graphLoader.loadConfig(path: path)
+        let config = try configLoader.loadConfig(path: path)
 
         // Load Plugins
         let plugins = try pluginsService.loadPlugins(using: config)

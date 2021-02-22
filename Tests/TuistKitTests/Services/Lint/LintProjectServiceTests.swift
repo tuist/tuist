@@ -14,6 +14,7 @@ final class LintProjectServiceTests: TuistUnitTestCase {
     var environmentLinter: MockEnvironmentLinter!
     var manifestLoader: MockManifestLoader!
     var graphLoader: MockGraphLoader!
+    var configLoader: MockConfigLoader!
     var subject: LintProjectService!
 
     override func setUp() {
@@ -21,10 +22,14 @@ final class LintProjectServiceTests: TuistUnitTestCase {
         environmentLinter = MockEnvironmentLinter()
         manifestLoader = MockManifestLoader()
         graphLoader = MockGraphLoader()
-        subject = LintProjectService(graphLinter: graphLinter,
-                                     environmentLinter: environmentLinter,
-                                     manifestLoading: manifestLoader,
-                                     graphLoader: graphLoader)
+        configLoader = MockConfigLoader()
+        subject = LintProjectService(
+            graphLinter: graphLinter,
+            environmentLinter: environmentLinter,
+            manifestLoading: manifestLoader,
+            graphLoader: graphLoader,
+            configLoader: configLoader
+        )
         super.setUp()
     }
 

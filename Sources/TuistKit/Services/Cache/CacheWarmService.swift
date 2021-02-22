@@ -7,19 +7,15 @@ import TuistLoader
 import TuistSupport
 
 final class CacheWarmService {
-    /// Generator Model Loader, used for getting the user config
-    private let generatorModelLoader: GeneratorModelLoader
+    private let configLoader: ConfigLoading
 
-    init(manifestLoader: ManifestLoader = ManifestLoader(),
-         manifestLinter: ManifestLinter = ManifestLinter())
-    {
-        generatorModelLoader = GeneratorModelLoader(manifestLoader: manifestLoader,
-                                                    manifestLinter: manifestLinter)
+    init() {
+        configLoader = ConfigLoader(manifestLoader: ManifestLoader())
     }
 
     func run(path: String?, profile: String?, xcframeworks: Bool, targets: [String]) throws {
         let path = self.path(path)
-        let config = try generatorModelLoader.loadConfig(at: path)
+        let config = try configLoader.loadConfig(path: path)
         let cache = Cache(storageProvider: CacheStorageProvider(config: config))
         let cacheControllerFactory = CacheControllerFactory(cache: cache)
         let contentHasher = CacheContentHasher()
