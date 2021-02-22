@@ -2,7 +2,7 @@ import Foundation
 
 /// Contains descriptions of dependencies to be fetched with Carthage.
 public struct CarthageDependencies: Equatable {
-    /// List of depedencies that can by installed using Carthage.
+    /// List of depedencies that can be installed using Carthage.
     public let dependencies: [Dependency]
     /// List of platforms for which you want to install depedencies.
     public let platforms: Set<Platform>
