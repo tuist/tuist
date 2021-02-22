@@ -51,6 +51,22 @@ final class GraphToGraphVizMapperTests: XCTestCase {
         XCTAssertEqual(gotNodeIds, expectedNodeIds)
         XCTAssertEqual(gotEdgeIds, expectedEdgeIds)
     }
+    
+    func test_map_skipping_tests() throws {
+        // Given
+        let graph = try makeGivenGraph()
+
+        // When
+        let got = subject.map(graph: graph, skipTestTargets: true, skipExternalDependencies: false, targetsToFilter: [])
+        let expected = makeExpectedGraphViz(includeExternalDependencies: false)
+        let gotNodeIds = got.nodes.map(\.id).sorted()
+        let expectedNodeIds = expected.nodes.map(\.id).sorted()
+        let gotEdgeIds = got.edges.map { $0.from + " -> " + $0.to }.sorted()
+        let expectedEdgeIds = expected.edges.map { $0.from + " -> " + $0.to }.sorted()
+
+        XCTAssertEqual(gotNodeIds, expectedNodeIds)
+        XCTAssertEqual(gotEdgeIds, expectedEdgeIds)
+    }
 
     func test_map_filter_targets() throws {
         // Given
@@ -104,6 +120,12 @@ final class GraphToGraphVizMapperTests: XCTestCase {
         let sdk = ValueGraphDependency.testSDK(name: "CoreData.framework", status: .required, source: .developer)
 
         let core = ValueGraphTarget.test(target: Target.test(name: "Core"))
+        let coreTests = ValueGraphTarget.test(
+            target: Target.test(
+                name: "CoreTests",
+                product: .unitTests
+            )
+        )
         let iOSApp = ValueGraphTarget.test(target: Target.test(name: "Tuist iOS"))
         let watchApp = ValueGraphTarget.test(target: Target.test(name: "Tuist watchOS"))
 

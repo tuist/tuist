@@ -413,8 +413,23 @@ public class ValueGraphTraverser: GraphTraversing {
     }
 
     public func dependsOnXCTest(path: AbsolutePath, name: String) -> Bool {
-        directTargetDependencies(path: path, name: name)
-            .first(where: { $0.target.name == "XCTest" || $0.target.product.testsBundle }) != nil
+        guard let target = target(path: path, name: name) else {
+            return false
+        }
+        if target.target.product.testsBundle {
+            return true
+        }
+        guard let directDependencies = dependencies[.target(name: name, path: path)] else {
+            return false
+        }
+        return directDependencies.contains(where: { dependency in
+            switch dependency {
+            case .sdk(name: "XCTest", path: _, status: _, source: _):
+                return true
+            default:
+                return false
+            }
+        })
     }
 
     // MARK: - Internal

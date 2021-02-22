@@ -9,6 +9,98 @@ import XCTest
 @testable import TuistSupportTesting
 
 final class ValueGraphTraverserTests: TuistUnitTestCase {
+    func test_dependsOnXCTest_when_is_framework() {
+        // Given
+        let project = Project.test()
+        let frameworkTarget = ValueGraphTarget.test(
+            path: project.path,
+            target: Target.test(
+                name: "Framework",
+                product: .framework
+            )
+        )
+        let graph = ValueGraph.test(
+            projects: [
+                project.path: project
+            ],
+            targets: [
+                project.path: [
+                    frameworkTarget.target.name: frameworkTarget.target
+                ]
+            ]
+        )
+        let subject = ValueGraphTraverser(graph: graph)
+        
+        // When
+        let got = subject.dependsOnXCTest(path: project.path, name: "Framework")
+        
+        // Then
+        XCTAssertFalse(got)
+    }
+    
+    func test_dependsOnXCTest_when_is_tests_bundle() {
+        // Given
+        let project = Project.test()
+        let unitTestsTarget = ValueGraphTarget.test(
+            path: project.path,
+            target: Target.test(
+                name: "UnitTests",
+                product: .unitTests
+            )
+        )
+        let graph = ValueGraph.test(
+            projects: [
+                project.path: project
+            ],
+            targets: [
+                project.path: [
+                    unitTestsTarget.target.name: unitTestsTarget.target
+                ]
+            ]
+        )
+        let subject = ValueGraphTraverser(graph: graph)
+        
+        // When
+        let got = subject.dependsOnXCTest(path: project.path, name: "UnitTests")
+        
+        // Then
+        XCTAssertTrue(got)
+    }
+    
+    func test_dependsOnXCTest_when_direct_dependency_is_XCTest_SDK() {
+        // Given
+        let project = Project.test()
+        let frameworkTarget = ValueGraphTarget.test(
+            path: project.path,
+            target: Target.test(
+                name: "Framework",
+                product: .framework
+            )
+        )
+        let graph = ValueGraph.test(
+            projects: [
+                project.path: project
+            ],
+            targets: [
+                project.path: [
+                    frameworkTarget.target.name: frameworkTarget.target
+                ]
+            ],
+            dependencies: [
+                .target(name: frameworkTarget.target.name, path: project.path): [
+                    .testSDK(name: "XCTest")
+                ]
+            ]
+        )
+        let subject = ValueGraphTraverser(graph: graph)
+        
+        // When
+        let got = subject.dependsOnXCTest(path: project.path, name: "Framework")
+        
+        // Then
+        XCTAssertTrue(got)
+    }
+    
     func test_target() {
         // Given
         let path = AbsolutePath.root
