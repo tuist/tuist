@@ -65,7 +65,7 @@ public final class CarthageInteractor: CarthageInteracting {
 
     public init(
         fileHandler: FileHandling = FileHandler.shared,
-        carthageController: CarthageControlling = CarthageController(),
+        carthageController: CarthageControlling = CarthageController.shared,
         carthageCommandGenerator: CarthageCommandGenerating = CarthageCommandGenerator()
     ) {
         self.fileHandler = fileHandler
@@ -89,19 +89,9 @@ public final class CarthageInteractor: CarthageInteracting {
             try prepareForInstallation(pathsProvider: pathsProvider, dependencies: dependencies)
 
             // create `carthage` shell command
-            let produceXCFrameworks: Bool = try {
-                guard dependencies.useXCFrameworks else {
-                    return false
-                }
-                guard try carthageController.isXCFrameworksProductionSupported() else {
-                    throw CarthageInteractorError.xcFrameworksProductionNotSupported
-                }
-
-                return true
-            }()
             let command = carthageCommandGenerator.command(
                 path: temporaryDirectoryPath,
-                produceXCFrameworks: produceXCFrameworks,
+                produceXCFrameworks: try shouldProduceXCFrameworks(dependencies: dependencies),
                 platforms: dependencies.platforms
             )
 
@@ -129,7 +119,7 @@ public final class CarthageInteractor: CarthageInteracting {
         }
 
         // create `Cartfile`
-        let cartfileContent = dependencies.cartfileValue
+        let cartfileContent = dependencies.cartfileValue()
         let cartfilePath = pathsProvider.temporaryDirectoryPath.appending(component: "Cartfile")
         try fileHandler.write(cartfileContent, path: cartfilePath, atomically: true)
 
@@ -154,6 +144,17 @@ public final class CarthageInteractor: CarthageInteracting {
     }
 
     // MARK: - Helpers
+    
+    private func shouldProduceXCFrameworks(dependencies: CarthageDependencies) throws -> Bool {
+        guard dependencies.useXCFrameworks else {
+            return false
+        }
+        guard try carthageController.isXCFrameworksProductionSupported() else {
+            throw CarthageInteractorError.xcFrameworksProductionNotSupported
+        }
+
+        return true
+    }
 
     private func copyFile(from fromPath: AbsolutePath, to toPath: AbsolutePath) throws {
         try fileHandler.createFolder(toPath.removingLastComponent())

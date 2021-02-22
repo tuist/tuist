@@ -47,7 +47,12 @@ public protocol CarthageControlling {
 // MARK: - Carthage Controller
 
 public final class CarthageController: CarthageControlling {
-    public init() {}
+    /// Shared instance.
+    public static var shared: CarthageControlling = CarthageController()
+    
+    /// Cached response of `carthage version` command.
+    @Atomic
+    private var cachedCarthageVersion: Version?
 
     public func canUseSystemCarthage() -> Bool {
         do {
@@ -59,6 +64,11 @@ public final class CarthageController: CarthageControlling {
     }
 
     public func carthageVersion() throws -> Version {
+        // Return cached value if available
+        if let cached = cachedCarthageVersion {
+            return cached
+        }
+        
         guard let output = try? System.shared.capture("/usr/bin/env", "carthage", "version").spm_chomp() else {
             throw CarthageControllerError.carthageNotFound
         }
@@ -66,7 +76,8 @@ public final class CarthageController: CarthageControlling {
         guard let version = Version(string: output) else {
             throw CarthageControllerError.unrecognizedCarthageVersion
         }
-
+        
+        cachedCarthageVersion = version
         return version
     }
 

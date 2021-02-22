@@ -1,14 +1,12 @@
 import Foundation
 
-// MARK: - Carthage Dependency
-
-/// Contains the descriptions of a dependencies to be fetched with Carthage.
+/// Contains descriptions of dependencies to be fetched with Carthage.
 public struct CarthageDependencies: Equatable {
     /// List of depedencies that can by installed using Carthage.
     public let dependencies: [Dependency]
     /// List of platforms for which you want to install depedencies.
     public let platforms: Set<Platform>
-    /// Indicates whether the Carthage produces XCFrameworks or regular frameworks.
+    /// Indicates whether Carthage produces XCFrameworks or regular frameworks.
     public let useXCFrameworks: Bool
 
     /// Initializes the carthage dependency with its attributes.
@@ -19,7 +17,7 @@ public struct CarthageDependencies: Equatable {
     }
 
     /// Returns `Cartfile` representation.
-    public var cartfileValue: String {
+    public func cartfileValue() -> String {
         dependencies
             .map(\.cartfileValue)
             .joined(separator: "\n")

@@ -1,19 +1,19 @@
 import Foundation
 
-/// Contains the description of dependency that can by installed using Carthage.
+/// Contains the description of a dependency that can be installed using Carthage.
 public struct CarthageDependencies: Codable, Equatable {
-    /// List of depedencies that can by installed using Carthage.
+    /// List of depedencies that can be installed using Carthage.
     public let dependencies: [Dependency]
     /// List of platforms for which you want to install depedencies.
     public let platforms: Set<Platform>
-    /// Indicates whether the Carthage produces XCFrameworks or regular frameworks.
+    /// Indicates whether Carthage produces XCFrameworks or regular frameworks.
     public let useXCFrameworks: Bool
 
     /// Initializes a new `CarthageDependencies` instance.
     /// - Parameters:
-    ///   - dependencies: List of depedencies that can by installed using Carthage.
+    ///   - dependencies: List of depedencies that can be installed using Carthage.
     ///   - platforms: List of platforms for which you want to install depedencies.
-    ///   - useXCFrameworks: Indicates whether the Carthage produces XCFrameworks or regular frameworks.
+    ///   - useXCFrameworks: Indicates whether Carthage produces XCFrameworks or regular frameworks.
     init(
         dependencies: [Dependency],
         platforms: Set<Platform> = Set(Platform.allCases),
@@ -26,9 +26,9 @@ public struct CarthageDependencies: Codable, Equatable {
 
     /// Creates `CarthageDependencies` instance.
     /// - Parameters:
-    ///   - dependencies: List of depedencies that can by installed using Carthage.
+    ///   - dependencies: List of depedencies that can be installed using Carthage.
     ///   - platforms: List of platforms for which you want to install depedencies.
-    ///   - useXCFrameworks: Indicates whether the Carthage produces XCFrameworks or regular frameworks.
+    ///   - useXCFrameworks: Indicates whether Carthage produces XCFrameworks or regular frameworks.
     public static func carthage(
         _ dependencies: [Dependency],
         platforms: Set<Platform> = Set(Platform.allCases),
@@ -38,6 +38,8 @@ public struct CarthageDependencies: Codable, Equatable {
     }
 }
 
+// MARK: - CarthageDependencies.Dependency & CarthageDependencies.Requirement
+
 public extension CarthageDependencies {
     /// Specifies origin of Carthage dependency.
     enum Dependency: Codable, Equatable {
@@ -46,7 +48,7 @@ public extension CarthageDependencies {
         case binary(path: String, requirement: Requirement)
     }
 
-    /// Specifices version requirement for Carthage depedency.
+    /// Specifies version requirement for Carthage depedency.
     enum Requirement: Codable, Equatable {
         case exact(Version)
         case upToNext(Version)

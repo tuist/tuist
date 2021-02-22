@@ -9,7 +9,7 @@ public protocol CarthageCommandGenerating {
     /// Builds `Carthage` command.
     /// - Parameters:
     ///   - path: Directory whose project's dependencies will be installed.
-    ///   - produceXCFrameworks: Indicates whether the `Carthage` produces XCFrameworks instead of universal frameworks.
+    ///   - produceXCFrameworks: Indicates whether `Carthage` produces XCFrameworks instead of regular frameworks.
     ///   - platforms: The platforms to build for.
     func command(path: AbsolutePath, produceXCFrameworks: Bool, platforms: Set<Platform>?) -> [String]
 }

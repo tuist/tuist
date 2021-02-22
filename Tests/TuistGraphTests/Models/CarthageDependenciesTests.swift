@@ -18,7 +18,7 @@ final class CarthageDependenciesTests: TuistUnitTestCase {
         """
 
         // When
-        let got = carthageDependencies.cartfileValue
+        let got = carthageDependencies.cartfileValue()
 
         // Then
         XCTAssertEqual(got, expected)
@@ -50,7 +50,7 @@ final class CarthageDependenciesTests: TuistUnitTestCase {
         """
 
         // When
-        let got = carthageDependencies.cartfileValue
+        let got = carthageDependencies.cartfileValue()
 
         // Then
         XCTAssertEqual(got, expected)
