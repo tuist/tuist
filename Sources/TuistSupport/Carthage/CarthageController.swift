@@ -49,7 +49,7 @@ public protocol CarthageControlling {
 public final class CarthageController: CarthageControlling {
     /// Shared instance.
     public static var shared: CarthageControlling = CarthageController()
-    
+
     /// Cached response of `carthage version` command.
     @Atomic
     private var cachedCarthageVersion: Version?
@@ -68,7 +68,7 @@ public final class CarthageController: CarthageControlling {
         if let cached = cachedCarthageVersion {
             return cached
         }
-        
+
         guard let output = try? System.shared.capture("/usr/bin/env", "carthage", "version").spm_chomp() else {
             throw CarthageControllerError.carthageNotFound
         }
@@ -76,7 +76,7 @@ public final class CarthageController: CarthageControlling {
         guard let version = Version(string: output) else {
             throw CarthageControllerError.unrecognizedCarthageVersion
         }
-        
+
         cachedCarthageVersion = version
         return version
     }

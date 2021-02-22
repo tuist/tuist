@@ -144,7 +144,7 @@ public final class CarthageInteractor: CarthageInteracting {
     }
 
     // MARK: - Helpers
-    
+
     private func shouldProduceXCFrameworks(dependencies: CarthageDependencies) throws -> Bool {
         guard dependencies.useXCFrameworks else {
             return false
