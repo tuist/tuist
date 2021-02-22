@@ -4,16 +4,17 @@ import Foundation
 public struct CarthageDependencies: Codable, Equatable {
     /// List of depedencies that can be installed using Carthage.
     public let dependencies: [Dependency]
-    /// List of platforms for which you want to install depedencies.
+    /// List of platforms for which you want to install depedencies. Refers to `--platform` Carthage flag.
     public let platforms: Set<Platform>
-    /// Indicates whether Carthage produces XCFrameworks or regular frameworks.
+    /// Indicates whether Carthage produces XCFrameworks or regular frameworks. Refers to `--use-xcframeworks` Carthage flag.
+    /// Note: It requires Carthage in version at least 0.37.0.
     public let useXCFrameworks: Bool
 
     /// Initializes a new `CarthageDependencies` instance.
     /// - Parameters:
     ///   - dependencies: List of depedencies that can be installed using Carthage.
-    ///   - platforms: List of platforms for which you want to install depedencies.
-    ///   - useXCFrameworks: Indicates whether Carthage produces XCFrameworks or regular frameworks.
+    ///   - platforms: List of platforms for which you want to install depedencies. Refers to `--platform` Carthage flag.
+    ///   - useXCFrameworks: Indicates whether Carthage produces XCFrameworks or regular frameworks. Refers to `--use-xcframeworks` Carthage flag. Note: It requires Carthage in version at least 0.37.0.
     init(
         dependencies: [Dependency],
         platforms: Set<Platform> = Set(Platform.allCases),
@@ -27,8 +28,8 @@ public struct CarthageDependencies: Codable, Equatable {
     /// Creates `CarthageDependencies` instance.
     /// - Parameters:
     ///   - dependencies: List of depedencies that can be installed using Carthage.
-    ///   - platforms: List of platforms for which you want to install depedencies.
-    ///   - useXCFrameworks: Indicates whether Carthage produces XCFrameworks or regular frameworks.
+    ///   - platforms: List of platforms for which you want to install depedencies. Refers to `--platform` Carthage flag.
+    ///   - useXCFrameworks: Indicates whether Carthage produces XCFrameworks or regular frameworks. Refers to `--use-xcframeworks` Carthage flag. Note: It requires Carthage in version at least 0.37.0.
     public static func carthage(
         _ dependencies: [Dependency],
         platforms: Set<Platform> = Set(Platform.allCases),
