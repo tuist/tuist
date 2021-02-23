@@ -11,6 +11,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Support for `staticFramework` dependencies for `appExtension`s [#2559](https://github.com/tuist/tuist/pull/2559) by [@danyf90](https://github.com/danyf90)
 - Enable Main Thread Checker by default [#2549](https://github.com/tuist/tuist/pull/2549) by [@myihsan](https://github.com/myihsan)
 - Add option for enabling XCFrameworks production for Carthage in `Dependencies.swift`. [#2532](https://github.com/tuist/tuist/pull/2532) by [@laxmorek](https://github.com/laxmorek)
+- Add --strict to 'lint code' command [#2534](https://github.com/tuist/tuist/pull/2534) by [@joshdholtz](https://github.com/joshdholtz)
 
 ### Fixed
 
@@ -32,7 +33,6 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Add ODR support [#2490](https://github.com/tuist/tuist/pull/2490) by [@DimaMishchenko](https://github.com/DimaMishchenko)
 - Add support for StoreKit configuration files [#2524](https://github.com/tuist/tuist/pull/2524) by [@bolismauro](https://github.com/bolismauro)
-- Add --strict to 'lint code' command [#2534](https://github.com/tuist/tuist/pull/2534) by [@joshdholtz](https://github.com/joshdholtz)
 - Selective tests [#2422](https://github.com/tuist/tuist/pull/2422) by [@fortmarek](https://github.com/fortmarek)
 - Installation of `tuist` on Big Sur [#2526](https://github.com/tuist/tuist/pull/2526) by [@pepibumur](https://github.com/pepibumur).
 
