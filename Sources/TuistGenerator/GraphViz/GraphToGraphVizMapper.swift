@@ -44,10 +44,6 @@ final class GraphToGraphVizMapper: GraphToGraphVizMapping {
         )
 
         filteredTargetsAndDependencies.forEach { target in
-            if skipTestTargets, graphTraverser.dependsOnXCTest(path: target.path, name: target.target.name) {
-                return
-            }
-
             var leftNode = GraphViz.Node(target.target.name)
             leftNode.applyAttributes(attributes: target.styleAttributes)
             nodes.append(leftNode)
@@ -55,18 +51,22 @@ final class GraphToGraphVizMapper: GraphToGraphVizMapping {
             guard
                 let targetDependencies = graphTraverser.dependencies[.target(name: target.target.name, path: target.path)]
             else { return }
-            targetDependencies.forEach { dependency in
-                var rightNode = GraphViz.Node(dependency.name)
-                rightNode.applyAttributes(
-                    attributes: dependency.styleAttributes(
-                        graphTraverser: graphTraverser
+            targetDependencies
+                .filter { dependency in
+                    if skipExternalDependencies, dependency.isExternal { return false }
+                    return true
+                }
+                .forEach { dependency in
+                    var rightNode = GraphViz.Node(dependency.name)
+                    rightNode.applyAttributes(
+                        attributes: dependency.styleAttributes(
+                            graphTraverser: graphTraverser
+                        )
                     )
-                )
-                nodes.append(rightNode)
-                if skipExternalDependencies, dependency.isExternal { return }
-                let edge = GraphViz.Edge(from: leftNode, to: rightNode)
-                dependencies.append(edge)
-            }
+                    nodes.append(rightNode)
+                    let edge = GraphViz.Edge(from: leftNode, to: rightNode)
+                    dependencies.append(edge)
+                }
         }
 
         let sortedNodes = Set(nodes).sorted { $0.id < $1.id }

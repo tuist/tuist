@@ -58,7 +58,7 @@ final class GraphToGraphVizMapperTests: XCTestCase {
 
         // When
         let got = subject.map(graph: graph, skipTestTargets: true, skipExternalDependencies: false, targetsToFilter: [])
-        let expected = makeExpectedGraphViz(includeExternalDependencies: false)
+        let expected = makeExpectedGraphViz(includeTests: false)
         let gotNodeIds = got.nodes.map(\.id).sorted()
         let expectedNodeIds = expected.nodes.map(\.id).sorted()
         let gotEdgeIds = got.edges.map { $0.from + " -> " + $0.to }.sorted()
@@ -71,10 +71,16 @@ final class GraphToGraphVizMapperTests: XCTestCase {
     func test_map_filter_targets() throws {
         // Given
         let graph = try makeGivenGraph()
-
+        var expected = GraphViz.Graph(directed: true, strict: false)
+        let tuist = GraphViz.Node("Tuist iOS")
+        let core = GraphViz.Node("Core")
+        expected.append(contentsOf: [tuist, core])
+        expected.append(GraphViz.Edge(from: tuist, to: core))
+        
         // When
         let got = subject.map(graph: graph, skipTestTargets: false, skipExternalDependencies: true, targetsToFilter: ["Tuist iOS"])
-        let expected = makeExpectedGraphViz(includeExternalDependencies: false, onlyiOS: true)
+
+        // Then
         let gotNodeIds = got.nodes.map(\.id).sorted()
         let expectedNodeIds = expected.nodes.map(\.id).sorted()
         let gotEdgeIds = got.edges.map { $0.from + " -> " + $0.to }.sorted()
@@ -84,7 +90,11 @@ final class GraphToGraphVizMapperTests: XCTestCase {
         XCTAssertEqual(gotEdgeIds, expectedEdgeIds)
     }
 
-    private func makeExpectedGraphViz(includeExternalDependencies: Bool = true, onlyiOS: Bool = false) -> GraphViz.Graph {
+    private func makeExpectedGraphViz(
+        includeExternalDependencies: Bool = true,
+        includeTests: Bool = true,
+        onlyiOS: Bool = false
+    ) -> GraphViz.Graph {
         var graph = GraphViz.Graph(directed: true, strict: false)
 
         let tuist = GraphViz.Node("Tuist iOS")
@@ -92,9 +102,10 @@ final class GraphToGraphVizMapperTests: XCTestCase {
         let rxSwift = GraphViz.Node("RxSwift")
         let xcodeProj = GraphViz.Node("XcodeProj")
         let core = GraphViz.Node("Core")
+        let coreTests = GraphViz.Node("CoreTests")
         let watchOS = GraphViz.Node("Tuist watchOS")
 
-        graph.append(contentsOf: [tuist, coreData, rxSwift, xcodeProj, core])
+        graph.append(contentsOf: [tuist, core])
         if !onlyiOS {
             graph.append(watchOS)
         }
@@ -104,12 +115,25 @@ final class GraphToGraphVizMapperTests: XCTestCase {
         }
 
         if includeExternalDependencies {
+            graph.append(
+                contentsOf: [
+                    coreData, rxSwift, xcodeProj
+                ]
+            )
             graph.append(contentsOf: [
                 GraphViz.Edge(from: core, to: xcodeProj),
                 GraphViz.Edge(from: core, to: rxSwift),
                 GraphViz.Edge(from: core, to: coreData),
             ])
         }
+        
+        if includeTests {
+            graph.append(coreTests)
+            graph.append(
+                GraphViz.Edge(from: coreTests, to: core)
+            )
+        }
+        
         return graph
     }
 
@@ -120,6 +144,7 @@ final class GraphToGraphVizMapperTests: XCTestCase {
         let sdk = ValueGraphDependency.testSDK(name: "CoreData.framework", status: .required, source: .developer)
 
         let core = ValueGraphTarget.test(target: Target.test(name: "Core"))
+        let coreDependency = ValueGraphDependency.target(name: core.target.name, path: core.path)
         let coreTests = ValueGraphTarget.test(
             target: Target.test(
                 name: "CoreTests",
@@ -136,14 +161,20 @@ final class GraphToGraphVizMapperTests: XCTestCase {
             targets: [
                 project.path: [
                     core.target.name: core.target,
+                    coreTests.target.name: coreTests.target,
                     iOSApp.target.name: iOSApp.target,
                     watchApp.target.name: watchApp.target,
                 ],
             ],
             dependencies: [
-                .target(name: core.target.name, path: core.path): Set([framework, library, sdk]),
-                .target(name: iOSApp.target.name, path: iOSApp.path): Set([.target(name: core.target.name, path: core.path)]),
-                .target(name: watchApp.target.name, path: watchApp.path): Set([.target(name: core.target.name, path: core.path)]),
+                .target(name: core.target.name, path: core.path): [
+                    framework,
+                    library,
+                    sdk,
+                ],
+                .target(name: coreTests.target.name, path: coreTests.path): [coreDependency],
+                .target(name: iOSApp.target.name, path: iOSApp.path): [coreDependency],
+                .target(name: watchApp.target.name, path: watchApp.path): [coreDependency],
             ]
         )
 
