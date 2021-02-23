@@ -79,7 +79,7 @@ public struct TestAction: Equatable, Codable {
                 codeCoverageTargets: [TargetReference] = [],
                 preActions: [ExecutionAction] = [],
                 postActions: [ExecutionAction] = [],
-                diagnosticsOptions: [SchemeDiagnosticsOption] = [],
+                diagnosticsOptions: [SchemeDiagnosticsOption] = [.mainThreadChecker],
                 language: String? = nil,
                 region: String? = nil)
     {
@@ -115,7 +115,7 @@ public struct TestAction: Equatable, Codable {
                 codeCoverageTargets: [TargetReference] = [],
                 preActions: [ExecutionAction] = [],
                 postActions: [ExecutionAction] = [],
-                diagnosticsOptions: [SchemeDiagnosticsOption] = [],
+                diagnosticsOptions: [SchemeDiagnosticsOption] = [.mainThreadChecker],
                 language: String? = nil,
                 region: String? = nil)
     {
@@ -151,7 +151,7 @@ public struct TestAction: Equatable, Codable {
              codeCoverageTargets: [],
              preActions: preActions,
              postActions: postActions,
-             diagnosticsOptions: [],
+             diagnosticsOptions: [.mainThreadChecker],
              language: nil,
              region: nil)
     }
@@ -175,7 +175,7 @@ public struct TestAction: Equatable, Codable {
              codeCoverageTargets: [],
              preActions: preActions,
              postActions: postActions,
-             diagnosticsOptions: [],
+             diagnosticsOptions: [.mainThreadChecker],
              language: nil,
              region: nil)
     }
