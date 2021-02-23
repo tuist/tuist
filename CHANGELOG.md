@@ -4,6 +4,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+## 1.36.0
+
 ### Added
 
 - Support for `staticFramework` dependencies for `appExtension`s [#2559](https://github.com/tuist/tuist/pull/2559) by [@danyf90](https://github.com/danyf90)
