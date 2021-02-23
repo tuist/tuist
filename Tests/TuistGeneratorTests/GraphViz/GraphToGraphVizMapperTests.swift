@@ -51,7 +51,7 @@ final class GraphToGraphVizMapperTests: XCTestCase {
         XCTAssertEqual(gotNodeIds, expectedNodeIds)
         XCTAssertEqual(gotEdgeIds, expectedEdgeIds)
     }
-    
+
     func test_map_skipping_tests() throws {
         // Given
         let graph = try makeGivenGraph()
@@ -76,7 +76,7 @@ final class GraphToGraphVizMapperTests: XCTestCase {
         let core = GraphViz.Node("Core")
         expected.append(contentsOf: [tuist, core])
         expected.append(GraphViz.Edge(from: tuist, to: core))
-        
+
         // When
         let got = subject.map(graph: graph, skipTestTargets: false, skipExternalDependencies: true, targetsToFilter: ["Tuist iOS"])
 
@@ -117,7 +117,7 @@ final class GraphToGraphVizMapperTests: XCTestCase {
         if includeExternalDependencies {
             graph.append(
                 contentsOf: [
-                    coreData, rxSwift, xcodeProj
+                    coreData, rxSwift, xcodeProj,
                 ]
             )
             graph.append(contentsOf: [
@@ -126,14 +126,14 @@ final class GraphToGraphVizMapperTests: XCTestCase {
                 GraphViz.Edge(from: core, to: coreData),
             ])
         }
-        
+
         if includeTests {
             graph.append(coreTests)
             graph.append(
                 GraphViz.Edge(from: coreTests, to: core)
             )
         }
-        
+
         return graph
     }
 
@@ -172,7 +172,7 @@ final class GraphToGraphVizMapperTests: XCTestCase {
                 coreProject.path: [
                     core.target.name: core.target,
                     coreTests.target.name: coreTests.target,
-                ]
+                ],
             ],
             dependencies: [
                 .target(name: core.target.name, path: core.path): [

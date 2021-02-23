@@ -199,7 +199,7 @@ final class MockGraphTraverser: GraphTraversing {
         invokedDirectLocalTargetDependenciesParametersList.append((path, name))
         return stubbedDirectLocalTargetDependenciesResult
     }
-    
+
     var invokedDirectTargetDependencies = false
     var invokedDirectTargetDependenciesCount = 0
     var invokedDirectTargetDependenciesParameters: (path: AbsolutePath, name: String)?

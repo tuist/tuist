@@ -101,7 +101,7 @@ public class ValueGraphTraverser: GraphTraversing {
         guard let targets = graph.targets[path] else { return [] }
         return Set(targets.values.map { ValueGraphTarget(path: path, target: $0, project: project) })
     }
-    
+
     public func directTargetDependencies(path: AbsolutePath, name: String) -> Set<ValueGraphTarget> {
         guard
             let dependencies = graph.dependencies[.target(name: name, path: path)]
