@@ -22,7 +22,7 @@
     "@theme-ui/sidenav": "^0.3.5",
     "@theme-ui/typography": "^0.3.5",
     "autoprefixer": "^10.2.4",
-    "copy-text-to-clipboard": "^3.0.0",
+    "copy-text-to-clipboard": "^3.0.1",
     "focus-visible": "^5.2.0",
     "gatsby": "^2.32.3",
     "gatsby-image": "^2.11.0",
