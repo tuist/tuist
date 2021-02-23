@@ -205,7 +205,7 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         XCTAssertEqual(got, [.product(target: staticLibrary.name, productName: staticLibrary.productNameWithExtension)])
     }
 
-    func test_directTargetDependencies() {
+    func test_directLocalTargetDependencies() {
         // Given
         // A -> B -> C
         let project = Project.test()
@@ -235,7 +235,7 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         XCTAssertEqual(got.map(\.target), [b])
     }
 
-    func test_directTargetDependencies_returnsLocalProjectTargetsOnly() {
+    func test_directLocalTargetDependencies_returnsLocalProjectTargetsOnly() {
         // Given
         // Project A: A1 -> A2
         //               -> (Project B) B1
@@ -272,6 +272,53 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(got.map(\.target), [a2])
+    }
+    
+    func test_directTargetDependencies_returnsAllTargets() {
+        // Given
+        // Project A: A1 -> A2
+        //               -> (Project B) B1
+        // Project B: B1
+        let projectA = Project.test(path: "/ProjectA", name: "ProjectA")
+        let projectB = Project.test(path: "/ProjectB", name: "ProjectB")
+        let a1 = Target.test(name: "A1")
+        let a2 = Target.test(name: "A2")
+        let b1 = Target.test(
+            name: "B1"
+        )
+        let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
+            .target(name: a1.name, path: projectA.path): Set([
+                .target(name: a2.name, path: projectA.path),
+                .target(name: b1.name, path: projectB.path),
+            ]),
+        ]
+        let targets: [AbsolutePath: [String: Target]] = [
+            projectA.path: [
+                a1.name: a1,
+                a2.name: a2,
+            ],
+            projectB.path: [
+                b1.name: b1,
+            ],
+        ]
+        // Given: Value Graph
+        let valueGraph = ValueGraph.test(path: projectA.path,
+                                         projects: [projectA.path: projectA, projectB.path: projectB],
+                                         targets: targets,
+                                         dependencies: dependencies)
+        let subject = ValueGraphTraverser(graph: valueGraph)
+
+        // When
+        let got = subject.directTargetDependencies(path: projectA.path, name: a1.name).sorted()
+
+        // Then
+        XCTAssertEqual(
+            got,
+            [
+                ValueGraphTarget(path: projectA.path, target: a2, project: projectA),
+                ValueGraphTarget(path: projectB.path, target: b1, project: projectB),
+            ]
+        )
     }
 
     func test_resourceBundleDependencies_returns_an_empty_list_when_a_dependency_can_host_resources() {

@@ -139,13 +139,18 @@ final class GraphToGraphVizMapperTests: XCTestCase {
 
     private func makeGivenGraph() throws -> ValueGraph {
         let project = Project.test(path: "/")
+        let coreProject = Project.test(path: "/Core")
         let framework = ValueGraphDependency.testFramework(path: AbsolutePath("/XcodeProj.framework"))
         let library = ValueGraphDependency.testLibrary(path: AbsolutePath("/RxSwift.a"))
         let sdk = ValueGraphDependency.testSDK(name: "CoreData.framework", status: .required, source: .developer)
 
-        let core = ValueGraphTarget.test(target: Target.test(name: "Core"))
+        let core = ValueGraphTarget.test(
+            path: coreProject.path,
+            target: Target.test(name: "Core")
+        )
         let coreDependency = ValueGraphDependency.target(name: core.target.name, path: core.path)
         let coreTests = ValueGraphTarget.test(
+            path: coreProject.path,
             target: Target.test(
                 name: "CoreTests",
                 product: .unitTests
@@ -157,14 +162,17 @@ final class GraphToGraphVizMapperTests: XCTestCase {
         let graph = ValueGraph.test(
             projects: [
                 project.path: project,
+                coreProject.path: coreProject,
             ],
             targets: [
                 project.path: [
-                    core.target.name: core.target,
-                    coreTests.target.name: coreTests.target,
                     iOSApp.target.name: iOSApp.target,
                     watchApp.target.name: watchApp.target,
                 ],
+                coreProject.path: [
+                    core.target.name: core.target,
+                    coreTests.target.name: coreTests.target,
+                ]
             ],
             dependencies: [
                 .target(name: core.target.name, path: core.path): [
