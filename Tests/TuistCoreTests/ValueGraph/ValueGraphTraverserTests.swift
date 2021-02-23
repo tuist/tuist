@@ -229,7 +229,7 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         let subject = ValueGraphTraverser(graph: valueGraph)
 
         // When
-        let got = subject.directTargetDependencies(path: project.path, name: a.name).sorted()
+        let got = subject.directLocalTargetDependencies(path: project.path, name: a.name).sorted()
 
         // Then
         XCTAssertEqual(got.map(\.target), [b])
@@ -268,7 +268,7 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         let subject = ValueGraphTraverser(graph: valueGraph)
 
         // When
-        let got = subject.directTargetDependencies(path: projectA.path, name: a1.name).sorted()
+        let got = subject.directLocalTargetDependencies(path: projectA.path, name: a1.name).sorted()
 
         // Then
         XCTAssertEqual(got.map(\.target), [a2])

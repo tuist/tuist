@@ -226,7 +226,7 @@ final class TestService {
                 minVersion = scheme.targetDependencies()
                     .flatMap {
                         graphTraverser
-                            .directTargetDependencies(path: $0.projectPath, name: $0.name)
+                            .directLocalTargetDependencies(path: $0.projectPath, name: $0.name)
                             .map(\.target)
                             .map(\.deploymentTarget)
                             .compactMap { $0?.version.version() }

@@ -66,7 +66,7 @@ public protocol GraphTraversing {
     /// - Parameters:
     ///   - path: Path to the directory that contains the project.
     ///   - name: Target name.
-    func directTargetDependencies(path: AbsolutePath, name: String) -> Set<ValueGraphTarget>
+    func directLocalTargetDependencies(path: AbsolutePath, name: String) -> Set<ValueGraphTarget>
 
     /// Given a project directory and a target name, it returns all the dependencies that are extensions.
     /// - Parameters:

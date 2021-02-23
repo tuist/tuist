@@ -102,7 +102,7 @@ public class ValueGraphTraverser: GraphTraversing {
         return Set(targets.values.map { ValueGraphTarget(path: path, target: $0, project: project) })
     }
 
-    public func directTargetDependencies(path: AbsolutePath, name: String) -> Set<ValueGraphTarget> {
+    public func directLocalTargetDependencies(path: AbsolutePath, name: String) -> Set<ValueGraphTarget> {
         guard let dependencies = graph.dependencies[.target(name: name, path: path)] else { return [] }
         guard let project = graph.projects[path] else { return Set() }
 
@@ -161,12 +161,12 @@ public class ValueGraphTraverser: GraphTraversing {
         let validProducts: [Product] = [
             .appExtension, .stickerPackExtension, .watch2Extension, .messagesExtension,
         ]
-        return Set(directTargetDependencies(path: path, name: name)
+        return Set(directLocalTargetDependencies(path: path, name: name)
             .filter { validProducts.contains($0.target.product) })
     }
 
     public func appClipDependencies(path: AbsolutePath, name: String) -> ValueGraphTarget? {
-        directTargetDependencies(path: path, name: name)
+        directLocalTargetDependencies(path: path, name: name)
             .first { $0.target.product == .appClip }
     }
 
@@ -571,7 +571,7 @@ public class ValueGraphTraverser: GraphTraversing {
     }
 
     func hostApplication(path: AbsolutePath, name: String) -> ValueGraphTarget? {
-        directTargetDependencies(path: path, name: name)
+        directLocalTargetDependencies(path: path, name: name)
             .first(where: { $0.target.product == .app })
     }
 

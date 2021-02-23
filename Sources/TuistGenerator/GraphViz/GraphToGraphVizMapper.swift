@@ -39,7 +39,7 @@ final class GraphToGraphVizMapper: GraphToGraphVizMapping {
 
         let filteredTargetsAndDependencies: Set<ValueGraphTarget> = filteredTargets.union(
             transitiveClosure(Array(filteredTargets)) { target in
-                Array(graphTraverser.directTargetDependencies(path: target.path, name: target.target.name))
+                Array(graphTraverser.directLocalTargetDependencies(path: target.path, name: target.target.name))
             }
         )
 

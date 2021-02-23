@@ -447,7 +447,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                                       fileElements: ProjectFileElements,
                                       pbxproj: PBXProj) throws
     {
-        let targetDependencies = graphTraverser.directTargetDependencies(path: path, name: target.name).sorted()
+        let targetDependencies = graphTraverser.directLocalTargetDependencies(path: path, name: target.name).sorted()
         let watchApps = targetDependencies.filter { $0.target.product == .watch2App }
         guard !watchApps.isEmpty else { return }
 
