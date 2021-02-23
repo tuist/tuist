@@ -43,11 +43,15 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             .appending(component: Constants.tuistDirectoryName)
             .appending(component: Constants.DependenciesDirectory.name)
 
-        let stubbedCarthageDependencies = [
-            CarthageDependency(origin: .github(path: "Moya"), requirement: .exact("1.1.1"), platforms: [.iOS]),
-            CarthageDependency(origin: .github(path: "RxSwift"), requirement: .exact("2.0.0"), platforms: [.iOS]),
-        ]
-        let stubbedDependencies = Dependencies(carthageDependencies: stubbedCarthageDependencies)
+        let stubbedCarthageDependencies = CarthageDependencies(
+            [
+                .github(path: "Moya", requirement: .exact("1.1.1")),
+                .github(path: "RxSwift", requirement: .exact("2.0.0")),
+            ],
+            platforms: [.iOS],
+            useXCFrameworks: true
+        )
+        let stubbedDependencies = Dependencies(carthage: stubbedCarthageDependencies)
 
         // When
         try subject.fetch(at: rootPath, dependencies: stubbedDependencies)

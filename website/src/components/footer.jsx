@@ -161,7 +161,7 @@ export default () => {
               className="text-center text-base leading-6"
               sx={{ color: 'gray' }}
             >
-              Tuist © Copyright 2020. All rights reserved.
+              Tuist © Copyright 2021. All rights reserved.
             </p>
           </div>
         </div>

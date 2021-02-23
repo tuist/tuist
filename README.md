@@ -134,6 +134,7 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
     <td align="center"><a href="https://github.com/DimaMishchenko"><img src="https://avatars.githubusercontent.com/u/25247301?v=4" width="100px;" alt=""/><br /><sub><b>Dmytro Mishchenko</b></sub></a></td>
     <td align="center"><a href="http://www.sampettersson.com"><img src="https://avatars.githubusercontent.com/u/5459507?v=4" width="100px;" alt=""/><br /><sub><b>Sam Pettersson</b></sub></a></td>
     <td align="center"><a href="http://www.joshholtz.com"><img src="https://avatars.githubusercontent.com/u/401294?v=4" width="100px;" alt=""/><br /><sub><b>Josh Holtz</b></sub></a></td>
+    <td align="center"><a href="http://jierong.dev"><img src="https://avatars.githubusercontent.com/u/7414906?v=4" width="100px;" alt=""/><br /><sub><b>Jierong Li</b></sub></a></td>
   </tr>
 </table>
 

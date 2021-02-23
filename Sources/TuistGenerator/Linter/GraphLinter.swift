@@ -340,6 +340,7 @@ public class GraphLinter: GraphLinting {
         LintableTarget(platform: .iOS, product: .appExtension): [
             LintableTarget(platform: .iOS, product: .staticLibrary),
             LintableTarget(platform: .iOS, product: .dynamicLibrary),
+            LintableTarget(platform: .iOS, product: .staticFramework),
             LintableTarget(platform: .iOS, product: .framework),
         ],
         LintableTarget(platform: .iOS, product: .appClip): [
