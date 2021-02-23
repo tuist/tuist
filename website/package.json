@@ -51,7 +51,7 @@
     "graphviz-react": "^1.1.1",
     "is-absolute-url": "^3.0.3",
     "moment": "^2.29.1",
-    "polished": "^4.1.0",
+    "polished": "^4.1.1",
     "postcss": "^8.2.6",
     "prettier": "^2.2.1",
     "prismjs": "^1.23.0",
