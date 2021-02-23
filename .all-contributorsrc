@@ -305,6 +305,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "myihsan",
+      "name": "Jierong Li",
+      "avatar_url": "https://avatars.githubusercontent.com/u/7414906?v=4",
+      "profile": "http://jierong.dev",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,
