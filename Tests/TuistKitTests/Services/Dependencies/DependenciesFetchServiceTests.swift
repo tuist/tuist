@@ -40,9 +40,13 @@ final class DependenciesFetchServiceTests: TuistUnitTestCase {
         // Given
         let stubbedPath = try temporaryPath()
         let stubbedDependencies = Dependencies(
-            carthageDependencies: [
-                CarthageDependency(origin: .github(path: "Dependency1"), requirement: .exact("1.1.1"), platforms: [.iOS, .macOS]),
-            ]
+            carthage: .init(
+                [
+                    .github(path: "Dependency1", requirement: .exact("1.1.1")),
+                ],
+                platforms: [.iOS, .macOS],
+                useXCFrameworks: false
+            )
         )
         dependenciesModelLoader.loadDependenciesStub = { _ in stubbedDependencies }
 
