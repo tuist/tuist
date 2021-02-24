@@ -42,7 +42,7 @@ public final class CacheFrameworkBuilder: CacheArtifactBuilding {
 
     /// Developer's environment.
     private let developerEnvironment: DeveloperEnvironmenting
-    
+
     private let derivedDataLocator: DerivedDataLocating
 
     // MARK: - Init

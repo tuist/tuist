@@ -1,5 +1,5 @@
-import Foundation
 import CryptoKit
+import Foundation
 import TSCBasic
 
 public protocol DerivedDataLocating {
@@ -8,7 +8,7 @@ public protocol DerivedDataLocating {
 
 public final class DerivedDataLocator: DerivedDataLocating {
     public init() {}
-    
+
     public func locate(for projectPath: AbsolutePath) throws -> AbsolutePath {
         let hash = try XcodeProjectPathHasher.hashString(for: projectPath.pathString)
         return DeveloperEnvironment.shared.derivedDataDirectory
@@ -68,4 +68,3 @@ internal class XcodeProjectPathHasher {
         return result.joined()
     }
 }
-
