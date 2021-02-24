@@ -10,6 +10,7 @@ import XCTest
 
 final class UpCarthageTests: TuistUnitTestCase {
     var platforms: [Platform]!
+    var useXCFrameworks: Bool!
     var upHomebrew: MockUp!
     var carthage: MockCarthage!
     var subject: UpCarthage!
@@ -17,15 +18,18 @@ final class UpCarthageTests: TuistUnitTestCase {
     override func setUp() {
         super.setUp()
         platforms = [.iOS, .macOS]
+        useXCFrameworks = true
         carthage = MockCarthage()
         upHomebrew = MockUp()
         subject = UpCarthage(platforms: platforms,
+                             useXCFrameworks: useXCFrameworks,
                              upHomebrew: upHomebrew,
                              carthage: carthage)
     }
 
     override func tearDown() {
         platforms = nil
+        useXCFrameworks = nil
         carthage = nil
         upHomebrew = nil
         subject = nil
@@ -34,9 +38,13 @@ final class UpCarthageTests: TuistUnitTestCase {
 
     func test_init() throws {
         let temporaryPath = try self.temporaryPath()
-        let json = JSON(["platforms": JSON.array([JSON.string("ios")])])
+        let json = JSON([
+            "platforms": JSON.array([JSON.string("ios")]),
+            "useXCFrameworks": JSON.bool(true),
+        ])
         let got = try UpCarthage(dictionary: json, projectPath: temporaryPath)
         XCTAssertEqual(got.platforms, [.iOS])
+        XCTAssertTrue(got.useXCFrameworks)
     }
 
     func test_isMet_when_homebrew_is_not_met() throws {
@@ -95,9 +103,10 @@ final class UpCarthageTests: TuistUnitTestCase {
         carthage.outdatedStub = { _ in
             ["Dependency"]
         }
-        carthage.bootstrapStub = { projectPath, platforms, dependencies in
+        carthage.bootstrapStub = { projectPath, platforms, useXCFrameworks, dependencies in
             XCTAssertEqual(projectPath, temporaryPath)
             XCTAssertEqual(platforms, self.platforms)
+            XCTAssertEqual(useXCFrameworks, self.useXCFrameworks)
             XCTAssertEqual(dependencies, ["Dependency"])
         }
 

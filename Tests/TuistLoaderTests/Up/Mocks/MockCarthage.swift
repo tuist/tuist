@@ -8,7 +8,7 @@ import TuistGraph
 final class MockCarthage: Carthaging {
     var outdatedStub: ((AbsolutePath) throws -> [String]?)?
     var outdatedCallCount: UInt = 0
-    var bootstrapStub: ((AbsolutePath, [Platform], [String]) throws -> Void)?
+    var bootstrapStub: ((AbsolutePath, [Platform], Bool,  [String]) throws -> Void)?
     var bootstrapCallCount: UInt = 0
 
     func outdated(path: AbsolutePath) throws -> [String]? {
@@ -16,8 +16,13 @@ final class MockCarthage: Carthaging {
         return try outdatedStub?(path) ?? nil
     }
 
-    func bootstrap(path: AbsolutePath, platforms: [Platform], dependencies: [String]) throws {
+    func bootstrap(
+        path: AbsolutePath,
+        platforms: [Platform],
+        useXCFrameworks: Bool,
+        dependencies: [String]
+    ) throws {
         bootstrapCallCount += 1
-        try bootstrapStub?(path, platforms, dependencies)
+        try bootstrapStub?(path, platforms, useXCFrameworks, dependencies)
     }
 }

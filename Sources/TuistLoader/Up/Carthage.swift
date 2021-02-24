@@ -18,9 +18,15 @@ protocol Carthaging {
     /// - Parameters:
     ///   - path: Directory where the Carthage dependencies are defined.
     ///   - platforms: Platforms the dependencies will be bootstraped for.
+    ///   - useXCFrameworks: Indicates whether Carthage produces XCFrameworks or regular frameworks.
     ///   - dependencies: Dependencies to bootstrap
     /// - Throws: An error if the dependencies bootstrap fails.
-    func bootstrap(path: AbsolutePath, platforms: [Platform], dependencies: [String]) throws
+    func bootstrap(
+        path: AbsolutePath,
+        platforms: [Platform],
+        useXCFrameworks: Bool,
+        dependencies: [String]
+    ) throws
 
     /// Returns the list of outdated dependencies in the given directory.
     ///
@@ -39,9 +45,15 @@ final class Carthage: Carthaging {
     /// - Parameters:
     ///   - path: Directory where the Carthage dependencies are defined.
     ///   - platforms: Platforms the dependencies will be bootstraped for.
+    ///   - useXCFrameworks: Indicates whether Carthage produces XCFrameworks or regular frameworks.
     ///   - dependencies: Dependencies to bootstrap
     /// - Throws: An error if the dependencies bootstrap fails.
-    func bootstrap(path: AbsolutePath, platforms: [Platform], dependencies: [String]) throws {
+    func bootstrap(
+        path: AbsolutePath,
+        platforms: [Platform],
+        useXCFrameworks: Bool,
+        dependencies: [String]
+    ) throws {
         let carthagePath = try System.shared.which("carthage")
 
         var command: [String] = [carthagePath]
@@ -49,6 +61,10 @@ final class Carthage: Carthaging {
         command.append("--project-directory")
         command.append(path.pathString)
 
+        if useXCFrameworks {
+            command.append("--use-xcframeworks")
+        }
+        
         if !platforms.isEmpty {
             command.append("--platform")
             command.append(platforms.map(\.caseValue).joined(separator: ","))
