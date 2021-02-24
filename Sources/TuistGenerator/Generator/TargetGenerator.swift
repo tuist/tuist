@@ -117,7 +117,7 @@ final class TargetGenerator: TargetGenerating {
                                     graphTraverser: GraphTraversing) throws
     {
         try targets.forEach { targetSpec in
-            let dependencies = graphTraverser.directTargetDependencies(path: path, name: targetSpec.name).sorted()
+            let dependencies = graphTraverser.directLocalTargetDependencies(path: path, name: targetSpec.name).sorted()
             try dependencies.forEach { dependency in
                 let target = nativeTargets[targetSpec.name]!
                 let dependency = nativeTargets[dependency.target.name]!

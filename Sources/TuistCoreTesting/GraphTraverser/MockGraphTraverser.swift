@@ -186,6 +186,20 @@ final class MockGraphTraverser: GraphTraversing {
         return stubbedTargetsAtResult
     }
 
+    var invokedDirectLocalTargetDependencies = false
+    var invokedDirectLocalTargetDependenciesCount = 0
+    var invokedDirectLocalTargetDependenciesParameters: (path: AbsolutePath, name: String)?
+    var invokedDirectLocalTargetDependenciesParametersList = [(path: AbsolutePath, name: String)]()
+    var stubbedDirectLocalTargetDependenciesResult: Set<ValueGraphTarget>! = []
+
+    func directLocalTargetDependencies(path: AbsolutePath, name: String) -> Set<ValueGraphTarget> {
+        invokedDirectLocalTargetDependencies = true
+        invokedDirectLocalTargetDependenciesCount += 1
+        invokedDirectLocalTargetDependenciesParameters = (path, name)
+        invokedDirectLocalTargetDependenciesParametersList.append((path, name))
+        return stubbedDirectLocalTargetDependenciesResult
+    }
+
     var invokedDirectTargetDependencies = false
     var invokedDirectTargetDependenciesCount = 0
     var invokedDirectTargetDependenciesParameters: (path: AbsolutePath, name: String)?
