@@ -35,32 +35,32 @@ final class CloudSessionService: CloudSessionServicing {
     /// Cloud session controller.
     let cloudSessionController: CloudSessionControlling
 
-    /// Generator model loader.
-    let generatorModelLoader: GeneratorModelLoading
+    let configLoader: ConfigLoading
 
     // MARK: - Init
 
     convenience init() {
-        let manifetLoader = ManifestLoader()
-        let manifestLinter = ManifestLinter()
-        let generatorModelLoader = GeneratorModelLoader(manifestLoader: manifetLoader,
-                                                        manifestLinter: manifestLinter)
-        self.init(cloudSessionController: CloudSessionController(),
-                  generatorModelLoader: generatorModelLoader)
+        let manifestLoader = ManifestLoader()
+        let configLoader = ConfigLoader(manifestLoader: manifestLoader)
+        self.init(
+            cloudSessionController: CloudSessionController(),
+            configLoader: configLoader
+        )
     }
 
-    init(cloudSessionController: CloudSessionControlling,
-         generatorModelLoader: GeneratorModelLoading)
-    {
+    init(
+        cloudSessionController: CloudSessionControlling,
+        configLoader: ConfigLoading
+    ) {
         self.cloudSessionController = cloudSessionController
-        self.generatorModelLoader = generatorModelLoader
+        self.configLoader = configLoader
     }
 
     // MARK: - CloudAuthServicing
 
     func printSession() throws {
         let path = FileHandler.shared.currentPath
-        let config = try generatorModelLoader.loadConfig(at: path)
+        let config = try configLoader.loadConfig(path: path)
         guard let cloudURL = config.cloud?.url else {
             throw CloudSessionServiceError.missingCloudURL
         }

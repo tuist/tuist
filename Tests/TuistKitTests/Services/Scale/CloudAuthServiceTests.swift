@@ -39,27 +39,29 @@ final class CloudAuthServiceErrorTests: TuistUnitTestCase {
 
 final class CloudAuthServiceTests: TuistUnitTestCase {
     var cloudSessionController: MockCloudSessionController!
-    var generatorModelLoader: MockGeneratorModelLoader!
+    var configLoader: MockConfigLoader!
     var subject: CloudAuthService!
 
     override func setUp() {
         super.setUp()
         cloudSessionController = MockCloudSessionController()
-        generatorModelLoader = MockGeneratorModelLoader(basePath: FileHandler.shared.currentPath)
-        subject = CloudAuthService(cloudSessionController: cloudSessionController,
-                                   generatorModelLoader: generatorModelLoader)
+        configLoader = MockConfigLoader()
+        subject = CloudAuthService(
+            cloudSessionController: cloudSessionController,
+            configLoader: configLoader
+        )
     }
 
     override func tearDown() {
         super.tearDown()
         cloudSessionController = nil
-        generatorModelLoader = nil
+        configLoader = nil
         subject = nil
     }
 
     func test_authenticate_when_cloudURL_is_missing() {
         // Given
-        generatorModelLoader.mockConfig("") { (_) -> Config in
+        configLoader.loadConfigStub = { _ in
             Config.test(cloud: nil)
         }
 
@@ -70,7 +72,7 @@ final class CloudAuthServiceTests: TuistUnitTestCase {
     func test_authenticate() throws {
         // Given
         let cloudURL = URL.test()
-        generatorModelLoader.mockConfig("") { (_) -> Config in
+        configLoader.loadConfigStub = { _ in
             Config.test(cloud: Cloud(url: cloudURL, projectId: "123", options: []))
         }
 
