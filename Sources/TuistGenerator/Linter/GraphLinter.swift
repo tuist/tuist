@@ -143,7 +143,7 @@ public class GraphLinter: GraphLinting {
         let apps = graphTraverser.apps()
 
         let issues = apps.flatMap { app -> [LintingIssue] in
-            let appClips = graphTraverser.directTargetDependencies(path: app.path, name: app.target.name)
+            let appClips = graphTraverser.directLocalTargetDependencies(path: app.path, name: app.target.name)
                 .filter { $0.target.product == .appClip }
 
             if appClips.count > 1 {
@@ -173,12 +173,12 @@ public class GraphLinter: GraphLinting {
         let apps = graphTraverser.apps()
 
         let issues = apps.flatMap { app -> [LintingIssue] in
-            let watchApps = graphTraverser.directTargetDependencies(path: app.path, name: app.target.name)
+            let watchApps = graphTraverser.directLocalTargetDependencies(path: app.path, name: app.target.name)
                 .filter { $0.target.product == .watch2App }
 
             return watchApps.flatMap { watchApp -> [LintingIssue] in
                 let watchAppIssues = lint(watchApp: watchApp, parentApp: app)
-                let watchExtensions = graphTraverser.directTargetDependencies(path: watchApp.path, name: watchApp.target.name)
+                let watchExtensions = graphTraverser.directLocalTargetDependencies(path: watchApp.path, name: watchApp.target.name)
                     .filter { $0.target.product == .watch2Extension }
 
                 let watchExtensionIssues = watchExtensions.flatMap { watchExtension in
@@ -340,6 +340,7 @@ public class GraphLinter: GraphLinting {
         LintableTarget(platform: .iOS, product: .appExtension): [
             LintableTarget(platform: .iOS, product: .staticLibrary),
             LintableTarget(platform: .iOS, product: .dynamicLibrary),
+            LintableTarget(platform: .iOS, product: .staticFramework),
             LintableTarget(platform: .iOS, product: .framework),
         ],
         LintableTarget(platform: .iOS, product: .appClip): [

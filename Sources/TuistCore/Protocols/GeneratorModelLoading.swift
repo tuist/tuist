@@ -25,11 +25,4 @@ public protocol GeneratorModelLoading {
     /// - Returns: The workspace loaded from the specified path
     /// - Throws: Error encountered during the loading process (e.g. Missing workspace)
     func loadWorkspace(at path: AbsolutePath) throws -> Workspace
-
-    /// Load a Config model at the specified path
-    ///
-    /// - Parameter path: The absolute path for the Config model to load
-    /// - Returns: The config loaded from the specified path
-    /// - Throws: Error encountered during the loading process (e.g. Missing Config file)
-    func loadConfig(at path: AbsolutePath) throws -> Config
 }

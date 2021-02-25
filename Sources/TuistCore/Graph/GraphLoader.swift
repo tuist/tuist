@@ -11,13 +11,6 @@ public protocol GraphLoading: AnyObject {
     /// Loads the graph for the workspace in the given directory.
     /// - Parameter path: Path to the directory that contains the workspace.
     func loadWorkspace(path: AbsolutePath) throws -> Graph
-
-    /// Loads the configuration.
-    ///
-    /// - Parameter path: Directory from which look up and load the Config.
-    /// - Returns: Loaded Config object.
-    /// - Throws: An error if the Config.swift can't be parsed.
-    func loadConfig(path: AbsolutePath) throws -> Config
 }
 
 public class GraphLoader: GraphLoading {
@@ -115,18 +108,6 @@ public class GraphLoader: GraphLoading {
             workspace: workspace
         )
         return graph
-    }
-
-    public func loadConfig(path: AbsolutePath) throws -> Config {
-        let cache = GraphLoaderCache()
-
-        if let config = cache.config(path) {
-            return config
-        } else {
-            let config = try modelLoader.loadConfig(at: path)
-            cache.add(config: config, path: path)
-            return config
-        }
     }
 
     // MARK: - Fileprivate

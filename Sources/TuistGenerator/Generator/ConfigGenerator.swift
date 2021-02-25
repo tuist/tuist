@@ -225,7 +225,7 @@ final class ConfigGenerator: ConfigGenerating {
             return [:]
         }
 
-        let targetDependencies = graphTraverser.directTargetDependencies(path: projectPath, name: target.name).sorted()
+        let targetDependencies = graphTraverser.directLocalTargetDependencies(path: projectPath, name: target.name).sorted()
         let appDependency = targetDependencies.first { $0.target.product.canHostTests() }
 
         guard let app = appDependency else {
@@ -287,7 +287,7 @@ final class ConfigGenerator: ConfigGenerating {
             return [:]
         }
 
-        let targetDependencies = graphTraverser.directTargetDependencies(path: projectPath, name: target.name).sorted()
+        let targetDependencies = graphTraverser.directLocalTargetDependencies(path: projectPath, name: target.name).sorted()
         guard let watchExtension = targetDependencies.first(where: { $0.target.product == .watch2Extension }) else {
             return [:]
         }

@@ -34,20 +34,21 @@ final class FocusServiceProjectGeneratorFactory: FocusServiceProjectGeneratorFac
 final class FocusService {
     private let opener: Opening
     private let projectGeneratorFactory: FocusServiceProjectGeneratorFactorying
-    private let generatorModelLoader: GeneratorModelLoading
+    private let configLoader: ConfigLoading
 
-    init(generatorModelLoader: GeneratorModelLoading = GeneratorModelLoader(),
-         opener: Opening = Opener(),
-         projectGeneratorFactory: FocusServiceProjectGeneratorFactorying = FocusServiceProjectGeneratorFactory())
-    {
-        self.generatorModelLoader = generatorModelLoader
+    init(
+        configLoader: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader()),
+        opener: Opening = Opener(),
+        projectGeneratorFactory: FocusServiceProjectGeneratorFactorying = FocusServiceProjectGeneratorFactory()
+    ) {
+        self.configLoader = configLoader
         self.opener = opener
         self.projectGeneratorFactory = projectGeneratorFactory
     }
 
     func run(path: String?, sources: Set<String>, noOpen: Bool, xcframeworks: Bool, profile: String?, ignoreCache: Bool) throws {
         let path = self.path(path)
-        let config = try generatorModelLoader.loadConfig(at: path)
+        let config = try configLoader.loadConfig(path: path)
 
         let cacheProfile = ignoreCache
             ? CacheProfileResolver.defaultCacheProfileFromTuist

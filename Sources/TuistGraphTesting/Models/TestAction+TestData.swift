@@ -10,7 +10,7 @@ public extension TestAction {
                      codeCoverageTargets: [TargetReference] = [],
                      preActions: [ExecutionAction] = [],
                      postActions: [ExecutionAction] = [],
-                     diagnosticsOptions: Set<SchemeDiagnosticsOption> = Set(),
+                     diagnosticsOptions: Set<SchemeDiagnosticsOption> = [.mainThreadChecker],
                      language: String? = nil,
                      region: String? = nil,
                      testPlans: [TestPlan]? = nil) -> TestAction

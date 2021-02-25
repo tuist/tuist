@@ -4,15 +4,26 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+## 1.36.0 - Digital Love
+
+### Added
+
+- Support for `staticFramework` dependencies for `appExtension`s [#2559](https://github.com/tuist/tuist/pull/2559) by [@danyf90](https://github.com/danyf90)
+- Enable Main Thread Checker by default [#2549](https://github.com/tuist/tuist/pull/2549) by [@myihsan](https://github.com/myihsan)
+- Add option for enabling XCFrameworks production for Carthage in `Dependencies.swift`. [#2532](https://github.com/tuist/tuist/pull/2532) by [@laxmorek](https://github.com/laxmorek)
+- Add --strict to 'lint code' command [#2534](https://github.com/tuist/tuist/pull/2534) by [@joshdholtz](https://github.com/joshdholtz)
+
 ### Fixed
 
 - Fix adding framework targets to AppClip [#2530](https://github.com/tuist/tuist/pull/2530) by [@sampettersson](https://github.com/sampettersson)
 - Make sure security and codesign can access certificates in signing.keychain [#2528]((https://github.com/tuist/tuist/pull/2528) by [@rist](https://github.com/rist).
 - Expose `ResourceFileElements` initializer [#2541](https://github.com/tuist/tuist/pull/2541) by [@kwridan](https://github.com/kwridan).
-    - Note: This fixes an issue where `ResourceFileElements` could not be created using variables within helpers
+  - Note: This fixes an issue where `ResourceFileElements` could not be created using variables within helpers
 
 ### Changed
 
+- Migrate `GraphViz` to `ValueGraph` [#2542](https://github.com/tuist/tuist/pull/2542) by [@fortmarek](https://github.com/fortmarek)
+- When enabling code coverage, tests targets such as `TestMyFrameworkA` gather coverage for all targets instead of only `TestMyFrameworkA` [#2501](https://github.com/tuist/tuist/pull/2501) by [@adellibovi](https://github.com/adellibovi)
 - Improve `tuist generate` speed by caching Swift version fetching [#2546](https://github.com/tuist/tuist/pull/2546) by [@adellibovi](https://github.com/adellibovi/)
 
 ## 1.35.0 - Miracle
@@ -23,7 +34,6 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Add ODR support [#2490](https://github.com/tuist/tuist/pull/2490) by [@DimaMishchenko](https://github.com/DimaMishchenko)
 - Add support for StoreKit configuration files [#2524](https://github.com/tuist/tuist/pull/2524) by [@bolismauro](https://github.com/bolismauro)
-- Add --strict to 'lint code' command [#2534](https://github.com/tuist/tuist/pull/2534) by [@joshdholtz](https://github.com/joshdholtz)
 - Selective tests [#2422](https://github.com/tuist/tuist/pull/2422) by [@fortmarek](https://github.com/fortmarek)
 - Installation of `tuist` on Big Sur [#2526](https://github.com/tuist/tuist/pull/2526) by [@pepibumur](https://github.com/pepibumur).
 

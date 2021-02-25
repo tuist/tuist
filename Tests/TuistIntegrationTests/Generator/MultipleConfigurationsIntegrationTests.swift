@@ -328,11 +328,9 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
         let appTarget = try createAppTarget(settings: targetSettings)
         let project = createProject(path: try pathTo("App"), settings: projectSettings, targets: [appTarget], schemes: [])
         let workspace = try createWorkspace(path: temporaryPath, projects: ["App"])
-        let config = createConfig()
 
         modelLoader.mockProject("App") { _ in project }
         modelLoader.mockWorkspace { _ in workspace }
-        modelLoader.mockConfig { _ in config }
 
         return modelLoader
     }

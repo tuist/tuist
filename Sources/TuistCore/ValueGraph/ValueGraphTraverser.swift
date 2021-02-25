@@ -103,6 +103,26 @@ public class ValueGraphTraverser: GraphTraversing {
     }
 
     public func directTargetDependencies(path: AbsolutePath, name: String) -> Set<ValueGraphTarget> {
+        guard
+            let dependencies = graph.dependencies[.target(name: name, path: path)]
+        else { return [] }
+
+        let targetDependencies = dependencies
+            .compactMap(\.targetDependency)
+
+        return Set(targetDependencies.flatMap { (dependencyName, dependencyPath) -> [ValueGraphTarget] in
+            guard
+                let projectDependencies = graph.targets[dependencyPath],
+                let dependencyTarget = projectDependencies[dependencyName],
+                let dependencyProject = graph.projects[dependencyPath]
+            else {
+                return []
+            }
+            return [ValueGraphTarget(path: dependencyPath, target: dependencyTarget, project: dependencyProject)]
+        })
+    }
+
+    public func directLocalTargetDependencies(path: AbsolutePath, name: String) -> Set<ValueGraphTarget> {
         guard let dependencies = graph.dependencies[.target(name: name, path: path)] else { return [] }
         guard let project = graph.projects[path] else { return Set() }
 
@@ -161,12 +181,12 @@ public class ValueGraphTraverser: GraphTraversing {
         let validProducts: [Product] = [
             .appExtension, .stickerPackExtension, .watch2Extension, .messagesExtension,
         ]
-        return Set(directTargetDependencies(path: path, name: name)
+        return Set(directLocalTargetDependencies(path: path, name: name)
             .filter { validProducts.contains($0.target.product) })
     }
 
     public func appClipDependencies(path: AbsolutePath, name: String) -> ValueGraphTarget? {
-        directTargetDependencies(path: path, name: name)
+        directLocalTargetDependencies(path: path, name: name)
             .first { $0.target.product == .appClip }
     }
 
@@ -413,8 +433,23 @@ public class ValueGraphTraverser: GraphTraversing {
     }
 
     public func dependsOnXCTest(path: AbsolutePath, name: String) -> Bool {
-        directTargetDependencies(path: path, name: name)
-            .first(where: { $0.target.name == "XCTest" || $0.target.product.testsBundle }) != nil
+        guard let target = target(path: path, name: name) else {
+            return false
+        }
+        if target.target.product.testsBundle {
+            return true
+        }
+        guard let directDependencies = dependencies[.target(name: name, path: path)] else {
+            return false
+        }
+        return directDependencies.contains(where: { dependency in
+            switch dependency {
+            case .sdk(name: "XCTest", path: _, status: _, source: _):
+                return true
+            default:
+                return false
+            }
+        })
     }
 
     // MARK: - Internal
@@ -556,7 +591,7 @@ public class ValueGraphTraverser: GraphTraversing {
     }
 
     func hostApplication(path: AbsolutePath, name: String) -> ValueGraphTarget? {
-        directTargetDependencies(path: path, name: name)
+        directLocalTargetDependencies(path: path, name: name)
             .first(where: { $0.target.product == .app })
     }
 

@@ -16,13 +16,13 @@ final class GraphServiceTests: TuistUnitTestCase {
     var subject: GraphService!
     var graphVizGenerator: MockGraphVizGenerator!
     var manifestLoader: MockManifestLoader!
-    var graphLoader: MockGraphLoader!
+    var configLoader: MockConfigLoader!
 
     override func setUp() {
         super.setUp()
         graphVizGenerator = MockGraphVizGenerator()
         manifestLoader = MockManifestLoader()
-        graphLoader = MockGraphLoader()
+        configLoader = MockConfigLoader()
 
         subject = GraphService(
             graphVizGenerator: graphVizGenerator,
@@ -32,7 +32,7 @@ final class GraphServiceTests: TuistUnitTestCase {
                 fileHandler: fileHandler,
                 gitHandler: MockGitHandler()
             ),
-            graphLoader: graphLoader
+            configLoader: configLoader
         )
     }
 

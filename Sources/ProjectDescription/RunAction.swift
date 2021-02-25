@@ -28,7 +28,7 @@ public struct RunAction: Equatable, Codable {
                 executable: TargetReference? = nil,
                 arguments: Arguments? = nil,
                 options: RunActionOptions = .options(),
-                diagnosticsOptions: [SchemeDiagnosticsOption] = [])
+                diagnosticsOptions: [SchemeDiagnosticsOption] = [.mainThreadChecker])
     {
         self.configurationName = configurationName
         self.executable = executable
@@ -48,7 +48,7 @@ public struct RunAction: Equatable, Codable {
                 executable: TargetReference? = nil,
                 arguments: Arguments? = nil,
                 options: RunActionOptions = .options(),
-                diagnosticsOptions: [SchemeDiagnosticsOption] = [])
+                diagnosticsOptions: [SchemeDiagnosticsOption] = [.mainThreadChecker])
     {
         self.init(configurationName: config.name,
                   executable: executable,

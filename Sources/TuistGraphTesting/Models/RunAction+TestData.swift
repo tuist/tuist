@@ -8,7 +8,7 @@ public extension RunAction {
                      filePath: AbsolutePath? = nil,
                      arguments: Arguments? = Arguments.test(),
                      options: RunActionOptions = .init(),
-                     diagnosticsOptions: Set<SchemeDiagnosticsOption> = Set()) -> RunAction
+                     diagnosticsOptions: Set<SchemeDiagnosticsOption> = [.mainThreadChecker]) -> RunAction
     {
         RunAction(configurationName: configurationName,
                   executable: executable,

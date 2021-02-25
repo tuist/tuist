@@ -2144,11 +2144,6 @@
     prop-types "^15.6.1"
     react-lifecycles-compat "^3.0.4"
 
-"@scarf/scarf@^1.1.0":
-  version "1.1.0"
-  resolved "https://registry.yarnpkg.com/@scarf/scarf/-/scarf-1.1.0.tgz#b84b4a91cd938a688d36245b7a7db6fbc476a499"
-  integrity sha512-b2iE8kjjzzUo2WZ0xuE2N77kfnTds7ClrDxcz3Atz7h2XrNVoAPUoT75i7CY0st5x++70V91Y+c6RpBX9MX7Jg==
-
 "@semantic-ui-react/event-stack@^3.1.2":
   version "3.1.2"
   resolved "https://registry.yarnpkg.com/@semantic-ui-react/event-stack/-/event-stack-3.1.2.tgz#14fac9796695aa3967962d94ea9733a85325f9c4"
@@ -5093,10 +5088,10 @@ copy-descriptor@^0.1.0:
   resolved "https://registry.yarnpkg.com/copy-descriptor/-/copy-descriptor-0.1.1.tgz#676f6eb3c39997c2ee1ac3a924fd6124748f578d"
   integrity sha1-Z29us8OZl8LuGsOpJP1hJHSPV40=
 
-copy-text-to-clipboard@^3.0.0:
-  version "3.0.0"
-  resolved "https://registry.yarnpkg.com/copy-text-to-clipboard/-/copy-text-to-clipboard-3.0.0.tgz#ccf2456ac9f1b9692c5b2185c0af441deb2d372d"
-  integrity sha512-c3pWBUzRN/ek5By3pHFBnYNrlcczsCKee7jrBYLjkPpO2ps9ZjH5Huo4+NHrvsYf5uAmA35r+r+eVUKG6IVdGA==
+copy-text-to-clipboard@^3.0.1:
+  version "3.0.1"
+  resolved "https://registry.yarnpkg.com/copy-text-to-clipboard/-/copy-text-to-clipboard-3.0.1.tgz#8cbf8f90e0a47f12e4a24743736265d157bce69c"
+  integrity sha512-rvVsHrpFcL4F2P8ihsoLdFHmd404+CMg71S756oRSeQgqk51U3kicGdnvfkrxva0xXH92SjGS62B0XIJsbh+9Q==
 
 copyfiles@^2.3.0:
   version "2.4.1"
@@ -8193,10 +8188,10 @@ gatsby-transformer-yaml@^2.11.0:
     lodash "^4.17.20"
     unist-util-select "^1.5.0"
 
-gatsby@^2.32.3:
-  version "2.32.3"
-  resolved "https://registry.yarnpkg.com/gatsby/-/gatsby-2.32.3.tgz#af4c12e676c9e0cdbc69c29508af2384da462c11"
-  integrity sha512-6l1ktlIbj6dRDnAPi+dh/tAEx7FdEYm55RwM3aiFEpwNIHeevG+Jw1RZhIpwUmhkGBwaOjr559KJYf7dYuXk3w==
+gatsby@^2.32.4:
+  version "2.32.4"
+  resolved "https://registry.yarnpkg.com/gatsby/-/gatsby-2.32.4.tgz#2bfb7cc587c1ec7fda70e57ca2893ce5bbc6a4e9"
+  integrity sha512-Jpqp8pwQJab6fpGdB3OmJk3UXqPvmYHH6YugF9CYfsTyJXy3yoOSxJ6hMzZeZxEnxeJ5RnJlGRyMEZJtpmy3ZQ==
   dependencies:
     "@babel/code-frame" "^7.10.4"
     "@babel/core" "^7.12.3"
@@ -8335,7 +8330,6 @@ gatsby@^2.32.3:
     string-similarity "^1.2.2"
     strip-ansi "^5.2.0"
     style-loader "^0.23.1"
-    terminal-link "^2.1.1"
     terser-webpack-plugin "^2.3.8"
     tmp "^0.2.1"
     "true-case-path" "^2.2.1"
@@ -12754,13 +12748,12 @@ polished@^3.4.1:
   dependencies:
     "@babel/runtime" "^7.9.2"
 
-polished@^4.1.0:
-  version "4.1.0"
-  resolved "https://registry.yarnpkg.com/polished/-/polished-4.1.0.tgz#ab80c10e04fdf8795faee723b59577de18d2936b"
-  integrity sha512-y8IInTGHuwku7+O+wsJ7OOvNpJF7EPP/IDzF1uj9UJfEEKpMAfeq5gZ5UrtOksM7Jk4+hBAk6Ce8rFOOF4msZg==
+polished@^4.1.1:
+  version "4.1.1"
+  resolved "https://registry.yarnpkg.com/polished/-/polished-4.1.1.tgz#40442cc973348e466f2918cdf647531bb6c29bfb"
+  integrity sha512-4MZTrfPMPRLD7ac8b+2JZxei58zw6N1hFkdBDERif5Tlj19y3vPoPusrLG+mJIlPTGnUlKw3+yWz0BazvMx1vg==
   dependencies:
     "@babel/runtime" "^7.12.5"
-    "@scarf/scarf" "^1.1.0"
 
 popmotion-pose@^3.4.10:
   version "3.4.11"
@@ -15913,14 +15906,6 @@ supports-color@^7.0.0, supports-color@^7.1.0:
   dependencies:
     has-flag "^4.0.0"
 
-supports-hyperlinks@^2.0.0:
-  version "2.1.0"
-  resolved "https://registry.yarnpkg.com/supports-hyperlinks/-/supports-hyperlinks-2.1.0.tgz#f663df252af5f37c5d49bbd7eeefa9e0b9e59e47"
-  integrity sha512-zoE5/e+dnEijk6ASB6/qrK+oYdm2do1hjoLWrqUC/8WEIW1gbxFcKuBof7sW8ArN6e+AYvsE8HBGiVRWL/F5CA==
-  dependencies:
-    has-flag "^4.0.0"
-    supports-color "^7.0.0"
-
 svg-react-loader@^0.4.4:
   version "0.4.6"
   resolved "https://registry.yarnpkg.com/svg-react-loader/-/svg-react-loader-0.4.6.tgz#b263efb3e3d2fff4c682a729351aba5f185051a1"
@@ -16078,14 +16063,6 @@ term-size@^2.1.0:
   version "2.2.1"
   resolved "https://registry.yarnpkg.com/term-size/-/term-size-2.2.1.tgz#2a6a54840432c2fb6320fea0f415531e90189f54"
   integrity sha512-wK0Ri4fOGjv/XPy8SBHZChl8CM7uMc5VML7SqiQ0zG7+J5Vr+RMQDoHa2CNT6KHUnTGIXH34UDMkPzAUyapBZg==
-
-terminal-link@^2.1.1:
-  version "2.1.1"
-  resolved "https://registry.yarnpkg.com/terminal-link/-/terminal-link-2.1.1.tgz#14a64a27ab3c0df933ea546fba55f2d078edc994"
-  integrity sha512-un0FmiRUQNr5PJqy9kP7c40F5BOfpGlYTrxonDChEZB7pzZxRNp/bt+ymiy9/npwXya9KH99nJ/GXFIiUkYGFQ==
-  dependencies:
-    ansi-escapes "^4.2.1"
-    supports-hyperlinks "^2.0.0"
 
 terser-webpack-plugin@^1.4.3:
   version "1.4.5"
