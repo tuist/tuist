@@ -1,6 +1,7 @@
 import ProjectDescription
 import TSCBasic
 import TuistCore
+import TuistCoreTesting
 import TuistGraph
 import TuistGraphTesting
 import TuistLoader
@@ -18,17 +19,25 @@ final class PluginServiceTests: TuistTestCase {
     private var templatesDirectoryLocator: MockTemplatesDirectoryLocator!
     private var gitHandler: MockGitHandler!
     private var subject: PluginService!
+    private var cacheDirectoriesProvider: MockCacheDirectoriesProvider!
+    private var cacheDirectoryProviderFactory: MockCacheDirectoriesProviderFactory!
 
     override func setUp() {
         super.setUp()
         manifestLoader = MockManifestLoader()
         templatesDirectoryLocator = MockTemplatesDirectoryLocator()
         gitHandler = MockGitHandler()
+        let mockCacheDirectoriesProvider = try! MockCacheDirectoriesProvider()
+        cacheDirectoriesProvider = mockCacheDirectoriesProvider
+        cacheDirectoriesProvider.cacheDirectoryStub = try! temporaryPath()
+        cacheDirectoryProviderFactory = MockCacheDirectoriesProviderFactory(provider: cacheDirectoriesProvider)
+        cacheDirectoryProviderFactory.cacheDirectoriesStub = { _ in mockCacheDirectoriesProvider }
         subject = PluginService(
             manifestLoader: manifestLoader,
             templatesDirectoryLocator: templatesDirectoryLocator,
             fileHandler: fileHandler,
-            gitHandler: gitHandler
+            gitHandler: gitHandler,
+            cacheDirectoryProviderFactory: cacheDirectoryProviderFactory
         )
     }
 
@@ -73,7 +82,7 @@ final class PluginServiceTests: TuistTestCase {
         let pluginGitUrl = "https://url/to/repo.git"
         let pluginGitId = "1.0.0"
         let pluginFingerprint = "\(pluginGitUrl)-\(pluginGitId)".md5
-        let cachedPluginPath = environment.cacheDirectory.appending(components: Constants.pluginsDirectoryName, pluginFingerprint)
+        let cachedPluginPath = cacheDirectoriesProvider.pluginCacheDirectory.appending(components: pluginFingerprint)
         let pluginName = "TestPlugin"
 
         manifestLoader.loadConfigStub = { _ in
@@ -130,7 +139,7 @@ final class PluginServiceTests: TuistTestCase {
         let pluginGitUrl = "https://url/to/repo.git"
         let pluginGitId = "1.0.0"
         let pluginFingerprint = "\(pluginGitUrl)-\(pluginGitId)".md5
-        let cachedPluginPath = environment.cacheDirectory.appending(components: Constants.pluginsDirectoryName, pluginFingerprint)
+        let cachedPluginPath = cacheDirectoriesProvider.pluginCacheDirectory.appending(components: pluginFingerprint)
         let pluginName = "TestPlugin"
         let resourceTemplatesPath = cachedPluginPath.appending(components: "ResourceSynthesizers")
 
@@ -191,7 +200,7 @@ final class PluginServiceTests: TuistTestCase {
         let pluginGitUrl = "https://url/to/repo.git"
         let pluginGitId = "1.0.0"
         let pluginFingerprint = "\(pluginGitUrl)-\(pluginGitId)".md5
-        let cachedPluginPath = environment.cacheDirectory.appending(components: Constants.pluginsDirectoryName, pluginFingerprint)
+        let cachedPluginPath = cacheDirectoriesProvider.pluginCacheDirectory.appending(components: pluginFingerprint)
         let pluginName = "TestPlugin"
         let templatePath = cachedPluginPath.appending(components: "Templates", "custom")
         templatesDirectoryLocator.templatePluginDirectoriesStub = { _ in
@@ -217,6 +226,19 @@ final class PluginServiceTests: TuistTestCase {
         let plugins = try subject.loadPlugins(using: config)
         let expectedPlugins = Plugins.test(templatePaths: [templatePath])
         XCTAssertEqual(plugins, expectedPlugins)
+    }
+
+    func test_cacheConfiguration_WHEN_loadPlugin() throws {
+        // Given
+        let pluginGitUrl = "https://url/to/repo.git"
+        let pluginGitId = "1.0.0"
+        let config = mockConfig(plugins: [TuistGraph.PluginLocation.gitWithTag(url: pluginGitUrl, tag: pluginGitId)])
+
+        // When
+        _ = try subject.loadPlugins(using: config)
+
+        // Then
+        XCTAssertEqual(cacheDirectoryProviderFactory.cacheDirectoriesConfig, config)
     }
 
     private func mockConfig(plugins: [TuistGraph.PluginLocation]) -> TuistGraph.Config {

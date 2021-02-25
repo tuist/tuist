@@ -18,21 +18,6 @@ public protocol Environmenting: AnyObject {
     /// Only to be used for acceptance tests
     var automationPath: AbsolutePath? { get }
 
-    /// Returns the cache directory
-    var cacheDirectory: AbsolutePath { get }
-
-    /// Returns the directory where the project description helper modules are cached.
-    var projectDescriptionHelpersCacheDirectory: AbsolutePath { get }
-
-    /// Directory where the projects generated for automation are located.
-    var projectsCacheDirectory: AbsolutePath { get }
-
-    /// Returns the directory where the build artifacts are cached.
-    var buildCacheDirectory: AbsolutePath { get }
-
-    /// Returns the directory where hashes of modules that have been a part of successful test are cached
-    var testsCacheDirectory: AbsolutePath { get }
-
     /// Returns all the environment variables that are specific to Tuist (prefixed with TUIST_)
     var tuistVariables: [String: String] { get }
 
@@ -87,7 +72,7 @@ public class Environment: Environmenting {
 
     /// Sets up the local environment.
     private func setup() {
-        [directory, versionsDirectory, cacheDirectory].forEach {
+        [directory, versionsDirectory].forEach {
             if !fileHandler.exists($0) {
                 // swiftlint:disable:next force_try
                 try! fileHandler.createFolder($0)
@@ -129,36 +114,8 @@ public class Environment: Environmenting {
         }
     }
 
-    public var testsCacheDirectory: AbsolutePath {
-        cacheDirectory.appending(component: "TestsCache")
-    }
-
-    /// Returns the directory where the build artifacts are cached.
-    public var buildCacheDirectory: AbsolutePath {
-        cacheDirectory.appending(component: "BuildCache")
-    }
-
-    /// Returns the directory where the project description helper modules are cached.
-    public var projectDescriptionHelpersCacheDirectory: AbsolutePath {
-        cacheDirectory.appending(component: "ProjectDescriptionHelpers")
-    }
-
-    /// Returns the directory where the projects generated for automation tasks are generated to
-    public var projectsCacheDirectory: AbsolutePath {
-        cacheDirectory.appending(component: "Projects")
-    }
-
     public var automationPath: AbsolutePath? {
         ProcessInfo.processInfo.environment[Constants.EnvironmentVariables.automationPath].map { AbsolutePath($0) }
-    }
-
-    /// Returns the cache directory
-    public var cacheDirectory: AbsolutePath {
-        if let envVariable = ProcessInfo.processInfo.environment[Constants.EnvironmentVariables.cacheDirectory] {
-            return AbsolutePath(envVariable)
-        } else {
-            return directory.appending(component: "Cache")
-        }
     }
 
     public var queueDirectory: AbsolutePath {

@@ -13,7 +13,6 @@ public enum Constants {
 
     public static let helpersDirectoryName: String = "ProjectDescriptionHelpers"
     public static let signingDirectoryName: String = "Signing"
-    public static let pluginsDirectoryName: String = "Plugins"
 
     public static let masterKey = "master.key"
     public static let encryptedExtension = "encrypted"
@@ -57,7 +56,8 @@ public enum Constants {
         public static let verbose = "TUIST_VERBOSE"
         public static let colouredOutput = "TUIST_COLOURED_OUTPUT"
         public static let versionsDirectory = "TUIST_VERSIONS_DIRECTORY"
-        public static let cacheDirectory = "TUIST_CACHE_DIRECTORY"
+        @available(*, deprecated, message: "This is used only for acceptance tests, see https://github.com/tuist/tuist/issues/2777")
+        public static let forceConfigCacheDirectory = "TUIST_FORCE_CONFIG_CACHE_DIRECTORY"
         public static let automationPath = "TUIST_AUTOMATION_PATH"
         public static let queueDirectory = "TUIST_QUEUE_DIRECTORY"
         public static let cloudToken = "TUIST_CLOUD_TOKEN"

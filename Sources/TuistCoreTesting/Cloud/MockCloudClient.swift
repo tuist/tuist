@@ -25,19 +25,19 @@ public final class MockCloudClient: CloudClienting {
 
     // MARK: Configurations
 
-    public init(error: Error) {
+    public func mock(error: Error) {
         stubbedError = error
         stubbedObject = nil
         stubbedResponse = nil
     }
 
-    public init(object: Any, response: HTTPURLResponse) {
+    public func mock(object: Any, response: HTTPURLResponse) {
         stubbedError = nil
         stubbedObject = object
         stubbedResponse = response
     }
 
-    public init(
+    public func mock(
         responsePerURLRequest: [URLRequest: HTTPURLResponse] = [:],
         objectPerURLRequest: [URLRequest: Any] = [:],
         errorPerURLRequest: [URLRequest: Error] = [:]

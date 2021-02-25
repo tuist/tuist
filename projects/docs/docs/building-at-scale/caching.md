@@ -52,6 +52,12 @@ let config = Config(
 )
 ```
 
+You can change the cache directory in `Config.swift`, for example:
+
+```
+let config = Config(cache: .cache(path: .relativeToRoot("Cache"))]))
+```
+
 ### Debugging
 
 #### Print target hashes

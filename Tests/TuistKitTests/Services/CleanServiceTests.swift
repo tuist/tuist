@@ -1,4 +1,5 @@
 import Foundation
+import TuistCoreTesting
 import TuistSupport
 import XCTest
 
@@ -7,14 +8,16 @@ import XCTest
 
 final class CleanServiceTests: TuistUnitTestCase {
     var subject: CleanService!
+    private var cacheDirectoriesProvider: MockCacheDirectoriesProvider!
 
     override func setUp() {
         super.setUp()
+        let mockCacheDirectoriesProvider = try! MockCacheDirectoriesProvider()
+        cacheDirectoriesProvider = mockCacheDirectoriesProvider
 
-        let env = Environment.shared as! MockEnvironment
-        env.cacheDirectoryStub = FileHandler.shared.currentPath.appending(component: "Cache")
-
-        subject = CleanService()
+        subject = CleanService(
+            cacheDirectoryProviderFactory: MockCacheDirectoriesProviderFactory(provider: mockCacheDirectoriesProvider)
+        )
     }
 
     override func tearDown() {
@@ -27,9 +30,7 @@ final class CleanServiceTests: TuistUnitTestCase {
         let cachePath = try createFolders(["Cache"]).first!
         let correctlyCreated = FileManager.default.fileExists(atPath: cachePath.pathString)
         XCTAssertTrue(correctlyCreated, "Test setup is not properly done. Folder \(cachePath.pathString) should exist")
-
-        let env = Environment.shared as! MockEnvironment
-        env.cacheDirectoryStub = cachePath
+        cacheDirectoriesProvider.cacheDirectoryStub = cachePath
 
         // When
         try subject.run()

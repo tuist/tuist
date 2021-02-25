@@ -30,27 +30,31 @@ public final class CacheRemoteStorage: CacheStoring {
     private let fileClient: FileClienting
     private let fileArchiverFactory: FileArchivingFactorying
     private let cloudCacheResponseFactory: CloudCacheResourceFactorying
+    private let cacheDirectoriesProvider: CacheDirectoriesProviding
 
     // MARK: - Init
 
-    public convenience init(cloudConfig: Cloud, cloudClient: CloudClienting) {
+    public convenience init(cloudConfig: Cloud, cloudClient: CloudClienting, cacheDirectoriesProvider: CacheDirectoriesProviding) {
         self.init(
             cloudClient: cloudClient,
             fileArchiverFactory: FileArchivingFactory(),
             fileClient: FileClient(),
-            cloudCacheResponseFactory: CloudCacheResourceFactory(cloudConfig: cloudConfig)
+            cloudCacheResponseFactory: CloudCacheResourceFactory(cloudConfig: cloudConfig),
+            cacheDirectoriesProvider: cacheDirectoriesProvider
         )
     }
 
     init(cloudClient: CloudClienting,
          fileArchiverFactory: FileArchivingFactorying,
          fileClient: FileClienting,
-         cloudCacheResponseFactory: CloudCacheResourceFactorying)
+         cloudCacheResponseFactory: CloudCacheResourceFactorying,
+         cacheDirectoriesProvider: CacheDirectoriesProviding)
     {
         self.cloudClient = cloudClient
         self.fileArchiverFactory = fileArchiverFactory
         self.fileClient = fileClient
         self.cloudCacheResponseFactory = cloudCacheResponseFactory
+        self.cacheDirectoriesProvider = cacheDirectoriesProvider
     }
 
     // MARK: - CacheStoring
@@ -153,7 +157,7 @@ public final class CacheRemoteStorage: CacheStoring {
 
     private func unzip(downloadedArchive: AbsolutePath, hash: String) throws -> AbsolutePath {
         let zipPath = try FileHandler.shared.changeExtension(path: downloadedArchive, to: "zip")
-        let archiveDestination = Environment.shared.buildCacheDirectory.appending(component: hash)
+        let archiveDestination = cacheDirectoriesProvider.buildCacheDirectory.appending(component: hash)
         let fileUnarchiver = try fileArchiverFactory.makeFileUnarchiver(for: zipPath)
         let unarchivedDirectory = try fileUnarchiver.unzip()
         defer {
