@@ -131,12 +131,14 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
                 schemes: [
                     Scheme.test(
                         name: "SchemeA",
+                        buildAction: nil,
                         testAction: TestAction.test(
                             targets: []
                         )
                     ),
                     Scheme.test(
                         name: "SchemeB",
+                        buildAction: nil,
                         testAction: TestAction.test(
                             targets: [
                                 TestableTarget(
@@ -165,8 +167,12 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(
-            gotGraph,
-            expectedGraph
+            gotGraph.workspace,
+            expectedGraph.workspace
+        )
+        XCTAssertEqual(
+            gotGraph.targets,
+            expectedGraph.targets
         )
         XCTAssertEqual(
             gotSideEffects.sorted(by: {
@@ -263,7 +269,20 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
         let expectedGraph = Graph.test(
             workspace: Workspace.test(
                 schemes: [
-                    schemeA,
+                    Scheme.test(
+                        name: "SchemeA",
+                        buildAction: nil,
+                        testAction: TestAction.test(
+                            targets: [
+                                TestableTarget(
+                                    target: TargetReference(
+                                        projectPath: project.path,
+                                        name: unitTestsA.name
+                                    )
+                                ),
+                            ]
+                        )
+                    ),
                 ]
             ),
             projects: [project],
@@ -280,8 +299,12 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(
-            gotGraph,
-            expectedGraph
+            gotGraph.workspace,
+            expectedGraph.workspace
+        )
+        XCTAssertEqual(
+            gotGraph.targets,
+            expectedGraph.targets
         )
         XCTAssertEqual(
             gotSideEffects.sorted(by: {

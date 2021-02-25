@@ -140,6 +140,9 @@ public final class TestsCacheGraphMapper: GraphMapping {
             !cachedTestableTargets.contains(where: { $0.target.name == testTarget.target.name })
         }
 
+        // Only `testAction` is necessary
+        scheme.buildAction = nil
+
         return (scheme, cachedTestableTargets)
     }
 
