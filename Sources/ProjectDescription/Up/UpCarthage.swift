@@ -4,7 +4,7 @@ import Foundation
 class UpCarthage: Up {
     /// The platforms Carthage dependencies should be updated for.
     let platforms: [Platform]
-    
+
     /// Indicates whether Carthage produces XCFrameworks or regular frameworks.
     let useXCFrameworks: Bool
 

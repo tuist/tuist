@@ -8,7 +8,7 @@ import TuistSupport
 class UpCarthage: Up, GraphInitiatable {
     /// The platforms Carthage dependencies should be bootstraped for.
     let platforms: [Platform]
-    
+
     /// Indicates whether Carthage produces XCFrameworks or regular frameworks.
     let useXCFrameworks: Bool
 

@@ -36,7 +36,7 @@ final class CarthageTests: TuistUnitTestCase {
                               useXCFrameworks: false,
                               dependencies: ["Alamofire"])
     }
-    
+
     func test_bootstrap_XCFrameworks() throws {
         let temporaryPath = try self.temporaryPath()
         system.whichStub = { tool in

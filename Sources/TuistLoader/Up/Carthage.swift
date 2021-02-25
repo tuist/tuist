@@ -64,7 +64,7 @@ final class Carthage: Carthaging {
         if useXCFrameworks {
             command.append("--use-xcframeworks")
         }
-        
+
         if !platforms.isEmpty {
             command.append("--platform")
             command.append(platforms.map(\.caseValue).joined(separator: ","))
