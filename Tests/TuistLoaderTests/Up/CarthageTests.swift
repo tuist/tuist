@@ -19,7 +19,7 @@ final class CarthageTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_bootstrap() throws {
+    func test_bootstrap_regularFrameworks() throws {
         let temporaryPath = try self.temporaryPath()
         system.whichStub = { tool in
             if tool == "carthage" {
@@ -33,6 +33,25 @@ final class CarthageTests: TuistUnitTestCase {
 
         try subject.bootstrap(path: temporaryPath,
                               platforms: [.iOS, .macOS],
+                              useXCFrameworks: false,
+                              dependencies: ["Alamofire"])
+    }
+
+    func test_bootstrap_XCFrameworks() throws {
+        let temporaryPath = try self.temporaryPath()
+        system.whichStub = { tool in
+            if tool == "carthage" {
+                return "/path/to/carthage"
+            } else {
+                throw NSError.test()
+            }
+        }
+        system.succeedCommand("/path/to/carthage", "bootstrap", "--project-directory", temporaryPath.pathString, "--use-xcframeworks", "--platform", "iOS,macOS", "Alamofire",
+                              output: "")
+
+        try subject.bootstrap(path: temporaryPath,
+                              platforms: [.iOS, .macOS],
+                              useXCFrameworks: true,
                               dependencies: ["Alamofire"])
     }
 
