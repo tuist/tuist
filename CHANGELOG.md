@@ -5,7 +5,12 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ## Next
 
 ### Added
+
 - Add option for enabling XCFrameworks production for Carthage in `Setup.swift`. [#2565](https://github.com/tuist/tuist/pull/2565) by [@laxmorek](https://github.com/laxmorek)
+
+### Changed
+
+- Migrate `GraphViz` to `ValueGraph` [#2542](https://github.com/tuist/tuist/pull/2542) by [@fortmarek](https://github.com/fortmarek)
 
 ## 1.36.0 - Digital Love
 
@@ -25,7 +30,6 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Changed
 
-- Migrate `GraphViz` to `ValueGraph` [#2542](https://github.com/tuist/tuist/pull/2542) by [@fortmarek](https://github.com/fortmarek)
 - When enabling code coverage, tests targets such as `TestMyFrameworkA` gather coverage for all targets instead of only `TestMyFrameworkA` [#2501](https://github.com/tuist/tuist/pull/2501) by [@adellibovi](https://github.com/adellibovi)
 - Improve `tuist generate` speed by caching Swift version fetching [#2546](https://github.com/tuist/tuist/pull/2546) by [@adellibovi](https://github.com/adellibovi/)
 
