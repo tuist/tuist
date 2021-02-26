@@ -9,7 +9,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Add option for enabling XCFrameworks production for Carthage in `Setup.swift`. [#2565](https://github.com/tuist/tuist/pull/2565) by [@laxmorek](https://github.com/laxmorek)
 
 ### Changed
-
+- Change the graph tree-shaker mapper to work with the value graph too [#2545](https://github.com/tuist/tuist/pull/2545) by [@pepibumur](https://github.com/pepibumur).
 - Migrate `GraphViz` to `ValueGraph` [#2542](https://github.com/tuist/tuist/pull/2542) by [@fortmarek](https://github.com/fortmarek)
 
 ## 1.36.0 - Digital Love
