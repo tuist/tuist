@@ -34,7 +34,7 @@ public final class ConfigLoader: ConfigLoading {
         if let cached = cachedConfigs[path] {
             return cached
         }
-        
+
         let generatorPaths = GeneratorPaths(manifestDirectory: path)
 
         // If the Config.swift file exists in the root Tuist/ directory, we load it from there

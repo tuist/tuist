@@ -105,8 +105,7 @@ extension Config.GenerationOptions {
             var associatedValues = try container.nestedUnkeyedContainer(forKey: .fileHeaderTemplate)
             let fileHeaderTemplate = try associatedValues.decode(FileHeaderTemplate.self)
             self = .fileHeaderTemplate(fileHeaderTemplate)
-        }
-        else {
+        } else {
             throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Unknown enum case"))
         }
     }
