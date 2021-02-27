@@ -8,6 +8,12 @@ public struct IDETemplateMacros: Codable, Hashable {
     public let fileHeader: String?
     
     public init(fileHeader: String?) {
-        self.fileHeader = fileHeader
+        // Xcode by default adds extra newline at the end, so if it is present, just remove it
+        if var fileHeader = fileHeader, fileHeader.last == "\n" {
+            fileHeader.removeLast()
+            self.fileHeader = fileHeader
+        } else {
+            self.fileHeader = fileHeader
+        }
     }
 }
