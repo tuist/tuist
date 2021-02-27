@@ -34,6 +34,8 @@ public final class ConfigLoader: ConfigLoading {
         if let cached = cachedConfigs[path] {
             return cached
         }
+        
+        let generatorPaths = GeneratorPaths(manifestDirectory: path)
 
         // If the Config.swift file exists in the root Tuist/ directory, we load it from there
         if let rootDirectoryPath = rootDirectoryLocator.locate(from: path) {
@@ -41,7 +43,7 @@ public final class ConfigLoader: ConfigLoading {
 
             if fileHandler.exists(configPath) {
                 let manifest = try manifestLoader.loadConfig(at: configPath.parentDirectory)
-                let config = try TuistGraph.Config.from(manifest: manifest, at: configPath)
+                let config = try TuistGraph.Config.from(manifest: manifest, at: configPath, generatorPaths: generatorPaths)
                 cachedConfigs[path] = config
                 return config
             }
@@ -57,7 +59,7 @@ public final class ConfigLoader: ConfigLoading {
                 continue
             }
             let manifest = try manifestLoader.loadConfig(at: configPath.parentDirectory)
-            let config = try TuistGraph.Config.from(manifest: manifest, at: configPath)
+            let config = try TuistGraph.Config.from(manifest: manifest, at: configPath, generatorPaths: generatorPaths)
             cachedConfigs[path] = config
             return config
         }

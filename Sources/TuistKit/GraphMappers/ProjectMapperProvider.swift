@@ -57,6 +57,8 @@ final class ProjectMapperProvider: ProjectMapperProviding {
 
         // Development region
         mappers.append(ProjectDevelopmentRegionMapper(config: config))
+        
+        mappers.append(IDETemplateMacrosProjectMapper(config: config))
 
         // Signing
         mappers.append(SigningMapper())

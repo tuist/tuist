@@ -10,8 +10,8 @@ extension TuistGraph.Config {
     /// - Parameters:
     ///   - manifest: Manifest representation of Tuist config.
     ///   - path: The path of the config file.
-    static func from(manifest: ProjectDescription.Config, at path: AbsolutePath) throws -> TuistGraph.Config {
-        let generationOptions = try manifest.generationOptions.map { try TuistGraph.Config.GenerationOption.from(manifest: $0) }
+    static func from(manifest: ProjectDescription.Config, at path: AbsolutePath, generatorPaths: GeneratorPaths) throws -> TuistGraph.Config {
+        let generationOptions = try manifest.generationOptions.map { try TuistGraph.Config.GenerationOption.from(manifest: $0, generatorPaths: generatorPaths) }
         let compatibleXcodeVersions = TuistGraph.CompatibleXcodeVersions.from(manifest: manifest.compatibleXcodeVersions)
         let generatorPaths = GeneratorPaths(manifestDirectory: path)
         let plugins = try manifest.plugins.map { try PluginLocation.from(manifest: $0, generatorPaths: generatorPaths) }
@@ -42,7 +42,7 @@ extension TuistGraph.Config.GenerationOption {
     /// - Parameters:
     ///   - manifest: Manifest representation of Tuist config generation options
     ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.Config.GenerationOptions) throws -> TuistGraph.Config.GenerationOption {
+    static func from(manifest: ProjectDescription.Config.GenerationOptions, generatorPaths: GeneratorPaths) throws -> TuistGraph.Config.GenerationOption {
         switch manifest {
         case let .xcodeProjectName(templateString):
             return .xcodeProjectName(templateString.description)
@@ -58,6 +58,12 @@ extension TuistGraph.Config.GenerationOption {
             return .disableShowEnvironmentVarsInScriptPhases
         case .enableCodeCoverage:
             return .enableCodeCoverage
+        case let .fileHeaderTemplate(.file(fileHeaderTemplatePath)):
+            let path = try generatorPaths.resolve(path: fileHeaderTemplatePath)
+            let string = try String(contentsOf: path.asURL, encoding: .utf8)
+            return .templateMacros(IDETemplateMacros(fileHeader: string))
+        case let .fileHeaderTemplate(.string(template)):
+            return .templateMacros(IDETemplateMacros(fileHeader: template))
         }
     }
 }
