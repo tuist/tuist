@@ -2,6 +2,7 @@ import Foundation
 import TSCBasic
 import TuistGraph
 import TuistGenerator
+import TuistSupportTesting
 import XCTest
 
 final class IDETemplateMacrosProjectMapperTests: XCTestCase {
@@ -11,7 +12,7 @@ final class IDETemplateMacrosProjectMapperTests: XCTestCase {
     override func setUp() {
         super.setUp()
         
-        templateMacros = .init(fileHeader: .random())
+        templateMacros = .test()
         subject = IDETemplateMacrosProjectMapper(
             config: Config.test(generationOptions: [.templateMacros(templateMacros)])
         )
