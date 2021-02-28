@@ -1,5 +1,6 @@
 import Foundation
 import XCTest
+import TuistSupportTesting
 @testable import ProjectDescription
 
 final class ConfigTests: XCTestCase {
@@ -14,6 +15,7 @@ final class ConfigTests: XCTestCase {
                 .disableSynthesizedResourceAccessors,
                 .disableShowEnvironmentVarsInScriptPhases,
                 .enableCodeCoverage,
+                .fileHeaderTemplate("Template Header"),
             ]
         )
 
@@ -48,6 +50,19 @@ final class ConfigTests: XCTestCase {
             ]
         )
 
+        XCTAssertCodable(config)
+    }
+    
+    func test_config_toJSON_fileHeaderTemplateFile() throws {
+        let config = Config(
+            cloud: Cloud(url: "https://cloud.tuist.io", projectId: "123", options: [.insights]),
+            generationOptions: [
+                .xcodeProjectName("someprefix-\(.projectName)"),
+                .developmentRegion("de"),
+                .organizationName("TestOrg"),
+                .fileHeaderTemplate(.file("Path/To/Template")),
+            ])
+        
         XCTAssertCodable(config)
     }
 }
