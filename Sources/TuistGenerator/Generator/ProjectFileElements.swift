@@ -245,12 +245,9 @@ class ProjectFileElements {
         // The file already exists
         if elements[fileElement.path] != nil { return }
 
-        let closestRelativeRelativePath = closestRelativeElementPath(
-            path: fileElement.path,
-            sourceRootPath: sourceRootPath
-        )
-        let closestRelativeAbsolutePath = sourceRootPath.appending(closestRelativeRelativePath)
         let fileElementRelativeToSourceRoot = fileElement.path.relative(to: sourceRootPath)
+        let closestRelativeRelativePath = closestRelativeElementPath(pathRelativeToSourceRoot: fileElementRelativeToSourceRoot)
+        let closestRelativeAbsolutePath = sourceRootPath.appending(closestRelativeRelativePath)
         // Add the first relative element.
         let group: PBXGroup
         switch fileElement.group {
@@ -594,8 +591,8 @@ class ProjectFileElements {
     /// Returns the relative path of the closest relative element to the source root path.
     /// If source root path is /a/b/c/project/ and file path is /a/d/myfile.swift
     /// this method will return ../../../d/
-    func closestRelativeElementPath(path: AbsolutePath, sourceRootPath: AbsolutePath) -> RelativePath {
-        let relativePathComponents = path.relative(to: sourceRootPath).components
+    func closestRelativeElementPath(pathRelativeToSourceRoot: RelativePath) -> RelativePath {
+        let relativePathComponents = pathRelativeToSourceRoot.components
         let firstElementComponents = relativePathComponents.reduce(into: [String]()) { components, component in
             let isLastRelative = components.last == ".." || components.last == "."
             if components.last != nil, !isLastRelative { return }
