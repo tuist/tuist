@@ -153,7 +153,7 @@ GEM
     memoist (0.16.2)
     middleware (0.1.0)
     mini_mime (1.0.2)
-    minitest (5.14.3)
+    minitest (5.14.4)
     minitest-reporters (1.4.3)
       ansi
       builder
