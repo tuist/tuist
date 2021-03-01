@@ -9,6 +9,7 @@ import TuistSupport
 /// Consider using CacheContentHasher to avoid computing the same hash twice
 public final class ContentHasher: ContentHashing {
     private let fileHandler: FileHandling
+    private let filterFiles = FilterHashingFiles()
 
     public init(fileHandler: FileHandling = FileHandler.shared) {
         self.fileHandler = fileHandler
@@ -50,10 +51,13 @@ public final class ContentHasher: ContentHashing {
 
     public func hash(path filePath: AbsolutePath) throws -> String {
         if fileHandler.isFolder(filePath) {
-            let paths = try fileHandler.contentsOfDirectory(filePath)
-            let sortedPaths = paths.sorted(by: { $0 < $1 })
-            return try sortedPaths.map { try hash(path: $0) }.joined(separator: "-")
+            return try fileHandler.contentsOfDirectory(filePath)
+                .filter { filterFiles($0) }
+                .sorted(by: { $0 < $1 })
+                .map { try hash(path: $0) }
+                .joined(separator: "-")
         }
+
         guard fileHandler.exists(filePath) else {
             throw FileHandlerError.fileNotFound(filePath)
         }
@@ -63,6 +67,7 @@ public final class ContentHasher: ContentHashing {
         guard let hash = sourceData.checksum(algorithm: .md5) else {
             throw ContentHashingError.fileHashingFailed(filePath)
         }
+
         return hash
     }
 }
