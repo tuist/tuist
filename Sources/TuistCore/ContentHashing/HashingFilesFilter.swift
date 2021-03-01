@@ -3,7 +3,7 @@ import TSCBasic
 
 internal class HashingFilesFilter {
     /// an array of filters, which should return if a path should be included in hashing calculations or not.
-    private let filters: [((AbsolutePath) -> Bool)]
+    private let filters: [(AbsolutePath) -> Bool]
 
     internal init() {
         filters = [
@@ -11,7 +11,7 @@ internal class HashingFilesFilter {
         ]
     }
 
-    func callAsFunction(_ path: AbsolutePath) -> Bool {
+    internal func callAsFunction(_ path: AbsolutePath) -> Bool {
         !filters.contains(where: { $0(path) == false })
     }
 }

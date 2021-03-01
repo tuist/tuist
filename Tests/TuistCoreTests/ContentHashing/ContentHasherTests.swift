@@ -87,7 +87,7 @@ final class ContentHasherTests: TuistUnitTestCase {
     }
 
     func test_hash_sortedContentsOfADirectorySkippingDSStore() throws {
-        //given
+        // given
         let folderPath = try temporaryPath().appending(component: "assets.xcassets")
         try mockFileHandler.createFolder(folderPath)
 
