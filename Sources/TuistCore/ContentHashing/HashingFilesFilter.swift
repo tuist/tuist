@@ -1,7 +1,7 @@
 import Foundation
 import TSCBasic
 
-internal class FilterHashingFiles {
+internal class HashingFilesFilter {
     /// an array of filters, which should return if a path should be included in hashing calculations or not.
     private let filters: [((AbsolutePath) -> Bool)]
 
