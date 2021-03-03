@@ -13,6 +13,7 @@ public enum Constants {
 
     public static let helpersDirectoryName: String = "ProjectDescriptionHelpers"
     public static let signingDirectoryName: String = "Signing"
+    public static let pluginsDirectoryName: String = "Plugins"
 
     public static let masterKey = "master.key"
     public static let encryptedExtension = "encrypted"
@@ -63,9 +64,5 @@ public enum Constants {
 
     public enum GoogleCloud {
         public static let relasesBucketURL = "https://storage.googleapis.com/tuist-releases/"
-    }
-
-    public enum PluginDirectory {
-        public static let name = "Plugins"
     }
 }
