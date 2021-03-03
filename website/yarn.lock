@@ -8138,10 +8138,10 @@ gatsby-transformer-yaml@^2.11.0:
     lodash "^4.17.20"
     unist-util-select "^1.5.0"
 
-gatsby@^2.32.8:
-  version "2.32.8"
-  resolved "https://registry.yarnpkg.com/gatsby/-/gatsby-2.32.8.tgz#9d42c8e85bbbf23f97df4116475843e00eb920aa"
-  integrity sha512-nMtdImSq5QSpRwhtL8VFhTfuvTCGWoeJtrB4+VJFn78NpbYFbcddErF2pp4QkG6jsqSw+kheOHUg46EH+AMO6A==
+gatsby@^2.32.9:
+  version "2.32.9"
+  resolved "https://registry.yarnpkg.com/gatsby/-/gatsby-2.32.9.tgz#8ce47133b143acaa577f8cf0907be89afa3fa514"
+  integrity sha512-4QyrOUGLG6V51YSOJW+cFmRDcey6DnF8YMbsOQ1efp9MJ91fSgOI3r6dYd6lc1lJwppN4KZWbqE9WOXtFgda7w==
   dependencies:
     "@babel/code-frame" "^7.10.4"
     "@babel/core" "^7.12.3"
