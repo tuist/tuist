@@ -13,8 +13,10 @@ struct BenchmarkConfig: Decodable {
 
     /// Default benchmarking configuration
     static var `default`: BenchmarkConfig {
-        BenchmarkConfig(arguments: ["generate"],
-                        runs: 5,
-                        deltaThreshold: 0.02)
+        BenchmarkConfig(
+            arguments: ["generate"],
+            runs: 5,
+            deltaThreshold: 0.02
+        )
     }
 }

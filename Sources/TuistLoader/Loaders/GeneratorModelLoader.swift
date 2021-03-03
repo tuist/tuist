@@ -11,16 +11,20 @@ public class GeneratorModelLoader {
     private let rootDirectoryLocator: RootDirectoryLocating
 
     public convenience init() {
-        self.init(manifestLoader: ManifestLoader(),
-                  manifestLinter: ManifestLinter())
+        self.init(
+            manifestLoader: ManifestLoader(),
+            manifestLinter: ManifestLinter()
+        )
     }
 
     public convenience init(manifestLoader: ManifestLoading,
                             manifestLinter: ManifestLinting)
     {
-        self.init(manifestLoader: manifestLoader,
-                  manifestLinter: manifestLinter,
-                  rootDirectoryLocator: RootDirectoryLocator())
+        self.init(
+            manifestLoader: manifestLoader,
+            manifestLinter: manifestLinter,
+            rootDirectoryLocator: RootDirectoryLocator()
+        )
     }
 
     init(manifestLoader: ManifestLoading,
@@ -60,10 +64,12 @@ extension GeneratorModelLoader: ManifestModelConverting {
 
     public func convert(manifest: ProjectDescription.Workspace, path: AbsolutePath) throws -> TuistGraph.Workspace {
         let generatorPaths = GeneratorPaths(manifestDirectory: path)
-        let workspace = try TuistGraph.Workspace.from(manifest: manifest,
-                                                      path: path,
-                                                      generatorPaths: generatorPaths,
-                                                      manifestLoader: manifestLoader)
+        let workspace = try TuistGraph.Workspace.from(
+            manifest: manifest,
+            path: path,
+            generatorPaths: generatorPaths,
+            manifestLoader: manifestLoader
+        )
         return workspace
     }
 }

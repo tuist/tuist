@@ -28,28 +28,30 @@ public extension Target {
                      playgrounds: [AbsolutePath] = [],
                      prune: Bool = false) -> Target
     {
-        Target(name: name,
-               platform: platform,
-               product: product,
-               productName: productName,
-               bundleId: bundleId ?? "io.tuist.\(name)",
-               deploymentTarget: deploymentTarget,
-               infoPlist: infoPlist,
-               entitlements: entitlements,
-               settings: settings,
-               sources: sources,
-               resources: resources,
-               copyFiles: copyFiles,
-               headers: headers,
-               coreDataModels: coreDataModels,
-               actions: actions,
-               environment: environment,
-               launchArguments: launchArguments,
-               filesGroup: filesGroup,
-               dependencies: dependencies,
-               scripts: scripts,
-               playgrounds: playgrounds,
-               prune: prune)
+        Target(
+            name: name,
+            platform: platform,
+            product: product,
+            productName: productName,
+            bundleId: bundleId ?? "io.tuist.\(name)",
+            deploymentTarget: deploymentTarget,
+            infoPlist: infoPlist,
+            entitlements: entitlements,
+            settings: settings,
+            sources: sources,
+            resources: resources,
+            copyFiles: copyFiles,
+            headers: headers,
+            coreDataModels: coreDataModels,
+            actions: actions,
+            environment: environment,
+            launchArguments: launchArguments,
+            filesGroup: filesGroup,
+            dependencies: dependencies,
+            scripts: scripts,
+            playgrounds: playgrounds,
+            prune: prune
+        )
     }
 
     /// Creates a bare bones Target with as little data as possible
@@ -73,24 +75,26 @@ public extension Target {
                       dependencies: [Dependency] = [],
                       scripts: [TargetScript] = []) -> Target
     {
-        Target(name: name,
-               platform: platform,
-               product: product,
-               productName: productName,
-               bundleId: bundleId ?? "io.tuist.\(name)",
-               deploymentTarget: deploymentTarget,
-               infoPlist: infoPlist,
-               entitlements: entitlements,
-               settings: settings,
-               sources: sources,
-               resources: resources,
-               copyFiles: copyFiles,
-               headers: headers,
-               coreDataModels: coreDataModels,
-               actions: actions,
-               environment: environment,
-               filesGroup: filesGroup,
-               dependencies: dependencies,
-               scripts: scripts)
+        Target(
+            name: name,
+            platform: platform,
+            product: product,
+            productName: productName,
+            bundleId: bundleId ?? "io.tuist.\(name)",
+            deploymentTarget: deploymentTarget,
+            infoPlist: infoPlist,
+            entitlements: entitlements,
+            settings: settings,
+            sources: sources,
+            resources: resources,
+            copyFiles: copyFiles,
+            headers: headers,
+            coreDataModels: coreDataModels,
+            actions: actions,
+            environment: environment,
+            filesGroup: filesGroup,
+            dependencies: dependencies,
+            scripts: scripts
+        )
     }
 }

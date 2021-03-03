@@ -16,18 +16,20 @@ public extension Project {
                      schemes: [Scheme] = [],
                      additionalFiles: [FileElement] = []) -> Project
     {
-        Project(path: path,
-                sourceRootPath: sourceRootPath,
-                xcodeProjPath: xcodeProjPath,
-                name: name,
-                organizationName: organizationName,
-                developmentRegion: developmentRegion,
-                settings: settings,
-                filesGroup: filesGroup,
-                targets: targets,
-                packages: packages,
-                schemes: schemes,
-                additionalFiles: additionalFiles)
+        Project(
+            path: path,
+            sourceRootPath: sourceRootPath,
+            xcodeProjPath: xcodeProjPath,
+            name: name,
+            organizationName: organizationName,
+            developmentRegion: developmentRegion,
+            settings: settings,
+            filesGroup: filesGroup,
+            targets: targets,
+            packages: packages,
+            schemes: schemes,
+            additionalFiles: additionalFiles
+        )
     }
 
     static func empty(path: AbsolutePath = AbsolutePath("/test/"),
@@ -43,17 +45,19 @@ public extension Project {
                       schemes: [Scheme] = [],
                       additionalFiles: [FileElement] = []) -> Project
     {
-        Project(path: path,
-                sourceRootPath: sourceRootPath,
-                xcodeProjPath: xcodeProjPath,
-                name: name,
-                organizationName: organizationName,
-                developmentRegion: developmentRegion,
-                settings: settings,
-                filesGroup: filesGroup,
-                targets: targets,
-                packages: packages,
-                schemes: schemes,
-                additionalFiles: additionalFiles)
+        Project(
+            path: path,
+            sourceRootPath: sourceRootPath,
+            xcodeProjPath: xcodeProjPath,
+            name: name,
+            organizationName: organizationName,
+            developmentRegion: developmentRegion,
+            settings: settings,
+            filesGroup: filesGroup,
+            targets: targets,
+            packages: packages,
+            schemes: schemes,
+            additionalFiles: additionalFiles
+        )
     }
 }

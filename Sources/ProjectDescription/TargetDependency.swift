@@ -163,8 +163,10 @@ extension TargetDependency {
             let package = try container.decode(String.self, forKey: .package)
             self = .package(product: package)
         case "sdk":
-            self = .sdk(name: try container.decode(String.self, forKey: .name),
-                        status: try container.decode(SDKStatus.self, forKey: .status))
+            self = .sdk(
+                name: try container.decode(String.self, forKey: .name),
+                status: try container.decode(SDKStatus.self, forKey: .status)
+            )
 
         case "cocoapods":
             self = .cocoapods(path: try container.decode(Path.self, forKey: .path))

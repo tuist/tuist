@@ -66,10 +66,12 @@ public final class GraphVizGenerator: GraphVizGenerating {
                                 targetsToFilter: [String]) throws -> GraphViz.Graph
     {
         let (graph, _) = try graphLoader.loadProject(path: path)
-        return graphToGraphVizMapper.map(graph: ValueGraph(graph: graph),
-                                         skipTestTargets: skipTestTargets,
-                                         skipExternalDependencies: skipExternalDependencies,
-                                         targetsToFilter: targetsToFilter)
+        return graphToGraphVizMapper.map(
+            graph: ValueGraph(graph: graph),
+            skipTestTargets: skipTestTargets,
+            skipExternalDependencies: skipExternalDependencies,
+            targetsToFilter: targetsToFilter
+        )
     }
 
     /// Generates the dot graph from the workspace in the current directory and returns it.
@@ -83,9 +85,11 @@ public final class GraphVizGenerator: GraphVizGenerating {
                                   targetsToFilter: [String]) throws -> GraphViz.Graph
     {
         let graph = ValueGraph(graph: try graphLoader.loadWorkspace(path: path))
-        return graphToGraphVizMapper.map(graph: graph,
-                                         skipTestTargets: skipTestTargets,
-                                         skipExternalDependencies: skipExternalDependencies,
-                                         targetsToFilter: targetsToFilter)
+        return graphToGraphVizMapper.map(
+            graph: graph,
+            skipTestTargets: skipTestTargets,
+            skipExternalDependencies: skipExternalDependencies,
+            targetsToFilter: targetsToFilter
+        )
     }
 }

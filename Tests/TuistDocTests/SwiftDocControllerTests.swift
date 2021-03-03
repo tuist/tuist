@@ -46,11 +46,13 @@ final class SwiftDocControllerTests: TuistUnitTestCase {
         // Then
         XCTAssertThrowsSpecific(
             // When
-            try subject.generate(format: .html,
-                                 moduleName: moduleName,
-                                 baseURL: baseURL,
-                                 outputDirectory: outputDirectory,
-                                 sourcesPaths: sourcePaths),
+            try subject.generate(
+                format: .html,
+                moduleName: moduleName,
+                baseURL: baseURL,
+                outputDirectory: outputDirectory,
+                sourcesPaths: sourcePaths
+            ),
             BinaryLocatorError.swiftDocNotFound
         )
     }
@@ -80,11 +82,13 @@ final class SwiftDocControllerTests: TuistUnitTestCase {
         system.succeedCommand(arguments, output: nil)
 
         // When
-        try subject.generate(format: .html,
-                             moduleName: moduleName,
-                             baseURL: baseURL,
-                             outputDirectory: outputDirectory,
-                             sourcesPaths: sourcePaths)
+        try subject.generate(
+            format: .html,
+            moduleName: moduleName,
+            baseURL: baseURL,
+            outputDirectory: outputDirectory,
+            sourcesPaths: sourcePaths
+        )
     }
 
     func test_parameters_swiftdoc_commonmark() throws {
@@ -112,10 +116,12 @@ final class SwiftDocControllerTests: TuistUnitTestCase {
         system.succeedCommand(arguments, output: nil)
 
         // When
-        try subject.generate(format: .commonmark,
-                             moduleName: moduleName,
-                             baseURL: baseURL,
-                             outputDirectory: outputDirectory,
-                             sourcesPaths: sourcePaths)
+        try subject.generate(
+            format: .commonmark,
+            moduleName: moduleName,
+            baseURL: baseURL,
+            outputDirectory: outputDirectory,
+            sourcesPaths: sourcePaths
+        )
     }
 }

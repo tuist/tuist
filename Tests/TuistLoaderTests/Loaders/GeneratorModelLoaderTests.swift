@@ -58,11 +58,13 @@ class GeneratorModelLoaderTests: TuistUnitTestCase {
         let targetA = TargetManifest.test(name: "A", sources: [], resources: [])
         let targetB = TargetManifest.test(name: "B", sources: [], resources: [])
         let manifests = [
-            temporaryPath: ProjectManifest.test(name: "Project",
-                                                targets: [
-                                                    targetA,
-                                                    targetB,
-                                                ]),
+            temporaryPath: ProjectManifest.test(
+                name: "Project",
+                targets: [
+                    targetA,
+                    targetB,
+                ]
+            ),
         ]
 
         let manifestLoader = createManifestLoader(with: manifests)
@@ -84,11 +86,13 @@ class GeneratorModelLoaderTests: TuistUnitTestCase {
             "TuistConfig.swift",
         ])
         let projects = [
-            temporaryPath: ProjectManifest.test(name: "Project",
-                                                targets: [
-                                                    .test(name: "A", sources: [], resources: []),
-                                                    .test(name: "B", sources: [], resources: []),
-                                                ]),
+            temporaryPath: ProjectManifest.test(
+                name: "Project",
+                targets: [
+                    .test(name: "A", sources: [], resources: []),
+                    .test(name: "B", sources: [], resources: []),
+                ]
+            ),
         ]
 
         let configs = [
@@ -117,10 +121,12 @@ class GeneratorModelLoaderTests: TuistUnitTestCase {
         ])
 
         let manifests = [
-            temporaryPath: ProjectManifest.test(name: "SomeProject",
-                                                additionalFiles: [
-                                                    "Documentation/**/*.md",
-                                                ]),
+            temporaryPath: ProjectManifest.test(
+                name: "SomeProject",
+                additionalFiles: [
+                    "Documentation/**/*.md",
+                ]
+            ),
         ]
 
         let manifestLoader = createManifestLoader(with: manifests)
@@ -141,10 +147,12 @@ class GeneratorModelLoaderTests: TuistUnitTestCase {
         ])
 
         let manifests = [
-            temporaryPath: ProjectManifest.test(name: "SomeProject",
-                                                additionalFiles: [
-                                                    .folderReference(path: "Stubs"),
-                                                ]),
+            temporaryPath: ProjectManifest.test(
+                name: "SomeProject",
+                additionalFiles: [
+                    .folderReference(path: "Stubs"),
+                ]
+            ),
         ]
 
         let manifestLoader = createManifestLoader(with: manifests)
@@ -165,18 +173,22 @@ class GeneratorModelLoaderTests: TuistUnitTestCase {
         ])
 
         let manifests = [
-            temporaryPath: ProjectManifest.test(name: "SomeProject",
-                                                organizationName: "SomeOrganization",
-                                                additionalFiles: [
-                                                    .folderReference(path: "Stubs"),
-                                                ]),
+            temporaryPath: ProjectManifest.test(
+                name: "SomeProject",
+                organizationName: "SomeOrganization",
+                additionalFiles: [
+                    .folderReference(path: "Stubs"),
+                ]
+            ),
         ]
         let configs = [
             temporaryPath: ProjectDescription.TuistConfig.test(generationOptions: []),
         ]
         let manifestLoader = createManifestLoader(with: manifests, configs: configs)
-        let subject = GeneratorModelLoader(manifestLoader: manifestLoader,
-                                           manifestLinter: manifestLinter)
+        let subject = GeneratorModelLoader(
+            manifestLoader: manifestLoader,
+            manifestLinter: manifestLinter
+        )
 
         // When
         let model = try subject.loadProject(at: temporaryPath)
@@ -235,12 +247,14 @@ class GeneratorModelLoaderTests: TuistUnitTestCase {
         ])
 
         let manifests = [
-            temporaryPath: WorkspaceManifest.test(name: "SomeWorkspace",
-                                                  projects: [],
-                                                  additionalFiles: [
-                                                      "Documentation/**/*.md",
-                                                      "*.playground",
-                                                  ]),
+            temporaryPath: WorkspaceManifest.test(
+                name: "SomeWorkspace",
+                projects: [],
+                additionalFiles: [
+                    "Documentation/**/*.md",
+                    "*.playground",
+                ]
+            ),
         ]
 
         let manifestLoader = createManifestLoader(with: manifests)
@@ -262,11 +276,13 @@ class GeneratorModelLoaderTests: TuistUnitTestCase {
         ])
 
         let manifests = [
-            temporaryPath: WorkspaceManifest.test(name: "SomeWorkspace",
-                                                  projects: [],
-                                                  additionalFiles: [
-                                                      .folderReference(path: "Documentation"),
-                                                  ]),
+            temporaryPath: WorkspaceManifest.test(
+                name: "SomeWorkspace",
+                projects: [],
+                additionalFiles: [
+                    .folderReference(path: "Documentation"),
+                ]
+            ),
         ]
 
         let manifestLoader = createManifestLoader(with: manifests)
@@ -307,8 +323,10 @@ class GeneratorModelLoaderTests: TuistUnitTestCase {
     // MARK: - Helpers
 
     func createGeneratorModelLoader(with manifestLoader: ManifestLoading) -> GeneratorModelLoader {
-        GeneratorModelLoader(manifestLoader: manifestLoader,
-                             manifestLinter: manifestLinter)
+        GeneratorModelLoader(
+            manifestLoader: manifestLoader,
+            manifestLinter: manifestLinter
+        )
     }
 
     func createManifestLoader(with projects: [AbsolutePath: ProjectDescription.Project],

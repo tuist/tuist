@@ -52,10 +52,12 @@ public struct CopyFilesAction: Codable, Equatable {
                                          subpath: String? = nil,
                                          files: [FileElement]) -> CopyFilesAction
     {
-        CopyFilesAction(name: name,
-                        destination: .productsDirectory,
-                        subpath: subpath,
-                        files: files)
+        CopyFilesAction(
+            name: name,
+            destination: .productsDirectory,
+            subpath: subpath,
+            files: files
+        )
     }
 
     /// A copy files action for the wrapper directory.
@@ -68,10 +70,12 @@ public struct CopyFilesAction: Codable, Equatable {
                                subpath: String? = nil,
                                files: [FileElement]) -> CopyFilesAction
     {
-        CopyFilesAction(name: name,
-                        destination: .wrapper,
-                        subpath: subpath,
-                        files: files)
+        CopyFilesAction(
+            name: name,
+            destination: .wrapper,
+            subpath: subpath,
+            files: files
+        )
     }
 
     /// A copy files action for the executables directory.
@@ -84,10 +88,12 @@ public struct CopyFilesAction: Codable, Equatable {
                                    subpath: String? = nil,
                                    files: [FileElement]) -> CopyFilesAction
     {
-        CopyFilesAction(name: name,
-                        destination: .executables,
-                        subpath: subpath,
-                        files: files)
+        CopyFilesAction(
+            name: name,
+            destination: .executables,
+            subpath: subpath,
+            files: files
+        )
     }
 
     /// A copy files action for the resources directory.
@@ -100,10 +106,12 @@ public struct CopyFilesAction: Codable, Equatable {
                                  subpath: String? = nil,
                                  files: [FileElement]) -> CopyFilesAction
     {
-        CopyFilesAction(name: name,
-                        destination: .resources,
-                        subpath: subpath,
-                        files: files)
+        CopyFilesAction(
+            name: name,
+            destination: .resources,
+            subpath: subpath,
+            files: files
+        )
     }
 
     /// A copy files action for the java resources directory.
@@ -116,10 +124,12 @@ public struct CopyFilesAction: Codable, Equatable {
                                      subpath: String? = nil,
                                      files: [FileElement]) -> CopyFilesAction
     {
-        CopyFilesAction(name: name,
-                        destination: .javaResources,
-                        subpath: subpath,
-                        files: files)
+        CopyFilesAction(
+            name: name,
+            destination: .javaResources,
+            subpath: subpath,
+            files: files
+        )
     }
 
     /// A copy files action for the frameworks directory.
@@ -132,10 +142,12 @@ public struct CopyFilesAction: Codable, Equatable {
                                   subpath: String? = nil,
                                   files: [FileElement]) -> CopyFilesAction
     {
-        CopyFilesAction(name: name,
-                        destination: .frameworks,
-                        subpath: subpath,
-                        files: files)
+        CopyFilesAction(
+            name: name,
+            destination: .frameworks,
+            subpath: subpath,
+            files: files
+        )
     }
 
     /// A copy files action for the shared frameworks directory.
@@ -148,10 +160,12 @@ public struct CopyFilesAction: Codable, Equatable {
                                         subpath: String? = nil,
                                         files: [FileElement]) -> CopyFilesAction
     {
-        CopyFilesAction(name: name,
-                        destination: .sharedFrameworks,
-                        subpath: subpath,
-                        files: files)
+        CopyFilesAction(
+            name: name,
+            destination: .sharedFrameworks,
+            subpath: subpath,
+            files: files
+        )
     }
 
     /// A copy files action for the shared support directory.
@@ -164,10 +178,12 @@ public struct CopyFilesAction: Codable, Equatable {
                                      subpath: String? = nil,
                                      files: [FileElement]) -> CopyFilesAction
     {
-        CopyFilesAction(name: name,
-                        destination: .sharedSupport,
-                        subpath: subpath,
-                        files: files)
+        CopyFilesAction(
+            name: name,
+            destination: .sharedSupport,
+            subpath: subpath,
+            files: files
+        )
     }
 
     /// A copy files action for the plugins directory.
@@ -180,9 +196,11 @@ public struct CopyFilesAction: Codable, Equatable {
                                subpath: String? = nil,
                                files: [FileElement]) -> CopyFilesAction
     {
-        CopyFilesAction(name: name,
-                        destination: .plugins,
-                        subpath: subpath,
-                        files: files)
+        CopyFilesAction(
+            name: name,
+            destination: .plugins,
+            subpath: subpath,
+            files: files
+        )
     }
 }

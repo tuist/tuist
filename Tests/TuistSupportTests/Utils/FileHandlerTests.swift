@@ -97,10 +97,12 @@ final class FileHandlerTests: TuistUnitTestCase {
     // MARK: - Private
 
     private func countItemsInRootTempDirectory(appropriateFor url: URL) throws -> Int {
-        let tempPath = AbsolutePath(try fileManager.url(for: .itemReplacementDirectory,
-                                                        in: .userDomainMask,
-                                                        appropriateFor: url,
-                                                        create: true).path)
+        let tempPath = AbsolutePath(try fileManager.url(
+            for: .itemReplacementDirectory,
+            in: .userDomainMask,
+            appropriateFor: url,
+            create: true
+        ).path)
         let rootTempPath = tempPath.parentDirectory
         try fileManager.removeItem(at: tempPath.asURL)
         let content = try fileManager.contentsOfDirectory(atPath: rootTempPath.pathString)

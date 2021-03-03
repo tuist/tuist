@@ -32,12 +32,16 @@ final class WorkspaceStructureGenerator: WorkspaceStructureGenerating {
         xcodeProjPaths: [AbsolutePath],
         fileHandler: FileHandling
     ) -> WorkspaceStructure {
-        let graph = DirectoryStructure(path: path,
-                                       projects: xcodeProjPaths,
-                                       files: workspace.additionalFiles,
-                                       fileHandler: fileHandler).buildGraph()
-        return WorkspaceStructure(name: workspace.name,
-                                  contents: graph.nodes.compactMap(directoryGraphToWorkspaceStructureElement))
+        let graph = DirectoryStructure(
+            path: path,
+            projects: xcodeProjPaths,
+            files: workspace.additionalFiles,
+            fileHandler: fileHandler
+        ).buildGraph()
+        return WorkspaceStructure(
+            name: workspace.name,
+            contents: graph.nodes.compactMap(directoryGraphToWorkspaceStructureElement)
+        )
     }
 
     private func directoryGraphToWorkspaceStructureElement(content: DirectoryStructure.Node) -> WorkspaceStructure.Element? {
@@ -47,9 +51,11 @@ final class WorkspaceStructureGenerator: WorkspaceStructureGenerating {
         case let .project(path):
             return .project(path: path)
         case let .directory(path, contents):
-            return .group(name: path.basename,
-                          path: path,
-                          contents: contents.nodes.compactMap(directoryGraphToWorkspaceStructureElement))
+            return .group(
+                name: path.basename,
+                path: path,
+                contents: contents.nodes.compactMap(directoryGraphToWorkspaceStructureElement)
+            )
         case let .folderReference(path):
             return .folderReference(path: path)
         }

@@ -6,8 +6,10 @@ import TuistSupport
 /// Command that tests a target from the project in the current directory.
 struct TestCommand: ParsableCommand {
     static var configuration: CommandConfiguration {
-        CommandConfiguration(commandName: "test",
-                             abstract: "Tests a project")
+        CommandConfiguration(
+            commandName: "test",
+            abstract: "Tests a project"
+        )
     }
 
     @Argument(

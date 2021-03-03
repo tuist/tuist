@@ -40,29 +40,35 @@ extension Workspace {
     }
 
     public func adding(files: [AbsolutePath]) -> Workspace {
-        Workspace(path: path,
-                  xcWorkspacePath: xcWorkspacePath,
-                  name: name,
-                  projects: projects,
-                  schemes: schemes,
-                  additionalFiles: additionalFiles + files.map { .file(path: $0) })
+        Workspace(
+            path: path,
+            xcWorkspacePath: xcWorkspacePath,
+            name: name,
+            projects: projects,
+            schemes: schemes,
+            additionalFiles: additionalFiles + files.map { .file(path: $0) }
+        )
     }
 
     public func replacing(projects: [AbsolutePath]) -> Workspace {
-        Workspace(path: path,
-                  xcWorkspacePath: xcWorkspacePath,
-                  name: name,
-                  projects: projects,
-                  schemes: schemes,
-                  additionalFiles: additionalFiles)
+        Workspace(
+            path: path,
+            xcWorkspacePath: xcWorkspacePath,
+            name: name,
+            projects: projects,
+            schemes: schemes,
+            additionalFiles: additionalFiles
+        )
     }
 
     public func merging(projects otherProjects: [AbsolutePath]) -> Workspace {
-        Workspace(path: path,
-                  xcWorkspacePath: xcWorkspacePath,
-                  name: name,
-                  projects: Array(Set(projects + otherProjects)),
-                  schemes: schemes,
-                  additionalFiles: additionalFiles)
+        Workspace(
+            path: path,
+            xcWorkspacePath: xcWorkspacePath,
+            name: name,
+            projects: Array(Set(projects + otherProjects)),
+            schemes: schemes,
+            additionalFiles: additionalFiles
+        )
     }
 }

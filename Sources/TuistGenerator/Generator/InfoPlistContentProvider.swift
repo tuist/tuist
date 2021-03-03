@@ -57,15 +57,19 @@ final class InfoPlistContentProvider: InfoPlistContentProviding {
         // watchOS app
         if target.product == .watch2App, target.platform == .watchOS {
             let host = hostTarget(for: target, in: project)
-            extend(&content, with: watchosApp(name: target.name,
-                                              hostAppBundleId: host?.bundleId))
+            extend(&content, with: watchosApp(
+                name: target.name,
+                hostAppBundleId: host?.bundleId
+            ))
         }
 
         // watchOS app extension
         if target.product == .watch2Extension, target.platform == .watchOS {
             let host = hostTarget(for: target, in: project)
-            extend(&content, with: watchosAppExtension(name: target.name,
-                                                       hostAppBundleId: host?.bundleId))
+            extend(&content, with: watchosAppExtension(
+                name: target.name,
+                hostAppBundleId: host?.bundleId
+            ))
         }
 
         extend(&content, with: extendedWith.unwrappingValues())

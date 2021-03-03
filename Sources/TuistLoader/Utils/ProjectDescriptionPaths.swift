@@ -76,8 +76,10 @@ struct ProjectDescriptionSearchPaths {
 
     /// Creates the `ProjectDescription` search paths based on the library path specified
     static func paths(for libraryPath: AbsolutePath) -> ProjectDescriptionSearchPaths {
-        ProjectDescriptionSearchPaths(path: libraryPath,
-                                      style: pathStyle(for: libraryPath))
+        ProjectDescriptionSearchPaths(
+            path: libraryPath,
+            style: pathStyle(for: libraryPath)
+        )
     }
 
     private static func pathStyle(for libraryPath: AbsolutePath) -> ProjectDescriptionSearchPaths.Style {

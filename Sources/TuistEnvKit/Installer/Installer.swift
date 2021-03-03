@@ -80,9 +80,11 @@ final class Installer: Installing {
         let bundleURL: URL? = try googleCloudStorageClient.tuistBundleURL(version: version).toBlocking().first() ?? nil
 
         if let bundleURL = bundleURL {
-            try installFromBundle(bundleURL: bundleURL,
-                                  version: version,
-                                  temporaryDirectory: temporaryDirectory)
+            try installFromBundle(
+                bundleURL: bundleURL,
+                version: version,
+                temporaryDirectory: temporaryDirectory
+            )
         }
     }
 

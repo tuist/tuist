@@ -44,14 +44,17 @@ class ScaffoldService {
     }
 
     func loadTemplateOptions(templateName: String,
-                             path: String?) throws -> (required: [String],
-                                                       optional: [String])
-    {
+                             path: String?) throws -> (
+        required: [String],
+        optional: [String]
+    ) {
         let path = self.path(path)
         let directories = try templatesDirectoryLocator.templateDirectories(at: path)
 
-        let templateDirectory = try self.templateDirectory(templateDirectories: directories,
-                                                           template: templateName)
+        let templateDirectory = try self.templateDirectory(
+            templateDirectories: directories,
+            template: templateName
+        )
 
         let template = try templateLoader.loadTemplate(at: templateDirectory)
 
@@ -74,18 +77,24 @@ class ScaffoldService {
 
         let templateDirectories = try templatesDirectoryLocator.templateDirectories(at: path)
 
-        let templateDirectory = try self.templateDirectory(templateDirectories: templateDirectories,
-                                                           template: templateName)
+        let templateDirectory = try self.templateDirectory(
+            templateDirectories: templateDirectories,
+            template: templateName
+        )
 
         let template = try templateLoader.loadTemplate(at: templateDirectory)
 
-        let parsedAttributes = try parseAttributes(requiredTemplateOptions: requiredTemplateOptions,
-                                                   optionalTemplateOptions: optionalTemplateOptions,
-                                                   template: template)
+        let parsedAttributes = try parseAttributes(
+            requiredTemplateOptions: requiredTemplateOptions,
+            optionalTemplateOptions: optionalTemplateOptions,
+            template: template
+        )
 
-        try templateGenerator.generate(template: template,
-                                       to: path,
-                                       attributes: parsedAttributes)
+        try templateGenerator.generate(
+            template: template,
+            to: path,
+            attributes: parsedAttributes
+        )
 
         logger.notice("Template \(templateName) was successfully generated", metadata: .success)
     }

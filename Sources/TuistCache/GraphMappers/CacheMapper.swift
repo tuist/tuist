@@ -41,12 +41,14 @@ public class CacheMapper: GraphMapping {
                             cacheProfile: TuistGraph.Cache.Profile,
                             cacheOutputType: CacheOutputType)
     {
-        self.init(config: config,
-                  cache: Cache(storageProvider: cacheStorageProvider),
-                  cacheGraphContentHasher: CacheGraphContentHasher(),
-                  sources: sources,
-                  cacheProfile: cacheProfile,
-                  cacheOutputType: cacheOutputType)
+        self.init(
+            config: config,
+            cache: Cache(storageProvider: cacheStorageProvider),
+            cacheGraphContentHasher: CacheGraphContentHasher(),
+            sources: sources,
+            cacheProfile: cacheProfile,
+            cacheOutputType: cacheOutputType
+        )
     }
 
     init(config: Config,
@@ -101,9 +103,11 @@ public class CacheMapper: GraphMapping {
 
     private func map(graph: Graph, hashes: [TargetNode: String], sources: Set<String>) -> Single<Graph> {
         fetch(hashes: hashes).map { xcframeworkPaths in
-            try self.cacheGraphMutator.map(graph: graph,
-                                           precompiledFrameworks: xcframeworkPaths,
-                                           sources: sources)
+            try self.cacheGraphMutator.map(
+                graph: graph,
+                precompiledFrameworks: xcframeworkPaths,
+                sources: sources
+            )
         }
     }
 

@@ -86,11 +86,13 @@ final class AsyncQueuePersistor: AsyncQueuePersisting {
                 }
                 do {
                     let data = try Data(contentsOf: eventPath.url)
-                    let event = (dispatcherId: String(components[1]),
-                                 id: id,
-                                 date: Date(timeIntervalSince1970: timestamp),
-                                 data: data,
-                                 filename: eventPath.basename)
+                    let event = (
+                        dispatcherId: String(components[1]),
+                        id: id,
+                        date: Date(timeIntervalSince1970: timestamp),
+                        data: data,
+                        filename: eventPath.basename
+                    )
                     events.append(event)
                 } catch {
                     try? FileHandler.shared.delete(eventPath)

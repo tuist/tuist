@@ -32,11 +32,13 @@ final class FocusGraphMapperProvider: GraphMapperProviding {
         // Cache
         var mappers: [GraphMapping] = []
         if cache {
-            let cacheMapper = CacheMapper(config: config,
-                                          cacheStorageProvider: CacheStorageProvider(config: config),
-                                          sources: cacheSources,
-                                          cacheProfile: cacheProfile,
-                                          cacheOutputType: cacheOutputType)
+            let cacheMapper = CacheMapper(
+                config: config,
+                cacheStorageProvider: CacheStorageProvider(config: config),
+                sources: cacheSources,
+                cacheProfile: cacheProfile,
+                cacheOutputType: cacheOutputType
+            )
             mappers.append(cacheMapper)
             mappers.append(CacheTreeShakingGraphMapper())
         }

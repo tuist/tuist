@@ -54,8 +54,10 @@ public final class SigningCipher: SigningCiphering {
 
     /// Public initializer
     public convenience init() {
-        self.init(rootDirectoryLocator: RootDirectoryLocator(),
-                  signingFilesLocator: SigningFilesLocator())
+        self.init(
+            rootDirectoryLocator: RootDirectoryLocator(),
+            signingFilesLocator: SigningFilesLocator()
+        )
     }
 
     init(rootDirectoryLocator: RootDirectoryLocating,
@@ -145,9 +147,11 @@ public final class SigningCipher: SigningCiphering {
         try locateUnencryptedSigningFiles(at: path).compactMap { unencryptedFile in
             let encryptedFile = AbsolutePath(unencryptedFile.pathString + "." + Constants.encryptedExtension)
             guard FileHandler.shared.exists(encryptedFile) else { return nil }
-            let isEncryptionNeeded: Bool = try self.isEncryptionNeeded(encryptedFile: encryptedFile,
-                                                                       unencryptedFile: unencryptedFile,
-                                                                       masterKey: masterKey)
+            let isEncryptionNeeded: Bool = try self.isEncryptionNeeded(
+                encryptedFile: encryptedFile,
+                unencryptedFile: unencryptedFile,
+                masterKey: masterKey
+            )
             return isEncryptionNeeded ? nil : (unencrypted: unencryptedFile, encrypted: encryptedFile)
         }
     }

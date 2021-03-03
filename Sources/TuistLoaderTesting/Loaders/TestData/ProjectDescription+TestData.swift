@@ -14,9 +14,11 @@ extension Template {
                             attributes: [Template.Attribute] = [],
                             files: [Template.File] = []) -> Template
     {
-        Template(description: description,
-                 attributes: attributes,
-                 files: files)
+        Template(
+            description: description,
+            attributes: attributes,
+            files: files
+        )
     }
 }
 
@@ -25,9 +27,11 @@ extension Workspace {
                             projects: [Path] = [],
                             additionalFiles: [FileElement] = []) -> Workspace
     {
-        Workspace(name: name,
-                  projects: projects,
-                  additionalFiles: additionalFiles)
+        Workspace(
+            name: name,
+            projects: projects,
+            additionalFiles: additionalFiles
+        )
     }
 }
 
@@ -38,11 +42,13 @@ extension Project {
                             targets: [Target] = [],
                             additionalFiles: [FileElement] = []) -> Project
     {
-        Project(name: name,
-                organizationName: organizationName,
-                settings: settings,
-                targets: targets,
-                additionalFiles: additionalFiles)
+        Project(
+            name: name,
+            organizationName: organizationName,
+            settings: settings,
+            targets: targets,
+            additionalFiles: additionalFiles
+        )
     }
 }
 
@@ -63,21 +69,23 @@ extension Target {
                             coreDataModels: [CoreDataModel] = [],
                             environment: [String: String] = [:]) -> Target
     {
-        Target(name: name,
-               platform: platform,
-               product: product,
-               productName: productName,
-               bundleId: bundleId,
-               infoPlist: infoPlist,
-               sources: sources,
-               resources: resources,
-               headers: headers,
-               entitlements: entitlements,
-               actions: actions,
-               dependencies: dependencies,
-               settings: settings,
-               coreDataModels: coreDataModels,
-               environment: environment)
+        Target(
+            name: name,
+            platform: platform,
+            product: product,
+            productName: productName,
+            bundleId: bundleId,
+            infoPlist: infoPlist,
+            sources: sources,
+            resources: resources,
+            headers: headers,
+            entitlements: entitlements,
+            actions: actions,
+            dependencies: dependencies,
+            settings: settings,
+            coreDataModels: coreDataModels,
+            environment: environment
+        )
     }
 }
 
@@ -87,9 +95,11 @@ extension TargetAction {
                             order: Order = .pre,
                             arguments: [String] = []) -> TargetAction
     {
-        TargetAction(name: name,
-                     script: .tool(tool, arguments),
-                     order: order)
+        TargetAction(
+            name: name,
+            script: .tool(tool, arguments),
+            order: order
+        )
     }
 }
 
@@ -100,19 +110,23 @@ extension Scheme {
                             testAction: TestAction? = nil,
                             runAction: RunAction? = nil) -> Scheme
     {
-        Scheme(name: name,
-               shared: shared,
-               buildAction: buildAction,
-               testAction: testAction,
-               runAction: runAction)
+        Scheme(
+            name: name,
+            shared: shared,
+            buildAction: buildAction,
+            testAction: testAction,
+            runAction: runAction
+        )
     }
 }
 
 extension BuildAction {
     public static func test(targets: [TargetReference] = []) -> BuildAction {
-        BuildAction(targets: targets,
-                    preActions: [ExecutionAction.test()],
-                    postActions: [ExecutionAction.test()])
+        BuildAction(
+            targets: targets,
+            preActions: [ExecutionAction.test()],
+            postActions: [ExecutionAction.test()]
+        )
     }
 }
 
@@ -122,12 +136,14 @@ extension TestAction {
                             config: PresetBuildConfiguration = .debug,
                             coverage: Bool = true) -> TestAction
     {
-        TestAction(targets: targets,
-                   arguments: arguments,
-                   config: config,
-                   coverage: coverage,
-                   preActions: [ExecutionAction.test()],
-                   postActions: [ExecutionAction.test()])
+        TestAction(
+            targets: targets,
+            arguments: arguments,
+            config: config,
+            coverage: coverage,
+            preActions: [ExecutionAction.test()],
+            postActions: [ExecutionAction.test()]
+        )
     }
 }
 
@@ -136,9 +152,11 @@ extension RunAction {
                             executable: TargetReference? = nil,
                             arguments: Arguments? = nil) -> RunAction
     {
-        RunAction(config: config,
-                  executable: executable,
-                  arguments: arguments)
+        RunAction(
+            config: config,
+            executable: executable,
+            arguments: arguments
+        )
     }
 }
 
@@ -147,9 +165,11 @@ extension ExecutionAction {
                             scriptText: String = "echo Test",
                             target: TargetReference? = TargetReference(projectPath: nil, target: "Target")) -> ExecutionAction
     {
-        ExecutionAction(title: title,
-                        scriptText: scriptText,
-                        target: target)
+        ExecutionAction(
+            title: title,
+            scriptText: scriptText,
+            target: target
+        )
     }
 }
 
@@ -157,8 +177,10 @@ extension Arguments {
     public static func test(environment: [String: String] = [:],
                             launchArguments: [LaunchArgument] = []) -> Arguments
     {
-        Arguments(environment: environment,
-                  launchArguments: launchArguments)
+        Arguments(
+            environment: environment,
+            launchArguments: launchArguments
+        )
     }
 }
 

@@ -4,8 +4,10 @@ import Foundation
 /// Command that installs new versions of Tuist in the system.
 struct InstallCommand: ParsableCommand {
     static var configuration: CommandConfiguration {
-        CommandConfiguration(commandName: "install",
-                             abstract: "Installs a version of tuist")
+        CommandConfiguration(
+            commandName: "install",
+            abstract: "Installs a version of tuist"
+        )
     }
 
     @Argument(

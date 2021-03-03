@@ -15,13 +15,17 @@ final class GraphTests: TuistUnitTestCase {
         System.shared = System()
         let project = Project.test()
         let framework = FrameworkNode.test(path: fixturePath(path: RelativePath("xpm.framework")), architectures: [.x8664, .arm64])
-        let library = LibraryNode.test(path: fixturePath(path: RelativePath("libStaticLibrary.a")),
-                                       publicHeaders: fixturePath(path: RelativePath("")))
+        let library = LibraryNode.test(
+            path: fixturePath(path: RelativePath("libStaticLibrary.a")),
+            publicHeaders: fixturePath(path: RelativePath(""))
+        )
         let target = TargetNode.test(dependencies: [framework, library])
 
-        let graph = Graph.test(projects: [project],
-                               precompiled: [framework, library],
-                               targets: [project.path: [target]])
+        let graph = Graph.test(
+            projects: [project],
+            precompiled: [framework, library],
+            targets: [project.path: [target]]
+        )
 
         let expected = """
         [

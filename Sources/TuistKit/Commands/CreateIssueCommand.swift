@@ -4,8 +4,10 @@ import TSCBasic
 
 struct CreateIssueCommand: ParsableCommand {
     static var configuration: CommandConfiguration {
-        CommandConfiguration(commandName: "create-issue",
-                             abstract: "Opens the GitHub page to create a new issue")
+        CommandConfiguration(
+            commandName: "create-issue",
+            abstract: "Opens the GitHub page to create a new issue"
+        )
     }
 
     func run() throws {

@@ -28,8 +28,10 @@ final class BundleServiceTests: TuistUnitTestCase {
         versionsController = try! MockVersionsController()
         installer = MockInstaller()
         tmpDir = try! TemporaryDirectory(removeTreeOnDeinit: true)
-        subject = BundleService(versionsController: versionsController,
-                                installer: installer)
+        subject = BundleService(
+            versionsController: versionsController,
+            installer: installer
+        )
     }
 
     override func tearDown() {

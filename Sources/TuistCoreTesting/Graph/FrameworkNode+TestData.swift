@@ -12,11 +12,13 @@ public extension FrameworkNode {
                      architectures: [BinaryArchitecture] = [],
                      dependencies: [PrecompiledNode.Dependency] = []) -> FrameworkNode
     {
-        FrameworkNode(path: path,
-                      dsymPath: dsymPath,
-                      bcsymbolmapPaths: bcsymbolmapPaths,
-                      linking: linking,
-                      architectures: architectures,
-                      dependencies: dependencies)
+        FrameworkNode(
+            path: path,
+            dsymPath: dsymPath,
+            bcsymbolmapPaths: bcsymbolmapPaths,
+            linking: linking,
+            architectures: architectures,
+            dependencies: dependencies
+        )
     }
 }

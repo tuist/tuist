@@ -19,22 +19,28 @@ public final class CacheTreeShakingGraphMapper: GraphMapping {
         if sourceTargets.count == graph.targets.flatMap(\.value.values).count { return (graph, []) }
 
         let projects = graph.projects.reduce(into: [AbsolutePath: Project]()) { acc, next in
-            let targets = self.treeShake(targets: Array(graph.targets[next.key, default: [:]].values),
-                                         path: next.key,
-                                         graph: graph,
-                                         sourceTargets: sourceTargets)
+            let targets = self.treeShake(
+                targets: Array(graph.targets[next.key, default: [:]].values),
+                path: next.key,
+                graph: graph,
+                sourceTargets: sourceTargets
+            )
             if targets.isEmpty {
                 return
             } else {
-                let schemes = self.treeShake(schemes: next.value.schemes,
-                                             sourceTargets: sourceTargets)
+                let schemes = self.treeShake(
+                    schemes: next.value.schemes,
+                    sourceTargets: sourceTargets
+                )
                 acc[next.key] = next.value.with(targets: targets).with(schemes: schemes)
             }
         }
 
-        let workspace = treeShake(workspace: graph.workspace,
-                                  projects: Array(projects.values),
-                                  sourceTargets: sourceTargets)
+        let workspace = treeShake(
+            workspace: graph.workspace,
+            projects: Array(projects.values),
+            sourceTargets: sourceTargets
+        )
 
         var graph = graph
         graph.workspace = workspace
@@ -57,24 +63,30 @@ public final class CacheTreeShakingGraphMapper: GraphMapping {
         if sourceTargets.count == graph.targets.flatMap(\.value).count { return (graph, []) }
 
         let projects = graph.projects.compactMap { (project) -> Project? in
-            let targets = self.treeShake(targets: project.targets,
-                                         path: project.path,
-                                         graph: graph,
-                                         sourceTargets: sourceTargets)
+            let targets = self.treeShake(
+                targets: project.targets,
+                path: project.path,
+                graph: graph,
+                sourceTargets: sourceTargets
+            )
 
             // If the project has no targets we remove the project.
             if targets.isEmpty {
                 return nil
             } else {
-                let schemes = self.treeShake(schemes: project.schemes,
-                                             sourceTargets: sourceTargets)
+                let schemes = self.treeShake(
+                    schemes: project.schemes,
+                    sourceTargets: sourceTargets
+                )
                 return project.with(targets: targets).with(schemes: schemes)
             }
         }
 
-        let workspace = treeShake(workspace: graph.workspace,
-                                  projects: projects,
-                                  sourceTargets: sourceTargets)
+        let workspace = treeShake(
+            workspace: graph.workspace,
+            projects: projects,
+            sourceTargets: sourceTargets
+        )
 
         let graph = graph
             .with(projects: projects)

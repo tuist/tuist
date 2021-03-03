@@ -15,8 +15,10 @@ final class InstallServiceTests: TuistUnitTestCase {
 
         versionsController = try! MockVersionsController()
         installer = MockInstaller()
-        subject = InstallService(versionsController: versionsController,
-                                 installer: installer)
+        subject = InstallService(
+            versionsController: versionsController,
+            installer: installer
+        )
     }
 
     override func tearDown() {

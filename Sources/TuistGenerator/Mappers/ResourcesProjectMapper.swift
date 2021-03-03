@@ -30,16 +30,18 @@ public class ResourcesProjectMapper: ProjectMapping {
         var modifiedTarget = target
 
         if !target.supportsResources {
-            let resourcesTarget = Target(name: bundleName,
-                                         platform: target.platform,
-                                         product: .bundle,
-                                         productName: nil,
-                                         bundleId: "\(target.bundleId).resources",
-                                         infoPlist: .extendingDefault(with: [:]),
-                                         resources: target.resources,
-                                         copyFiles: target.copyFiles,
-                                         coreDataModels: target.coreDataModels,
-                                         filesGroup: target.filesGroup)
+            let resourcesTarget = Target(
+                name: bundleName,
+                platform: target.platform,
+                product: .bundle,
+                productName: nil,
+                bundleId: "\(target.bundleId).resources",
+                infoPlist: .extendingDefault(with: [:]),
+                resources: target.resources,
+                copyFiles: target.copyFiles,
+                coreDataModels: target.coreDataModels,
+                filesGroup: target.filesGroup
+            )
             modifiedTarget.resources = []
             modifiedTarget.copyFiles = []
             modifiedTarget.dependencies.append(.target(name: bundleName))
@@ -61,9 +63,11 @@ public class ResourcesProjectMapper: ProjectMapping {
             .appending(component: Constants.DerivedDirectory.sources)
             .appending(component: "Bundle+\(target.name).swift")
 
-        let content: String = ResourcesProjectMapper.fileContent(targetName: target.name,
-                                                                 bundleName: bundleName,
-                                                                 target: target)
+        let content: String = ResourcesProjectMapper.fileContent(
+            targetName: target.name,
+            bundleName: bundleName,
+            target: target
+        )
         return (filePath, [.file(.init(path: filePath, contents: content.data(using: .utf8), state: .present))])
     }
 

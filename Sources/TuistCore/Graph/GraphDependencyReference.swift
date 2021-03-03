@@ -30,24 +30,30 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
 
     init(precompiledNode: PrecompiledNode) {
         if let frameworkNode = precompiledNode as? FrameworkNode {
-            self = .framework(path: frameworkNode.path,
-                              binaryPath: frameworkNode.binaryPath,
-                              isCarthage: frameworkNode.isCarthage,
-                              dsymPath: frameworkNode.dsymPath,
-                              bcsymbolmapPaths: frameworkNode.bcsymbolmapPaths,
-                              linking: frameworkNode.linking,
-                              architectures: frameworkNode.architectures,
-                              product: frameworkNode.product)
+            self = .framework(
+                path: frameworkNode.path,
+                binaryPath: frameworkNode.binaryPath,
+                isCarthage: frameworkNode.isCarthage,
+                dsymPath: frameworkNode.dsymPath,
+                bcsymbolmapPaths: frameworkNode.bcsymbolmapPaths,
+                linking: frameworkNode.linking,
+                architectures: frameworkNode.architectures,
+                product: frameworkNode.product
+            )
         } else if let libraryNode = precompiledNode as? LibraryNode {
-            self = .library(path: libraryNode.path,
-                            linking: libraryNode.linking,
-                            architectures: libraryNode.architectures,
-                            product: libraryNode.product)
+            self = .library(
+                path: libraryNode.path,
+                linking: libraryNode.linking,
+                architectures: libraryNode.architectures,
+                product: libraryNode.product
+            )
         } else if let xcframeworkNode = precompiledNode as? XCFrameworkNode {
-            self = .xcframework(path: xcframeworkNode.path,
-                                infoPlist: xcframeworkNode.infoPlist,
-                                primaryBinaryPath: xcframeworkNode.primaryBinaryPath,
-                                binaryPath: xcframeworkNode.binaryPath)
+            self = .xcframework(
+                path: xcframeworkNode.path,
+                infoPlist: xcframeworkNode.infoPlist,
+                primaryBinaryPath: xcframeworkNode.primaryBinaryPath,
+                binaryPath: xcframeworkNode.binaryPath
+            )
         } else {
             preconditionFailure("unsupported precompiled node")
         }
@@ -56,24 +62,30 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
     init(_ dependency: ValueGraphDependency) {
         switch dependency {
         case let .framework(path, binaryPath, dsymPath, bcsymbolmapPaths, linking, architectures, isCarthage):
-            self = .framework(path: path,
-                              binaryPath: binaryPath,
-                              isCarthage: isCarthage,
-                              dsymPath: dsymPath,
-                              bcsymbolmapPaths: bcsymbolmapPaths,
-                              linking: linking,
-                              architectures: architectures,
-                              product: (linking == .static) ? .staticFramework : .framework)
+            self = .framework(
+                path: path,
+                binaryPath: binaryPath,
+                isCarthage: isCarthage,
+                dsymPath: dsymPath,
+                bcsymbolmapPaths: bcsymbolmapPaths,
+                linking: linking,
+                architectures: architectures,
+                product: (linking == .static) ? .staticFramework : .framework
+            )
         case let .library(path, publicHeaders, linking, architectures, swiftModuleMap):
-            self = .library(path: path,
-                            linking: linking,
-                            architectures: architectures,
-                            product: (linking == .static) ? .staticLibrary : .dynamicLibrary)
+            self = .library(
+                path: path,
+                linking: linking,
+                architectures: architectures,
+                product: (linking == .static) ? .staticLibrary : .dynamicLibrary
+            )
         case let .xcframework(path, infoPlist, primaryBinaryPath, linking):
-            self = .xcframework(path: path,
-                                infoPlist: infoPlist,
-                                primaryBinaryPath: primaryBinaryPath,
-                                binaryPath: primaryBinaryPath)
+            self = .xcframework(
+                path: path,
+                infoPlist: infoPlist,
+                primaryBinaryPath: primaryBinaryPath,
+                binaryPath: primaryBinaryPath
+            )
         default:
             preconditionFailure("unsupported dependencies")
         }

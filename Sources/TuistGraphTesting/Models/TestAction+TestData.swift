@@ -15,16 +15,18 @@ public extension TestAction {
                      region: String? = nil,
                      testPlans: [TestPlan]? = nil) -> TestAction
     {
-        TestAction(targets: targets,
-                   arguments: arguments,
-                   configurationName: configurationName,
-                   coverage: coverage,
-                   codeCoverageTargets: codeCoverageTargets,
-                   preActions: preActions,
-                   postActions: postActions,
-                   diagnosticsOptions: diagnosticsOptions,
-                   language: language,
-                   region: region,
-                   testPlans: testPlans)
+        TestAction(
+            targets: targets,
+            arguments: arguments,
+            configurationName: configurationName,
+            coverage: coverage,
+            codeCoverageTargets: codeCoverageTargets,
+            preActions: preActions,
+            postActions: postActions,
+            diagnosticsOptions: diagnosticsOptions,
+            language: language,
+            region: region,
+            testPlans: testPlans
+        )
     }
 }

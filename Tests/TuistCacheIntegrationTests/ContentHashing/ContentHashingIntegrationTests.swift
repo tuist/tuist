@@ -292,13 +292,15 @@ final class ContentHashingIntegrationTests: TuistTestCase {
     {
         TargetNode.test(
             project: .test(path: AbsolutePath("/test/\(named)")),
-            target: .test(platform: platform,
-                          product: .framework,
-                          productName: productName,
-                          sources: sources,
-                          resources: resources,
-                          coreDataModels: coreDataModels,
-                          actions: targetActions)
+            target: .test(
+                platform: platform,
+                product: .framework,
+                productName: productName,
+                sources: sources,
+                resources: resources,
+                coreDataModels: coreDataModels,
+                actions: targetActions
+            )
         )
     }
 }

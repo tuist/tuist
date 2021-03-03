@@ -14,8 +14,10 @@ final class UninstallServiceTests: TuistUnitTestCase {
         super.setUp()
         versionsController = try! MockVersionsController()
         installer = MockInstaller()
-        subject = UninstallService(versionsController: versionsController,
-                                   installer: installer)
+        subject = UninstallService(
+            versionsController: versionsController,
+            installer: installer
+        )
     }
 
     override func tearDown() {

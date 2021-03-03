@@ -21,9 +21,11 @@ extension TuistGraph.Settings {
                 return result
             }
         let defaultSettings = TuistGraph.DefaultSettings.from(manifest: manifest.defaultSettings)
-        return TuistGraph.Settings(base: base,
-                                   configurations: configurations,
-                                   defaultSettings: defaultSettings)
+        return TuistGraph.Settings(
+            base: base,
+            configurations: configurations,
+            defaultSettings: defaultSettings
+        )
     }
 
     private static func buildConfigurationTuple(from customConfiguration: CustomConfiguration,

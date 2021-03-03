@@ -20,8 +20,10 @@ public final class XcodeBuildController: XcodeBuildControlling {
     private let environment: Environmenting
 
     public convenience init() {
-        self.init(formatter: Formatter(),
-                  environment: Environment.shared)
+        self.init(
+            formatter: Formatter(),
+            environment: Environment.shared
+        )
     }
 
     init(formatter: Formatting,

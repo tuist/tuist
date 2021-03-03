@@ -47,13 +47,17 @@ public final class XCFrameworkNodeLoader: XCFrameworkNodeLoading {
             throw XCFrameworkNodeLoaderError.xcframeworkNotFound(path)
         }
         let infoPlist = try xcframeworkMetadataProvider.infoPlist(xcframeworkPath: path)
-        let primaryBinaryPath = try xcframeworkMetadataProvider.binaryPath(xcframeworkPath: path,
-                                                                           libraries: infoPlist.libraries)
+        let primaryBinaryPath = try xcframeworkMetadataProvider.binaryPath(
+            xcframeworkPath: path,
+            libraries: infoPlist.libraries
+        )
         let linking = try xcframeworkMetadataProvider.linking(binaryPath: primaryBinaryPath)
-        return XCFrameworkNode(path: path,
-                               infoPlist: infoPlist,
-                               primaryBinaryPath: primaryBinaryPath,
-                               linking: linking,
-                               dependencies: [])
+        return XCFrameworkNode(
+            path: path,
+            infoPlist: infoPlist,
+            primaryBinaryPath: primaryBinaryPath,
+            linking: linking,
+            dependencies: []
+        )
     }
 }

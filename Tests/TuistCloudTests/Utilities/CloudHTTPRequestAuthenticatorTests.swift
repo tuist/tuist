@@ -16,9 +16,11 @@ final class CloudHTTPRequestAuthenticatorTests: TuistUnitTestCase {
         super.setUp()
         ciChecker = MockCIChecker()
         credentialsStore = MockCredentialsStore()
-        subject = CloudHTTPRequestAuthenticator(ciChecker: ciChecker,
-                                                environmentVariables: { self.environmentVariables },
-                                                credentialsStore: credentialsStore)
+        subject = CloudHTTPRequestAuthenticator(
+            ciChecker: ciChecker,
+            environmentVariables: { self.environmentVariables },
+            credentialsStore: credentialsStore
+        )
     }
 
     override func tearDown() {

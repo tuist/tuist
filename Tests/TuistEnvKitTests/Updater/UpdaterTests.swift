@@ -19,10 +19,12 @@ final class UpdaterTests: TuistUnitTestCase {
         installer = MockInstaller()
         envUpdater = MockEnvUpdater()
         googleCloudStorageClient = MockGoogleCloudStorageClient()
-        subject = Updater(versionsController: versionsController,
-                          installer: installer,
-                          envUpdater: envUpdater,
-                          googleCloudStorageClient: googleCloudStorageClient)
+        subject = Updater(
+            versionsController: versionsController,
+            installer: installer,
+            envUpdater: envUpdater,
+            googleCloudStorageClient: googleCloudStorageClient
+        )
     }
 
     override func tearDown() {

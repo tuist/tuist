@@ -66,8 +66,10 @@ public class Environment: Environmenting {
 
     /// Default public constructor.
     convenience init() {
-        self.init(directory: Environment.defaultDirectory,
-                  fileHandler: FileHandler.shared)
+        self.init(
+            directory: Environment.defaultDirectory,
+            fileHandler: FileHandler.shared
+        )
     }
 
     /// Default environment constroller constructor.

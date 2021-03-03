@@ -26,9 +26,11 @@ final class LintCodeServiceTests: TuistUnitTestCase {
         manifestLoader = MockManifestLoader()
         graphLoader = MockGraphLoader()
 
-        subject = LintCodeService(codeLinter: codeLinter,
-                                  manifestLoading: manifestLoader,
-                                  graphLoader: graphLoader)
+        subject = LintCodeService(
+            codeLinter: codeLinter,
+            manifestLoading: manifestLoader,
+            graphLoader: graphLoader
+        )
     }
 
     override func tearDown() {

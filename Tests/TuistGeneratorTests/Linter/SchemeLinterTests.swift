@@ -26,9 +26,11 @@ class SchemeLinterTests: TuistTestCase {
         let settings = Settings(configurations: [
             .release("Beta"): .test(),
         ])
-        let scheme = Scheme(name: "CustomScheme",
-                            testAction: .test(configurationName: "Alpha"),
-                            runAction: .test(configurationName: "CustomDebug"))
+        let scheme = Scheme(
+            name: "CustomScheme",
+            testAction: .test(configurationName: "Alpha"),
+            runAction: .test(configurationName: "CustomDebug")
+        )
         let project = Project.test(settings: settings, schemes: [scheme])
 
         // When
@@ -44,9 +46,11 @@ class SchemeLinterTests: TuistTestCase {
     func test_lint_referenceLocalTarget() {
         // Given
         let project = Project.test(schemes: [
-            .init(name: "SchemeWithTargetThatDoesExist",
-                  shared: true,
-                  buildAction: .init(targets: [.init(projectPath: AbsolutePath("/Project"), name: "Target")])),
+            .init(
+                name: "SchemeWithTargetThatDoesExist",
+                shared: true,
+                buildAction: .init(targets: [.init(projectPath: AbsolutePath("/Project"), name: "Target")])
+            ),
         ])
 
         // When
@@ -59,9 +63,11 @@ class SchemeLinterTests: TuistTestCase {
     func test_lint_referenceRemoteTargetBuildAction() {
         // Given
         let project = Project.test(schemes: [
-            .init(name: "SchemeWithTargetThatDoesNotExist",
-                  shared: true,
-                  buildAction: .init(targets: [.init(projectPath: AbsolutePath("/Project/../Framework"), name: "Framework")])),
+            .init(
+                name: "SchemeWithTargetThatDoesNotExist",
+                shared: true,
+                buildAction: .init(targets: [.init(projectPath: AbsolutePath("/Project/../Framework"), name: "Framework")])
+            ),
         ])
 
         // When
@@ -78,19 +84,25 @@ class SchemeLinterTests: TuistTestCase {
             .release("Beta"): .test(),
         ])
 
-        let project = Project.test(settings: settings,
-                                   schemes: [
-                                       .init(name: "SchemeWithTargetThatDoesNotExist",
-                                             shared: true,
-                                             testAction: .init(targets: [.init(target: .init(projectPath: AbsolutePath("/Project/../Framework"), name: "Framework"))],
-                                                               arguments: nil,
-                                                               configurationName: "Beta",
-                                                               coverage: false,
-                                                               codeCoverageTargets: [],
-                                                               preActions: [],
-                                                               postActions: [],
-                                                               diagnosticsOptions: Set())),
-                                   ])
+        let project = Project.test(
+            settings: settings,
+            schemes: [
+                .init(
+                    name: "SchemeWithTargetThatDoesNotExist",
+                    shared: true,
+                    testAction: .init(
+                        targets: [.init(target: .init(projectPath: AbsolutePath("/Project/../Framework"), name: "Framework"))],
+                        arguments: nil,
+                        configurationName: "Beta",
+                        coverage: false,
+                        codeCoverageTargets: [],
+                        preActions: [],
+                        postActions: [],
+                        diagnosticsOptions: Set()
+                    )
+                ),
+            ]
+        )
 
         // When
         let got = subject.lint(project: project)
@@ -103,12 +115,18 @@ class SchemeLinterTests: TuistTestCase {
     func test_lint_referenceRemoteTargetExecutionAction() {
         // Given
         let project = Project.test(schemes: [
-            .init(name: "SchemeWithTargetThatDoesNotExist",
-                  shared: true,
-                  buildAction: .init(preActions: [.init(title: "Something",
-                                                        scriptText: "Script",
-                                                        target: .init(projectPath: AbsolutePath("/Project/../Project2"),
-                                                                      name: "Target2"))])),
+            .init(
+                name: "SchemeWithTargetThatDoesNotExist",
+                shared: true,
+                buildAction: .init(preActions: [.init(
+                    title: "Something",
+                    scriptText: "Script",
+                    target: .init(
+                        projectPath: AbsolutePath("/Project/../Project2"),
+                        name: "Target2"
+                    )
+                )])
+            ),
         ])
 
         // When

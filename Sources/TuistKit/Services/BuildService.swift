@@ -97,12 +97,14 @@ final class BuildService {
         }
         let workspacePath = try buildGraphInspector.workspacePath(directory: path)!
         let buildArguments = buildGraphInspector.buildArguments(project: project, target: target, configuration: configuration, skipSigning: false)
-        _ = try xcodebuildController.build(.workspace(workspacePath),
-                                           scheme: scheme.name,
-                                           clean: clean,
-                                           arguments: buildArguments)
-            .printFormattedOutput()
-            .toBlocking()
-            .last()
+        _ = try xcodebuildController.build(
+            .workspace(workspacePath),
+            scheme: scheme.name,
+            clean: clean,
+            arguments: buildArguments
+        )
+        .printFormattedOutput()
+        .toBlocking()
+        .last()
     }
 }

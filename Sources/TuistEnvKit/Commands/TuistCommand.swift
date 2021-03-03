@@ -6,16 +6,18 @@ public struct TuistCommand: ParsableCommand {
     public init() {}
 
     public static var configuration: CommandConfiguration {
-        CommandConfiguration(commandName: "tuist",
-                             abstract: "Manage the environment tuist versions",
-                             subcommands: [
-                                 LocalCommand.self,
-                                 BundleCommand.self,
-                                 UpdateCommand.self,
-                                 InstallCommand.self,
-                                 UninstallCommand.self,
-                                 VersionCommand.self,
-                             ])
+        CommandConfiguration(
+            commandName: "tuist",
+            abstract: "Manage the environment tuist versions",
+            subcommands: [
+                LocalCommand.self,
+                BundleCommand.self,
+                UpdateCommand.self,
+                InstallCommand.self,
+                UninstallCommand.self,
+                VersionCommand.self,
+            ]
+        )
     }
 
     public static func main(_: [String]? = nil) -> Never {

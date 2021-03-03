@@ -546,8 +546,10 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             "SWIFT_INCLUDE_PATHS": .string(sourceRootPath.pathString),
             "SWIFT_VERSION": .string("5.2"),
         ]
-        return Settings(base: base,
-                        configurations: Settings.default.configurations,
-                        defaultSettings: .recommended)
+        return Settings(
+            base: base,
+            configurations: Settings.default.configurations,
+            defaultSettings: .recommended
+        )
     }
 }

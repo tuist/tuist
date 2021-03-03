@@ -32,21 +32,27 @@ final class LibraryNodeTests: TuistUnitTestCase {
 
     func test_equality() {
         // Given
-        let a1 = LibraryNode(path: "/a",
-                             publicHeaders: "/a/header",
-                             architectures: [.arm64],
-                             linking: .static,
-                             swiftModuleMap: "/a/swiftmodulemap")
-        let a2 = LibraryNode(path: "/a",
-                             publicHeaders: "/a/header/2",
-                             architectures: [.arm64],
-                             linking: .static,
-                             swiftModuleMap: "/a/swiftmodulemap")
-        let b = LibraryNode(path: "/b",
-                            publicHeaders: "/b/header",
-                            architectures: [.arm64],
-                            linking: .static,
-                            swiftModuleMap: "/b/swiftmodulemap")
+        let a1 = LibraryNode(
+            path: "/a",
+            publicHeaders: "/a/header",
+            architectures: [.arm64],
+            linking: .static,
+            swiftModuleMap: "/a/swiftmodulemap"
+        )
+        let a2 = LibraryNode(
+            path: "/a",
+            publicHeaders: "/a/header/2",
+            architectures: [.arm64],
+            linking: .static,
+            swiftModuleMap: "/a/swiftmodulemap"
+        )
+        let b = LibraryNode(
+            path: "/b",
+            publicHeaders: "/b/header",
+            architectures: [.arm64],
+            linking: .static,
+            swiftModuleMap: "/b/swiftmodulemap"
+        )
 
         // When / Then
         XCTAssertEqual(a1, a1)
@@ -58,10 +64,12 @@ final class LibraryNodeTests: TuistUnitTestCase {
     func test_encode() {
         // Given
         System.shared = System()
-        let library = LibraryNode(path: fixturePath(path: RelativePath("libStaticLibrary.a")),
-                                  publicHeaders: fixturePath(path: RelativePath("")),
-                                  architectures: [.arm64],
-                                  linking: .static)
+        let library = LibraryNode(
+            path: fixturePath(path: RelativePath("libStaticLibrary.a")),
+            publicHeaders: fixturePath(path: RelativePath("")),
+            architectures: [.arm64],
+            linking: .static
+        )
         let expected = """
         {
         "type": "precompiled",

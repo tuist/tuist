@@ -37,10 +37,12 @@ class Generator: Generating {
     private let configLoader: ConfigLoading
 
     convenience init(contentHasher: ContentHashing) {
-        self.init(projectMapperProvider: ProjectMapperProvider(contentHasher: contentHasher),
-                  graphMapperProvider: GraphMapperProvider(),
-                  workspaceMapperProvider: WorkspaceMapperProvider(contentHasher: contentHasher),
-                  manifestLoaderFactory: ManifestLoaderFactory())
+        self.init(
+            projectMapperProvider: ProjectMapperProvider(contentHasher: contentHasher),
+            graphMapperProvider: GraphMapperProvider(),
+            workspaceMapperProvider: WorkspaceMapperProvider(contentHasher: contentHasher),
+            manifestLoaderFactory: ManifestLoaderFactory()
+        )
     }
 
     init(

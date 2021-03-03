@@ -25,8 +25,10 @@ final class RecursiveManifestLoaderTests: TuistUnitTestCase {
         }
 
         manifestLoader = createManifestLoader()
-        subject = RecursiveManifestLoader(manifestLoader: manifestLoader,
-                                          fileHandler: fileHandler)
+        subject = RecursiveManifestLoader(
+            manifestLoader: manifestLoader,
+            fileHandler: fileHandler
+        )
     }
 
     override func tearDown() {
@@ -55,21 +57,27 @@ final class RecursiveManifestLoaderTests: TuistUnitTestCase {
 
     func test_loadProject_projectWithDependencies() throws {
         // Given
-        let projectA = createProject(name: "ProjectA",
-                                     targets: [
-                                         "TargetA": [
-                                             .project(target: "TargetB", path: "../B"),
-                                             .project(target: "TargetC", path: "../C"),
-                                         ],
-                                     ])
-        let projectB = createProject(name: "ProjectB",
-                                     targets: [
-                                         "TargetB": [],
-                                     ])
-        let projectC = createProject(name: "ProjectC",
-                                     targets: [
-                                         "TargetC": [],
-                                     ])
+        let projectA = createProject(
+            name: "ProjectA",
+            targets: [
+                "TargetA": [
+                    .project(target: "TargetB", path: "../B"),
+                    .project(target: "TargetC", path: "../C"),
+                ],
+            ]
+        )
+        let projectB = createProject(
+            name: "ProjectB",
+            targets: [
+                "TargetB": [],
+            ]
+        )
+        let projectC = createProject(
+            name: "ProjectC",
+            targets: [
+                "TargetC": [],
+            ]
+        )
         stub(manifest: projectA, at: "/Some/Path/A")
         stub(manifest: projectB, at: "/Some/Path/B")
         stub(manifest: projectC, at: "/Some/Path/C")
@@ -87,29 +95,39 @@ final class RecursiveManifestLoaderTests: TuistUnitTestCase {
 
     func test_loadProject_projectWithTransitiveDependencies() throws {
         // Given
-        let projectA = createProject(name: "ProjectA",
-                                     targets: [
-                                         "TargetA": [.project(target: "TargetB", path: "../B")],
-                                     ])
-        let projectB = createProject(name: "ProjectB",
-                                     targets: [
-                                         "TargetB": [.project(target: "TargetC", path: "../C")],
-                                     ])
-        let projectC = createProject(name: "ProjectC",
-                                     targets: [
-                                         "TargetC": [
-                                             .project(target: "TargetD", path: "../D"),
-                                             .project(target: "TargetE", path: "../E"),
-                                         ],
-                                     ])
-        let projectD = createProject(name: "ProjectD",
-                                     targets: [
-                                         "TargetD": [],
-                                     ])
-        let projectE = createProject(name: "ProjectE",
-                                     targets: [
-                                         "TargetE": [],
-                                     ])
+        let projectA = createProject(
+            name: "ProjectA",
+            targets: [
+                "TargetA": [.project(target: "TargetB", path: "../B")],
+            ]
+        )
+        let projectB = createProject(
+            name: "ProjectB",
+            targets: [
+                "TargetB": [.project(target: "TargetC", path: "../C")],
+            ]
+        )
+        let projectC = createProject(
+            name: "ProjectC",
+            targets: [
+                "TargetC": [
+                    .project(target: "TargetD", path: "../D"),
+                    .project(target: "TargetE", path: "../E"),
+                ],
+            ]
+        )
+        let projectD = createProject(
+            name: "ProjectD",
+            targets: [
+                "TargetD": [],
+            ]
+        )
+        let projectE = createProject(
+            name: "ProjectE",
+            targets: [
+                "TargetE": [],
+            ]
+        )
         stub(manifest: projectA, at: "/Some/Path/A")
         stub(manifest: projectB, at: "/Some/Path/B")
         stub(manifest: projectC, at: "/Some/Path/C")
@@ -131,39 +149,51 @@ final class RecursiveManifestLoaderTests: TuistUnitTestCase {
 
     func test_loadProject_missingManifest() throws {
         // Given
-        let projectA = createProject(name: "ProjectA",
-                                     targets: [
-                                         "TargetA": [
-                                             .project(target: "TargetB", path: "../B"),
-                                         ],
-                                     ])
+        let projectA = createProject(
+            name: "ProjectA",
+            targets: [
+                "TargetA": [
+                    .project(target: "TargetB", path: "../B"),
+                ],
+            ]
+        )
         stub(manifest: projectA, at: "/Some/Path/A")
 
         // When / Then
-        XCTAssertThrowsSpecific(try subject.loadProject(at: "/Some/Path/A"),
-                                ManifestLoaderError.manifestNotFound(.project, "/Some/Path/B"))
+        XCTAssertThrowsSpecific(
+            try subject.loadProject(at: "/Some/Path/A"),
+            ManifestLoaderError.manifestNotFound(.project, "/Some/Path/B")
+        )
     }
 
     func test_loadWorkspace() throws {
         // Given
-        let workspace = Workspace.test(name: "Workspace",
-                                       projects: [
-                                           "A",
-                                           "B",
-                                       ])
+        let workspace = Workspace.test(
+            name: "Workspace",
+            projects: [
+                "A",
+                "B",
+            ]
+        )
 
-        let projectA = createProject(name: "ProjectA",
-                                     targets: [
-                                         "TargetA": [],
-                                     ])
-        let projectB = createProject(name: "ProjectB",
-                                     targets: [
-                                         "TargetB": [.project(target: "TargetC", path: "../C")],
-                                     ])
-        let projectC = createProject(name: "ProjectC",
-                                     targets: [
-                                         "TargetC": [],
-                                     ])
+        let projectA = createProject(
+            name: "ProjectA",
+            targets: [
+                "TargetA": [],
+            ]
+        )
+        let projectB = createProject(
+            name: "ProjectB",
+            targets: [
+                "TargetB": [.project(target: "TargetC", path: "../C")],
+            ]
+        )
+        let projectC = createProject(
+            name: "ProjectC",
+            targets: [
+                "TargetC": [],
+            ]
+        )
 
         try stub(manifest: projectA, at: RelativePath("Some/Path/A"))
         try stub(manifest: projectB, at: RelativePath("Some/Path/B"))
@@ -185,23 +215,31 @@ final class RecursiveManifestLoaderTests: TuistUnitTestCase {
 
     func test_loadWorkspace_withGlobPattern() throws {
         // Given
-        let workspace = Workspace.test(name: "Workspace",
-                                       projects: [
-                                           "*",
-                                       ])
+        let workspace = Workspace.test(
+            name: "Workspace",
+            projects: [
+                "*",
+            ]
+        )
 
-        let projectA = createProject(name: "ProjectA",
-                                     targets: [
-                                         "TargetA": [],
-                                     ])
-        let projectB = createProject(name: "ProjectB",
-                                     targets: [
-                                         "TargetB": [.project(target: "TargetC", path: "../C")],
-                                     ])
-        let projectC = createProject(name: "ProjectC",
-                                     targets: [
-                                         "TargetC": [],
-                                     ])
+        let projectA = createProject(
+            name: "ProjectA",
+            targets: [
+                "TargetA": [],
+            ]
+        )
+        let projectB = createProject(
+            name: "ProjectB",
+            targets: [
+                "TargetB": [.project(target: "TargetC", path: "../C")],
+            ]
+        )
+        let projectC = createProject(
+            name: "ProjectC",
+            targets: [
+                "TargetC": [],
+            ]
+        )
 
         try stub(manifest: projectA, at: RelativePath("Some/Path/A"))
         try stub(manifest: projectB, at: RelativePath("Some/Path/B"))

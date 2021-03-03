@@ -5,9 +5,11 @@ import TSCBasic
 /// A command to lint the Swift code using Swiftlint
 struct LintCodeCommand: ParsableCommand {
     static var configuration: CommandConfiguration {
-        CommandConfiguration(commandName: "code",
-                             _superCommandName: "lint",
-                             abstract: "Lints the code of your projects using Swiftlint.")
+        CommandConfiguration(
+            commandName: "code",
+            _superCommandName: "lint",
+            abstract: "Lints the code of your projects using Swiftlint."
+        )
     }
 
     @Option(

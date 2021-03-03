@@ -23,8 +23,10 @@ final class DependenciesFetchServiceTests: TuistUnitTestCase {
         dependenciesController = MockDependenciesController()
         dependenciesModelLoader = MockDependenciesModelLoader()
 
-        subject = DependenciesFetchService(dependenciesController: dependenciesController,
-                                           dependenciesModelLoader: dependenciesModelLoader)
+        subject = DependenciesFetchService(
+            dependenciesController: dependenciesController,
+            dependenciesModelLoader: dependenciesModelLoader
+        )
     }
 
     override func tearDown() {

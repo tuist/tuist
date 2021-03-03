@@ -37,8 +37,10 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
 
     func testGenerateWhenSingleDebugConfigurationInProject() throws {
         // Given
-        let projectSettings = Settings(base: ["A": "A"],
-                                       configurations: [.debug: nil])
+        let projectSettings = Settings(
+            base: ["A": "A"],
+            configurations: [.debug: nil]
+        )
 
         // When
         try generateWorkspace(projectSettings: projectSettings, targetSettings: nil)
@@ -57,8 +59,10 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
         A=A_XCCONFIG
         B=B_XCCONFIG
         """)
-        let debugConfiguration = Configuration(settings: ["A": "A", "C": "C"],
-                                               xcconfig: debugFilePath)
+        let debugConfiguration = Configuration(
+            settings: ["A": "A", "C": "C"],
+            xcconfig: debugFilePath
+        )
         let projectSettings = Settings(configurations: [.debug: debugConfiguration])
 
         // When
@@ -77,8 +81,10 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
     func testGenerateWhenConfigurationSettingsOverrideBase() throws {
         // Given
         let debugConfiguration = Configuration(settings: ["A": "A", "C": "C"])
-        let projectSettings = Settings(base: ["A": "A_BASE", "B": "B_BASE"],
-                                       configurations: [.debug: debugConfiguration])
+        let projectSettings = Settings(
+            base: ["A": "A_BASE", "B": "B_BASE"],
+            configurations: [.debug: debugConfiguration]
+        )
 
         // When
         try generateWorkspace(projectSettings: projectSettings, targetSettings: nil)
@@ -96,9 +102,11 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
     func testGenerateWhenBuildConfigurationWithCustomName() throws {
         // Given
         let customConfiguration = Configuration(settings: ["A": "A", "C": "C"])
-        let projectSettings = Settings(base: ["A": "A_BASE", "B": "B_BASE"],
-                                       configurations: [.debug("Custom"): customConfiguration,
-                                                        .release: nil])
+        let projectSettings = Settings(
+            base: ["A": "A_BASE", "B": "B_BASE"],
+            configurations: [.debug("Custom"): customConfiguration,
+                             .release: nil]
+        )
 
         // When
         try generateWorkspace(projectSettings: projectSettings, targetSettings: nil)
@@ -124,8 +132,10 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
         A=A_XCCONFIG
         B=B_XCCONFIG
         """)
-        let debugConfiguration = Configuration(settings: ["A": "A", "C": "C"],
-                                               xcconfig: debugFilePath)
+        let debugConfiguration = Configuration(
+            settings: ["A": "A", "C": "C"],
+            xcconfig: debugFilePath
+        )
         let projectSettings = Settings(configurations: [.debug: nil])
         let targetSettings = Settings(configurations: [.debug: debugConfiguration])
 
@@ -199,20 +209,24 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
         F=F_PROJECT_XCCONFIG
         PROJECT_XCCONFIG=YES
         """)
-        let projectDebugConfiguration = Configuration(settings: ["C": "C_PROJECT",
-                                                                 "D": "D_PROJECT",
-                                                                 "E": "E_PROJECT",
-                                                                 "F": "F_PROJECT",
-                                                                 "PROJECT": "YES"],
-                                                      xcconfig: projectDebugFilePath)
+        let projectDebugConfiguration = Configuration(
+            settings: ["C": "C_PROJECT",
+                       "D": "D_PROJECT",
+                       "E": "E_PROJECT",
+                       "F": "F_PROJECT",
+                       "PROJECT": "YES"],
+            xcconfig: projectDebugFilePath
+        )
 
-        let projectSettings = Settings(base: ["B": "B_PROJECT_BASE",
-                                              "C": "C_PROJECT_BASE",
-                                              "D": "D_PROJECT_BASE",
-                                              "E": "E_PROJECT_BASE",
-                                              "F": "F_PROJECT_BASE",
-                                              "PROJECT_BASE": "YES"],
-                                       configurations: [.debug: projectDebugConfiguration])
+        let projectSettings = Settings(
+            base: ["B": "B_PROJECT_BASE",
+                   "C": "C_PROJECT_BASE",
+                   "D": "D_PROJECT_BASE",
+                   "E": "E_PROJECT_BASE",
+                   "F": "F_PROJECT_BASE",
+                   "PROJECT_BASE": "YES"],
+            configurations: [.debug: projectDebugConfiguration]
+        )
 
         let targetDebugFilePath = try createFile(path: "Configs/target_debug.xcconfig", content: """
         D=D_TARGET_XCCONFIG
@@ -221,13 +235,17 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
         TARGET_XCCONFIG=YES
         """)
 
-        let targetDebugConfiguration = Configuration(settings: ["F": "F_TARGET",
-                                                                "TARGET": "YES"],
-                                                     xcconfig: targetDebugFilePath)
-        let targetSettings = Settings(base: ["E": "E_TARGET_BASE",
-                                             "F": "E_TARGET_BASE",
-                                             "TARGET_BASE": "YES"],
-                                      configurations: [.debug: targetDebugConfiguration])
+        let targetDebugConfiguration = Configuration(
+            settings: ["F": "F_TARGET",
+                       "TARGET": "YES"],
+            xcconfig: targetDebugFilePath
+        )
+        let targetSettings = Settings(
+            base: ["E": "E_TARGET_BASE",
+                   "F": "E_TARGET_BASE",
+                   "TARGET_BASE": "YES"],
+            configurations: [.debug: targetDebugConfiguration]
+        )
 
         // When
         try generateWorkspace(projectSettings: projectSettings, targetSettings: targetSettings)
@@ -349,29 +367,33 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
     }
 
     private func createProject(path: AbsolutePath, settings: Settings, targets: [Target], packages: [Package] = [], schemes: [Scheme]) -> Project {
-        Project(path: path,
-                sourceRootPath: path,
-                xcodeProjPath: path.appending(component: "App.xcodeproj"),
-                name: "App",
-                organizationName: nil,
-                developmentRegion: nil,
-                settings: settings,
-                filesGroup: .group(name: "Project"),
-                targets: targets,
-                packages: packages,
-                schemes: schemes,
-                additionalFiles: [])
+        Project(
+            path: path,
+            sourceRootPath: path,
+            xcodeProjPath: path.appending(component: "App.xcodeproj"),
+            name: "App",
+            organizationName: nil,
+            developmentRegion: nil,
+            settings: settings,
+            filesGroup: .group(name: "Project"),
+            targets: targets,
+            packages: packages,
+            schemes: schemes,
+            additionalFiles: []
+        )
     }
 
     private func createAppTarget(settings: Settings?) throws -> Target {
-        Target(name: "AppTarget",
-               platform: .iOS,
-               product: .app,
-               productName: "AppTarget",
-               bundleId: "test.bundle",
-               settings: settings,
-               sources: [SourceFile(path: try pathTo("App/Sources/AppDelegate.swift"))],
-               filesGroup: .group(name: "ProjectGroup"))
+        Target(
+            name: "AppTarget",
+            platform: .iOS,
+            product: .app,
+            productName: "AppTarget",
+            bundleId: "test.bundle",
+            settings: settings,
+            sources: [SourceFile(path: try pathTo("App/Sources/AppDelegate.swift"))],
+            filesGroup: .group(name: "ProjectGroup")
+        )
     }
 
     private func pathTo(_ relativePath: String) throws -> AbsolutePath {
@@ -381,9 +403,11 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
 
     private func extractWorkspaceSettings(configuration: String) throws -> ExtractedBuildSettings {
         let temporaryPath = try self.temporaryPath()
-        return try extractBuildSettings(path: .workspace(path: temporaryPath.appending(component: "Workspace.xcworkspace").pathString,
-                                                         scheme: "AppTarget",
-                                                         configuration: configuration))
+        return try extractBuildSettings(path: .workspace(
+            path: temporaryPath.appending(component: "Workspace.xcworkspace").pathString,
+            scheme: "AppTarget",
+            configuration: configuration
+        ))
     }
 
     private func loadXcodeProj(_ relativePath: String) throws -> XcodeProj {

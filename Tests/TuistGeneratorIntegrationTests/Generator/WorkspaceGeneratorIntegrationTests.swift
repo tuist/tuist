@@ -37,12 +37,14 @@ final class WorkspaceGeneratorIntegrationTests: TuistTestCase {
                 targets: [Target.test(name: "Project\($0)_Target")]
             )
         }
-        var graph = Graph.create(projects: projects,
-                                 dependencies: projects.flatMap { project in
-                                     project.targets.map { target in
-                                         (project: project, target: target, dependencies: [])
-                                     }
-                                 })
+        var graph = Graph.create(
+            projects: projects,
+            dependencies: projects.flatMap { project in
+                project.targets.map { target in
+                    (project: project, target: target, dependencies: [])
+                }
+            }
+        )
         let workspace = Workspace.test(
             path: temporaryPath,
             projects: projects.map(\.path)

@@ -29,19 +29,23 @@ public final class CodeLinter: CodeLinting {
     public func lint(sources: [AbsolutePath], path: AbsolutePath, strict: Bool) throws {
         let swiftLintPath = try binaryLocator.swiftLintPath()
         let swiftLintConfigPath = self.swiftLintConfigPath(path: path)
-        let swiftLintArguments = buildSwiftLintArguments(swiftLintPath: swiftLintPath,
-                                                         sources: sources,
-                                                         configPath: swiftLintConfigPath,
-                                                         strict: strict)
+        let swiftLintArguments = buildSwiftLintArguments(
+            swiftLintPath: swiftLintPath,
+            sources: sources,
+            configPath: swiftLintConfigPath,
+            strict: strict
+        )
         let environment = buildEnvironment(sources: sources)
 
-        _ = try System.shared.observable(swiftLintArguments,
-                                         verbose: false,
-                                         environment: environment)
-            .mapToString()
-            .print()
-            .toBlocking()
-            .last()
+        _ = try System.shared.observable(
+            swiftLintArguments,
+            verbose: false,
+            environment: environment
+        )
+        .mapToString()
+        .print()
+        .toBlocking()
+        .last()
     }
 
     // MARK: - Helpers

@@ -10,9 +10,11 @@ public class MockEnvironment: Environmenting {
 
     init() throws {
         directory = try TemporaryDirectory(removeTreeOnDeinit: true)
-        try FileManager.default.createDirectory(at: versionsDirectory.url,
-                                                withIntermediateDirectories: true,
-                                                attributes: nil)
+        try FileManager.default.createDirectory(
+            at: versionsDirectory.url,
+            withIntermediateDirectories: true,
+            attributes: nil
+        )
     }
 
     public var isVerbose: Bool = false

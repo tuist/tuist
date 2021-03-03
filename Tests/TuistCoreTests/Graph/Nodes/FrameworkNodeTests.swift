@@ -18,10 +18,12 @@ final class FrameworkNodeTests: TuistUnitTestCase {
         frameworkPath = path.appending(component: "test.framework")
         dsymPath = path.appending(component: "test.dSYM")
         bcsymbolmapPaths = [path.appending(component: "test.bcsymbolmap")]
-        subject = FrameworkNode(path: frameworkPath,
-                                dsymPath: dsymPath,
-                                bcsymbolmapPaths: bcsymbolmapPaths,
-                                linking: .dynamic)
+        subject = FrameworkNode(
+            path: frameworkPath,
+            dsymPath: dsymPath,
+            bcsymbolmapPaths: bcsymbolmapPaths,
+            linking: .dynamic
+        )
     }
 
     override func tearDown() {
@@ -42,10 +44,12 @@ final class FrameworkNodeTests: TuistUnitTestCase {
 
     func test_isCarthage() {
         XCTAssertFalse(subject.isCarthage)
-        subject = FrameworkNode(path: AbsolutePath("/path/Carthage/Build/iOS/A.framework"),
-                                dsymPath: dsymPath,
-                                bcsymbolmapPaths: bcsymbolmapPaths,
-                                linking: .dynamic)
+        subject = FrameworkNode(
+            path: AbsolutePath("/path/Carthage/Build/iOS/A.framework"),
+            dsymPath: dsymPath,
+            bcsymbolmapPaths: bcsymbolmapPaths,
+            linking: .dynamic
+        )
         XCTAssertTrue(subject.isCarthage)
     }
 

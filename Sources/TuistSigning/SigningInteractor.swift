@@ -20,13 +20,15 @@ public final class SigningInteractor: SigningInteracting {
     private let signingCipher: SigningCiphering
 
     public convenience init() {
-        self.init(signingFilesLocator: SigningFilesLocator(),
-                  rootDirectoryLocator: RootDirectoryLocator(),
-                  signingMatcher: SigningMatcher(),
-                  signingInstaller: SigningInstaller(),
-                  signingLinter: SigningLinter(),
-                  securityController: SecurityController(),
-                  signingCipher: SigningCipher())
+        self.init(
+            signingFilesLocator: SigningFilesLocator(),
+            rootDirectoryLocator: RootDirectoryLocator(),
+            signingMatcher: SigningMatcher(),
+            signingInstaller: SigningInstaller(),
+            signingLinter: SigningLinter(),
+            securityController: SecurityController(),
+            signingCipher: SigningCipher()
+        )
     }
 
     init(signingFilesLocator: SigningFilesLocating,
@@ -69,10 +71,12 @@ public final class SigningInteractor: SigningInteracting {
         let (certificates, provisioningProfiles) = try signingMatcher.match(from: graphTraverser.path)
 
         try graphTraverser.allTargets().sorted().forEach { target in
-            try install(target: target,
-                        keychainPath: keychainPath,
-                        certificates: certificates,
-                        provisioningProfiles: provisioningProfiles)
+            try install(
+                target: target,
+                keychainPath: keychainPath,
+                certificates: certificates,
+                provisioningProfiles: provisioningProfiles
+            )
         }
     }
 
@@ -87,8 +91,10 @@ public final class SigningInteractor: SigningInteracting {
         /// Filtering certificate-provisioning profile pairs, so they are installed only when necessary (they correspond to some configuration and target in the project)
         let signingPairs = Set(
             targetConfigurations
-                .merging(target.project.settings.configurations,
-                         uniquingKeysWith: { config, _ in config })
+                .merging(
+                    target.project.settings.configurations,
+                    uniquingKeysWith: { config, _ in config }
+                )
                 .keys
         )
         .compactMap { configuration -> (certificate: Certificate, provisioningProfile: ProvisioningProfile)? in

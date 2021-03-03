@@ -297,11 +297,13 @@ final class AsyncQueueTests: TuistUnitTestCase {
     // MARK: Private
 
     private func makeEventTuple(id: UInt, dispatcherId: String? = nil) -> AsyncQueueEventTuple {
-        (dispatcherId: dispatcherId ?? dispatcher1ID,
-         id: UUID(),
-         date: Date(),
-         data: data(with: id),
-         filename: filename(with: id))
+        (
+            dispatcherId: dispatcherId ?? dispatcher1ID,
+            id: UUID(),
+            date: Date(),
+            data: data(with: id),
+            filename: filename(with: id)
+        )
     }
 
     private func data(with id: UInt) -> Data {

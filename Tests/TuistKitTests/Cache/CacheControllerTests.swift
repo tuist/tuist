@@ -36,11 +36,13 @@ final class CacheControllerTests: TuistUnitTestCase {
         projectGeneratorProvider = MockCacheControllerProjectGeneratorProvider()
         projectGeneratorProvider.stubbedGeneratorResult = generator
         cacheGraphLinter = MockCacheGraphLinter()
-        subject = CacheController(cache: cache,
-                                  artifactBuilder: artifactBuilder,
-                                  projectGeneratorProvider: projectGeneratorProvider,
-                                  cacheGraphContentHasher: cacheGraphContentHasher,
-                                  cacheGraphLinter: cacheGraphLinter)
+        subject = CacheController(
+            cache: cache,
+            artifactBuilder: artifactBuilder,
+            projectGeneratorProvider: projectGeneratorProvider,
+            cacheGraphContentHasher: cacheGraphContentHasher,
+            cacheGraphLinter: cacheGraphLinter
+        )
 
         super.setUp()
     }
@@ -80,8 +82,10 @@ final class CacheControllerTests: TuistUnitTestCase {
             bTargetNode: "\(bTarget.name)_HASH",
             cTargetNode: "\(cTarget.name)_HASH",
         ]
-        let graph = Graph.test(projects: [project],
-                               targets: nodeWithHashes.keys.reduce(into: [project.path: [TargetNode]()]) { $0[project.path]?.append($1) })
+        let graph = Graph.test(
+            projects: [project],
+            targets: nodeWithHashes.keys.reduce(into: [project.path: [TargetNode]()]) { $0[project.path]?.append($1) }
+        )
 
         manifestLoader.manifestsAtStub = { (loadPath: AbsolutePath) -> Set<Manifest> in
             XCTAssertEqual(loadPath, path)
@@ -142,8 +146,10 @@ final class CacheControllerTests: TuistUnitTestCase {
             bTargetNode: "\(bTarget.name)_HASH",
             cTargetNode: "\(cTarget.name)_HASH",
         ]
-        let graph = Graph.test(projects: [project],
-                               targets: nodeWithHashes.keys.reduce(into: [project.path: [TargetNode]()]) { $0[project.path]?.append($1) })
+        let graph = Graph.test(
+            projects: [project],
+            targets: nodeWithHashes.keys.reduce(into: [project.path: [TargetNode]()]) { $0[project.path]?.append($1) }
+        )
 
         manifestLoader.manifestsAtStub = { (loadPath: AbsolutePath) -> Set<Manifest> in
             XCTAssertEqual(loadPath, path)

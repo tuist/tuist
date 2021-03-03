@@ -10,8 +10,10 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping {
     private let contentHasher: ContentHashing
 
     public convenience init(contentHasher: ContentHashing) {
-        self.init(synthesizedResourceInterfacesGenerator: SynthesizedResourceInterfacesGenerator(),
-                  contentHasher: contentHasher)
+        self.init(
+            synthesizedResourceInterfacesGenerator: SynthesizedResourceInterfacesGenerator(),
+            contentHasher: contentHasher
+        )
     }
 
     init(

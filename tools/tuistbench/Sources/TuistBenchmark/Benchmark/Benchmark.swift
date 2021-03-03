@@ -39,8 +39,10 @@ final class Benchmark {
         let results = try a.measure(runs: runs, arguments: arguments, fixturePath: fixturePath)
         let reference = try b.measure(runs: runs, arguments: arguments, fixturePath: fixturePath)
 
-        return BenchmarkResult(fixture: fixturePath.basename,
-                               results: results,
-                               reference: reference)
+        return BenchmarkResult(
+            fixture: fixturePath.basename,
+            results: results,
+            reference: reference
+        )
     }
 }

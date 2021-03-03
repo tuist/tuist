@@ -20,8 +20,10 @@ public class GraphLinter: GraphLinting {
     public convenience init() {
         let projectLinter = ProjectLinter()
         let staticProductsLinter = StaticProductsGraphLinter()
-        self.init(projectLinter: projectLinter,
-                  staticProductsLinter: staticProductsLinter)
+        self.init(
+            projectLinter: projectLinter,
+            staticProductsLinter: staticProductsLinter
+        )
     }
 
     init(projectLinter: ProjectLinting,
@@ -72,10 +74,14 @@ public class GraphLinter: GraphLinting {
     private func lintDependency(from: ValueGraphTarget, to: ValueGraphTarget) -> [LintingIssue] {
         var issues: [LintingIssue] = []
 
-        let fromTarget = LintableTarget(platform: from.target.platform,
-                                        product: from.target.product)
-        let toTarget = LintableTarget(platform: to.target.platform,
-                                      product: to.target.product)
+        let fromTarget = LintableTarget(
+            platform: from.target.platform,
+            product: from.target.product
+        )
+        let toTarget = LintableTarget(
+            platform: to.target.platform,
+            product: to.target.product
+        )
 
         if !GraphLinter.validLinks.keys.contains(fromTarget) {
             let reason = "Target \(from.target.name) has a platform '\(from.target.platform)' and product '\(from.target.product)' invalid or not supported yet."
@@ -112,8 +118,10 @@ public class GraphLinter: GraphLinting {
             let expectedConfigurations = knownConfigurations.sorted()
             let configurations = $0.buildConfigurations.sorted()
             let reason = "The project '\($0.name)' has missing or mismatching configurations. It has \(configurations), other projects have \(expectedConfigurations)"
-            return LintingIssue(reason: reason,
-                                severity: .warning)
+            return LintingIssue(
+                reason: reason,
+                severity: .warning
+            )
         }
     }
 
@@ -148,8 +156,10 @@ public class GraphLinter: GraphLinting {
 
             if appClips.count > 1 {
                 return [
-                    LintingIssue(reason: "\(app) cannot depend on more than one app clip: \(appClips.map(\.target.name).sorted().listed())",
-                                 severity: .error),
+                    LintingIssue(
+                        reason: "\(app) cannot depend on more than one app clip: \(appClips.map(\.target.name).sorted().listed())",
+                        severity: .error
+                    ),
                 ]
             }
 
@@ -214,9 +224,11 @@ public class GraphLinter: GraphLinting {
     }
 
     private func products(ofType type: Product, for targetNode: TargetNode, graph: Graph) -> [TargetNode] {
-        graph.targetDependencies(path: targetNode.path,
-                                 name: targetNode.name)
-            .filter { $0.target.product == type }
+        graph.targetDependencies(
+            path: targetNode.path,
+            name: targetNode.name
+        )
+        .filter { $0.target.product == type }
     }
 
     private func lint(appClip: ValueGraphTarget, parentApp: ValueGraphTarget) -> [LintingIssue] {

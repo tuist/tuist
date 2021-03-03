@@ -48,8 +48,10 @@ extension AbsolutePath {
             let pathUpToLastNonGlob = AbsolutePath(globPath).upToLastNonGlob
 
             if !pathUpToLastNonGlob.isFolder {
-                let invalidGlob = InvalidGlob(pattern: globPath,
-                                              nonExistentPath: pathUpToLastNonGlob)
+                let invalidGlob = InvalidGlob(
+                    pattern: globPath,
+                    nonExistentPath: pathUpToLastNonGlob
+                )
                 throw GlobError.nonExistentDirectory(invalidGlob)
             }
         }

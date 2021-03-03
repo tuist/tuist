@@ -7,8 +7,10 @@ public extension ProfileAction {
                      executable: TargetReference? = TargetReference(projectPath: "/Project", name: "App"),
                      arguments: Arguments? = Arguments.test()) -> ProfileAction
     {
-        ProfileAction(configurationName: configurationName,
-                      executable: executable,
-                      arguments: arguments)
+        ProfileAction(
+            configurationName: configurationName,
+            executable: executable,
+            arguments: arguments
+        )
     }
 }

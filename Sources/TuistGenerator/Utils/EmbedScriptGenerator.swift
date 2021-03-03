@@ -40,9 +40,11 @@ final class EmbedScriptGenerator: EmbedScriptGenerating {
         var script = baseScript()
         script.append("\n")
 
-        let (frameworksScript, inputPaths, outputPaths) = try self.frameworksScript(sourceRootPath: sourceRootPath,
-                                                                                    frameworkReferences: frameworkReferences,
-                                                                                    includeSymbolsInFileLists: includeSymbolsInFileLists)
+        let (frameworksScript, inputPaths, outputPaths) = try self.frameworksScript(
+            sourceRootPath: sourceRootPath,
+            frameworkReferences: frameworkReferences,
+            includeSymbolsInFileLists: includeSymbolsInFileLists
+        )
         script.append(frameworksScript)
 
         return EmbedScript(script: script, inputPaths: inputPaths, outputPaths: outputPaths)

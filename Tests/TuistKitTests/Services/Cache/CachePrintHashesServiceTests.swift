@@ -49,10 +49,12 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
 
     func test_run_loads_the_graph() throws {
         // Given
-        subject = CachePrintHashesService(generator: generator,
-                                          cacheGraphContentHasher: cacheGraphContentHasher,
-                                          clock: clock,
-                                          configLoader: configLoader)
+        subject = CachePrintHashesService(
+            generator: generator,
+            cacheGraphContentHasher: cacheGraphContentHasher,
+            clock: clock,
+            configLoader: configLoader
+        )
 
         // When
         _ = try subject.run(path: path, xcframeworks: false, profile: nil)
@@ -63,10 +65,12 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
 
     func test_run_content_hasher_gets_correct_graph() throws {
         // Given
-        subject = CachePrintHashesService(generator: generator,
-                                          cacheGraphContentHasher: cacheGraphContentHasher,
-                                          clock: clock,
-                                          configLoader: configLoader)
+        subject = CachePrintHashesService(
+            generator: generator,
+            cacheGraphContentHasher: cacheGraphContentHasher,
+            clock: clock,
+            configLoader: configLoader
+        )
         let graph = Graph.test()
         generator.loadStub = { _ in graph }
 
@@ -91,10 +95,12 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
             [target1: "hash1", target2: "hash2"]
         }
 
-        subject = CachePrintHashesService(generator: generator,
-                                          cacheGraphContentHasher: cacheGraphContentHasher,
-                                          clock: clock,
-                                          configLoader: configLoader)
+        subject = CachePrintHashesService(
+            generator: generator,
+            cacheGraphContentHasher: cacheGraphContentHasher,
+            clock: clock,
+            configLoader: configLoader
+        )
 
         // When
         _ = try subject.run(path: path, xcframeworks: false, profile: nil)

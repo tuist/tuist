@@ -43,10 +43,12 @@ class CacheControllerProjectGeneratorProvider: CacheControllerProjectGeneratorPr
         let contentHasher = CacheContentHasher()
         let projectMapperProvider = CacheControllerProjectMapperProvider(contentHasher: contentHasher)
         let workspaceMapperProvider = WorkspaceMapperProvider(projectMapperProvider: projectMapperProvider)
-        return Generator(projectMapperProvider: projectMapperProvider,
-                         graphMapperProvider: GraphMapperProvider(),
-                         workspaceMapperProvider: workspaceMapperProvider,
-                         manifestLoaderFactory: ManifestLoaderFactory())
+        return Generator(
+            projectMapperProvider: projectMapperProvider,
+            graphMapperProvider: GraphMapperProvider(),
+            workspaceMapperProvider: workspaceMapperProvider,
+            manifestLoaderFactory: ManifestLoaderFactory()
+        )
     }
 }
 
@@ -79,11 +81,13 @@ final class CacheController: CacheControlling {
                      artifactBuilder: CacheArtifactBuilding,
                      contentHasher: ContentHashing)
     {
-        self.init(cache: cache,
-                  artifactBuilder: artifactBuilder,
-                  projectGeneratorProvider: CacheControllerProjectGeneratorProvider(contentHasher: contentHasher),
-                  cacheGraphContentHasher: CacheGraphContentHasher(contentHasher: contentHasher),
-                  cacheGraphLinter: CacheGraphLinter())
+        self.init(
+            cache: cache,
+            artifactBuilder: artifactBuilder,
+            projectGeneratorProvider: CacheControllerProjectGeneratorProvider(contentHasher: contentHasher),
+            cacheGraphContentHasher: CacheGraphContentHasher(contentHasher: contentHasher),
+            cacheGraphLinter: CacheGraphLinter()
+        )
     }
 
     init(cache: CacheStoring,
@@ -158,15 +162,19 @@ final class CacheController: CacheControlling {
         }
 
         if path.extension == "xcworkspace" {
-            try artifactBuilder.build(workspacePath: path,
-                                      target: target.target,
-                                      configuration: configuration,
-                                      into: outputDirectory)
+            try artifactBuilder.build(
+                workspacePath: path,
+                target: target.target,
+                configuration: configuration,
+                into: outputDirectory
+            )
         } else {
-            try artifactBuilder.build(projectPath: path,
-                                      target: target.target,
-                                      configuration: configuration,
-                                      into: outputDirectory)
+            try artifactBuilder.build(
+                projectPath: path,
+                target: target.target,
+                configuration: configuration,
+                into: outputDirectory
+            )
         }
 
         _ = try cache.store(hash: hash, paths: FileHandler.shared.glob(outputDirectory, glob: "*")).toBlocking().last()

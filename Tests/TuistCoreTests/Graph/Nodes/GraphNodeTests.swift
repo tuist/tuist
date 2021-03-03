@@ -10,12 +10,16 @@ final class GraphNodeTests: XCTestCase {
         // Given
         let a = GraphNode(path: "/path/a", name: "a")
         let b = GraphNode(path: "/path/b", name: "b")
-        let c1 = TargetNode(project: .test(path: "/path/c"),
-                            target: .test(name: "c1"),
-                            dependencies: [])
-        let c2 = TargetNode(project: .test(path: "/path/c"),
-                            target: .test(name: "c2"),
-                            dependencies: [])
+        let c1 = TargetNode(
+            project: .test(path: "/path/c"),
+            target: .test(name: "c1"),
+            dependencies: []
+        )
+        let c2 = TargetNode(
+            project: .test(path: "/path/c"),
+            target: .test(name: "c2"),
+            dependencies: []
+        )
         let d = LibraryNode(path: "/path/a", publicHeaders: "/path/to/headers", architectures: [.arm64], linking: .static)
         let e = LibraryNode(path: "/path/c", publicHeaders: "/path/to/headers", architectures: [.arm64], linking: .static)
 

@@ -121,35 +121,39 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
     /// Returns a copy of the project with the given targets set.
     /// - Parameter targets: Targets to be set to the copy.
     public func with(targets: [Target]) -> Project {
-        Project(path: path,
-                sourceRootPath: sourceRootPath,
-                xcodeProjPath: xcodeProjPath,
-                name: name,
-                organizationName: organizationName,
-                developmentRegion: developmentRegion,
-                settings: settings,
-                filesGroup: filesGroup,
-                targets: targets,
-                packages: packages,
-                schemes: schemes,
-                additionalFiles: additionalFiles)
+        Project(
+            path: path,
+            sourceRootPath: sourceRootPath,
+            xcodeProjPath: xcodeProjPath,
+            name: name,
+            organizationName: organizationName,
+            developmentRegion: developmentRegion,
+            settings: settings,
+            filesGroup: filesGroup,
+            targets: targets,
+            packages: packages,
+            schemes: schemes,
+            additionalFiles: additionalFiles
+        )
     }
 
     /// Returns a copy of the project with the given schemes set.
     /// - Parameter schemes: Schemes to be set to the copy.
     public func with(schemes: [Scheme]) -> Project {
-        Project(path: path,
-                sourceRootPath: sourceRootPath,
-                xcodeProjPath: xcodeProjPath,
-                name: name,
-                organizationName: organizationName,
-                developmentRegion: developmentRegion,
-                settings: settings,
-                filesGroup: filesGroup,
-                targets: targets,
-                packages: packages,
-                schemes: schemes,
-                additionalFiles: additionalFiles)
+        Project(
+            path: path,
+            sourceRootPath: sourceRootPath,
+            xcodeProjPath: xcodeProjPath,
+            name: name,
+            organizationName: organizationName,
+            developmentRegion: developmentRegion,
+            settings: settings,
+            filesGroup: filesGroup,
+            targets: targets,
+            packages: packages,
+            schemes: schemes,
+            additionalFiles: additionalFiles
+        )
     }
 
     /// Returns the name of the default configuration.

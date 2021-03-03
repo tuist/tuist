@@ -28,9 +28,11 @@ class CloudCacheResourceFactory: CloudCacheResourceFactorying {
         let url = try apiCacheURL(hash: hash, cacheURL: cloudConfig.url, projectId: cloudConfig.projectId)
         var request = URLRequest(url: url)
         request.httpMethod = "HEAD"
-        return HTTPResource(request: { request },
-                            parse: { _, _ in CloudResponse(status: "HEAD", data: CloudHEADResponse()) },
-                            parseError: { _, _ in CloudHEADResponseError() })
+        return HTTPResource(
+            request: { request },
+            parse: { _, _ in CloudResponse(status: "HEAD", data: CloudHEADResponse()) },
+            parseError: { _, _ in CloudHEADResponseError() }
+        )
     }
 
     func fetchResource(hash: String) throws -> CloudCacheResource {

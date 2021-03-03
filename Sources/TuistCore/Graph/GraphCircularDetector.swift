@@ -69,9 +69,11 @@ public final class GraphCircularDetector: GraphCircularDetecting {
         currentPath.append(node)
 
         for nextNode in node.to {
-            try visit(node: nextNode,
-                      currentPath: currentPath,
-                      inspectedNodes: &inspectedNodes)
+            try visit(
+                node: nextNode,
+                currentPath: currentPath,
+                inspectedNodes: &inspectedNodes
+            )
         }
 
         inspectedNodes.insert(node)

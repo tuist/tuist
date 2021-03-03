@@ -69,10 +69,12 @@ final class LibraryNodeLoader: LibraryNodeLoading {
         let architectures = try libraryMetadataProvider.architectures(binaryPath: path)
         let linking = try libraryMetadataProvider.linking(binaryPath: path)
 
-        return LibraryNode(path: path,
-                           publicHeaders: publicHeaders,
-                           architectures: architectures,
-                           linking: linking,
-                           swiftModuleMap: swiftModuleMap)
+        return LibraryNode(
+            path: path,
+            publicHeaders: publicHeaders,
+            architectures: architectures,
+            linking: linking,
+            swiftModuleMap: swiftModuleMap
+        )
     }
 }

@@ -31,9 +31,11 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
             "Sources/project/C2.m",
         ])
 
-        let manifest = ProjectDescription.Headers(public: "Sources/public/**",
-                                                  private: "Sources/private/**",
-                                                  project: "Sources/project/**")
+        let manifest = ProjectDescription.Headers(
+            public: "Sources/public/**",
+            private: "Sources/private/**",
+            project: "Sources/project/**"
+        )
 
         // When
         let model = try TuistGraph.Headers.from(manifest: manifest, generatorPaths: generatorPaths)
@@ -76,9 +78,11 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
             "Sources/project/F/F1.m",
         ])
 
-        let manifest = ProjectDescription.Headers(public: ["Sources/public/A/*.h", "Sources/public/B/*.h"],
-                                                  private: ["Sources/private/C/*.h", "Sources/private/D/*.h"],
-                                                  project: ["Sources/project/E/*.h", "Sources/project/F/*.h"])
+        let manifest = ProjectDescription.Headers(
+            public: ["Sources/public/A/*.h", "Sources/public/B/*.h"],
+            private: ["Sources/private/C/*.h", "Sources/private/D/*.h"],
+            project: ["Sources/project/E/*.h", "Sources/project/F/*.h"]
+        )
 
         // When
         let model = try TuistGraph.Headers.from(manifest: manifest, generatorPaths: generatorPaths)
@@ -114,8 +118,10 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
             "Sources/project/D/D1.m",
         ])
 
-        let manifest = ProjectDescription.Headers(public: "Sources/public/A/*.h",
-                                                  project: ["Sources/project/C/*.h", "Sources/project/D/*.h"])
+        let manifest = ProjectDescription.Headers(
+            public: "Sources/public/A/*.h",
+            project: ["Sources/project/C/*.h", "Sources/project/D/*.h"]
+        )
 
         // When
         let model = try TuistGraph.Headers.from(manifest: manifest, generatorPaths: generatorPaths)
