@@ -12,11 +12,11 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Change the graph tree-shaker mapper to work with the value graph too [#2545](https://github.com/tuist/tuist/pull/2545) by [@pepibumur](https://github.com/pepibumur).
 - Migrate `GraphViz` to `ValueGraph` [#2542](https://github.com/tuist/tuist/pull/2542) by [@fortmarek](https://github.com/fortmarek)
-
+- Exclude `Project.swift` files which are **not manifests** with a `// tuist:not-a-manifest` [#2605](https://github.com/tuist/tuist/pull/2605) comment by [@natanrolnik](https://github.com/natanrolnik)
 
 ### Fixed
 
-- Ignore `.DS_Store` files when hashing directory contents [#2591](https://github.com/tuist/tuist/pull/2591) by [@natanrolnik](https://github.com/natanrolnik).
+- Ignore `.DS_Store` files when hashing directory contents [#2591](https://github.com/tuist/tuist/pull/2591) by [@natanrolnik](https://github.com/natanrolnik)
 
 ## 1.36.0 - Digital Love
 

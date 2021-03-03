@@ -92,7 +92,9 @@ final class ProjectEditor: ProjectEditing {
         let xcodeprojPath = dstDirectory.appending(component: "Manifests.xcodeproj")
 
         let projectDesciptionPath = try resourceLocator.projectDescription()
-        let manifests = manifestFilesLocator.locateAllProjectManifests(at: editingPath)
+        let manifests = manifestFilesLocator
+            .locateAllProjectManifests(at: editingPath)
+            .filter { shouldIncludeManifest(at: $1) }
         let configPath = manifestFilesLocator.locateConfig(at: editingPath)
         let dependenciesPath = manifestFilesLocator.locateDependencies(at: editingPath)
         let setupPath = manifestFilesLocator.locateSetup(at: editingPath)
@@ -132,5 +134,19 @@ final class ProjectEditor: ProjectEditing {
         let descriptor = try generator.generateProject(project: mappedProject, graphTraverser: graphTraverser)
         try writer.write(project: descriptor)
         return descriptor.xcodeprojPath
+    }
+
+    // swiftlint:disable:next force_try
+    private let excludeManifestRegex = try! NSRegularExpression(pattern: "\\/\\/\\s?tuist:not-a-manifest")
+
+    private func shouldIncludeManifest(at path: AbsolutePath) -> Bool {
+        guard let contents = try? String(contentsOf: URL(fileURLWithPath: path.pathString)) else {
+            return true
+        }
+
+        let matches = excludeManifestRegex.numberOfMatches(in: contents,
+                                                         options: [],
+                                                         range: NSRange(location: 0, length: contents.count))
+        return matches == 0
     }
 }

@@ -25,3 +25,11 @@ tuist edit --permanent
 ```
 
 That will generate a `Manifest.xcodeproj` project that you can open manually.
+
+### Excluding files which are not manifests
+
+Tuist looks for all `Project.swift` files in your directory when editing your project. As a consequence, it might include files with this name which **might be part of your sources, instead of being a manifest**. If you would like to exclude a `Project.swift` file (which is not a manifest) from the manifests project, you should add the following comment:
+
+```
+// tuist:not-a-manifest
+```
