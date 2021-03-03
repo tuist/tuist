@@ -28,16 +28,11 @@ let project = Project(name: "Tuist",
                                deploymentTarget: deploymentTarget,
                                infoPlist: .default,
                                sources: ["Sources/TuistSupport/**/*.swift"],
-                               resources: [],
-                               copyFiles: [],
-                               headers: nil,
-                               entitlements: nil,
-                               actions: [],
                                dependencies: [
                                     .package(product: "CombineExt"),
                                     .package(product: "SwiftToolsSupport-auto"),
                                     .package(product: "RxSwift"),
-                                    .package(product: "RxDelay"),
+                                    .package(product: "RxRelay"),
                                     .package(product: "Logging"),
                                     .package(product: "KeychainAccess"),
                                     .package(product: "Swifter"),
@@ -48,10 +43,5 @@ let project = Project(name: "Tuist",
                                settings: Settings.init(configurations: [
                                 .release(name: "Debug", settings: [:], xcconfig: nil),
                                 .release(name: "Release", settings: [:], xcconfig: nil)
-                              ]),
-                               coreDataModels: [],
-                               environment: [:],
-                               launchArguments: [])
-                      ],
-                      schemes: [],
-                      additionalFiles: [])
+                              ]))
+                      ])
