@@ -1,6 +1,7 @@
 import ProjectDescription
 
 let deploymentTarget: DeploymentTarget = .macOS(targetVersion: "10.15")
+let baseSettings: SettingsDictionary = ["EXCLUDED_ARCHS": "arm64"]
 
 let project = Project(name: "Tuist",
                       packages: [
@@ -16,8 +17,8 @@ let project = Project(name: "Tuist",
                         .package(url: "https://github.com/rnine/Checksum.git", .upToNextMajor(from: "1.0.2")),
                       ],
                       settings: Settings.init(configurations: [
-                        .release(name: "Debug", settings: [:], xcconfig: nil),
-                        .release(name: "Release", settings: [:], xcconfig: nil)
+                        .release(name: "Debug", settings: baseSettings, xcconfig: nil),
+                        .release(name: "Release", settings: baseSettings, xcconfig: nil)
                       ]),
                       targets: [
                         Target(name: "TuistSupport",
