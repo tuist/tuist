@@ -139,10 +139,12 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         // Generated Project
         XCTAssertEqual(project.path, sourceRootPath.appending(component: projectName))
         XCTAssertEqual(project.name, projectName)
-        XCTAssertEqual(project.settings, Settings(base: ["ONLY_ACTIVE_ARCH": "NO",
-                                                         "EXCLUDED_ARCHS": "arm64"],
-                                                  configurations: Settings.default.configurations,
-                                                  defaultSettings: .recommended))
+        XCTAssertEqual(project.settings, Settings(
+            base: ["ONLY_ACTIVE_ARCH": "NO",
+                   "EXCLUDED_ARCHS": "arm64"],
+            configurations: Settings.default.configurations,
+            defaultSettings: .recommended
+        ))
         XCTAssertEqual(project.filesGroup, projectsGroup)
 
         // Generated Scheme
@@ -209,10 +211,12 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         // Generated Project
         XCTAssertEqual(project.path, sourceRootPath.appending(component: projectName))
         XCTAssertEqual(project.name, projectName)
-        XCTAssertEqual(project.settings, Settings(base: ["ONLY_ACTIVE_ARCH": "NO",
-                                                         "EXCLUDED_ARCHS": "arm64"],
-                                                  configurations: Settings.default.configurations,
-                                                  defaultSettings: .recommended))
+        XCTAssertEqual(project.settings, Settings(
+            base: ["ONLY_ACTIVE_ARCH": "NO",
+                   "EXCLUDED_ARCHS": "arm64"],
+            configurations: Settings.default.configurations,
+            defaultSettings: .recommended
+        ))
         XCTAssertEqual(project.filesGroup, projectsGroup)
 
         // Generated Scheme
@@ -319,10 +323,12 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         // Generated Project
         XCTAssertEqual(project.path, sourceRootPath.appending(component: projectName))
         XCTAssertEqual(project.name, projectName)
-        XCTAssertEqual(project.settings, Settings(base: ["ONLY_ACTIVE_ARCH": "NO",
-                                                         "EXCLUDED_ARCHS": "arm64"],
-                                                  configurations: Settings.default.configurations,
-                                                  defaultSettings: .recommended))
+        XCTAssertEqual(project.settings, Settings(
+            base: ["ONLY_ACTIVE_ARCH": "NO",
+                   "EXCLUDED_ARCHS": "arm64"],
+            configurations: Settings.default.configurations,
+            defaultSettings: .recommended
+        ))
         XCTAssertEqual(project.filesGroup, .group(name: projectName))
 
         // Generated Scheme
@@ -388,10 +394,12 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         // Generated Project
         XCTAssertEqual(project.path, sourceRootPath.appending(component: projectName))
         XCTAssertEqual(project.name, projectName)
-        XCTAssertEqual(project.settings, Settings(base: ["ONLY_ACTIVE_ARCH": "NO",
-                                                         "EXCLUDED_ARCHS": "arm64"],
-                                                  configurations: Settings.default.configurations,
-                                                  defaultSettings: .recommended))
+        XCTAssertEqual(project.settings, Settings(
+            base: ["ONLY_ACTIVE_ARCH": "NO",
+                   "EXCLUDED_ARCHS": "arm64"],
+            configurations: Settings.default.configurations,
+            defaultSettings: .recommended
+        ))
         XCTAssertEqual(project.filesGroup, projectsGroup)
 
         // Generated Schemes
@@ -468,10 +476,12 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         // Generated Project
         XCTAssertEqual(project.path, sourceRootPath.appending(component: projectName))
         XCTAssertEqual(project.name, projectName)
-        XCTAssertEqual(project.settings, Settings(base: ["ONLY_ACTIVE_ARCH": "NO",
-                                                         "EXCLUDED_ARCHS": "arm64"],
-                                                  configurations: Settings.default.configurations,
-                                                  defaultSettings: .recommended))
+        XCTAssertEqual(project.settings, Settings(
+            base: ["ONLY_ACTIVE_ARCH": "NO",
+                   "EXCLUDED_ARCHS": "arm64"],
+            configurations: Settings.default.configurations,
+            defaultSettings: .recommended
+        ))
         XCTAssertEqual(project.filesGroup, projectsGroup)
 
         // Generated Schemes

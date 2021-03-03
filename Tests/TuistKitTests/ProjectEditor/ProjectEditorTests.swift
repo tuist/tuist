@@ -43,13 +43,15 @@ final class ProjectEditorTests: TuistUnitTestCase {
         helpersDirectoryLocator = MockHelpersDirectoryLocator()
         writer = MockXcodeProjWriter()
         templatesDirectoryLocator = MockTemplatesDirectoryLocator()
-        subject = ProjectEditor(generator: generator,
-                                projectEditorMapper: projectEditorMapper,
-                                resourceLocator: resourceLocator,
-                                manifestFilesLocator: manifestFilesLocator,
-                                helpersDirectoryLocator: helpersDirectoryLocator,
-                                writer: writer,
-                                templatesDirectoryLocator: templatesDirectoryLocator)
+        subject = ProjectEditor(
+            generator: generator,
+            projectEditorMapper: projectEditorMapper,
+            resourceLocator: resourceLocator,
+            manifestFilesLocator: manifestFilesLocator,
+            helpersDirectoryLocator: helpersDirectoryLocator,
+            writer: writer,
+            templatesDirectoryLocator: templatesDirectoryLocator
+        )
     }
 
     override func tearDown() {

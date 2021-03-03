@@ -368,14 +368,16 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         sourcePaths: [AbsolutePath],
         dependencies: [Dependency] = []
     ) -> Target {
-        Target(name: name,
-               platform: .macOS,
-               product: .staticFramework,
-               productName: name,
-               bundleId: "io.tuist.${PRODUCT_NAME:rfc1034identifier}",
-               settings: targetSettings,
-               sources: sourcePaths.map { SourceFile(path: $0, compilerFlags: nil) },
-               filesGroup: filesGroup,
-               dependencies: dependencies)
+        Target(
+            name: name,
+            platform: .macOS,
+            product: .staticFramework,
+            productName: name,
+            bundleId: "io.tuist.${PRODUCT_NAME:rfc1034identifier}",
+            settings: targetSettings,
+            sources: sourcePaths.map { SourceFile(path: $0, compilerFlags: nil) },
+            filesGroup: filesGroup,
+            dependencies: dependencies
+        )
     }
 }
