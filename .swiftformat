@@ -33,3 +33,4 @@
 --trimwhitespace always
 --wraparguments preserve
 --wrapcollections preserve
+--wraparguments before-first
