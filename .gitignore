@@ -93,3 +93,4 @@ mkmf.log
 generated_fixtures
 .fixtures.generated.json
 **/Derived/
+Tuist.xcworkspace
