@@ -46,8 +46,10 @@ public struct Configuration: Equatable {
     /// Returns a copy of the configuration with the given settings set.
     /// - Parameter settings: SettingsDictionary to be set to the copy.
     public func with(settings: SettingsDictionary) -> Configuration {
-        Configuration(settings: settings,
-                      xcconfig: xcconfig)
+        Configuration(
+            settings: settings,
+            xcconfig: xcconfig
+        )
     }
 }
 
@@ -68,8 +70,10 @@ extension DefaultSettings {
 }
 
 public class Settings: Equatable {
-    public static let `default` = Settings(configurations: [.release: nil, .debug: nil],
-                                           defaultSettings: .recommended)
+    public static let `default` = Settings(
+        configurations: [.release: nil, .debug: nil],
+        defaultSettings: .recommended
+    )
 
     // MARK: - Attributes
 

@@ -9,10 +9,12 @@ public extension ArchiveAction {
                      preActions: [ExecutionAction] = [],
                      postActions: [ExecutionAction] = []) -> ArchiveAction
     {
-        ArchiveAction(configurationName: configurationName,
-                      revealArchiveInOrganizer: revealArchiveInOrganizer,
-                      customArchiveName: customArchiveName,
-                      preActions: preActions,
-                      postActions: postActions)
+        ArchiveAction(
+            configurationName: configurationName,
+            revealArchiveInOrganizer: revealArchiveInOrganizer,
+            customArchiveName: customArchiveName,
+            preActions: preActions,
+            postActions: postActions
+        )
     }
 }

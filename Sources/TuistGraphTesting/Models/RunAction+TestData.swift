@@ -10,11 +10,13 @@ public extension RunAction {
                      options: RunActionOptions = .init(),
                      diagnosticsOptions: Set<SchemeDiagnosticsOption> = [.mainThreadChecker]) -> RunAction
     {
-        RunAction(configurationName: configurationName,
-                  executable: executable,
-                  filePath: filePath,
-                  arguments: arguments,
-                  options: options,
-                  diagnosticsOptions: diagnosticsOptions)
+        RunAction(
+            configurationName: configurationName,
+            executable: executable,
+            filePath: filePath,
+            arguments: arguments,
+            options: options,
+            diagnosticsOptions: diagnosticsOptions
+        )
     }
 }

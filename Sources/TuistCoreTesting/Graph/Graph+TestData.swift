@@ -37,10 +37,12 @@ public extension Graph {
                        dependencies: [(target: Target, dependencies: [Target])],
                        packages: [PackageNode] = []) -> Graph
     {
-        create(project: project,
-               entryNodes: dependencies.map(\.target),
-               dependencies: dependencies,
-               packages: packages)
+        create(
+            project: project,
+            entryNodes: dependencies.map(\.target),
+            dependencies: dependencies,
+            packages: packages
+        )
     }
 
     static func create(project: Project,
@@ -64,12 +66,14 @@ public extension Graph {
             dict.append(next)
             acc[next.path] = dict
         }
-        let graph = Graph.test(name: project.name,
-                               entryPath: project.path,
-                               entryNodes: entryNodes,
-                               projects: [project],
-                               packages: packages,
-                               targets: targets)
+        let graph = Graph.test(
+            name: project.name,
+            entryPath: project.path,
+            entryNodes: entryNodes,
+            projects: [project],
+            packages: packages,
+            targets: targets
+        )
 
         return graph
     }
@@ -97,11 +101,13 @@ public extension Graph {
             acc[next.path] = dict
         }
 
-        let graph = Graph.test(name: projects.first?.name ?? "Test",
-                               entryPath: projects.first?.path ?? AbsolutePath("/test/path"),
-                               entryNodes: entryNodes ?? targetNodes,
-                               projects: projects,
-                               targets: targets)
+        let graph = Graph.test(
+            name: projects.first?.name ?? "Test",
+            entryPath: projects.first?.path ?? AbsolutePath("/test/path"),
+            entryNodes: entryNodes ?? targetNodes,
+            projects: projects,
+            targets: targets
+        )
 
         return graph
     }
@@ -109,9 +115,11 @@ public extension Graph {
     // swiftlint:disable:next large_tuple
     private static func createTargetNodes(dependencies: [(project: Project, target: Target, dependencies: [Target])]) -> [TargetNode] {
         let nodesCache = Dictionary(uniqueKeysWithValues: dependencies.map {
-            ($0.target.name, TargetNode(project: $0.project,
-                                        target: $0.target,
-                                        dependencies: []))
+            ($0.target.name, TargetNode(
+                project: $0.project,
+                target: $0.target,
+                dependencies: []
+            ))
         })
 
         dependencies.forEach {

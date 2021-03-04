@@ -19,8 +19,10 @@ final class CacheGraphMapperTests: TuistUnitTestCase {
     override func setUp() {
         xcframeworkLoader = MockXCFrameworkNodeLoader()
         frameworkLoader = MockFrameworkNodeLoader()
-        subject = CacheGraphMutator(frameworkLoader: frameworkLoader,
-                                    xcframeworkLoader: xcframeworkLoader)
+        subject = CacheGraphMutator(
+            frameworkLoader: frameworkLoader,
+            xcframeworkLoader: xcframeworkLoader
+        )
         super.setUp()
     }
 

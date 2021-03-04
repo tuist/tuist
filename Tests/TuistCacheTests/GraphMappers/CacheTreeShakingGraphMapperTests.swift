@@ -25,15 +25,19 @@ final class CacheTreeShakingGraphMapperTests: TuistUnitTestCase {
         let target = Target.test(prune: true)
         let project = Project.test(targets: [target])
         let targetNode = TargetNode.test(project: project, target: target)
-        let graph = Graph.test(entryNodes: [targetNode],
-                               projects: [project],
-                               targets: [project.path: [targetNode]])
+        let graph = Graph.test(
+            entryNodes: [targetNode],
+            projects: [project],
+            targets: [project.path: [targetNode]]
+        )
 
         // Given: ValueGraph
-        let valueGraph = ValueGraph.test(path: project.path,
-                                         projects: [project.path: project],
-                                         targets: [project.path: [target.name: target]],
-                                         dependencies: [:])
+        let valueGraph = ValueGraph.test(
+            path: project.path,
+            projects: [project.path: project],
+            targets: [project.path: [target.name: target]],
+            dependencies: [:]
+        )
 
         // When
         let (gotGraph, gotSideEffects) = try subject.map(graph: graph)
@@ -56,15 +60,19 @@ final class CacheTreeShakingGraphMapperTests: TuistUnitTestCase {
         let project = Project.test(targets: [firstTarget, secondTarget])
         let firstTargetNode = TargetNode.test(project: project, target: firstTarget)
         let secondTargetNode = TargetNode.test(project: project, target: secondTarget)
-        let graph = Graph.test(entryNodes: [firstTargetNode, secondTargetNode],
-                               projects: [project],
-                               targets: [project.path: [firstTargetNode, secondTargetNode]])
+        let graph = Graph.test(
+            entryNodes: [firstTargetNode, secondTargetNode],
+            projects: [project],
+            targets: [project.path: [firstTargetNode, secondTargetNode]]
+        )
 
         // Given: Value Graph
-        let valueGraph = ValueGraph.test(path: project.path,
-                                         projects: [project.path: project],
-                                         targets: [project.path: [firstTarget.name: firstTarget, secondTarget.name: secondTarget]],
-                                         dependencies: [:])
+        let valueGraph = ValueGraph.test(
+            path: project.path,
+            projects: [project.path: project],
+            targets: [project.path: [firstTarget.name: firstTarget, secondTarget.name: secondTarget]],
+            dependencies: [:]
+        )
 
         // When
         let (gotGraph, gotSideEffects) = try subject.map(graph: graph)
@@ -93,15 +101,19 @@ final class CacheTreeShakingGraphMapperTests: TuistUnitTestCase {
         ]
         let project = Project.test(path: path, targets: [target], schemes: schemes)
         let targetNode = TargetNode.test(project: project, target: target)
-        let graph = Graph.test(entryNodes: [targetNode],
-                               projects: [project],
-                               targets: [project.path: [targetNode]])
+        let graph = Graph.test(
+            entryNodes: [targetNode],
+            projects: [project],
+            targets: [project.path: [targetNode]]
+        )
 
         // Given: Value Graph
-        let valueGraph = ValueGraph.test(path: project.path,
-                                         projects: [project.path: project],
-                                         targets: [project.path: [target.name: target]],
-                                         dependencies: [:])
+        let valueGraph = ValueGraph.test(
+            path: project.path,
+            projects: [project.path: project],
+            targets: [project.path: [target.name: target]],
+            dependencies: [:]
+        )
 
         // When
         let (gotGraph, gotSideEffects) = try subject.map(graph: graph)
@@ -133,19 +145,25 @@ final class CacheTreeShakingGraphMapperTests: TuistUnitTestCase {
         ]
         let project = Project.test(path: path, targets: [target], schemes: schemes)
         let targetNode = TargetNode.test(project: project, target: target)
-        let workspace = Workspace.test(path: path,
-                                       projects: [project.path, removedProjectPath])
-        let graph = Graph.test(entryPath: path,
-                               entryNodes: [targetNode],
-                               workspace: workspace,
-                               projects: [project],
-                               targets: [project.path: [targetNode]])
+        let workspace = Workspace.test(
+            path: path,
+            projects: [project.path, removedProjectPath]
+        )
+        let graph = Graph.test(
+            entryPath: path,
+            entryNodes: [targetNode],
+            workspace: workspace,
+            projects: [project],
+            targets: [project.path: [targetNode]]
+        )
 
         // Given: Value Graph
-        let valueGraph = ValueGraph.test(path: project.path,
-                                         projects: [project.path: project],
-                                         targets: [project.path: [target.name: target]],
-                                         dependencies: [:])
+        let valueGraph = ValueGraph.test(
+            path: project.path,
+            projects: [project.path: project],
+            targets: [project.path: [target.name: target]],
+            dependencies: [:]
+        )
 
         // When
         let (gotGraph, _) = try subject.map(graph: graph)
@@ -166,20 +184,26 @@ final class CacheTreeShakingGraphMapperTests: TuistUnitTestCase {
         ]
         let project = Project.test(path: path, targets: [target], schemes: [])
         let targetNode = TargetNode.test(project: project, target: target)
-        let workspace = Workspace.test(path: path,
-                                       projects: [project.path, removedProjectPath],
-                                       schemes: schemes)
-        let graph = Graph.test(entryPath: path,
-                               entryNodes: [targetNode],
-                               workspace: workspace,
-                               projects: [project],
-                               targets: [project.path: [targetNode]])
+        let workspace = Workspace.test(
+            path: path,
+            projects: [project.path, removedProjectPath],
+            schemes: schemes
+        )
+        let graph = Graph.test(
+            entryPath: path,
+            entryNodes: [targetNode],
+            workspace: workspace,
+            projects: [project],
+            targets: [project.path: [targetNode]]
+        )
 
         // Given: Value Graph
-        let valueGraph = ValueGraph.test(path: project.path,
-                                         projects: [project.path: project],
-                                         targets: [project.path: [target.name: target]],
-                                         dependencies: [:])
+        let valueGraph = ValueGraph.test(
+            path: project.path,
+            projects: [project.path: project],
+            targets: [project.path: [target.name: target]],
+            dependencies: [:]
+        )
 
         // When
         let (gotGraph, _) = try subject.map(graph: graph)

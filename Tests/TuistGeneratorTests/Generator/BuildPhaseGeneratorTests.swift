@@ -56,11 +56,13 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let fileElements = createFileElements(for: sources.map(\.path))
 
         // When
-        try subject.generateSourcesBuildPhase(files: sources,
-                                              coreDataModels: [],
-                                              pbxTarget: target,
-                                              fileElements: fileElements,
-                                              pbxproj: pbxproj)
+        try subject.generateSourcesBuildPhase(
+            files: sources,
+            coreDataModels: [],
+            pbxTarget: target,
+            fileElements: fileElements,
+            pbxproj: pbxproj
+        )
 
         // Then
         let buildPhase = try target.sourcesBuildPhase()
@@ -93,9 +95,11 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let targetScripts = [targetScript]
 
         // When
-        subject.generateScripts(targetScripts,
-                                pbxTarget: target,
-                                pbxproj: pbxproj)
+        subject.generateScripts(
+            targetScripts,
+            pbxTarget: target,
+            pbxproj: pbxproj
+        )
 
         // Then
         let buildPhase = try XCTUnwrap(target.buildPhases.first as? PBXShellScriptBuildPhase)
@@ -113,11 +117,13 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         pbxproj.add(object: target)
         let fileElements = ProjectFileElements()
 
-        XCTAssertThrowsError(try subject.generateSourcesBuildPhase(files: [SourceFile(path: path, compilerFlags: nil)],
-                                                                   coreDataModels: [],
-                                                                   pbxTarget: target,
-                                                                   fileElements: fileElements,
-                                                                   pbxproj: pbxproj)) {
+        XCTAssertThrowsError(try subject.generateSourcesBuildPhase(
+            files: [SourceFile(path: path, compilerFlags: nil)],
+            coreDataModels: [],
+            pbxTarget: target,
+            fileElements: fileElements,
+            pbxproj: pbxproj
+        )) {
             XCTAssertEqual($0 as? BuildPhaseGenerationError, BuildPhaseGenerationError.missingFileReference(path))
         }
     }
@@ -138,11 +144,13 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         ])
 
         // When
-        try subject.generateSourcesBuildPhase(files: sources,
-                                              coreDataModels: [],
-                                              pbxTarget: target,
-                                              fileElements: fileElements,
-                                              pbxproj: pbxproj)
+        try subject.generateSourcesBuildPhase(
+            files: sources,
+            coreDataModels: [],
+            pbxTarget: target,
+            fileElements: fileElements,
+            pbxproj: pbxproj
+        )
 
         // Then
         let buildPhase = try target.sourcesBuildPhase()
@@ -160,11 +168,13 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         pbxproj.add(object: target)
         let fileElements = ProjectFileElements()
 
-        XCTAssertThrowsError(try subject.generateSourcesBuildPhase(files: [SourceFile(path: path, compilerFlags: nil)],
-                                                                   coreDataModels: [],
-                                                                   pbxTarget: target,
-                                                                   fileElements: fileElements,
-                                                                   pbxproj: pbxproj)) {
+        XCTAssertThrowsError(try subject.generateSourcesBuildPhase(
+            files: [SourceFile(path: path, compilerFlags: nil)],
+            coreDataModels: [],
+            pbxTarget: target,
+            fileElements: fileElements,
+            pbxproj: pbxproj
+        )) {
             XCTAssertEqual($0 as? BuildPhaseGenerationError, BuildPhaseGenerationError.missingFileReference(path))
         }
     }
@@ -175,17 +185,21 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let pbxproj = PBXProj()
         pbxproj.add(object: target)
 
-        let headers = Headers(public: ["/test/Public1.h"],
-                              private: ["/test/Private1.h"],
-                              project: ["/test/Project1.h"])
+        let headers = Headers(
+            public: ["/test/Public1.h"],
+            private: ["/test/Private1.h"],
+            project: ["/test/Project1.h"]
+        )
 
         let fileElements = createFileElements(for: headers)
 
         // When
-        try subject.generateHeadersBuildPhase(headers: headers,
-                                              pbxTarget: target,
-                                              fileElements: fileElements,
-                                              pbxproj: pbxproj)
+        try subject.generateHeadersBuildPhase(
+            headers: headers,
+            pbxTarget: target,
+            fileElements: fileElements,
+            pbxproj: pbxproj
+        )
 
         // Then
         let buildPhase = try XCTUnwrap(target.buildPhases.first as? PBXHeadersBuildPhase)
@@ -197,8 +211,10 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         }
 
         let buildFilesWithSettings = buildFiles.map {
-            FileWithSettings(name: $0.file?.name,
-                             attributes: $0.settings?["ATTRIBUTES"] as? [String])
+            FileWithSettings(
+                name: $0.file?.name,
+                attributes: $0.settings?["ATTRIBUTES"] as? [String]
+            )
         }
 
         XCTAssertEqual(buildFilesWithSettings, [
@@ -226,19 +242,23 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let headerFileReference = PBXFileReference()
         fileElements.elements[headerPath] = headerFileReference
 
-        let target = Target.test(platform: .iOS,
-                                 sources: [SourceFile(path: "/test/file.swift", compilerFlags: nil)],
-                                 headers: headers)
+        let target = Target.test(
+            platform: .iOS,
+            sources: [SourceFile(path: "/test/file.swift", compilerFlags: nil)],
+            headers: headers
+        )
 
         let graph = ValueGraph.test(path: tmpDir)
         let graphTraverser = ValueGraphTraverser(graph: graph)
 
-        try subject.generateBuildPhases(path: tmpDir,
-                                        target: target,
-                                        graphTraverser: graphTraverser,
-                                        pbxTarget: pbxTarget,
-                                        fileElements: fileElements,
-                                        pbxproj: pbxproj)
+        try subject.generateBuildPhases(
+            path: tmpDir,
+            target: target,
+            graphTraverser: graphTraverser,
+            pbxTarget: pbxTarget,
+            fileElements: fileElements,
+            pbxproj: pbxproj
+        )
 
         XCTAssertEmpty(pbxTarget.buildPhases.filter { $0 is PBXHeadersBuildPhase })
     }
@@ -261,19 +281,23 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let headerFileReference = PBXFileReference()
         fileElements.elements[headerPath] = headerFileReference
 
-        let target = Target.test(platform: .iOS,
-                                 product: .framework,
-                                 sources: [SourceFile(path: "/test/file.swift", compilerFlags: nil)],
-                                 headers: headers)
+        let target = Target.test(
+            platform: .iOS,
+            product: .framework,
+            sources: [SourceFile(path: "/test/file.swift", compilerFlags: nil)],
+            headers: headers
+        )
         let graph = ValueGraph.test(path: tmpDir)
         let graphTraverser = ValueGraphTraverser(graph: graph)
 
-        try subject.generateBuildPhases(path: tmpDir,
-                                        target: target,
-                                        graphTraverser: graphTraverser,
-                                        pbxTarget: pbxTarget,
-                                        fileElements: fileElements,
-                                        pbxproj: pbxproj)
+        try subject.generateBuildPhases(
+            path: tmpDir,
+            target: target,
+            graphTraverser: graphTraverser,
+            pbxTarget: pbxTarget,
+            fileElements: fileElements,
+            pbxproj: pbxproj
+        )
 
         let firstBuildPhase: PBXBuildPhase? = pbxTarget.buildPhases.first
         XCTAssertNotNil(firstBuildPhase)
@@ -305,12 +329,14 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
-        try subject.generateResourcesBuildPhase(path: "/path",
-                                                target: .test(resources: resources),
-                                                graphTraverser: graphTraverser,
-                                                pbxTarget: nativeTarget,
-                                                fileElements: fileElements,
-                                                pbxproj: pbxproj)
+        try subject.generateResourcesBuildPhase(
+            path: "/path",
+            target: .test(resources: resources),
+            graphTraverser: graphTraverser,
+            pbxTarget: nativeTarget,
+            fileElements: fileElements,
+            pbxproj: pbxproj
+        )
 
         // Then
         let buildPhase = nativeTarget.buildPhases.first
@@ -322,9 +348,11 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
 
     func test_generateSourcesBuildPhase_whenCoreDataModel() throws {
         // Given
-        let coreDataModel = CoreDataModel(path: AbsolutePath("/Model.xcdatamodeld"),
-                                          versions: [AbsolutePath("/Model.xcdatamodeld/1.xcdatamodel")],
-                                          currentVersion: "1")
+        let coreDataModel = CoreDataModel(
+            path: AbsolutePath("/Model.xcdatamodeld"),
+            versions: [AbsolutePath("/Model.xcdatamodeld/1.xcdatamodel")],
+            currentVersion: "1"
+        )
         let target = Target.test(resources: [], coreDataModels: [coreDataModel])
         let fileElements = ProjectFileElements()
         let pbxproj = PBXProj()
@@ -341,11 +369,13 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let nativeTarget = PBXNativeTarget(name: "Test")
 
         // When
-        try subject.generateSourcesBuildPhase(files: target.sources,
-                                              coreDataModels: target.coreDataModels,
-                                              pbxTarget: nativeTarget,
-                                              fileElements: fileElements,
-                                              pbxproj: pbxproj)
+        try subject.generateSourcesBuildPhase(
+            files: target.sources,
+            coreDataModels: target.coreDataModels,
+            pbxTarget: nativeTarget,
+            fileElements: fileElements,
+            pbxproj: pbxproj
+        )
 
         // Then
         let pbxBuildPhase: PBXBuildPhase = try XCTUnwrap(nativeTarget.buildPhases.first as? PBXSourcesBuildPhase)
@@ -371,12 +401,14 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
-        try subject.generateResourcesBuildPhase(path: "/path",
-                                                target: target,
-                                                graphTraverser: graphTraverser,
-                                                pbxTarget: nativeTarget,
-                                                fileElements: fileElements,
-                                                pbxproj: pbxproj)
+        try subject.generateResourcesBuildPhase(
+            path: "/path",
+            target: target,
+            graphTraverser: graphTraverser,
+            pbxTarget: nativeTarget,
+            fileElements: fileElements,
+            pbxproj: pbxproj
+        )
 
         // Then
         let pbxBuildPhase: PBXBuildPhase? = nativeTarget.buildPhases.first
@@ -408,12 +440,14 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
-        try subject.generateResourcesBuildPhase(path: "/path",
-                                                target: target,
-                                                graphTraverser: graphTraverser,
-                                                pbxTarget: nativeTarget,
-                                                fileElements: fileElements,
-                                                pbxproj: pbxproj)
+        try subject.generateResourcesBuildPhase(
+            path: "/path",
+            target: target,
+            graphTraverser: graphTraverser,
+            pbxTarget: nativeTarget,
+            fileElements: fileElements,
+            pbxproj: pbxproj
+        )
 
         // Then
         let pbxBuildPhase: PBXBuildPhase? = nativeTarget.buildPhases.first
@@ -451,19 +485,23 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
             .target(name: app.name, path: project.path): Set([.target(name: bundle1.name, path: project.path),
                                                               .target(name: bundle2.name, path: project.path)]),
         ]
-        let graph = ValueGraph.test(path: path,
-                                    projects: [project.path: project],
-                                    targets: targets,
-                                    dependencies: dependencies)
+        let graph = ValueGraph.test(
+            path: path,
+            projects: [project.path: project],
+            targets: targets,
+            dependencies: dependencies
+        )
         let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
-        try subject.generateResourcesBuildPhase(path: path,
-                                                target: app,
-                                                graphTraverser: graphTraverser,
-                                                pbxTarget: nativeTarget,
-                                                fileElements: fileElements,
-                                                pbxproj: pbxproj)
+        try subject.generateResourcesBuildPhase(
+            path: path,
+            target: app,
+            graphTraverser: graphTraverser,
+            pbxTarget: nativeTarget,
+            fileElements: fileElements,
+            pbxproj: pbxproj
+        )
 
         // Then
         let resourcePhase = try nativeTarget.resourcesBuildPhase()
@@ -494,19 +532,23 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
             .target(name: bundle.name, path: projectA.path): Set(),
             .target(name: app.name, path: projectB.path): Set([.target(name: bundle.name, path: projectA.path)]),
         ]
-        let graph = ValueGraph.test(path: path,
-                                    projects: [projectA.path: projectA, projectB.path: projectB],
-                                    targets: targets,
-                                    dependencies: dependencies)
+        let graph = ValueGraph.test(
+            path: path,
+            projects: [projectA.path: projectA, projectB.path: projectB],
+            targets: targets,
+            dependencies: dependencies
+        )
         let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
-        try subject.generateResourcesBuildPhase(path: projectB.path,
-                                                target: app,
-                                                graphTraverser: graphTraverser,
-                                                pbxTarget: nativeTarget,
-                                                fileElements: fileElements,
-                                                pbxproj: pbxproj)
+        try subject.generateResourcesBuildPhase(
+            path: projectB.path,
+            target: app,
+            graphTraverser: graphTraverser,
+            pbxTarget: nativeTarget,
+            fileElements: fileElements,
+            pbxproj: pbxproj
+        )
 
         // Then
         let resourcePhase = try nativeTarget.resourcesBuildPhase()
@@ -537,10 +579,12 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         ])
 
         // When
-        try subject.generateCopyFilesBuildPhases(target: target,
-                                                 pbxTarget: nativeTarget,
-                                                 fileElements: fileElements,
-                                                 pbxproj: pbxproj)
+        try subject.generateCopyFilesBuildPhases(
+            target: target,
+            pbxTarget: nativeTarget,
+            fileElements: fileElements,
+            pbxproj: pbxproj
+        )
 
         // Then
         let firstBuildPhase = try XCTUnwrap(nativeTarget.buildPhases.first as? PBXCopyFilesBuildPhase)
@@ -586,19 +630,23 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
                 .target(name: stickerPackExtension.name, path: projectA.path),
             ]),
         ]
-        let graph = ValueGraph.test(path: path,
-                                    projects: [projectA.path: projectA],
-                                    targets: targets,
-                                    dependencies: dependencies)
+        let graph = ValueGraph.test(
+            path: path,
+            projects: [projectA.path: projectA],
+            targets: targets,
+            dependencies: dependencies
+        )
         let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
-        try subject.generateAppExtensionsBuildPhase(path: projectA.path,
-                                                    target: app,
-                                                    graphTraverser: graphTraverser,
-                                                    pbxTarget: nativeTarget,
-                                                    fileElements: fileElements,
-                                                    pbxproj: pbxproj)
+        try subject.generateAppExtensionsBuildPhase(
+            path: projectA.path,
+            target: app,
+            graphTraverser: graphTraverser,
+            pbxTarget: nativeTarget,
+            fileElements: fileElements,
+            pbxproj: pbxproj
+        )
 
         // Then
         let pbxBuildPhase: PBXBuildPhase? = nativeTarget.buildPhases.first
@@ -608,9 +656,11 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
             "AppExtension",
             "StickerPackExtension",
         ])
-        XCTAssertEqual(pbxBuildPhase?.files?.compactMap { $0.settings as? [String: [String]] },
-                       [["ATTRIBUTES": ["RemoveHeadersOnCopy"]],
-                        ["ATTRIBUTES": ["RemoveHeadersOnCopy"]]])
+        XCTAssertEqual(
+            pbxBuildPhase?.files?.compactMap { $0.settings as? [String: [String]] },
+            [["ATTRIBUTES": ["RemoveHeadersOnCopy"]],
+             ["ATTRIBUTES": ["RemoveHeadersOnCopy"]]]
+        )
     }
 
     func test_generateAppExtensionsBuildPhase_noBuildPhase_when_appDoesntHaveAppExtensions() throws {
@@ -627,19 +677,23 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
             .target(name: app.name, path: project.path): Set(),
         ]
-        let graph = ValueGraph.test(path: project.path,
-                                    projects: [project.path: project],
-                                    targets: targets,
-                                    dependencies: dependencies)
+        let graph = ValueGraph.test(
+            path: project.path,
+            projects: [project.path: project],
+            targets: targets,
+            dependencies: dependencies
+        )
         let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
-        try subject.generateAppExtensionsBuildPhase(path: project.path,
-                                                    target: app,
-                                                    graphTraverser: graphTraverser,
-                                                    pbxTarget: nativeTarget,
-                                                    fileElements: fileElements,
-                                                    pbxproj: pbxproj)
+        try subject.generateAppExtensionsBuildPhase(
+            path: project.path,
+            target: app,
+            graphTraverser: graphTraverser,
+            pbxTarget: nativeTarget,
+            fileElements: fileElements,
+            pbxproj: pbxproj
+        )
 
         // Then
         XCTAssertTrue(nativeTarget.buildPhases.isEmpty)
@@ -661,26 +715,32 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
             .target(name: watchApp.name, path: project.path): Set(),
             .target(name: app.name, path: project.path): Set([.target(name: watchApp.name, path: project.path)]),
         ]
-        let graph = ValueGraph.test(path: project.path,
-                                    projects: [project.path: project],
-                                    targets: targets,
-                                    dependencies: dependencies)
+        let graph = ValueGraph.test(
+            path: project.path,
+            projects: [project.path: project],
+            targets: targets,
+            dependencies: dependencies
+        )
         let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
-        try subject.generateEmbedWatchBuildPhase(path: project.path,
-                                                 target: app,
-                                                 graphTraverser: graphTraverser,
-                                                 pbxTarget: nativeTarget,
-                                                 fileElements: fileElements,
-                                                 pbxproj: pbxproj)
+        try subject.generateEmbedWatchBuildPhase(
+            path: project.path,
+            target: app,
+            graphTraverser: graphTraverser,
+            pbxTarget: nativeTarget,
+            fileElements: fileElements,
+            pbxproj: pbxproj
+        )
         // Then
         let pbxBuildPhase = try XCTUnwrap(nativeTarget.buildPhases.first as? PBXCopyFilesBuildPhase)
         XCTAssertEqual(pbxBuildPhase.files?.compactMap { $0.file?.nameOrPath }, [
             "WatchApp",
         ])
-        XCTAssertEqual(pbxBuildPhase.files?.compactMap { $0.settings as? [String: [String]] },
-                       [["ATTRIBUTES": ["RemoveHeadersOnCopy"]]])
+        XCTAssertEqual(
+            pbxBuildPhase.files?.compactMap { $0.settings as? [String: [String]] },
+            [["ATTRIBUTES": ["RemoveHeadersOnCopy"]]]
+        )
     }
 
     func test_generateTarget_actions() throws {
@@ -693,39 +753,47 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let path = AbsolutePath("/test")
         let pbxproj = PBXProj()
         let pbxProject = createPbxProject(pbxproj: pbxproj)
-        let target = Target.test(sources: [],
-                                 resources: [],
-                                 actions: [
-                                     TargetAction(
-                                         name: "post",
-                                         order: .post,
-                                         script: .scriptPath(path.appending(component: "script.sh"), args: ["arg"]),
-                                         showEnvVarsInLog: false,
-                                         basedOnDependencyAnalysis: false
-                                     ),
-                                     TargetAction(
-                                         name: "pre",
-                                         order: .pre,
-                                         script: .scriptPath(path.appending(component: "script.sh"), args: ["arg"])
-                                     ),
-                                 ])
+        let target = Target.test(
+            sources: [],
+            resources: [],
+            actions: [
+                TargetAction(
+                    name: "post",
+                    order: .post,
+                    script: .scriptPath(path.appending(component: "script.sh"), args: ["arg"]),
+                    showEnvVarsInLog: false,
+                    basedOnDependencyAnalysis: false
+                ),
+                TargetAction(
+                    name: "pre",
+                    order: .pre,
+                    script: .scriptPath(path.appending(component: "script.sh"), args: ["arg"])
+                ),
+            ]
+        )
         let project = Project.test(path: path, sourceRootPath: path, xcodeProjPath: path.appending(component: "Project.xcodeproj"), targets: [target])
-        let groups = ProjectGroups.generate(project: project,
-                                            pbxproj: pbxproj)
-        try fileElements.generateProjectFiles(project: project,
-                                              graphTraverser: graphTraverser,
-                                              groups: groups,
-                                              pbxproj: pbxproj)
+        let groups = ProjectGroups.generate(
+            project: project,
+            pbxproj: pbxproj
+        )
+        try fileElements.generateProjectFiles(
+            project: project,
+            graphTraverser: graphTraverser,
+            groups: groups,
+            pbxproj: pbxproj
+        )
 
         // When
-        let pbxTarget = try TargetGenerator().generateTarget(target: target,
-                                                             project: project,
-                                                             pbxproj: pbxproj,
-                                                             pbxProject: pbxProject,
-                                                             projectSettings: Settings.test(),
-                                                             fileElements: fileElements,
-                                                             path: path,
-                                                             graphTraverser: graphTraverser)
+        let pbxTarget = try TargetGenerator().generateTarget(
+            target: target,
+            project: project,
+            pbxproj: pbxproj,
+            pbxProject: pbxProject,
+            projectSettings: Settings.test(),
+            fileElements: fileElements,
+            path: path,
+            graphTraverser: graphTraverser
+        )
 
         // Then
         let preBuildPhase = try XCTUnwrap(pbxTarget.buildPhases.first as? PBXShellScriptBuildPhase)
@@ -759,36 +827,44 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
             .target(name: appClip.name, path: project.path): Set(),
             .target(name: app.name, path: project.path): Set([.target(name: appClip.name, path: project.path)]),
         ]
-        let graph = ValueGraph.test(path: project.path,
-                                    projects: [project.path: project],
-                                    targets: targets,
-                                    dependencies: dependencies)
+        let graph = ValueGraph.test(
+            path: project.path,
+            projects: [project.path: project],
+            targets: targets,
+            dependencies: dependencies
+        )
         let graphTraverser = ValueGraphTraverser(graph: graph)
         // When
-        try subject.generateEmbedAppClipsBuildPhase(path: project.path,
-                                                    target: app,
-                                                    graphTraverser: graphTraverser,
-                                                    pbxTarget: nativeTarget,
-                                                    fileElements: fileElements,
-                                                    pbxproj: pbxproj)
+        try subject.generateEmbedAppClipsBuildPhase(
+            path: project.path,
+            target: app,
+            graphTraverser: graphTraverser,
+            pbxTarget: nativeTarget,
+            fileElements: fileElements,
+            pbxproj: pbxproj
+        )
 
         // Then
         let pbxBuildPhase: PBXBuildPhase? = nativeTarget.buildPhases.first
         XCTAssertNotNil(pbxBuildPhase)
         XCTAssertTrue(pbxBuildPhase is PBXCopyFilesBuildPhase)
         XCTAssertEqual(pbxBuildPhase?.files?.compactMap { $0.file?.nameOrPath }, ["AppClip"])
-        XCTAssertEqual(pbxBuildPhase?.files?.compactMap { $0.settings as? [String: [String]] },
-                       [["ATTRIBUTES": ["RemoveHeadersOnCopy"]]])
+        XCTAssertEqual(
+            pbxBuildPhase?.files?.compactMap { $0.settings as? [String: [String]] },
+            [["ATTRIBUTES": ["RemoveHeadersOnCopy"]]]
+        )
     }
 
     func test_generateBuildPhases_whenStaticFrameworkWithCoreDataModels() throws {
         // Given
         let path = AbsolutePath("/path/to/project")
-        let coreDataModel = CoreDataModel(path: path.appending(component: "Model.xcdatamodeld"),
-                                          versions: [
-                                              path.appending(components: "Model.xcdatamodeld", "1.xcdatamodel"),
-                                          ],
-                                          currentVersion: "1")
+        let coreDataModel = CoreDataModel(
+            path: path.appending(component: "Model.xcdatamodeld"),
+            versions: [
+                path.appending(components: "Model.xcdatamodeld", "1.xcdatamodel"),
+            ],
+            currentVersion: "1"
+        )
         let target = Target.test(platform: .iOS, product: .staticFramework, coreDataModels: [coreDataModel])
         let fileElements = createFileElements(for: [coreDataModel])
         let graph = ValueGraph.test(path: path)
@@ -797,12 +873,14 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let pbxTarget = PBXNativeTarget(name: target.name)
 
         // When
-        try subject.generateBuildPhases(path: "/path/to/target",
-                                        target: target,
-                                        graphTraverser: graphTraverser,
-                                        pbxTarget: pbxTarget,
-                                        fileElements: fileElements,
-                                        pbxproj: pbxproj)
+        try subject.generateBuildPhases(
+            path: "/path/to/target",
+            target: target,
+            graphTraverser: graphTraverser,
+            pbxTarget: pbxTarget,
+            fileElements: fileElements,
+            pbxproj: pbxproj
+        )
 
         // Then
         let sourcesBuildPhase = pbxTarget.buildPhases.filter { $0 is PBXSourcesBuildPhase }.first
@@ -822,11 +900,13 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
     func test_generateBuildPhases_whenBundleWithCoreDataModels() throws {
         // Given
         let path = AbsolutePath("/path/to/project")
-        let coreDataModel = CoreDataModel(path: path.appending(component: "Model.xcdatamodeld"),
-                                          versions: [
-                                              path.appending(components: "Model.xcdatamodeld", "1.xcdatamodel"),
-                                          ],
-                                          currentVersion: "1")
+        let coreDataModel = CoreDataModel(
+            path: path.appending(component: "Model.xcdatamodeld"),
+            versions: [
+                path.appending(components: "Model.xcdatamodeld", "1.xcdatamodel"),
+            ],
+            currentVersion: "1"
+        )
         let target = Target.test(platform: .iOS, product: .bundle, coreDataModels: [coreDataModel])
         let fileElements = createFileElements(for: [coreDataModel])
         let graph = ValueGraph.test(path: path)
@@ -835,12 +915,14 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let pbxTarget = PBXNativeTarget(name: target.name)
 
         // When
-        try subject.generateBuildPhases(path: "/path/to/target",
-                                        target: target,
-                                        graphTraverser: graphTraverser,
-                                        pbxTarget: pbxTarget,
-                                        fileElements: fileElements,
-                                        pbxproj: pbxproj)
+        try subject.generateBuildPhases(
+            path: "/path/to/target",
+            target: target,
+            graphTraverser: graphTraverser,
+            pbxTarget: pbxTarget,
+            fileElements: fileElements,
+            pbxproj: pbxproj
+        )
 
         // Then
         let sourcesBuildPhase = pbxTarget.buildPhases.filter { $0 is PBXSourcesBuildPhase }.first
@@ -906,10 +988,12 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         pbxproj.add(object: configList)
         let mainGroup = PBXGroup()
         pbxproj.add(object: mainGroup)
-        let pbxProject = PBXProject(name: "Project",
-                                    buildConfigurationList: configList,
-                                    compatibilityVersion: "0",
-                                    mainGroup: mainGroup)
+        let pbxProject = PBXProject(
+            name: "Project",
+            buildConfigurationList: configList,
+            compatibilityVersion: "0",
+            mainGroup: mainGroup
+        )
         pbxproj.add(object: pbxProject)
         return pbxProject
     }

@@ -52,14 +52,18 @@ public class SDKNode: GraphNode {
             guard let xcodeDeveloperSdkRootPath = platform.xcodeDeveloperSdkRootPath else {
                 throw Error.unsupported(sdk: name)
             }
-            sdkRootPath = AbsolutePath(xcodeDeveloperSdkRootPath,
-                                       relativeTo: AbsolutePath("/"))
+            sdkRootPath = AbsolutePath(
+                xcodeDeveloperSdkRootPath,
+                relativeTo: AbsolutePath("/")
+            )
             return sdkRootPath
                 .appending(RelativePath("Frameworks"))
                 .appending(component: name)
         } else {
-            sdkRootPath = AbsolutePath(platform.xcodeSdkRootPath,
-                                       relativeTo: AbsolutePath("/"))
+            sdkRootPath = AbsolutePath(
+                platform.xcodeSdkRootPath,
+                relativeTo: AbsolutePath("/")
+            )
             switch type {
             case .framework:
                 return sdkRootPath

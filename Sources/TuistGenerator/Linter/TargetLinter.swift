@@ -164,8 +164,10 @@ class TargetLinter: TargetLinting {
 
         if target.resources.isEmpty == false {
             return [
-                LintingIssue(reason: "Target \(target.name) cannot contain resources. \(target.product) targets do not support resources",
-                             severity: .error),
+                LintingIssue(
+                    reason: "Target \(target.name) cannot contain resources. \(target.product) targets do not support resources",
+                    severity: .error
+                ),
             ]
         }
 
@@ -204,8 +206,10 @@ class TargetLinter: TargetLinting {
             invalidProducts.contains(target.product)
         {
             return [
-                LintingIssue(reason: "'\(target.name)' for platform '\(target.platform)' can't have a product type '\(target.product)'",
-                             severity: .error),
+                LintingIssue(
+                    reason: "'\(target.name)' for platform '\(target.platform)' can't have a product type '\(target.product)'",
+                    severity: .error
+                ),
             ]
         }
 

@@ -37,12 +37,14 @@ class StaticProductsGraphLinterTests: XCTestCase {
             frameworkDependency: Set([.packageProduct(path: path, product: "Package")]),
             .packageProduct(path: path, product: "Package"): Set(),
         ]
-        let graph = ValueGraph.test(path: path,
-                                    projects: [path: project],
-                                    packages: [path: ["Package": package]],
-                                    targets: [path: [app.name: app,
-                                                     framework.name: framework]],
-                                    dependencies: dependencies)
+        let graph = ValueGraph.test(
+            path: path,
+            projects: [path: project],
+            packages: [path: ["Package": package]],
+            targets: [path: [app.name: app,
+                             framework.name: framework]],
+            dependencies: dependencies
+        )
         let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
@@ -69,11 +71,13 @@ class StaticProductsGraphLinterTests: XCTestCase {
             frameworkDependency: Set([libraryDependency]),
             libraryDependency: Set(),
         ]
-        let graph = ValueGraph.test(path: path,
-                                    projects: [path: project],
-                                    targets: [path: [app.name: app,
-                                                     framework.name: framework]],
-                                    dependencies: dependencies)
+        let graph = ValueGraph.test(
+            path: path,
+            projects: [path: project],
+            targets: [path: [app.name: app,
+                             framework.name: framework]],
+            dependencies: dependencies
+        )
         let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
@@ -102,12 +106,14 @@ class StaticProductsGraphLinterTests: XCTestCase {
             frameworkDependency: Set([staticFrameworkDependency]),
             staticFrameworkDependency: Set(),
         ]
-        let graph = ValueGraph.test(path: path,
-                                    projects: [path: project],
-                                    targets: [path: [app.name: app,
-                                                     framework.name: framework,
-                                                     staticFramework.name: staticFramework]],
-                                    dependencies: dependencies)
+        let graph = ValueGraph.test(
+            path: path,
+            projects: [path: project],
+            targets: [path: [app.name: app,
+                             framework.name: framework,
+                             staticFramework.name: staticFramework]],
+            dependencies: dependencies
+        )
         let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
@@ -148,16 +154,18 @@ class StaticProductsGraphLinterTests: XCTestCase {
             staticFrameworkBdependency: Set([staticFrameworkCdependency]),
             staticFrameworkCdependency: Set([]),
         ]
-        let graph = ValueGraph.test(path: path,
-                                    projects: [path: project],
-                                    targets: [path: [app.name: app,
-                                                     staticFrameworkA.name: staticFrameworkA,
-                                                     staticFrameworkB.name: staticFrameworkB,
-                                                     staticFrameworkC.name: staticFrameworkC,
-                                                     frameworkA.name: frameworkA,
-                                                     frameworkB.name: frameworkB,
-                                                     frameworkC.name: frameworkC]],
-                                    dependencies: dependencies)
+        let graph = ValueGraph.test(
+            path: path,
+            projects: [path: project],
+            targets: [path: [app.name: app,
+                             staticFrameworkA.name: staticFrameworkA,
+                             staticFrameworkB.name: staticFrameworkB,
+                             staticFrameworkC.name: staticFrameworkC,
+                             frameworkA.name: frameworkA,
+                             frameworkB.name: frameworkB,
+                             frameworkC.name: frameworkC]],
+            dependencies: dependencies
+        )
         let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
@@ -198,16 +206,18 @@ class StaticProductsGraphLinterTests: XCTestCase {
             staticFrameworkBdependency: Set([staticFrameworkCdependency]),
             staticFrameworkCdependency: Set([]),
         ]
-        let graph = ValueGraph.test(path: path,
-                                    projects: [path: project],
-                                    targets: [path: [app.name: app,
-                                                     staticFrameworkA.name: staticFrameworkA,
-                                                     staticFrameworkB.name: staticFrameworkB,
-                                                     staticFrameworkC.name: staticFrameworkC,
-                                                     frameworkA.name: frameworkA,
-                                                     frameworkB.name: frameworkB,
-                                                     frameworkC.name: frameworkC]],
-                                    dependencies: dependencies)
+        let graph = ValueGraph.test(
+            path: path,
+            projects: [path: project],
+            targets: [path: [app.name: app,
+                             staticFrameworkA.name: staticFrameworkA,
+                             staticFrameworkB.name: staticFrameworkB,
+                             staticFrameworkC.name: staticFrameworkC,
+                             frameworkA.name: frameworkA,
+                             frameworkB.name: frameworkB,
+                             frameworkC.name: frameworkC]],
+            dependencies: dependencies
+        )
         let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
@@ -245,15 +255,17 @@ class StaticProductsGraphLinterTests: XCTestCase {
             staticFrameworkAdependency: Set([]),
             frameworkDDependency: Set([frameworkCDependency, staticFrameworkAdependency]),
         ]
-        let graph = ValueGraph.test(path: path,
-                                    projects: [path: project],
-                                    targets: [path: [app.name: app,
-                                                     staticFrameworkA.name: staticFrameworkA,
-                                                     frameworkA.name: frameworkA,
-                                                     frameworkB.name: frameworkB,
-                                                     frameworkC.name: frameworkC,
-                                                     frameworkD.name: frameworkD]],
-                                    dependencies: dependencies)
+        let graph = ValueGraph.test(
+            path: path,
+            projects: [path: project],
+            targets: [path: [app.name: app,
+                             staticFrameworkA.name: staticFrameworkA,
+                             frameworkA.name: frameworkA,
+                             frameworkB.name: frameworkB,
+                             frameworkC.name: frameworkC,
+                             frameworkD.name: frameworkD]],
+            dependencies: dependencies
+        )
         let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
@@ -283,12 +295,14 @@ class StaticProductsGraphLinterTests: XCTestCase {
             frameworkDependency: Set([staticFrameworkDependency]),
             staticFrameworkDependency: Set([]),
         ]
-        let graph = ValueGraph.test(path: path,
-                                    projects: [path: project],
-                                    targets: [path: [app.name: app,
-                                                     staticFramework.name: staticFramework,
-                                                     framework.name: framework]],
-                                    dependencies: dependencies)
+        let graph = ValueGraph.test(
+            path: path,
+            projects: [path: project],
+            targets: [path: [app.name: app,
+                             staticFramework.name: staticFramework,
+                             framework.name: framework]],
+            dependencies: dependencies
+        )
         let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
@@ -327,16 +341,18 @@ class StaticProductsGraphLinterTests: XCTestCase {
             staticFrameworkBdependency: Set([staticFrameworkCdependency]),
             staticFrameworkCdependency: Set([]),
         ]
-        let graph = ValueGraph.test(path: path,
-                                    projects: [path: project],
-                                    targets: [path: [app.name: app,
-                                                     frameworkA.name: frameworkA,
-                                                     frameworkB.name: frameworkB,
-                                                     frameworkC.name: frameworkC,
-                                                     staticFrameworkA.name: staticFrameworkA,
-                                                     staticFrameworkB.name: staticFrameworkB,
-                                                     staticFrameworkC.name: staticFrameworkC]],
-                                    dependencies: dependencies)
+        let graph = ValueGraph.test(
+            path: path,
+            projects: [path: project],
+            targets: [path: [app.name: app,
+                             frameworkA.name: frameworkA,
+                             frameworkB.name: frameworkB,
+                             frameworkC.name: frameworkC,
+                             staticFrameworkA.name: staticFrameworkA,
+                             staticFrameworkB.name: staticFrameworkB,
+                             staticFrameworkC.name: staticFrameworkC]],
+            dependencies: dependencies
+        )
         let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
@@ -363,12 +379,14 @@ class StaticProductsGraphLinterTests: XCTestCase {
             staticFrameworkDependency: Set([]),
             frameworkTestsDependency: Set([staticFrameworkDependency]),
         ]
-        let graph = ValueGraph.test(path: path,
-                                    projects: [path: project],
-                                    targets: [path: [app.name: app,
-                                                     staticFramework.name: staticFramework,
-                                                     frameworkTests.name: frameworkTests]],
-                                    dependencies: dependencies)
+        let graph = ValueGraph.test(
+            path: path,
+            projects: [path: project],
+            targets: [path: [app.name: app,
+                             staticFramework.name: staticFramework,
+                             frameworkTests.name: frameworkTests]],
+            dependencies: dependencies
+        )
         let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
@@ -398,13 +416,15 @@ class StaticProductsGraphLinterTests: XCTestCase {
             staticFrameworkDependency: Set([]),
             frameworkTestsDependency: Set([frameworkDependency, staticFrameworkDependency]),
         ]
-        let graph = ValueGraph.test(path: path,
-                                    projects: [path: project],
-                                    targets: [path: [app.name: app,
-                                                     framework.name: framework,
-                                                     staticFramework.name: staticFramework,
-                                                     frameworkTests.name: frameworkTests]],
-                                    dependencies: dependencies)
+        let graph = ValueGraph.test(
+            path: path,
+            projects: [path: project],
+            targets: [path: [app.name: app,
+                             framework.name: framework,
+                             staticFramework.name: staticFramework,
+                             frameworkTests.name: frameworkTests]],
+            dependencies: dependencies
+        )
         let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
@@ -433,12 +453,14 @@ class StaticProductsGraphLinterTests: XCTestCase {
             appTestsDependency: Set([staticFrameworkDependency, appDependency]),
             staticFrameworkDependency: Set([]),
         ]
-        let graph = ValueGraph.test(path: path,
-                                    projects: [path: project],
-                                    targets: [path: [app.name: app,
-                                                     appTestsTarget.name: appTestsTarget,
-                                                     staticFramework.name: staticFramework]],
-                                    dependencies: dependencies)
+        let graph = ValueGraph.test(
+            path: path,
+            projects: [path: project],
+            targets: [path: [app.name: app,
+                             appTestsTarget.name: appTestsTarget,
+                             staticFramework.name: staticFramework]],
+            dependencies: dependencies
+        )
         let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
@@ -502,22 +524,24 @@ class StaticProductsGraphLinterTests: XCTestCase {
             staticFrameworkBTestsDependency: Set([staticFrameworkBDependency, frameworkBDependency]),
             staticFrameworkCTestsDependency: Set([staticFrameworkCDependency, staticFrameworkBDependency]),
         ]
-        let graph = ValueGraph.test(path: path,
-                                    projects: [path: project],
-                                    targets: [path: [app.name: app,
-                                                     appTests.name: appTests,
-                                                     appUITests.name: appUITests,
-                                                     frameworkA.name: frameworkA,
-                                                     frameworkB.name: frameworkB,
-                                                     frameworkC.name: frameworkC,
-                                                     frameworkTests.name: frameworkTests,
-                                                     staticFrameworkA.name: staticFrameworkA,
-                                                     staticFrameworkB.name: staticFrameworkB,
-                                                     staticFrameworkC.name: staticFrameworkC,
-                                                     staticFrameworkATests.name: staticFrameworkATests,
-                                                     staticFrameworkBTests.name: staticFrameworkBTests,
-                                                     staticFrameworkCTests.name: staticFrameworkCTests]],
-                                    dependencies: dependencies)
+        let graph = ValueGraph.test(
+            path: path,
+            projects: [path: project],
+            targets: [path: [app.name: app,
+                             appTests.name: appTests,
+                             appUITests.name: appUITests,
+                             frameworkA.name: frameworkA,
+                             frameworkB.name: frameworkB,
+                             frameworkC.name: frameworkC,
+                             frameworkTests.name: frameworkTests,
+                             staticFrameworkA.name: staticFrameworkA,
+                             staticFrameworkB.name: staticFrameworkB,
+                             staticFrameworkC.name: staticFrameworkC,
+                             staticFrameworkATests.name: staticFrameworkATests,
+                             staticFrameworkBTests.name: staticFrameworkBTests,
+                             staticFrameworkCTests.name: staticFrameworkCTests]],
+            dependencies: dependencies
+        )
         let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
@@ -568,18 +592,20 @@ class StaticProductsGraphLinterTests: XCTestCase {
             staticFrameworkBDependency: Set(),
             staticFrameworkCDependency: Set(),
         ]
-        let graph = ValueGraph.test(path: path,
-                                    projects: [path: project],
-                                    targets: [path: [app.name: app,
-                                                     appTests.name: appTests,
-                                                     frameworkA.name: frameworkA,
-                                                     frameworkB.name: frameworkB,
-                                                     frameworkC.name: frameworkC,
-                                                     frameworkTests.name: frameworkTests,
-                                                     staticFrameworkA.name: staticFrameworkA,
-                                                     staticFrameworkB.name: staticFrameworkB,
-                                                     staticFrameworkC.name: staticFrameworkC]],
-                                    dependencies: dependencies)
+        let graph = ValueGraph.test(
+            path: path,
+            projects: [path: project],
+            targets: [path: [app.name: app,
+                             appTests.name: appTests,
+                             frameworkA.name: frameworkA,
+                             frameworkB.name: frameworkB,
+                             frameworkC.name: frameworkC,
+                             frameworkTests.name: frameworkTests,
+                             staticFrameworkA.name: staticFrameworkA,
+                             staticFrameworkB.name: staticFrameworkB,
+                             staticFrameworkC.name: staticFrameworkC]],
+            dependencies: dependencies
+        )
         let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
@@ -616,14 +642,16 @@ class StaticProductsGraphLinterTests: XCTestCase {
             frameworkADependency: Set([staticFrameworkADependency]),
             staticFrameworkADependency: Set([]),
         ]
-        let graph = ValueGraph.test(path: path,
-                                    projects: [path: project],
-                                    targets: [path: [app.name: app,
-                                                     appTests.name: appTests,
-                                                     appUITests.name: appUITests,
-                                                     frameworkA.name: frameworkA,
-                                                     staticFrameworkA.name: staticFrameworkA]],
-                                    dependencies: dependencies)
+        let graph = ValueGraph.test(
+            path: path,
+            projects: [path: project],
+            targets: [path: [app.name: app,
+                             appTests.name: appTests,
+                             appUITests.name: appUITests,
+                             frameworkA.name: frameworkA,
+                             staticFrameworkA.name: staticFrameworkA]],
+            dependencies: dependencies
+        )
         let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
@@ -656,13 +684,15 @@ class StaticProductsGraphLinterTests: XCTestCase {
             frameworkADependency: Set([staticFrameworkADependency]),
             staticFrameworkADependency: Set([]),
         ]
-        let graph = ValueGraph.test(path: path,
-                                    projects: [path: project],
-                                    targets: [path: [app.name: app,
-                                                     appUITests.name: appUITests,
-                                                     frameworkA.name: frameworkA,
-                                                     staticFrameworkA.name: staticFrameworkA]],
-                                    dependencies: dependencies)
+        let graph = ValueGraph.test(
+            path: path,
+            projects: [path: project],
+            targets: [path: [app.name: app,
+                             appUITests.name: appUITests,
+                             frameworkA.name: frameworkA,
+                             staticFrameworkA.name: staticFrameworkA]],
+            dependencies: dependencies
+        )
         let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
@@ -697,13 +727,15 @@ class StaticProductsGraphLinterTests: XCTestCase {
             frameworkADependency: Set([staticFrameworkADependency]),
             staticFrameworkADependency: Set([]),
         ]
-        let graph = ValueGraph.test(path: path,
-                                    projects: [path: project],
-                                    targets: [path: [app.name: app,
-                                                     appUITests.name: appUITests,
-                                                     frameworkA.name: frameworkA,
-                                                     staticFrameworkA.name: staticFrameworkA]],
-                                    dependencies: dependencies)
+        let graph = ValueGraph.test(
+            path: path,
+            projects: [path: project],
+            targets: [path: [app.name: app,
+                             appUITests.name: appUITests,
+                             frameworkA.name: frameworkA,
+                             staticFrameworkA.name: staticFrameworkA]],
+            dependencies: dependencies
+        )
         let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
@@ -737,13 +769,15 @@ class StaticProductsGraphLinterTests: XCTestCase {
             frameworkADependency: Set([staticFrameworkADependency]),
             staticFrameworkADependency: Set([]),
         ]
-        let graph = ValueGraph.test(path: path,
-                                    projects: [path: project],
-                                    targets: [path: [app.name: app,
-                                                     appUITests.name: appUITests,
-                                                     frameworkA.name: frameworkA,
-                                                     staticFrameworkA.name: staticFrameworkA]],
-                                    dependencies: dependencies)
+        let graph = ValueGraph.test(
+            path: path,
+            projects: [path: project],
+            targets: [path: [app.name: app,
+                             appUITests.name: appUITests,
+                             frameworkA.name: frameworkA,
+                             staticFrameworkA.name: staticFrameworkA]],
+            dependencies: dependencies
+        )
         let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
@@ -774,14 +808,16 @@ class StaticProductsGraphLinterTests: XCTestCase {
             appExtensionDependency: Set([staticFrameworkDependency]),
             staticFrameworkDependency: Set([]),
         ]
-        let graph = ValueGraph.test(path: path,
-                                    projects: [path: project],
-                                    targets: [path: [
-                                        app.name: app,
-                                        appExtension.name: appExtension,
-                                        staticFramework.name: staticFramework,
-                                    ]],
-                                    dependencies: dependencies)
+        let graph = ValueGraph.test(
+            path: path,
+            projects: [path: project],
+            targets: [path: [
+                app.name: app,
+                appExtension.name: appExtension,
+                staticFramework.name: staticFramework,
+            ]],
+            dependencies: dependencies
+        )
         let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
@@ -812,15 +848,17 @@ class StaticProductsGraphLinterTests: XCTestCase {
             frameworkDependency: Set([staticFrameworkDependency]),
             staticFrameworkDependency: Set([]),
         ]
-        let graph = ValueGraph.test(path: path,
-                                    projects: [path: project],
-                                    targets: [path: [
-                                        app.name: app,
-                                        appExtension.name: appExtension,
-                                        staticFramework.name: staticFramework,
-                                        framework.name: framework,
-                                    ]],
-                                    dependencies: dependencies)
+        let graph = ValueGraph.test(
+            path: path,
+            projects: [path: project],
+            targets: [path: [
+                app.name: app,
+                appExtension.name: appExtension,
+                staticFramework.name: staticFramework,
+                framework.name: framework,
+            ]],
+            dependencies: dependencies
+        )
         let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
@@ -850,14 +888,16 @@ class StaticProductsGraphLinterTests: XCTestCase {
             appClipDependency: Set([staticFrameworkDependency]),
             staticFrameworkDependency: Set([]),
         ]
-        let graph = ValueGraph.test(path: path,
-                                    projects: [path: project],
-                                    targets: [path: [
-                                        app.name: app,
-                                        appClip.name: appClip,
-                                        staticFramework.name: staticFramework,
-                                    ]],
-                                    dependencies: dependencies)
+        let graph = ValueGraph.test(
+            path: path,
+            projects: [path: project],
+            targets: [path: [
+                app.name: app,
+                appClip.name: appClip,
+                staticFramework.name: staticFramework,
+            ]],
+            dependencies: dependencies
+        )
         let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
@@ -888,15 +928,17 @@ class StaticProductsGraphLinterTests: XCTestCase {
             frameworkDependency: Set([staticFrameworkDependency]),
             staticFrameworkDependency: Set([]),
         ]
-        let graph = ValueGraph.test(path: path,
-                                    projects: [path: project],
-                                    targets: [path: [
-                                        app.name: app,
-                                        appClip.name: appClip,
-                                        framework.name: framework,
-                                        staticFramework.name: staticFramework,
-                                    ]],
-                                    dependencies: dependencies)
+        let graph = ValueGraph.test(
+            path: path,
+            projects: [path: project],
+            targets: [path: [
+                app.name: app,
+                appClip.name: appClip,
+                framework.name: framework,
+                staticFramework.name: staticFramework,
+            ]],
+            dependencies: dependencies
+        )
         let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
@@ -928,14 +970,16 @@ class StaticProductsGraphLinterTests: XCTestCase {
             watchAppDependency: Set([watchAppExtensionDependency]),
             watchAppExtensionDependency: Set([swiftPackage]),
         ]
-        let graph = ValueGraph.test(path: path,
-                                    projects: [path: project],
-                                    targets: [path: [
-                                        app.name: app,
-                                        watchApp.name: watchApp,
-                                        watchAppExtension.name: watchAppExtension,
-                                    ]],
-                                    dependencies: dependencies)
+        let graph = ValueGraph.test(
+            path: path,
+            projects: [path: project],
+            targets: [path: [
+                app.name: app,
+                watchApp.name: watchApp,
+                watchAppExtension.name: watchAppExtension,
+            ]],
+            dependencies: dependencies
+        )
         let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
@@ -968,15 +1012,17 @@ class StaticProductsGraphLinterTests: XCTestCase {
             watchAppExtensionDependency: Set([swiftPackage, watchFrameworkDependency]),
             watchFrameworkDependency: Set([swiftPackage]),
         ]
-        let graph = ValueGraph.test(path: path,
-                                    projects: [path: project],
-                                    targets: [path: [
-                                        app.name: app,
-                                        watchApp.name: watchApp,
-                                        watchAppExtension.name: watchAppExtension,
-                                        watchFramework.name: watchFramework,
-                                    ]],
-                                    dependencies: dependencies)
+        let graph = ValueGraph.test(
+            path: path,
+            projects: [path: project],
+            targets: [path: [
+                app.name: app,
+                watchApp.name: watchApp,
+                watchAppExtension.name: watchAppExtension,
+                watchFramework.name: watchFramework,
+            ]],
+            dependencies: dependencies
+        )
         let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
@@ -992,7 +1038,9 @@ class StaticProductsGraphLinterTests: XCTestCase {
 
     private func warning(product node: String, type: String = "Target", linkedBy: [ValueGraphDependency]) -> LintingIssue {
         let reason = "\(type) \'\(node)\' has been linked from \(linkedBy.map(\.description).listed()), it is a static product so may introduce unwanted side effects.".uppercasingFirst
-        return LintingIssue(reason: reason,
-                            severity: .warning)
+        return LintingIssue(
+            reason: reason,
+            severity: .warning
+        )
     }
 }

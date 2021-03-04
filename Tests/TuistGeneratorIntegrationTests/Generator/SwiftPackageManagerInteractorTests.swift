@@ -31,14 +31,18 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             .package(product: "Example"),
         ])
         let package = Package.remote(url: "http://some.remote/repo.git", requirement: .exact("branch"))
-        let project = Project.test(path: temporaryPath,
-                                   name: "Test",
-                                   settings: .default,
-                                   targets: [target],
-                                   packages: [package])
-        let graph = ValueGraph.test(path: project.path,
-                                    packages: [project.path: ["Test": package]],
-                                    dependencies: [ValueGraphDependency.packageProduct(path: project.path, product: "Test"): Set()])
+        let project = Project.test(
+            path: temporaryPath,
+            name: "Test",
+            settings: .default,
+            targets: [target],
+            packages: [package]
+        )
+        let graph = ValueGraph.test(
+            path: project.path,
+            packages: [project.path: ["Test": package]],
+            dependencies: [ValueGraphDependency.packageProduct(path: project.path, product: "Test"): Set()]
+        )
         let graphTraverser = ValueGraphTraverser(graph: graph)
 
         let workspacePath = temporaryPath.appending(component: "\(project.name).xcworkspace")
@@ -59,20 +63,26 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             .package(product: "Example"),
         ])
         let package = Package.remote(url: "http://some.remote/repo.git", requirement: .exact("branch"))
-        let project = Project.test(path: temporaryPath,
-                                   name: "Test",
-                                   settings: .default,
-                                   targets: [target],
-                                   packages: [
-                                       package,
-                                   ])
-        let graph = ValueGraph.test(path: project.path,
-                                    packages: [project.path: ["Test": package]],
-                                    dependencies: [ValueGraphDependency.packageProduct(path: project.path, product: "Test"): Set()])
+        let project = Project.test(
+            path: temporaryPath,
+            name: "Test",
+            settings: .default,
+            targets: [target],
+            packages: [
+                package,
+            ]
+        )
+        let graph = ValueGraph.test(
+            path: project.path,
+            packages: [project.path: ["Test": package]],
+            dependencies: [ValueGraphDependency.packageProduct(path: project.path, product: "Test"): Set()]
+        )
         let graphTraverser = ValueGraphTraverser(graph: graph)
 
-        let workspace = Workspace.test(name: project.name,
-                                       projects: [project.path])
+        let workspace = Workspace.test(
+            name: project.name,
+            projects: [project.path]
+        )
         let rootPackageResolvedPath = temporaryPath.appending(component: ".package.resolved")
         try FileHandler.shared.write("package", path: rootPackageResolvedPath, atomically: false)
 
@@ -99,10 +109,12 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         // Given
         let temporaryPath = try self.temporaryPath()
         let target = anyTarget()
-        let project = Project.test(path: temporaryPath,
-                                   name: "Test",
-                                   settings: .default,
-                                   targets: [target])
+        let project = Project.test(
+            path: temporaryPath,
+            name: "Test",
+            settings: .default,
+            targets: [target]
+        )
         let graph = ValueGraph.test()
         let graphTraverser = ValueGraphTraverser(graph: graph)
 
@@ -119,9 +131,11 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
     // MARK: - Helpers
 
     func anyTarget(dependencies: [Dependency] = []) -> Target {
-        Target.test(infoPlist: nil,
-                    entitlements: nil,
-                    settings: nil,
-                    dependencies: dependencies)
+        Target.test(
+            infoPlist: nil,
+            entitlements: nil,
+            settings: nil,
+            dependencies: dependencies
+        )
     }
 }

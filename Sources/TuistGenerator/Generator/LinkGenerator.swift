@@ -94,35 +94,45 @@ final class LinkGenerator: LinkGenerating {
         let embeddableFrameworks = graphTraverser.embeddableFrameworks(path: path, name: target.name).sorted()
         let linkableModules = try graphTraverser.linkableDependencies(path: path, name: target.name).sorted()
 
-        try setupSearchAndIncludePaths(target: target,
-                                       pbxTarget: pbxTarget,
-                                       sourceRootPath: sourceRootPath,
-                                       path: path,
-                                       graphTraverser: graphTraverser,
-                                       linkableModules: linkableModules)
+        try setupSearchAndIncludePaths(
+            target: target,
+            pbxTarget: pbxTarget,
+            sourceRootPath: sourceRootPath,
+            path: path,
+            graphTraverser: graphTraverser,
+            linkableModules: linkableModules
+        )
 
-        try generateEmbedPhase(dependencies: embeddableFrameworks,
-                               target: target,
-                               pbxTarget: pbxTarget,
-                               pbxproj: pbxproj,
-                               fileElements: fileElements,
-                               sourceRootPath: sourceRootPath)
+        try generateEmbedPhase(
+            dependencies: embeddableFrameworks,
+            target: target,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            fileElements: fileElements,
+            sourceRootPath: sourceRootPath
+        )
 
-        try generateLinkingPhase(dependencies: linkableModules,
-                                 pbxTarget: pbxTarget,
-                                 pbxproj: pbxproj,
-                                 fileElements: fileElements)
+        try generateLinkingPhase(
+            dependencies: linkableModules,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            fileElements: fileElements
+        )
 
-        try generateCopyProductsBuildPhase(path: path,
-                                           target: target,
-                                           graphTraverser: graphTraverser,
-                                           pbxTarget: pbxTarget,
-                                           pbxproj: pbxproj,
-                                           fileElements: fileElements)
+        try generateCopyProductsBuildPhase(
+            path: path,
+            target: target,
+            graphTraverser: graphTraverser,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            fileElements: fileElements
+        )
 
-        try generatePackages(target: target,
-                             pbxTarget: pbxTarget,
-                             pbxproj: pbxproj)
+        try generatePackages(
+            target: target,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj
+        )
     }
 
     private func setupSearchAndIncludePaths(target: Target,
@@ -137,25 +147,35 @@ final class LinkGenerator: LinkGenerating {
         let swiftIncludePaths = graphTraverser.librariesSwiftIncludePaths(path: path, name: target.name).sorted()
         let runPathSearchPaths = graphTraverser.runPathSearchPaths(path: path, name: target.name).sorted()
 
-        try setupFrameworkSearchPath(dependencies: linkableModules,
-                                     pbxTarget: pbxTarget,
-                                     sourceRootPath: sourceRootPath)
+        try setupFrameworkSearchPath(
+            dependencies: linkableModules,
+            pbxTarget: pbxTarget,
+            sourceRootPath: sourceRootPath
+        )
 
-        try setupHeadersSearchPath(headersSearchPaths,
-                                   pbxTarget: pbxTarget,
-                                   sourceRootPath: sourceRootPath)
+        try setupHeadersSearchPath(
+            headersSearchPaths,
+            pbxTarget: pbxTarget,
+            sourceRootPath: sourceRootPath
+        )
 
-        try setupLibrarySearchPaths(librarySearchPaths,
-                                    pbxTarget: pbxTarget,
-                                    sourceRootPath: sourceRootPath)
+        try setupLibrarySearchPaths(
+            librarySearchPaths,
+            pbxTarget: pbxTarget,
+            sourceRootPath: sourceRootPath
+        )
 
-        try setupSwiftIncludePaths(swiftIncludePaths,
-                                   pbxTarget: pbxTarget,
-                                   sourceRootPath: sourceRootPath)
+        try setupSwiftIncludePaths(
+            swiftIncludePaths,
+            pbxTarget: pbxTarget,
+            sourceRootPath: sourceRootPath
+        )
 
-        try setupRunPathSearchPaths(runPathSearchPaths,
-                                    pbxTarget: pbxTarget,
-                                    sourceRootPath: sourceRootPath)
+        try setupRunPathSearchPaths(
+            runPathSearchPaths,
+            pbxTarget: pbxTarget,
+            sourceRootPath: sourceRootPath
+        )
     }
 
     func generatePackages(target: Target,
@@ -180,9 +200,11 @@ final class LinkGenerator: LinkGenerating {
                             sourceRootPath: AbsolutePath) throws
     {
         let precompiledEmbedPhase = PBXShellScriptBuildPhase(name: "Embed Precompiled Frameworks")
-        let embedPhase = PBXCopyFilesBuildPhase(dstPath: "",
-                                                dstSubfolderSpec: .frameworks,
-                                                name: "Embed Frameworks")
+        let embedPhase = PBXCopyFilesBuildPhase(
+            dstPath: "",
+            dstSubfolderSpec: .frameworks,
+            name: "Embed Frameworks"
+        )
         pbxproj.add(object: precompiledEmbedPhase)
         pbxproj.add(object: embedPhase)
 
@@ -215,8 +237,10 @@ final class LinkGenerator: LinkGenerating {
                 guard let fileRef = fileElements.product(target: target) else {
                     throw LinkGeneratorError.missingProduct(name: target)
                 }
-                let buildFile = PBXBuildFile(file: fileRef,
-                                             settings: ["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]])
+                let buildFile = PBXBuildFile(
+                    file: fileRef,
+                    settings: ["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]]
+                )
                 pbxproj.add(object: buildFile)
                 embedPhase.files?.append(buildFile)
             }
@@ -225,9 +249,11 @@ final class LinkGenerator: LinkGenerating {
         if frameworkReferences.isEmpty {
             precompiledEmbedPhase.shellScript = "echo \"Skipping, nothing to be embedded.\""
         } else {
-            let script = try embedScriptGenerator.script(sourceRootPath: sourceRootPath,
-                                                         frameworkReferences: frameworkReferences,
-                                                         includeSymbolsInFileLists: !target.product.testsBundle)
+            let script = try embedScriptGenerator.script(
+                sourceRootPath: sourceRootPath,
+                frameworkReferences: frameworkReferences,
+                includeSymbolsInFileLists: !target.product.testsBundle
+            )
 
             precompiledEmbedPhase.shellScript = script.script
             precompiledEmbedPhase.inputPaths = script.inputPaths
@@ -251,50 +277,60 @@ final class LinkGenerator: LinkGenerating {
         }
 
         let uniquePaths = Array(Set(precompiledPaths + sdkPaths))
-        try setup(setting: "FRAMEWORK_SEARCH_PATHS",
-                  paths: uniquePaths,
-                  pbxTarget: pbxTarget,
-                  sourceRootPath: sourceRootPath)
+        try setup(
+            setting: "FRAMEWORK_SEARCH_PATHS",
+            paths: uniquePaths,
+            pbxTarget: pbxTarget,
+            sourceRootPath: sourceRootPath
+        )
     }
 
     func setupHeadersSearchPath(_ paths: [AbsolutePath],
                                 pbxTarget: PBXTarget,
                                 sourceRootPath: AbsolutePath) throws
     {
-        try setup(setting: "HEADER_SEARCH_PATHS",
-                  paths: paths.map(LinkGeneratorPath.absolutePath),
-                  pbxTarget: pbxTarget,
-                  sourceRootPath: sourceRootPath)
+        try setup(
+            setting: "HEADER_SEARCH_PATHS",
+            paths: paths.map(LinkGeneratorPath.absolutePath),
+            pbxTarget: pbxTarget,
+            sourceRootPath: sourceRootPath
+        )
     }
 
     func setupLibrarySearchPaths(_ paths: [AbsolutePath],
                                  pbxTarget: PBXTarget,
                                  sourceRootPath: AbsolutePath) throws
     {
-        try setup(setting: "LIBRARY_SEARCH_PATHS",
-                  paths: paths.map(LinkGeneratorPath.absolutePath),
-                  pbxTarget: pbxTarget,
-                  sourceRootPath: sourceRootPath)
+        try setup(
+            setting: "LIBRARY_SEARCH_PATHS",
+            paths: paths.map(LinkGeneratorPath.absolutePath),
+            pbxTarget: pbxTarget,
+            sourceRootPath: sourceRootPath
+        )
     }
 
     func setupSwiftIncludePaths(_ paths: [AbsolutePath],
                                 pbxTarget: PBXTarget,
                                 sourceRootPath: AbsolutePath) throws
     {
-        try setup(setting: "SWIFT_INCLUDE_PATHS",
-                  paths: paths.map(LinkGeneratorPath.absolutePath),
-                  pbxTarget: pbxTarget,
-                  sourceRootPath: sourceRootPath)
+        try setup(
+            setting: "SWIFT_INCLUDE_PATHS",
+            paths: paths.map(LinkGeneratorPath.absolutePath),
+            pbxTarget: pbxTarget,
+            sourceRootPath: sourceRootPath
+        )
     }
 
     func setupRunPathSearchPaths(_ paths: [AbsolutePath],
                                  pbxTarget: PBXTarget,
                                  sourceRootPath: AbsolutePath) throws
     {
-        try setup(setting: "LD_RUNPATH_SEARCH_PATHS",
-                  paths: paths.map(LinkGeneratorPath.absolutePath),
-                  pbxTarget: pbxTarget,
-                  sourceRootPath: sourceRootPath)
+        try setup(
+            setting: "LD_RUNPATH_SEARCH_PATHS",
+            paths: paths.map(LinkGeneratorPath.absolutePath),
+            pbxTarget: pbxTarget,
+            sourceRootPath: sourceRootPath
+        )
     }
 
     private func setup(setting name: String,
@@ -437,8 +473,10 @@ final class LinkGenerator: LinkGenerating {
         if status == .optional {
             settings = ["ATTRIBUTES": ["Weak"]]
         }
-        return PBXBuildFile(file: fileReference,
-                            settings: settings)
+        return PBXBuildFile(
+            file: fileReference,
+            settings: settings
+        )
     }
 }
 

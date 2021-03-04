@@ -82,9 +82,11 @@ final class DependenciesContentHasherTests: TuistUnitTestCase {
 
     func test_hash_whenDependencyIsLibrary_callsContentHasherAsExpected() throws {
         // Given
-        let dependency = Dependency.library(path: filePath1,
-                                            publicHeaders: filePath2,
-                                            swiftModuleMap: filePath3)
+        let dependency = Dependency.library(
+            path: filePath1,
+            publicHeaders: filePath2,
+            swiftModuleMap: filePath3
+        )
         mockContentHasher.stubHashForPath[filePath1] = "file1-hashed"
         mockContentHasher.stubHashForPath[filePath2] = "file2-hashed"
         mockContentHasher.stubHashForPath[filePath3] = "file3-hashed"
@@ -100,9 +102,11 @@ final class DependenciesContentHasherTests: TuistUnitTestCase {
 
     func test_hash_whenDependencyIsLibrary_swiftModuleMapIsNil_callsContentHasherAsExpected() throws {
         // Given
-        let dependency = Dependency.library(path: filePath1,
-                                            publicHeaders: filePath2,
-                                            swiftModuleMap: nil)
+        let dependency = Dependency.library(
+            path: filePath1,
+            publicHeaders: filePath2,
+            swiftModuleMap: nil
+        )
         mockContentHasher.stubHashForPath[filePath1] = "file1-hashed"
         mockContentHasher.stubHashForPath[filePath2] = "file2-hashed"
 

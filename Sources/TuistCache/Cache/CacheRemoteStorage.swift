@@ -34,10 +34,12 @@ public final class CacheRemoteStorage: CacheStoring {
     // MARK: - Init
 
     public convenience init(cloudConfig: Cloud, cloudClient: CloudClienting) {
-        self.init(cloudClient: cloudClient,
-                  fileArchiverFactory: FileArchivingFactory(),
-                  fileClient: FileClient(),
-                  cloudCacheResponseFactory: CloudCacheResourceFactory(cloudConfig: cloudConfig))
+        self.init(
+            cloudClient: cloudClient,
+            fileArchiverFactory: FileArchivingFactory(),
+            fileClient: FileClient(),
+            cloudCacheResponseFactory: CloudCacheResourceFactory(cloudConfig: cloudConfig)
+        )
     }
 
     init(cloudClient: CloudClienting,

@@ -31,12 +31,14 @@ final class CommandRunnerTests: TuistUnitTestCase {
         updater = MockUpdater()
         versionsController = try! MockVersionsController()
         installer = MockInstaller()
-        subject = CommandRunner(versionResolver: versionResolver,
-                                updater: updater,
-                                installer: installer,
-                                versionsController: versionsController,
-                                arguments: { self.arguments },
-                                exiter: { self.exited = $0 })
+        subject = CommandRunner(
+            versionResolver: versionResolver,
+            updater: updater,
+            installer: installer,
+            versionsController: versionsController,
+            arguments: { self.arguments },
+            exiter: { self.exited = $0 }
+        )
     }
 
     override func tearDown() {

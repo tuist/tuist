@@ -38,9 +38,11 @@ final class GeneratedProject {
     /// - Parameter path: Path to the project (.xcodeproj)
     /// - Returns: GeneratedProject instance.
     func at(path: AbsolutePath) -> GeneratedProject {
-        GeneratedProject(pbxproj: pbxproj,
-                         path: path,
-                         targets: targets,
-                         name: name)
+        GeneratedProject(
+            pbxproj: pbxproj,
+            path: path,
+            targets: targets,
+            name: name
+        )
     }
 }

@@ -47,12 +47,14 @@ class CacheGraphMutator: CacheGraphMutating {
         var sourceTargets: Set<TargetNode> = Set(userSpecifiedSourceTargets)
 
         try (userSpecifiedSourceTargets + userSpecifiedSourceTestTargets)
-            .forEach { try visit(targetNode: $0,
-                                 precompiledFrameworks: precompiledFrameworks,
-                                 sources: sources,
-                                 sourceTargets: &sourceTargets,
-                                 visitedPrecompiledFrameworkPaths: &visitedPrecompiledFrameworkPaths,
-                                 loadedPrecompiledNodes: &loadedPrecompiledNodes) }
+            .forEach { try visit(
+                targetNode: $0,
+                precompiledFrameworks: precompiledFrameworks,
+                sources: sources,
+                sourceTargets: &sourceTargets,
+                visitedPrecompiledFrameworkPaths: &visitedPrecompiledFrameworkPaths,
+                loadedPrecompiledNodes: &loadedPrecompiledNodes
+            ) }
 
         // We mark them to be pruned during the tree-shaking
         graph.targets.flatMap(\.value).forEach {
@@ -70,12 +72,14 @@ class CacheGraphMutator: CacheGraphMutating {
                            loadedPrecompiledNodes: inout [AbsolutePath: PrecompiledNode]) throws
     {
         sourceTargets.formUnion([targetNode])
-        targetNode.dependencies = try mapDependencies(targetNode.dependencies,
-                                                      precompiledFrameworks: precompiledFrameworks,
-                                                      sources: sources,
-                                                      sourceTargets: &sourceTargets,
-                                                      visitedPrecompiledFrameworkPaths: &visitedPrecompiledFrameworkPaths,
-                                                      loadedPrecompiledFrameworks: &loadedPrecompiledNodes)
+        targetNode.dependencies = try mapDependencies(
+            targetNode.dependencies,
+            precompiledFrameworks: precompiledFrameworks,
+            sources: sources,
+            sourceTargets: &sourceTargets,
+            visitedPrecompiledFrameworkPaths: &visitedPrecompiledFrameworkPaths,
+            loadedPrecompiledFrameworks: &loadedPrecompiledNodes
+        )
     }
 
     // swiftlint:disable line_length
@@ -99,17 +103,21 @@ class CacheGraphMutator: CacheGraphMutating {
             // declare them as direct dependencies.
 
             // If the target cannot be replaced with its associated .(xc)framework we return
-            guard !sources.contains(targetDependency.target.name), let precompiledFrameworkPath = precompiledFrameworkPath(target: targetDependency,
-                                                                                                                           precompiledFrameworks: precompiledFrameworks,
-                                                                                                                           visitedPrecompiledFrameworkPaths: &visitedPrecompiledFrameworkPaths)
+            guard !sources.contains(targetDependency.target.name), let precompiledFrameworkPath = precompiledFrameworkPath(
+                target: targetDependency,
+                precompiledFrameworks: precompiledFrameworks,
+                visitedPrecompiledFrameworkPaths: &visitedPrecompiledFrameworkPaths
+            )
             else {
                 sourceTargets.formUnion([targetDependency])
-                targetDependency.dependencies = try mapDependencies(targetDependency.dependencies,
-                                                                    precompiledFrameworks: precompiledFrameworks,
-                                                                    sources: sources,
-                                                                    sourceTargets: &sourceTargets,
-                                                                    visitedPrecompiledFrameworkPaths: &visitedPrecompiledFrameworkPaths,
-                                                                    loadedPrecompiledFrameworks: &loadedPrecompiledFrameworks)
+                targetDependency.dependencies = try mapDependencies(
+                    targetDependency.dependencies,
+                    precompiledFrameworks: precompiledFrameworks,
+                    sources: sources,
+                    sourceTargets: &sourceTargets,
+                    visitedPrecompiledFrameworkPaths: &visitedPrecompiledFrameworkPaths,
+                    loadedPrecompiledFrameworks: &loadedPrecompiledFrameworks
+                )
                 newDependencies.append(targetDependency)
                 return
             }
@@ -117,12 +125,14 @@ class CacheGraphMutator: CacheGraphMutating {
             // We load the .framework (or fallback on .xcframework)
             let precompiledFramework: PrecompiledNode = try loadPrecompiledFramework(path: precompiledFrameworkPath, loadedPrecompiledFrameworks: &loadedPrecompiledFrameworks)
 
-            try mapDependencies(targetDependency.dependencies,
-                                precompiledFrameworks: precompiledFrameworks,
-                                sources: sources,
-                                sourceTargets: &sourceTargets,
-                                visitedPrecompiledFrameworkPaths: &visitedPrecompiledFrameworkPaths,
-                                loadedPrecompiledFrameworks: &loadedPrecompiledFrameworks).forEach { dependency in
+            try mapDependencies(
+                targetDependency.dependencies,
+                precompiledFrameworks: precompiledFrameworks,
+                sources: sources,
+                sourceTargets: &sourceTargets,
+                visitedPrecompiledFrameworkPaths: &visitedPrecompiledFrameworkPaths,
+                loadedPrecompiledFrameworks: &loadedPrecompiledFrameworks
+            ).forEach { dependency in
                 if let frameworkDependency = dependency as? FrameworkNode {
                     precompiledFramework.add(dependency: PrecompiledNode.Dependency.framework(frameworkDependency))
                 } else if let xcframeworkDependency = dependency as? XCFrameworkNode {
@@ -164,9 +174,11 @@ class CacheGraphMutator: CacheGraphMutating {
         }
         // The target can be replaced
         else if let path = precompiledFrameworks[target],
-            target.targetDependencies.allSatisfy({ precompiledFrameworkPath(target: $0,
-                                                                            precompiledFrameworks: precompiledFrameworks,
-                                                                            visitedPrecompiledFrameworkPaths: &visitedPrecompiledFrameworkPaths) != nil })
+            target.targetDependencies.allSatisfy({ precompiledFrameworkPath(
+                target: $0,
+                precompiledFrameworks: precompiledFrameworks,
+                visitedPrecompiledFrameworkPaths: &visitedPrecompiledFrameworkPaths
+            ) != nil })
         {
             visitedPrecompiledFrameworkPaths[target] = VisitedPrecompiledFramework(path: path)
             return path

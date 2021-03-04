@@ -68,26 +68,28 @@ extension TuistGraph.Target {
 
         let playgrounds = sourcesPlaygrounds + resourcesPlaygrounds
 
-        return TuistGraph.Target(name: name,
-                                 platform: platform,
-                                 product: product,
-                                 productName: productName,
-                                 bundleId: bundleId,
-                                 deploymentTarget: deploymentTarget,
-                                 infoPlist: infoPlist,
-                                 entitlements: entitlements,
-                                 settings: settings,
-                                 sources: sources,
-                                 resources: resources,
-                                 copyFiles: copyFiles,
-                                 headers: headers,
-                                 coreDataModels: coreDataModels,
-                                 actions: actions,
-                                 environment: environment,
-                                 launchArguments: launchArguments,
-                                 filesGroup: .group(name: "Project"),
-                                 dependencies: dependencies,
-                                 playgrounds: playgrounds)
+        return TuistGraph.Target(
+            name: name,
+            platform: platform,
+            product: product,
+            productName: productName,
+            bundleId: bundleId,
+            deploymentTarget: deploymentTarget,
+            infoPlist: infoPlist,
+            entitlements: entitlements,
+            settings: settings,
+            sources: sources,
+            resources: resources,
+            copyFiles: copyFiles,
+            headers: headers,
+            coreDataModels: coreDataModels,
+            actions: actions,
+            environment: environment,
+            launchArguments: launchArguments,
+            filesGroup: .group(name: "Project"),
+            dependencies: dependencies,
+            playgrounds: playgrounds
+        )
     }
 
     // MARK: - Fileprivate
@@ -107,9 +109,11 @@ extension TuistGraph.Target {
 
         let allResources = try (manifest.resources?.resources ?? []).flatMap { manifest -> [TuistGraph.ResourceFileElement] in
             do {
-                return try TuistGraph.ResourceFileElement.from(manifest: manifest,
-                                                               generatorPaths: generatorPaths,
-                                                               includeFiles: resourceFilter)
+                return try TuistGraph.ResourceFileElement.from(
+                    manifest: manifest,
+                    generatorPaths: generatorPaths,
+                    includeFiles: resourceFilter
+                )
             } catch let GlobError.nonExistentDirectory(invalidGlob) {
                 invalidResourceGlobs.append(invalidGlob)
                 return []

@@ -4,8 +4,10 @@ import TuistSupport
 
 struct UninstallCommand: ParsableCommand {
     static var configuration: CommandConfiguration {
-        CommandConfiguration(commandName: "uninstall",
-                             abstract: "Uninstalls a version of tuist")
+        CommandConfiguration(
+            commandName: "uninstall",
+            abstract: "Uninstalls a version of tuist"
+        )
     }
 
     @Argument(

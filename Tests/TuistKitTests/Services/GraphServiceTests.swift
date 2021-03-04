@@ -61,13 +61,15 @@ final class GraphServiceTests: TuistUnitTestCase {
         graphVizGenerator.generateProjectStub = graph
 
         // When
-        try subject.run(format: .dot,
-                        layoutAlgorithm: .dot,
-                        skipTestTargets: false,
-                        skipExternalDependencies: false,
-                        targetsToFilter: [],
-                        path: temporaryPath,
-                        outputPath: temporaryPath)
+        try subject.run(
+            format: .dot,
+            layoutAlgorithm: .dot,
+            skipTestTargets: false,
+            skipExternalDependencies: false,
+            targetsToFilter: [],
+            path: temporaryPath,
+            outputPath: temporaryPath
+        )
         let got = try FileHandler.shared.readTextFile(graphPath)
         let expected = "graph { }"
         // Then

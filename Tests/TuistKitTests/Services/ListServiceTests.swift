@@ -18,8 +18,10 @@ final class ListServiceTests: TuistUnitTestCase {
         super.setUp()
         templateLoader = MockTemplateLoader()
         templatesDirectoryLocator = MockTemplatesDirectoryLocator()
-        subject = ListService(templatesDirectoryLocator: templatesDirectoryLocator,
-                              templateLoader: templateLoader)
+        subject = ListService(
+            templatesDirectoryLocator: templatesDirectoryLocator,
+            templateLoader: templateLoader
+        )
     }
 
     override func tearDown() {

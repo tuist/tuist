@@ -23,9 +23,11 @@ public struct SimulatorRuntimeVersion: CustomStringConvertible, Hashable, Expres
     // MARK: - Internal
 
     func flattened() -> SimulatorRuntimeVersion {
-        SimulatorRuntimeVersion(major: major,
-                                minor: minor ?? 0,
-                                patch: patch ?? 0)
+        SimulatorRuntimeVersion(
+            major: major,
+            minor: minor ?? 0,
+            patch: patch ?? 0
+        )
     }
 
     // MARK: - CustomStringConvertible

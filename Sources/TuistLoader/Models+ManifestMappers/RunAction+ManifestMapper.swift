@@ -17,19 +17,23 @@ extension TuistGraph.RunAction {
 
         var executableResolved: TuistGraph.TargetReference?
         if let executable = manifest.executable {
-            executableResolved = TargetReference(projectPath: try generatorPaths.resolveSchemeActionProjectPath(executable.projectPath),
-                                                 name: executable.targetName)
+            executableResolved = TargetReference(
+                projectPath: try generatorPaths.resolveSchemeActionProjectPath(executable.projectPath),
+                name: executable.targetName
+            )
         }
 
         let options = try TuistGraph.RunActionOptions.from(manifest: manifest.options, generatorPaths: generatorPaths)
 
         let diagnosticsOptions = Set(manifest.diagnosticsOptions.map { TuistGraph.SchemeDiagnosticsOption.from(manifest: $0) })
 
-        return TuistGraph.RunAction(configurationName: configurationName,
-                                    executable: executableResolved,
-                                    filePath: nil,
-                                    arguments: arguments,
-                                    options: options,
-                                    diagnosticsOptions: diagnosticsOptions)
+        return TuistGraph.RunAction(
+            configurationName: configurationName,
+            executable: executableResolved,
+            filePath: nil,
+            arguments: arguments,
+            options: options,
+            diagnosticsOptions: diagnosticsOptions
+        )
     }
 }

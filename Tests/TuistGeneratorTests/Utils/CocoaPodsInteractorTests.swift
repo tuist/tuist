@@ -42,8 +42,10 @@ final class CocoaPodsInteractorTests: TuistUnitTestCase {
         let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // Then
-        XCTAssertThrowsSpecific(try subject.install(graphTraverser: graphTraverser),
-                                CocoaPodsInteractorError.cocoapodsNotFound)
+        XCTAssertThrowsSpecific(
+            try subject.install(graphTraverser: graphTraverser),
+            CocoaPodsInteractorError.cocoapodsNotFound
+        )
     }
 
     func test_install_when_theCocoaPodsFromBundlerCanBeUsed() throws {

@@ -22,13 +22,17 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
         var archiveVersion: UInt
 
         static var xcode10: ProjectConstants {
-            ProjectConstants(objectVersion: 50,
-                             archiveVersion: Xcode.LastKnown.archiveVersion)
+            ProjectConstants(
+                objectVersion: 50,
+                archiveVersion: Xcode.LastKnown.archiveVersion
+            )
         }
 
         static var xcode11: ProjectConstants {
-            ProjectConstants(objectVersion: 52,
-                             archiveVersion: Xcode.LastKnown.archiveVersion)
+            ProjectConstants(
+                objectVersion: 52,
+                archiveVersion: Xcode.LastKnown.archiveVersion
+            )
         }
     }
 
@@ -71,51 +75,69 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
         let workspaceData = XCWorkspaceData(children: [])
         let workspace = XCWorkspace(data: workspaceData)
         let projectConstants = try determineProjectConstants(graphTraverser: graphTraverser)
-        let pbxproj = PBXProj(objectVersion: projectConstants.objectVersion,
-                              archiveVersion: projectConstants.archiveVersion,
-                              classes: [:])
+        let pbxproj = PBXProj(
+            objectVersion: projectConstants.objectVersion,
+            archiveVersion: projectConstants.archiveVersion,
+            classes: [:]
+        )
         let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj)
         let fileElements = ProjectFileElements()
-        try fileElements.generateProjectFiles(project: project,
-                                              graphTraverser: graphTraverser,
-                                              groups: groups,
-                                              pbxproj: pbxproj)
+        try fileElements.generateProjectFiles(
+            project: project,
+            graphTraverser: graphTraverser,
+            groups: groups,
+            pbxproj: pbxproj
+        )
         let configurationList = try configGenerator.generateProjectConfig(project: project, pbxproj: pbxproj, fileElements: fileElements)
-        let pbxProject = try generatePbxproject(project: project,
-                                                projectFileElements: fileElements,
-                                                configurationList: configurationList,
-                                                groups: groups,
-                                                pbxproj: pbxproj)
+        let pbxProject = try generatePbxproject(
+            project: project,
+            projectFileElements: fileElements,
+            configurationList: configurationList,
+            groups: groups,
+            pbxproj: pbxproj
+        )
 
-        let nativeTargets = try generateTargets(project: project,
-                                                pbxproj: pbxproj,
-                                                pbxProject: pbxProject,
-                                                fileElements: fileElements,
-                                                graphTraverser: graphTraverser)
+        let nativeTargets = try generateTargets(
+            project: project,
+            pbxproj: pbxproj,
+            pbxProject: pbxProject,
+            fileElements: fileElements,
+            graphTraverser: graphTraverser
+        )
 
-        generateTestTargetIdentity(project: project,
-                                   pbxproj: pbxproj,
-                                   pbxProject: pbxProject)
+        generateTestTargetIdentity(
+            project: project,
+            pbxproj: pbxproj,
+            pbxProject: pbxProject
+        )
 
-        try generateSwiftPackageReferences(project: project,
-                                           pbxproj: pbxproj,
-                                           pbxProject: pbxProject)
+        try generateSwiftPackageReferences(
+            project: project,
+            pbxproj: pbxproj,
+            pbxProject: pbxProject
+        )
 
-        let generatedProject = GeneratedProject(pbxproj: pbxproj,
-                                                path: project.xcodeProjPath,
-                                                targets: nativeTargets,
-                                                name: project.xcodeProjPath.basename)
+        let generatedProject = GeneratedProject(
+            pbxproj: pbxproj,
+            path: project.xcodeProjPath,
+            targets: nativeTargets,
+            name: project.xcodeProjPath.basename
+        )
 
-        let schemes = try schemeDescriptorsGenerator.generateProjectSchemes(project: project,
-                                                                            generatedProject: generatedProject,
-                                                                            graphTraverser: graphTraverser)
+        let schemes = try schemeDescriptorsGenerator.generateProjectSchemes(
+            project: project,
+            generatedProject: generatedProject,
+            graphTraverser: graphTraverser
+        )
 
         let xcodeProj = XcodeProj(workspace: workspace, pbxproj: pbxproj)
-        return ProjectDescriptor(path: project.path,
-                                 xcodeprojPath: project.xcodeProjPath,
-                                 xcodeProj: xcodeProj,
-                                 schemeDescriptors: schemes,
-                                 sideEffectDescriptors: [])
+        return ProjectDescriptor(
+            path: project.path,
+            xcodeprojPath: project.xcodeProjPath,
+            xcodeProj: xcodeProj,
+            schemeDescriptors: schemes,
+            sideEffectDescriptors: []
+        )
     }
 
     // MARK: - Fileprivate
@@ -130,19 +152,21 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
         let knownRegions = Set(defaultRegions + projectFileElements.knownRegions).sorted()
         let developmentRegion = project.developmentRegion ?? Xcode.Default.developmentRegion
         let attributes = generateAttributes(project: project)
-        let pbxProject = PBXProject(name: project.name,
-                                    buildConfigurationList: configurationList,
-                                    compatibilityVersion: Xcode.Default.compatibilityVersion,
-                                    mainGroup: groups.sortedMain,
-                                    developmentRegion: developmentRegion,
-                                    hasScannedForEncodings: 0,
-                                    knownRegions: knownRegions,
-                                    productsGroup: groups.products,
-                                    projectDirPath: "",
-                                    projects: [],
-                                    projectRoots: [],
-                                    targets: [],
-                                    attributes: attributes)
+        let pbxProject = PBXProject(
+            name: project.name,
+            buildConfigurationList: configurationList,
+            compatibilityVersion: Xcode.Default.compatibilityVersion,
+            mainGroup: groups.sortedMain,
+            developmentRegion: developmentRegion,
+            hasScannedForEncodings: 0,
+            knownRegions: knownRegions,
+            productsGroup: groups.products,
+            projectDirPath: "",
+            projects: [],
+            projectRoots: [],
+            targets: [],
+            attributes: attributes
+        )
         pbxproj.add(object: pbxProject)
         pbxproj.rootObject = pbxProject
         return pbxProject
@@ -156,22 +180,26 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
     {
         var nativeTargets: [String: PBXNativeTarget] = [:]
         try project.targets.forEach { target in
-            let nativeTarget = try targetGenerator.generateTarget(target: target,
-                                                                  project: project,
-                                                                  pbxproj: pbxproj,
-                                                                  pbxProject: pbxProject,
-                                                                  projectSettings: project.settings,
-                                                                  fileElements: fileElements,
-                                                                  path: project.path,
-                                                                  graphTraverser: graphTraverser)
+            let nativeTarget = try targetGenerator.generateTarget(
+                target: target,
+                project: project,
+                pbxproj: pbxproj,
+                pbxProject: pbxProject,
+                projectSettings: project.settings,
+                fileElements: fileElements,
+                path: project.path,
+                graphTraverser: graphTraverser
+            )
             nativeTargets[target.name] = nativeTarget
         }
 
         /// Target dependencies
-        try targetGenerator.generateTargetDependencies(path: project.path,
-                                                       targets: project.targets,
-                                                       nativeTargets: nativeTargets,
-                                                       graphTraverser: graphTraverser)
+        try targetGenerator.generateTargetDependencies(
+            path: project.path,
+            targets: project.targets,
+            nativeTargets: nativeTargets,
+            graphTraverser: graphTraverser
+        )
         return nativeTargets
     }
 

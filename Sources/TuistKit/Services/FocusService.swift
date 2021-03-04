@@ -18,16 +18,20 @@ final class FocusServiceProjectGeneratorFactory: FocusServiceProjectGeneratorFac
 
     func generator(sources: Set<String>, xcframeworks: Bool, cacheProfile: TuistGraph.Cache.Profile, ignoreCache: Bool) -> Generating {
         let contentHasher = CacheContentHasher()
-        let graphMapperProvider = FocusGraphMapperProvider(contentHasher: contentHasher,
-                                                           cache: !ignoreCache,
-                                                           cacheSources: sources,
-                                                           cacheProfile: cacheProfile,
-                                                           cacheOutputType: xcframeworks ? .xcframework : .framework)
+        let graphMapperProvider = FocusGraphMapperProvider(
+            contentHasher: contentHasher,
+            cache: !ignoreCache,
+            cacheSources: sources,
+            cacheProfile: cacheProfile,
+            cacheOutputType: xcframeworks ? .xcframework : .framework
+        )
         let projectMapperProvider = ProjectMapperProvider(contentHasher: contentHasher)
-        return Generator(projectMapperProvider: projectMapperProvider,
-                         graphMapperProvider: graphMapperProvider,
-                         workspaceMapperProvider: WorkspaceMapperProvider(contentHasher: contentHasher),
-                         manifestLoaderFactory: ManifestLoaderFactory())
+        return Generator(
+            projectMapperProvider: projectMapperProvider,
+            graphMapperProvider: graphMapperProvider,
+            workspaceMapperProvider: WorkspaceMapperProvider(contentHasher: contentHasher),
+            manifestLoaderFactory: ManifestLoaderFactory()
+        )
     }
 }
 
@@ -54,10 +58,12 @@ final class FocusService {
             ? CacheProfileResolver.defaultCacheProfileFromTuist
             : try CacheProfileResolver().resolveCacheProfile(named: profile, from: config)
 
-        let generator = projectGeneratorFactory.generator(sources: sources,
-                                                          xcframeworks: xcframeworks,
-                                                          cacheProfile: cacheProfile,
-                                                          ignoreCache: ignoreCache)
+        let generator = projectGeneratorFactory.generator(
+            sources: sources,
+            xcframeworks: xcframeworks,
+            cacheProfile: cacheProfile,
+            ignoreCache: ignoreCache
+        )
         let workspacePath = try generator.generate(path: path, projectOnly: false)
         if !noOpen {
             try opener.open(path: workspacePath)

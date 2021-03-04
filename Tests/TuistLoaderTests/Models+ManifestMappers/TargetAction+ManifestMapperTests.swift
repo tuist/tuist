@@ -14,10 +14,12 @@ final class TargetActionManifestMapperTests: TuistUnitTestCase {
         // Given
         let temporaryPath = try self.temporaryPath()
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
-        let manifest = ProjectDescription.TargetAction.test(name: "MyScript",
-                                                            tool: "my_tool",
-                                                            order: .pre,
-                                                            arguments: ["arg1", "arg2"])
+        let manifest = ProjectDescription.TargetAction.test(
+            name: "MyScript",
+            tool: "my_tool",
+            order: .pre,
+            arguments: ["arg1", "arg2"]
+        )
         // When
         let model = try TuistGraph.TargetAction.from(manifest: manifest, generatorPaths: generatorPaths)
 

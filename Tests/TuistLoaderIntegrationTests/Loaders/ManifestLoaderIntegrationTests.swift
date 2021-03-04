@@ -28,9 +28,11 @@ final class ManifestLoaderTests: TuistTestCase {
         """
 
         let manifestPath = temporaryPath.appending(component: Manifest.config.fileName(temporaryPath))
-        try content.write(to: manifestPath.url,
-                          atomically: true,
-                          encoding: .utf8)
+        try content.write(
+            to: manifestPath.url,
+            atomically: true,
+            encoding: .utf8
+        )
 
         // When
         _ = try subject.loadConfig(at: temporaryPath)
@@ -60,9 +62,11 @@ final class ManifestLoaderTests: TuistTestCase {
         """
 
         let manifestPath = temporaryPath.appending(component: Manifest.project.fileName(temporaryPath))
-        try content.write(to: manifestPath.url,
-                          atomically: true,
-                          encoding: .utf8)
+        try content.write(
+            to: manifestPath.url,
+            atomically: true,
+            encoding: .utf8
+        )
 
         // When
         let got = try subject.loadProject(at: temporaryPath)
@@ -80,9 +84,11 @@ final class ManifestLoaderTests: TuistTestCase {
         """
 
         let manifestPath = temporaryPath.appending(component: Manifest.workspace.fileName(temporaryPath))
-        try content.write(to: manifestPath.url,
-                          atomically: true,
-                          encoding: .utf8)
+        try content.write(
+            to: manifestPath.url,
+            atomically: true,
+            encoding: .utf8
+        )
 
         // When
         let got = try subject.loadWorkspace(at: temporaryPath)
@@ -102,9 +108,11 @@ final class ManifestLoaderTests: TuistTestCase {
         """
 
         let manifestPath = temporaryPath.appending(component: Manifest.setup.fileName(temporaryPath))
-        try content.write(to: manifestPath.url,
-                          atomically: true,
-                          encoding: .utf8)
+        try content.write(
+            to: manifestPath.url,
+            atomically: true,
+            encoding: .utf8
+        )
 
         // When
         let got = try subject.loadSetup(at: temporaryPath)
@@ -129,9 +137,11 @@ final class ManifestLoaderTests: TuistTestCase {
         """
 
         let manifestPath = temporaryPath.appending(component: "Template.swift")
-        try content.write(to: manifestPath.url,
-                          atomically: true,
-                          encoding: .utf8)
+        try content.write(
+            to: manifestPath.url,
+            atomically: true,
+            encoding: .utf8
+        )
 
         // When
         let got = try subject.loadTemplate(at: temporaryPath)
@@ -153,9 +163,11 @@ final class ManifestLoaderTests: TuistTestCase {
         """
 
         let manifestPath = temporaryPath.appending(component: "folder.swift")
-        try content.write(to: manifestPath.url,
-                          atomically: true,
-                          encoding: .utf8)
+        try content.write(
+            to: manifestPath.url,
+            atomically: true,
+            encoding: .utf8
+        )
 
         // When
         let got = try subject.loadTemplate(at: temporaryPath)
@@ -173,9 +185,11 @@ final class ManifestLoaderTests: TuistTestCase {
         """
 
         let manifestPath = temporaryPath.appending(component: Manifest.project.fileName(temporaryPath))
-        try content.write(to: manifestPath.url,
-                          atomically: true,
-                          encoding: .utf8)
+        try content.write(
+            to: manifestPath.url,
+            atomically: true,
+            encoding: .utf8
+        )
 
         // When / Then
         XCTAssertThrowsError(

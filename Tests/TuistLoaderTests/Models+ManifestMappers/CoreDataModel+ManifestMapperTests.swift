@@ -15,8 +15,10 @@ final class CoreDataModeltManifestMapperTests: TuistUnitTestCase {
         let temporaryPath = try self.temporaryPath()
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
         try FileHandler.shared.touch(temporaryPath.appending(component: "model.xcdatamodeld"))
-        let manifest = ProjectDescription.CoreDataModel("model.xcdatamodeld",
-                                                        currentVersion: "1")
+        let manifest = ProjectDescription.CoreDataModel(
+            "model.xcdatamodeld",
+            currentVersion: "1"
+        )
 
         // When
         let model = try TuistGraph.CoreDataModel.from(manifest: manifest, generatorPaths: generatorPaths)

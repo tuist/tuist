@@ -16,10 +16,12 @@ extension TuistGraph.ArchiveAction {
         let preActions = try manifest.preActions.map { try TuistGraph.ExecutionAction.from(manifest: $0, generatorPaths: generatorPaths) }
         let postActions = try manifest.postActions.map { try TuistGraph.ExecutionAction.from(manifest: $0, generatorPaths: generatorPaths) }
 
-        return TuistGraph.ArchiveAction(configurationName: configurationName,
-                                        revealArchiveInOrganizer: revealArchiveInOrganizer,
-                                        customArchiveName: customArchiveName,
-                                        preActions: preActions,
-                                        postActions: postActions)
+        return TuistGraph.ArchiveAction(
+            configurationName: configurationName,
+            revealArchiveInOrganizer: revealArchiveInOrganizer,
+            customArchiveName: customArchiveName,
+            preActions: preActions,
+            postActions: postActions
+        )
     }
 }

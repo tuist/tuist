@@ -50,10 +50,12 @@ public struct RunAction: Equatable, Codable {
                 options: RunActionOptions = .options(),
                 diagnosticsOptions: [SchemeDiagnosticsOption] = [.mainThreadChecker])
     {
-        self.init(configurationName: config.name,
-                  executable: executable,
-                  arguments: arguments,
-                  options: options,
-                  diagnosticsOptions: diagnosticsOptions)
+        self.init(
+            configurationName: config.name,
+            executable: executable,
+            arguments: arguments,
+            options: options,
+            diagnosticsOptions: diagnosticsOptions
+        )
     }
 }

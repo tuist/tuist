@@ -28,13 +28,23 @@ final class CarthageTests: TuistUnitTestCase {
                 throw NSError.test()
             }
         }
-        system.succeedCommand("/path/to/carthage", "bootstrap", "--project-directory", temporaryPath.pathString, "--platform", "iOS,macOS", "Alamofire",
-                              output: "")
+        system.succeedCommand(
+            "/path/to/carthage",
+            "bootstrap",
+            "--project-directory",
+            temporaryPath.pathString,
+            "--platform",
+            "iOS,macOS",
+            "Alamofire",
+            output: ""
+        )
 
-        try subject.bootstrap(path: temporaryPath,
-                              platforms: [.iOS, .macOS],
-                              useXCFrameworks: false,
-                              dependencies: ["Alamofire"])
+        try subject.bootstrap(
+            path: temporaryPath,
+            platforms: [.iOS, .macOS],
+            useXCFrameworks: false,
+            dependencies: ["Alamofire"]
+        )
     }
 
     func test_bootstrap_XCFrameworks() throws {
@@ -46,13 +56,24 @@ final class CarthageTests: TuistUnitTestCase {
                 throw NSError.test()
             }
         }
-        system.succeedCommand("/path/to/carthage", "bootstrap", "--project-directory", temporaryPath.pathString, "--use-xcframeworks", "--platform", "iOS,macOS", "Alamofire",
-                              output: "")
+        system.succeedCommand(
+            "/path/to/carthage",
+            "bootstrap",
+            "--project-directory",
+            temporaryPath.pathString,
+            "--use-xcframeworks",
+            "--platform",
+            "iOS,macOS",
+            "Alamofire",
+            output: ""
+        )
 
-        try subject.bootstrap(path: temporaryPath,
-                              platforms: [.iOS, .macOS],
-                              useXCFrameworks: true,
-                              dependencies: ["Alamofire"])
+        try subject.bootstrap(
+            path: temporaryPath,
+            platforms: [.iOS, .macOS],
+            useXCFrameworks: true,
+            dependencies: ["Alamofire"]
+        )
     }
 
     func test_outdated() throws {
@@ -67,9 +88,11 @@ final class CarthageTests: TuistUnitTestCase {
         binary "Tuist/DependencyE.json" "4.12.0"
         """
         let cartfileResolvedPath = temporaryPath.appending(component: "Cartfile.resolved")
-        try cartfileResolved.write(to: cartfileResolvedPath.url,
-                                   atomically: true,
-                                   encoding: .utf8)
+        try cartfileResolved.write(
+            to: cartfileResolvedPath.url,
+            atomically: true,
+            encoding: .utf8
+        )
 
         let carthagePath = temporaryPath.appending(component: "Carthage")
         try FileHandler.shared.createFolder(carthagePath)

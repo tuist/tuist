@@ -6,9 +6,11 @@ import TuistSupport
 /// Command to cache targets as `.(xc)framework`s and speed up your and your peers' build times.
 struct CacheWarmCommand: ParsableCommand {
     static var configuration: CommandConfiguration {
-        CommandConfiguration(commandName: "warm",
-                             _superCommandName: "cache",
-                             abstract: "Warms the local and remote cache.")
+        CommandConfiguration(
+            commandName: "warm",
+            _superCommandName: "cache",
+            abstract: "Warms the local and remote cache."
+        )
     }
 
     @OptionGroup()

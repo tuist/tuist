@@ -48,8 +48,10 @@ public class ProjectNameAndOrganizationMapper: ProjectMapping {
         }.first
 
         let projectNameTemplate = TemplateString.Token.projectName.rawValue
-        xcodeFileName = xcodeFileName?.replacingOccurrences(of: projectNameTemplate,
-                                                            with: project.name)
+        xcodeFileName = xcodeFileName?.replacingOccurrences(
+            of: projectNameTemplate,
+            with: project.name
+        )
 
         return xcodeFileName
     }

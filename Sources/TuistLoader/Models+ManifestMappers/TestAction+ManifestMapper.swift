@@ -37,8 +37,10 @@ extension TuistGraph.TestAction {
             arguments = manifest.arguments.map { TuistGraph.Arguments.from(manifest: $0) }
             coverage = manifest.coverage
             codeCoverageTargets = try manifest.codeCoverageTargets.map {
-                TuistGraph.TargetReference(projectPath: try generatorPaths.resolveSchemeActionProjectPath($0.projectPath),
-                                           name: $0.targetName)
+                TuistGraph.TargetReference(
+                    projectPath: try generatorPaths.resolveSchemeActionProjectPath($0.projectPath),
+                    name: $0.targetName
+                )
             }
 
             diagnosticsOptions = Set(manifest.diagnosticsOptions.map { TuistGraph.SchemeDiagnosticsOption.from(manifest: $0) })
@@ -50,21 +52,27 @@ extension TuistGraph.TestAction {
         }
 
         let configurationName = manifest.configurationName
-        let preActions = try manifest.preActions.map { try TuistGraph.ExecutionAction.from(manifest: $0,
-                                                                                           generatorPaths: generatorPaths) }
-        let postActions = try manifest.postActions.map { try TuistGraph.ExecutionAction.from(manifest: $0,
-                                                                                             generatorPaths: generatorPaths) }
+        let preActions = try manifest.preActions.map { try TuistGraph.ExecutionAction.from(
+            manifest: $0,
+            generatorPaths: generatorPaths
+        ) }
+        let postActions = try manifest.postActions.map { try TuistGraph.ExecutionAction.from(
+            manifest: $0,
+            generatorPaths: generatorPaths
+        ) }
 
-        return TestAction(targets: targets,
-                          arguments: arguments,
-                          configurationName: configurationName,
-                          coverage: coverage,
-                          codeCoverageTargets: codeCoverageTargets,
-                          preActions: preActions,
-                          postActions: postActions,
-                          diagnosticsOptions: diagnosticsOptions,
-                          language: language,
-                          region: region,
-                          testPlans: testPlans)
+        return TestAction(
+            targets: targets,
+            arguments: arguments,
+            configurationName: configurationName,
+            coverage: coverage,
+            codeCoverageTargets: codeCoverageTargets,
+            preActions: preActions,
+            postActions: postActions,
+            diagnosticsOptions: diagnosticsOptions,
+            language: language,
+            region: region,
+            testPlans: testPlans
+        )
     }
 }

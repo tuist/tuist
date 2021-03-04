@@ -23,14 +23,16 @@ final class CacheMapperTests: TuistUnitTestCase {
         cacheGraphContentHasher = MockCacheGraphContentHasher()
         cacheGraphMutator = MockCacheGraphMutator()
         config = .test()
-        subject = CacheMapper(config: config,
-                              cache: cache,
-                              cacheGraphContentHasher: cacheGraphContentHasher,
-                              sources: [],
-                              cacheProfile: .test(),
-                              cacheOutputType: .framework,
-                              cacheGraphMutator: cacheGraphMutator,
-                              queue: DispatchQueue.main)
+        subject = CacheMapper(
+            config: config,
+            cache: cache,
+            cacheGraphContentHasher: cacheGraphContentHasher,
+            sources: [],
+            cacheProfile: .test(),
+            cacheOutputType: .framework,
+            cacheGraphMutator: cacheGraphMutator,
+            queue: DispatchQueue.main
+        )
         super.setUp()
     }
 
@@ -142,14 +144,16 @@ final class CacheMapperTests: TuistUnitTestCase {
 
     func test_map_forwards_correct_artifactType_to_hasher() throws {
         // Given
-        subject = CacheMapper(config: config,
-                              cache: cache,
-                              cacheGraphContentHasher: cacheGraphContentHasher,
-                              sources: [],
-                              cacheProfile: .test(),
-                              cacheOutputType: .xcframework,
-                              cacheGraphMutator: cacheGraphMutator,
-                              queue: DispatchQueue.main)
+        subject = CacheMapper(
+            config: config,
+            cache: cache,
+            cacheGraphContentHasher: cacheGraphContentHasher,
+            sources: [],
+            cacheProfile: .test(),
+            cacheOutputType: .xcframework,
+            cacheGraphMutator: cacheGraphMutator,
+            queue: DispatchQueue.main
+        )
 
         let cFramework = Target.test(name: "C", platform: .iOS, product: .framework)
         let cNode = TargetNode.test(target: cFramework, dependencies: [])

@@ -35,9 +35,11 @@ final class BuildServiceTests: TuistUnitTestCase {
         generator = MockGenerator()
         xcodebuildController = MockXcodeBuildController()
         buildgraphInspector = MockBuildGraphInspector()
-        subject = BuildService(generator: generator,
-                               xcodebuildController: xcodebuildController,
-                               buildGraphInspector: buildgraphInspector)
+        subject = BuildService(
+            generator: generator,
+            xcodebuildController: xcodebuildController,
+            buildGraphInspector: buildgraphInspector
+        )
     }
 
     override func tearDown() {

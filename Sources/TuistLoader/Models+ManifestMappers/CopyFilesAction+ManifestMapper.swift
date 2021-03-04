@@ -27,9 +27,11 @@ extension TuistGraph.CopyFilesAction {
         var invalidResourceGlobs: [InvalidGlob] = []
         let files: [TuistGraph.FileElement] = try manifest.files.flatMap { manifest -> [TuistGraph.FileElement] in
             do {
-                let files = try TuistGraph.FileElement.from(manifest: manifest,
-                                                            generatorPaths: generatorPaths,
-                                                            includeFiles: { TuistGraph.Target.isResource(path: $0) })
+                let files = try TuistGraph.FileElement.from(
+                    manifest: manifest,
+                    generatorPaths: generatorPaths,
+                    includeFiles: { TuistGraph.Target.isResource(path: $0) }
+                )
                 return files.cleanPackages()
             } catch let GlobError.nonExistentDirectory(invalidGlob) {
                 invalidResourceGlobs.append(invalidGlob)

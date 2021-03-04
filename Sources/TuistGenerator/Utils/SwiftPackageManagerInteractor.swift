@@ -34,9 +34,11 @@ public class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting {
     }
 
     public func install(graphTraverser: GraphTraversing, workspaceName: String) throws {
-        try generatePackageDependencyManager(at: graphTraverser.path,
-                                             workspaceName: workspaceName,
-                                             graphTraverser: graphTraverser)
+        try generatePackageDependencyManager(
+            at: graphTraverser.path,
+            workspaceName: workspaceName,
+            graphTraverser: graphTraverser
+        )
     }
 
     private func generatePackageDependencyManager(

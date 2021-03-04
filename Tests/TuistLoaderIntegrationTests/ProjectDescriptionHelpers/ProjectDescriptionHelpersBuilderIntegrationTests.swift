@@ -29,8 +29,10 @@ final class ProjectDescriptionHelpersBuilderIntegrationTests: TuistTestCase {
     func test_build_when_the_helpers_is_a_dylib() throws {
         // Given
         let path = try temporaryPath()
-        subject = ProjectDescriptionHelpersBuilder(cacheDirectory: path,
-                                                   helpersDirectoryLocator: helpersDirectoryLocator)
+        subject = ProjectDescriptionHelpersBuilder(
+            cacheDirectory: path,
+            helpersDirectoryLocator: helpersDirectoryLocator
+        )
         let helpersPath = path.appending(RelativePath("\(Constants.tuistDirectoryName)/\(Constants.helpersDirectoryName)"))
         try FileHandler.shared.createFolder(path.appending(component: Constants.tuistDirectoryName))
         try FileHandler.shared.createFolder(helpersPath)

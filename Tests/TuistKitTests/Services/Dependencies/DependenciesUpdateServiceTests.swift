@@ -23,8 +23,10 @@ final class DependenciesUpdateServiceTests: TuistUnitTestCase {
         dependenciesController = MockDependenciesController()
         dependenciesModelLoader = MockDependenciesModelLoader()
 
-        subject = DependenciesUpdateService(dependenciesController: dependenciesController,
-                                            dependenciesModelLoader: dependenciesModelLoader)
+        subject = DependenciesUpdateService(
+            dependenciesController: dependenciesController,
+            dependenciesModelLoader: dependenciesModelLoader
+        )
     }
 
     override func tearDown() {

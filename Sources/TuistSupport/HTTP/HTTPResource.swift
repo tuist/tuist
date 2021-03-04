@@ -22,9 +22,11 @@ public struct HTTPResource<T, E: Error>: Equatable, Hashable, CustomStringConver
 
     public func mappingRequest(_ requestMapper: @escaping (URLRequest) throws -> URLRequest) throws -> HTTPResource<T, E> {
         let request = try requestMapper(self.request())
-        return HTTPResource(request: { request },
-                            parse: parse,
-                            parseError: parseError)
+        return HTTPResource(
+            request: { request },
+            parse: parse,
+            parseError: parseError
+        )
     }
 
     // MARK: - Hashable

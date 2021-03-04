@@ -20,8 +20,10 @@ final class CacheGraphLinterTests: TuistUnitTestCase {
             .init(name: "test", order: .post, script: .embedded("echo 'Hello World'")),
         ])
         let targetNode = TargetNode.test(target: target)
-        let graph = Graph.test(entryNodes: [targetNode],
-                               targets: [targetNode.path: [targetNode]])
+        let graph = Graph.test(
+            entryNodes: [targetNode],
+            targets: [targetNode.path: [targetNode]]
+        )
 
         // When
         subject.lint(graph: graph)

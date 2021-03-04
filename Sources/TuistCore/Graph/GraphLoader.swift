@@ -30,10 +30,12 @@ public class GraphLoader: GraphLoading {
     // MARK: - Init
 
     public convenience init(modelLoader: GeneratorModelLoading) {
-        self.init(modelLoader: modelLoader,
-                  frameworkNodeLoader: FrameworkNodeLoader(),
-                  xcframeworkNodeLoader: XCFrameworkNodeLoader(),
-                  libraryNodeLoader: LibraryNodeLoader())
+        self.init(
+            modelLoader: modelLoader,
+            frameworkNodeLoader: FrameworkNodeLoader(),
+            xcframeworkNodeLoader: XCFrameworkNodeLoader(),
+            libraryNodeLoader: LibraryNodeLoader()
+        )
     }
 
     public init(modelLoader: GeneratorModelLoading,
@@ -93,10 +95,12 @@ public class GraphLoader: GraphLoading {
             let projectPath = project.path
             let projectManifest = project
             return try projectManifest.targets.map { target in
-                try self.loadTarget(name: target.name,
-                                    path: projectPath,
-                                    graphLoaderCache: graphLoaderCache,
-                                    graphCircularDetector: graphCircularDetector)
+                try self.loadTarget(
+                    name: target.name,
+                    path: projectPath,
+                    graphLoaderCache: graphLoaderCache,
+                    graphCircularDetector: graphCircularDetector
+                )
             }
         }
 
@@ -129,10 +133,12 @@ public class GraphLoader: GraphLoading {
 
             for target in project.targets {
                 if graphLoaderCache.targetNode(path, name: target.name) != nil { continue }
-                _ = try loadTarget(name: target.name,
-                                   path: path,
-                                   graphLoaderCache: graphLoaderCache,
-                                   graphCircularDetector: graphCircularDetector)
+                _ = try loadTarget(
+                    name: target.name,
+                    path: path,
+                    graphLoaderCache: graphLoaderCache,
+                    graphCircularDetector: graphCircularDetector
+                )
             }
 
             return project
@@ -162,12 +168,14 @@ public class GraphLoader: GraphLoading {
         graphLoaderCache.add(targetNode: targetNode)
 
         let dependencies: [GraphNode] = try target.dependencies.map {
-            try loadDependency(for: $0,
-                               path: path,
-                               name: name,
-                               platform: target.platform,
-                               graphLoaderCache: graphLoaderCache,
-                               graphCircularDetector: graphCircularDetector)
+            try loadDependency(
+                for: $0,
+                path: path,
+                name: name,
+                platform: target.platform,
+                graphLoaderCache: graphLoaderCache,
+                graphCircularDetector: graphCircularDetector
+            )
         }
 
         targetNode.dependencies = dependencies
@@ -213,10 +221,12 @@ public class GraphLoader: GraphLoading {
 
         // Precompiled library
         case let .library(libraryPath, publicHeaders, swiftModuleMap):
-            return try loadLibraryNode(publicHeaders: publicHeaders,
-                                       swiftModuleMap: swiftModuleMap,
-                                       libraryPath: libraryPath,
-                                       graphLoaderCache: graphLoaderCache)
+            return try loadLibraryNode(
+                publicHeaders: publicHeaders,
+                swiftModuleMap: swiftModuleMap,
+                libraryPath: libraryPath,
+                graphLoaderCache: graphLoaderCache
+            )
         // XCFramework
         case let .xcFramework(frameworkPath):
             return try loadXCFrameworkNode(path: frameworkPath, graphLoaderCache: graphLoaderCache)
@@ -262,9 +272,11 @@ public class GraphLoader: GraphLoading {
                                      graphLoaderCache: GraphLoaderCaching) throws -> LibraryNode
     {
         if let libraryNode = graphLoaderCache.precompiledNode(libraryPath) as? LibraryNode { return libraryNode }
-        let libraryNode = try libraryNodeLoader.load(path: libraryPath,
-                                                     publicHeaders: publicHeaders,
-                                                     swiftModuleMap: swiftModuleMap)
+        let libraryNode = try libraryNodeLoader.load(
+            path: libraryPath,
+            publicHeaders: publicHeaders,
+            swiftModuleMap: swiftModuleMap
+        )
 
         graphLoaderCache.add(precompiledNode: libraryNode)
         return libraryNode

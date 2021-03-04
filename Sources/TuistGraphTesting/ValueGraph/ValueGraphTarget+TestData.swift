@@ -8,8 +8,10 @@ public extension ValueGraphTarget {
                      target: Target = .test(),
                      project: Project = .test()) -> ValueGraphTarget
     {
-        ValueGraphTarget(path: path,
-                         target: target,
-                         project: project)
+        ValueGraphTarget(
+            path: path,
+            target: target,
+            project: project
+        )
     }
 }

@@ -21,10 +21,12 @@ final class UpCarthageTests: TuistUnitTestCase {
         useXCFrameworks = true
         carthage = MockCarthage()
         upHomebrew = MockUp()
-        subject = UpCarthage(platforms: platforms,
-                             useXCFrameworks: useXCFrameworks,
-                             upHomebrew: upHomebrew,
-                             carthage: carthage)
+        subject = UpCarthage(
+            platforms: platforms,
+            useXCFrameworks: useXCFrameworks,
+            upHomebrew: upHomebrew,
+            carthage: carthage
+        )
     }
 
     override func tearDown() {

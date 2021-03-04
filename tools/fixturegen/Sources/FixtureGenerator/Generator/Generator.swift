@@ -20,13 +20,17 @@ class Generator {
         let projects = (1 ... config.projects).map { "Project\($0)" }
 
         try fileSystem.createDirectory(rootPath)
-        try initWorkspaceManifest(at: rootPath,
-                                  name: "Workspace",
-                                  projects: projects)
+        try initWorkspaceManifest(
+            at: rootPath,
+            name: "Workspace",
+            projects: projects
+        )
 
         try projects.forEach {
-            try initProject(at: rootPath,
-                            name: $0)
+            try initProject(
+                at: rootPath,
+                name: $0
+            )
         }
     }
 
@@ -36,10 +40,14 @@ class Generator {
     {
         let manifestPath = path.appending(component: "Workspace.swift")
 
-        let manifest = manifestTemplate.generate(workspaceName: name,
-                                                 projects: projects)
-        try fileSystem.writeFileContents(manifestPath,
-                                         bytes: ByteString(encodingAsUTF8: manifest))
+        let manifest = manifestTemplate.generate(
+            workspaceName: name,
+            projects: projects
+        )
+        try fileSystem.writeFileContents(
+            manifestPath,
+            bytes: ByteString(encodingAsUTF8: manifest)
+        )
     }
 
     private func initProject(at path: AbsolutePath,
@@ -62,10 +70,14 @@ class Generator {
     {
         let manifestPath = path.appending(component: "Project.swift")
 
-        let manifest = manifestTemplate.generate(projectName: name,
-                                                 targets: targets)
-        try fileSystem.writeFileContents(manifestPath,
-                                         bytes: ByteString(encodingAsUTF8: manifest))
+        let manifest = manifestTemplate.generate(
+            projectName: name,
+            targets: targets
+        )
+        try fileSystem.writeFileContents(
+            manifestPath,
+            bytes: ByteString(encodingAsUTF8: manifest)
+        )
     }
 
     private func initTarget(at path: AbsolutePath, name: String) throws {
@@ -82,8 +94,10 @@ class Generator {
         try (1 ... config.sources).forEach {
             let sourceName = "Source\($0).swift"
             let source = sourceTemplate.generate(frameworkName: targetName, number: $0)
-            try fileSystem.writeFileContents(sourcesPath.appending(component: sourceName),
-                                             bytes: ByteString(encodingAsUTF8: source))
+            try fileSystem.writeFileContents(
+                sourcesPath.appending(component: sourceName),
+                bytes: ByteString(encodingAsUTF8: source)
+            )
         }
     }
 }

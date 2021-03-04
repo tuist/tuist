@@ -34,9 +34,11 @@ final class TemplateGeneratorTests: TuistTestCase {
         let template = Template.test(files: files)
 
         // When
-        try subject.generate(template: template,
-                             to: destinationPath,
-                             attributes: [:])
+        try subject.generate(
+            template: template,
+            to: destinationPath,
+            attributes: [:]
+        )
 
         // Then
         XCTAssertTrue(expectedDirectories.allSatisfy(FileHandler.shared.exists))
@@ -55,11 +57,13 @@ final class TemplateGeneratorTests: TuistTestCase {
                                    RelativePath("test_name/nested_dir")].map(destinationPath.appending)
 
         // When
-        try subject.generate(template: template,
-                             to: destinationPath,
-                             attributes: ["name": "test_name",
-                                          "aName": "test",
-                                          "bName": "nested_dir"])
+        try subject.generate(
+            template: template,
+            to: destinationPath,
+            attributes: ["name": "test_name",
+                         "aName": "test",
+                         "bName": "nested_dir"]
+        )
 
         // Then
         XCTAssertTrue(expectedDirectories.allSatisfy(FileHandler.shared.exists))
@@ -87,9 +91,11 @@ final class TemplateGeneratorTests: TuistTestCase {
         }
 
         // When
-        try subject.generate(template: template,
-                             to: destinationPath,
-                             attributes: [:])
+        try subject.generate(
+            template: template,
+            to: destinationPath,
+            attributes: [:]
+        )
 
         // Then
         try expectedFiles.forEach {
@@ -121,15 +127,17 @@ final class TemplateGeneratorTests: TuistTestCase {
         ]
 
         // When
-        try subject.generate(template: template,
-                             to: destinationPath,
-                             attributes: [
-                                 "name": name,
-                                 "contentName": contentName,
-                                 "directoryName": directoryName,
-                                 "fileName": fileName,
-                                 "filePath": filePath,
-                             ])
+        try subject.generate(
+            template: template,
+            to: destinationPath,
+            attributes: [
+                "name": name,
+                "contentName": contentName,
+                "directoryName": directoryName,
+                "fileName": fileName,
+                "filePath": filePath,
+            ]
+        )
 
         // Then
         try expectedFiles.forEach {
@@ -157,9 +165,11 @@ final class TemplateGeneratorTests: TuistTestCase {
         ]
 
         // When
-        try subject.generate(template: template,
-                             to: destinationPath,
-                             attributes: ["name": name])
+        try subject.generate(
+            template: template,
+            to: destinationPath,
+            attributes: ["name": name]
+        )
 
         // Then
         try expectedFiles.forEach {
@@ -172,20 +182,28 @@ final class TemplateGeneratorTests: TuistTestCase {
         let sourcePath = try temporaryPath()
         let destinationPath = try temporaryPath()
         let expectedContents = "attribute name content"
-        try FileHandler.shared.write("{{ name }} content",
-                                     path: sourcePath.appending(component: "a.stencil"),
-                                     atomically: true)
-        let template = Template.test(files: [Template.File(path: RelativePath("a"),
-                                                           contents: .file(sourcePath.appending(component: "a.stencil")))])
+        try FileHandler.shared.write(
+            "{{ name }} content",
+            path: sourcePath.appending(component: "a.stencil"),
+            atomically: true
+        )
+        let template = Template.test(files: [Template.File(
+            path: RelativePath("a"),
+            contents: .file(sourcePath.appending(component: "a.stencil"))
+        )])
 
         // When
-        try subject.generate(template: template,
-                             to: destinationPath,
-                             attributes: ["name": "attribute name"])
+        try subject.generate(
+            template: template,
+            to: destinationPath,
+            attributes: ["name": "attribute name"]
+        )
 
         // Then
-        XCTAssertEqual(try FileHandler.shared.readTextFile(destinationPath.appending(component: "a")),
-                       expectedContents)
+        XCTAssertEqual(
+            try FileHandler.shared.readTextFile(destinationPath.appending(component: "a")),
+            expectedContents
+        )
     }
 
     func test_only_stencil_files_rendered() throws {
@@ -194,47 +212,67 @@ final class TemplateGeneratorTests: TuistTestCase {
         let destinationPath = try temporaryPath()
         let expectedRenderedContents = "attribute name content"
         let expectedUnrenderedContents = "{{ name }} content"
-        try FileHandler.shared.write("{{ name }} content",
-                                     path: sourcePath.appending(component: "a.stencil"),
-                                     atomically: true)
-        try FileHandler.shared.write("{{ name }} content",
-                                     path: sourcePath.appending(component: "a.swift"),
-                                     atomically: true)
+        try FileHandler.shared.write(
+            "{{ name }} content",
+            path: sourcePath.appending(component: "a.stencil"),
+            atomically: true
+        )
+        try FileHandler.shared.write(
+            "{{ name }} content",
+            path: sourcePath.appending(component: "a.swift"),
+            atomically: true
+        )
         let template = Template.test(files: [
-            Template.File(path: RelativePath("unrendered"),
-                          contents: .file(sourcePath.appending(component: "a.swift"))),
-            Template.File(path: RelativePath("rendered"),
-                          contents: .file(sourcePath.appending(component: "a.stencil"))),
+            Template.File(
+                path: RelativePath("unrendered"),
+                contents: .file(sourcePath.appending(component: "a.swift"))
+            ),
+            Template.File(
+                path: RelativePath("rendered"),
+                contents: .file(sourcePath.appending(component: "a.stencil"))
+            ),
         ])
 
         // When
-        try subject.generate(template: template,
-                             to: destinationPath,
-                             attributes: ["name": "attribute name"])
+        try subject.generate(
+            template: template,
+            to: destinationPath,
+            attributes: ["name": "attribute name"]
+        )
 
         // Then
-        XCTAssertEqual(try FileHandler.shared.readTextFile(destinationPath.appending(component: "rendered")),
-                       expectedRenderedContents)
-        XCTAssertEqual(try FileHandler.shared.readTextFile(destinationPath.appending(component: "unrendered")),
-                       expectedUnrenderedContents)
+        XCTAssertEqual(
+            try FileHandler.shared.readTextFile(destinationPath.appending(component: "rendered")),
+            expectedRenderedContents
+        )
+        XCTAssertEqual(
+            try FileHandler.shared.readTextFile(destinationPath.appending(component: "unrendered")),
+            expectedUnrenderedContents
+        )
     }
 
     func test_empty_stencil_files_are_skipped() throws {
         // Given
         let sourcePath = try temporaryPath()
         let destinationPath = try temporaryPath()
-        try FileHandler.shared.write("   \n   ",
-                                     path: sourcePath.appending(component: "b.stencil"),
-                                     atomically: true)
+        try FileHandler.shared.write(
+            "   \n   ",
+            path: sourcePath.appending(component: "b.stencil"),
+            atomically: true
+        )
         let template = Template.test(files: [
-            Template.File(path: RelativePath("ignore"),
-                          contents: .file(sourcePath.appending(component: "b.stencil"))),
+            Template.File(
+                path: RelativePath("ignore"),
+                contents: .file(sourcePath.appending(component: "b.stencil"))
+            ),
         ])
 
         // When
-        try subject.generate(template: template,
-                             to: destinationPath,
-                             attributes: ["name": "attribute name"])
+        try subject.generate(
+            template: template,
+            to: destinationPath,
+            attributes: ["name": "attribute name"]
+        )
 
         // Then
         XCTAssertFalse(FileHandler.shared.exists(destinationPath.appending(component: "ignore")))

@@ -21,9 +21,11 @@ final class DependenciesControllerTests: TuistUnitTestCase {
         cocoaPodsInteractor = MockCocoaPodsInteractor()
         swiftPackageManagerInteractor = MockSwiftPackageManagerInteractor()
 
-        subject = DependenciesController(carthageInteractor: carthageInteractor,
-                                         cocoaPodsInteractor: cocoaPodsInteractor,
-                                         swiftPackageManagerInteractor: swiftPackageManagerInteractor)
+        subject = DependenciesController(
+            carthageInteractor: carthageInteractor,
+            cocoaPodsInteractor: cocoaPodsInteractor,
+            swiftPackageManagerInteractor: swiftPackageManagerInteractor
+        )
     }
 
     override func tearDown() {

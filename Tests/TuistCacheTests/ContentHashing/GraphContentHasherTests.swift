@@ -40,13 +40,15 @@ final class GraphContentHasherTests: TuistUnitTestCase {
         let dynamicLibraryTarget = TargetNode.test(project: .test(path: path), target: .test(name: "DynamicLibrary", product: .dynamicLibrary, infoPlist: nil, entitlements: nil))
         let staticFrameworkTarget = TargetNode.test(project: .test(path: path), target: .test(name: "StaticFramework", product: .staticFramework, infoPlist: nil, entitlements: nil))
 
-        let graph = Graph.test(entryPath: path,
-                               entryNodes: [],
-                               projects: [],
-                               cocoapods: [],
-                               packages: [],
-                               precompiled: [],
-                               targets: [path: [frameworkTarget, secondFrameworkTarget, appTarget, dynamicLibraryTarget, staticFrameworkTarget]])
+        let graph = Graph.test(
+            entryPath: path,
+            entryNodes: [],
+            projects: [],
+            cocoapods: [],
+            packages: [],
+            precompiled: [],
+            targets: [path: [frameworkTarget, secondFrameworkTarget, appTarget, dynamicLibraryTarget, staticFrameworkTarget]]
+        )
 
         let expectedCachableTargets = [frameworkTarget, secondFrameworkTarget].sorted(by: { $0.target.name < $1.target.name })
 

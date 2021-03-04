@@ -18,9 +18,11 @@ final class InstallerTests: TuistUnitTestCase {
         versionsController = try! MockVersionsController()
         tmpDir = try! TemporaryDirectory(removeTreeOnDeinit: true)
         googleCloudStorageClient = MockGoogleCloudStorageClient()
-        subject = Installer(buildCopier: buildCopier,
-                            versionsController: versionsController,
-                            googleCloudStorageClient: googleCloudStorageClient)
+        subject = Installer(
+            buildCopier: buildCopier,
+            versionsController: versionsController,
+            googleCloudStorageClient: googleCloudStorageClient
+        )
     }
 
     override func tearDown() {
@@ -51,16 +53,25 @@ final class InstallerTests: TuistUnitTestCase {
         let downloadPath = temporaryDirectory
             .path
             .appending(component: Constants.bundleName)
-        system.succeedCommand("/usr/bin/curl", "-LSs",
-                              "--output", downloadPath.pathString,
-                              downloadURL.absoluteString)
-        system.succeedCommand("/usr/bin/unzip",
-                              "-q",
-                              downloadPath.pathString,
-                              "-d", temporaryPath.pathString)
+        system.succeedCommand(
+            "/usr/bin/curl",
+            "-LSs",
+            "--output",
+            downloadPath.pathString,
+            downloadURL.absoluteString
+        )
+        system.succeedCommand(
+            "/usr/bin/unzip",
+            "-q",
+            downloadPath.pathString,
+            "-d",
+            temporaryPath.pathString
+        )
 
-        try subject.install(version: version,
-                            temporaryDirectory: temporaryDirectory.path)
+        try subject.install(
+            version: version,
+            temporaryDirectory: temporaryDirectory.path
+        )
 
         XCTAssertPrinterOutputContains("""
         Downloading version 3.2.1
@@ -88,10 +99,14 @@ final class InstallerTests: TuistUnitTestCase {
         let downloadPath = temporaryDirectory
             .path
             .appending(component: Constants.bundleName)
-        system.errorCommand("/usr/bin/curl", "-LSs",
-                            "--output", downloadPath.pathString,
-                            downloadURL.absoluteString,
-                            error: "download_error")
+        system.errorCommand(
+            "/usr/bin/curl",
+            "-LSs",
+            "--output",
+            downloadPath.pathString,
+            downloadURL.absoluteString,
+            error: "download_error"
+        )
 
         XCTAssertThrowsError(try subject.install(version: version, temporaryDirectory: temporaryDirectory.path))
     }
@@ -114,12 +129,20 @@ final class InstallerTests: TuistUnitTestCase {
         let downloadPath = temporaryDirectory
             .path
             .appending(component: Constants.bundleName)
-        system.succeedCommand("/usr/bin/curl", "-LSs",
-                              "--output", downloadPath.pathString,
-                              downloadURL.absoluteString)
-        system.errorCommand("/usr/bin/unzip", downloadPath.pathString,
-                            "-d", temporaryPath.pathString,
-                            error: "unzip_error")
+        system.succeedCommand(
+            "/usr/bin/curl",
+            "-LSs",
+            "--output",
+            downloadPath.pathString,
+            downloadURL.absoluteString
+        )
+        system.errorCommand(
+            "/usr/bin/unzip",
+            downloadPath.pathString,
+            "-d",
+            temporaryPath.pathString,
+            error: "unzip_error"
+        )
 
         XCTAssertThrowsError(try subject.install(version: version, temporaryDirectory: temporaryDirectory.path))
     }

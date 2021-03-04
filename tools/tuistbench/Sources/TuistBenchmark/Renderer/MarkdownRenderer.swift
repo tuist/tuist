@@ -46,12 +46,16 @@ final class MarkdownRenderer: Renderer {
         let coldReference = format(result.reference.coldRuns.average())
         let warmReference = format(result.reference.warmRuns.average())
 
-        let coldDelta = delta(first: result.results.coldRuns.average(),
-                              second: result.reference.coldRuns.average(),
-                              threshold: deltaThreshold)
-        let warmDelta = delta(first: result.results.warmRuns.average(),
-                              second: result.reference.warmRuns.average(),
-                              threshold: deltaThreshold)
+        let coldDelta = delta(
+            first: result.results.coldRuns.average(),
+            second: result.reference.coldRuns.average(),
+            threshold: deltaThreshold
+        )
+        let warmDelta = delta(
+            first: result.results.warmRuns.average(),
+            second: result.reference.warmRuns.average(),
+            threshold: deltaThreshold
+        )
 
         return [
             "| \(result.fixture) _(cold)_ | \(cold)s | \(coldReference)s | \(coldDelta) |",

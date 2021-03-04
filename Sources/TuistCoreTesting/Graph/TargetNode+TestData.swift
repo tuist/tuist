@@ -8,8 +8,10 @@ public extension TargetNode {
                      target: Target = .test(),
                      dependencies: [GraphNode] = []) -> TargetNode
     {
-        TargetNode(project: project,
-                   target: target,
-                   dependencies: dependencies)
+        TargetNode(
+            project: project,
+            target: target,
+            dependencies: dependencies
+        )
     }
 }

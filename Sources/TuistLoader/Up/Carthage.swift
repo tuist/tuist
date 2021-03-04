@@ -92,10 +92,14 @@ final class Carthage: Carthaging {
         let carfileResolvedNSString = carfileResolved as NSString
         let jsonDecoder = JSONDecoder()
 
-        try Carthage.resolvedLineRegex.matches(in: carfileResolved,
-                                               options: [],
-                                               range: NSRange(location: 0,
-                                                              length: carfileResolved.count)).forEach { match in
+        try Carthage.resolvedLineRegex.matches(
+            in: carfileResolved,
+            options: [],
+            range: NSRange(
+                location: 0,
+                length: carfileResolved.count
+            )
+        ).forEach { match in
             let dependencyNameRange = match.range(at: 2)
             var dependencyName = String(carfileResolvedNSString.substring(with: dependencyNameRange).split(separator: "/").last!)
 

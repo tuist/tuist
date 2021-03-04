@@ -33,25 +33,35 @@ final class TemplateLoaderTests: TuistUnitTestCase {
         }
 
         // Then
-        XCTAssertThrowsSpecific(try subject.loadTemplate(at: temporaryPath),
-                                ManifestLoaderError.manifestNotFound(temporaryPath))
+        XCTAssertThrowsSpecific(
+            try subject.loadTemplate(at: temporaryPath),
+            ManifestLoaderError.manifestNotFound(temporaryPath)
+        )
     }
 
     func test_loadTemplate_files() throws {
         // Given
         let temporaryPath = try self.temporaryPath()
         manifestLoader.loadTemplateStub = { _ in
-            ProjectDescription.Template(description: "desc",
-                                        files: [ProjectDescription.Template.File(path: "generateOne",
-                                                                                 contents: .file("fileOne"))])
+            ProjectDescription.Template(
+                description: "desc",
+                files: [ProjectDescription.Template.File(
+                    path: "generateOne",
+                    contents: .file("fileOne")
+                )]
+            )
         }
 
         // When
         let got = try subject.loadTemplate(at: temporaryPath)
 
         // Then
-        XCTAssertEqual(got, TuistGraph.Template(description: "desc",
-                                                files: [Template.File(path: RelativePath("generateOne"),
-                                                                      contents: .file(temporaryPath.appending(component: "fileOne")))]))
+        XCTAssertEqual(got, TuistGraph.Template(
+            description: "desc",
+            files: [Template.File(
+                path: RelativePath("generateOne"),
+                contents: .file(temporaryPath.appending(component: "fileOne"))
+            )]
+        ))
     }
 }

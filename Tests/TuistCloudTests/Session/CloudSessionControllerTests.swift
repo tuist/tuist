@@ -88,10 +88,12 @@ final class CloudSessionControllerTests: TuistUnitTestCase {
         ciChecker = MockCIChecker()
         opener = MockOpener()
         serverURL = URL.test()
-        subject = CloudSessionController(credentialsStore: credentialsStore,
-                                         httpRedirectListener: httpRedirectListener,
-                                         ciChecker: ciChecker,
-                                         opener: opener)
+        subject = CloudSessionController(
+            credentialsStore: credentialsStore,
+            httpRedirectListener: httpRedirectListener,
+            ciChecker: ciChecker,
+            opener: opener
+        )
         super.setUp()
     }
 

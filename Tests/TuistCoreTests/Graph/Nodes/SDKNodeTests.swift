@@ -24,8 +24,10 @@ final class SDKNodeTests: XCTestCase {
     }
 
     func test_sdk_usupportedTypes() throws {
-        XCTAssertThrowsSpecific(try SDKNode(name: "FooBar", platform: .tvOS, status: .required, source: .developer),
-                                SDKNode.Error.unsupported(sdk: "FooBar"))
+        XCTAssertThrowsSpecific(
+            try SDKNode(name: "FooBar", platform: .tvOS, status: .required, source: .developer),
+            SDKNode.Error.unsupported(sdk: "FooBar")
+        )
     }
 
     func test_sdk_errors() {
@@ -71,8 +73,10 @@ final class SDKNodeTests: XCTestCase {
     }
 
     func test_xctest_sdk_framework_unsupported_platforms_path() throws {
-        XCTAssertThrowsSpecific(try SDKNode(name: "XCTest.framework", platform: .watchOS, status: .required, source: .developer),
-                                SDKNode.Error.unsupported(sdk: "XCTest.framework"))
+        XCTAssertThrowsSpecific(
+            try SDKNode(name: "XCTest.framework", platform: .watchOS, status: .required, source: .developer),
+            SDKNode.Error.unsupported(sdk: "XCTest.framework")
+        )
     }
 
     func test_sdk_library_paths() throws {
@@ -96,10 +100,12 @@ final class SDKNodeTests: XCTestCase {
 
     func test_name_removesTheExtension() throws {
         // Given
-        let subject = try SDKNode(name: "CoreData.framework",
-                                  platform: .iOS,
-                                  status: .required,
-                                  source: .developer)
+        let subject = try SDKNode(
+            name: "CoreData.framework",
+            platform: .iOS,
+            status: .required,
+            source: .developer
+        )
 
         // When
         let got = subject.name

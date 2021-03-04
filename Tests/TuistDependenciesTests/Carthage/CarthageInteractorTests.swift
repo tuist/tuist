@@ -30,9 +30,11 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         carthageController = MockCarthageController()
         carthageCommandGenerator = MockCarthageCommandGenerator()
 
-        subject = CarthageInteractor(fileHandler: fileHandlerMock,
-                                     carthageController: carthageController,
-                                     carthageCommandGenerator: carthageCommandGenerator)
+        subject = CarthageInteractor(
+            fileHandler: fileHandlerMock,
+            carthageController: carthageController,
+            carthageCommandGenerator: carthageCommandGenerator
+        )
     }
 
     override func tearDown() {

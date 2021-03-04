@@ -6,8 +6,10 @@ import TuistSupport
 
 struct DumpCommand: ParsableCommand {
     static var configuration: CommandConfiguration {
-        CommandConfiguration(commandName: "dump",
-                             abstract: "Outputs the project manifest as a JSON")
+        CommandConfiguration(
+            commandName: "dump",
+            abstract: "Outputs the project manifest as a JSON"
+        )
     }
 
     // MARK: - Attributes

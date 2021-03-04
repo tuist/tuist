@@ -32,14 +32,16 @@ extension TuistGraph.TargetAction {
             script = .tool(tool, arguments)
         }
 
-        return TargetAction(name: name,
-                            order: order,
-                            script: script,
-                            inputPaths: inputPaths,
-                            inputFileListPaths: inputFileListPaths,
-                            outputPaths: outputPaths,
-                            outputFileListPaths: outputFileListPaths,
-                            basedOnDependencyAnalysis: basedOnDependencyAnalysis)
+        return TargetAction(
+            name: name,
+            order: order,
+            script: script,
+            inputPaths: inputPaths,
+            inputFileListPaths: inputFileListPaths,
+            outputPaths: outputPaths,
+            outputFileListPaths: outputFileListPaths,
+            basedOnDependencyAnalysis: basedOnDependencyAnalysis
+        )
     }
 }
 

@@ -103,10 +103,12 @@ public class FileHandler: FileHandling {
         // - https://developer.apple.com/documentation/foundation/filemanager/2293212-replaceitemat
         // - https://developer.apple.com/documentation/foundation/filemanager/1407693-url
         // - https://openradar.appspot.com/50553219
-        let rootTempDir = try fileManager.url(for: .itemReplacementDirectory,
-                                              in: .userDomainMask,
-                                              appropriateFor: to.url,
-                                              create: true)
+        let rootTempDir = try fileManager.url(
+            for: .itemReplacementDirectory,
+            in: .userDomainMask,
+            appropriateFor: to.url,
+            create: true
+        )
         let tempUrl = rootTempDir.appendingPathComponent("temp")
         defer { try? fileManager.removeItem(at: rootTempDir) }
         try fileManager.copyItem(at: with.url, to: tempUrl)
@@ -207,9 +209,11 @@ public class FileHandler: FileHandling {
 
     public func createFolder(_ path: AbsolutePath) throws {
         logger.debug("Creating folder at path \(path)")
-        try fileManager.createDirectory(at: path.url,
-                                        withIntermediateDirectories: true,
-                                        attributes: nil)
+        try fileManager.createDirectory(
+            at: path.url,
+            withIntermediateDirectories: true,
+            attributes: nil
+        )
     }
 
     public func delete(_ path: AbsolutePath) throws {
@@ -221,9 +225,11 @@ public class FileHandler: FileHandling {
 
     public func touch(_ path: AbsolutePath) throws {
         logger.debug("Touching \(path)")
-        try fileManager.createDirectory(at: path.removingLastComponent().url,
-                                        withIntermediateDirectories: true,
-                                        attributes: nil)
+        try fileManager.createDirectory(
+            at: path.removingLastComponent().url,
+            withIntermediateDirectories: true,
+            attributes: nil
+        )
         try Data().write(to: path.url)
     }
 

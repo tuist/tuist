@@ -20,10 +20,12 @@ final class UpRomeTests: TuistUnitTestCase {
         cachePrefix = "Swift_1_2"
         rome = MockRome()
         upHomebrew = MockUp()
-        subject = UpRome(platforms: platforms,
-                         cachePrefix: cachePrefix,
-                         upHomebrew: upHomebrew,
-                         rome: rome)
+        subject = UpRome(
+            platforms: platforms,
+            cachePrefix: cachePrefix,
+            upHomebrew: upHomebrew,
+            rome: rome
+        )
     }
 
     override func tearDown() {
