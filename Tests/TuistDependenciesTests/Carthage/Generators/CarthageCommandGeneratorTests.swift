@@ -25,7 +25,7 @@ final class CarthageCommandGeneratorTests: TuistUnitTestCase {
 
         // When
         let got = subject
-            .command(path: stubbedPath, produceXCFrameworks: false, platforms: nil)
+            .command(path: stubbedPath, produceXCFrameworks: false, noUseBinaries: false, platforms: nil)
             .joined(separator: " ")
 
         // Then
@@ -39,7 +39,7 @@ final class CarthageCommandGeneratorTests: TuistUnitTestCase {
 
         // When
         let got = subject
-            .command(path: stubbedPath, produceXCFrameworks: false, platforms: [.iOS])
+            .command(path: stubbedPath, produceXCFrameworks: false, noUseBinaries: false, platforms: [.iOS])
             .joined(separator: " ")
 
         // Then
@@ -53,7 +53,21 @@ final class CarthageCommandGeneratorTests: TuistUnitTestCase {
 
         // When
         let got = subject
-            .command(path: stubbedPath, produceXCFrameworks: true, platforms: [.iOS, .tvOS, .macOS, .watchOS])
+            .command(path: stubbedPath, produceXCFrameworks: true, noUseBinaries: false, platforms: [.iOS, .tvOS, .macOS, .watchOS])
+            .joined(separator: " ")
+
+        // Then
+        XCTAssertEqual(got, expected)
+    }
+    
+    func test_command_with_platforms_and_xcframeworks_and_noUseBinaries() throws {
+        // Given
+        let stubbedPath = try temporaryPath()
+        let expected = "carthage bootstrap --project-directory \(stubbedPath.pathString) --platform iOS,macOS,tvOS,watchOS --use-netrc --cache-builds --new-resolver --use-xcframeworks --no-use-binaries"
+
+        // When
+        let got = subject
+            .command(path: stubbedPath, produceXCFrameworks: true, noUseBinaries: true, platforms: [.iOS, .tvOS, .macOS, .watchOS])
             .joined(separator: " ")
 
         // Then

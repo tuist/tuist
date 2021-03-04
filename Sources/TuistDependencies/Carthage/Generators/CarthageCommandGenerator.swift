@@ -10,8 +10,9 @@ public protocol CarthageCommandGenerating {
     /// - Parameters:
     ///   - path: Directory whose project's dependencies will be installed.
     ///   - produceXCFrameworks: Indicates whether `Carthage` produces XCFrameworks instead of regular frameworks.
+    ///   - noUseBinaries: Indicates whether Carthage rebuilds the dependency from source instead of using downloaded binaries when possible.
     ///   - platforms: The platforms to build for.
-    func command(path: AbsolutePath, produceXCFrameworks: Bool, platforms: Set<Platform>?) -> [String]
+    func command(path: AbsolutePath, produceXCFrameworks: Bool, noUseBinaries: Bool, platforms: Set<Platform>?) -> [String]
 }
 
 // MARK: - Carthage Command Generator
@@ -19,7 +20,7 @@ public protocol CarthageCommandGenerating {
 public final class CarthageCommandGenerator: CarthageCommandGenerating {
     public init() {}
 
-    public func command(path: AbsolutePath, produceXCFrameworks: Bool, platforms: Set<Platform>?) -> [String] {
+    public func command(path: AbsolutePath, produceXCFrameworks: Bool, noUseBinaries: Bool, platforms: Set<Platform>?) -> [String] {
         var commandComponents: [String] = []
         commandComponents.append("carthage")
         commandComponents.append("bootstrap")
@@ -49,6 +50,10 @@ public final class CarthageCommandGenerator: CarthageCommandGenerating {
 
         if produceXCFrameworks {
             commandComponents.append("--use-xcframeworks")
+        }
+        
+        if noUseBinaries {
+            commandComponents.append("--no-use-binaries")
         }
 
         // Return

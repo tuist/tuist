@@ -92,6 +92,7 @@ public final class CarthageInteractor: CarthageInteracting {
             let command = carthageCommandGenerator.command(
                 path: temporaryDirectoryPath,
                 produceXCFrameworks: try shouldProduceXCFrameworks(dependencies: dependencies),
+                noUseBinaries: dependencies.noUseBinaries,
                 platforms: dependencies.platforms
             )
 

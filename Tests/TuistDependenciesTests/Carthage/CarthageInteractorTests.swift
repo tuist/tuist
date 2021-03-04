@@ -61,7 +61,8 @@ final class CarthageInteractorTests: TuistUnitTestCase {
                 .github(path: "Moya", requirement: .exact("1.1.1")),
             ],
             platforms: [.iOS],
-            useXCFrameworks: false
+            useXCFrameworks: false,
+            noUseBinaries: false
         )
 
         // When / Then
@@ -84,7 +85,8 @@ final class CarthageInteractorTests: TuistUnitTestCase {
                 .github(path: "Moya", requirement: .exact("1.1.1")),
             ],
             platforms: [.iOS],
-            useXCFrameworks: true
+            useXCFrameworks: true,
+            noUseBinaries: false
         )
 
         XCTAssertThrowsSpecific(
@@ -120,16 +122,18 @@ final class CarthageInteractorTests: TuistUnitTestCase {
 
         let platforms = Set<Platform>([.iOS, .watchOS, .macOS, .tvOS])
         let useXCFrameworks = false
+        let noUseBinaries = false
         let stubbedDependencies = CarthageDependencies(
             [
                 .github(path: "Moya", requirement: .exact("1.1.1")),
             ],
             platforms: platforms,
-            useXCFrameworks: useXCFrameworks
+            useXCFrameworks: useXCFrameworks,
+            noUseBinaries: noUseBinaries
         )
         let stubbedCommand = ["carthage", "bootstrap", "--project-directory", temporaryDirectoryPath.pathString, "--platform iOS,macOS,tvOS,watchOS", "--cache-builds", "--new-resolver"]
 
-        carthageCommandGenerator.commandStub = { _, _, _ in stubbedCommand }
+        carthageCommandGenerator.commandStub = { _, _, _, _ in stubbedCommand }
 
         system.whichStub = { _ in "1.0.0" }
         system.succeedCommand(stubbedCommand)
@@ -162,6 +166,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         XCTAssertEqual(carthageCommandGenerator.invokedCommandParameters?.path, temporaryDirectoryPath)
         XCTAssertEqual(carthageCommandGenerator.invokedCommandParameters?.platforms, platforms)
         XCTAssertEqual(carthageCommandGenerator.invokedCommandParameters?.produceXCFrameworks, useXCFrameworks)
+        XCTAssertEqual(carthageCommandGenerator.invokedCommandParameters?.noUseBinaries, noUseBinaries)
     }
 
     func test_fetch_onePlatform() throws {
@@ -182,16 +187,18 @@ final class CarthageInteractorTests: TuistUnitTestCase {
 
         let platforms = Set<Platform>([.iOS])
         let useXCFrameworks = false
+        let noUseBinaries = false
         let stubbedDependencies = CarthageDependencies(
             [
                 .github(path: "Moya", requirement: .exact("1.1.1")),
             ],
             platforms: platforms,
-            useXCFrameworks: useXCFrameworks
+            useXCFrameworks: useXCFrameworks,
+            noUseBinaries: noUseBinaries
         )
         let stubbedCommand = ["carthage", "bootstrap", "--project-directory", temporaryDirectoryPath.pathString, "--platform iOS", "--cache-builds", "--new-resolver"]
 
-        carthageCommandGenerator.commandStub = { _, _, _ in stubbedCommand }
+        carthageCommandGenerator.commandStub = { _, _, _, _ in stubbedCommand }
 
         system.whichStub = { _ in "1.0.0" }
         system.succeedCommand(stubbedCommand)
@@ -224,5 +231,6 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         XCTAssertEqual(carthageCommandGenerator.invokedCommandParameters?.path, temporaryDirectoryPath)
         XCTAssertEqual(carthageCommandGenerator.invokedCommandParameters?.platforms, platforms)
         XCTAssertEqual(carthageCommandGenerator.invokedCommandParameters?.produceXCFrameworks, useXCFrameworks)
+        XCTAssertEqual(carthageCommandGenerator.invokedCommandParameters?.noUseBinaries, noUseBinaries)
     }
 }

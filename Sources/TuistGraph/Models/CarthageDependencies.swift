@@ -8,12 +8,20 @@ public struct CarthageDependencies: Equatable {
     public let platforms: Set<Platform>
     /// Indicates whether Carthage produces XCFrameworks or regular frameworks.
     public let useXCFrameworks: Bool
+    /// Indicates whether Carthage rebuilds the dependency from source instead of using downloaded binaries when possible.
+    public let noUseBinaries: Bool
 
     /// Initializes the carthage dependency with its attributes.
-    public init(_ dependencies: [Dependency], platforms: Set<Platform>, useXCFrameworks: Bool) {
+    public init(
+        _ dependencies: [Dependency],
+        platforms: Set<Platform>,
+        useXCFrameworks: Bool,
+        noUseBinaries: Bool
+    ) {
         self.dependencies = dependencies
         self.platforms = platforms
         self.useXCFrameworks = useXCFrameworks
+        self.noUseBinaries = noUseBinaries
     }
 
     /// Returns `Cartfile` representation.

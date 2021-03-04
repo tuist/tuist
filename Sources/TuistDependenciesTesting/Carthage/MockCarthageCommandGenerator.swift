@@ -8,17 +8,17 @@ public final class MockCarthageCommandGenerator: CarthageCommandGenerating {
 
     var invokedCommand = false
     var invokedCommandCount = 0
-    var invokedCommandParameters: (path: AbsolutePath, produceXCFrameworks: Bool, platforms: Set<Platform>?)?
-    var invokedCommandParametersList = [(path: AbsolutePath, produceXCFrameworks: Bool, platforms: Set<Platform>?)]()
-    var commandStub: ((AbsolutePath, Bool, Set<Platform>?) -> [String])?
+    var invokedCommandParameters: (path: AbsolutePath, produceXCFrameworks: Bool, noUseBinaries: Bool, platforms: Set<Platform>?)?
+    var invokedCommandParametersList = [(path: AbsolutePath, produceXCFrameworks: Bool, noUseBinaries: Bool, platforms: Set<Platform>?)]()
+    var commandStub: ((AbsolutePath, Bool, Bool, Set<Platform>?) -> [String])?
 
-    public func command(path: AbsolutePath, produceXCFrameworks: Bool, platforms: Set<Platform>?) -> [String] {
+    public func command(path: AbsolutePath, produceXCFrameworks: Bool, noUseBinaries: Bool, platforms: Set<Platform>?) -> [String] {
         invokedCommand = true
         invokedCommandCount += 1
-        invokedCommandParameters = (path, produceXCFrameworks, platforms)
-        invokedCommandParametersList.append((path, produceXCFrameworks, platforms))
+        invokedCommandParameters = (path, produceXCFrameworks, noUseBinaries, platforms)
+        invokedCommandParametersList.append((path, produceXCFrameworks, noUseBinaries, platforms))
         if let stub = commandStub {
-            return stub(path, produceXCFrameworks, platforms)
+            return stub(path, produceXCFrameworks, noUseBinaries, platforms)
         } else {
             return []
         }
