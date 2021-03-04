@@ -43,6 +43,7 @@ final class CarthageTests: TuistUnitTestCase {
             path: temporaryPath,
             platforms: [.iOS, .macOS],
             useXCFrameworks: false,
+            noUseBinaries: false,
             dependencies: ["Alamofire"]
         )
     }
@@ -72,6 +73,38 @@ final class CarthageTests: TuistUnitTestCase {
             path: temporaryPath,
             platforms: [.iOS, .macOS],
             useXCFrameworks: true,
+            noUseBinaries: false,
+            dependencies: ["Alamofire"]
+        )
+    }
+    
+    func test_bootstrap_XCFrameworks_and_noUseBinaries() throws {
+        let temporaryPath = try self.temporaryPath()
+        system.whichStub = { tool in
+            if tool == "carthage" {
+                return "/path/to/carthage"
+            } else {
+                throw NSError.test()
+            }
+        }
+        system.succeedCommand(
+            "/path/to/carthage",
+            "bootstrap",
+            "--project-directory",
+            temporaryPath.pathString,
+            "--use-xcframeworks",
+            "--no-use-binaries",
+            "--platform",
+            "iOS,macOS",
+            "Alamofire",
+            output: ""
+        )
+
+        try subject.bootstrap(
+            path: temporaryPath,
+            platforms: [.iOS, .macOS],
+            useXCFrameworks: true,
+            noUseBinaries: true,
             dependencies: ["Alamofire"]
         )
     }

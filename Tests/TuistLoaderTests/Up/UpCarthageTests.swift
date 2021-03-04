@@ -9,21 +9,26 @@ import XCTest
 @testable import TuistSupportTesting
 
 final class UpCarthageTests: TuistUnitTestCase {
-    var platforms: [Platform]!
-    var useXCFrameworks: Bool!
-    var upHomebrew: MockUp!
-    var carthage: MockCarthage!
-    var subject: UpCarthage!
+    private var platforms: [Platform]!
+    private var useXCFrameworks: Bool!
+    private var noUseBinaries: Bool!
+    private var upHomebrew: MockUp!
+    private var carthage: MockCarthage!
+    private var subject: UpCarthage!
 
     override func setUp() {
         super.setUp()
+        
         platforms = [.iOS, .macOS]
         useXCFrameworks = true
+        noUseBinaries = true
         carthage = MockCarthage()
         upHomebrew = MockUp()
+        
         subject = UpCarthage(
             platforms: platforms,
             useXCFrameworks: useXCFrameworks,
+            noUseBinaries: noUseBinaries ,
             upHomebrew: upHomebrew,
             carthage: carthage
         )
@@ -105,10 +110,11 @@ final class UpCarthageTests: TuistUnitTestCase {
         carthage.outdatedStub = { _ in
             ["Dependency"]
         }
-        carthage.bootstrapStub = { projectPath, platforms, useXCFrameworks, dependencies in
+        carthage.bootstrapStub = { [unowned self] projectPath, platforms, useXCFrameworks, noUseBinaries, dependencies in
             XCTAssertEqual(projectPath, temporaryPath)
             XCTAssertEqual(platforms, self.platforms)
             XCTAssertEqual(useXCFrameworks, self.useXCFrameworks)
+            XCTAssertEqual(noUseBinaries, self.noUseBinaries)
             XCTAssertEqual(dependencies, ["Dependency"])
         }
 

@@ -7,14 +7,19 @@ class UpCarthage: Up {
 
     /// Indicates whether Carthage produces XCFrameworks or regular frameworks.
     let useXCFrameworks: Bool
+    
+    /// Indicates whether Carthage rebuilds the dependency from source instead of using downloaded binaries when possible.
+    let noUseBinaries: Bool
 
     /// Initializes the Carthage up.
     ///
     /// - Parameter platforms: The platforms Carthage dependencies should be updated for.
     /// - Parameter useXCFrameworks: Indicates whether Carthage produces XCFrameworks or regular frameworks.
-    init(platforms: [Platform], useXCFrameworks: Bool) {
+    /// - Parameter noUseBinaries: Indicates whether Carthage rebuilds the dependency from source instead of using downloaded binaries when possible.
+    init(platforms: [Platform], useXCFrameworks: Bool, noUseBinaries: Bool) {
         self.platforms = platforms
         self.useXCFrameworks = useXCFrameworks
+        self.noUseBinaries = noUseBinaries
         super.init()
     }
 
@@ -22,12 +27,14 @@ class UpCarthage: Up {
         case type
         case platforms
         case useXCFrameworks
+        case noUseBinaries
     }
 
     required init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         platforms = try container.decode([Platform].self, forKey: .platforms)
         useXCFrameworks = try container.decode(Bool.self, forKey: .useXCFrameworks)
+        noUseBinaries = try container.decode(Bool.self, forKey: .noUseBinaries)
         try super.init(from: decoder)
     }
 
@@ -36,6 +43,7 @@ class UpCarthage: Up {
         try container.encode("carthage", forKey: .type)
         try container.encode(platforms, forKey: .platforms)
         try container.encode(useXCFrameworks, forKey: .useXCFrameworks)
+        try container.encode(noUseBinaries, forKey: .noUseBinaries)
     }
 
     override func equals(_ other: Up) -> Bool {
