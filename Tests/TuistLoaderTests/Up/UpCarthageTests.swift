@@ -18,17 +18,17 @@ final class UpCarthageTests: TuistUnitTestCase {
 
     override func setUp() {
         super.setUp()
-        
+
         platforms = [.iOS, .macOS]
         useXCFrameworks = true
         noUseBinaries = true
         carthage = MockCarthage()
         upHomebrew = MockUp()
-        
+
         subject = UpCarthage(
             platforms: platforms,
             useXCFrameworks: useXCFrameworks,
-            noUseBinaries: noUseBinaries ,
+            noUseBinaries: noUseBinaries,
             upHomebrew: upHomebrew,
             carthage: carthage
         )

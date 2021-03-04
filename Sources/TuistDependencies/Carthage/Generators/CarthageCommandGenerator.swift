@@ -51,7 +51,7 @@ public final class CarthageCommandGenerator: CarthageCommandGenerating {
         if produceXCFrameworks {
             commandComponents.append("--use-xcframeworks")
         }
-        
+
         if noUseBinaries {
             commandComponents.append("--no-use-binaries")
         }

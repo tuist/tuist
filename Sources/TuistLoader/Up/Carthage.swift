@@ -68,7 +68,7 @@ final class Carthage: Carthaging {
         if useXCFrameworks {
             command.append("--use-xcframeworks")
         }
-        
+
         if noUseBinaries {
             command.append("--no-use-binaries")
         }

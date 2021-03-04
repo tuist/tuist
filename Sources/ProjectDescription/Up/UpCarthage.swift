@@ -7,7 +7,7 @@ class UpCarthage: Up {
 
     /// Indicates whether Carthage produces XCFrameworks or regular frameworks.
     let useXCFrameworks: Bool
-    
+
     /// Indicates whether Carthage rebuilds the dependency from source instead of using downloaded binaries when possible.
     let noUseBinaries: Bool
 

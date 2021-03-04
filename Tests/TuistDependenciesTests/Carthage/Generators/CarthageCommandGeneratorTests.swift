@@ -59,7 +59,7 @@ final class CarthageCommandGeneratorTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(got, expected)
     }
-    
+
     func test_command_with_platforms_and_xcframeworks_and_noUseBinaries() throws {
         // Given
         let stubbedPath = try temporaryPath()
