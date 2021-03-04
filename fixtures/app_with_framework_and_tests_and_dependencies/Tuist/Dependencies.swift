@@ -6,6 +6,7 @@ let dependencies = Dependencies(
             .github(path: "Alamofire/Alamofire", requirement: .exact("5.0.4"))
         ],
         platforms: [.iOS, .macOS],
-        useXCFrameworks: true
+        useXCFrameworks: true,
+        noUseBinaries: true
     )
 )
