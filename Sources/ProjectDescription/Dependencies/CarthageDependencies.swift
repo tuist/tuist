@@ -9,20 +9,25 @@ public struct CarthageDependencies: Codable, Equatable {
     /// Indicates whether Carthage produces XCFrameworks or regular frameworks. Refers to `--use-xcframeworks` Carthage flag.
     /// Note: It requires Carthage in version at least 0.37.0.
     public let useXCFrameworks: Bool
+    /// Indicates whether Carthage rebuilds the dependency from source instead of using downloaded binaries when possible. Refers to `--no-use-binaries` Carthage flag.
+    public let noUseBinaries: Bool
 
     /// Initializes a new `CarthageDependencies` instance.
     /// - Parameters:
     ///   - dependencies: List of depedencies that can be installed using Carthage.
     ///   - platforms: List of platforms for which you want to install depedencies. Refers to `--platform` Carthage flag.
     ///   - useXCFrameworks: Indicates whether Carthage produces XCFrameworks or regular frameworks. Refers to `--use-xcframeworks` Carthage flag. Note: It requires Carthage in version at least 0.37.0.
+    ///   - noUseBinaries: Indicates whether Carthage rebuilds the dependency from source instead of using downloaded binaries when possible. Refers to `--no-use-binaries` Carthage flag.
     init(
         dependencies: [Dependency],
         platforms: Set<Platform> = Set(Platform.allCases),
-        useXCFrameworks: Bool = false
+        useXCFrameworks: Bool = false,
+        noUseBinaries: Bool = false
     ) {
         self.dependencies = dependencies
         self.platforms = platforms
         self.useXCFrameworks = useXCFrameworks
+        self.noUseBinaries = noUseBinaries
     }
 
     /// Creates `CarthageDependencies` instance.
@@ -30,12 +35,19 @@ public struct CarthageDependencies: Codable, Equatable {
     ///   - dependencies: List of depedencies that can be installed using Carthage.
     ///   - platforms: List of platforms for which you want to install depedencies. Refers to `--platform` Carthage flag.
     ///   - useXCFrameworks: Indicates whether Carthage produces XCFrameworks or regular frameworks. Refers to `--use-xcframeworks` Carthage flag. Note: It requires Carthage in version at least 0.37.0.
+    ///   - noUseBinaries: Indicates whether Carthage rebuilds the dependency from source instead of using downloaded binaries when possible. Refers to `--no-use-binaries` Carthage flag.
     public static func carthage(
         _ dependencies: [Dependency],
         platforms: Set<Platform> = Set(Platform.allCases),
-        useXCFrameworks: Bool = false
+        useXCFrameworks: Bool = false,
+        noUseBinaries: Bool = false
     ) -> Self {
-        .init(dependencies: dependencies, platforms: platforms, useXCFrameworks: useXCFrameworks)
+        .init(
+            dependencies: dependencies,
+            platforms: platforms,
+            useXCFrameworks: useXCFrameworks,
+            noUseBinaries: noUseBinaries
+        )
     }
 }
 
