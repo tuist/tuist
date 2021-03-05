@@ -706,10 +706,8 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
     }
 
     func test_closestRelativeElementPath() {
-        let got = subject.closestRelativeElementPath(
-            path: AbsolutePath("/a/framework/framework.framework"),
-            sourceRootPath: AbsolutePath("/a/b/c/project")
-        )
+        let pathRelativeToSourceRoot = AbsolutePath("/a/framework/framework.framework").relative(to: AbsolutePath("/a/b/c/project"))
+        let got = subject.closestRelativeElementPath(pathRelativeToSourceRoot: pathRelativeToSourceRoot)
         XCTAssertEqual(got, RelativePath("../../../framework"))
     }
 
