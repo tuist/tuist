@@ -48,10 +48,12 @@ final class UpCarthageTests: TuistUnitTestCase {
         let json = JSON([
             "platforms": JSON.array([JSON.string("ios")]),
             "useXCFrameworks": JSON.bool(true),
+            "noUseBinaries": JSON.bool(true),
         ])
         let got = try UpCarthage(dictionary: json, projectPath: temporaryPath)
         XCTAssertEqual(got.platforms, [.iOS])
         XCTAssertTrue(got.useXCFrameworks)
+        XCTAssertTrue(got.noUseBinaries)
     }
 
     func test_isMet_when_homebrew_is_not_met() throws {
