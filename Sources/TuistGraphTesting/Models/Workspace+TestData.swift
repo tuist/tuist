@@ -9,6 +9,7 @@ public extension Workspace {
         name: String = "test",
         projects: [AbsolutePath] = [],
         schemes: [Scheme] = [],
+        ideTemplateMacros: IDETemplateMacros? = nil,
         additionalFiles: [FileElement] = []
     ) -> Workspace {
         Workspace(
@@ -17,6 +18,7 @@ public extension Workspace {
             name: name,
             projects: projects,
             schemes: schemes,
+            ideTemplateMacros: ideTemplateMacros,
             additionalFiles: additionalFiles
         )
     }
