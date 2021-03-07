@@ -375,6 +375,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         var commandlineArguments: XCScheme.CommandLineArguments?
         var environments: [XCScheme.EnvironmentVariable]?
         var storeKitConfigurationFileReference: XCScheme.StoreKitConfigurationFileReference?
+        var locationScenarioReference: XCScheme.LocationScenarioReference?
 
         if let arguments = scheme.runAction?.arguments {
             commandlineArguments = XCScheme.CommandLineArguments(arguments: commandlineArgruments(arguments.launchArguments))
@@ -386,13 +387,33 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         let isSchemeForAppExtension = self.isSchemeForAppExtension(scheme: scheme, graphTraverser: graphTraverser)
         let launchActionConstants: Constants.LaunchAction = isSchemeForAppExtension == true ? .extension : .default
 
+        let graphTarget = graphTraverser.target(path: target.projectPath, name: target.name)
+
         if
             let storeKitFilePath = scheme.runAction?.options.storeKitConfigurationPath,
-            let graphTarget = graphTraverser.target(path: target.projectPath, name: target.name)
+            let graphTarget = graphTarget
         {
             // the identifier is the relative path between the storekit file, and the xcode project
             let fileRelativePath = storeKitFilePath.relative(to: graphTarget.project.xcodeProjPath)
             storeKitConfigurationFileReference = .init(identifier: fileRelativePath.pathString)
+        }
+
+        if
+            let locationScenario = scheme.runAction?.options.simulatedLocation,
+            let graphTarget = graphTarget
+        {
+            var identifier = locationScenario.identifier
+
+            /// GPX file path is the relative path between the storekit file, and the xcode project
+            if case let .gpxFile(gpxPath) = locationScenario {
+                let fileRelativePath = gpxPath.relative(to: graphTarget.project.xcodeProjPath)
+                identifier = fileRelativePath.pathString
+            }
+
+            locationScenarioReference = .init(
+                identifier: identifier,
+                referenceType: locationScenario.referenceType
+            )
         }
 
         return XCScheme.LaunchAction(
@@ -403,6 +424,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             selectedLauncherIdentifier: launchActionConstants.launcher,
             askForAppToLaunch: launchActionConstants.askForAppToLaunch,
             pathRunnable: pathRunnable,
+            locationScenarioReference: locationScenarioReference,
             disableMainThreadChecker: disableMainThreadChecker,
             commandlineArguments: commandlineArguments,
             environmentVariables: environments,

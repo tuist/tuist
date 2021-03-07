@@ -13,13 +13,24 @@ extension TuistGraph.RunActionOptions {
                      generatorPaths: GeneratorPaths) throws -> TuistGraph.RunActionOptions
     {
         var storeKitConfigurationPath: AbsolutePath?
+        var simulatedLocation: SimulatedLocation?
 
         if let path = manifest.storeKitConfigurationPath {
             storeKitConfigurationPath = try generatorPaths.resolveSchemeActionProjectPath(path)
         }
 
+        if let simulatedLocationManifest = manifest.simulatedLocation {
+            switch simulatedLocationManifest {
+            case let .custom(gpxFile):
+                simulatedLocation = .gpxFile(try generatorPaths.resolveSchemeActionProjectPath(gpxFile))
+            default:
+                simulatedLocation = .reference(simulatedLocationManifest.identifier)
+            }
+        }
+
         return TuistGraph.RunActionOptions(
-            storeKitConfigurationPath: storeKitConfigurationPath
+            storeKitConfigurationPath: storeKitConfigurationPath,
+            simulatedLocation: simulatedLocation
         )
     }
 }
