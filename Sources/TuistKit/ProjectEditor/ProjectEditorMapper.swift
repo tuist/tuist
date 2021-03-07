@@ -223,6 +223,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             targets: targets,
             packages: [],
             schemes: [scheme],
+            ideTemplateMacros: nil,
             additionalFiles: []
         )
     }
@@ -287,6 +288,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             targets: pluginTargets,
             packages: [],
             schemes: allSchemes,
+            ideTemplateMacros: nil,
             additionalFiles: []
         )
     }

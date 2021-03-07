@@ -14,7 +14,8 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
             lhs.schemes == rhs.schemes &&
             lhs.settings == rhs.settings &&
             lhs.filesGroup == rhs.filesGroup &&
-            lhs.additionalFiles == rhs.additionalFiles
+            lhs.additionalFiles == rhs.additionalFiles &&
+            lhs.ideTemplateMacros == rhs.ideTemplateMacros
     }
 
     // MARK: - Attributes
@@ -54,6 +55,9 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
 
     /// Additional files to include in the project
     public var additionalFiles: [FileElement]
+    
+    /// IDE template macros that represent content of IDETemplateMacros.plist
+    public var ideTemplateMacros: IDETemplateMacros?
 
     // MARK: - Init
 
@@ -82,6 +86,7 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
                 targets: [Target],
                 packages: [Package],
                 schemes: [Scheme],
+                ideTemplateMacros: IDETemplateMacros?,
                 additionalFiles: [FileElement])
     {
         self.path = path
@@ -95,6 +100,7 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
         self.schemes = schemes
         self.settings = settings
         self.filesGroup = filesGroup
+        self.ideTemplateMacros = ideTemplateMacros
         self.additionalFiles = additionalFiles
     }
 
@@ -133,6 +139,7 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
             targets: targets,
             packages: packages,
             schemes: schemes,
+            ideTemplateMacros: ideTemplateMacros,
             additionalFiles: additionalFiles
         )
     }
@@ -152,6 +159,7 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
             targets: targets,
             packages: packages,
             schemes: schemes,
+            ideTemplateMacros: ideTemplateMacros,
             additionalFiles: additionalFiles
         )
     }

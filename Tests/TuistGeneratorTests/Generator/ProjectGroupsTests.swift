@@ -36,6 +36,7 @@ final class ProjectGroupsTests: XCTestCase {
             ],
             packages: [],
             schemes: [],
+            ideTemplateMacros: nil,
             additionalFiles: []
         )
         pbxproj = PBXProj()

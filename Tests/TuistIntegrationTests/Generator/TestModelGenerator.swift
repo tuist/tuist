@@ -122,6 +122,7 @@ final class TestModelGenerator {
             targets: targets,
             packages: packages,
             schemes: schemes,
+            ideTemplateMacros: nil,
             additionalFiles: createAdditionalFiles(path: path)
         )
     }
