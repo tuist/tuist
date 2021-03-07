@@ -315,6 +315,15 @@
         "code",
         "content"
       ]
+    },
+    {
+      "login": "freak4pc",
+      "name": "Shai Mishali",
+      "avatar_url": "https://avatars.githubusercontent.com/u/605076?v=4",
+      "profile": "https://twitter.com/freak4pc",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,
