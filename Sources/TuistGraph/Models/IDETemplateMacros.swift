@@ -8,12 +8,30 @@ public struct IDETemplateMacros: Codable, Hashable {
     public let fileHeader: String?
 
     public init(fileHeader: String?) {
-        // Xcode by default adds extra newline at the end, so if it is present, just remove it
-        if var fileHeader = fileHeader, fileHeader.last == "\n" {
-            fileHeader.removeLast()
-            self.fileHeader = fileHeader
-        } else {
-            self.fileHeader = fileHeader
+        self.fileHeader = fileHeader.map(Self.normalize)
+    }
+
+    private static func normalize(fileHeader: String) -> String {
+        var fileHeader = fileHeader
+
+        // Xcode by default adds comment slashes to first line of header template
+        if fileHeader.hasPrefix("//") {
+            fileHeader.removeFirst(2)
         }
+
+        // As Xcode appends file header directly after `//` it adds to the beginning of template
+        // it is desired to also add leading space if it is not already present
+        if let first = fileHeader.first.map(String.init),
+            first.trimmingCharacters(in: .whitespacesAndNewlines) == first
+        {
+            fileHeader.insert(" ", at: fileHeader.startIndex)
+        }
+
+        // Xcode by default adds extra newline at the end, so if it is present, just remove it
+        if fileHeader.last == "\n" {
+            fileHeader.removeLast()
+        }
+
+        return fileHeader
     }
 }
