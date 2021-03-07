@@ -180,7 +180,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         }()
 
         let manifestsTargets = namedManifests(projectManifests).map { name, projectManifestSourcePath -> Target in
-            let helperDependencies = helpersTarget.map { [Dependency.target(name: $0.name)] } ?? []
+            let helperDependencies = helpersTarget.map { [TargetDependency.target(name: $0.name)] } ?? []
             return editorHelperTarget(
                 name: name,
                 filesGroup: manifestsFilesGroup,
@@ -366,7 +366,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         filesGroup: ProjectGroup,
         targetSettings: Settings,
         sourcePaths: [AbsolutePath],
-        dependencies: [Dependency] = []
+        dependencies: [TargetDependency] = []
     ) -> Target {
         Target(
             name: name,

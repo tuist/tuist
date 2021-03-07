@@ -218,7 +218,7 @@ class TargetLinter: TargetLinting {
 
     private func lintDuplicateDependency(target: Target) -> [LintingIssue] {
         typealias Occurence = Int
-        var seen: [Dependency: Occurence] = [:]
+        var seen: [TargetDependency: Occurence] = [:]
         target.dependencies.forEach { seen[$0, default: 0] += 1 }
         let duplicates = seen.enumerated().filter { $0.element.value > 1 }
         return duplicates.map {
@@ -227,7 +227,7 @@ class TargetLinter: TargetLinting {
     }
 }
 
-private extension Dependency {
+private extension TargetDependency {
     var typeName: String {
         switch self {
         case .target:

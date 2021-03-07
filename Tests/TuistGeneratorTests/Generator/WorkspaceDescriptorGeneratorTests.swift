@@ -116,7 +116,7 @@ final class WorkspaceDescriptorGeneratorTests: TuistUnitTestCase {
 
     // MARK: - Helpers
 
-    func anyTarget(dependencies: [Dependency] = []) -> Target {
+    func anyTarget(dependencies: [TargetDependency] = []) -> Target {
         Target.test(
             infoPlist: nil,
             entitlements: nil,

@@ -138,7 +138,7 @@ final class TestModelGenerator {
             resources: createResources(path: path),
             headers: createHeaders(path: path),
             filesGroup: .group(name: "ProjectGroup"),
-            dependencies: dependencies.map { Dependency.target(name: $0) }
+            dependencies: dependencies.map { TargetDependency.target(name: $0) }
         )
     }
 
@@ -206,7 +206,7 @@ final class TestModelGenerator {
     }
 
     private func createFrameworkTarget(name: String,
-                                       depenendencies: [Dependency] = []) throws -> Target
+                                       depenendencies: [TargetDependency] = []) throws -> Target
     {
         Target(
             name: name,
@@ -221,18 +221,18 @@ final class TestModelGenerator {
         )
     }
 
-    private func createDependencies(relativeTo path: AbsolutePath) throws -> [Dependency] {
+    private func createDependencies(relativeTo path: AbsolutePath) throws -> [TargetDependency] {
         let frameworks = (0 ..< 10)
             .map { "Frameworks/Framework\($0).framework" }
-            .map { Dependency.framework(path: path.appending(RelativePath($0))) }
+            .map { TargetDependency.framework(path: path.appending(RelativePath($0))) }
 
         let libraries = try createLibraries(relativeTo: path)
 
         return (frameworks + libraries).shuffled()
     }
 
-    private func createLibraries(relativeTo path: AbsolutePath) throws -> [Dependency] {
-        var libraries = [Dependency]()
+    private func createLibraries(relativeTo path: AbsolutePath) throws -> [TargetDependency] {
+        var libraries = [TargetDependency]()
 
         for i in 0 ..< 10 {
             let libraryName = "Library\(i)"

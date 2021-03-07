@@ -30,7 +30,7 @@ final class DependenciesContentHasherTests: TuistUnitTestCase {
 
     func test_hash_whenDependencyIsTarget_callsContentHasherAsExpected() throws {
         // Given
-        let dependency = Dependency.target(name: "foo")
+        let dependency = TargetDependency.target(name: "foo")
 
         // When
         let hash = try subject.hash(dependencies: [dependency])
@@ -42,7 +42,7 @@ final class DependenciesContentHasherTests: TuistUnitTestCase {
 
     func test_hash_whenDependencyIsProject_callsContentHasherAsExpected() throws {
         // Given
-        let dependency = Dependency.project(target: "foo", path: filePath1)
+        let dependency = TargetDependency.project(target: "foo", path: filePath1)
         mockContentHasher.stubHashForPath[filePath1] = "file-hashed"
 
         // When
@@ -56,7 +56,7 @@ final class DependenciesContentHasherTests: TuistUnitTestCase {
 
     func test_hash_whenDependencyIsFramework_callsContentHasherAsExpected() throws {
         // Given
-        let dependency = Dependency.framework(path: filePath1)
+        let dependency = TargetDependency.framework(path: filePath1)
         mockContentHasher.stubHashForPath[filePath1] = "file-hashed"
 
         // When
@@ -69,7 +69,7 @@ final class DependenciesContentHasherTests: TuistUnitTestCase {
 
     func test_hash_whenDependencyIsXCFramework_callsContentHasherAsExpected() throws {
         // Given
-        let dependency = Dependency.xcFramework(path: filePath1)
+        let dependency = TargetDependency.xcFramework(path: filePath1)
         mockContentHasher.stubHashForPath[filePath1] = "file-hashed"
 
         // When
@@ -82,7 +82,7 @@ final class DependenciesContentHasherTests: TuistUnitTestCase {
 
     func test_hash_whenDependencyIsLibrary_callsContentHasherAsExpected() throws {
         // Given
-        let dependency = Dependency.library(
+        let dependency = TargetDependency.library(
             path: filePath1,
             publicHeaders: filePath2,
             swiftModuleMap: filePath3
@@ -102,7 +102,7 @@ final class DependenciesContentHasherTests: TuistUnitTestCase {
 
     func test_hash_whenDependencyIsLibrary_swiftModuleMapIsNil_callsContentHasherAsExpected() throws {
         // Given
-        let dependency = Dependency.library(
+        let dependency = TargetDependency.library(
             path: filePath1,
             publicHeaders: filePath2,
             swiftModuleMap: nil
@@ -121,7 +121,7 @@ final class DependenciesContentHasherTests: TuistUnitTestCase {
 
     func test_hash_whenDependencyIsPackage_callsContentHasherAsExpected() throws {
         // Given
-        let dependency = Dependency.package(product: "foo")
+        let dependency = TargetDependency.package(product: "foo")
 
         // When
         let hash = try subject.hash(dependencies: [dependency])
@@ -133,7 +133,7 @@ final class DependenciesContentHasherTests: TuistUnitTestCase {
 
     func test_hash_whenDependencyIsOptionalSDK_callsContentHasherAsExpected() throws {
         // Given
-        let dependency = Dependency.sdk(name: "foo", status: .optional)
+        let dependency = TargetDependency.sdk(name: "foo", status: .optional)
 
         // When
         let hash = try subject.hash(dependencies: [dependency])
@@ -145,7 +145,7 @@ final class DependenciesContentHasherTests: TuistUnitTestCase {
 
     func test_hash_whenDependencyIsRequiredSDK_callsContentHasherAsExpected() throws {
         // Given
-        let dependency = Dependency.sdk(name: "foo", status: .required)
+        let dependency = TargetDependency.sdk(name: "foo", status: .required)
 
         // When
         let hash = try subject.hash(dependencies: [dependency])
@@ -157,7 +157,7 @@ final class DependenciesContentHasherTests: TuistUnitTestCase {
 
     func test_hash_whenDependencyIsCocoapods_callsContentHasherAsExpected() throws {
         // Given
-        let dependency = Dependency.cocoapods(path: filePath1)
+        let dependency = TargetDependency.cocoapods(path: filePath1)
         mockContentHasher.stubHashForPath[filePath1] = "file1-hashed"
 
         // When
@@ -170,7 +170,7 @@ final class DependenciesContentHasherTests: TuistUnitTestCase {
 
     func test_hash_whenDependencyIsXCTest_callsContentHasherAsExpected() throws {
         // Given
-        let dependency = Dependency.xctest
+        let dependency = TargetDependency.xctest
 
         // When
         let hash = try subject.hash(dependencies: [dependency])

@@ -6,7 +6,7 @@ public enum SDKStatus {
     case optional
 }
 
-public enum Dependency: Equatable, Hashable {
+public enum TargetDependency: Equatable, Hashable {
     case target(name: String)
     case project(target: String, path: AbsolutePath)
     case framework(path: AbsolutePath)

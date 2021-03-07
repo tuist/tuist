@@ -3,7 +3,7 @@ import TuistCore
 import TuistGraph
 
 public protocol DependenciesContentHashing {
-    func hash(dependencies: [Dependency]) throws -> String
+    func hash(dependencies: [TargetDependency]) throws -> String
 }
 
 /// `DependencyContentHasher`
@@ -19,14 +19,14 @@ public final class DependenciesContentHasher: DependenciesContentHashing {
 
     // MARK: - DependenciesContentHashing
 
-    public func hash(dependencies: [Dependency]) throws -> String {
+    public func hash(dependencies: [TargetDependency]) throws -> String {
         let hashes = dependencies.map { try? hash(dependency: $0) }
         return hashes.compactMap { $0 }.joined()
     }
 
     // MARK: - Private
 
-    private func hash(dependency: Dependency) throws -> String {
+    private func hash(dependency: TargetDependency) throws -> String {
         switch dependency {
         case let .target(name):
             return try contentHasher.hash("target-\(name)")
