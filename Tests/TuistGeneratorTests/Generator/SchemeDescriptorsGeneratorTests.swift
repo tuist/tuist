@@ -523,7 +523,10 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             configurationName: "Release",
             executable: TargetReference(projectPath: projectPath, name: "App"),
             arguments: Arguments(environment: environment, launchArguments: launchArguments),
-            options: .init(storeKitConfigurationPath: "/somepath/Workspace/Projects/Project/nested/configuration/configuration.storekit")
+            options: .init(
+                storeKitConfigurationPath: "/somepath/Workspace/Projects/Project/nested/configuration/configuration.storekit",
+                simulatedLocation: .reference("New York, NY, USA")
+            )
         )
 
         let scheme = Scheme.test(buildAction: buildAction, runAction: runAction)
@@ -576,6 +579,8 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         XCTAssertEqual(buildableReference.blueprintName, "App")
         XCTAssertEqual(buildableReference.buildableIdentifier, "primary")
         XCTAssertEqual(result.storeKitConfigurationFileReference, .init(identifier: "../nested/configuration/configuration.storekit"))
+        XCTAssertEqual(result.locationScenarioReference?.referenceType, "1")
+        XCTAssertEqual(result.locationScenarioReference?.identifier, "New York, NY, USA")
     }
 
     func test_schemeLaunchAction_argumentsOrder() throws {
