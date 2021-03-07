@@ -6,7 +6,6 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Added
 
-
 - Add option for enabling XCFrameworks production for Carthage in `Setup.swift`. [#2565](https://github.com/tuist/tuist/pull/2565) by [@laxmorek](https://github.com/laxmorek)
 
 ### Changed
