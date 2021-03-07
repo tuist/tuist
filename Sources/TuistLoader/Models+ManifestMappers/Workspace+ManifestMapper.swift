@@ -38,6 +38,8 @@ extension TuistGraph.Workspace {
         }
 
         let schemes = try manifest.schemes.map { try TuistGraph.Scheme.from(manifest: $0, generatorPaths: generatorPaths) }
+        
+        let ideTemplateMacros = try manifest.fileHeaderTemplate.map { try IDETemplateMacros.from(manifest: $0, generatorPaths: generatorPaths) }
 
         return TuistGraph.Workspace(
             path: path,
@@ -45,6 +47,7 @@ extension TuistGraph.Workspace {
             name: manifest.name,
             projects: try manifest.projects.flatMap(globProjects),
             schemes: schemes,
+            ideTemplateMacros: ideTemplateMacros,
             additionalFiles: additionalFiles
         )
     }
