@@ -1,14 +1,18 @@
 import Foundation
 
+/// Enum representing customizable file header template for Xcode built-in file templates
 public enum FileHeaderTemplate: Codable, Equatable, ExpressibleByStringInterpolation {
     enum CodingKeys: String, CodingKey {
         case file
         case string
     }
 
+    /// Load template stored in file
     case file(Path)
+    /// Use inline string as template
     case string(String)
 
+    /// Creates file template as `.string(value)`
     public init(stringLiteral value: String) {
         self = .string(value)
     }
