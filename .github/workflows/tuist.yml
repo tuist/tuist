@@ -86,6 +86,7 @@ jobs:
             'generate-5',
             'generate-6',
             'generate-7',
+            'generate-8',
             'init',
             'lint-project',
             'lint-code',
