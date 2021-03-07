@@ -11,6 +11,7 @@ public struct Workspace: Equatable {
     public var name: String
     public var projects: [AbsolutePath]
     public var schemes: [Scheme]
+    public var ideTemplateMacros: IDETemplateMacros?
     public var additionalFiles: [FileElement]
 
     // MARK: - Init

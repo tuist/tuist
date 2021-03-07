@@ -5,13 +5,13 @@ import TuistGraph
 import TuistSupportTesting
 import XCTest
 
-final class IDETemplateMacrosProjectMapperTests: XCTestCase {
-    var subject: IDETemplateMacrosProjectMapper!
+final class IDETemplateMacrosMapperTests: XCTestCase {
+    var subject: IDETemplateMacrosMapper!
 
     override func setUp() {
         super.setUp()
 
-        subject = IDETemplateMacrosProjectMapper()
+        subject = IDETemplateMacrosMapper()
     }
 
     override func tearDown() {
@@ -44,7 +44,6 @@ final class IDETemplateMacrosProjectMapperTests: XCTestCase {
 
     func test_map_empty_template_macros() throws {
         // Given
-        let subject = IDETemplateMacrosProjectMapper()
         let project = Project.empty()
 
         // When
