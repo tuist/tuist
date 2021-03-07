@@ -13,6 +13,14 @@ extension String {
         ).replacingOccurrences(of: "\0", with: "␀")
     }
 
+    public func dropSuffix(_ suffix: String) -> String {
+        hasSuffix(suffix) ? String(dropLast(suffix.count)) : self
+    }
+
+    public func dropPrefix(_ prefix: String) -> String {
+        hasPrefix(prefix) ? String(dropFirst(prefix.count)) : self
+    }
+
     public func chomp(separator: String? = nil) -> String {
         func scrub(_ separator: String) -> String {
             var e = endIndex
