@@ -38,7 +38,7 @@ extension TuistGraph.Workspace {
         }
 
         let schemes = try manifest.schemes.map { try TuistGraph.Scheme.from(manifest: $0, generatorPaths: generatorPaths) }
-        
+
         let ideTemplateMacros = try manifest.fileHeaderTemplate.map { try IDETemplateMacros.from(manifest: $0, generatorPaths: generatorPaths) }
 
         return TuistGraph.Workspace(

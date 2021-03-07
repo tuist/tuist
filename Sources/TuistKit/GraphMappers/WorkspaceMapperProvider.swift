@@ -32,7 +32,7 @@ final class WorkspaceMapperProvider: WorkspaceMapperProviding {
         mappers.append(
             TuistWorkspaceIdentifierMapper()
         )
-        
+
         mappers.append(
             IDETemplateMacrosMapper()
         )

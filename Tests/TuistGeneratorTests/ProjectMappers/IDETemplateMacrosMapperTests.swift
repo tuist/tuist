@@ -17,7 +17,7 @@ final class IDETemplateMacrosMapperTests: XCTestCase {
 
     override func tearDown() {
         super.tearDown()
-        
+
         subject = nil
     }
 
@@ -54,7 +54,7 @@ final class IDETemplateMacrosMapperTests: XCTestCase {
         XCTAssertEqual(got, project)
         XCTAssertEmpty(sideEffects)
     }
-    
+
     func test_workspace_map_template_macros_creates_macros_plist() throws {
         // Given
         let templateMacros = IDETemplateMacros.test()

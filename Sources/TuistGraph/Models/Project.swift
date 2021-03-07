@@ -55,7 +55,7 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
 
     /// Additional files to include in the project
     public var additionalFiles: [FileElement]
-    
+
     /// IDE template macros that represent content of IDETemplateMacros.plist
     public var ideTemplateMacros: IDETemplateMacros?
 

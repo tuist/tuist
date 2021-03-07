@@ -11,7 +11,7 @@ public struct Workspace: Codable, Equatable {
 
     /// List of custom schemes
     public let schemes: [Scheme]
-    
+
     /// Default file header template used for Xcode file templates
     public let fileHeaderTemplate: FileHeaderTemplate?
 
