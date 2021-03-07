@@ -7,26 +7,23 @@ import XCTest
 
 final class IDETemplateMacrosProjectMapperTests: XCTestCase {
     var subject: IDETemplateMacrosProjectMapper!
-    var templateMacros: IDETemplateMacros!
 
     override func setUp() {
         super.setUp()
 
-        templateMacros = .test()
-        subject = IDETemplateMacrosProjectMapper(
-            config: Config.test(generationOptions: [.templateMacros(templateMacros)])
-        )
+        subject = IDETemplateMacrosProjectMapper()
     }
 
     override func tearDown() {
         super.tearDown()
+        
         subject = nil
-        templateMacros = nil
     }
 
     func test_map_template_macros_creates_macros_plist() throws {
         // Given
-        let project = Project.test()
+        let templateMacros = IDETemplateMacros.test()
+        let project = Project.test(ideTemplateMacros: templateMacros)
 
         // When
         let (got, sideEffects) = try subject.map(project: project)
@@ -47,8 +44,8 @@ final class IDETemplateMacrosProjectMapperTests: XCTestCase {
 
     func test_map_empty_template_macros() throws {
         // Given
-        let subject = IDETemplateMacrosProjectMapper(config: .test(generationOptions: []))
-        let project = Project.test()
+        let subject = IDETemplateMacrosProjectMapper()
+        let project = Project.empty()
 
         // When
         let (got, sideEffects) = try subject.map(project: project)
