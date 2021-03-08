@@ -22,7 +22,7 @@ public extension Target {
                      actions: [TargetAction] = [],
                      environment: [String: String] = [:],
                      filesGroup: ProjectGroup = .group(name: "Project"),
-                     dependencies: [Dependency] = [],
+                     dependencies: [TargetDependency] = [],
                      scripts: [TargetScript] = [],
                      launchArguments: [LaunchArgument] = [],
                      playgrounds: [AbsolutePath] = [],
@@ -72,7 +72,7 @@ public extension Target {
                       actions: [TargetAction] = [],
                       environment: [String: String] = [:],
                       filesGroup: ProjectGroup = .group(name: "Project"),
-                      dependencies: [Dependency] = [],
+                      dependencies: [TargetDependency] = [],
                       scripts: [TargetScript] = []) -> Target
     {
         Target(

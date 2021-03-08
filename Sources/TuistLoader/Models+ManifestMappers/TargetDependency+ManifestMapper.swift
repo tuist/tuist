@@ -4,12 +4,12 @@ import TSCBasic
 import TuistCore
 import TuistGraph
 
-extension TuistGraph.Dependency {
-    /// Maps a ProjectDescription.TargetDependency instance into a TuistCore.Dependency instance.
+extension TuistGraph.TargetDependency {
+    /// Maps a ProjectDescription.TargetDependency instance into a TuistGraph.TargetDependency instance.
     /// - Parameters:
     ///   - manifest: Manifest representation of the target dependency model.
     ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.TargetDependency, generatorPaths: GeneratorPaths) throws -> TuistGraph.Dependency {
+    static func from(manifest: ProjectDescription.TargetDependency, generatorPaths: GeneratorPaths) throws -> TuistGraph.TargetDependency {
         switch manifest {
         case let .target(name):
             return .target(name: name)

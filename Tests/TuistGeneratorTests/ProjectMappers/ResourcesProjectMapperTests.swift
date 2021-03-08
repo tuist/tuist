@@ -58,7 +58,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         XCTAssertEqual(gotTarget.sources.count, 1)
         XCTAssertEqual(gotTarget.sources.first?.path, expectedPath)
         XCTAssertEqual(gotTarget.dependencies.count, 1)
-        XCTAssertEqual(gotTarget.dependencies.first, Dependency.target(name: "\(target.name)Resources"))
+        XCTAssertEqual(gotTarget.dependencies.first, TargetDependency.target(name: "\(target.name)Resources"))
 
         let resourcesTarget = try XCTUnwrap(gotProject.targets.last)
         XCTAssertEqual(resourcesTarget.name, "\(target.name)Resources")
@@ -104,7 +104,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         XCTAssertEqual(gotTarget.sources.count, 1)
         XCTAssertEqual(gotTarget.sources.first?.path, expectedPath)
         XCTAssertEqual(gotTarget.dependencies.count, 1)
-        XCTAssertEqual(gotTarget.dependencies.first, Dependency.target(name: "\(target.name)Resources"))
+        XCTAssertEqual(gotTarget.dependencies.first, TargetDependency.target(name: "\(target.name)Resources"))
 
         let resourcesTarget = try XCTUnwrap(gotProject.targets.last)
         XCTAssertEqual(resourcesTarget.name, "\(target.name)Resources")

@@ -193,7 +193,7 @@ public class GraphLoader: GraphLoading {
     ///   - platform: Platform of the target whose dependency is being loaded.
     ///   - graphLoaderCache: Graph loader cache.
     ///   - graphCircularDetector: Graph circular dependency detector.
-    fileprivate func loadDependency(for dependency: Dependency,
+    fileprivate func loadDependency(for dependency: TargetDependency,
                                     path: AbsolutePath,
                                     name: String,
                                     platform: Platform,

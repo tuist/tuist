@@ -235,7 +235,7 @@ final class TargetLinterTests: TuistUnitTestCase {
     }
 
     func test_lint_when_target_has_duplicate_dependencies_specified() {
-        let testDependency: Dependency = .sdk(name: "libc++.tbd", status: .optional)
+        let testDependency: TargetDependency = .sdk(name: "libc++.tbd", status: .optional)
 
         // Given
         let target = Target.test(dependencies: .init(repeating: testDependency, count: 2))
