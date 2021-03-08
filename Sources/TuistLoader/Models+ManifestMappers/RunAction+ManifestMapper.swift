@@ -5,7 +5,7 @@ import TuistCore
 import TuistGraph
 
 extension TuistGraph.RunAction {
-    /// Maps a ProjectDescription.RunAction instance into a TuistCore.RunAction instance.
+    /// Maps a ProjectDescription.RunAction instance into a TuistGraph.RunAction instance.
     /// - Parameters:
     ///   - manifest: Manifest representation of  the settings.
     ///   - generatorPaths: Generator paths.

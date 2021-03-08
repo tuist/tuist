@@ -5,7 +5,7 @@ import TuistCore
 import TuistGraph
 
 extension TuistGraph.TestableTarget {
-    /// Maps a ProjectDescription.TestableTarget instance into a TuistCore.TestableTarget instance.
+    /// Maps a ProjectDescription.TestableTarget instance into a TuistGraph.TestableTarget instance.
     /// - Parameters:
     ///   - manifest: Manifest representation of testable target model.
     ///   - generatorPaths: Generator paths.

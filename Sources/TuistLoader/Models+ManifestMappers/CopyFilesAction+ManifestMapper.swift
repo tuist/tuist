@@ -19,7 +19,7 @@ public enum CopyFilesManifestMapperError: FatalError {
 }
 
 extension TuistGraph.CopyFilesAction {
-    /// Maps a ProjectDescription.CopyFilesAction instance into a TuistCore.CopyFilesAction instance.
+    /// Maps a ProjectDescription.CopyFilesAction instance into a TuistGraph.CopyFilesAction instance.
     /// - Parameters:
     ///   - manifest: Manifest representation of platform model.
     ///   - generatorPaths: Generator paths.
@@ -53,7 +53,7 @@ extension TuistGraph.CopyFilesAction {
 }
 
 extension TuistGraph.CopyFilesAction.Destination {
-    /// Maps a ProjectDescription.TargetAction.Destination instance into a TuistCore.TargetAction.Destination model.
+    /// Maps a ProjectDescription.TargetAction.Destination instance into a TuistGraph.TargetAction.Destination model.
     /// - Parameters:
     ///   - manifest: Manifest representation of target action destination.
     static func from(manifest: ProjectDescription.CopyFilesAction.Destination) -> TuistGraph.CopyFilesAction.Destination {

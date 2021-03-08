@@ -7,7 +7,7 @@ import TuistGraph
 extension TuistGraph.Settings {
     typealias BuildConfigurationTuple = (TuistGraph.BuildConfiguration, TuistGraph.Configuration?)
 
-    /// Maps a ProjectDescription.Settings instance into a TuistCore.Settings instance.
+    /// Maps a ProjectDescription.Settings instance into a TuistGraph.Settings instance.
     /// - Parameters:
     ///   - manifest: Manifest representation of  the settings.
     ///   - generatorPaths: Generator paths.

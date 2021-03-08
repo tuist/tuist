@@ -4,7 +4,7 @@ import TSCBasic
 import TuistGraph
 
 extension TuistGraph.ExecutionAction {
-    /// Maps a ProjectDescription.ExecutionAction instance into a TuistCore.ExecutionAction instance.
+    /// Maps a ProjectDescription.ExecutionAction instance into a TuistGraph.ExecutionAction instance.
     /// - Parameters:
     ///   - manifest: Manifest representation of execution action model.
     ///   - generatorPaths: Generator paths.

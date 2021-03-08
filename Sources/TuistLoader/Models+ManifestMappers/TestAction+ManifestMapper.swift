@@ -5,7 +5,7 @@ import TuistCore
 import TuistGraph
 
 extension TuistGraph.TestAction {
-    /// Maps a ProjectDescription.TestAction instance into a TuistCore.TestAction instance.
+    /// Maps a ProjectDescription.TestAction instance into a TuistGraph.TestAction instance.
     /// - Parameters:
     ///   - manifest: Manifest representation of test action model.
     ///   - generatorPaths: Generator paths.

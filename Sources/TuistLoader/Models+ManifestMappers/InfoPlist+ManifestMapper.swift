@@ -5,7 +5,7 @@ import TuistCore
 import TuistGraph
 
 extension TuistGraph.InfoPlist {
-    /// Maps a ProjectDescription.InfoPlist instance into a TuistCore.InfoPlist instance.
+    /// Maps a ProjectDescription.InfoPlist instance into a TuistGraph.InfoPlist instance.
     /// - Parameters:
     ///   - manifest: Manifest representation of the Info plist model.
     ///   - generatorPaths: Generator paths.
@@ -25,7 +25,7 @@ extension TuistGraph.InfoPlist {
 }
 
 extension TuistGraph.InfoPlist.Value {
-    /// Maps a ProjectDescription.InfoPlist.Value instance into a TuistCore.InfoPlist.Value instance.
+    /// Maps a ProjectDescription.InfoPlist.Value instance into a TuistGraph.InfoPlist.Value instance.
     /// - Parameters:
     ///   - manifest: Manifest representation of the Info plist value model.
     ///   - generatorPaths: Generator paths.

@@ -5,7 +5,7 @@ import TuistCore
 import TuistGraph
 
 extension TuistGraph.BuildAction {
-    /// Maps a ProjectDescription.BuildAction instance into a TuistCore.BuildAction instance.
+    /// Maps a ProjectDescription.BuildAction instance into a TuistGraph.BuildAction instance.
     /// - Parameters:
     ///   - manifest: Manifest representation of build action model.
     ///   - generatorPaths: Generator paths.

@@ -6,7 +6,7 @@ import TuistGraph
 import TuistSupport
 
 extension TuistGraph.TargetAction {
-    /// Maps a ProjectDescription.TargetAction instance into a TuistCore.TargetAction model.
+    /// Maps a ProjectDescription.TargetAction instance into a TuistGraph.TargetAction model.
     /// - Parameters:
     ///   - manifest: Manifest representation of target action.
     ///   - generatorPaths: Generator paths.
@@ -46,7 +46,7 @@ extension TuistGraph.TargetAction {
 }
 
 extension TuistGraph.TargetAction.Order {
-    /// Maps a ProjectDescription.TargetAction.Order instance into a TuistCore.TargetAction.Order model.
+    /// Maps a ProjectDescription.TargetAction.Order instance into a TuistGraph.TargetAction.Order model.
     /// - Parameters:
     ///   - manifest: Manifest representation of target action order.
     ///   - generatorPaths: Generator paths.
