@@ -6,7 +6,7 @@ import TuistGraph
 import TuistSupport
 
 extension TuistGraph.CoreDataModel {
-    /// Maps a ProjectDescription.CoreDataModel instance into a TuistCore.CoreDataModel instance.
+    /// Maps a ProjectDescription.CoreDataModel instance into a TuistGraph.CoreDataModel instance.
     /// - Parameters:
     ///   - manifest: Manifest representation of Core Data model.
     ///   - generatorPaths: Generator paths.

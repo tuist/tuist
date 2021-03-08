@@ -6,7 +6,7 @@ import TuistGraph
 import TuistSupport
 
 extension TuistGraph.ResourceFileElement {
-    /// Maps a ProjectDescription.ResourceFileElement instance into a [TuistCore.ResourceFileElement] instance.
+    /// Maps a ProjectDescription.ResourceFileElement instance into a [TuistGraph.ResourceFileElement] instance.
     /// Glob patterns in file elements are unfolded as part of the mapping.
     /// - Parameters:
     ///   - manifest: Manifest representation of  the file element.

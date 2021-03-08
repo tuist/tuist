@@ -4,7 +4,7 @@ import TSCBasic
 import TuistGraph
 
 extension TuistGraph.Project {
-    /// Maps a ProjectDescription.FileElement instance into a [TuistCore.FileElement] instance.
+    /// Maps a ProjectDescription.FileElement instance into a [TuistGraph.FileElement] instance.
     /// Glob patterns in file elements are unfolded as part of the mapping.
     /// - Parameters:
     ///   - manifest: Manifest representation of  the file element.

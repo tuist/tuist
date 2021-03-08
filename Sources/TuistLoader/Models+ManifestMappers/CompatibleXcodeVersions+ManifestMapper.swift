@@ -6,7 +6,7 @@ import TuistGraph
 import TuistSupport
 
 extension TuistGraph.CompatibleXcodeVersions {
-    /// Maps a ProjectDescription.CompatibleXcodeVersions instance into a TuistCore.CompatibleXcodeVersions model.
+    /// Maps a ProjectDescription.CompatibleXcodeVersions instance into a TuistGraph.CompatibleXcodeVersions model.
     /// - Parameters:
     ///   - manifest: Manifest representation of compatible Xcode versions.
     ///   - generatorPaths: Generator paths.

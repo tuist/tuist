@@ -5,7 +5,7 @@ import TuistCore
 import TuistGraph
 
 extension TuistGraph.ArchiveAction {
-    /// Maps a ProjectDescription.ArchiveAction instance into a TuistCore.ArchiveAction instance.
+    /// Maps a ProjectDescription.ArchiveAction instance into a TuistGraph.ArchiveAction instance.
     /// - Parameters:
     ///   - manifest: Manifest representation of archive action model.
     ///   - generatorPaths: Generator paths.

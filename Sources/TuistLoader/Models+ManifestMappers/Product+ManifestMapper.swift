@@ -3,7 +3,7 @@ import ProjectDescription
 import TuistGraph
 
 extension TuistGraph.Product {
-    /// Maps a ProjectDescription.Product instance into a TuistCore.Product instance.
+    /// Maps a ProjectDescription.Product instance into a TuistGraph.Product instance.
     /// - Parameters:
     ///   - manifest: Manifest representation of product model.
     ///   - generatorPaths: Generator paths.

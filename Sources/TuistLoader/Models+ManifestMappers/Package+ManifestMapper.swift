@@ -6,7 +6,7 @@ import TuistGraph
 import TuistSupport
 
 extension TuistGraph.Package {
-    /// Maps a ProjectDescription.Package instance into a TuistCore.Package model.
+    /// Maps a ProjectDescription.Package instance into a TuistGraph.Package model.
     /// - Parameters:
     ///   - manifest: Manifest representation of Package.
     ///   - generatorPaths: Generator paths.
@@ -21,7 +21,7 @@ extension TuistGraph.Package {
 }
 
 extension TuistGraph.Requirement {
-    /// Maps a ProjectDescription.Package.Requirement instance into a TuistCore.Package.Requirement model.
+    /// Maps a ProjectDescription.Package.Requirement instance into a TuistGraph.Package.Requirement model.
     /// - Parameters:
     ///   - manifest: Manifest representation of Package.
     ///   - generatorPaths: Generator paths.

@@ -6,7 +6,7 @@ import TuistGraph
 import TuistSupport
 
 extension TuistGraph.Workspace {
-    /// Maps a ProjectDescription.Workspace instance into a TuistCore.Workspace model.
+    /// Maps a ProjectDescription.Workspace instance into a TuistGraph.Workspace model.
     /// - Parameters:
     ///   - manifest: Manifest representation of  workspace.
     ///   - generatorPaths: Generator paths.

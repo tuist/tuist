@@ -6,7 +6,7 @@ import TuistGraph
 import TuistSupport
 
 extension TuistGraph.Configuration {
-    /// Maps a ProjectDescription.Configuration instance into a TuistCore.Configuration instance.
+    /// Maps a ProjectDescription.Configuration instance into a TuistGraph.Configuration instance.
     /// - Parameters:
     ///   - manifest: Manifest representation of configuration.
     ///   - generatorPaths: Generator paths.

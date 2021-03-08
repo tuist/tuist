@@ -5,7 +5,7 @@ import TuistCore
 import TuistGraph
 
 extension TuistGraph.Scheme {
-    /// Maps a ProjectDescription.Scheme instance into a TuistCore.Scheme instance.
+    /// Maps a ProjectDescription.Scheme instance into a TuistGraph.Scheme instance.
     /// - Parameters:
     ///   - manifest: Manifest representation of build action model.
     ///   - generatorPaths: Generator paths.

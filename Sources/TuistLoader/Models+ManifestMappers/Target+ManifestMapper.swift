@@ -20,7 +20,7 @@ public enum TargetManifestMapperError: FatalError {
 
 // swiftlint:disable function_body_length
 extension TuistGraph.Target {
-    /// Maps a ProjectDescription.Target instance into a TuistCore.Target instance.
+    /// Maps a ProjectDescription.Target instance into a TuistGraph.Target instance.
     /// - Parameters:
     ///   - manifest: Manifest representation of  the target.
     ///   - generatorPaths: Generator paths.
