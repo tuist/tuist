@@ -34,6 +34,9 @@ public struct RunActionOptions: Equatable, Codable {
     ///     [StoreKit configuration file](https://developer.apple.com/documentation/xcode/setting_up_storekit_testing_in_xcode#3625700).
     ///     Please note that this file is automatically added to the Project/Workpace. You should not add it manually.
     ///     The default value is `nil`, which results in no configuration defined for the scheme
+    ///
+    ///     - simulatedLocation: The simulated GPS location to use when running the app.
+    ///     Please note that the `.custom(gpxPath:)` case must refer to a valid GPX file in your project's resources.
     public static func options(
         storeKitConfigurationPath: Path? = nil,
         simulatedLocation: SimulatedLocation? = nil
@@ -46,102 +49,64 @@ public struct RunActionOptions: Equatable, Codable {
 }
 
 extension RunActionOptions {
-    /// Represents a simulated location used when running the provided run action
-    public enum SimulatedLocation {
-        case london
-        case johannesburg
-        case moscow
-        case mumbai
-        case tokyo
-        case sydney
-        case hongKong
-        case honolulu
-        case sanFrancisco
-        case mexicoCity
-        case newYork
-        case rioDeJaneiro
-        case custom(gpxFile: Path)
+    /// Represents a simulated location used when running the provided run action.
+    public struct SimulatedLocation: Codable, Equatable {
+        public let identifier: String
 
-        /// A unique identifier string for the selected simulated location.
-        ///
-        /// In case of Xcode's simulated locations, this is a string representing the location.
-        /// In case of a custom GPX file, this is a path to that file.
-        public var identifier: String {
-            switch self {
-            case .london:
-                return "London, England"
-            case .johannesburg:
-                return "Johannesburg, South Africa"
-            case .moscow:
-                return "Moscow, Russia"
-            case .mumbai:
-                return "Mumbai, India"
-            case .tokyo:
-                return "Tokyo, Japan"
-            case .sydney:
-                return "Sydney, Australia"
-            case .hongKong:
-                return "Hong Kong, China"
-            case .honolulu:
-                return "Honolulu, HI, USA"
-            case .sanFrancisco:
-                return "San Francisco, CA, USA"
-            case .mexicoCity:
-                return "Mexico City, Mexico"
-            case .newYork:
-                return "New York, NY, USA"
-            case .rioDeJaneiro:
-                return "Rio De Janeiro, Brazil"
-            case let .custom(path):
-                return path.pathString
-            }
+        private init(identifier: String) {
+            self.identifier = identifier
         }
-    }
-}
 
-extension RunActionOptions.SimulatedLocation: Equatable, Codable {
-    public init(from decoder: Decoder) throws {
-        let container = try decoder.singleValueContainer()
-        let value = try container.decode(String.self)
-
-        switch value {
-        case "London, England":
-            self = .london
-        case "Johannesburg, South Africa":
-            self = .johannesburg
-        case "Moscow, Russia":
-            self = .moscow
-        case "Mumbai, India":
-            self = .mumbai
-        case "Tokyo, Japan":
-            self = .tokyo
-        case "Sydney, Australia":
-            self = .sydney
-        case "Hong Kong, China":
-            self = .hongKong
-        case "Honolulu, HI, USA":
-            self = .honolulu
-        case "San Francisco, CA, USA":
-            self = .sanFrancisco
-        case "Mexico City, Mexico":
-            self = .mexicoCity
-        case "New York, NY, USA":
-            self = .newYork
-        case "Rio De Janeiro, Brazil":
-            self = .rioDeJaneiro
-        case _ where value.contains("/"):
-            self = .custom(gpxFile: Path(value))
-        default:
-            throw CodingError.unknownLocation
+        public static func custom(gpxFile: Path) -> SimulatedLocation {
+            .init(identifier: gpxFile.pathString)
         }
-    }
 
-    public func encode(to encoder: Encoder) throws {
-        var container = encoder.singleValueContainer()
-        try container.encode(identifier)
-    }
+        public static var london: SimulatedLocation {
+            .init(identifier: "London, England")
+        }
 
-    enum CodingError: Error {
-        case unknownLocation
+        public static var johannesburg: SimulatedLocation {
+            .init(identifier: "Johannesburg, South Africa")
+        }
+
+        public static var moscow: SimulatedLocation {
+            .init(identifier: "Moscow, Russia")
+        }
+
+        public static var mumbai: SimulatedLocation {
+            .init(identifier: "Mumbai, India")
+        }
+
+        public static var tokyo: SimulatedLocation {
+            .init(identifier: "Tokyo, Japan")
+        }
+
+        public static var sydney: SimulatedLocation {
+            .init(identifier: "Sydney, Australia")
+        }
+
+        public static var hongKong: SimulatedLocation {
+            .init(identifier: "Hong Kong, China")
+        }
+
+        public static var honolulu: SimulatedLocation {
+            .init(identifier: "Honolulu, HI, USA")
+        }
+
+        public static var sanFrancisco: SimulatedLocation {
+            .init(identifier: "San Francisco, CA, USA")
+        }
+
+        public static var mexicoCity: SimulatedLocation {
+            .init(identifier: "Mexico City, Mexico")
+        }
+
+        public static var newYork: SimulatedLocation {
+            .init(identifier: "New York, NY, USA")
+        }
+
+        public static var rioDeJaneiro: SimulatedLocation {
+            .init(identifier: "Rio De Janeiro, Brazil")
+        }
     }
 }
