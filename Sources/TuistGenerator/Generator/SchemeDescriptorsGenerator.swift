@@ -404,7 +404,6 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         {
             var identifier = locationScenario.identifier
 
-            /// GPX file path is the relative path between the storekit file, and the xcode project
             if case let .gpxFile(gpxPath) = locationScenario {
                 let fileRelativePath = gpxPath.relative(to: graphTarget.project.xcodeProjPath)
                 identifier = fileRelativePath.pathString

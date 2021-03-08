@@ -60,7 +60,7 @@ extension RunActionOptions.SimulatedLocation: Equatable, Codable {
         let container = try decoder.singleValueContainer()
         let value = try container.decode(String.self)
 
-        guard value.contains("/") else {
+        guard value.hasSuffix(".gpx") else {
             self = .reference(value)
             return
         }
