@@ -22,7 +22,23 @@ class CacheControllerProjectMapperProvider: ProjectMapperProviding {
     func mapper(config: Config) -> ProjectMapping {
         let defaultProjectMapperProvider = ProjectMapperProvider(contentHasher: contentHasher)
         let defaultMapper = defaultProjectMapperProvider.mapper(config: config)
-        return SequentialProjectMapper(mappers: [defaultMapper])
+        return SequentialProjectMapper(
+            mappers: [
+                defaultMapper,
+                XCFrameworkProjectMapper(),
+            ]
+        )
+    }
+}
+
+final class XCFrameworkProjectMapper: ProjectMapping {
+    func map(project: Project) throws -> (Project, [SideEffectDescriptor]) {
+        var project = project
+        var base = project.settings.base
+        base["BUILD_LIBRARY_FOR_DISTRIBUTION"] = "YES"
+        base["SKIP_INSTALL"] = "NO"
+        project.settings = project.settings.with(base: base)
+        return (project, [])
     }
 }
 
