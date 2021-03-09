@@ -51,14 +51,18 @@ public struct RunActionOptions: Equatable, Codable {
 extension RunActionOptions {
     /// Represents a simulated location used when running the provided run action.
     public struct SimulatedLocation: Codable, Equatable {
-        public let identifier: String
+        public let identifier: String?
+        public let gpxFile: Path?
 
-        private init(identifier: String) {
+        private init(identifier: String? = nil,
+                     gpxFile: Path? = nil)
+        {
             self.identifier = identifier
+            self.gpxFile = gpxFile
         }
 
         public static func custom(gpxFile: Path) -> SimulatedLocation {
-            .init(identifier: gpxFile.pathString)
+            .init(gpxFile: gpxFile)
         }
 
         public static var london: SimulatedLocation {

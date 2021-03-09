@@ -398,14 +398,11 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             storeKitConfigurationFileReference = .init(identifier: fileRelativePath.pathString)
         }
 
-        if
-            let locationScenario = scheme.runAction?.options.simulatedLocation,
-            let graphTarget = graphTarget
-        {
+        if let locationScenario = scheme.runAction?.options.simulatedLocation {
             var identifier = locationScenario.identifier
 
             if case let .gpxFile(gpxPath) = locationScenario {
-                let fileRelativePath = gpxPath.relative(to: graphTarget.project.xcodeProjPath)
+                let fileRelativePath = gpxPath.relative(to: graphTraverser.workspace.xcWorkspacePath)
                 identifier = fileRelativePath.pathString
             }
 

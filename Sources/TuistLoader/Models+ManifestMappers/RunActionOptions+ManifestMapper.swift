@@ -19,11 +19,14 @@ extension TuistGraph.RunActionOptions {
             storeKitConfigurationPath = try generatorPaths.resolveSchemeActionProjectPath(path)
         }
 
-        if let simulatedLocationIdentifier = manifest.simulatedLocation?.identifier {
-            if simulatedLocationIdentifier.hasSuffix(".gpx") {
-                simulatedLocation = .gpxFile(try generatorPaths.resolveSchemeActionProjectPath(Path(simulatedLocationIdentifier)))
-            } else {
-                simulatedLocation = .reference(simulatedLocationIdentifier)
+        if let manifestLocation = manifest.simulatedLocation {
+            switch (manifestLocation.identifier, manifestLocation.gpxFile) {
+            case let (identifier?, .none):
+                simulatedLocation = .reference(identifier)
+            case let (.none, gpxFile?):
+                simulatedLocation = .gpxFile(try generatorPaths.resolveSchemeActionProjectPath(gpxFile))
+            default:
+                break
             }
         }
 
