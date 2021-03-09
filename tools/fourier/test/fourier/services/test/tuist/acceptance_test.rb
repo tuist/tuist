@@ -42,7 +42,7 @@ module Fourier
             end
 
             # Then
-            assert_equal('Cucumber failed', error.message)
+            assert_equal("Cucumber failed", error.message)
           end
         end
       end
