@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 require "test_helper"
-require 'octokit'
+require "octokit"
 
 module Fourier
   module Utilities

@@ -11,6 +11,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Changed
 
+- Double-quoted strings in ruby files [#2634](https://github.com/tuist/tuist/pull/2634) by [@fortmarek](https://github.com/fortmarek)
 - Improve `tuist generate` performance for projects with large amount of files [#2598](https://github.com/tuist/tuist/pull/2598) by [@adellibovi](https://github.com/adellibovi/)
 - Added wrap arguments swiftformat option [#2606](https://github.com/tuist/tuist/pull/2606) by [@fortmarek](https://github.com/fortmarek)
 - Remove build action for project generated in `tuist test` [#2592]()https://github.com/tuist/tuist/pull/2592 [@fortmarek](https://github.com/fortmarek)

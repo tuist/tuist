@@ -4,27 +4,27 @@ SWIFTDOC_VERSION = "1.0.0-beta.5"
 SWIFTLINT_VERSION = "0.40.2"
 XCBEAUTIFY_VERSION = "0.8.1"
 
-require 'rake/testtask'
-require 'rubygems'
-require 'cucumber'
-require 'cucumber/rake/task'
-require 'mkmf'
-require 'fileutils'
+require "rake/testtask"
+require "rubygems"
+require "cucumber"
+require "cucumber/rake/task"
+require "mkmf"
+require "fileutils"
 require "google/cloud/storage"
 require "encrypted/environment"
-require 'colorize'
-require 'highline'
-require 'tmpdir'
-require 'json'
-require 'zip'
-require 'macho'
+require "colorize"
+require "highline"
+require "tmpdir"
+require "json"
+require "zip"
+require "macho"
 
 desc("Runs the Fourier tests")
 Rake::TestTask.new do |t|
   t.name = "test_fourier"
-  t.libs += [File.expand_path('./tools/fourier/test', __dir__)]
-  test_root = File.expand_path('./tools/fourier/test', __dir__)
-  t.test_files = FileList[File.join(test_root, '**', '*_test.rb')]
+  t.libs += [File.expand_path("./tools/fourier/test", __dir__)]
+  test_root = File.expand_path("./tools/fourier/test", __dir__)
+  t.test_files = FileList[File.join(test_root, "**", "*_test.rb")]
   t.verbose = false
   t.warning = false
 end

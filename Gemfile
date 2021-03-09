@@ -18,8 +18,8 @@ gem "thor", "~> 1.1"
 
 group :test do
   gem "mocha", "~> 1.12"
-  gem 'minitest'
-  gem 'minitest-reporters'
+  gem "minitest"
+  gem "minitest-reporters"
 end
 
 group :development do
