@@ -14,6 +14,7 @@ public extension Project {
                      targets: [Target] = [Target.test()],
                      packages: [Package] = [],
                      schemes: [Scheme] = [],
+                     ideTemplateMacros: IDETemplateMacros? = nil,
                      additionalFiles: [FileElement] = []) -> Project
     {
         Project(
@@ -28,6 +29,7 @@ public extension Project {
             targets: targets,
             packages: packages,
             schemes: schemes,
+            ideTemplateMacros: ideTemplateMacros,
             additionalFiles: additionalFiles
         )
     }
@@ -43,6 +45,7 @@ public extension Project {
                       targets: [Target] = [],
                       packages: [Package] = [],
                       schemes: [Scheme] = [],
+                      ideTemplateMacros: IDETemplateMacros? = nil,
                       additionalFiles: [FileElement] = []) -> Project
     {
         Project(
@@ -57,6 +60,7 @@ public extension Project {
             targets: targets,
             packages: packages,
             schemes: schemes,
+            ideTemplateMacros: ideTemplateMacros,
             additionalFiles: additionalFiles
         )
     }

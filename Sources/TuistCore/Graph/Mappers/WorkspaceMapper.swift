@@ -1,7 +1,7 @@
 import Foundation
 import TuistGraph
 
-public struct WorkspaceWithProjects {
+public struct WorkspaceWithProjects: Equatable {
     public var workspace: Workspace
     public var projects: [Project]
     public init(workspace: Workspace, projects: [Project]) {

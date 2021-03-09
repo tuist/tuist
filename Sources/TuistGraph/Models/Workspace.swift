@@ -11,6 +11,7 @@ public struct Workspace: Equatable {
     public var name: String
     public var projects: [AbsolutePath]
     public var schemes: [Scheme]
+    public var ideTemplateMacros: IDETemplateMacros?
     public var additionalFiles: [FileElement]
 
     // MARK: - Init
@@ -21,6 +22,7 @@ public struct Workspace: Equatable {
         name: String,
         projects: [AbsolutePath],
         schemes: [Scheme] = [],
+        ideTemplateMacros: IDETemplateMacros? = nil,
         additionalFiles: [FileElement] = []
     ) {
         self.path = path
@@ -28,6 +30,7 @@ public struct Workspace: Equatable {
         self.name = name
         self.projects = projects
         self.schemes = schemes
+        self.ideTemplateMacros = ideTemplateMacros
         self.additionalFiles = additionalFiles
     }
 }
@@ -46,6 +49,7 @@ extension Workspace {
             name: name,
             projects: projects,
             schemes: schemes,
+            ideTemplateMacros: ideTemplateMacros,
             additionalFiles: additionalFiles + files.map { .file(path: $0) }
         )
     }
@@ -57,6 +61,7 @@ extension Workspace {
             name: name,
             projects: projects,
             schemes: schemes,
+            ideTemplateMacros: ideTemplateMacros,
             additionalFiles: additionalFiles
         )
     }
@@ -68,6 +73,7 @@ extension Workspace {
             name: name,
             projects: Array(Set(projects + otherProjects)),
             schemes: schemes,
+            ideTemplateMacros: ideTemplateMacros,
             additionalFiles: additionalFiles
         )
     }

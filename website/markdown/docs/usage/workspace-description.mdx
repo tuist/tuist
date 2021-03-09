@@ -125,6 +125,14 @@ A `Workspace.swift` should initialize a variable of type `Workspace`. It can tak
       default: '[]',
     },
     {
+      name: 'FileHeaderTemplate',
+      description: 'Lets you define custom file header template macro for built-in Xcode file templates',
+      type: 'FileHeaderTemplate?',
+      typeLink: '/docs/usage/project-description#file-header-template',
+      optional: true,
+      default: 'nil',
+    },
+    {
       name: 'AdditionalFiles',
       description:
         "List of files to include in the workspace - these won't be included in any of the projects or their build phases.",

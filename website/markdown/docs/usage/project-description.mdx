@@ -110,6 +110,14 @@ A `Project.swift` should initialize a variable of type `Project`. It can take an
       default: '',
     },
     {
+      name: 'FileHeaderTemplate',
+      description: 'Lets you define custom file header template macro for built-in Xcode file templates',
+      type: 'FileHeaderTemplate?',
+      typeLink: '#file-header-template',
+      optional: true,
+      default: 'nil',
+    },
+    {
       name: 'AdditionalFiles',
       description:
         "List of files to include in the project - these won't be included in any of the build phases",
@@ -1783,4 +1791,33 @@ A target within a specified project. The project is specified through the path a
       optional: false,
     },
   ]}
+/>
+
+## File Header Template
+
+Lets you define custom file header template for built-in Xcode templates, e.g. when you create new Swift file you can automatically have your custom define file header.
+
+Tuist automatically performs several template transformations for you
+  - if your template starts with comment slashes (`//`) we remove them as they are added automatically by Xcode
+  - if your template doesn't start with comment and whitespace or newline, we add a space - otherwise your header would be glued to implicit comment slashes which you probably do not want
+  - if your template has trailing newline, we remove it as it is implicitly added by Xcode
+
+<EnumTable
+  cases={[
+    {
+      case:
+        '.file(Path)',
+      description: 'Use file at given path as file header template',
+    },
+    {
+      case: '.string(String)',
+      description: 'Use given inline string as file header template',
+    },
+  ]}
+/>
+
+<Message
+  info
+  title="ExpressibleByStringInterpolation"
+  description="File header template can be initialized with a plain string, it is equivalent to using `.string(...)`"
 />
