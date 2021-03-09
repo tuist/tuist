@@ -28,7 +28,6 @@ let project = Project(name: "MainApp",
                                  bundleId: "io.tuist.App",
                                  infoPlist: "Config/App-Info.plist",
                                  sources: "Sources/**",
-                                 resources: ["Resources/**"],
                                  dependencies: [
                                      .project(target: "Framework1", path: "../Frameworks/Framework1"),
                                      .project(target: "Framework2", path: "../Frameworks/Framework2"),
