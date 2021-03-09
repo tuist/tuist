@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 require "test_helper"
-require 'cucumber/cli/main'
+require "cucumber/cli/main"
 
 module Fourier
   module Services

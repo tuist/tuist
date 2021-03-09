@@ -1,5 +1,5 @@
 # frozen_string_literal: true
-require 'cucumber/cli/main'
+require "cucumber/cli/main"
 
 module Fourier
   module Services
@@ -24,7 +24,7 @@ module Fourier
             end
 
             failure = Cucumber::Cli::Main.execute(args)
-            raise Error, 'Cucumber failed' if failure
+            raise Error, "Cucumber failed" if failure
           end
         end
       end

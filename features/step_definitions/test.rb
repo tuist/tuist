@@ -1,4 +1,4 @@
-require 'xcodeproj'
+require "xcodeproj"
 
 Then(/^tuist tests the scheme ([a-zA-Z\-]+) from the project$/) do |scheme|
   system("swift", "run", "tuist", "test", scheme, "--path", @dir)
