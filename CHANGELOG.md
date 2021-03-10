@@ -9,6 +9,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Changed
 - **Breaking** Redesign `ProjectDescription.CarthageDependencies` manifest model. [#2608](https://github.com/tuist/tuist/pull/2608) by [@laxmorek](https://github.com/laxmorek)
+- Changed the auto generated scheme heuristic to pick test bundles that have a matching name prefixed with either `Tests`, `IntegrationTests` or `UITests`. [#2641](https://github.com/tuist/tuist/pull/2641) by [@FranzBusch](https://github.com/FranzBusch) 
 
 ## 1.37.0 - Twister
 
