@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
-require 'tmpdir'
-require 'fileutils'
+require "tmpdir"
+require "fileutils"
 
 And(/I have a working directory/) do
   @dir = Dir.mktmpdir

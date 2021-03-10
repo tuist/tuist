@@ -24,7 +24,7 @@ public protocol SwiftPackageManagerInteracting {
     /// - Parameters:
     ///   - graph: The graph traverser.
     ///   - workspaceName: The name GraphTraversing the generated workspace (e.g. `MyWorkspace.xcworkspace`)
-    func install(graphTraverser: GraphTraversing, workspaceName: String) throws
+    func install(graphTraverser: GraphTraversing, workspaceName: String, config: Config) throws
 }
 
 public class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting {
@@ -33,10 +33,11 @@ public class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting {
         self.fileHandler = fileHandler
     }
 
-    public func install(graphTraverser: GraphTraversing, workspaceName: String) throws {
+    public func install(graphTraverser: GraphTraversing, workspaceName: String, config: Config = .default) throws {
         try generatePackageDependencyManager(
             at: graphTraverser.path,
             workspaceName: workspaceName,
+            config: config,
             graphTraverser: graphTraverser
         )
     }
@@ -44,6 +45,7 @@ public class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting {
     private func generatePackageDependencyManager(
         at path: AbsolutePath,
         workspaceName: String,
+        config: Config,
         graphTraverser: GraphTraversing
     ) throws {
         guard graphTraverser.hasRemotePackages else {
@@ -65,7 +67,16 @@ public class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting {
         let workspacePath = path.appending(component: workspaceName)
         logger.notice("Resolving package dependencies using xcodebuild")
         // -list parameter is a workaround to resolve package dependencies for given workspace without specifying scheme
-        _ = try System.shared.observable(["xcodebuild", "-resolvePackageDependencies", "-workspace", workspacePath.pathString, "-list"])
+        var arguments = ["xcodebuild", "-resolvePackageDependencies"]
+
+        // This allows using the system-defined git credentials instead of using Xcode's accounts permissions
+        if config.generationOptions.contains(.resolveDependenciesWithSystemScm) {
+            arguments.append(contentsOf: ["-scmProvider", "system"])
+        }
+
+        arguments.append(contentsOf: ["-workspace", workspacePath.pathString, "-list"])
+
+        _ = try System.shared.observable(arguments)
             .mapToString()
             .do(onNext: { event in
                 switch event {

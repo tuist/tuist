@@ -1,5 +1,5 @@
 # frozen_string_literal: true
-require 'open3'
+require "open3"
 
 Given(/tuist is available/) do
   system("swift", "build", "--package-path", File.expand_path("../../..", __dir__))

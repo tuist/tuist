@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
-require 'simctl'
-require 'xcodeproj'
+require "simctl"
+require "xcodeproj"
 
 Then(/I should be able to (.+) for (iOS|macOS|tvOS|watchOS) the scheme (.+)/) do |action, platform, scheme|
   @derived_data_path = File.join(@dir, "DerivedData")

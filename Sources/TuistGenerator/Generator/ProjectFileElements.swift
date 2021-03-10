@@ -111,6 +111,19 @@ class ProjectFileElements {
 
         fileElements.formUnion(storekitFiles)
 
+        // Add the .gpx files if needed. GPS Exchange files must be added to the
+        // project/workspace so that the scheme can correctly reference them.
+        // In case the configuration already contains such file, we should avoid adding it twice
+        let gpxFiles = project.schemes.compactMap { scheme -> GroupFileElement? in
+            guard case let .gpxFile(path) = scheme.runAction?.options.simulatedLocation else {
+                return nil
+            }
+
+            return GroupFileElement(path: path, group: project.filesGroup)
+        }
+
+        fileElements.formUnion(gpxFiles)
+
         return fileElements
     }
 

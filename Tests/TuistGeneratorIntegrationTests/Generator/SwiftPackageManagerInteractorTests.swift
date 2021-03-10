@@ -56,6 +56,40 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         XCTAssertTrue(FileHandler.shared.exists(temporaryPath.appending(component: ".package.resolved")))
     }
 
+    func test_generate_usesSystemGitCredentials() throws {
+        // Given
+        let temporaryPath = try self.temporaryPath()
+        let config = Config(compatibleXcodeVersions: .all, cloud: nil, cache: nil, plugins: [], generationOptions: [.resolveDependenciesWithSystemScm], path: nil)
+
+        let target = anyTarget(dependencies: [
+            .package(product: "Example"),
+        ])
+        let package = Package.remote(url: "http://some.remote/repo.git", requirement: .exact("branch"))
+        let project = Project.test(
+            path: temporaryPath,
+            name: "Test",
+            settings: .default,
+            targets: [target],
+            packages: [package]
+        )
+        let graph = ValueGraph.test(
+            path: project.path,
+            packages: [project.path: ["Test": package]],
+            dependencies: [ValueGraphDependency.packageProduct(path: project.path, product: "Test"): Set()]
+        )
+        let graphTraverser = ValueGraphTraverser(graph: graph)
+
+        let workspacePath = temporaryPath.appending(component: "\(project.name).xcworkspace")
+        system.succeedCommand(["xcodebuild", "-resolvePackageDependencies", "-scmProvider", "system", "-workspace", workspacePath.pathString, "-list"])
+        try createFiles(["\(workspacePath.basename)/xcshareddata/swiftpm/Package.resolved"])
+
+        // When
+        try subject.install(graphTraverser: graphTraverser, workspaceName: workspacePath.basename, config: config)
+
+        // Then
+        XCTAssertTrue(FileHandler.shared.exists(temporaryPath.appending(component: ".package.resolved")))
+    }
+
     func test_generate_linksRootPackageResolved_before_resolving() throws {
         // Given
         let temporaryPath = try self.temporaryPath()
