@@ -70,7 +70,7 @@ public extension CarthageDependencies {
             }
         }
     }
-    
+
     enum Options: Equatable {
         case useXCFrameworks
         case noUseBinaries

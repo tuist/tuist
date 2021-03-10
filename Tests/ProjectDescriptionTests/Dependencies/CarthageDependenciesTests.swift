@@ -59,14 +59,14 @@ final class CarthageDependenciesTests: XCTestCase {
         let subject: CarthageDependencies.Requirement = .revision("revision")
         XCTAssertCodable(subject)
     }
-    
+
     // MARK: - Carthage Options tests
-    
+
     func test_carthageOptions_useXCFrameworks_codable() throws {
         let subject: CarthageDependencies.Options = .useXCFrameworks
         XCTAssertCodable(subject)
     }
-    
+
     func test_carthageOptions_noUseBinaries_codable() throws {
         let subject: CarthageDependencies.Options = .noUseBinaries
         XCTAssertCodable(subject)

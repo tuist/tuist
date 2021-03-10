@@ -85,7 +85,7 @@ public final class CarthageInteractor: CarthageInteracting {
         if dependencies.options.contains(.useXCFrameworks), !(try carthageController.isXCFrameworksProductionSupported()) {
             throw CarthageInteractorError.xcFrameworksProductionNotSupported
         }
-        
+
         try fileHandler.inTemporaryDirectory { temporaryDirectoryPath in
             // prepare paths
             let pathsProvider = CarthagePathsProvider(dependenciesDirectory: dependenciesDirectory, temporaryDirectoryPath: temporaryDirectoryPath)

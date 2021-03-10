@@ -60,7 +60,7 @@ public extension CarthageDependencies {
         case branch(String)
         case revision(String)
     }
-    
+
     /// The options that you can set for Carthage installation.
     enum Options: String, Codable, Equatable {
         /// When passed, Carthage will produce XCFrameworks instead of regular frameworks.
