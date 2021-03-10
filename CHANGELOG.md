@@ -4,6 +4,12 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Added
+- Add support for `--no-use-binaries` Carthage flag. [#2608](https://github.com/tuist/tuist/pull/2608) by [@laxmorek](https://github.com/laxmorek)
+
+### Changed
+- **Breaking** Redesign `ProjectDescription.CarthageDependencies` manifest model. [#2608](https://github.com/tuist/tuist/pull/2608) by [@laxmorek](https://github.com/laxmorek)
+
 ## 1.37.0 - Twister
 
 ### Added
@@ -12,7 +18,6 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Add support for simulated location in a run action's options. [#2616](https://github.com/tuist/tuist/pull/2616) by [@freak4pc](https://github.com/freak4pc)
 - Add option for enabling XCFrameworks production for Carthage in `Setup.swift`. [#2565](https://github.com/tuist/tuist/pull/2565) by [@laxmorek](https://github.com/laxmorek)
 - Add support for custom file header templates that are used for built-in Xcode file templates [#2568](https://github.com/tuist/tuist/pull/2568) by [@olejnjak](https://github.com/olejnjak)
-- Add support for `--no-use-binaries` Carthage flag. [#2608](https://github.com/tuist/tuist/pull/2608) by [@laxmorek](https://github.com/laxmorek)
 
 ### Changed
 
