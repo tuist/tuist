@@ -134,7 +134,7 @@ public final class BuildGraphInspector: BuildGraphInspecting {
     }
 
     public func workspacePath(directory: AbsolutePath) throws -> AbsolutePath? {
-        try directory.glob("**/*.xcworkspace")
+        try directory.glob("*.xcworkspace")
             .filter {
                 try FileHandler.shared.contentsOfDirectory($0)
                     .map(\.basename)
