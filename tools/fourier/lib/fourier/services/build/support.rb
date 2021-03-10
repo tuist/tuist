@@ -4,7 +4,6 @@ module Fourier
     module Build
       class Support < Base
         def call
-
         end
       end
     end

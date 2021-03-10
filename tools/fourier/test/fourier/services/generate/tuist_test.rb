@@ -14,11 +14,11 @@ module Fourier
         end
 
         def test_calls_tuist_with_the_right_arguments_when_open_is_true
-           # Given
-           Utilities::System.expects(:tuist).with("generate", "--open")
+          # Given
+          Utilities::System.expects(:tuist).with("generate", "--open")
 
-           # When/Then
-           Fourier::Services::Generate::Tuist.call(open: true)
+          # When/Then
+          Fourier::Services::Generate::Tuist.call(open: true)
         end
       end
     end
