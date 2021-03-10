@@ -79,6 +79,12 @@ jobs:
         xcode: ['12.3']
         feature:
           [
+            'build',
+            'cache-frameworks',
+            'cache-xcframeworks',
+            'dependencies',
+            'edit',
+            'env',
             'generate-1',
             'generate-2',
             'generate-3',
@@ -88,17 +94,12 @@ jobs:
             'generate-7',
             'generate-8',
             'init',
-            'lint-project',
             'lint-code',
-            'scaffold',
-            'up',
-            'build',
-            'test',
-            'env',
-            'cache-xcframeworks',
-            'cache-frameworks',
+            'lint-project',
             'precompiled',
-            'dependencies',
+            'scaffold',
+            'test',
+            'up',
           ]
     steps:
       - uses: actions/checkout@v1

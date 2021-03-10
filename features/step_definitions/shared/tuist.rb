@@ -77,6 +77,7 @@ end
 
 Then(/tuist edits the project/) do
   system("swift", "run", "tuist", "edit", "--path", @dir, "--permanent")
+  @workspace_path = Dir.glob(File.join(@dir, "*.xcworkspace")).first
   @xcodeproj_path = Dir.glob(File.join(@dir, "*.xcodeproj")).first
 end
 

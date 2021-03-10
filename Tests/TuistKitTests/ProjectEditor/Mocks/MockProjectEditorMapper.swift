@@ -3,6 +3,7 @@ import TSCBasic
 import TuistCore
 import TuistGraph
 import TuistGraphTesting
+import TuistLoader
 
 @testable import TuistCoreTesting
 @testable import TuistKit
@@ -18,7 +19,8 @@ final class MockProjectEditorMapper: ProjectEditorMapping {
         configPath: AbsolutePath?,
         dependenciesPath: AbsolutePath?,
         projectManifests: [AbsolutePath],
-        pluginManifests: [AbsolutePath],
+        editablePluginManifests: [EditablePluginManifest],
+        pluginProjectDescriptionHelpersModule: [ProjectDescriptionHelpersModule],
         helpers: [AbsolutePath],
         templates: [AbsolutePath],
         projectDescriptionPath: AbsolutePath
@@ -33,7 +35,8 @@ final class MockProjectEditorMapper: ProjectEditorMapping {
         configPath: AbsolutePath?,
         dependenciesPath: AbsolutePath?,
         projectManifests: [AbsolutePath],
-        pluginManifests: [AbsolutePath],
+        editablePluginManifests: [EditablePluginManifest],
+        pluginProjectDescriptionHelpersModule: [ProjectDescriptionHelpersModule],
         helpers: [AbsolutePath],
         templates: [AbsolutePath],
         projectDescriptionPath: AbsolutePath
@@ -47,7 +50,8 @@ final class MockProjectEditorMapper: ProjectEditorMapping {
             configPath: configPath,
             dependenciesPath: dependenciesPath,
             projectManifests: projectManifests,
-            pluginManifests: pluginManifests,
+            editablePluginManifests: editablePluginManifests,
+            pluginProjectDescriptionHelpersModule: pluginProjectDescriptionHelpersModule,
             helpers: helpers,
             templates: templates,
             projectDescriptionPath: projectDescriptionPath

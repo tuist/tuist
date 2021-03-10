@@ -43,36 +43,31 @@ public final class GitHandler: GitHandling {
     }
 
     public func clone(url: String, into path: AbsolutePath) throws {
-        try system.runAndPrint("git", "-C", path.pathString, "clone", url)
+        try run(command: "git", "-C", path.pathString, "clone", url)
     }
 
     public func clone(url: String, to path: AbsolutePath? = nil) throws {
         if let path = path {
-            try system.runAndPrint("git", "clone", url, path.pathString)
+            try run(command: "git", "clone", url, path.pathString)
         } else {
-            try system.runAndPrint("git", "clone", url)
+            try run(command: "git", "clone", url)
         }
     }
 
     public func checkout(id: String, in path: AbsolutePath?) throws {
         if let path = path {
-            try performCheckout(id: id, in: path)
+            let gitDirectory = path.appending(component: ".git")
+            try run(command: "git", "--git-dir", gitDirectory.pathString, "--work-tree", path.pathString, "checkout", id)
         } else {
-            try system.runAndPrint("git", "checkout", id)
+            try run(command: "git", "checkout", id)
         }
     }
 
-    private func performCheckout(id: String, in path: AbsolutePath) throws {
-        let gitDirectory = path.appending(component: ".git")
-
-        try system.runAndPrint(
-            "git",
-            "--git-dir",
-            gitDirectory.pathString,
-            "--work-tree",
-            path.pathString,
-            "checkout",
-            id
-        )
+    private func run(command: String...) throws {
+        if Environment.shared.isVerbose {
+            try system.runAndPrint(command, verbose: true, environment: System.shared.env)
+        } else {
+            try system.run(command)
+        }
     }
 }

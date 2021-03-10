@@ -1,5 +1,4 @@
 import ProjectDescription
-import LocalHelper
 
 extension Project {
     /// Helper function to create the Project for this ExampleApp
