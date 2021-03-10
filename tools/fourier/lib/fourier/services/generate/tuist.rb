@@ -5,7 +5,7 @@ module Fourier
       class Tuist < Base
         attr_reader :open
 
-        def initialize(open:)
+        def initialize(open: false)
           @open = open
         end
 

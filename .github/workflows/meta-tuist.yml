@@ -41,6 +41,9 @@ jobs:
         run: |
           bundle config path vendor/bundle
           bundle install --jobs 4 --retry 3
+      - name: Generate Xcode project
+        run: |
+          ./bin/fourier generate tuist
       - name: Build
         run: |
           ./bin/fourier build all

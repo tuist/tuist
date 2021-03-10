@@ -17,9 +17,9 @@ let project = Project(
         .package(url: "https://github.com/marmelroy/Zip.git", .upToNextMinor(from: "2.1.1")),
         .package(url: "https://github.com/rnine/Checksum.git", .upToNextMajor(from: "1.0.2")),
     ],
-    settings: Settings.init(configurations: [
+    settings: Settings(configurations: [
         .release(name: "Debug", settings: baseSettings, xcconfig: nil),
-        .release(name: "Release", settings: baseSettings, xcconfig: nil)
+        .release(name: "Release", settings: baseSettings, xcconfig: nil),
     ]),
     targets: [
         Target(name: "TuistSupport",
@@ -30,20 +30,20 @@ let project = Project(
                infoPlist: .default,
                sources: ["Sources/TuistSupport/**/*.swift"],
                dependencies: [
-                .package(product: "CombineExt"),
-                .package(product: "SwiftToolsSupport-auto"),
-                .package(product: "RxSwift"),
-                .package(product: "RxRelay"),
-                .package(product: "Logging"),
-                .package(product: "KeychainAccess"),
-                .package(product: "Swifter"),
-                .package(product: "Signals"),
-                .package(product: "Zip"),
-                .package(product: "Checksum")
+                   .package(product: "CombineExt"),
+                   .package(product: "SwiftToolsSupport-auto"),
+                   .package(product: "RxSwift"),
+                   .package(product: "RxRelay"),
+                   .package(product: "Logging"),
+                   .package(product: "KeychainAccess"),
+                   .package(product: "Swifter"),
+                   .package(product: "Signals"),
+                   .package(product: "Zip"),
+                   .package(product: "Checksum"),
                ],
-               settings: Settings.init(configurations: [
-                .release(name: "Debug", settings: [:], xcconfig: nil),
-                .release(name: "Release", settings: [:], xcconfig: nil)
-               ]))
+               settings: Settings(configurations: [
+                   .release(name: "Debug", settings: [:], xcconfig: nil),
+                   .release(name: "Release", settings: [:], xcconfig: nil),
+               ])),
     ]
 )
