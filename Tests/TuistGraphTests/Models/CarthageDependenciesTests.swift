@@ -11,8 +11,7 @@ final class CarthageDependenciesTests: TuistUnitTestCase {
                 .github(path: "Dependency/Dependency", requirement: .exact("1.1.1")),
             ],
             platforms: [.iOS],
-            useXCFrameworks: false,
-            noUseBinaries: false
+            options: []
         )
         let expected = """
         github "Dependency/Dependency" == 1.1.1
@@ -38,8 +37,7 @@ final class CarthageDependenciesTests: TuistUnitTestCase {
                 .binary(path: "file:///some/local/path/MyFramework.json", requirement: .atLeast("1.1.0")),
             ],
             platforms: [.iOS],
-            useXCFrameworks: false,
-            noUseBinaries: false
+            options: []
         )
         let expected = """
         github "Dependency/Dependency" == 2.1.1

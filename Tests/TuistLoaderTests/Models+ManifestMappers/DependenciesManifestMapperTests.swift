@@ -20,8 +20,7 @@ final class DependenciesManifestMapperTests: TuistUnitTestCase {
                     .binary(path: "DependencyXYZ", requirement: .atLeast("2.3.1")),
                 ],
                 platforms: [.iOS, .macOS, .tvOS],
-                useXCFrameworks: true,
-                noUseBinaries: true
+                options: [.useXCFrameworks, .noUseBinaries]
             )
         )
 
@@ -37,8 +36,7 @@ final class DependenciesManifestMapperTests: TuistUnitTestCase {
                     .binary(path: "DependencyXYZ", requirement: .atLeast("2.3.1")),
                 ],
                 platforms: [.iOS, .macOS, .tvOS],
-                useXCFrameworks: true,
-                noUseBinaries: true
+                options: [.useXCFrameworks, .noUseBinaries]
             )
         )
         XCTAssertEqual(model, expected)

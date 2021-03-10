@@ -25,7 +25,7 @@ final class CarthageCommandGeneratorTests: TuistUnitTestCase {
 
         // When
         let got = subject
-            .command(path: stubbedPath, produceXCFrameworks: false, noUseBinaries: false, platforms: nil)
+            .command(path: stubbedPath, platforms: nil, options: nil)
             .joined(separator: " ")
 
         // Then
@@ -39,7 +39,7 @@ final class CarthageCommandGeneratorTests: TuistUnitTestCase {
 
         // When
         let got = subject
-            .command(path: stubbedPath, produceXCFrameworks: false, noUseBinaries: false, platforms: [.iOS])
+            .command(path: stubbedPath, platforms: [.iOS], options: nil)
             .joined(separator: " ")
 
         // Then
@@ -53,7 +53,7 @@ final class CarthageCommandGeneratorTests: TuistUnitTestCase {
 
         // When
         let got = subject
-            .command(path: stubbedPath, produceXCFrameworks: true, noUseBinaries: false, platforms: [.iOS, .tvOS, .macOS, .watchOS])
+            .command(path: stubbedPath, platforms: [.iOS, .tvOS, .macOS, .watchOS], options: [.useXCFrameworks])
             .joined(separator: " ")
 
         // Then
@@ -67,7 +67,7 @@ final class CarthageCommandGeneratorTests: TuistUnitTestCase {
 
         // When
         let got = subject
-            .command(path: stubbedPath, produceXCFrameworks: true, noUseBinaries: true, platforms: [.iOS, .tvOS, .macOS, .watchOS])
+            .command(path: stubbedPath, platforms: [.iOS, .tvOS, .macOS, .watchOS], options: [.useXCFrameworks, .noUseBinaries])
             .joined(separator: " ")
 
         // Then

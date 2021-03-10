@@ -9,10 +9,9 @@ public protocol CarthageCommandGenerating {
     /// Builds `Carthage` command.
     /// - Parameters:
     ///   - path: Directory whose project's dependencies will be installed.
-    ///   - produceXCFrameworks: Indicates whether `Carthage` produces XCFrameworks instead of regular frameworks.
-    ///   - noUseBinaries: Indicates whether Carthage rebuilds the dependency from source instead of using downloaded binaries when possible.
     ///   - platforms: The platforms to build for.
-    func command(path: AbsolutePath, produceXCFrameworks: Bool, noUseBinaries: Bool, platforms: Set<Platform>?) -> [String]
+    ///   - options: The options for Carthage installation.
+    func command(path: AbsolutePath, platforms: Set<Platform>?, options: Set<CarthageDependencies.Options>?) -> [String]
 }
 
 // MARK: - Carthage Command Generator
@@ -20,7 +19,7 @@ public protocol CarthageCommandGenerating {
 public final class CarthageCommandGenerator: CarthageCommandGenerating {
     public init() {}
 
-    public func command(path: AbsolutePath, produceXCFrameworks: Bool, noUseBinaries: Bool, platforms: Set<Platform>?) -> [String] {
+    public func command(path: AbsolutePath, platforms: Set<Platform>?, options: Set<CarthageDependencies.Options>?) -> [String] {
         var commandComponents: [String] = []
         commandComponents.append("carthage")
         commandComponents.append("bootstrap")
@@ -48,12 +47,14 @@ public final class CarthageCommandGenerator: CarthageCommandGenerating {
         commandComponents.append("--cache-builds")
         commandComponents.append("--new-resolver")
 
-        if produceXCFrameworks {
-            commandComponents.append("--use-xcframeworks")
-        }
+        if let options = options {
+            if options.contains(.useXCFrameworks) {
+                commandComponents.append("--use-xcframeworks")
+            }
 
-        if noUseBinaries {
-            commandComponents.append("--no-use-binaries")
+            if options.contains(.noUseBinaries) {
+                commandComponents.append("--no-use-binaries")
+            }
         }
 
         // Return

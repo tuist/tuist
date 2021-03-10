@@ -11,7 +11,7 @@ final class CarthageDependenciesTests: XCTestCase {
                 .git(path: "Git/Git", requirement: .atLeast("1.2.3")),
             ],
             platforms: [.iOS, .macOS, .tvOS, .watchOS],
-            useXCFrameworks: true
+            options: [.useXCFrameworks, .noUseBinaries]
         )
         XCTAssertCodable(subject)
     }

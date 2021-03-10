@@ -47,8 +47,7 @@ final class DependenciesFetchServiceTests: TuistUnitTestCase {
                     .github(path: "Dependency1", requirement: .exact("1.1.1")),
                 ],
                 platforms: [.iOS, .macOS],
-                useXCFrameworks: false,
-                noUseBinaries: false
+                options: []
             )
         )
         dependenciesModelLoader.loadDependenciesStub = { _ in stubbedDependencies }

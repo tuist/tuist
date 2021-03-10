@@ -6,22 +6,18 @@ public struct CarthageDependencies: Equatable {
     public let dependencies: [Dependency]
     /// List of platforms for which you want to install depedencies.
     public let platforms: Set<Platform>
-    /// Indicates whether Carthage produces XCFrameworks or regular frameworks.
-    public let useXCFrameworks: Bool
-    /// Indicates whether Carthage rebuilds the dependency from source instead of using downloaded binaries when possible.
-    public let noUseBinaries: Bool
+    /// List of options for Carthage installation.
+    public let options: Set<Options>
 
     /// Initializes the carthage dependency with its attributes.
     public init(
         _ dependencies: [Dependency],
         platforms: Set<Platform>,
-        useXCFrameworks: Bool,
-        noUseBinaries: Bool
+        options: Set<Options>
     ) {
         self.dependencies = dependencies
         self.platforms = platforms
-        self.useXCFrameworks = useXCFrameworks
-        self.noUseBinaries = noUseBinaries
+        self.options = options
     }
 
     /// Returns `Cartfile` representation.
@@ -73,5 +69,10 @@ public extension CarthageDependencies {
                 return #""\#(revision)""#
             }
         }
+    }
+    
+    enum Options: Equatable {
+        case useXCFrameworks
+        case noUseBinaries
     }
 }
