@@ -236,6 +236,7 @@ GEM
       claide (>= 1.0.2, < 2.0)
       colored2 (~> 3.1)
       nanaimo (~> 0.3.0)
+    zeitwerk (2.4.2)
 
 PLATFORMS
   ruby
@@ -262,6 +263,7 @@ DEPENDENCIES
   simctl (~> 1.6)
   thor (~> 1.1)
   xcodeproj (~> 1.19)
+  zeitwerk (~> 2.4)
 
 BUNDLED WITH
    2.1.4

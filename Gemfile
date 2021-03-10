@@ -33,3 +33,5 @@ group :development, :test do
 end
 
 gem "octokit", "~> 4.20"
+
+gem "zeitwerk", "~> 2.4"
