@@ -218,8 +218,10 @@ class Generator: Generating {
     }
 
     private func postGenerationActions(graphTraverser: GraphTraversing, workspaceName: String) throws {
+        let config = try configLoader.loadConfig(path: graphTraverser.path)
+
         try signingInteractor.install(graphTraverser: graphTraverser)
-        try swiftPackageManagerInteractor.install(graphTraverser: graphTraverser, workspaceName: workspaceName)
+        try swiftPackageManagerInteractor.install(graphTraverser: graphTraverser, workspaceName: workspaceName, config: config)
         try cocoapodsInteractor.install(graphTraverser: graphTraverser)
     }
 
