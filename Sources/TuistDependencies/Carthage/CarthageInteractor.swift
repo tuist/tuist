@@ -51,7 +51,6 @@ enum CarthageInteractorError: FatalError, Equatable {
 public protocol CarthageInteracting {
     /// Fetches `Carthage` dependencies.
     /// - Parameter dependenciesDirectory: The path to the directory that contains the `Tuist/Dependencies/` directory.
-    /// - Parameter method: Installation method.
     /// - Parameter dependencies: List of dependencies to intall using `Carthage`.
     func fetch(dependenciesDirectory: AbsolutePath, dependencies: CarthageDependencies) throws
 }

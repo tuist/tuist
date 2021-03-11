@@ -42,5 +42,9 @@ public final class DependenciesController: DependenciesControlling {
         if let depedencies = dependencies.carthage {
             try carthageInteractor.fetch(dependenciesDirectory: dependenciesDirectory, dependencies: depedencies)
         }
+        
+        if let dependencies = dependencies.swiftPackageManager {
+            try swiftPackageManagerInteractor.fetch(dependenciesDirectory: dependenciesDirectory, dependencies: dependencies)
+        }
     }
 }
