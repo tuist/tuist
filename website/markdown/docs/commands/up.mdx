@@ -73,13 +73,14 @@ Installs Homebrew cask projects. It also installs Homebrew if it's not available
 ### Carthage dependencies
 
 ```swift
-.carthage(platforms: [.macOS], useXCFrameworks: true)
+.carthage(platforms: [.macOS], useXCFrameworks: true, noUseBinaries: false)
 ```
 
 It runs [Carthage](https://github.com/carthage) dependencies for those dependencies that don’t exist or that are outdated.
 
 - **Platforms:** The platforms Carthage dependencies should be updated for. If the argument is not passed, the frameworks will be updated for all the platforms.
 - **UseXCFrameworks:** Indicates whether Carthage produces XCFrameworks or regular frameworks. The default value is `false`.
+- **NoUseBinaries** Indicates whether Carthage rebuilds the dependency from source instead of using downloaded binaries when possible. The default value is `false`.
 
 ### Mint packages
 

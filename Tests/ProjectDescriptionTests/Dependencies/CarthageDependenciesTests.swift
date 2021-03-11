@@ -11,7 +11,7 @@ final class CarthageDependenciesTests: XCTestCase {
                 .git(path: "Git/Git", requirement: .atLeast("1.2.3")),
             ],
             platforms: [.iOS, .macOS, .tvOS, .watchOS],
-            useXCFrameworks: true
+            options: [.useXCFrameworks, .noUseBinaries]
         )
         XCTAssertCodable(subject)
     }
@@ -57,6 +57,18 @@ final class CarthageDependenciesTests: XCTestCase {
 
     func test_carthageRequirement_revision_codable() throws {
         let subject: CarthageDependencies.Requirement = .revision("revision")
+        XCTAssertCodable(subject)
+    }
+
+    // MARK: - Carthage Options tests
+
+    func test_carthageOptions_useXCFrameworks_codable() throws {
+        let subject: CarthageDependencies.Options = .useXCFrameworks
+        XCTAssertCodable(subject)
+    }
+
+    func test_carthageOptions_noUseBinaries_codable() throws {
+        let subject: CarthageDependencies.Options = .noUseBinaries
         XCTAssertCodable(subject)
     }
 }

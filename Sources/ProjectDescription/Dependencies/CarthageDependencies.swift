@@ -6,40 +6,43 @@ public struct CarthageDependencies: Codable, Equatable {
     public let dependencies: [Dependency]
     /// List of platforms for which you want to install depedencies. Refers to `--platform` Carthage flag.
     public let platforms: Set<Platform>
-    /// Indicates whether Carthage produces XCFrameworks or regular frameworks. Refers to `--use-xcframeworks` Carthage flag.
-    /// Note: It requires Carthage in version at least 0.37.0.
-    public let useXCFrameworks: Bool
+    /// List of options for Carthage installation.
+    public let options: Set<Options>
 
     /// Initializes a new `CarthageDependencies` instance.
     /// - Parameters:
     ///   - dependencies: List of depedencies that can be installed using Carthage.
     ///   - platforms: List of platforms for which you want to install depedencies. Refers to `--platform` Carthage flag.
-    ///   - useXCFrameworks: Indicates whether Carthage produces XCFrameworks or regular frameworks. Refers to `--use-xcframeworks` Carthage flag. Note: It requires Carthage in version at least 0.37.0.
+    ///   - options: List of options for Carthage installation.
     init(
         dependencies: [Dependency],
         platforms: Set<Platform> = Set(Platform.allCases),
-        useXCFrameworks: Bool = false
+        options: Set<Options> = []
     ) {
         self.dependencies = dependencies
         self.platforms = platforms
-        self.useXCFrameworks = useXCFrameworks
+        self.options = options
     }
 
     /// Creates `CarthageDependencies` instance.
     /// - Parameters:
     ///   - dependencies: List of depedencies that can be installed using Carthage.
     ///   - platforms: List of platforms for which you want to install depedencies. Refers to `--platform` Carthage flag.
-    ///   - useXCFrameworks: Indicates whether Carthage produces XCFrameworks or regular frameworks. Refers to `--use-xcframeworks` Carthage flag. Note: It requires Carthage in version at least 0.37.0.
+    ///   - options: List of options for Carthage installation.
     public static func carthage(
         _ dependencies: [Dependency],
         platforms: Set<Platform> = Set(Platform.allCases),
-        useXCFrameworks: Bool = false
+        options: Set<Options> = []
     ) -> Self {
-        .init(dependencies: dependencies, platforms: platforms, useXCFrameworks: useXCFrameworks)
+        .init(
+            dependencies: dependencies,
+            platforms: platforms,
+            options: options
+        )
     }
 }
 
-// MARK: - CarthageDependencies.Dependency & CarthageDependencies.Requirement
+// MARK: - CarthageDependencies.Dependency & CarthageDependencies.Requirement & CarthageDependencies.Options
 
 public extension CarthageDependencies {
     /// Specifies origin of Carthage dependency.
@@ -56,6 +59,17 @@ public extension CarthageDependencies {
         case atLeast(Version)
         case branch(String)
         case revision(String)
+    }
+
+    /// The options that you can set for Carthage installation.
+    enum Options: String, Codable, Equatable {
+        /// When passed, Carthage will produce XCFrameworks instead of regular frameworks.
+        /// Refers to `--use-xcframeworks` Carthage flag.
+        /// **Note: It requires Carthage in version at least 0.37.0.**
+        case useXCFrameworks
+        /// When passed, Carthage will rebuild dependencies from source instead of using downloaded binaries when possible.
+        /// Refers to `--no-use-binaries` Carthage flag.
+        case noUseBinaries
     }
 }
 

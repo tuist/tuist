@@ -12,7 +12,7 @@ final class DependenciesTests: XCTestCase {
                     .git(path: "Dependency2/Dependency2", requirement: .upToNext("1.2.3")),
                 ],
                 platforms: [.iOS, .macOS],
-                useXCFrameworks: true
+                options: [.useXCFrameworks, .noUseBinaries]
             )
         )
         XCTAssertCodable(subject)

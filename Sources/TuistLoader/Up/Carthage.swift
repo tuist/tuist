@@ -19,12 +19,14 @@ protocol Carthaging {
     ///   - path: Directory where the Carthage dependencies are defined.
     ///   - platforms: Platforms the dependencies will be bootstraped for.
     ///   - useXCFrameworks: Indicates whether Carthage produces XCFrameworks or regular frameworks.
+    ///   - noUseBinaries: Indicates whether Carthage rebuilds the dependency from source instead of using downloaded binaries when possible.
     ///   - dependencies: Dependencies to bootstrap
     /// - Throws: An error if the dependencies bootstrap fails.
     func bootstrap(
         path: AbsolutePath,
         platforms: [Platform],
         useXCFrameworks: Bool,
+        noUseBinaries: Bool,
         dependencies: [String]
     ) throws
 
@@ -46,12 +48,14 @@ final class Carthage: Carthaging {
     ///   - path: Directory where the Carthage dependencies are defined.
     ///   - platforms: Platforms the dependencies will be bootstraped for.
     ///   - useXCFrameworks: Indicates whether Carthage produces XCFrameworks or regular frameworks.
+    ///   - noUseBinaries: Indicates whether Carthage rebuilds the dependency from source instead of using downloaded binaries when possible.
     ///   - dependencies: Dependencies to bootstrap
     /// - Throws: An error if the dependencies bootstrap fails.
     func bootstrap(
         path: AbsolutePath,
         platforms: [Platform],
         useXCFrameworks: Bool,
+        noUseBinaries: Bool,
         dependencies: [String]
     ) throws {
         let carthagePath = try System.shared.which("carthage")
@@ -63,6 +67,10 @@ final class Carthage: Carthaging {
 
         if useXCFrameworks {
             command.append("--use-xcframeworks")
+        }
+
+        if noUseBinaries {
+            command.append("--no-use-binaries")
         }
 
         if !platforms.isEmpty {

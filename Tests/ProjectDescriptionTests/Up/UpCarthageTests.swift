@@ -7,7 +7,7 @@ import XCTest
 final class UpCarthageTests: XCTestCase {
     func test_codable() {
         // Given
-        let subject = UpCarthage(platforms: [.iOS, .macOS], useXCFrameworks: true)
+        let subject = UpCarthage(platforms: [.iOS, .macOS], useXCFrameworks: true, noUseBinaries: true)
 
         // When / Then
         XCTAssertCodable(subject)

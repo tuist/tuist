@@ -9,21 +9,26 @@ import XCTest
 @testable import TuistSupportTesting
 
 final class UpCarthageTests: TuistUnitTestCase {
-    var platforms: [Platform]!
-    var useXCFrameworks: Bool!
-    var upHomebrew: MockUp!
-    var carthage: MockCarthage!
-    var subject: UpCarthage!
+    private var platforms: [Platform]!
+    private var useXCFrameworks: Bool!
+    private var noUseBinaries: Bool!
+    private var upHomebrew: MockUp!
+    private var carthage: MockCarthage!
+    private var subject: UpCarthage!
 
     override func setUp() {
         super.setUp()
+
         platforms = [.iOS, .macOS]
         useXCFrameworks = true
+        noUseBinaries = true
         carthage = MockCarthage()
         upHomebrew = MockUp()
+
         subject = UpCarthage(
             platforms: platforms,
             useXCFrameworks: useXCFrameworks,
+            noUseBinaries: noUseBinaries,
             upHomebrew: upHomebrew,
             carthage: carthage
         )
@@ -43,10 +48,12 @@ final class UpCarthageTests: TuistUnitTestCase {
         let json = JSON([
             "platforms": JSON.array([JSON.string("ios")]),
             "useXCFrameworks": JSON.bool(true),
+            "noUseBinaries": JSON.bool(true),
         ])
         let got = try UpCarthage(dictionary: json, projectPath: temporaryPath)
         XCTAssertEqual(got.platforms, [.iOS])
         XCTAssertTrue(got.useXCFrameworks)
+        XCTAssertTrue(got.noUseBinaries)
     }
 
     func test_isMet_when_homebrew_is_not_met() throws {
@@ -105,10 +112,11 @@ final class UpCarthageTests: TuistUnitTestCase {
         carthage.outdatedStub = { _ in
             ["Dependency"]
         }
-        carthage.bootstrapStub = { projectPath, platforms, useXCFrameworks, dependencies in
+        carthage.bootstrapStub = { [unowned self] projectPath, platforms, useXCFrameworks, noUseBinaries, dependencies in
             XCTAssertEqual(projectPath, temporaryPath)
             XCTAssertEqual(platforms, self.platforms)
             XCTAssertEqual(useXCFrameworks, self.useXCFrameworks)
+            XCTAssertEqual(noUseBinaries, self.noUseBinaries)
             XCTAssertEqual(dependencies, ["Dependency"])
         }
 

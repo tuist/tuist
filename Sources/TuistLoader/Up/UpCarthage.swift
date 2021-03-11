@@ -12,6 +12,9 @@ class UpCarthage: Up, GraphInitiatable {
     /// Indicates whether Carthage produces XCFrameworks or regular frameworks.
     let useXCFrameworks: Bool
 
+    /// Indicates whether Carthage rebuilds the dependency from source instead of using downloaded binaries when possible.
+    let noUseBinaries: Bool
+
     /// Up homebrew for installing Carthge.
     let upHomebrew: Upping
 
@@ -23,15 +26,18 @@ class UpCarthage: Up, GraphInitiatable {
     /// - Parameters:
     ///   - platforms: The platforms Carthage dependencies should be bootstraped for.
     ///   - useXCFrameworks: Indicates whether Carthage produces XCFrameworks or regular frameworks.
+    ///   - noUseBinaries: Indicates whether Carthage rebuilds the dependency from source instead of using downloaded binaries when possible.
     ///   - upHomebrew: Up homebrew for installing Carthage.
     ///   - carthage: Carthage instace to interact with the project Carthage setup.
     init(platforms: [Platform],
          useXCFrameworks: Bool,
+         noUseBinaries: Bool,
          upHomebrew: Upping = UpHomebrew(packages: ["carthage"]),
          carthage: Carthaging = Carthage())
     {
         self.platforms = platforms
         self.useXCFrameworks = useXCFrameworks
+        self.noUseBinaries = noUseBinaries
         self.upHomebrew = upHomebrew
         self.carthage = carthage
         super.init(name: "Carthage bootstrap")
@@ -51,7 +57,8 @@ class UpCarthage: Up, GraphInitiatable {
             }
         }
         let useXCFrameworks: Bool = try dictionary.get("useXCFrameworks")
-        self.init(platforms: platforms, useXCFrameworks: useXCFrameworks)
+        let noUseBinaries: Bool = try dictionary.get("noUseBinaries")
+        self.init(platforms: platforms, useXCFrameworks: useXCFrameworks, noUseBinaries: noUseBinaries)
     }
 
     /// Returns true when the command doesn't need to be run.
@@ -79,7 +86,7 @@ class UpCarthage: Up, GraphInitiatable {
 
         /// Bootstraping Carthage dependencies.
         let oudated = try carthage.outdated(path: projectPath) ?? []
-        try carthage.bootstrap(path: projectPath, platforms: platforms, useXCFrameworks: useXCFrameworks, dependencies: oudated)
+        try carthage.bootstrap(path: projectPath, platforms: platforms, useXCFrameworks: useXCFrameworks, noUseBinaries: noUseBinaries, dependencies: oudated)
     }
 
     func whatever() {}
