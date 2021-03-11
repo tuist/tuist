@@ -17,7 +17,13 @@ extension TuistGraph.Dependencies {
             }
             return try TuistGraph.CarthageDependencies.from(manifest: carthage)
         }()
+        let swiftPackageManager: TuistGraph.SwiftPackageManagerDependencies? = try {
+            guard let swiftPackageManager = manifest.swiftPackageManager else {
+                return nil
+            }
+            return try TuistGraph.SwiftPackageManagerDependencies.from(manifest: swiftPackageManager, generatorPaths: generatorPaths)
+        }()
 
-        return Self(carthage: carthage)
+        return Self(carthage: carthage, swiftPackageManager: swiftPackageManager)
     }
 }

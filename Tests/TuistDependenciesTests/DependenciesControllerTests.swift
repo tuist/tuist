@@ -53,7 +53,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             platforms: [.iOS],
             options: [.useXCFrameworks, .noUseBinaries]
         )
-        let stubbedDependencies = Dependencies(carthage: stubbedCarthageDependencies)
+        let stubbedDependencies = Dependencies(carthage: stubbedCarthageDependencies, swiftPackageManager: nil)
 
         // When
         try subject.fetch(at: rootPath, dependencies: stubbedDependencies)

@@ -12,6 +12,10 @@ import XCTest
 final class DependenciesManifestMapperTests: TuistUnitTestCase {
     func test_from() throws {
         // Given
+        let temporaryPath = try self.temporaryPath()
+        let localPackagePath = temporaryPath.appending(component: "LocalPackage")
+        
+        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
         let manifest: ProjectDescription.Dependencies = Dependencies(
             carthage: .carthage(
                 [
@@ -21,6 +25,12 @@ final class DependenciesManifestMapperTests: TuistUnitTestCase {
                 ],
                 platforms: [.iOS, .macOS, .tvOS],
                 options: [.useXCFrameworks, .noUseBinaries]
+            ),
+            swiftPackageManager: .swiftPackageManager(
+                [
+                    .local(path: .init(localPackagePath.pathString)),
+                    .remote(url: "RemotePackage.com", requirement: .exact("1.2.3"))
+                ]
             )
         )
 
@@ -37,8 +47,14 @@ final class DependenciesManifestMapperTests: TuistUnitTestCase {
                 ],
                 platforms: [.iOS, .macOS, .tvOS],
                 options: [.useXCFrameworks, .noUseBinaries]
+            ),
+            swiftPackageManager: .init(
+                [
+                    .local(path: localPackagePath),
+                    .remote(url: "RemotePackage.com", requirement: .exact("1.2.3")),
+                ]
             )
         )
-        XCTAssertEqual(model, expected)
+        XCTAssertEqual(got, expected)
     }
 }

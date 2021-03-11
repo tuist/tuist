@@ -2,7 +2,7 @@ import Foundation
 
 /// Contains the description of a dependency that can be installed using Carthage.
 public struct CarthageDependencies: Codable, Equatable {
-    /// List of depedencies that can be installed using Carthage.
+    /// List of depedencies that will be installed using Carthage.
     public let dependencies: [Dependency]
     /// List of platforms for which you want to install depedencies. Refers to `--platform` Carthage flag.
     public let platforms: Set<Platform>

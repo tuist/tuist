@@ -44,6 +44,12 @@ final class DependenciesModelLoaderTests: TuistUnitTestCase {
                     ],
                     platforms: [.iOS, .macOS],
                     options: [.useXCFrameworks, .noUseBinaries]
+                ),
+                swiftPackageManager: .swiftPackageManager(
+                    [
+                        .local(path: Path(localSwiftPackagePath.pathString)),
+                        .remote(url: "RemoteUrl.com", requirement: .exact("1.2.3")),
+                    ]
                 )
             )
         }
@@ -60,8 +66,14 @@ final class DependenciesModelLoaderTests: TuistUnitTestCase {
                 ],
                 platforms: [.iOS, .macOS],
                 options: [.useXCFrameworks, .noUseBinaries]
+            ),
+            swiftPackageManager: .init(
+                [
+                    .local(path: localSwiftPackagePath),
+                    .remote(url: "RemoteUrl.com", requirement: .exact("1.2.3")),
+                ]
             )
         )
-        XCTAssertEqual(model, expected)
+        XCTAssertEqual(got, expected)
     }
 }

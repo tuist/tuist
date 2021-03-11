@@ -9,7 +9,11 @@ public struct CarthageDependencies: Equatable {
     /// List of options for Carthage installation.
     public let options: Set<Options>
 
-    /// Initializes the carthage dependency with its attributes.
+    /// Initializes a new `CarthageDependencies` instance.
+    /// - Parameters:
+    ///   - dependencies: List of depedencies that can be installed using Carthage.
+    ///   - platforms: List of platforms for which you want to install depedencies.
+    ///   - options: List of options for Carthage installation.
     public init(
         _ dependencies: [Dependency],
         platforms: Set<Platform>,

@@ -48,7 +48,8 @@ final class DependenciesFetchServiceTests: TuistUnitTestCase {
                 ],
                 platforms: [.iOS, .macOS],
                 options: []
-            )
+            ),
+            swiftPackageManager: nil
         )
         dependenciesModelLoader.loadDependenciesStub = { _ in stubbedDependencies }
 
