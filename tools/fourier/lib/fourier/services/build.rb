@@ -2,8 +2,7 @@
 module Fourier
   module Services
     module Build
-      autoload :Support, "fourier/services/build/support"
-      autoload :All, "fourier/services/build/all"
+      autoload :Tuist, "fourier/services/build/tuist"
     end
   end
 end

@@ -1,12 +1,12 @@
 # frozen_string_literal: true
 module Fourier
   module Services
-    module Test
+    module Build
       module Tuist
-        class Unit < Base
+        class Support < Base
           def call
             Dir.chdir(Constants::ROOT_DIRECTORY) do
-              Utilities::System.tuist("test")
+              Utilities::System.tuist("build", "TuistSupport")
             end
           end
         end
