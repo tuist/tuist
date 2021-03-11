@@ -5,7 +5,7 @@ import TuistCore
 import TuistGraph
 
 extension TuistGraph.ArchiveAction {
-    /// Maps a ProjectDescription.ArchiveAction instance into a TuistCore.ArchiveAction instance.
+    /// Maps a ProjectDescription.ArchiveAction instance into a TuistGraph.ArchiveAction instance.
     /// - Parameters:
     ///   - manifest: Manifest representation of archive action model.
     ///   - generatorPaths: Generator paths.
@@ -16,10 +16,12 @@ extension TuistGraph.ArchiveAction {
         let preActions = try manifest.preActions.map { try TuistGraph.ExecutionAction.from(manifest: $0, generatorPaths: generatorPaths) }
         let postActions = try manifest.postActions.map { try TuistGraph.ExecutionAction.from(manifest: $0, generatorPaths: generatorPaths) }
 
-        return TuistGraph.ArchiveAction(configurationName: configurationName,
-                                        revealArchiveInOrganizer: revealArchiveInOrganizer,
-                                        customArchiveName: customArchiveName,
-                                        preActions: preActions,
-                                        postActions: postActions)
+        return TuistGraph.ArchiveAction(
+            configurationName: configurationName,
+            revealArchiveInOrganizer: revealArchiveInOrganizer,
+            customArchiveName: customArchiveName,
+            preActions: preActions,
+            postActions: postActions
+        )
     }
 }

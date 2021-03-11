@@ -210,8 +210,10 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
         let path = try temporaryPath().appending(component: "App")
 
         // When / Then
-        XCTAssertThrowsSpecific(try subject.loadProject(at: path),
-                                ManifestLoaderError.manifestNotFound(.project, path))
+        XCTAssertThrowsSpecific(
+            try subject.loadProject(at: path),
+            ManifestLoaderError.manifestNotFound(.project, path)
+        )
     }
 
     func test_load_deprecatedFileName() throws {
@@ -233,13 +235,15 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
     // MARK: - Helpers
 
     private func createSubject(tuistVersion: String = "1.0") -> CachedManifestLoader {
-        CachedManifestLoader(manifestLoader: manifestLoader,
-                             projectDescriptionHelpersHasher: projectDescriptionHelpersHasher,
-                             helpersDirectoryLocator: helpersDirectoryLocator,
-                             cacheDirectory: cacheDirectory,
-                             fileHandler: fileHandler,
-                             environment: environment,
-                             tuistVersion: tuistVersion)
+        CachedManifestLoader(
+            manifestLoader: manifestLoader,
+            projectDescriptionHelpersHasher: projectDescriptionHelpersHasher,
+            helpersDirectoryLocator: helpersDirectoryLocator,
+            cacheDirectory: cacheDirectory,
+            fileHandler: fileHandler,
+            environment: environment,
+            tuistVersion: tuistVersion
+        )
     }
 
     private func stub(manifest: Project,

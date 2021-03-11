@@ -38,10 +38,12 @@ final class CopyFilesActionsContentHasherTests: TuistUnitTestCase {
                                      subpath: String? = "Fonts",
                                      files: [FileElement] = [.file(path: "/file1.ttf"), .file(path: "/file2.ttf")]) -> CopyFilesAction
     {
-        CopyFilesAction(name: name,
-                        destination: destination,
-                        subpath: subpath,
-                        files: files)
+        CopyFilesAction(
+            name: name,
+            destination: destination,
+            subpath: subpath,
+            files: files
+        )
     }
 
     // MARK: - Tests
@@ -66,10 +68,12 @@ final class CopyFilesActionsContentHasherTests: TuistUnitTestCase {
     func test_hash__copyFilesAction_valuesAreNotHarcoded() throws {
         // Given
         let file1Hash = "file1-content-hash"
-        let copyFilesAction = makeCopyFilesAction(name: "Copy Templates",
-                                                  destination: .sharedSupport,
-                                                  subpath: "Templates",
-                                                  files: [.file(path: "/file1.template")])
+        let copyFilesAction = makeCopyFilesAction(
+            name: "Copy Templates",
+            destination: .sharedSupport,
+            subpath: "Templates",
+            files: [.file(path: "/file1.template")]
+        )
 
         contentHasher.stubHashForPath[AbsolutePath("/file1.template")] = file1Hash
 

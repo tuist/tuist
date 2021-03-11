@@ -30,24 +30,40 @@ private extension SchemeLinter {
         if let runAction = scheme.runAction {
             if !buildConfigurationNames.contains(runAction.configurationName) {
                 issues.append(
-                    missingBuildConfigurationIssue(buildConfigurationName: runAction.configurationName,
-                                                   actionDescription: "the scheme's run action")
+                    missingBuildConfigurationIssue(
+                        buildConfigurationName: runAction.configurationName,
+                        actionDescription: "the scheme's run action"
+                    )
                 )
+            }
+
+            if let storeKitPath = runAction.options.storeKitConfigurationPath,
+                !FileHandler.shared.exists(storeKitPath)
+            {
+                issues.append(
+                    LintingIssue(
+                        reason: "StoreKit configuration file not found at path \(storeKitPath.pathString)",
+                        severity: .error
+                    ))
             }
         }
 
         if let testAction = scheme.testAction {
             if !buildConfigurationNames.contains(testAction.configurationName) {
                 issues.append(
-                    missingBuildConfigurationIssue(buildConfigurationName: testAction.configurationName,
-                                                   actionDescription: "the scheme's test action")
+                    missingBuildConfigurationIssue(
+                        buildConfigurationName: testAction.configurationName,
+                        actionDescription: "the scheme's test action"
+                    )
                 )
             }
             testAction.testPlans?.forEach { testPlan in
                 if !FileHandler.shared.exists(testPlan.path) {
                     issues.append(
-                        LintingIssue(reason: "Test Plan not found at path \(testPlan.path.pathString)",
-                                     severity: .warning)
+                        LintingIssue(
+                            reason: "Test Plan not found at path \(testPlan.path.pathString)",
+                            severity: .warning
+                        )
                     )
                 }
             }

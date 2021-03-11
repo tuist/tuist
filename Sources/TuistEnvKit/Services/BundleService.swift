@@ -54,7 +54,7 @@ final class BundleService {
         // Installing
         if !FileHandler.shared.exists(versionPath) {
             logger.notice("Version \(version) not available locally. Installing...")
-            try installer.install(version: version, force: false)
+            try installer.install(version: version)
         }
 
         // Copying

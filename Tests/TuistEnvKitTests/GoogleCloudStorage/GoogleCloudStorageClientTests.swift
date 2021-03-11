@@ -8,8 +8,10 @@ final class GoogleCloudStorageClientErrorTests: TuistUnitTestCase {
     func test_type_when_invalidEncoding() {
         // Given
         let url = URL.test()
-        let subject = GoogleCloudStorageClientError.invalidEncoding(url: url,
-                                                                    expectedEncoding: "utf8")
+        let subject = GoogleCloudStorageClientError.invalidEncoding(
+            url: url,
+            expectedEncoding: "utf8"
+        )
 
         // When
         let got = subject.type
@@ -21,8 +23,10 @@ final class GoogleCloudStorageClientErrorTests: TuistUnitTestCase {
     func test_description_when_invalidEncoding() {
         // Given
         let url = URL.test()
-        let subject = GoogleCloudStorageClientError.invalidEncoding(url: url,
-                                                                    expectedEncoding: "utf8")
+        let subject = GoogleCloudStorageClientError.invalidEncoding(
+            url: url,
+            expectedEncoding: "utf8"
+        )
 
         // When
         let got = subject.description
@@ -76,8 +80,10 @@ final class GoogleCloudStorageClientTests: TuistUnitTestCase {
         scheduler.stub(request: request, data: "invalid".description.data(using: .utf8)!)
 
         // Then
-        XCTAssertThrowsSpecific(try subject.latestVersion().toBlocking().first(),
-                                GoogleCloudStorageClientError.invalidVersionFormat("invalid"))
+        XCTAssertThrowsSpecific(
+            try subject.latestVersion().toBlocking().first(),
+            GoogleCloudStorageClientError.invalidVersionFormat("invalid")
+        )
     }
 
     func test_latestVersion_returns_the_version() throws {

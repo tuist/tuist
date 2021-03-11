@@ -14,13 +14,15 @@ public extension ValueGraph {
         }
         let targets = graph.targets.mapValues { targets in targets.reduce(into: [String: Target]()) { $0[$1.name] = $1.target } }
         let dependencies = ValueGraph.dependencies(from: graph)
-        self.init(name: name,
-                  path: path,
-                  workspace: workspace,
-                  projects: projects,
-                  packages: packages,
-                  targets: targets,
-                  dependencies: dependencies)
+        self.init(
+            name: name,
+            path: path,
+            workspace: workspace,
+            projects: projects,
+            packages: packages,
+            targets: targets,
+            dependencies: dependencies
+        )
     }
 
     /// Given a graph loader cache, it returns a dictionary representing the dependency tree.
@@ -58,34 +60,44 @@ public extension ValueGraph {
         case let node as TargetNode:
             return .target(name: node.name, path: node.path)
         case let node as FrameworkNode:
-            return .framework(path: node.path,
-                              binaryPath: node.binaryPath,
-                              dsymPath: node.dsymPath,
-                              bcsymbolmapPaths: node.bcsymbolmapPaths,
-                              linking: node.linking,
-                              architectures: node.architectures,
-                              isCarthage: node.isCarthage)
+            return .framework(
+                path: node.path,
+                binaryPath: node.binaryPath,
+                dsymPath: node.dsymPath,
+                bcsymbolmapPaths: node.bcsymbolmapPaths,
+                linking: node.linking,
+                architectures: node.architectures,
+                isCarthage: node.isCarthage
+            )
         case let node as XCFrameworkNode:
-            return .xcframework(path: node.path,
-                                infoPlist: node.infoPlist,
-                                primaryBinaryPath: node.primaryBinaryPath,
-                                linking: node.linking)
+            return .xcframework(
+                path: node.path,
+                infoPlist: node.infoPlist,
+                primaryBinaryPath: node.primaryBinaryPath,
+                linking: node.linking
+            )
         case let node as LibraryNode:
-            return .library(path: node.path,
-                            publicHeaders: node.publicHeaders,
-                            linking: node.linking,
-                            architectures: node.architectures,
-                            swiftModuleMap: node.swiftModuleMap)
+            return .library(
+                path: node.path,
+                publicHeaders: node.publicHeaders,
+                linking: node.linking,
+                architectures: node.architectures,
+                swiftModuleMap: node.swiftModuleMap
+            )
         case let node as PackageProductNode:
             return .packageProduct(path: node.path, product: node.product)
         case let node as SDKNode:
-            return .sdk(name: node.name,
-                        path: node.path,
-                        status: node.status,
-                        source: node.source)
+            return .sdk(
+                name: node.name,
+                path: node.path,
+                status: node.status,
+                source: node.source
+            )
         case let node as PackageProductNode:
-            return .packageProduct(path: node.path,
-                                   product: node.product)
+            return .packageProduct(
+                path: node.path,
+                product: node.product
+            )
         case let node as CocoaPodsNode:
             return .cocoapods(path: node.path)
         default:

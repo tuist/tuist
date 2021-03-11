@@ -30,8 +30,8 @@ public final class InfoPlistContentHasher: InfoPlistContentHashing {
                 dictionaryString += "\(key)=\(value);"
             }
             return try contentHasher.hash(dictionaryString)
-        case let .generatedFile(path):
-            return try contentHasher.hash(path: path)
+        case let .generatedFile(_, data):
+            return try contentHasher.hash(data)
         }
     }
 }

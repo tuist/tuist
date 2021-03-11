@@ -11,8 +11,10 @@ struct GraphCommand: ParsableCommand, HasTrackableParameters {
     static var analyticsDelegate: TrackableParametersDelegate?
 
     static var configuration: CommandConfiguration {
-        CommandConfiguration(commandName: "graph",
-                             abstract: "Generates a graph from the workspace or project in the current directory")
+        CommandConfiguration(
+            commandName: "graph",
+            abstract: "Generates a graph from the workspace or project in the current directory"
+        )
     }
 
     @Flag(
@@ -60,13 +62,15 @@ struct GraphCommand: ParsableCommand, HasTrackableParameters {
                                                                  "algorithm": layoutAlgorithm.rawValue,
                                                                  "skip_external_dependencies": String(skipExternalDependencies),
                                                                  "skip_test_targets": String(skipExternalDependencies)])
-        try GraphService().run(format: format,
-                               layoutAlgorithm: layoutAlgorithm,
-                               skipTestTargets: skipTestTargets,
-                               skipExternalDependencies: skipExternalDependencies,
-                               targetsToFilter: targets,
-                               path: path.map { AbsolutePath($0) } ?? FileHandler.shared.currentPath,
-                               outputPath: outputPath.map { AbsolutePath($0, relativeTo: FileHandler.shared.currentPath) } ?? FileHandler.shared.currentPath)
+        try GraphService().run(
+            format: format,
+            layoutAlgorithm: layoutAlgorithm,
+            skipTestTargets: skipTestTargets,
+            skipExternalDependencies: skipExternalDependencies,
+            targetsToFilter: targets,
+            path: path.map { AbsolutePath($0) } ?? FileHandler.shared.currentPath,
+            outputPath: outputPath.map { AbsolutePath($0, relativeTo: FileHandler.shared.currentPath) } ?? FileHandler.shared.currentPath
+        )
     }
 }
 

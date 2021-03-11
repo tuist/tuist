@@ -7,31 +7,33 @@ public struct TuistCommand: ParsableCommand {
     public init() {}
 
     public static var configuration: CommandConfiguration {
-        CommandConfiguration(commandName: "tuist",
-                             abstract: "Generate, build and test your Xcode projects.",
-                             subcommands: [
-                                 GenerateCommand.self,
-                                 UpCommand.self,
-                                 FocusCommand.self,
-                                 EditCommand.self,
-                                 SecretCommand.self,
-                                 DumpCommand.self,
-                                 GraphCommand.self,
-                                 LintCommand.self,
-                                 VersionCommand.self,
-                                 BuildCommand.self,
-                                 TestCommand.self,
-                                 CreateIssueCommand.self,
-                                 ScaffoldCommand.self,
-                                 InitCommand.self,
-                                 CloudCommand.self,
-                                 CacheCommand.self,
-                                 SigningCommand.self,
-                                 MigrationCommand.self,
-                                 CleanCommand.self,
-                                 DocCommand.self,
-                                 DependenciesCommand.self,
-                             ])
+        CommandConfiguration(
+            commandName: "tuist",
+            abstract: "Generate, build and test your Xcode projects.",
+            subcommands: [
+                GenerateCommand.self,
+                UpCommand.self,
+                FocusCommand.self,
+                EditCommand.self,
+                SecretCommand.self,
+                DumpCommand.self,
+                GraphCommand.self,
+                LintCommand.self,
+                VersionCommand.self,
+                BuildCommand.self,
+                TestCommand.self,
+                CreateIssueCommand.self,
+                ScaffoldCommand.self,
+                InitCommand.self,
+                CloudCommand.self,
+                CacheCommand.self,
+                SigningCommand.self,
+                MigrationCommand.self,
+                CleanCommand.self,
+                DocCommand.self,
+                DependenciesCommand.self,
+            ]
+        )
     }
 
     @Flag(

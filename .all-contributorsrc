@@ -278,6 +278,61 @@
       "contributions": [
         "bug"
       ]
+    },
+    {
+      "login": "DimaMishchenko",
+      "name": "Dmytro Mishchenko",
+      "avatar_url": "https://avatars.githubusercontent.com/u/25247301?v=4",
+      "profile": "https://github.com/DimaMishchenko",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "sampettersson",
+      "name": "Sam Pettersson",
+      "avatar_url": "https://avatars.githubusercontent.com/u/5459507?v=4",
+      "profile": "http://www.sampettersson.com",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "joshdholtz",
+      "name": "Josh Holtz",
+      "avatar_url": "https://avatars.githubusercontent.com/u/401294?v=4",
+      "profile": "http://www.joshholtz.com",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "myihsan",
+      "name": "Jierong Li",
+      "avatar_url": "https://avatars.githubusercontent.com/u/7414906?v=4",
+      "profile": "http://jierong.dev",
+      "contributions": [
+        "code",
+        "content"
+      ]
+    },
+    {
+      "login": "freak4pc",
+      "name": "Shai Mishali",
+      "avatar_url": "https://avatars.githubusercontent.com/u/605076?v=4",
+      "profile": "https://twitter.com/freak4pc",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "FranzBusch",
+      "name": "Franz Busch",
+      "avatar_url": "https://avatars.githubusercontent.com/u/3491887?v=4",
+      "profile": "https://twitter.com/FranzJBusch",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,

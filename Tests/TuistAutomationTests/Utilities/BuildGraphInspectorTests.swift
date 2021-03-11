@@ -138,12 +138,14 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         let scheme = Scheme.test(buildAction: .test(targets: [.init(projectPath: projectPath, name: "Core")]))
         let target = Target.test(name: "Core")
         let project = Project.test(path: projectPath)
-        let targetNode = TargetNode.test(project: project,
-                                         target: target)
-        let graph = Graph.test(targets: [projectPath: [targetNode]])
+        let graph = ValueGraph.test(
+            projects: [projectPath: project],
+            targets: [projectPath: [target.name: target]]
+        )
+        let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
-        let got = subject.buildableTarget(scheme: scheme, graph: graph)
+        let got = subject.buildableTarget(scheme: scheme, graphTraverser: graphTraverser)
 
         // Then
         XCTAssertEqual(got?.0, project)
@@ -169,16 +171,17 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
             )
         )
         let workspace = Workspace.test(schemes: [workspaceScheme])
-        let graph = Graph.test(
+        let graph = ValueGraph.test(
             workspace: workspace,
             projects: [
-                coreProject,
-                kitProject,
+                coreProject.path: coreProject,
+                kitProject.path: kitProject,
             ]
         )
+        let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
-        let got = subject.buildableSchemes(graph: graph)
+        let got = subject.buildableSchemes(graphTraverser: graphTraverser)
 
         // Then
         XCTAssertEqual(
@@ -225,47 +228,57 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
             path: coreProjectPath,
             schemes: [coreScheme, coreTestsScheme]
         )
-        let coreTargetNode = TargetNode.test(
-            project: coreProject,
-            target: coreTarget
+        let coreValueGraphTarget = ValueGraphTarget.test(
+            target: coreTarget,
+            project: coreProject
         )
         let coreTestsTarget = Target.test(
             name: "CoreTests",
             product: .unitTests,
             dependencies: [.target(name: "Core")]
         )
-        let coreTestsTargetNode = TargetNode.test(
-            project: coreProject,
-            target: coreTestsTarget
+        let coreTestsValueGraphTarget = ValueGraphTarget.test(
+            target: coreTestsTarget,
+            project: coreProject
         )
         let kitTarget = Target.test(name: "Kit", dependencies: [.target(name: "Core")])
         let kitProject = Project.test(
             path: projectPath,
             schemes: [kitScheme, kitTestsScheme]
         )
-        let kitTargetNode = TargetNode.test(
-            project: kitProject,
-            target: kitTarget
+        let kitValueGraphTarget = ValueGraphTarget.test(
+            target: kitTarget,
+            project: kitProject
         )
         let kitTestsTarget = Target.test(
             name: "KitTests",
             product: .unitTests,
             dependencies: [.target(name: "Kit")]
         )
-        let kitTestsTargetNode = TargetNode.test(
-            project: kitProject,
-            target: kitTestsTarget
+        let kitTestsValueGraphTarget = ValueGraphTarget.test(
+            target: kitTestsTarget,
+            project: kitProject
         )
-        let graph = Graph.test(
-            entryNodes: [kitTargetNode],
+        let graph = ValueGraph.test(
+            projects: [
+                kitProject.path: kitProject,
+                coreProject.path: coreProject,
+            ],
             targets: [
-                projectPath: [kitTargetNode, kitTestsTargetNode],
-                coreProjectPath: [coreTargetNode, coreTestsTargetNode],
+                projectPath: [
+                    kitValueGraphTarget.target.name: kitValueGraphTarget.target,
+                    kitTestsValueGraphTarget.target.name: kitTestsValueGraphTarget.target,
+                ],
+                coreProjectPath: [
+                    coreValueGraphTarget.target.name: coreValueGraphTarget.target,
+                    coreTestsValueGraphTarget.target.name: coreTestsValueGraphTarget.target,
+                ],
             ]
         )
+        let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
-        let got = subject.testSchemes(graph: graph)
+        let got = subject.testSchemes(graphTraverser: graphTraverser)
 
         // Then
         XCTAssertEqual(
@@ -299,19 +312,24 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
             path: coreProjectPath,
             schemes: [coreScheme, coreTestsScheme]
         )
-        let coreTargetNode = TargetNode.test(
-            project: coreProject,
-            target: coreTarget
+        let coreValueGraphTarget = ValueGraphTarget.test(
+            target: coreTarget,
+            project: coreProject
         )
-        let graph = Graph.test(
-            entryNodes: [coreTargetNode],
+        let graph = ValueGraph.test(
             projects: [
-                coreProject,
+                coreProject.path: coreProject,
+            ],
+            targets: [
+                coreProject.path: [
+                    coreValueGraphTarget.target.name: coreValueGraphTarget.target,
+                ],
             ]
         )
+        let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
-        let got = subject.testableSchemes(graph: graph)
+        let got = subject.testableSchemes(graphTraverser: graphTraverser)
 
         // Then
         XCTAssertEqual(
@@ -331,21 +349,24 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         let schemeA = Scheme.test(buildAction: .test(targets: [.init(projectPath: projectAPath, name: "A")]))
         let projectA = Project.test(path: projectAPath, schemes: [schemeA])
         let targetA = Target.test(name: "A")
-        let targetANode = TargetNode.test(project: projectA,
-                                          target: targetA)
 
         let projectBPath = path.appending(component: "ProjectB.xcodeproj")
         let schemeB = Scheme.test(buildAction: .test(targets: [.init(projectPath: projectBPath, name: "B")]))
         let projectB = Project.test(path: projectBPath, schemes: [schemeB])
         let targetB = Target.test(name: "B")
-        let targetBNode = TargetNode.test(project: projectB,
-                                          target: targetB)
 
-        let graph = Graph.test(entryNodes: [targetANode],
-                               targets: [projectAPath: [targetANode], projectBPath: [targetBNode]])
+        let graph = ValueGraph.test(
+            workspace: Workspace.test(projects: [projectA.path]),
+            projects: [
+                projectA.path: projectA,
+                projectB.path: projectB,
+            ],
+            targets: [projectAPath: [targetA.name: targetA], projectBPath: [targetB.name: targetB]]
+        )
+        let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
-        let got = subject.buildableEntrySchemes(graph: graph)
+        let got = subject.buildableEntrySchemes(graphTraverser: graphTraverser)
 
         // Then
         XCTAssertEqual(got, [schemeA])
@@ -396,7 +417,7 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
 
     func test_projectSchemes_when_multiple_platforms() {
         // Given
-        let graph: Graph = .test(
+        let graph: ValueGraph = .test(
             workspace: .test(
                 name: "WorkspaceName",
                 schemes: [
@@ -406,9 +427,10 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
                 ]
             )
         )
+        let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
-        let got = subject.projectSchemes(graph: graph)
+        let got = subject.projectSchemes(graphTraverser: graphTraverser)
 
         // Then
         XCTAssertEqual(
@@ -422,7 +444,7 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
 
     func test_projectSchemes_when_single_platform() {
         // Given
-        let graph: Graph = .test(
+        let graph: ValueGraph = .test(
             workspace: .test(
                 name: "WorkspaceName",
                 schemes: [
@@ -431,9 +453,10 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
                 ]
             )
         )
+        let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
-        let got = subject.projectSchemes(graph: graph)
+        let got = subject.projectSchemes(graphTraverser: graphTraverser)
 
         // Then
         XCTAssertEqual(

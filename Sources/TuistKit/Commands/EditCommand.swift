@@ -7,8 +7,10 @@ import TuistSupport
 
 struct EditCommand: ParsableCommand {
     static var configuration: CommandConfiguration {
-        CommandConfiguration(commandName: "edit",
-                             abstract: "Generates a temporary project to edit the project in the current directory")
+        CommandConfiguration(
+            commandName: "edit",
+            abstract: "Generates a temporary project to edit the project in the current directory"
+        )
     }
 
     @Option(
@@ -25,7 +27,9 @@ struct EditCommand: ParsableCommand {
     var permanent: Bool = false
 
     func run() throws {
-        try EditService().run(path: path,
-                              permanent: permanent)
+        try EditService().run(
+            path: path,
+            permanent: permanent
+        )
     }
 }

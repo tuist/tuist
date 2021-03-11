@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require 'fileutils'
+require "fileutils"
 
 Then(/I copy the fixture (.+) into the working directory/) do |fixture|
   fixtures_path = File.expand_path("../../../fixtures", __dir__)

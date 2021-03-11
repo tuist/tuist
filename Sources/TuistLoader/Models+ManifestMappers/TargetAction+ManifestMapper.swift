@@ -6,7 +6,7 @@ import TuistGraph
 import TuistSupport
 
 extension TuistGraph.TargetAction {
-    /// Maps a ProjectDescription.TargetAction instance into a TuistCore.TargetAction model.
+    /// Maps a ProjectDescription.TargetAction instance into a TuistGraph.TargetAction model.
     /// - Parameters:
     ///   - manifest: Manifest representation of target action.
     ///   - generatorPaths: Generator paths.
@@ -32,19 +32,21 @@ extension TuistGraph.TargetAction {
             script = .tool(tool, arguments)
         }
 
-        return TargetAction(name: name,
-                            order: order,
-                            script: script,
-                            inputPaths: inputPaths,
-                            inputFileListPaths: inputFileListPaths,
-                            outputPaths: outputPaths,
-                            outputFileListPaths: outputFileListPaths,
-                            basedOnDependencyAnalysis: basedOnDependencyAnalysis)
+        return TargetAction(
+            name: name,
+            order: order,
+            script: script,
+            inputPaths: inputPaths,
+            inputFileListPaths: inputFileListPaths,
+            outputPaths: outputPaths,
+            outputFileListPaths: outputFileListPaths,
+            basedOnDependencyAnalysis: basedOnDependencyAnalysis
+        )
     }
 }
 
 extension TuistGraph.TargetAction.Order {
-    /// Maps a ProjectDescription.TargetAction.Order instance into a TuistCore.TargetAction.Order model.
+    /// Maps a ProjectDescription.TargetAction.Order instance into a TuistGraph.TargetAction.Order model.
     /// - Parameters:
     ///   - manifest: Manifest representation of target action order.
     ///   - generatorPaths: Generator paths.

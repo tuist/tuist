@@ -7,3 +7,4 @@ Feature: Lint code using Tuist (SwiftLint)
       Then tuist lints project's code and fails
       Then tuist lints code of target with name "Framework" and fails
       Then tuist lints code of target with name "App" and passes
+      Then tuist strict lints code of target with name "App" and fails

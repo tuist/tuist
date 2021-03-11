@@ -1,11 +1,19 @@
-require 'xcodeproj'
+require "xcodeproj"
 
 Then(/^tuist warms the cache$/) do
   system("swift", "run", "tuist", "cache", "warm", "--path", @dir)
 end
 
+Then(/^tuist warms the cache of ([a-zA-Z]+)$/) do |target_name|
+  system("swift", "run", "tuist", "cache", "warm", "--path", @dir, target_name)
+end
+
 Then(/^tuist warms the cache with xcframeworks$/) do
   system("swift", "run", "tuist", "cache", "warm", "--path", @dir, "--xcframeworks")
+end
+
+Then(/^tuist warms the cache with ([a-zA-Z]+) profile$/) do |cache_profile|
+  system("swift", "run", "tuist", "cache", "warm", "--path", @dir, "--profile", cache_profile)
 end
 
 Then(/^([a-zA-Z]+) links the framework ([a-zA-Z]+) from the cache/) do |target_name, framework_name|

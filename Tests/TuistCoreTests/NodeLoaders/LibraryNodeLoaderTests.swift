@@ -105,9 +105,11 @@ final class LibraryNodeLoaderTests: TuistUnitTestCase {
         try FileHandler.shared.createFolder(publicHeadersPath)
 
         // Then
-        XCTAssertThrowsSpecific(try subject.load(path: libraryPath,
-                                                 publicHeaders: publicHeadersPath,
-                                                 swiftModuleMap: nil), LibraryNodeLoaderError.libraryNotFound(libraryPath))
+        XCTAssertThrowsSpecific(try subject.load(
+            path: libraryPath,
+            publicHeaders: publicHeadersPath,
+            swiftModuleMap: nil
+        ), LibraryNodeLoaderError.libraryNotFound(libraryPath))
     }
 
     func test_load_when_the_public_headers_directory_doesnt_exist() throws {
@@ -119,9 +121,11 @@ final class LibraryNodeLoaderTests: TuistUnitTestCase {
         try FileHandler.shared.touch(libraryPath)
 
         // Then
-        XCTAssertThrowsSpecific(try subject.load(path: libraryPath,
-                                                 publicHeaders: publicHeadersPath,
-                                                 swiftModuleMap: nil), LibraryNodeLoaderError.publicHeadersNotFound(publicHeadersPath))
+        XCTAssertThrowsSpecific(try subject.load(
+            path: libraryPath,
+            publicHeaders: publicHeadersPath,
+            swiftModuleMap: nil
+        ), LibraryNodeLoaderError.publicHeadersNotFound(publicHeadersPath))
     }
 
     func test_load_when_the_swift_modulemap_doesnt_exist() throws {
@@ -134,9 +138,11 @@ final class LibraryNodeLoaderTests: TuistUnitTestCase {
         try FileHandler.shared.touch(libraryPath)
 
         // Then
-        XCTAssertThrowsSpecific(try subject.load(path: libraryPath,
-                                                 publicHeaders: publicHeadersPath,
-                                                 swiftModuleMap: swiftModulemapPath), LibraryNodeLoaderError.swiftModuleMapNotFound(swiftModulemapPath))
+        XCTAssertThrowsSpecific(try subject.load(
+            path: libraryPath,
+            publicHeaders: publicHeadersPath,
+            swiftModuleMap: swiftModulemapPath
+        ), LibraryNodeLoaderError.swiftModuleMapNotFound(swiftModulemapPath))
     }
 
     func test_load_when_all_files_exist() throws {
@@ -162,15 +168,19 @@ final class LibraryNodeLoaderTests: TuistUnitTestCase {
         }
 
         // When
-        let got = try subject.load(path: libraryPath,
-                                   publicHeaders: publicHeadersPath,
-                                   swiftModuleMap: swiftModulemapPath)
+        let got = try subject.load(
+            path: libraryPath,
+            publicHeaders: publicHeadersPath,
+            swiftModuleMap: swiftModulemapPath
+        )
 
         // Then
-        XCTAssertEqual(got, LibraryNode(path: libraryPath,
-                                        publicHeaders: publicHeadersPath,
-                                        architectures: architectures,
-                                        linking: linking,
-                                        swiftModuleMap: swiftModulemapPath))
+        XCTAssertEqual(got, LibraryNode(
+            path: libraryPath,
+            publicHeaders: publicHeadersPath,
+            architectures: architectures,
+            linking: linking,
+            swiftModuleMap: swiftModulemapPath
+        ))
     }
 }

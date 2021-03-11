@@ -76,9 +76,11 @@ public final class URLSessionScheduler: URLSessionScheduling {
                     if !statusCode.isClientError, !statusCode.isServerError {
                         subscriber(.success(data ?? Data()))
                     } else {
-                        subscriber(.error(URLSessionSchedulerError.httpError(status: statusCode,
-                                                                             response: response!,
-                                                                             request: request)))
+                        subscriber(.error(URLSessionSchedulerError.httpError(
+                            status: statusCode,
+                            response: response!,
+                            request: request
+                        )))
                     }
                 }
             }

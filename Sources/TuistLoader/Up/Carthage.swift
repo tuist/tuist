@@ -18,9 +18,17 @@ protocol Carthaging {
     /// - Parameters:
     ///   - path: Directory where the Carthage dependencies are defined.
     ///   - platforms: Platforms the dependencies will be bootstraped for.
+    ///   - useXCFrameworks: Indicates whether Carthage produces XCFrameworks or regular frameworks.
+    ///   - noUseBinaries: Indicates whether Carthage rebuilds the dependency from source instead of using downloaded binaries when possible.
     ///   - dependencies: Dependencies to bootstrap
     /// - Throws: An error if the dependencies bootstrap fails.
-    func bootstrap(path: AbsolutePath, platforms: [Platform], dependencies: [String]) throws
+    func bootstrap(
+        path: AbsolutePath,
+        platforms: [Platform],
+        useXCFrameworks: Bool,
+        noUseBinaries: Bool,
+        dependencies: [String]
+    ) throws
 
     /// Returns the list of outdated dependencies in the given directory.
     ///
@@ -39,15 +47,31 @@ final class Carthage: Carthaging {
     /// - Parameters:
     ///   - path: Directory where the Carthage dependencies are defined.
     ///   - platforms: Platforms the dependencies will be bootstraped for.
+    ///   - useXCFrameworks: Indicates whether Carthage produces XCFrameworks or regular frameworks.
+    ///   - noUseBinaries: Indicates whether Carthage rebuilds the dependency from source instead of using downloaded binaries when possible.
     ///   - dependencies: Dependencies to bootstrap
     /// - Throws: An error if the dependencies bootstrap fails.
-    func bootstrap(path: AbsolutePath, platforms: [Platform], dependencies: [String]) throws {
+    func bootstrap(
+        path: AbsolutePath,
+        platforms: [Platform],
+        useXCFrameworks: Bool,
+        noUseBinaries: Bool,
+        dependencies: [String]
+    ) throws {
         let carthagePath = try System.shared.which("carthage")
 
         var command: [String] = [carthagePath]
         command.append("bootstrap")
         command.append("--project-directory")
         command.append(path.pathString)
+
+        if useXCFrameworks {
+            command.append("--use-xcframeworks")
+        }
+
+        if noUseBinaries {
+            command.append("--no-use-binaries")
+        }
 
         if !platforms.isEmpty {
             command.append("--platform")
@@ -76,10 +100,14 @@ final class Carthage: Carthaging {
         let carfileResolvedNSString = carfileResolved as NSString
         let jsonDecoder = JSONDecoder()
 
-        try Carthage.resolvedLineRegex.matches(in: carfileResolved,
-                                               options: [],
-                                               range: NSRange(location: 0,
-                                                              length: carfileResolved.count)).forEach { match in
+        try Carthage.resolvedLineRegex.matches(
+            in: carfileResolved,
+            options: [],
+            range: NSRange(
+                location: 0,
+                length: carfileResolved.count
+            )
+        ).forEach { match in
             let dependencyNameRange = match.range(at: 2)
             var dependencyName = String(carfileResolvedNSString.substring(with: dependencyNameRange).split(separator: "/").last!)
 

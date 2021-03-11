@@ -22,7 +22,7 @@ public class MockDependenciesModelLoader: DependenciesModelLoading {
         if let stub = loadDependenciesStub {
             return try stub(path)
         } else {
-            return Dependencies(carthageDependencies: [], swiftPackageManagerDependencies: [])
+            return Dependencies(carthage: nil)
         }
     }
 }

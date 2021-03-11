@@ -20,7 +20,7 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_locateAllProjectManifests_returns_all_manifest_no_workspace_given_child_path() throws {
+    func test_locateProjectManifests_returns_all_manifest_no_workspace_given_child_path() throws {
         // Given
         let paths = try createFiles([
             "Module/Project.swift",
@@ -29,7 +29,7 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
         ])
 
         // When
-        let manifests = subject.locateAllProjectManifests(at: paths.first!)
+        let manifests = subject.locateProjectManifests(at: paths.first!)
 
         // Then
         XCTAssertEqual(manifests.count, 2)
@@ -39,7 +39,7 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
         XCTAssertEqual(manifests.last?.1, paths.dropLast().last)
     }
 
-    func test_locateAllProjectManifests_returns_all_manifest_with_workspace_given_child_path() throws {
+    func test_locateProjectManifests_returns_all_manifest_with_workspace_given_child_path() throws {
         // Given
         let paths = try createFiles([
             "Module/Project.swift",
@@ -48,13 +48,89 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
         ])
 
         // When
-        let manifests = subject.locateAllProjectManifests(at: paths.first!)
+        let manifests = subject.locateProjectManifests(at: paths.first!)
 
         // Then
         XCTAssertEqual(manifests.first?.0, Manifest.project)
         XCTAssertEqual(manifests.first?.1, paths.first)
         XCTAssertEqual(manifests.last?.0, Manifest.workspace)
         XCTAssertEqual(manifests.last?.1, paths.dropLast().last)
+    }
+
+    func test_locateProjectManifests_falls_back_to_locatingPath_given_no_root_path() throws {
+        // Given
+        let paths = try createFiles([
+            "A/Project.swift",
+            "B/Workspace.swift",
+            "C/Project.swift",
+        ])
+
+        // When
+        let manifests = subject
+            .locateProjectManifests(at: try temporaryPath())
+            .sorted(by: { $0.1 < $1.1 })
+
+        // Then
+        XCTAssertEqual(manifests[0].0, Manifest.project)
+        XCTAssertEqual(manifests[0].1, paths[0])
+
+        XCTAssertEqual(manifests[1].0, Manifest.workspace)
+        XCTAssertEqual(manifests[1].1, paths[1])
+
+        XCTAssertEqual(manifests[2].0, Manifest.project)
+        XCTAssertEqual(manifests[2].1, paths[2])
+    }
+
+    func test_locatePluginManifests_returns_all_plugins_when_given_root_path() throws {
+        // Given
+        let paths = try createFiles([
+            "Plugin.swift",
+            "A/Plugin.swift",
+            "B/Plugin.swift",
+            "B/C/Plugin.swift",
+        ])
+
+        // When
+        let manifests = subject.locatePluginManifests(
+            at: paths[0] // Plugin.swift
+        )
+
+        // Then
+        XCTAssertEqual(manifests[0], paths[1]) // A/Plugin.swift
+        XCTAssertEqual(manifests[1], paths[3]) // B/C/Plugin.swift
+        XCTAssertEqual(manifests[2], paths[2]) // B/Plugin.swift
+        XCTAssertEqual(manifests[3], paths[0]) // Plugin.swift
+    }
+
+    func test_locatePluginManifests_returns_plugin_when_given_child_path() throws {
+        // Given
+        let paths = try createFiles([
+            "A/Plugin.swift",
+            "A/Helpers/Helper.swift",
+        ])
+
+        // When
+        let manifests = subject.locatePluginManifests(
+            at: paths[1] // A/Helpers/Helper.swift
+        )
+
+        // Then
+        XCTAssertEqual(manifests[0], paths[0]) // A/Plugin.swift
+    }
+
+    func test_locatePluginManifests_falls_back_to_locatingPath_when_no_root_path() throws {
+        // Given
+        let paths = try createFiles([
+            "A/Plugin.swift",
+            "B/Plugin.swift",
+        ])
+
+        // When
+        let manifests = subject.locatePluginManifests(at: try temporaryPath())
+
+        // Then
+        XCTAssertEqual(manifests[0], paths[0])
+        XCTAssertEqual(manifests[1], paths[1])
     }
 
     func test_locateConfig() throws {

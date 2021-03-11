@@ -50,17 +50,19 @@ final class ProvisioningProfileParser: ProvisioningProfileParsing {
             try certificateParser.parseFingerPrint(developerCertificate: $0)
         }
 
-        return ProvisioningProfile(path: path,
-                                   name: provisioningProfileContent.name,
-                                   targetName: targetName,
-                                   configurationName: configurationName,
-                                   uuid: provisioningProfileContent.uuid,
-                                   teamId: provisioningProfileContent.teamId,
-                                   appId: provisioningProfileContent.appId,
-                                   appIdName: provisioningProfileContent.appIdName,
-                                   applicationIdPrefix: provisioningProfileContent.applicationIdPrefix,
-                                   platforms: provisioningProfileContent.platforms,
-                                   expirationDate: provisioningProfileContent.expirationDate,
-                                   developerCertificateFingerprints: developerCertificateFingerprints)
+        return ProvisioningProfile(
+            path: path,
+            name: provisioningProfileContent.name,
+            targetName: targetName,
+            configurationName: configurationName,
+            uuid: provisioningProfileContent.uuid,
+            teamId: provisioningProfileContent.teamId,
+            appId: provisioningProfileContent.appId,
+            appIdName: provisioningProfileContent.appIdName,
+            applicationIdPrefix: provisioningProfileContent.applicationIdPrefix,
+            platforms: provisioningProfileContent.platforms,
+            expirationDate: provisioningProfileContent.expirationDate,
+            developerCertificateFingerprints: developerCertificateFingerprints
+        )
     }
 }

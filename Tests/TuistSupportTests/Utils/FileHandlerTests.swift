@@ -69,26 +69,15 @@ final class FileHandlerTests: TuistUnitTestCase {
         // XCTAssertEqual(count, try countItemsInRootTempDirectory(appropriateFor: to.asURL))
     }
 
-    func test_md5() throws {
-        // Given
-        let testZippedFrameworkPath = fixturePath(path: RelativePath("uUI.xcframework.zip"))
-
-        // When
-        let result = try subject.md5(path: testZippedFrameworkPath)
-
-        // Then
-        XCTAssertEqual(result, "5f4bec192d0f1884fdcf4975b37067dc")
-    }
-
     func test_base64MD5() throws {
         // Given
         let testZippedFrameworkPath = fixturePath(path: RelativePath("uUI.xcframework.zip"))
 
         // When
-        let result = try subject.base64MD5(path: testZippedFrameworkPath)
+        let result = try subject.urlSafeBase64MD5(path: testZippedFrameworkPath)
 
         // Then
-        XCTAssertEqual(result, "NWY0YmVjMTkyZDBmMTg4NGZkY2Y0OTc1YjM3MDY3ZGM=")
+        XCTAssertEqual(result, "X0vsGS0PGIT9z0l1s3Bn3A==")
     }
 
     func test_changeExtension() throws {
@@ -108,10 +97,12 @@ final class FileHandlerTests: TuistUnitTestCase {
     // MARK: - Private
 
     private func countItemsInRootTempDirectory(appropriateFor url: URL) throws -> Int {
-        let tempPath = AbsolutePath(try fileManager.url(for: .itemReplacementDirectory,
-                                                        in: .userDomainMask,
-                                                        appropriateFor: url,
-                                                        create: true).path)
+        let tempPath = AbsolutePath(try fileManager.url(
+            for: .itemReplacementDirectory,
+            in: .userDomainMask,
+            appropriateFor: url,
+            create: true
+        ).path)
         let rootTempPath = tempPath.parentDirectory
         try fileManager.removeItem(at: tempPath.asURL)
         let content = try fileManager.contentsOfDirectory(atPath: rootTempPath.pathString)

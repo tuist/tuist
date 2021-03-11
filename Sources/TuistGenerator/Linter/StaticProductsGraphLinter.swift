@@ -27,9 +27,11 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
             guard cache.results(for: dependency) == nil else {
                 return
             }
-            let results = buildStaticProductsMap(visiting: dependency,
-                                                 graphTraverser: graphTraverser,
-                                                 cache: cache)
+            let results = buildStaticProductsMap(
+                visiting: dependency,
+                graphTraverser: graphTraverser,
+                cache: cache
+            )
 
             warnings.formUnion(results.linked.flatMap {
                 staticDependencyWarning(staticProduct: $0.key, linkedBy: $0.value, graphTraverser: graphTraverser)
@@ -88,8 +90,10 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
             results.linked[staticProduct, default: Set()].insert(dependency)
         }
 
-        cache.cache(results: results,
-                    for: dependency)
+        cache.cache(
+            results: results,
+            for: dependency
+        )
 
         return results
     }
@@ -123,8 +127,10 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
         }
 
         return [
-            .init(staticProduct: staticProduct,
-                  linkingDependencies: links.sorted()),
+            .init(
+                staticProduct: staticProduct,
+                linkingDependencies: links.sorted()
+            ),
         ]
     }
 
@@ -191,8 +197,10 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
 
     private func lintIssue(from warning: StaticDependencyWarning) -> LintingIssue {
         let names = warning.linkingDependencies.map(\.description).listed()
-        return LintingIssue(reason: "\(warning.staticProduct) has been linked from \(names), it is a static product so may introduce unwanted side effects.".uppercasingFirst,
-                            severity: .warning)
+        return LintingIssue(
+            reason: "\(warning.staticProduct) has been linked from \(names), it is a static product so may introduce unwanted side effects.".uppercasingFirst,
+            severity: .warning
+        )
     }
 }
 
@@ -229,8 +237,10 @@ extension StaticProductsGraphLinter {
         var linked: [ValueGraphDependency: Set<ValueGraphDependency>] = [:]
 
         func merged(with other: StaticProducts) -> StaticProducts {
-            StaticProducts(unlinked: unlinked.union(other.unlinked),
-                           linked: linked.merging(other.linked, uniquingKeysWith: { $0.union($1) }))
+            StaticProducts(
+                unlinked: unlinked.union(other.unlinked),
+                linked: linked.merging(other.linked, uniquingKeysWith: { $0.union($1) })
+            )
         }
     }
 

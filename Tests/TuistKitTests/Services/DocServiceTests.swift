@@ -33,12 +33,14 @@ final class TuistDocServiceTests: TuistUnitTestCase {
 
         fileHandler = MockFileHandler(temporaryDirectory: { try self.temporaryPath() })
 
-        subject = DocService(generator: generator,
-                             swiftDocController: swiftDocController,
-                             swiftDocServer: swiftDocServer,
-                             fileHandler: fileHandler,
-                             opener: opener,
-                             semaphore: semaphore)
+        subject = DocService(
+            generator: generator,
+            swiftDocController: swiftDocController,
+            swiftDocServer: swiftDocServer,
+            fileHandler: fileHandler,
+            opener: opener,
+            semaphore: semaphore
+        )
     }
 
     override func tearDown() {
@@ -56,8 +58,10 @@ final class TuistDocServiceTests: TuistUnitTestCase {
         let path = AbsolutePath("/.")
 
         // When / Then
-        XCTAssertThrowsSpecific(try subject.run(project: path, target: "CustomTarget"),
-                                DocServiceError.targetNotFound(name: "CustomTarget"))
+        XCTAssertThrowsSpecific(
+            try subject.run(project: path, target: "CustomTarget"),
+            DocServiceError.targetNotFound(name: "CustomTarget")
+        )
     }
 
     func test_doc_fail_missing_file() {
@@ -71,8 +75,10 @@ final class TuistDocServiceTests: TuistUnitTestCase {
         fileHandler.stubExists = { _ in false }
 
         // When / Then
-        XCTAssertThrowsSpecific(try subject.run(project: path, target: targetName),
-                                DocServiceError.documentationNotGenerated)
+        XCTAssertThrowsSpecific(
+            try subject.run(project: path, target: targetName),
+            DocServiceError.documentationNotGenerated
+        )
     }
 
     func test_doc_success() throws {
@@ -109,15 +115,22 @@ final class TuistDocServiceTests: TuistUnitTestCase {
         swiftDocServer.stubError = SwiftDocServerError.unableToStartServer(at: 4040)
 
         // When / Then
-        XCTAssertThrowsSpecific(try subject.run(project: path, target: targetName),
-                                SwiftDocServerError.unableToStartServer(at: 4040))
+        XCTAssertThrowsSpecific(
+            try subject.run(project: path, target: targetName),
+            SwiftDocServerError.unableToStartServer(at: 4040)
+        )
     }
 
     private func mockGraph(targetName: String, atPath path: AbsolutePath) {
-        let project = Project.test()
+        let project = Project.test(
+            path: path
+        )
         let target = Target.test(name: targetName)
         let targetNode = TargetNode(project: project, target: target, dependencies: [])
-        let graph = Graph.test(targets: [path: [targetNode]])
+        let graph = Graph.test(
+            projects: [project],
+            targets: [path: [targetNode]]
+        )
 
         generator.loadStub = { _ in
             graph

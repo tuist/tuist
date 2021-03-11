@@ -33,10 +33,12 @@ final class TestModelGenerator {
         let xcframeworkNodeLoader = MockXCFrameworkNodeLoader()
         let modelLoader = try createModelLoader()
 
-        let graphLoader = GraphLoader(modelLoader: modelLoader,
-                                      frameworkNodeLoader: frameworkNodeLoader,
-                                      xcframeworkNodeLoader: xcframeworkNodeLoader,
-                                      libraryNodeLoader: libraryNodeLoader)
+        let graphLoader = GraphLoader(
+            modelLoader: modelLoader,
+            frameworkNodeLoader: frameworkNodeLoader,
+            xcframeworkNodeLoader: xcframeworkNodeLoader,
+            libraryNodeLoader: libraryNodeLoader
+        )
 
         return try graphLoader.loadWorkspace(path: rootPath)
     }
@@ -57,35 +59,43 @@ final class TestModelGenerator {
     private func createProjectWithDependencies(name: String) throws -> Project {
         let frameworksNames = (0 ..< config.frameworkTargets).map { "\(name)Framework\($0)" }
         let unitTestsTargetNames = (0 ..< config.testTargets).map { "\(name)TestAppTests\($0)" }
-        let targetSettings = Settings(base: ["A1": "A_VALUE",
-                                             "B1": "B_VALUE",
-                                             "C1": "C_VALUE"],
-                                      configurations: [.debug: nil,
-                                                       .release: nil,
-                                                       .debug("CustomDebug"): nil,
-                                                       .release("CustomRelease"): nil])
-        let projectSettings = Settings(base: ["A2": "A_VALUE",
-                                              "B2": "B_VALUE",
-                                              "C2": "C_VALUE"],
-                                       configurations: [.debug: nil,
-                                                        .release: nil,
-                                                        .debug("CustomDebug2"): nil,
-                                                        .release("CustomRelease2"): nil])
+        let targetSettings = Settings(
+            base: ["A1": "A_VALUE",
+                   "B1": "B_VALUE",
+                   "C1": "C_VALUE"],
+            configurations: [.debug: nil,
+                             .release: nil,
+                             .debug("CustomDebug"): nil,
+                             .release("CustomRelease"): nil]
+        )
+        let projectSettings = Settings(
+            base: ["A2": "A_VALUE",
+                   "B2": "B_VALUE",
+                   "C2": "C_VALUE"],
+            configurations: [.debug: nil,
+                             .release: nil,
+                             .debug("CustomDebug2"): nil,
+                             .release("CustomRelease2"): nil]
+        )
         let projectPath = pathTo(name)
         let dependencies = try createDependencies(relativeTo: projectPath)
         let frameworkTargets = try frameworksNames.map { try createFrameworkTarget(name: $0, depenendencies: dependencies) }
         let appTarget = createTarget(path: projectPath, name: "\(name)AppTarget", settings: targetSettings, dependencies: frameworksNames)
-        let appUnitTestsTargets = unitTestsTargetNames.map { createTarget(path: projectPath,
-                                                                          name: $0,
-                                                                          product: .unitTests,
-                                                                          settings: nil,
-                                                                          dependencies: [appTarget.name]) }
+        let appUnitTestsTargets = unitTestsTargetNames.map { createTarget(
+            path: projectPath,
+            name: $0,
+            product: .unitTests,
+            settings: nil,
+            dependencies: [appTarget.name]
+        ) }
         let schemes = try createSchemes(projectName: name, appTarget: appTarget, frameworkTargets: frameworkTargets)
-        let project = createProject(path: projectPath,
-                                    name: name,
-                                    settings: projectSettings,
-                                    targets: [appTarget] + frameworkTargets + appUnitTestsTargets,
-                                    schemes: schemes)
+        let project = createProject(
+            path: projectPath,
+            name: name,
+            settings: projectSettings,
+            targets: [appTarget] + frameworkTargets + appUnitTestsTargets,
+            schemes: schemes
+        )
 
         return project
     }
@@ -100,32 +110,37 @@ final class TestModelGenerator {
     }
 
     private func createProject(path: AbsolutePath, name: String, settings: Settings, targets: [Target], packages: [Package] = [], schemes: [Scheme]) -> Project {
-        Project(path: path,
-                sourceRootPath: path,
-                xcodeProjPath: path.appending(component: "App.xcodeproj"),
-                name: name,
-                organizationName: nil,
-                developmentRegion: nil,
-                settings: settings,
-                filesGroup: .group(name: "Project"),
-                targets: targets,
-                packages: packages,
-                schemes: schemes,
-                additionalFiles: createAdditionalFiles(path: path))
+        Project(
+            path: path,
+            sourceRootPath: path,
+            xcodeProjPath: path.appending(component: "App.xcodeproj"),
+            name: name,
+            organizationName: nil,
+            developmentRegion: nil,
+            settings: settings,
+            filesGroup: .group(name: "Project"),
+            targets: targets,
+            packages: packages,
+            schemes: schemes,
+            ideTemplateMacros: nil,
+            additionalFiles: createAdditionalFiles(path: path)
+        )
     }
 
     private func createTarget(path: AbsolutePath, name: String, product: Product = .app, settings: Settings?, dependencies: [String]) -> Target {
-        Target(name: name,
-               platform: .iOS,
-               product: product,
-               productName: name,
-               bundleId: "test.bundle",
-               settings: settings,
-               sources: createSources(path: path),
-               resources: createResources(path: path),
-               headers: createHeaders(path: path),
-               filesGroup: .group(name: "ProjectGroup"),
-               dependencies: dependencies.map { Dependency.target(name: $0) })
+        Target(
+            name: name,
+            platform: .iOS,
+            product: product,
+            productName: name,
+            bundleId: "test.bundle",
+            settings: settings,
+            sources: createSources(path: path),
+            resources: createResources(path: path),
+            headers: createHeaders(path: path),
+            filesGroup: .group(name: "ProjectGroup"),
+            dependencies: dependencies.map { TargetDependency.target(name: $0) }
+        )
     }
 
     private func createSources(path: AbsolutePath) -> [SourceFile] {
@@ -155,14 +170,14 @@ final class TestModelGenerator {
         return Headers(public: publicHeaders, private: privateHeaders, project: projectHeaders)
     }
 
-    private func createResources(path: AbsolutePath) -> [FileElement] {
+    private func createResources(path: AbsolutePath) -> [ResourceFileElement] {
         let files = (0 ..< config.resources)
             .map { "Resources/Resource\($0).png" }
-            .map { FileElement.file(path: path.appending(RelativePath($0))) }
+            .map { ResourceFileElement.file(path: path.appending(RelativePath($0))) }
 
         let folderReferences = (0 ..< 10)
             .map { "Resources/Folder\($0)" }
-            .map { FileElement.folderReference(path: path.appending(RelativePath($0))) }
+            .map { ResourceFileElement.folderReference(path: path.appending(RelativePath($0))) }
 
         return (files + folderReferences).shuffled()
     }
@@ -192,31 +207,33 @@ final class TestModelGenerator {
     }
 
     private func createFrameworkTarget(name: String,
-                                       depenendencies: [Dependency] = []) throws -> Target
+                                       depenendencies: [TargetDependency] = []) throws -> Target
     {
-        Target(name: name,
-               platform: .iOS,
-               product: .framework,
-               productName: name,
-               bundleId: "test.bundle.\(name)",
-               settings: nil,
-               sources: [],
-               filesGroup: .group(name: "ProjectGroup"),
-               dependencies: depenendencies)
+        Target(
+            name: name,
+            platform: .iOS,
+            product: .framework,
+            productName: name,
+            bundleId: "test.bundle.\(name)",
+            settings: nil,
+            sources: [],
+            filesGroup: .group(name: "ProjectGroup"),
+            dependencies: depenendencies
+        )
     }
 
-    private func createDependencies(relativeTo path: AbsolutePath) throws -> [Dependency] {
+    private func createDependencies(relativeTo path: AbsolutePath) throws -> [TargetDependency] {
         let frameworks = (0 ..< 10)
             .map { "Frameworks/Framework\($0).framework" }
-            .map { Dependency.framework(path: path.appending(RelativePath($0))) }
+            .map { TargetDependency.framework(path: path.appending(RelativePath($0))) }
 
         let libraries = try createLibraries(relativeTo: path)
 
         return (frameworks + libraries).shuffled()
     }
 
-    private func createLibraries(relativeTo path: AbsolutePath) throws -> [Dependency] {
-        var libraries = [Dependency]()
+    private func createLibraries(relativeTo path: AbsolutePath) throws -> [TargetDependency] {
+        var libraries = [TargetDependency]()
 
         for i in 0 ..< 10 {
             let libraryName = "Library\(i)"
@@ -244,26 +261,34 @@ final class TestModelGenerator {
             return Scheme(
                 name: "Scheme \($0)",
                 shared: boolStub,
-                buildAction: BuildAction(targets: targets,
-                                         preActions: createExecutionActions(),
-                                         postActions: createExecutionActions()),
-                testAction: TestAction(targets: targets.map { TestableTarget(target: $0) },
-                                       arguments: createArguments(),
-                                       configurationName: "Debug",
-                                       coverage: boolStub,
-                                       codeCoverageTargets: targets,
-                                       preActions: createExecutionActions(),
-                                       postActions: createExecutionActions(),
-                                       diagnosticsOptions: Set()),
-                runAction: RunAction(configurationName: "Debug",
-                                     executable: nil,
-                                     filePath: nil,
-                                     arguments: createArguments(),
-                                     diagnosticsOptions: Set()),
-                archiveAction: ArchiveAction(configurationName: "Debug",
-                                             revealArchiveInOrganizer: boolStub,
-                                             preActions: createExecutionActions(),
-                                             postActions: createExecutionActions())
+                buildAction: BuildAction(
+                    targets: targets,
+                    preActions: createExecutionActions(),
+                    postActions: createExecutionActions()
+                ),
+                testAction: TestAction(
+                    targets: targets.map { TestableTarget(target: $0) },
+                    arguments: createArguments(),
+                    configurationName: "Debug",
+                    coverage: boolStub,
+                    codeCoverageTargets: targets,
+                    preActions: createExecutionActions(),
+                    postActions: createExecutionActions(),
+                    diagnosticsOptions: Set()
+                ),
+                runAction: RunAction(
+                    configurationName: "Debug",
+                    executable: nil,
+                    filePath: nil,
+                    arguments: createArguments(),
+                    diagnosticsOptions: Set()
+                ),
+                archiveAction: ArchiveAction(
+                    configurationName: "Debug",
+                    revealArchiveInOrganizer: boolStub,
+                    preActions: createExecutionActions(),
+                    postActions: createExecutionActions()
+                )
             )
         }
     }

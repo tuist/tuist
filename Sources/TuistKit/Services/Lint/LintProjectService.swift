@@ -33,17 +33,39 @@ final class LintProjectService {
     private let environmentLinter: EnvironmentLinting
     private let manifestLoading: ManifestLoading
     private let graphLoader: GraphLoading
+    private let configLoader: ConfigLoading
 
-    init(graphLinter: GraphLinting = GraphLinter(),
-         environmentLinter: EnvironmentLinting = EnvironmentLinter(),
-         manifestLoading: ManifestLoading = ManifestLoader(),
-         graphLoader: GraphLoading = GraphLoader(modelLoader: GeneratorModelLoader(manifestLoader: ManifestLoader(),
-                                                                                   manifestLinter: AnyManifestLinter())))
-    {
+    convenience init() {
+        let manifestLoader = ManifestLoader()
+        let modelLoader = GeneratorModelLoader(
+            manifestLoader: manifestLoader,
+            manifestLinter: AnyManifestLinter()
+        )
+        let graphLoader = GraphLoader(modelLoader: modelLoader)
+        let configLoader = ConfigLoader(manifestLoader: manifestLoader)
+        let graphLinter = GraphLinter()
+        let environmentLinter = EnvironmentLinter()
+        self.init(
+            graphLinter: graphLinter,
+            environmentLinter: environmentLinter,
+            manifestLoading: manifestLoader,
+            graphLoader: graphLoader,
+            configLoader: configLoader
+        )
+    }
+
+    init(
+        graphLinter: GraphLinting,
+        environmentLinter: EnvironmentLinting,
+        manifestLoading: ManifestLoading,
+        graphLoader: GraphLoading,
+        configLoader: ConfigLoading
+    ) {
         self.graphLinter = graphLinter
         self.environmentLinter = environmentLinter
         self.manifestLoading = manifestLoading
         self.graphLoader = graphLoader
+        self.configLoader = configLoader
     }
 
     func run(path: String?) throws {
@@ -67,7 +89,7 @@ final class LintProjectService {
         let graphTraverser = ValueGraphTraverser(graph: valueGraph)
 
         logger.notice("Running linters")
-        let config = try graphLoader.loadConfig(path: path)
+        let config = try configLoader.loadConfig(path: path)
 
         var issues: [LintingIssue] = []
         logger.notice("Linting the environment")

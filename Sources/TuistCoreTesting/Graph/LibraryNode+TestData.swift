@@ -10,10 +10,12 @@ public extension LibraryNode {
                      linking: BinaryLinking = .static,
                      swiftModuleMap: AbsolutePath? = nil) -> LibraryNode
     {
-        LibraryNode(path: path,
-                    publicHeaders: publicHeaders,
-                    architectures: architectures,
-                    linking: linking,
-                    swiftModuleMap: swiftModuleMap)
+        LibraryNode(
+            path: path,
+            publicHeaders: publicHeaders,
+            architectures: architectures,
+            linking: linking,
+            swiftModuleMap: swiftModuleMap
+        )
     }
 }

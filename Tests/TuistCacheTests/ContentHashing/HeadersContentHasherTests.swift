@@ -41,9 +41,11 @@ final class HeadersContentHasherTests: TuistUnitTestCase {
         mockContentHasher.stubHashForPath[filePath6] = "6"
 
         // When
-        let headers = Headers(public: [filePath1, filePath2],
-                              private: [filePath3, filePath4],
-                              project: [filePath5, filePath6])
+        let headers = Headers(
+            public: [filePath1, filePath2],
+            private: [filePath3, filePath4],
+            project: [filePath5, filePath6]
+        )
 
         // Then
         let hash = try subject.hash(headers: headers)

@@ -10,10 +10,12 @@ public extension XCFrameworkNode {
                      linking: BinaryLinking = .dynamic,
                      dependencies: [PrecompiledNode.Dependency] = []) -> XCFrameworkNode
     {
-        XCFrameworkNode(path: path,
-                        infoPlist: infoPlist,
-                        primaryBinaryPath: primaryBinaryPath,
-                        linking: linking,
-                        dependencies: dependencies)
+        XCFrameworkNode(
+            path: path,
+            infoPlist: infoPlist,
+            primaryBinaryPath: primaryBinaryPath,
+            linking: linking,
+            dependencies: dependencies
+        )
     }
 }

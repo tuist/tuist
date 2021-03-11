@@ -5,8 +5,10 @@ import XCTest
 class PackageTests: XCTestCase {
     func test_package_remotePackages_codable() throws {
         // Given
-        let subject = Package.package(url: "https://github.com/Swinject/Swinject",
-                                      .upToNextMajor(from: "2.6.2"))
+        let subject = Package.package(
+            url: "https://github.com/Swinject/Swinject",
+            .upToNextMajor(from: "2.6.2")
+        )
 
         // Then
         XCTAssertCodable(subject)

@@ -55,12 +55,16 @@ final class WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
     {
         let configGenerator = ConfigGenerator(defaultSettingsProvider: defaultSettingsProvider)
         let targetGenerator = TargetGenerator(configGenerator: configGenerator)
-        let projectDescriptorGenerator = ProjectDescriptorGenerator(targetGenerator: targetGenerator,
-                                                                    configGenerator: configGenerator)
-        self.init(projectDescriptorGenerator: projectDescriptorGenerator,
-                  workspaceStructureGenerator: WorkspaceStructureGenerator(),
-                  schemeDescriptorsGenerator: SchemeDescriptorsGenerator(),
-                  config: config)
+        let projectDescriptorGenerator = ProjectDescriptorGenerator(
+            targetGenerator: targetGenerator,
+            configGenerator: configGenerator
+        )
+        self.init(
+            projectDescriptorGenerator: projectDescriptorGenerator,
+            workspaceStructureGenerator: WorkspaceStructureGenerator(),
+            schemeDescriptorsGenerator: SchemeDescriptorsGenerator(),
+            config: config
+        )
     }
 
     init(projectDescriptorGenerator: ProjectDescriptorGenerating,
@@ -93,11 +97,15 @@ final class WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
             let targets = pbxproj.nativeTargets.map {
                 ($0.name, $0)
             }
-            return (project.xcodeprojPath,
-                    GeneratedProject(pbxproj: pbxproj,
-                                     path: project.xcodeprojPath,
-                                     targets: Dictionary(targets, uniquingKeysWith: { $1 }),
-                                     name: project.xcodeprojPath.basename))
+            return (
+                project.xcodeprojPath,
+                GeneratedProject(
+                    pbxproj: pbxproj,
+                    path: project.xcodeprojPath,
+                    targets: Dictionary(targets, uniquingKeysWith: { $1 }),
+                    name: project.xcodeprojPath.basename
+                )
+            )
         })
 
         // Workspace structure
@@ -156,8 +164,10 @@ final class WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
     private func workspaceDataElementSort(lhs: XCWorkspaceDataElement, rhs: XCWorkspaceDataElement) -> Bool {
         switch (lhs, rhs) {
         case let (.file(lhsFile), .file(rhsFile)):
-            return workspaceFilePathSort(lhs: lhsFile.location.path,
-                                         rhs: rhsFile.location.path)
+            return workspaceFilePathSort(
+                lhs: lhsFile.location.path,
+                rhs: rhsFile.location.path
+            )
         case let (.group(lhsGroup), .group(rhsGroup)):
             return lhsGroup.location.path < rhsGroup.location.path
         case (.file, .group):
@@ -210,9 +220,11 @@ final class WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
                 location: location,
                 name: name,
                 children: try contents.map {
-                    try recursiveChildElement(generatedProjects: generatedProjects,
-                                              element: $0,
-                                              path: groupPath)
+                    try recursiveChildElement(
+                        generatedProjects: generatedProjects,
+                        element: $0,
+                        path: groupPath
+                    )
                 }.sorted(by: workspaceDataElementSort)
             )
 

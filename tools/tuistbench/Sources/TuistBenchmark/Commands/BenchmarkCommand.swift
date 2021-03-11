@@ -40,34 +40,46 @@ final class BenchmarkCommand {
          parser: ArgumentParser)
     {
         self.fileHandler = fileHandler
-        configPathOption = parser.add(option: "--config",
-                                      shortName: "-c",
-                                      kind: PathArgument.self,
-                                      usage: "The path to the benchmarking configuration json file.",
-                                      completion: .filename)
-        formatOption = parser.add(option: "--format",
-                                  kind: BenchmarkResultFormat.self,
-                                  usage: "The output format of the benchmark results.")
-        fixtureListPathOption = parser.add(option: "--fixture-list",
-                                           shortName: "-l",
-                                           kind: PathArgument.self,
-                                           usage: "The path to the fixtures list json file.",
-                                           completion: .filename)
-        fixturePathOption = parser.add(option: "--fixture",
-                                       shortName: "-f",
-                                       kind: PathArgument.self,
-                                       usage: "The path to the fixture to user for benchmarking.",
-                                       completion: .filename)
-        binaryPathOption = parser.add(option: "--binary",
-                                      shortName: "-b",
-                                      kind: PathArgument.self,
-                                      usage: "The path to the binary to benchmark.",
-                                      completion: .filename)
-        referenceBinaryPathOption = parser.add(option: "--reference-binary",
-                                               shortName: "-r",
-                                               kind: PathArgument.self,
-                                               usage: "The path to the binary to use as a reference for the benchmark.",
-                                               completion: .filename)
+        configPathOption = parser.add(
+            option: "--config",
+            shortName: "-c",
+            kind: PathArgument.self,
+            usage: "The path to the benchmarking configuration json file.",
+            completion: .filename
+        )
+        formatOption = parser.add(
+            option: "--format",
+            kind: BenchmarkResultFormat.self,
+            usage: "The output format of the benchmark results."
+        )
+        fixtureListPathOption = parser.add(
+            option: "--fixture-list",
+            shortName: "-l",
+            kind: PathArgument.self,
+            usage: "The path to the fixtures list json file.",
+            completion: .filename
+        )
+        fixturePathOption = parser.add(
+            option: "--fixture",
+            shortName: "-f",
+            kind: PathArgument.self,
+            usage: "The path to the fixture to user for benchmarking.",
+            completion: .filename
+        )
+        binaryPathOption = parser.add(
+            option: "--binary",
+            shortName: "-b",
+            kind: PathArgument.self,
+            usage: "The path to the binary to benchmark.",
+            completion: .filename
+        )
+        referenceBinaryPathOption = parser.add(
+            option: "--reference-binary",
+            shortName: "-r",
+            kind: PathArgument.self,
+            usage: "The path to the binary to use as a reference for the benchmark.",
+            completion: .filename
+        )
     }
 
     func run(with arguments: ArgumentParser.Result) throws {
@@ -82,22 +94,30 @@ final class BenchmarkCommand {
         }
 
         let config: BenchmarkConfig = try configPath.map(parseConfig) ?? .default
-        let fixtures = try getFixturePaths(fixturesListPath: fixtureListPath,
-                                           fixturePath: fixturePath)
+        let fixtures = try getFixturePaths(
+            fixturesListPath: fixtureListPath,
+            fixturePath: fixturePath
+        )
 
-        let renderer = makeRenderer(for: format,
-                                    config: config)
+        let renderer = makeRenderer(
+            for: format,
+            config: config
+        )
 
         if let referenceBinaryPath = referenceBinaryPath {
-            let results = try benchmark(config: config,
-                                        fixtures: fixtures,
-                                        binaryPath: binaryPath,
-                                        referenceBinaryPath: referenceBinaryPath)
+            let results = try benchmark(
+                config: config,
+                fixtures: fixtures,
+                binaryPath: binaryPath,
+                referenceBinaryPath: referenceBinaryPath
+            )
             renderer.render(results: results)
         } else {
-            let results = try measure(config: config,
-                                      fixtures: fixtures,
-                                      binaryPath: binaryPath)
+            let results = try measure(
+                config: config,
+                fixtures: fixtures,
+                binaryPath: binaryPath
+            )
             renderer.render(results: results)
         }
     }
@@ -106,12 +126,16 @@ final class BenchmarkCommand {
                          fixtures: [AbsolutePath],
                          binaryPath: AbsolutePath) throws -> [MeasureResult]
     {
-        let measure = Measure(fileHandler: fileHandler,
-                              binaryPath: binaryPath)
+        let measure = Measure(
+            fileHandler: fileHandler,
+            binaryPath: binaryPath
+        )
         let results = try fixtures.map {
-            try measure.measure(runs: config.runs,
-                                arguments: config.arguments,
-                                fixturePath: $0)
+            try measure.measure(
+                runs: config.runs,
+                arguments: config.arguments,
+                fixturePath: $0
+            )
         }
         return results
     }
@@ -121,13 +145,17 @@ final class BenchmarkCommand {
                            binaryPath: AbsolutePath,
                            referenceBinaryPath: AbsolutePath) throws -> [BenchmarkResult]
     {
-        let benchmark = Benchmark(fileHandler: fileHandler,
-                                  binaryPath: binaryPath,
-                                  referenceBinaryPath: referenceBinaryPath)
+        let benchmark = Benchmark(
+            fileHandler: fileHandler,
+            binaryPath: binaryPath,
+            referenceBinaryPath: referenceBinaryPath
+        )
         let results = try fixtures.map {
-            try benchmark.benchmark(runs: config.runs,
-                                    arguments: config.arguments,
-                                    fixturePath: $0)
+            try benchmark.benchmark(
+                runs: config.runs,
+                arguments: config.arguments,
+                fixturePath: $0
+            )
         }
         return results
     }

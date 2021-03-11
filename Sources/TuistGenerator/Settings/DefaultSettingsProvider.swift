@@ -82,8 +82,10 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
         let variant = settingsHelper.variant(buildConfiguration)
         let projectDefaultAll = try BuildSettingsProvider.projectDefault(variant: .all).toSettings()
         let projectDefaultVariant = try BuildSettingsProvider.projectDefault(variant: variant).toSettings()
-        let filter = try createFilter(defaultSettings: defaultSettings,
-                                      essentialKeys: DefaultSettingsProvider.essentialProjectSettings)
+        let filter = try createFilter(
+            defaultSettings: defaultSettings,
+            essentialKeys: DefaultSettingsProvider.essentialProjectSettings
+        )
 
         var settings: SettingsDictionary = [:]
         settingsHelper.extend(buildSettings: &settings, with: projectDefaultAll)
@@ -100,17 +102,23 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
         let product = settingsHelper.settingsProviderProduct(target)
         let platform = settingsHelper.settingsProviderPlatform(target)
         let variant = settingsHelper.variant(buildConfiguration)
-        let targetDefaultAll = try BuildSettingsProvider.targetDefault(variant: .all,
-                                                                       platform: platform,
-                                                                       product: product,
-                                                                       swift: true).toSettings()
-        let targetDefaultVariant = try BuildSettingsProvider.targetDefault(variant: variant,
-                                                                           platform: platform,
-                                                                           product: product,
-                                                                           swift: true).toSettings()
-        let filter = try createFilter(defaultSettings: defaultSettings,
-                                      essentialKeys: DefaultSettingsProvider.essentialTargetSettings,
-                                      newXcodeKeys: DefaultSettingsProvider.xcodeVersionSpecificSettings)
+        let targetDefaultAll = try BuildSettingsProvider.targetDefault(
+            variant: .all,
+            platform: platform,
+            product: product,
+            swift: true
+        ).toSettings()
+        let targetDefaultVariant = try BuildSettingsProvider.targetDefault(
+            variant: variant,
+            platform: platform,
+            product: product,
+            swift: true
+        ).toSettings()
+        let filter = try createFilter(
+            defaultSettings: defaultSettings,
+            essentialKeys: DefaultSettingsProvider.essentialTargetSettings,
+            newXcodeKeys: DefaultSettingsProvider.xcodeVersionSpecificSettings
+        )
 
         var settings: SettingsDictionary = [:]
         settingsHelper.extend(buildSettings: &settings, with: targetDefaultAll)

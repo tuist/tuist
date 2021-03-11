@@ -20,11 +20,15 @@ let package = Package(
     products: [
         .executable(name: "tuist", targets: ["tuist"]),
         .executable(name: "tuistenv", targets: ["tuistenv"]),
-        .library(name: "ProjectDescription",
-                 type: .dynamic,
-                 targets: ["ProjectDescription"]),
-        .library(name: "TuistGraph",
-                 targets: ["TuistGraph"]),
+        .library(
+            name: "ProjectDescription",
+            type: .dynamic,
+            targets: ["ProjectDescription"]
+        ),
+        .library(
+            name: "TuistGraph",
+            targets: ["TuistGraph"]
+        ),
         /// TuistGenerator
         ///
         /// A high level Xcode generator library
@@ -36,8 +40,10 @@ let package = Package(
         /// Note: This library should be treated as **unstable** as
         ///       it is still under development and may include breaking
         ///       changes in future releases.
-        .library(name: "TuistGenerator",
-                 targets: ["TuistGenerator"]),
+        .library(
+            name: "TuistGenerator",
+            targets: ["TuistGenerator"]
+        ),
     ],
     dependencies: [
         .package(url: "https://github.com/tuist/XcodeProj.git", .upToNextMajor(from: "7.17.0")),
@@ -343,6 +349,7 @@ let package = Package(
                 rxSwiftDependency,
                 "TuistSupportTesting",
                 "TuistGraphTesting",
+                "TuistCoreTesting",
             ]
         ),
         .target(

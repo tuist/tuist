@@ -1,5 +1,5 @@
 # frozen_string_literal: true
-require 'octokit'
+require "octokit"
 
 module Fourier
   module Utilities

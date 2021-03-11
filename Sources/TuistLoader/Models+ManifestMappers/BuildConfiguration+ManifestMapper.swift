@@ -4,7 +4,7 @@ import TuistCore
 import TuistGraph
 
 extension TuistGraph.BuildConfiguration {
-    /// Maps a ProjectDescription.BuildConfiguration instance into a TuistCore.BuildConfiguration instance.
+    /// Maps a ProjectDescription.BuildConfiguration instance into a TuistGraph.BuildConfiguration instance.
     /// - Parameters:
     ///   - manifest: Manifest representation of build configuration model.
     ///   - generatorPaths: Generator paths.

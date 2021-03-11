@@ -61,11 +61,13 @@ public final class XcodeProjWriter: XcodeProjWriting {
         sharedData.schemes.append(contentsOf: sharedSchemes.map(\.xcScheme))
         xcodeProj.sharedData = sharedData
 
-        return ProjectDescriptor(path: descriptor.path,
-                                 xcodeprojPath: descriptor.xcodeprojPath,
-                                 xcodeProj: descriptor.xcodeProj,
-                                 schemeDescriptors: userSchemes,
-                                 sideEffectDescriptors: descriptor.sideEffectDescriptors)
+        return ProjectDescriptor(
+            path: descriptor.path,
+            xcodeprojPath: descriptor.xcodeprojPath,
+            xcodeProj: descriptor.xcodeProj,
+            schemeDescriptors: userSchemes,
+            sideEffectDescriptors: descriptor.sideEffectDescriptors
+        )
     }
 
     private func write(scheme: SchemeDescriptor,

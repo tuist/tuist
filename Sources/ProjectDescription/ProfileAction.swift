@@ -18,8 +18,10 @@ public struct ProfileAction: Equatable, Codable {
                 executable: TargetReference? = nil,
                 arguments: Arguments? = nil)
     {
-        self.init(configurationName: config.name,
-                  executable: executable,
-                  arguments: arguments)
+        self.init(
+            configurationName: config.name,
+            executable: executable,
+            arguments: arguments
+        )
     }
 }

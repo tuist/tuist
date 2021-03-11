@@ -68,9 +68,11 @@ class ProjectGroups {
     {
         /// Main
         let projectRelativePath = project.sourceRootPath.relative(to: project.xcodeProjPath.parentDirectory).pathString
-        let mainGroup = PBXGroup(children: [],
-                                 sourceTree: .group,
-                                 path: (projectRelativePath != ".") ? projectRelativePath : nil)
+        let mainGroup = PBXGroup(
+            children: [],
+            sourceTree: .group,
+            path: (projectRelativePath != ".") ? projectRelativePath : nil
+        )
         pbxproj.add(object: mainGroup)
 
         /// Project & Target Groups
@@ -94,11 +96,13 @@ class ProjectGroups {
         pbxproj.add(object: productsGroup)
         mainGroup.children.append(productsGroup)
 
-        return ProjectGroups(main: mainGroup,
-                             projectGroups: projectGroups,
-                             products: productsGroup,
-                             frameworks: frameworksGroup,
-                             pbxproj: pbxproj)
+        return ProjectGroups(
+            main: mainGroup,
+            projectGroups: projectGroups,
+            products: productsGroup,
+            frameworks: frameworksGroup,
+            pbxproj: pbxproj
+        )
     }
 
     private static func extractProjectGroupNames(from project: Project) -> [String] {

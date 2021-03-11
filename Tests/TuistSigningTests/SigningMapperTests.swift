@@ -53,14 +53,16 @@ final class SigningMapperTests: TuistUnitTestCase {
             developerCertificateFingerprints: ["otherFingerPrint", fingerprint]
         )
         signingMatcher.matchStub = { _ in
-            (certificates: [
-                fingerprint: certificate,
-            ],
-            provisioningProfiles: [
-                targetName: [
-                    configuration: provisioningProfile,
+            (
+                certificates: [
+                    fingerprint: certificate,
                 ],
-            ])
+                provisioningProfiles: [
+                    targetName: [
+                        configuration: provisioningProfile,
+                    ],
+                ]
+            )
         }
 
         let target = Target.test(

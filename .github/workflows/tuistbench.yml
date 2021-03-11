@@ -8,6 +8,9 @@ on:
     paths:
       - tools/tuistbench/**
 
+env:
+  TUIST_STATS_OPT_OUT: true
+
 jobs:
   test:
     name: Build tuistbench with Xcode ${{ matrix.xcode }}

@@ -75,4 +75,66 @@ final class RootDirectoryLocatorIntegrationTests: TuistTestCase {
             "this/is/a/very/nested",
         ].map { temporaryDirectory.appending(RelativePath($0)) })
     }
+
+    func test_locate_when_only_plugin_manifest_exists() throws {
+        // Given
+        let temporaryDirectory = try temporaryPath()
+        try createFiles([
+            "Plugin.swift",
+        ])
+
+        // When
+        let got = subject.locate(from: temporaryDirectory.appending(component: "Plugin.swift"))
+
+        // Then
+        XCTAssertEqual(got, temporaryDirectory)
+    }
+
+    func test_locate_when_a_tuist_directory_and_plugin_exists() throws {
+        // Given
+        let temporaryDirectory = try temporaryPath()
+        try createFiles([
+            "APlugin/Plugin.swift",
+            "Tuist/",
+        ])
+        let paths = [
+            "APlugin/",
+            "APlugin/Plugin.swift",
+        ]
+
+        // When
+        let got = paths.map {
+            subject.locate(from: temporaryDirectory.appending(RelativePath($0)))
+        }
+
+        // Then
+        XCTAssertEqual(got, [
+            "APlugin/",
+            "APlugin/",
+        ].map { temporaryDirectory.appending(RelativePath($0)) })
+    }
+
+    func test_locate_when_a_git_directory_and_plugin_exists() throws {
+        // Given
+        let temporaryDirectory = try temporaryPath()
+        try createFiles([
+            "APlugin/Plugin.swift",
+            ".git/",
+        ])
+        let paths = [
+            "APlugin/",
+            "APlugin/Plugin.swift",
+        ]
+
+        // When
+        let got = paths.map {
+            subject.locate(from: temporaryDirectory.appending(RelativePath($0)))
+        }
+
+        // Then
+        XCTAssertEqual(got, [
+            "APlugin/",
+            "APlugin/",
+        ].map { temporaryDirectory.appending(RelativePath($0)) })
+    }
 }

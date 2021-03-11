@@ -42,13 +42,15 @@ final class TargetActionsContentHasherTests: TuistUnitTestCase {
                                   outputPaths: [AbsolutePath] = [AbsolutePath("/outputPaths1")],
                                   outputFileListPaths: [AbsolutePath] = [AbsolutePath("/outputFileListPaths1")]) -> TargetAction
     {
-        TargetAction(name: name,
-                     order: order,
-                     script: .tool(tool, arguments),
-                     inputPaths: inputPaths,
-                     inputFileListPaths: inputFileListPaths,
-                     outputPaths: outputPaths,
-                     outputFileListPaths: outputFileListPaths)
+        TargetAction(
+            name: name,
+            order: order,
+            script: .tool(tool, arguments),
+            inputPaths: inputPaths,
+            inputFileListPaths: inputFileListPaths,
+            outputPaths: outputPaths,
+            outputFileListPaths: outputFileListPaths
+        )
     }
 
     // MARK: - Tests
@@ -121,13 +123,15 @@ final class TargetActionsContentHasherTests: TuistUnitTestCase {
         mockContentHasher.stubHashForPath[AbsolutePath("/inputFileListPaths2")] = inputFileListPaths2
         mockContentHasher.stubHashForPath[AbsolutePath("/outputPaths2")] = outputPaths2
         mockContentHasher.stubHashForPath[AbsolutePath("/outputFileListPaths2")] = outputFileListPaths2
-        let targetAction = makeTargetAction(name: "2",
-                                            order: .post,
-                                            tool: "tool2",
-                                            inputPaths: [AbsolutePath("/inputPaths2")],
-                                            inputFileListPaths: [AbsolutePath("/inputFileListPaths2")],
-                                            outputPaths: [AbsolutePath("/outputPaths2")],
-                                            outputFileListPaths: [AbsolutePath("/outputFileListPaths2")])
+        let targetAction = makeTargetAction(
+            name: "2",
+            order: .post,
+            tool: "tool2",
+            inputPaths: [AbsolutePath("/inputPaths2")],
+            inputFileListPaths: [AbsolutePath("/inputFileListPaths2")],
+            outputPaths: [AbsolutePath("/outputPaths2")],
+            outputFileListPaths: [AbsolutePath("/outputFileListPaths2")]
+        )
 
         // When
         _ = try subject.hash(targetActions: [targetAction])

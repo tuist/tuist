@@ -13,10 +13,12 @@ final class GenerateServiceProjectGeneratorFactory: GenerateServiceProjectGenera
     func generator() -> Generating {
         let contentHasher = CacheContentHasher()
         let projectMapperProvider = ProjectMapperProvider(contentHasher: contentHasher)
-        return Generator(projectMapperProvider: projectMapperProvider,
-                         graphMapperProvider: GraphMapperProvider(),
-                         workspaceMapperProvider: WorkspaceMapperProvider(contentHasher: contentHasher),
-                         manifestLoaderFactory: ManifestLoaderFactory())
+        return Generator(
+            projectMapperProvider: projectMapperProvider,
+            graphMapperProvider: GraphMapperProvider(),
+            workspaceMapperProvider: WorkspaceMapperProvider(contentHasher: contentHasher),
+            manifestLoaderFactory: ManifestLoaderFactory()
+        )
     }
 }
 

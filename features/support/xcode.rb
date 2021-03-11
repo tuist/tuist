@@ -1,7 +1,7 @@
 # frozen_string_literal: true
-require 'minitest/assertions'
-require 'xcodeproj'
-require 'simctl'
+require "minitest/assertions"
+require "xcodeproj"
+require "simctl"
 
 module Xcode
   include Minitest::Assertions

@@ -14,9 +14,11 @@ public final class GenerateInfoPlistProjectMapper: ProjectMapping {
     public convenience init(derivedDirectoryName: String = Constants.DerivedDirectory.name,
                             infoPlistsDirectoryName: String = Constants.DerivedDirectory.infoPlists)
     {
-        self.init(infoPlistContentProvider: InfoPlistContentProvider(),
-                  derivedDirectoryName: derivedDirectoryName,
-                  infoPlistsDirectoryName: infoPlistsDirectoryName)
+        self.init(
+            infoPlistContentProvider: InfoPlistContentProvider(),
+            derivedDirectoryName: derivedDirectoryName,
+            infoPlistsDirectoryName: infoPlistsDirectoryName
+        )
     }
 
     init(infoPlistContentProvider: InfoPlistContentProviding,
@@ -50,15 +52,19 @@ public final class GenerateInfoPlistProjectMapper: ProjectMapping {
         }
 
         // Get the Info.plist that needs to be generated
-        guard let dictionary = infoPlistDictionary(infoPlist: infoPlist,
-                                                   project: project,
-                                                   target: target)
+        guard let dictionary = infoPlistDictionary(
+            infoPlist: infoPlist,
+            project: project,
+            target: target
+        )
         else {
             return (target, [])
         }
-        let data = try PropertyListSerialization.data(fromPropertyList: dictionary,
-                                                      format: .xml,
-                                                      options: 0)
+        let data = try PropertyListSerialization.data(
+            fromPropertyList: dictionary,
+            format: .xml,
+            options: 0
+        )
 
         let infoPlistPath = project.path
             .appending(component: derivedDirectoryName)
@@ -66,7 +72,7 @@ public final class GenerateInfoPlistProjectMapper: ProjectMapping {
             .appending(component: "\(target.name).plist")
         let sideEffect = SideEffectDescriptor.file(FileDescriptor(path: infoPlistPath, contents: data))
 
-        let newTarget = target.with(infoPlist: InfoPlist.generatedFile(path: infoPlistPath))
+        let newTarget = target.with(infoPlist: InfoPlist.generatedFile(path: infoPlistPath, data: data))
 
         return (newTarget, [sideEffect])
     }
@@ -79,10 +85,11 @@ public final class GenerateInfoPlistProjectMapper: ProjectMapping {
         case let .dictionary(content):
             return content.mapValues { $0.value }
         case let .extendingDefault(extended):
-            if let content = infoPlistContentProvider.content(project: project,
-                                                              target: target,
-                                                              extendedWith: extended)
-            {
+            if let content = infoPlistContentProvider.content(
+                project: project,
+                target: target,
+                extendedWith: extended
+            ) {
                 return content
             }
             return nil

@@ -34,9 +34,11 @@ final class Measure {
     {
         let cold = try measureColdRuns(runs: runs, arguments: arguments, fixturePath: fixturePath)
         let warm = try measureWarmRuns(runs: runs, arguments: arguments, fixturePath: fixturePath)
-        return MeasureResult(fixture: fixturePath.basename,
-                             coldRuns: cold,
-                             warmRuns: warm)
+        return MeasureResult(
+            fixture: fixturePath.basename,
+            coldRuns: cold,
+            warmRuns: warm
+        )
     }
 
     private func measureColdRuns(runs: Int,
@@ -48,8 +50,10 @@ final class Measure {
                 let temporaryPath = temporaryDirectoryPath.appending(component: "fixture")
                 try fileHandler.copy(path: fixturePath, to: temporaryPath)
                 return try measure {
-                    try run(arguments: arguments,
-                            in: temporaryPath)
+                    try run(
+                        arguments: arguments,
+                        in: temporaryPath
+                    )
                 }
             }
         }
@@ -64,12 +68,16 @@ final class Measure {
             try fileHandler.copy(path: fixturePath, to: temporaryPath)
 
             // first warm up isn't included in the results
-            try run(arguments: arguments,
-                    in: temporaryPath)
+            try run(
+                arguments: arguments,
+                in: temporaryPath
+            )
 
             return try measure(runs: runs) {
-                try run(arguments: arguments,
-                        in: temporaryPath)
+                try run(
+                    arguments: arguments,
+                    in: temporaryPath
+                )
             }
         }
     }

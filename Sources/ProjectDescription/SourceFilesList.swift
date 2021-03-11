@@ -1,7 +1,7 @@
 // MARK: - FileList
 
 /// A model to refer to source files that supports passing compiler flags.
-public struct SourceFileGlob: ExpressibleByStringLiteral, ExpressibleByStringInterpolation, Codable, Equatable {
+public struct SourceFileGlob: ExpressibleByStringInterpolation, Codable, Equatable {
     /// Relative glob pattern.
     public let glob: Path
 
@@ -73,7 +73,7 @@ public struct SourceFilesList: Codable, Equatable {
 }
 
 /// Support file as single string
-extension SourceFilesList: ExpressibleByStringLiteral {
+extension SourceFilesList: ExpressibleByStringInterpolation {
     public init(stringLiteral value: String) {
         self.init(globs: [value])
     }

@@ -12,8 +12,8 @@ final class CarthageInteractorTests: TuistUnitTestCase {
     private var subject: CarthageInteractor!
 
     private var fileHandlerMock: MockFileHandler!
+    private var carthageController: MockCarthageController!
     private var carthageCommandGenerator: MockCarthageCommandGenerator!
-    private var cartfileContentGenerator: MockCartfileContentGenerator!
 
     private var temporaryDirectoryPath: AbsolutePath!
 
@@ -27,18 +27,20 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         }
 
         fileHandlerMock = MockFileHandler(temporaryDirectory: { self.temporaryDirectoryPath })
+        carthageController = MockCarthageController()
         carthageCommandGenerator = MockCarthageCommandGenerator()
-        cartfileContentGenerator = MockCartfileContentGenerator()
 
-        subject = CarthageInteractor(fileHandler: fileHandlerMock,
-                                     carthageCommandGenerator: carthageCommandGenerator,
-                                     cartfileContentGenerator: cartfileContentGenerator)
+        subject = CarthageInteractor(
+            fileHandler: fileHandlerMock,
+            carthageController: carthageController,
+            carthageCommandGenerator: carthageCommandGenerator
+        )
     }
 
     override func tearDown() {
         fileHandlerMock = nil
+        carthageController = nil
         carthageCommandGenerator = nil
-        cartfileContentGenerator = nil
 
         temporaryDirectoryPath = nil
 
@@ -47,8 +49,54 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_fetch_all_for_platforms() throws {
+    func test_fetch_throws_when_carthageUnavailableInEnvironment() throws {
         // Given
+        carthageController.canUseSystemCarthageStub = { false }
+
+        let rootPath = try temporaryPath()
+        let dependenciesDirectory = rootPath
+            .appending(component: Constants.DependenciesDirectory.name)
+        let dependencies = CarthageDependencies(
+            [
+                .github(path: "Moya", requirement: .exact("1.1.1")),
+            ],
+            platforms: [.iOS],
+            options: []
+        )
+
+        // When / Then
+        XCTAssertThrowsSpecific(
+            try subject.fetch(dependenciesDirectory: dependenciesDirectory, dependencies: dependencies),
+            CarthageInteractorError.carthageNotFound
+        )
+    }
+
+    func test_fetch_throws_when_xcFrameworkdProductionUnsupported_and_useXCFrameworksSpecifiedInOptions() throws {
+        // Given
+        carthageController.canUseSystemCarthageStub = { true }
+        carthageController.isXCFrameworksProductionSupportedStub = { false }
+
+        let rootPath = try temporaryPath()
+        let dependenciesDirectory = rootPath
+            .appending(component: Constants.DependenciesDirectory.name)
+        let dependencies = CarthageDependencies(
+            [
+                .github(path: "Moya", requirement: .exact("1.1.1")),
+            ],
+            platforms: [.iOS],
+            options: [.useXCFrameworks]
+        )
+
+        XCTAssertThrowsSpecific(
+            try subject.fetch(dependenciesDirectory: dependenciesDirectory, dependencies: dependencies),
+            CarthageInteractorError.xcFrameworksProductionNotSupported
+        )
+    }
+
+    func test_fetch_allPlatforms() throws {
+        // Given
+        carthageController.canUseSystemCarthageStub = { true }
+
         let rootPath = try temporaryPath()
         let temporaryDependenciesDirectory = temporaryDirectoryPath
             .appending(component: Constants.DependenciesDirectory.carthageDirectoryName)
@@ -70,12 +118,18 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         try fileHandler.touch(temporaryDependenciesDirectory.appending(components: "tvOS", "ReactiveMoya.framework", "Info.plist"))
         try fileHandler.touch(temporaryDependenciesDirectory.appending(components: "tvOS", "RxMoya.framework", "Info.plist"))
 
-        let stubbedDependencies = [
-            CarthageDependency(origin: .github(path: "Moya"), requirement: .exact("1.1.1"), platforms: [.iOS]),
-        ]
-        let stubbedCommand = ["carthage", "bootstrap", "--project-directory", temporaryDirectoryPath.pathString, "--platform iOS", "--cache-builds", "--new-resolver"]
+        let platforms = Set<Platform>([.iOS, .watchOS, .macOS, .tvOS])
+        let options = Set<CarthageDependencies.Options>([])
+        let stubbedDependencies = CarthageDependencies(
+            [
+                .github(path: "Moya", requirement: .exact("1.1.1")),
+            ],
+            platforms: platforms,
+            options: options
+        )
+        let stubbedCommand = ["carthage", "bootstrap", "--project-directory", temporaryDirectoryPath.pathString, "--platform iOS,macOS,tvOS,watchOS", "--cache-builds", "--new-resolver"]
 
-        carthageCommandGenerator.commandStub = { _, _ in stubbedCommand }
+        carthageCommandGenerator.commandStub = { _ in stubbedCommand }
 
         system.whichStub = { _ in "1.0.0" }
         system.succeedCommand(stubbedCommand)
@@ -106,14 +160,14 @@ final class CarthageInteractorTests: TuistUnitTestCase {
 
         XCTAssertTrue(carthageCommandGenerator.invokedCommand)
         XCTAssertEqual(carthageCommandGenerator.invokedCommandParameters?.path, temporaryDirectoryPath)
-        XCTAssertEqual(carthageCommandGenerator.invokedCommandParameters?.platforms, [.iOS])
-
-        XCTAssertTrue(cartfileContentGenerator.invokedCartfileContent)
-        XCTAssertEqual(cartfileContentGenerator.invokedCartfileContentParameters, stubbedDependencies)
+        XCTAssertEqual(carthageCommandGenerator.invokedCommandParameters?.platforms, platforms)
+        XCTAssertEqual(carthageCommandGenerator.invokedCommandParameters?.options, options)
     }
 
-    func test_fetch_only_one_platform() throws {
+    func test_fetch_onePlatform() throws {
         // Given
+        carthageController.canUseSystemCarthageStub = { true }
+
         let rootPath = try temporaryPath()
         let temporaryDependenciesDirectory = temporaryDirectoryPath
             .appending(component: Constants.DependenciesDirectory.carthageDirectoryName)
@@ -126,12 +180,18 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         try fileHandler.touch(temporaryDependenciesDirectory.appending(components: "iOS", "ReactiveMoya.framework", "Info.plist"))
         try fileHandler.touch(temporaryDependenciesDirectory.appending(components: "iOS", "RxMoya.framework", "Info.plist"))
 
-        let stubbedDependencies = [
-            CarthageDependency(origin: .github(path: "Moya"), requirement: .exact("1.1.1"), platforms: [.iOS]),
-        ]
+        let platforms = Set<Platform>([.iOS])
+        let options = Set<CarthageDependencies.Options>([])
+        let stubbedDependencies = CarthageDependencies(
+            [
+                .github(path: "Moya", requirement: .exact("1.1.1")),
+            ],
+            platforms: platforms,
+            options: options
+        )
         let stubbedCommand = ["carthage", "bootstrap", "--project-directory", temporaryDirectoryPath.pathString, "--platform iOS", "--cache-builds", "--new-resolver"]
 
-        carthageCommandGenerator.commandStub = { _, _ in stubbedCommand }
+        carthageCommandGenerator.commandStub = { _ in stubbedCommand }
 
         system.whichStub = { _ in "1.0.0" }
         system.succeedCommand(stubbedCommand)
@@ -162,9 +222,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
 
         XCTAssertTrue(carthageCommandGenerator.invokedCommand)
         XCTAssertEqual(carthageCommandGenerator.invokedCommandParameters?.path, temporaryDirectoryPath)
-        XCTAssertEqual(carthageCommandGenerator.invokedCommandParameters?.platforms, [.iOS])
-
-        XCTAssertTrue(cartfileContentGenerator.invokedCartfileContent)
-        XCTAssertEqual(cartfileContentGenerator.invokedCartfileContentParameters, stubbedDependencies)
+        XCTAssertEqual(carthageCommandGenerator.invokedCommandParameters?.platforms, platforms)
+        XCTAssertEqual(carthageCommandGenerator.invokedCommandParameters?.options, options)
     }
 }

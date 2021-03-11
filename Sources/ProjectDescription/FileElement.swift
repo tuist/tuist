@@ -60,13 +60,11 @@ public enum FileElement: Codable, Equatable {
     }
 }
 
-extension FileElement: ExpressibleByStringLiteral {
+extension FileElement: ExpressibleByStringInterpolation {
     public init(stringLiteral value: String) {
         self = .glob(pattern: Path(value))
     }
 }
-
-extension FileElement: ExpressibleByStringInterpolation {}
 
 extension Array: ExpressibleByUnicodeScalarLiteral where Element == FileElement {
     public typealias UnicodeScalarLiteralType = String

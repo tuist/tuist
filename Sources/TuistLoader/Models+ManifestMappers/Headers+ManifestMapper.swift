@@ -6,7 +6,7 @@ import TuistGraph
 import TuistSupport
 
 extension TuistGraph.Headers {
-    /// Maps a ProjectDescription.Headers instance into a TuistCore.Headers model.
+    /// Maps a ProjectDescription.Headers instance into a TuistGraph.Headers model.
     /// Glob patterns are resolved as part of the mapping process.
     /// - Parameters:
     ///   - manifest: Manifest representation of Headers.

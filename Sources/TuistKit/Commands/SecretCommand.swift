@@ -7,8 +7,10 @@ import TuistSupport
 
 struct SecretCommand: ParsableCommand {
     static var configuration: CommandConfiguration {
-        CommandConfiguration(commandName: "secret",
-                             abstract: "Generates a cryptographically secure secret.")
+        CommandConfiguration(
+            commandName: "secret",
+            abstract: "Generates a cryptographically secure secret."
+        )
     }
 
     func run() throws {

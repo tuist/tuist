@@ -4,7 +4,7 @@ public typealias SettingsDictionary = [String: SettingValue]
 
 // MARK: - SettingValue
 
-public enum SettingValue: ExpressibleByStringLiteral, ExpressibleByArrayLiteral, ExpressibleByBooleanLiteral, Equatable, Codable {
+public enum SettingValue: ExpressibleByStringInterpolation, ExpressibleByArrayLiteral, ExpressibleByBooleanLiteral, Equatable, Codable {
     case string(String)
     case array([String])
 

@@ -49,10 +49,12 @@ public final class FrameworkNodeLoader: FrameworkNodeLoading {
         let linking = try frameworkMetadataProvider.linking(binaryPath: binaryPath)
         let architectures = try frameworkMetadataProvider.architectures(binaryPath: binaryPath)
 
-        return FrameworkNode(path: path,
-                             dsymPath: dsymsPath,
-                             bcsymbolmapPaths: bcsymbolmapPaths,
-                             linking: linking,
-                             architectures: architectures)
+        return FrameworkNode(
+            path: path,
+            dsymPath: dsymsPath,
+            bcsymbolmapPaths: bcsymbolmapPaths,
+            linking: linking,
+            architectures: architectures
+        )
     }
 }

@@ -15,8 +15,10 @@ public extension Settings {
                      debug: Configuration = Configuration(settings: [:], xcconfig: AbsolutePath("/Debug.xcconfig")),
                      release: Configuration = Configuration(settings: [:], xcconfig: AbsolutePath("/Release.xcconfig"))) -> Settings
     {
-        Settings(base: base,
-                 configurations: [.debug: debug, .release: release])
+        Settings(
+            base: base,
+            configurations: [.debug: debug, .release: release]
+        )
     }
 
     static func test(base: SettingsDictionary = [:],
@@ -26,9 +28,11 @@ public extension Settings {
     }
 
     static func test(defaultSettings: DefaultSettings) -> Settings {
-        Settings(base: [:],
-                 configurations: [.debug: Configuration(settings: [:]),
-                                  .release: Configuration(settings: [:])],
-                 defaultSettings: defaultSettings)
+        Settings(
+            base: [:],
+            configurations: [.debug: Configuration(settings: [:]),
+                             .release: Configuration(settings: [:])],
+            defaultSettings: defaultSettings
+        )
     }
 }

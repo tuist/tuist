@@ -46,10 +46,12 @@ public final class MockSimulatorController: SimulatorControlling {
     }
 
     public func findAvailableDevice(platform: Platform) -> Single<SimulatorDeviceAndRuntime> {
-        self.findAvailableDevice(platform: platform,
-                                 version: nil,
-                                 minVersion: nil,
-                                 deviceName: nil)
+        self.findAvailableDevice(
+            platform: platform,
+            version: nil,
+            minVersion: nil,
+            deviceName: nil
+        )
     }
 
     public var findAvailableDeviceStub: ((Platform, Version?, Version?, String?) -> Single<SimulatorDeviceAndRuntime>)?

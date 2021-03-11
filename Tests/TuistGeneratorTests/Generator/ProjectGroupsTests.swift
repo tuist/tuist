@@ -21,21 +21,24 @@ final class ProjectGroupsTests: XCTestCase {
 
         let path = AbsolutePath("/test/")
         sourceRootPath = AbsolutePath("/test/")
-        project = Project(path: path,
-                          sourceRootPath: path,
-                          xcodeProjPath: path.appending(component: "Project.xcodeproj"),
-                          name: "Project",
-                          organizationName: nil,
-                          developmentRegion: nil,
-                          settings: .default,
-                          filesGroup: .group(name: "Project"),
-                          targets: [
-                              .test(filesGroup: .group(name: "Target")),
-                              .test(),
-                          ],
-                          packages: [],
-                          schemes: [],
-                          additionalFiles: [])
+        project = Project(
+            path: path,
+            sourceRootPath: path,
+            xcodeProjPath: path.appending(component: "Project.xcodeproj"),
+            name: "Project",
+            organizationName: nil,
+            developmentRegion: nil,
+            settings: .default,
+            filesGroup: .group(name: "Project"),
+            targets: [
+                .test(filesGroup: .group(name: "Target")),
+                .test(),
+            ],
+            packages: [],
+            schemes: [],
+            ideTemplateMacros: nil,
+            additionalFiles: []
+        )
         pbxproj = PBXProj()
     }
 
@@ -49,8 +52,10 @@ final class ProjectGroupsTests: XCTestCase {
     }
 
     func test_generate() {
-        subject = ProjectGroups.generate(project: project,
-                                         pbxproj: pbxproj)
+        subject = ProjectGroups.generate(
+            project: project,
+            pbxproj: pbxproj
+        )
 
         let main = subject.sortedMain
         XCTAssertNil(main.path)
@@ -82,12 +87,16 @@ final class ProjectGroupsTests: XCTestCase {
         let target2 = Target.test(filesGroup: .group(name: "C"))
         let target3 = Target.test(filesGroup: .group(name: "A"))
         let target4 = Target.test(filesGroup: .group(name: "C"))
-        let project = Project.test(filesGroup: .group(name: "P"),
-                                   targets: [target1, target2, target3, target4])
+        let project = Project.test(
+            filesGroup: .group(name: "P"),
+            targets: [target1, target2, target3, target4]
+        )
 
         // When
-        subject = ProjectGroups.generate(project: project,
-                                         pbxproj: pbxproj)
+        subject = ProjectGroups.generate(
+            project: project,
+            pbxproj: pbxproj
+        )
 
         // Then
         // swiftformat:disable preferKeyPath
@@ -104,8 +113,10 @@ final class ProjectGroupsTests: XCTestCase {
     }
 
     func test_targetFrameworks() throws {
-        subject = ProjectGroups.generate(project: project,
-                                         pbxproj: pbxproj)
+        subject = ProjectGroups.generate(
+            project: project,
+            pbxproj: pbxproj
+        )
 
         let got = try subject.targetFrameworks(target: "Test")
         XCTAssertEqual(got.name, "Test")
@@ -115,12 +126,16 @@ final class ProjectGroupsTests: XCTestCase {
 
     func test_projectGroup_unknownProjectGroups() throws {
         // Given
-        subject = ProjectGroups.generate(project: project,
-                                         pbxproj: pbxproj)
+        subject = ProjectGroups.generate(
+            project: project,
+            pbxproj: pbxproj
+        )
 
         // When / Then
-        XCTAssertThrowsSpecific(try subject.projectGroup(named: "abc"),
-                                ProjectGroupsError.missingGroup("abc"))
+        XCTAssertThrowsSpecific(
+            try subject.projectGroup(named: "abc"),
+            ProjectGroupsError.missingGroup("abc")
+        )
     }
 
     func test_projectGroup_knownProjectGroups() throws {
@@ -128,14 +143,18 @@ final class ProjectGroupsTests: XCTestCase {
         let target1 = Target.test(filesGroup: .group(name: "A"))
         let target2 = Target.test(filesGroup: .group(name: "B"))
         let target3 = Target.test(filesGroup: .group(name: "B"))
-        let project = Project.test(path: .root,
-                                   sourceRootPath: .root,
-                                   xcodeProjPath: AbsolutePath.root.appending(component: "Project.xcodeproj"),
-                                   filesGroup: .group(name: "P"),
-                                   targets: [target1, target2, target3])
+        let project = Project.test(
+            path: .root,
+            sourceRootPath: .root,
+            xcodeProjPath: AbsolutePath.root.appending(component: "Project.xcodeproj"),
+            filesGroup: .group(name: "P"),
+            targets: [target1, target2, target3]
+        )
 
-        subject = ProjectGroups.generate(project: project,
-                                         pbxproj: pbxproj)
+        subject = ProjectGroups.generate(
+            project: project,
+            pbxproj: pbxproj
+        )
 
         // When / Then
         XCTAssertNotNil(try? subject.projectGroup(named: "A"))

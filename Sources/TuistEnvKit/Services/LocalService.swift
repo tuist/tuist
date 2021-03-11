@@ -30,9 +30,11 @@ final class LocalService {
         let currentPath = FileHandler.shared.currentPath
         logger.notice("Generating \(Constants.versionFileName) file with version \(version)", metadata: .section)
         let tuistVersionPath = currentPath.appending(component: Constants.versionFileName)
-        try "\(version)".write(to: URL(fileURLWithPath: tuistVersionPath.pathString),
-                               atomically: true,
-                               encoding: .utf8)
+        try "\(version)".write(
+            to: URL(fileURLWithPath: tuistVersionPath.pathString),
+            atomically: true,
+            encoding: .utf8
+        )
         logger.notice("File generated at path \(tuistVersionPath.pathString)", metadata: .success)
     }
 }

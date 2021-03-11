@@ -94,8 +94,10 @@ final class CoreDataModelsContentHasherTests: TuistUnitTestCase {
         let fakePath = buildFakePath(from: name)
         mockContentHasher.stubHashForPath[fakePath] = "fixed-hash"
         let versionsAbsolutePaths = versions.map { AbsolutePath("/\($0)") }
-        return CoreDataModel(path: fakePath,
-                             versions: versionsAbsolutePaths,
-                             currentVersion: currentVersion)
+        return CoreDataModel(
+            path: fakePath,
+            versions: versionsAbsolutePaths,
+            currentVersion: currentVersion
+        )
     }
 }

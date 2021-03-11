@@ -118,9 +118,11 @@ public class ManifestLoader: ManifestLoading {
     // MARK: - Init
 
     public convenience init() {
-        self.init(resourceLocator: ResourceLocator(),
-                  projectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilder(),
-                  manifestFilesLocator: ManifestFilesLocator())
+        self.init(
+            resourceLocator: ResourceLocator(),
+            projectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilder(),
+            manifestFilesLocator: ManifestFilesLocator()
+        )
     }
 
     init(environment: Environmenting = Environment.shared,
@@ -136,7 +138,7 @@ public class ManifestLoader: ManifestLoading {
     }
 
     public func manifests(at path: AbsolutePath) -> Set<Manifest> {
-        Set(manifestFilesLocator.locateProjectManifests(at: path).map(\.0))
+        Set(manifestFilesLocator.locateManifests(at: path).map(\.0))
     }
 
     public func loadConfig(at path: AbsolutePath) throws -> ProjectDescription.Config {
@@ -165,8 +167,10 @@ public class ManifestLoader: ManifestLoading {
         let setupJson = try JSON(data: setup)
         let actionsJson: [JSON] = try setupJson.get("actions")
         return try actionsJson.compactMap {
-            try Up.with(dictionary: $0,
-                        projectPath: path)
+            try Up.with(
+                dictionary: $0,
+                projectPath: path
+            )
         }
     }
 

@@ -228,9 +228,11 @@ public class Graph: Encodable, Equatable {
 
         if targetNode.target.isAppClip {
             let path = try SDKNode.appClip(status: .required).path
-            references.insert(GraphDependencyReference.sdk(path: path,
-                                                           status: .required,
-                                                           source: .system))
+            references.insert(GraphDependencyReference.sdk(
+                path: path,
+                status: .required,
+                source: .system
+            ))
         }
 
         let directSystemLibrariesAndFrameworks = targetNode.sdkDependencies.map {
@@ -337,9 +339,11 @@ public class Graph: Encodable, Equatable {
         var references: Set<AbsolutePath> = Set([])
 
         /// Precompiled frameworks
-        let precompiledFrameworkNodes: Set<PrecompiledNode> = findAll(targetNode: targetNode,
-                                                                      test: { $0.isDynamicAndLinkable() },
-                                                                      skip: canEmbedProducts)
+        let precompiledFrameworkNodes: Set<PrecompiledNode> = findAll(
+            targetNode: targetNode,
+            test: { $0.isDynamicAndLinkable() },
+            skip: canEmbedProducts
+        )
         let precompiledFrameworks = precompiledFrameworkNodes
             .lazy
             .map(\.path)
@@ -364,9 +368,11 @@ public class Graph: Encodable, Equatable {
         var references: Set<GraphDependencyReference> = Set([])
 
         /// Precompiled frameworks
-        let precompiledFrameworkNodes: Set<PrecompiledNode> = findAll(targetNode: targetNode,
-                                                                      test: { $0.isDynamicAndLinkable() },
-                                                                      skip: canEmbedProducts)
+        let precompiledFrameworkNodes: Set<PrecompiledNode> = findAll(
+            targetNode: targetNode,
+            test: { $0.isDynamicAndLinkable() },
+            skip: canEmbedProducts
+        )
 
         let precompiledFrameworks = precompiledFrameworkNodes
             .lazy
@@ -545,9 +551,11 @@ public class Graph: Encodable, Equatable {
     /// Returns all the transitive dependencies of the given target that are static libraries.
     /// - Parameter targetNode: Target node whose transitive static libraries will be returned.
     public func transitiveStaticTargetNodes(for targetNode: TargetNode) -> Set<TargetNode> {
-        findAll(targetNode: targetNode,
-                test: isStaticLibrary,
-                skip: canLinkStaticProducts)
+        findAll(
+            targetNode: targetNode,
+            test: isStaticLibrary,
+            skip: canLinkStaticProducts
+        )
     }
 
     /// Retuns the first host target node for a given target node

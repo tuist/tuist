@@ -8,42 +8,52 @@ import TuistGraphTesting
 @testable import TuistKit
 
 final class MockProjectEditorMapper: ProjectEditorMapping {
-    var mapStub: (Project, Graph)?
+    var mapStub: ValueGraph?
     var mapArgs: [(
+        name: String,
         tuistPath: AbsolutePath,
         sourceRootPath: AbsolutePath,
-        xcodeProjPath: AbsolutePath,
+        destinationDirectory: AbsolutePath,
         setupPath: AbsolutePath?,
         configPath: AbsolutePath?,
         dependenciesPath: AbsolutePath?,
-        manifests: [AbsolutePath],
+        projectManifests: [AbsolutePath],
+        pluginManifests: [AbsolutePath],
         helpers: [AbsolutePath],
         templates: [AbsolutePath],
         projectDescriptionPath: AbsolutePath
     )] = []
 
-    func map(tuistPath: AbsolutePath,
-             sourceRootPath: AbsolutePath,
-             xcodeProjPath: AbsolutePath,
-             setupPath: AbsolutePath?,
-             configPath: AbsolutePath?,
-             dependenciesPath: AbsolutePath?,
-             manifests: [AbsolutePath],
-             helpers: [AbsolutePath],
-             templates: [AbsolutePath],
-             projectDescriptionPath: AbsolutePath) -> (Project, Graph)
-    {
-        mapArgs.append((tuistPath: tuistPath,
-                        sourceRootPath: sourceRootPath,
-                        xcodeProjPath: xcodeProjPath,
-                        setupPath: setupPath,
-                        configPath: configPath,
-                        dependenciesPath: dependenciesPath,
-                        manifests: manifests,
-                        helpers: helpers,
-                        templates: templates,
-                        projectDescriptionPath: projectDescriptionPath))
+    func map(
+        name: String,
+        tuistPath: AbsolutePath,
+        sourceRootPath: AbsolutePath,
+        destinationDirectory: AbsolutePath,
+        setupPath: AbsolutePath?,
+        configPath: AbsolutePath?,
+        dependenciesPath: AbsolutePath?,
+        projectManifests: [AbsolutePath],
+        pluginManifests: [AbsolutePath],
+        helpers: [AbsolutePath],
+        templates: [AbsolutePath],
+        projectDescriptionPath: AbsolutePath
+    ) throws -> ValueGraph {
+        mapArgs.append((
+            name: name,
+            tuistPath: tuistPath,
+            sourceRootPath: sourceRootPath,
+            destinationDirectory: destinationDirectory,
+            setupPath: setupPath,
+            configPath: configPath,
+            dependenciesPath: dependenciesPath,
+            projectManifests: projectManifests,
+            pluginManifests: pluginManifests,
+            helpers: helpers,
+            templates: templates,
+            projectDescriptionPath: projectDescriptionPath
+        ))
+
         if let mapStub = mapStub { return mapStub }
-        return (Project.test(), Graph.test())
+        return ValueGraph.test()
     }
 }

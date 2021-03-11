@@ -116,7 +116,9 @@ final class SetupLoaderTests: TuistUnitTestCase {
         manifestLoader.loadSetupStub = { _ in throw ManifestLoaderError.manifestNotFound(.setup, projectPath) }
 
         // when / then
-        XCTAssertThrowsSpecific(try subject.meet(at: projectPath),
-                                ManifestLoaderError.manifestNotFound(.setup, projectPath))
+        XCTAssertThrowsSpecific(
+            try subject.meet(at: projectPath),
+            ManifestLoaderError.manifestNotFound(.setup, projectPath)
+        )
     }
 }

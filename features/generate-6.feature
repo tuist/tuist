@@ -16,6 +16,7 @@ Scenario: The project is an iOS application with core data models (ios_app_with_
     Then tuist generates the project
     Then I should be able to build for iOS the scheme App
     Then the product 'App.app' with destination 'Debug-iphonesimulator' contains resource 'Users.momd'
+    Then the product 'App.app' with destination 'Debug-iphonesimulator' contains resource 'UsersAutoDetect.momd'
     Then the product 'App.app' with destination 'Debug-iphonesimulator' contains resource '1_2.cdm'
 
 Scenario: The project is an iOS application with appclip (ios_app_with_appclip)

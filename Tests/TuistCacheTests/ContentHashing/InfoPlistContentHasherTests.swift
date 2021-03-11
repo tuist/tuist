@@ -42,15 +42,17 @@ final class InfoPlistContentHasherTests: TuistUnitTestCase {
 
     func test_hash_whenPlistIsGeneratedFile_tellsContentHasherToHashFileContent() throws {
         // Given
-        let infoPlist = InfoPlist.generatedFile(path: filePath1)
-        mockContentHasher.stubHashForPath[filePath1] = "stubHash"
+        let infoPlist = InfoPlist.generatedFile(
+            path: filePath1,
+            data: try XCTUnwrap(Data(base64Encoded: "stubHash"))
+        )
 
         // When
         let hash = try subject.hash(plist: infoPlist)
 
         // Then
-        XCTAssertEqual(mockContentHasher.hashPathCallCount, 1)
-        XCTAssertEqual(hash, "stubHash")
+        XCTAssertEqual(mockContentHasher.hashDataCallCount, 1)
+        XCTAssertEqual(hash, "stubHash-hash")
     }
 
     func test_hash_whenPlistIsDictionary_allDictionaryValuesAreConsideredForHash() throws {

@@ -3,9 +3,12 @@ import Foundation
 
 struct ListCommand: ParsableCommand {
     static var configuration: CommandConfiguration {
-        CommandConfiguration(commandName: "list",
-                             abstract: "Lists available scaffold templates",
-                             subcommands: [])
+        CommandConfiguration(
+            commandName: "list",
+            _superCommandName: "scaffold",
+            abstract: "Lists available scaffold templates",
+            subcommands: []
+        )
     }
 
     @Flag(
@@ -22,7 +25,9 @@ struct ListCommand: ParsableCommand {
 
     func run() throws {
         let format: ListService.OutputFormat = json ? .json : .table
-        try ListService().run(path: path,
-                              outputFormat: format)
+        try ListService().run(
+            path: path,
+            outputFormat: format
+        )
     }
 }

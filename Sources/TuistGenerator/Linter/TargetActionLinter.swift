@@ -43,8 +43,10 @@ class TargetActionLinter: TargetActionLinting {
             _ = try System.shared.which(tool)
             return []
         } catch {
-            return [LintingIssue(reason: "The action tool '\(tool)' was not found in the environment",
-                                 severity: .error)]
+            return [LintingIssue(
+                reason: "The action tool '\(tool)' was not found in the environment",
+                severity: .error
+            )]
         }
     }
 
@@ -53,7 +55,9 @@ class TargetActionLinter: TargetActionLinting {
             let path = action.path,
             !FileHandler.shared.exists(path)
         else { return [] }
-        return [LintingIssue(reason: "The action path \(path.pathString) doesn't exist",
-                             severity: .error)]
+        return [LintingIssue(
+            reason: "The action path \(path.pathString) doesn't exist",
+            severity: .error
+        )]
     }
 }

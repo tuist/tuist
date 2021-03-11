@@ -12,11 +12,13 @@ public extension WorkspaceDescriptor {
                      schemes: [SchemeDescriptor] = [],
                      sideEffects: [SideEffectDescriptor] = []) -> WorkspaceDescriptor
     {
-        WorkspaceDescriptor(path: path,
-                            xcworkspacePath: xcworkspacePath,
-                            xcworkspace: XCWorkspace(),
-                            projectDescriptors: projects,
-                            schemeDescriptors: schemes,
-                            sideEffectDescriptors: sideEffects)
+        WorkspaceDescriptor(
+            path: path,
+            xcworkspacePath: xcworkspacePath,
+            xcworkspace: XCWorkspace(),
+            projectDescriptors: projects,
+            schemeDescriptors: schemes,
+            sideEffectDescriptors: sideEffects
+        )
     }
 }

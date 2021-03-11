@@ -5,8 +5,11 @@ import TSCBasic
 /// Command that builds a target from the project in the current directory.
 struct LintProjectCommand: ParsableCommand {
     static var configuration: CommandConfiguration {
-        CommandConfiguration(commandName: "project",
-                             abstract: "Lints a workspace or a project that check whether they are well configured")
+        CommandConfiguration(
+            commandName: "project",
+            _superCommandName: "lint",
+            abstract: "Lints a workspace or a project that check whether they are well configured"
+        )
     }
 
     @Option(

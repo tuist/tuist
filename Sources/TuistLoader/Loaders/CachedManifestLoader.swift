@@ -24,13 +24,15 @@ public class CachedManifestLoader: ManifestLoading {
 
     public convenience init(manifestLoader: ManifestLoading = ManifestLoader()) {
         let environment = TuistSupport.Environment.shared
-        self.init(manifestLoader: manifestLoader,
-                  projectDescriptionHelpersHasher: ProjectDescriptionHelpersHasher(),
-                  helpersDirectoryLocator: HelpersDirectoryLocator(),
-                  cacheDirectory: environment.cacheDirectory.appending(component: "Manifests"),
-                  fileHandler: FileHandler.shared,
-                  environment: environment,
-                  tuistVersion: Constants.version)
+        self.init(
+            manifestLoader: manifestLoader,
+            projectDescriptionHelpersHasher: ProjectDescriptionHelpersHasher(),
+            helpersDirectoryLocator: HelpersDirectoryLocator(),
+            cacheDirectory: environment.cacheDirectory.appending(component: "Manifests"),
+            fileHandler: FileHandler.shared,
+            environment: environment,
+            tuistVersion: Constants.version
+        )
     }
 
     init(manifestLoader: ManifestLoading,
@@ -103,9 +105,11 @@ public class CachedManifestLoader: ManifestLoading {
             throw ManifestLoaderError.manifestNotFound(manifest, path)
         }
 
-        let calculatedHashes = try? calculateHashes(path: path,
-                                                    manifestPath: manifestPath,
-                                                    manifest: manifest)
+        let calculatedHashes = try? calculateHashes(
+            path: path,
+            manifestPath: manifestPath,
+            manifest: manifest
+        )
 
         guard let hashes = calculatedHashes else {
             logger.warning("Unable to calculate manifest hash at path: \(path)")
@@ -113,18 +117,21 @@ public class CachedManifestLoader: ManifestLoading {
         }
 
         let cachedManifestPath = cachedPath(for: manifestPath)
-        if let cached: T = loadCachedManifest(at: cachedManifestPath,
-                                              hashes: hashes)
-        {
+        if let cached: T = loadCachedManifest(
+            at: cachedManifestPath,
+            hashes: hashes
+        ) {
             return cached
         }
 
         let loadedManifest = try loader()
 
-        try cacheManifest(manifest: manifest,
-                          loadedManifest: loadedManifest,
-                          hashes: hashes,
-                          to: cachedManifestPath)
+        try cacheManifest(
+            manifest: manifest,
+            loadedManifest: loadedManifest,
+            hashes: hashes,
+            to: cachedManifestPath
+        )
 
         return loadedManifest
     }
@@ -142,9 +149,11 @@ public class CachedManifestLoader: ManifestLoading {
         let helpersHash = try calculateHelpersHash(at: path)
         let environmentHash = calculateEnvironmentHash()
 
-        return Hashes(manifestHash: manifestHash,
-                      helpersHash: helpersHash,
-                      environmentHash: environmentHash)
+        return Hashes(
+            manifestHash: manifestHash,
+            helpersHash: helpersHash,
+            environmentHash: environmentHash
+        )
     }
 
     private func calculateManifestHash(for manifest: Manifest, at path: AbsolutePath) throws -> Data {
@@ -214,9 +223,11 @@ public class CachedManifestLoader: ManifestLoading {
                                              hashes: Hashes,
                                              to cachedManifestPath: AbsolutePath) throws
     {
-        let cachedManifest = CachedManifest(tuistVersion: tuistVersion,
-                                            hashes: hashes,
-                                            manifest: try encoder.encode(loadedManifest))
+        let cachedManifest = CachedManifest(
+            tuistVersion: tuistVersion,
+            hashes: hashes,
+            manifest: try encoder.encode(loadedManifest)
+        )
 
         let cachedManifestData = try encoder.encode(cachedManifest)
         guard let cachedManifestContent = String(data: cachedManifestData, encoding: .utf8) else {

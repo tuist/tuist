@@ -44,17 +44,21 @@ final class ConfigGenerator: ConfigGenerating {
         /// Configuration list
         let defaultConfiguration = project.settings.defaultReleaseBuildConfiguration()
             ?? project.settings.defaultDebugBuildConfiguration()
-        let configurationList = XCConfigurationList(buildConfigurations: [],
-                                                    defaultConfigurationName: defaultConfiguration?.name)
+        let configurationList = XCConfigurationList(
+            buildConfigurations: [],
+            defaultConfigurationName: defaultConfiguration?.name
+        )
         pbxproj.add(object: configurationList)
 
         try project.settings.configurations.sortedByBuildConfigurationName().forEach {
-            try generateProjectSettingsFor(buildConfiguration: $0.key,
-                                           configuration: $0.value,
-                                           project: project,
-                                           fileElements: fileElements,
-                                           pbxproj: pbxproj,
-                                           configurationList: configurationList)
+            try generateProjectSettingsFor(
+                buildConfiguration: $0.key,
+                configuration: $0.value,
+                project: project,
+                fileElements: fileElements,
+                pbxproj: pbxproj,
+                configurationList: configurationList
+            )
         }
 
         return configurationList
@@ -71,8 +75,10 @@ final class ConfigGenerator: ConfigGenerating {
     {
         let defaultConfiguration = projectSettings.defaultReleaseBuildConfiguration()
             ?? projectSettings.defaultDebugBuildConfiguration()
-        let configurationList = XCConfigurationList(buildConfigurations: [],
-                                                    defaultConfigurationName: defaultConfiguration?.name)
+        let configurationList = XCConfigurationList(
+            buildConfigurations: [],
+            defaultConfigurationName: defaultConfiguration?.name
+        )
         pbxproj.add(object: configurationList)
         pbxTarget.buildConfigurationList = configurationList
 
@@ -92,16 +98,18 @@ final class ConfigGenerator: ConfigGenerating {
         let orderedConfigurations = nonEmptyConfigurations.sortedByBuildConfigurationName()
         let swiftVersion = try System.shared.swiftVersion()
         try orderedConfigurations.forEach {
-            try generateTargetSettingsFor(target: target,
-                                          project: project,
-                                          buildConfiguration: $0.key,
-                                          configuration: $0.value,
-                                          fileElements: fileElements,
-                                          graphTraverser: graphTraverser,
-                                          pbxproj: pbxproj,
-                                          configurationList: configurationList,
-                                          swiftVersion: swiftVersion,
-                                          sourceRootPath: sourceRootPath)
+            try generateTargetSettingsFor(
+                target: target,
+                project: project,
+                buildConfiguration: $0.key,
+                configuration: $0.value,
+                fileElements: fileElements,
+                graphTraverser: graphTraverser,
+                pbxproj: pbxproj,
+                configurationList: configurationList,
+                swiftVersion: swiftVersion,
+                sourceRootPath: sourceRootPath
+            )
         }
     }
 
@@ -115,13 +123,17 @@ final class ConfigGenerator: ConfigGenerating {
                                             configurationList: XCConfigurationList) throws
     {
         let settingsHelper = SettingsHelper()
-        var settings = try defaultSettingsProvider.projectSettings(project: project,
-                                                                   buildConfiguration: buildConfiguration)
+        var settings = try defaultSettingsProvider.projectSettings(
+            project: project,
+            buildConfiguration: buildConfiguration
+        )
         settingsHelper.extend(buildSettings: &settings, with: project.settings.base)
 
-        let variantBuildConfiguration = XCBuildConfiguration(name: buildConfiguration.xcodeValue,
-                                                             baseConfiguration: nil,
-                                                             buildSettings: [:])
+        let variantBuildConfiguration = XCBuildConfiguration(
+            name: buildConfiguration.xcodeValue,
+            baseConfiguration: nil,
+            buildSettings: [:]
+        )
         if let variantConfig = configuration {
             settingsHelper.extend(buildSettings: &settings, with: variantConfig.settings)
             if let xcconfig = variantConfig.xcconfig {
@@ -146,22 +158,28 @@ final class ConfigGenerator: ConfigGenerating {
                                            sourceRootPath: AbsolutePath) throws
     {
         let settingsHelper = SettingsHelper()
-        var settings = try defaultSettingsProvider.targetSettings(target: target,
-                                                                  project: project,
-                                                                  buildConfiguration: buildConfiguration)
-        updateTargetDerived(buildSettings: &settings,
-                            target: target,
-                            graphTraverser: graphTraverser,
-                            swiftVersion: swiftVersion,
-                            projectPath: project.path,
-                            sourceRootPath: sourceRootPath)
+        var settings = try defaultSettingsProvider.targetSettings(
+            target: target,
+            project: project,
+            buildConfiguration: buildConfiguration
+        )
+        updateTargetDerived(
+            buildSettings: &settings,
+            target: target,
+            graphTraverser: graphTraverser,
+            swiftVersion: swiftVersion,
+            projectPath: project.path,
+            sourceRootPath: sourceRootPath
+        )
 
         settingsHelper.extend(buildSettings: &settings, with: target.settings?.base ?? [:])
         settingsHelper.extend(buildSettings: &settings, with: configuration?.settings ?? [:])
 
-        let variantBuildConfiguration = XCBuildConfiguration(name: buildConfiguration.xcodeValue,
-                                                             baseConfiguration: nil,
-                                                             buildSettings: [:])
+        let variantBuildConfiguration = XCBuildConfiguration(
+            name: buildConfiguration.xcodeValue,
+            baseConfiguration: nil,
+            buildSettings: [:]
+        )
         if let variantConfig = configuration, let xcconfig = variantConfig.xcconfig {
             let fileReference = fileElements.file(path: xcconfig)
             variantBuildConfiguration.baseConfiguration = fileReference
@@ -195,7 +213,7 @@ final class ConfigGenerator: ConfigGenerating {
         // Info.plist
         if let infoPlist = target.infoPlist, let path = infoPlist.path {
             let relativePath = path.relative(to: sourceRootPath).pathString
-            settings["INFOPLIST_FILE"] = .string("\(relativePath)")
+            settings["INFOPLIST_FILE"] = .string("$(SRCROOT)/\(relativePath)")
         }
 
         if let entitlements = target.entitlements {
@@ -225,7 +243,7 @@ final class ConfigGenerator: ConfigGenerating {
             return [:]
         }
 
-        let targetDependencies = graphTraverser.directTargetDependencies(path: projectPath, name: target.name).sorted()
+        let targetDependencies = graphTraverser.directLocalTargetDependencies(path: projectPath, name: target.name).sorted()
         let appDependency = targetDependencies.first { $0.target.product.canHostTests() }
 
         guard let app = appDependency else {
@@ -287,7 +305,7 @@ final class ConfigGenerator: ConfigGenerating {
             return [:]
         }
 
-        let targetDependencies = graphTraverser.directTargetDependencies(path: projectPath, name: target.name).sorted()
+        let targetDependencies = graphTraverser.directLocalTargetDependencies(path: projectPath, name: target.name).sorted()
         guard let watchExtension = targetDependencies.first(where: { $0.target.product == .watch2Extension }) else {
             return [:]
         }

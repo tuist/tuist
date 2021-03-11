@@ -4,7 +4,7 @@ import TuistCore
 import TuistGraph
 
 extension TuistGraph.Arguments {
-    /// Maps a ProjectDescription.Arguments instance into a TuistCore.Arguments instance.
+    /// Maps a ProjectDescription.Arguments instance into a TuistGraph.Arguments instance.
     /// - Parameters:
     ///   - manifest: Manifest representation of arguments model.
     ///   - generatorPaths: Generator paths.

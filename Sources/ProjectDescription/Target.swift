@@ -39,7 +39,7 @@ public struct Target: Codable, Equatable {
     public let sources: SourceFilesList?
 
     /// Relative paths to the resources directory.
-    public let resources: [FileElement]?
+    public let resources: ResourceFileElements?
 
     /// Copy files actions.
     public let copyFiles: [CopyFilesAction]?
@@ -108,7 +108,7 @@ public struct Target: Codable, Equatable {
                 deploymentTarget: DeploymentTarget? = nil,
                 infoPlist: InfoPlist,
                 sources: SourceFilesList? = nil,
-                resources: [FileElement]? = nil,
+                resources: ResourceFileElements? = nil,
                 copyFiles: [CopyFilesAction]? = nil,
                 headers: Headers? = nil,
                 entitlements: Path? = nil,
@@ -166,7 +166,7 @@ public struct Target: Codable, Equatable {
                 deploymentTarget: DeploymentTarget? = nil,
                 infoPlist: InfoPlist,
                 sources: SourceFilesList? = nil,
-                resources: [FileElement]? = nil,
+                resources: ResourceFileElements? = nil,
                 copyFiles: [CopyFilesAction]? = nil,
                 headers: Headers? = nil,
                 entitlements: Path? = nil,

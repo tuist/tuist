@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 require "test_helper"
-require 'cucumber/cli/main'
+require "cucumber/cli/main"
 
 module Fourier
   module Services
@@ -42,7 +42,7 @@ module Fourier
             end
 
             # Then
-            assert_equal('Cucumber failed', error.message)
+            assert_equal("Cucumber failed", error.message)
           end
         end
       end

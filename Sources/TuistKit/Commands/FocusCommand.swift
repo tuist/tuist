@@ -30,8 +30,10 @@ enum FocusCommandError: FatalError {
 /// The focus command generates the Xcode workspace and launches it on Xcode.
 struct FocusCommand: ParsableCommand, HasTrackableParameters {
     static var configuration: CommandConfiguration {
-        CommandConfiguration(commandName: "focus",
-                             abstract: "Opens Xcode ready to focus on the project in the current directory")
+        CommandConfiguration(
+            commandName: "focus",
+            abstract: "Opens Xcode ready to focus on the project in the current directory"
+        )
     }
 
     static var analyticsDelegate: TrackableParametersDelegate?
@@ -58,6 +60,12 @@ struct FocusCommand: ParsableCommand, HasTrackableParameters {
     )
     var xcframeworks: Bool = false
 
+    @Option(
+        name: [.customShort("P"), .long],
+        help: "The name of the cache profile to be used when focusing on the target."
+    )
+    var profile: String?
+
     @Flag(
         name: [.customLong("no-cache")],
         help: "Ignore cached targets, and use their sources instead."
@@ -73,10 +81,13 @@ struct FocusCommand: ParsableCommand, HasTrackableParameters {
             "no-cache": String(ignoreCache),
             "n_targets": String(sources.count),
         ])
-        try FocusService().run(path: path,
-                               sources: Set(sources),
-                               noOpen: noOpen,
-                               xcframeworks: xcframeworks,
-                               ignoreCache: ignoreCache)
+        try FocusService().run(
+            path: path,
+            sources: Set(sources),
+            noOpen: noOpen,
+            xcframeworks: xcframeworks,
+            profile: profile,
+            ignoreCache: ignoreCache
+        )
     }
 }

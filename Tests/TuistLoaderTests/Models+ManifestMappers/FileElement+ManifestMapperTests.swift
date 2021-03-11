@@ -22,9 +22,11 @@ final class FileElementManifestMapperTests: TuistUnitTestCase {
         let manifest = ProjectDescription.FileElement.glob(pattern: "Documentation")
 
         // When
-        let model = try TuistGraph.FileElement.from(manifest: manifest,
-                                                    generatorPaths: generatorPaths,
-                                                    includeFiles: { !FileHandler.shared.isFolder($0) })
+        let model = try TuistGraph.FileElement.from(
+            manifest: manifest,
+            generatorPaths: generatorPaths,
+            includeFiles: { !FileHandler.shared.isFolder($0) }
+        )
 
         // Then
         let documentationPath = temporaryPath.appending(component: "Documentation").pathString
@@ -69,8 +71,10 @@ final class FileElementManifestMapperTests: TuistUnitTestCase {
         let temporaryPath = try self.temporaryPath()
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
         let manifest = ProjectDescription.FileElement.glob(pattern: "invalid/path/**/*")
-        let invalidGlob = InvalidGlob(pattern: temporaryPath.appending(RelativePath("invalid/path/**/*")).pathString,
-                                      nonExistentPath: temporaryPath.appending(RelativePath("invalid/path/")))
+        let invalidGlob = InvalidGlob(
+            pattern: temporaryPath.appending(RelativePath("invalid/path/**/*")).pathString,
+            nonExistentPath: temporaryPath.appending(RelativePath("invalid/path/"))
+        )
         let error = GlobError.nonExistentDirectory(invalidGlob)
 
         // Then

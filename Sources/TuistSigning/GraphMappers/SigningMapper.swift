@@ -10,9 +10,11 @@ public class SigningMapper: ProjectMapping {
     private let signingCipher: SigningCiphering
 
     public convenience init() {
-        self.init(signingFilesLocator: SigningFilesLocator(),
-                  signingMatcher: SigningMatcher(),
-                  signingCipher: SigningCipher())
+        self.init(
+            signingFilesLocator: SigningFilesLocator(),
+            signingMatcher: SigningMatcher(),
+            signingCipher: SigningCipher()
+        )
     }
 
     init(signingFilesLocator: SigningFilesLocating,
@@ -45,11 +47,13 @@ public class SigningMapper: ProjectMapping {
         let (certificates, provisioningProfiles) = try signingMatcher.match(from: project.path)
 
         project.targets = try project.targets.map {
-            try map(target: $0,
-                    project: project,
-                    keychainPath: keychainPath,
-                    certificates: certificates,
-                    provisioningProfiles: provisioningProfiles)
+            try map(
+                target: $0,
+                project: project,
+                keychainPath: keychainPath,
+                certificates: certificates,
+                provisioningProfiles: provisioningProfiles
+            )
         }
 
         return (project, [])
@@ -66,8 +70,10 @@ public class SigningMapper: ProjectMapping {
         var target = target
         let targetConfigurations = target.settings?.configurations ?? [:]
         let configurations: [BuildConfiguration: Configuration?] = targetConfigurations
-            .merging(project.settings.configurations,
-                     uniquingKeysWith: { config, _ in config })
+            .merging(
+                project.settings.configurations,
+                uniquingKeysWith: { config, _ in config }
+            )
             .reduce(into: [:]) { dict, configurationPair in
                 guard
                     let provisioningProfile = provisioningProfiles[target.name]?[configurationPair.key.name],

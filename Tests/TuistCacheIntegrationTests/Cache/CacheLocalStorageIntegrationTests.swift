@@ -67,8 +67,10 @@ final class CacheLocalStorageIntegrationTests: TuistTestCase {
     func test_fetch_when_a_cached_xcframework_does_not_exist() throws {
         let hash = "abcde"
 
-        XCTAssertThrowsSpecific(try subject.fetch(hash: hash).toBlocking().first(),
-                                CacheLocalStorageError.xcframeworkNotFound(hash: hash))
+        XCTAssertThrowsSpecific(
+            try subject.fetch(hash: hash).toBlocking().first(),
+            CacheLocalStorageError.xcframeworkNotFound(hash: hash)
+        )
     }
 
     func test_store() throws {

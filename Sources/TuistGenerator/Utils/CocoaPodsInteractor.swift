@@ -93,11 +93,15 @@ public final class CocoaPodsInteractor: CocoaPodsInteracting {
                 }
             }
             do {
-                try System.shared.runAndPrint(command,
-                                              verbose: false,
-                                              environment: System.shared.env,
-                                              redirection: .stream(stdout: outputClosure,
-                                                                   stderr: outputClosure))
+                try System.shared.runAndPrint(
+                    command,
+                    verbose: false,
+                    environment: System.shared.env,
+                    redirection: .stream(
+                        stdout: outputClosure,
+                        stderr: outputClosure
+                    )
+                )
             } catch {
                 if mightNeedRepoUpdate {
                     throw CocoaPodsInteractorError.outdatedRepository

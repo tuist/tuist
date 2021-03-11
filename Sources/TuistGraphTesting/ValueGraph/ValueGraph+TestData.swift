@@ -11,12 +11,14 @@ public extension ValueGraph {
                      targets: [AbsolutePath: [String: Target]] = [:],
                      dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [:]) -> ValueGraph
     {
-        ValueGraph(name: name,
-                   path: path,
-                   workspace: workspace,
-                   projects: projects,
-                   packages: packages,
-                   targets: targets,
-                   dependencies: dependencies)
+        ValueGraph(
+            name: name,
+            path: path,
+            workspace: workspace,
+            projects: projects,
+            packages: packages,
+            targets: targets,
+            dependencies: dependencies
+        )
     }
 }

@@ -121,7 +121,7 @@ final class TargetLinterTests: TuistUnitTestCase {
     func test_lint_when_library_has_resources() throws {
         let temporaryPath = try self.temporaryPath()
         let path = temporaryPath.appending(component: "Image.png")
-        let element = FileElement.file(path: path)
+        let element = ResourceFileElement.file(path: path)
 
         let staticLibrary = Target.test(product: .staticLibrary, resources: [element])
         let dynamicLibrary = Target.test(product: .dynamicLibrary, resources: [element])
@@ -135,12 +135,14 @@ final class TargetLinterTests: TuistUnitTestCase {
 
     func test_lint_when_ios_bundle_has_sources() {
         // Given
-        let bundle = Target.empty(platform: .iOS,
-                                  product: .bundle,
-                                  sources: [
-                                      SourceFile(path: "/path/to/some/source.swift"),
-                                  ],
-                                  resources: [])
+        let bundle = Target.empty(
+            platform: .iOS,
+            product: .bundle,
+            sources: [
+                SourceFile(path: "/path/to/some/source.swift"),
+            ],
+            resources: []
+        )
 
         // When
         let result = subject.lint(target: bundle)
@@ -151,11 +153,13 @@ final class TargetLinterTests: TuistUnitTestCase {
 
     func test_lint_valid_ios_bundle() {
         // Given
-        let bundle = Target.empty(platform: .iOS,
-                                  product: .bundle,
-                                  resources: [
-                                      .file(path: "/path/to/some/asset.png"),
-                                  ])
+        let bundle = Target.empty(
+            platform: .iOS,
+            product: .bundle,
+            resources: [
+                .file(path: "/path/to/some/asset.png"),
+            ]
+        )
 
         // When
         let result = subject.lint(target: bundle)
@@ -222,14 +226,16 @@ final class TargetLinterTests: TuistUnitTestCase {
         // Then
         let expectedIssues: [LintingIssue] = [
             LintingIssue(reason: "'WatchApp_for_iOS' for platform 'iOS' can't have a product type 'watch 2 application'", severity: .error),
-            LintingIssue(reason: "'Watch2Extension_for_iOS' for platform 'iOS' can't have a product type 'watch 2 extension'",
-                         severity: .error),
+            LintingIssue(
+                reason: "'Watch2Extension_for_iOS' for platform 'iOS' can't have a product type 'watch 2 extension'",
+                severity: .error
+            ),
         ]
         XCTAssertTrue(expectedIssues.allSatisfy { got.contains($0) })
     }
 
     func test_lint_when_target_has_duplicate_dependencies_specified() {
-        let testDependency: Dependency = .sdk(name: "libc++.tbd", status: .optional)
+        let testDependency: TargetDependency = .sdk(name: "libc++.tbd", status: .optional)
 
         // Given
         let target = Target.test(dependencies: .init(repeating: testDependency, count: 2))

@@ -23,8 +23,10 @@ final class DependenciesUpdateServiceTests: TuistUnitTestCase {
         dependenciesController = MockDependenciesController()
         dependenciesModelLoader = MockDependenciesModelLoader()
 
-        subject = DependenciesUpdateService(dependenciesController: dependenciesController,
-                                            dependenciesModelLoader: dependenciesModelLoader)
+        subject = DependenciesUpdateService(
+            dependenciesController: dependenciesController,
+            dependenciesModelLoader: dependenciesModelLoader
+        )
     }
 
     override func tearDown() {
@@ -40,11 +42,13 @@ final class DependenciesUpdateServiceTests: TuistUnitTestCase {
         // Given
         let stubbedPath = try temporaryPath()
         let stubbedDependencies = Dependencies(
-            carthageDependencies: [
-                CarthageDependency(origin: .github(path: "Dependency1"), requirement: .exact("1.1.1"), platforms: [.iOS, .macOS]),
-            ],
-            swiftPackageManagerDependencies: [
-            ]
+            carthage: .init(
+                [
+                    .git(path: "Dependency1", requirement: .exact("1.1.1")),
+                ],
+                platforms: [.iOS, .macOS],
+                options: []
+            )
         )
         dependenciesModelLoader.loadDependenciesStub = { _ in stubbedDependencies }
 

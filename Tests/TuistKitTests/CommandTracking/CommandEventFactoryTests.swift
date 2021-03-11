@@ -27,10 +27,12 @@ final class CommandEventFactoryTests: TuistUnitTestCase {
 
     func test_tagCommand_tagsExpectedCommand() throws {
         // Given
-        let info = TrackableCommandInfo(name: "cache",
-                                        subcommand: "warm",
-                                        parameters: ["foo": "bar"],
-                                        durationInMs: 5000)
+        let info = TrackableCommandInfo(
+            name: "cache",
+            subcommand: "warm",
+            parameters: ["foo": "bar"],
+            durationInMs: 5000
+        )
         let expectedEvent = CommandEvent(
             name: "cache",
             subcommand: "warm",

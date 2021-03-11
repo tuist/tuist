@@ -5,9 +5,11 @@ struct GenerateCommand: ParsableCommand, HasTrackableParameters {
     static var analyticsDelegate: TrackableParametersDelegate?
 
     static var configuration: CommandConfiguration {
-        CommandConfiguration(commandName: "generate",
-                             abstract: "Generates an Xcode workspace to start working on the project.",
-                             subcommands: [])
+        CommandConfiguration(
+            commandName: "generate",
+            abstract: "Generates an Xcode workspace to start working on the project.",
+            subcommands: []
+        )
     }
 
     @Option(
@@ -31,8 +33,10 @@ struct GenerateCommand: ParsableCommand, HasTrackableParameters {
 
     func run() throws {
         GenerateCommand.analyticsDelegate?.willRun(withParameters: ["project_only": String(projectOnly), "open": String(open)])
-        try GenerateService().run(path: path,
-                                  projectOnly: projectOnly,
-                                  open: open)
+        try GenerateService().run(
+            path: path,
+            projectOnly: projectOnly,
+            open: open
+        )
     }
 }

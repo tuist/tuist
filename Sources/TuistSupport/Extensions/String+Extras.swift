@@ -13,6 +13,14 @@ extension String {
         ).replacingOccurrences(of: "\0", with: "␀")
     }
 
+    public func dropSuffix(_ suffix: String) -> String {
+        hasSuffix(suffix) ? String(dropLast(suffix.count)) : self
+    }
+
+    public func dropPrefix(_ prefix: String) -> String {
+        hasPrefix(prefix) ? String(dropFirst(prefix.count)) : self
+    }
+
     public func chomp(separator: String? = nil) -> String {
         func scrub(_ separator: String) -> String {
             var e = endIndex
@@ -66,8 +74,10 @@ extension String {
             let from = range.lowerBound.samePosition(in: utf16),
             let to = range.upperBound.samePosition(in: utf16) else { return nil }
 
-        return NSRange(location: utf16.distance(from: utf16.startIndex, to: from),
-                       length: utf16.distance(from: from, to: to))
+        return NSRange(
+            location: utf16.distance(from: utf16.startIndex, to: from),
+            length: utf16.distance(from: from, to: to)
+        )
     }
 
     public func version() -> Version? {

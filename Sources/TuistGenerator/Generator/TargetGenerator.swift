@@ -58,56 +58,68 @@ final class TargetGenerator: TargetGenerating {
         let productFileReference = fileElements.products[target.name]!
 
         /// Target
-        let pbxTarget = PBXNativeTarget(name: target.name,
-                                        buildConfigurationList: nil,
-                                        buildPhases: [],
-                                        buildRules: [],
-                                        dependencies: [],
-                                        productInstallPath: nil,
-                                        productName: target.productName,
-                                        product: productFileReference,
-                                        productType: target.product.xcodeValue)
+        let pbxTarget = PBXNativeTarget(
+            name: target.name,
+            buildConfigurationList: nil,
+            buildPhases: [],
+            buildRules: [],
+            dependencies: [],
+            productInstallPath: nil,
+            productName: target.productName,
+            product: productFileReference,
+            productType: target.product.xcodeValue
+        )
         pbxproj.add(object: pbxTarget)
         pbxProject.targets.append(pbxTarget)
 
         /// Pre actions
-        try buildPhaseGenerator.generateActions(actions: target.actions.preActions,
-                                                pbxTarget: pbxTarget,
-                                                pbxproj: pbxproj,
-                                                sourceRootPath: project.sourceRootPath)
+        try buildPhaseGenerator.generateActions(
+            actions: target.actions.preActions,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            sourceRootPath: project.sourceRootPath
+        )
 
         /// Build configuration
-        try configGenerator.generateTargetConfig(target,
-                                                 project: project,
-                                                 pbxTarget: pbxTarget,
-                                                 pbxproj: pbxproj,
-                                                 projectSettings: projectSettings,
-                                                 fileElements: fileElements,
-                                                 graphTraverser: graphTraverser,
-                                                 sourceRootPath: project.sourceRootPath)
+        try configGenerator.generateTargetConfig(
+            target,
+            project: project,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            projectSettings: projectSettings,
+            fileElements: fileElements,
+            graphTraverser: graphTraverser,
+            sourceRootPath: project.sourceRootPath
+        )
 
         /// Build phases
-        try buildPhaseGenerator.generateBuildPhases(path: path,
-                                                    target: target,
-                                                    graphTraverser: graphTraverser,
-                                                    pbxTarget: pbxTarget,
-                                                    fileElements: fileElements,
-                                                    pbxproj: pbxproj)
+        try buildPhaseGenerator.generateBuildPhases(
+            path: path,
+            target: target,
+            graphTraverser: graphTraverser,
+            pbxTarget: pbxTarget,
+            fileElements: fileElements,
+            pbxproj: pbxproj
+        )
 
         /// Links
-        try linkGenerator.generateLinks(target: target,
-                                        pbxTarget: pbxTarget,
-                                        pbxproj: pbxproj,
-                                        fileElements: fileElements,
-                                        path: path,
-                                        sourceRootPath: project.sourceRootPath,
-                                        graphTraverser: graphTraverser)
+        try linkGenerator.generateLinks(
+            target: target,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            fileElements: fileElements,
+            path: path,
+            sourceRootPath: project.sourceRootPath,
+            graphTraverser: graphTraverser
+        )
 
         /// Post actions
-        try buildPhaseGenerator.generateActions(actions: target.actions.postActions,
-                                                pbxTarget: pbxTarget,
-                                                pbxproj: pbxproj,
-                                                sourceRootPath: project.sourceRootPath)
+        try buildPhaseGenerator.generateActions(
+            actions: target.actions.postActions,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            sourceRootPath: project.sourceRootPath
+        )
         return pbxTarget
     }
 
@@ -117,7 +129,7 @@ final class TargetGenerator: TargetGenerating {
                                     graphTraverser: GraphTraversing) throws
     {
         try targets.forEach { targetSpec in
-            let dependencies = graphTraverser.directTargetDependencies(path: path, name: targetSpec.name).sorted()
+            let dependencies = graphTraverser.directLocalTargetDependencies(path: path, name: targetSpec.name).sorted()
             try dependencies.forEach { dependency in
                 let target = nativeTargets[targetSpec.name]!
                 let dependency = nativeTargets[dependency.target.name]!

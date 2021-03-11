@@ -17,12 +17,16 @@ class PackageLinter: PackageLinting {
 
     func lint(_ package: Package) -> [LintingIssue] {
         if case let .local(path) = package, !fileHandler.exists(path) {
-            let issue = LintingIssue(reason: "Package with local path (\(path)) does not exist.",
-                                     severity: .error)
+            let issue = LintingIssue(
+                reason: "Package with local path (\(path)) does not exist.",
+                severity: .error
+            )
             return [issue]
         } else if case let .remote(url, _) = package, URL(string: url) == nil {
-            let issue = LintingIssue(reason: "Package with remote URL (\(url)) does not have a valid URL.",
-                                     severity: .error)
+            let issue = LintingIssue(
+                reason: "Package with remote URL (\(url)) does not have a valid URL.",
+                severity: .error
+            )
             return [issue]
         } else {
             return []

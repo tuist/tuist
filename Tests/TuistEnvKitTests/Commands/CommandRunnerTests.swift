@@ -31,12 +31,14 @@ final class CommandRunnerTests: TuistUnitTestCase {
         updater = MockUpdater()
         versionsController = try! MockVersionsController()
         installer = MockInstaller()
-        subject = CommandRunner(versionResolver: versionResolver,
-                                updater: updater,
-                                installer: installer,
-                                versionsController: versionsController,
-                                arguments: { self.arguments },
-                                exiter: { self.exited = $0 })
+        subject = CommandRunner(
+            versionResolver: versionResolver,
+            updater: updater,
+            installer: installer,
+            versionsController: versionsController,
+            arguments: { self.arguments },
+            exiter: { self.exited = $0 }
+        )
     }
 
     override func tearDown() {
@@ -82,8 +84,8 @@ final class CommandRunnerTests: TuistUnitTestCase {
 
         versionResolver.resolveStub = { _ in ResolvedVersion.versionFile(temporaryPath, "3.2.1") }
 
-        var installArgs: [(version: String, force: Bool)] = []
-        installer.installStub = { version, force in installArgs.append((version: version, force: force)) }
+        var installArgs: [String] = []
+        installer.installStub = { version in installArgs.append(version) }
         system.succeedCommand(binaryPath.pathString, "--help", output: "")
 
         try subject.run()
@@ -93,7 +95,7 @@ final class CommandRunnerTests: TuistUnitTestCase {
         Version 3.2.1 not found locally. Installing...
         """)
         XCTAssertEqual(installArgs.count, 1)
-        XCTAssertEqual(installArgs.first?.version, "3.2.1")
+        XCTAssertEqual(installArgs.first, "3.2.1")
     }
 
     func test_when_version_file_and_install_fails() throws {
@@ -103,7 +105,7 @@ final class CommandRunnerTests: TuistUnitTestCase {
         versionResolver.resolveStub = { _ in ResolvedVersion.versionFile(temporaryPath, "3.2.1") }
 
         let error = NSError.test()
-        installer.installStub = { _, _ in throw error }
+        installer.installStub = { _ in throw error }
 
         XCTAssertThrowsError(try subject.run()) {
             XCTAssertEqual($0 as NSError, error)
@@ -154,7 +156,7 @@ final class CommandRunnerTests: TuistUnitTestCase {
         versionResolver.resolveStub = { _ in ResolvedVersion.undefined }
 
         versionsController.semverVersionsStub = []
-        updater.updateStub = { _ in
+        updater.updateStub = {
             self.versionsController.semverVersionsStub = [Version(string: "3.2.1")!]
         }
 
@@ -174,7 +176,7 @@ final class CommandRunnerTests: TuistUnitTestCase {
 
         versionsController.semverVersionsStub = []
         let error = NSError.test()
-        updater.updateStub = { _ in
+        updater.updateStub = {
             throw error
         }
 
