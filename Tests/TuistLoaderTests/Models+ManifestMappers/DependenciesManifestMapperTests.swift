@@ -14,7 +14,7 @@ final class DependenciesManifestMapperTests: TuistUnitTestCase {
         // Given
         let temporaryPath = try self.temporaryPath()
         let localPackagePath = temporaryPath.appending(component: "LocalPackage")
-        
+
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
         let manifest: ProjectDescription.Dependencies = Dependencies(
             carthage: .carthage(
@@ -29,7 +29,7 @@ final class DependenciesManifestMapperTests: TuistUnitTestCase {
             swiftPackageManager: .swiftPackageManager(
                 [
                     .local(path: .init(localPackagePath.pathString)),
-                    .remote(url: "RemotePackage.com", requirement: .exact("1.2.3"))
+                    .remote(url: "RemotePackage.com", requirement: .exact("1.2.3")),
                 ]
             )
         )

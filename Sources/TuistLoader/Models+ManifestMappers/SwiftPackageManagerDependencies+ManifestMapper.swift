@@ -12,7 +12,7 @@ extension TuistGraph.SwiftPackageManagerDependencies {
         generatorPaths: GeneratorPaths
     ) throws -> Self {
         let packages = try manifest.packages.map { try TuistGraph.Package.from(manifest: $0, generatorPaths: generatorPaths) }
-        
+
         return .init(packages)
     }
 }
