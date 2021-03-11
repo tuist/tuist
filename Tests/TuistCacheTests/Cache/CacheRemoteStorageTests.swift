@@ -3,31 +3,33 @@ import TSCBasic
 import TuistCacheTesting
 import TuistCloud
 import TuistCore
-import TuistCoreTesting
 import TuistGraph
 import TuistGraphTesting
 import TuistSupport
 import XCTest
 
 @testable import TuistCache
+@testable import TuistCacheTesting
+@testable import TuistCoreTesting
 @testable import TuistSupportTesting
 
 final class CacheRemoteStorageTests: TuistUnitTestCase {
     var subject: CacheRemoteStorage!
-    var cloudClient: CloudClienting!
-    var config: Config!
+    var cloudClient: MockCloudClient!
     var fileArchiverFactory: MockFileArchivingFactory!
     var fileArchiver: MockFileArchiver!
     var fileUnarchiver: MockFileUnarchiver!
     var fileClient: MockFileClient!
     var zipPath: AbsolutePath!
+    var mockCloudCacheResourceFactory: MockCloudCacheResourceFactory!
+    let receivedUploadURL = URL(string: "https://remote.storage.com/upload")!
 
     override func setUp() {
         super.setUp()
 
-        config = TuistGraph.Config.test()
         zipPath = fixturePath(path: RelativePath("uUI.xcframework.zip"))
 
+        mockCloudCacheResourceFactory = MockCloudCacheResourceFactory()
         fileArchiverFactory = MockFileArchivingFactory()
         fileArchiver = MockFileArchiver()
         fileUnarchiver = MockFileUnarchiver()
@@ -42,13 +44,13 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
     }
 
     override func tearDown() {
-        config = nil
         subject = nil
         cloudClient = nil
         fileArchiver = nil
         fileArchiverFactory = nil
         fileClient = nil
         zipPath = nil
+        mockCloudCacheResourceFactory = nil
         super.tearDown()
     }
 
@@ -56,11 +58,8 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
 
     func test_exists_whenClientReturnsAnError() throws {
         // Given
-        typealias ResponseType = CloudResponse<CloudHEADResponse>
-        typealias ErrorType = CloudHEADResponseError
-        let config = Cloud.test()
-        cloudClient = MockCloudClienting<ResponseType, ErrorType>.makeForError(error: CloudHEADResponseError())
-        subject = CacheRemoteStorage(cloudConfig: config, cloudClient: cloudClient, fileArchiverFactory: fileArchiverFactory, fileClient: fileClient)
+        cloudClient = MockCloudClient(error: CloudHEADResponseError())
+        subject = CacheRemoteStorage(cloudClient: cloudClient, fileArchiverFactory: fileArchiverFactory, fileClient: fileClient, cloudCacheResponseFactory: mockCloudCacheResourceFactory)
 
         // When
         let result = subject.exists(hash: "acho tio")
@@ -80,13 +79,10 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
 
     func test_exists_whenClientReturnsAnHTTPError() throws {
         // Given
-        typealias ResponseType = CloudResponse<CloudHEADResponse>
-        typealias ErrorType = CloudHEADResponseError
-        let CloudResponse = ResponseType(status: "shaki", data: CloudHEADResponse())
+        let cloudResponse: CloudResponse<CloudHEADResponse> = CloudResponse(status: "shaki", data: CloudHEADResponse())
         let httpResponse: HTTPURLResponse = .test(statusCode: 500)
-        let config = Cloud.test()
-        cloudClient = MockCloudClienting<ResponseType, ErrorType>.makeForSuccess(object: CloudResponse, response: httpResponse)
-        subject = CacheRemoteStorage(cloudConfig: config, cloudClient: cloudClient, fileArchiverFactory: fileArchiverFactory, fileClient: fileClient)
+        cloudClient = MockCloudClient(object: cloudResponse, response: httpResponse)
+        subject = CacheRemoteStorage(cloudClient: cloudClient, fileArchiverFactory: fileArchiverFactory, fileClient: fileClient, cloudCacheResponseFactory: mockCloudCacheResourceFactory)
 
         // When
         let result = try subject.exists(hash: "acho tio")
@@ -99,13 +95,15 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
 
     func test_exists_whenClientReturnsASuccess() throws {
         // Given
-        typealias ResponseType = CloudResponse<CloudHEADResponse>
-        typealias ErrorType = CloudHEADResponseError
-        let cloudResponse = ResponseType(status: "shaki", data: CloudHEADResponse())
+        let cloudResponse = CloudResponse<CloudHEADResponse>(status: "shaki", data: CloudHEADResponse())
         let httpResponse: HTTPURLResponse = .test()
-        let config = Cloud.test()
-        cloudClient = MockCloudClienting<ResponseType, ErrorType>.makeForSuccess(object: cloudResponse, response: httpResponse)
-        subject = CacheRemoteStorage(cloudConfig: config, cloudClient: cloudClient, fileArchiverFactory: fileArchiverFactory, fileClient: fileClient)
+        cloudClient = MockCloudClient(object: cloudResponse, response: httpResponse)
+        subject = CacheRemoteStorage(
+            cloudClient: cloudClient,
+            fileArchiverFactory: fileArchiverFactory,
+            fileClient: fileClient,
+            cloudCacheResponseFactory: mockCloudCacheResourceFactory
+        )
 
         // When
         let result = try subject.exists(hash: "acho tio")
@@ -118,14 +116,15 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
 
     func test_exists_whenClientReturnsA202() throws {
         // Given
-        typealias ResponseType = CloudResponse<CloudHEADResponse>
-        typealias ErrorType = CloudHEADResponseError
-
-        let CloudResponse = ResponseType(status: "shaki", data: CloudHEADResponse())
+        let cloudResponse = CloudResponse<CloudHEADResponse>(status: "shaki", data: CloudHEADResponse())
         let httpResponse: HTTPURLResponse = .test(statusCode: 202)
-        let config = Cloud.test()
-        cloudClient = MockCloudClienting<ResponseType, ErrorType>.makeForSuccess(object: CloudResponse, response: httpResponse)
-        subject = CacheRemoteStorage(cloudConfig: config, cloudClient: cloudClient, fileArchiverFactory: fileArchiverFactory, fileClient: fileClient)
+        cloudClient = MockCloudClient(object: cloudResponse, response: httpResponse)
+        subject = CacheRemoteStorage(
+            cloudClient: cloudClient,
+            fileArchiverFactory: fileArchiverFactory,
+            fileClient: fileClient,
+            cloudCacheResponseFactory: mockCloudCacheResourceFactory
+        )
 
         // When
         let result = try subject.exists(hash: "acho tio")
@@ -140,12 +139,14 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
 
     func test_fetch_whenClientReturnsAnError() throws {
         // Given
-        typealias ResponseType = CloudResponse<CloudCacheResponse>
-        typealias ErrorType = CloudResponseError
-        let expectedError: ErrorType = .test()
-        let config = Cloud.test()
-        cloudClient = MockCloudClienting<ResponseType, ErrorType>.makeForError(error: expectedError)
-        subject = CacheRemoteStorage(cloudConfig: config, cloudClient: cloudClient, fileArchiverFactory: fileArchiverFactory, fileClient: fileClient)
+        let expectedError: CloudResponseError = .test()
+        cloudClient = MockCloudClient(error: expectedError)
+        subject = CacheRemoteStorage(
+            cloudClient: cloudClient,
+            fileArchiverFactory: fileArchiverFactory,
+            fileClient: fileClient,
+            cloudCacheResponseFactory: mockCloudCacheResourceFactory
+        )
 
         // When
         let result = subject.fetch(hash: "acho tio")
@@ -156,8 +157,8 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         switch result {
         case .completed:
             XCTFail("Expected result to complete with error, but result was successful.")
-        case let .failed(_, error) where error is ErrorType:
-            XCTAssertEqual(error as! ErrorType, expectedError)
+        case let .failed(_, error) where error is CloudResponseError:
+            XCTAssertEqual(error as! CloudResponseError, expectedError)
         default:
             XCTFail("Expected result to complete with error, but result error wasn't the expected type.")
         }
@@ -165,14 +166,16 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
 
     func test_fetch_whenArchiveContainsIncorrectRootFolderAfterUnzipping_expectErrorThrown() throws {
         // Given
-        typealias ResponseType = CloudResponse<CloudCacheResponse>
-        typealias ErrorType = CloudResponseError
         let httpResponse: HTTPURLResponse = .test()
-        let config = Cloud.test()
         let cacheResponse = CloudCacheResponse(url: .test(), expiresAt: 123)
         let cloudResponse = CloudResponse<CloudCacheResponse>(status: "shaki", data: cacheResponse)
-        cloudClient = MockCloudClienting<ResponseType, ErrorType>.makeForSuccess(object: cloudResponse, response: httpResponse)
-        subject = CacheRemoteStorage(cloudConfig: config, cloudClient: cloudClient, fileArchiverFactory: fileArchiverFactory, fileClient: fileClient)
+        cloudClient = MockCloudClient(object: cloudResponse, response: httpResponse)
+        subject = CacheRemoteStorage(
+            cloudClient: cloudClient,
+            fileArchiverFactory: fileArchiverFactory,
+            fileClient: fileClient,
+            cloudCacheResponseFactory: mockCloudCacheResourceFactory
+        )
 
         let hash = "foobar"
         let paths = try createFolders(["Unarchived/\(hash)/IncorrectRootFolderAfterUnzipping"])
@@ -196,15 +199,16 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
 
     func test_fetch_whenClientReturnsASuccess_returnsCorrectRootFolderAfterUnzipping() throws {
         // Given
-        typealias ResponseType = CloudResponse<CloudCacheResponse>
-        typealias ErrorType = CloudResponseError
-
         let httpResponse: HTTPURLResponse = .test()
         let cacheResponse = CloudCacheResponse(url: .test(), expiresAt: 123)
-        let config = Cloud.test()
         let cloudResponse = CloudResponse<CloudCacheResponse>(status: "success", data: cacheResponse)
-        cloudClient = MockCloudClienting<ResponseType, ErrorType>.makeForSuccess(object: cloudResponse, response: httpResponse)
-        subject = CacheRemoteStorage(cloudConfig: config, cloudClient: cloudClient, fileArchiverFactory: fileArchiverFactory, fileClient: fileClient)
+        cloudClient = MockCloudClient(object: cloudResponse, response: httpResponse)
+        subject = CacheRemoteStorage(
+            cloudClient: cloudClient,
+            fileArchiverFactory: fileArchiverFactory,
+            fileClient: fileClient,
+            cloudCacheResponseFactory: mockCloudCacheResourceFactory
+        )
 
         let hash = "bar_foo"
         let paths = try createFolders(["Unarchived/\(hash)/myFramework.xcframework"])
@@ -222,16 +226,17 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
 
     func test_fetch_whenClientReturnsASuccess_givesFileClientTheCorrectURL() throws {
         // Given
-        typealias ResponseType = CloudResponse<CloudCacheResponse>
-        typealias ErrorType = CloudResponseError
-
         let httpResponse: HTTPURLResponse = .test()
         let url = URL(string: "https://tuist.io/acho/tio")!
-        let config = Cloud.test()
         let cacheResponse = CloudCacheResponse(url: url, expiresAt: 123)
         let cloudResponse = CloudResponse<CloudCacheResponse>(status: "shaki", data: cacheResponse)
-        cloudClient = MockCloudClienting<ResponseType, ErrorType>.makeForSuccess(object: cloudResponse, response: httpResponse)
-        subject = CacheRemoteStorage(cloudConfig: config, cloudClient: cloudClient, fileArchiverFactory: fileArchiverFactory, fileClient: fileClient)
+        cloudClient = MockCloudClient(object: cloudResponse, response: httpResponse)
+        subject = CacheRemoteStorage(
+            cloudClient: cloudClient,
+            fileArchiverFactory: fileArchiverFactory,
+            fileClient: fileClient,
+            cloudCacheResponseFactory: mockCloudCacheResourceFactory
+        )
 
         let hash = "foo_bar"
         let paths = try createFolders(["Unarchived/\(hash)/myFramework.xcframework"])
@@ -248,15 +253,16 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
 
     func test_fetch_whenClientReturnsASuccess_givesFileArchiverTheCorrectDestinationPath() throws {
         // Given
-        typealias ResponseType = CloudResponse<CloudCacheResponse>
-        typealias ErrorType = CloudResponseError
-
         let httpResponse: HTTPURLResponse = .test()
         let cacheResponse = CloudCacheResponse(url: .test(), expiresAt: 123)
         let cloudResponse = CloudResponse<CloudCacheResponse>(status: "shaki", data: cacheResponse)
-        let config = Cloud.test()
-        cloudClient = MockCloudClienting<ResponseType, ErrorType>.makeForSuccess(object: cloudResponse, response: httpResponse)
-        subject = CacheRemoteStorage(cloudConfig: config, cloudClient: cloudClient, fileArchiverFactory: fileArchiverFactory, fileClient: fileClient)
+        cloudClient = MockCloudClient(object: cloudResponse, response: httpResponse)
+        subject = CacheRemoteStorage(
+            cloudClient: cloudClient,
+            fileArchiverFactory: fileArchiverFactory,
+            fileClient: fileClient,
+            cloudCacheResponseFactory: mockCloudCacheResourceFactory
+        )
 
         let paths = try createFolders(["Unarchived/\(hash)/Framework.framework"])
         fileUnarchiver.stubbedUnzipResult = paths.first?.parentDirectory
@@ -276,12 +282,14 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
 
     func test_store_whenClientReturnsAnError() throws {
         // Given
-        typealias ResponseType = CloudResponse<CloudCacheResponse>
-        typealias ErrorType = CloudResponseError
         let expectedError = CloudResponseError.test()
-        let config = Cloud.test()
-        cloudClient = MockCloudClienting<ResponseType, ErrorType>.makeForError(error: expectedError)
-        subject = CacheRemoteStorage(cloudConfig: config, cloudClient: cloudClient, fileArchiverFactory: fileArchiverFactory, fileClient: fileClient)
+        cloudClient = MockCloudClient(error: expectedError)
+        subject = CacheRemoteStorage(
+            cloudClient: cloudClient,
+            fileArchiverFactory: fileArchiverFactory,
+            fileClient: fileClient,
+            cloudCacheResponseFactory: mockCloudCacheResourceFactory
+        )
 
         // When
         let result = subject.store(hash: "acho tio", paths: [.root])
@@ -299,20 +307,16 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         }
     }
 
-    func test_store_whenClientReturnsASuccess_usesReturnedURLToUpload() throws {
+    func test_store_whenClientReturnsASuccess_returnsURLToUpload() throws {
         // Given
-        typealias ResponseType = CloudResponse<CloudCacheResponse>
-        typealias ErrorType = CloudResponseError
+        configureCloudClientForSuccessfulUpload()
 
-        let url = URL(string: "https://shaki.ra/acho/tio")!
-        let config = Cloud.test()
-        let cacheResponse = CloudCacheResponse(url: url, expiresAt: 123)
-        let cloudResponse = CloudResponse<CloudCacheResponse>(status: "shaki", data: cacheResponse)
-        cloudClient = MockCloudClienting<ResponseType, ErrorType>.makeForSuccess(
-            object: cloudResponse,
-            response: .test()
+        subject = CacheRemoteStorage(
+            cloudClient: cloudClient,
+            fileArchiverFactory: fileArchiverFactory,
+            fileClient: fileClient,
+            cloudCacheResponseFactory: mockCloudCacheResourceFactory
         )
-        subject = CacheRemoteStorage(cloudConfig: config, cloudClient: cloudClient, fileArchiverFactory: fileArchiverFactory, fileClient: fileClient)
 
         // When
         _ = subject.store(hash: "foo_bar", paths: [.root])
@@ -321,7 +325,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
 
         // Then
         if let tuple = fileClient.invokedUploadParameters {
-            XCTAssertEqual(tuple.url, url)
+            XCTAssertEqual(tuple.url, receivedUploadURL)
         } else {
             XCTFail("Could not unwrap the file uploader input tuple")
         }
@@ -329,18 +333,14 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
 
     func test_store_whenClientReturnsASuccess_usesTheRightHashToUpload() throws {
         // Given
-        typealias ResponseType = CloudResponse<CloudCacheResponse>
-        typealias ErrorType = CloudResponseError
-
         let hash = "foo_bar"
-        let config = Cloud.test()
-        let cacheResponse = CloudCacheResponse(url: .test(), expiresAt: 123)
-        let cloudResponse = CloudResponse<CloudCacheResponse>(status: "shaki", data: cacheResponse)
-        cloudClient = MockCloudClienting<ResponseType, ErrorType>.makeForSuccess(
-            object: cloudResponse,
-            response: .test()
+        configureCloudClientForSuccessfulUpload()
+        subject = CacheRemoteStorage(
+            cloudClient: cloudClient,
+            fileArchiverFactory: fileArchiverFactory,
+            fileClient: fileClient,
+            cloudCacheResponseFactory: mockCloudCacheResourceFactory
         )
-        subject = CacheRemoteStorage(cloudConfig: config, cloudClient: cloudClient, fileArchiverFactory: fileArchiverFactory, fileClient: fileClient)
 
         // When
         _ = subject.store(hash: hash, paths: [.root])
@@ -357,20 +357,15 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
 
     func test_store_whenClientReturnsASuccess_usesTheRightZipPathToUpload() throws {
         // Given
-        typealias ResponseType = CloudResponse<CloudCacheResponse>
-        typealias ErrorType = CloudResponseError
-
         let hash = "foo_bar"
-        let config = Cloud.test()
-        let cacheResponse = CloudCacheResponse(url: .test(), expiresAt: 123)
-        let cloudResponse = CloudResponse<CloudCacheResponse>(status: "waka", data: cacheResponse)
-        cloudClient = MockCloudClienting<ResponseType, ErrorType>.makeForSuccess(
-            object: cloudResponse,
-            response: .test()
-        )
-
+        configureCloudClientForSuccessfulUpload()
         fileArchiver.stubbedZipResult = zipPath
-        subject = CacheRemoteStorage(cloudConfig: config, cloudClient: cloudClient, fileArchiverFactory: fileArchiverFactory, fileClient: fileClient)
+        subject = CacheRemoteStorage(
+            cloudClient: cloudClient,
+            fileArchiverFactory: fileArchiverFactory,
+            fileClient: fileClient,
+            cloudCacheResponseFactory: mockCloudCacheResourceFactory
+        )
 
         // When
         _ = subject.store(hash: hash, paths: [.root])
@@ -383,5 +378,148 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         } else {
             XCTFail("Could not unwrap the file uploader input tuple")
         }
+    }
+
+    func test_store_whenClientReturnsAnUploadErrorVerifyIsNotCalled() throws {
+        // Given
+        let expectedError = CloudResponseError.test()
+        cloudClient = MockCloudClient(error: expectedError)
+        subject = CacheRemoteStorage(
+            cloudClient: cloudClient,
+            fileArchiverFactory: fileArchiverFactory,
+            fileClient: fileClient,
+            cloudCacheResponseFactory: mockCloudCacheResourceFactory
+        )
+
+        // When
+        _ = subject.store(hash: "acho tio", paths: [.root])
+            .toBlocking()
+            .materialize()
+
+        // Then
+        XCTAssertFalse(mockCloudCacheResourceFactory.invokedVerifyUploadResource)
+    }
+
+    func test_store_whenFileUploaderReturnsAnErrorFileArchiverIsCalled() throws {
+        // Given
+        configureCloudClientForSuccessfulUpload()
+        fileClient.stubbedUploadResult = Single.error(TestError("Error uploading file"))
+
+        subject = CacheRemoteStorage(
+            cloudClient: cloudClient,
+            fileArchiverFactory: fileArchiverFactory,
+            fileClient: fileClient,
+            cloudCacheResponseFactory: mockCloudCacheResourceFactory
+        )
+
+        // When
+        _ = subject.store(hash: "acho tio", paths: [.root])
+            .toBlocking()
+            .materialize()
+
+        // Then
+        XCTAssertEqual(fileArchiver.invokedDeleteCount, 1)
+    }
+
+    func test_store_whenFileUploaderReturnsAnErrorVerifyIsNotCalled() throws {
+        // Given
+        configureCloudClientForSuccessfulUpload()
+        fileClient.stubbedUploadResult = Single.error(TestError("Error uploading file"))
+
+        subject = CacheRemoteStorage(
+            cloudClient: cloudClient,
+            fileArchiverFactory: fileArchiverFactory,
+            fileClient: fileClient,
+            cloudCacheResponseFactory: mockCloudCacheResourceFactory
+        )
+
+        // When
+        _ = subject.store(hash: "acho tio", paths: [.root])
+            .toBlocking()
+            .materialize()
+
+        // Then
+        XCTAssertFalse(mockCloudCacheResourceFactory.invokedVerifyUploadResource)
+    }
+
+    func test_store_whenVerifyFailsTheZipArchiveIsDeleted() throws {
+        // Given
+        configureCloudClientForSuccessfulUploadAndFailedVerify()
+
+        subject = CacheRemoteStorage(
+            cloudClient: cloudClient,
+            fileArchiverFactory: fileArchiverFactory,
+            fileClient: fileClient,
+            cloudCacheResponseFactory: mockCloudCacheResourceFactory
+        )
+
+        // When
+        _ = subject.store(hash: "verify fails hash", paths: [.root])
+            .toBlocking()
+            .materialize()
+
+        // Then
+        XCTAssertEqual(fileArchiver.invokedDeleteCount, 1)
+    }
+
+    // MARK: Private
+
+    private func configureCloudClientForSuccessfulUpload() {
+        let uploadURLRequest = URLRequest.test(urlString: "https://tuist.cache.io/store")
+        let verifyUploadURLRequest = URLRequest.test(urlString: "https://tuist.cache.io/verify-upload")
+
+        let receivedUploadURLRequest = URLRequest.test(url: receivedUploadURL)
+        let cacheResponse = CloudCacheResponse(url: receivedUploadURLRequest.url!, expiresAt: 123)
+        let uploadURLObject = CloudResponse<CloudCacheResponse>(status: "uploadURLObject status", data: cacheResponse)
+
+        let cloudVerifyUploadResponse = CloudVerifyUploadResponse.test()
+        let verifyUploadObject = CloudResponse<CloudVerifyUploadResponse>(status: "cloudVerifyUploadResponse status", data: cloudVerifyUploadResponse)
+
+        cloudClient = MockCloudClient(objectPerURLRequest: [
+            uploadURLRequest: uploadURLObject,
+            verifyUploadURLRequest: verifyUploadObject,
+        ])
+
+        mockCloudCacheResourceFactory.stubbedStoreResourceResult = HTTPResource(
+            request: { uploadURLRequest },
+            parse: { _, _ in uploadURLObject },
+            parseError: { _, _ in CloudResponseError.test() }
+        )
+
+        mockCloudCacheResourceFactory.stubbedVerifyUploadResourceResult = HTTPResource(
+            request: { verifyUploadURLRequest },
+            parse: { _, _ in verifyUploadObject },
+            parseError: { _, _ in CloudResponseError.test() }
+        )
+    }
+
+    private func configureCloudClientForSuccessfulUploadAndFailedVerify() {
+        let uploadURLRequest = URLRequest.test(urlString: "https://tuist.cache.io/store")
+        let verifyUploadURLRequest = URLRequest.test(urlString: "https://tuist.cache.io/verify-upload")
+
+        let receivedUploadURLRequest = URLRequest.test(url: receivedUploadURL)
+        let cacheResponse = CloudCacheResponse(url: receivedUploadURLRequest.url!, expiresAt: 123)
+        let uploadURLObject = CloudResponse<CloudCacheResponse>(status: "uploadURLObject status", data: cacheResponse)
+
+        let cloudVerifyUploadResponse = CloudVerifyUploadResponse.test()
+        let verifyUploadObject = CloudResponse<CloudVerifyUploadResponse>(status: "cloudVerifyUploadResponse status", data: cloudVerifyUploadResponse)
+        let verifyUploadError = CloudResponseError.test()
+
+        cloudClient = MockCloudClient(
+            objectPerURLRequest: [uploadURLRequest: uploadURLObject],
+            errorPerURLRequest: [verifyUploadURLRequest: verifyUploadError]
+        )
+
+        mockCloudCacheResourceFactory.stubbedStoreResourceResult = HTTPResource(
+            request: { uploadURLRequest },
+            parse: { _, _ in uploadURLObject },
+            parseError: { _, _ in CloudResponseError.test() }
+        )
+
+        mockCloudCacheResourceFactory.stubbedVerifyUploadResourceResult = HTTPResource(
+            request: { verifyUploadURLRequest },
+            parse: { _, _ in verifyUploadObject },
+            parseError: { _, _ in verifyUploadError }
+        )
     }
 }

@@ -10,11 +10,13 @@ public extension Config {
                      generationOptions: [GenerationOption] = [],
                      path: AbsolutePath? = nil) -> Config
     {
-        Config(compatibleXcodeVersions: compatibleXcodeVersions,
-               cloud: cloud,
-               cache: cache,
-               plugins: plugins,
-               generationOptions: generationOptions,
-               path: path)
+        Config(
+            compatibleXcodeVersions: compatibleXcodeVersions,
+            cloud: cloud,
+            cache: cache,
+            plugins: plugins,
+            generationOptions: generationOptions,
+            path: path
+        )
     }
 }

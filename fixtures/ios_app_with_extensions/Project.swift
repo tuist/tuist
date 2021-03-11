@@ -86,6 +86,13 @@ let project = Project(name: "App",
                                sources: "WidgetExtension/Sources/**",
                                resources: "WidgetExtension/Resources/**",
                                dependencies: [
-                                    
-                               ])
+                                    .target(name: "StaticFramework"),
+                               ]),
+                        Target(name: "StaticFramework",
+                               platform: .iOS,
+                               product: .staticFramework,
+                               bundleId: "io.tuist.App.StaticFramework",
+                               infoPlist: .default,
+                               sources: "StaticFramework/Sources/**"
+                        )
                 ])

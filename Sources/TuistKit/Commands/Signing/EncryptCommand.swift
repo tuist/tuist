@@ -4,8 +4,11 @@ import TSCBasic
 
 struct EncryptCommand: ParsableCommand {
     static var configuration: CommandConfiguration {
-        CommandConfiguration(commandName: "encrypt",
-                             abstract: "Encrypts all files in Tuist/Signing directory")
+        CommandConfiguration(
+            commandName: "encrypt",
+            _superCommandName: "signing",
+            abstract: "Encrypts all files in Tuist/Signing directory"
+        )
     }
 
     @Option(

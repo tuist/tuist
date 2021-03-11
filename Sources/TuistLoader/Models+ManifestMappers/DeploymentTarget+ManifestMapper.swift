@@ -4,7 +4,7 @@ import TuistCore
 import TuistGraph
 
 extension TuistGraph.DeploymentTarget {
-    /// Maps a ProjectDescription.DeploymentTarget instance into a TuistCore.DeploymentTarget instance.
+    /// Maps a ProjectDescription.DeploymentTarget instance into a TuistGraph.DeploymentTarget instance.
     /// - Parameters:
     ///   - manifest: Manifest representation of deployment target model.
     ///   - generatorPaths: Generator paths.

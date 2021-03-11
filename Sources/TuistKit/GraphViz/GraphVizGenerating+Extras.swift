@@ -14,15 +14,19 @@ extension GraphVizGenerating {
         let manifests = manifestLoader.manifests(at: path)
 
         if manifests.contains(.workspace) {
-            return try generateWorkspace(at: path,
-                                         skipTestTargets: skipTestTargets,
-                                         skipExternalDependencies: skipExternalDependencies,
-                                         targetsToFilter: targetsToFilter)
+            return try generateWorkspace(
+                at: path,
+                skipTestTargets: skipTestTargets,
+                skipExternalDependencies: skipExternalDependencies,
+                targetsToFilter: targetsToFilter
+            )
         } else if manifests.contains(.project) {
-            return try generateProject(at: path,
-                                       skipTestTargets: skipTestTargets,
-                                       skipExternalDependencies: skipExternalDependencies,
-                                       targetsToFilter: targetsToFilter)
+            return try generateProject(
+                at: path,
+                skipTestTargets: skipTestTargets,
+                skipExternalDependencies: skipExternalDependencies,
+                targetsToFilter: targetsToFilter
+            )
         } else {
             throw ManifestLoaderError.manifestNotFound(path)
         }

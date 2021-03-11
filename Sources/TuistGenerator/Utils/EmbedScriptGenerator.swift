@@ -40,9 +40,11 @@ final class EmbedScriptGenerator: EmbedScriptGenerating {
         var script = baseScript()
         script.append("\n")
 
-        let (frameworksScript, inputPaths, outputPaths) = try self.frameworksScript(sourceRootPath: sourceRootPath,
-                                                                                    frameworkReferences: frameworkReferences,
-                                                                                    includeSymbolsInFileLists: includeSymbolsInFileLists)
+        let (frameworksScript, inputPaths, outputPaths) = try self.frameworksScript(
+            sourceRootPath: sourceRootPath,
+            frameworkReferences: frameworkReferences,
+            includeSymbolsInFileLists: includeSymbolsInFileLists
+        )
         script.append(frameworksScript)
 
         return EmbedScript(script: script, inputPaths: inputPaths, outputPaths: outputPaths)
@@ -78,7 +80,7 @@ final class EmbedScriptGenerator: EmbedScriptGenerating {
 
             // Framework
             let relativeFrameworkPath = path.relative(to: sourceRootPath)
-            script.append("install_framework \"\(relativeFrameworkPath.pathString)\"\n")
+            script.append("install_framework \"$SRCROOT/\(relativeFrameworkPath.pathString)\"\n")
 
             inputPaths.append(relativeFrameworkPath)
             inputPaths.append(relativeFrameworkPath.appending(component: relativeFrameworkPath.basenameWithoutExt))
@@ -88,13 +90,13 @@ final class EmbedScriptGenerator: EmbedScriptGenerating {
             // .dSYM
             if let dsymPath = dsymPath {
                 let relativeDsymPath = dsymPath.relative(to: sourceRootPath)
-                script.append("install_dsym \"\(relativeDsymPath.pathString)\"\n")
+                script.append("install_dsym \"$SRCROOT/\(relativeDsymPath.pathString)\"\n")
             }
 
             // .bcsymbolmap
             for bcsymbolmapPath in bcsymbolmapPaths {
                 let relativeDsymPath = bcsymbolmapPath.relative(to: sourceRootPath)
-                script.append("install_bcsymbolmap \"\(relativeDsymPath.pathString)\"\n")
+                script.append("install_bcsymbolmap \"$SRCROOT/\(relativeDsymPath.pathString)\"\n")
             }
         }
         return (script: script, inputPaths: inputPaths, outputPaths: outputPaths)

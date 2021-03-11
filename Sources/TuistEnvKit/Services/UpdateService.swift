@@ -9,8 +9,8 @@ final class UpdateService {
         self.updater = updater
     }
 
-    func run(force: Bool) throws {
+    func run() throws {
         logger.notice("Checking for updates...", metadata: .section)
-        try updater.update(force: force)
+        try updater.update()
     }
 }

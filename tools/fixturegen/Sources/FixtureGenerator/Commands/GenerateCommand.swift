@@ -19,22 +19,30 @@ final class GenerateCommand {
     {
         self.fileSystem = fileSystem
 
-        pathArgument = parser.add(option: "--path",
-                                  kind: String.self,
-                                  usage: "The path where the fixture will be generated.",
-                                  completion: .filename)
-        projectsArgument = parser.add(option: "--projects",
-                                      shortName: "-p",
-                                      kind: Int.self,
-                                      usage: "Number of projects to generate.")
-        targetsArgument = parser.add(option: "--targets",
-                                     shortName: "-t",
-                                     kind: Int.self,
-                                     usage: "Number of targets to generate within each project.")
-        sourcesArgument = parser.add(option: "--sources",
-                                     shortName: "-s",
-                                     kind: Int.self,
-                                     usage: "Number of sources to generate within each target.")
+        pathArgument = parser.add(
+            option: "--path",
+            kind: String.self,
+            usage: "The path where the fixture will be generated.",
+            completion: .filename
+        )
+        projectsArgument = parser.add(
+            option: "--projects",
+            shortName: "-p",
+            kind: Int.self,
+            usage: "Number of projects to generate."
+        )
+        targetsArgument = parser.add(
+            option: "--targets",
+            shortName: "-t",
+            kind: Int.self,
+            usage: "Number of targets to generate within each project."
+        )
+        sourcesArgument = parser.add(
+            option: "--sources",
+            shortName: "-s",
+            kind: Int.self,
+            usage: "Number of sources to generate within each target."
+        )
     }
 
     func run(with arguments: ArgumentParser.Result) throws {

@@ -21,9 +21,9 @@ public struct Target: Equatable, Hashable, Comparable {
     public var infoPlist: InfoPlist?
     public var entitlements: AbsolutePath?
     public var settings: Settings?
-    public var dependencies: [Dependency]
+    public var dependencies: [TargetDependency]
     public var sources: [SourceFile]
-    public var resources: [FileElement]
+    public var resources: [ResourceFileElement]
     public var copyFiles: [CopyFilesAction]
     public var headers: Headers?
     public var coreDataModels: [CoreDataModel]
@@ -33,6 +33,7 @@ public struct Target: Equatable, Hashable, Comparable {
     public var filesGroup: ProjectGroup
     public var scripts: [TargetScript]
     public var playgrounds: [AbsolutePath]
+    public var prune: Bool
 
     // MARK: - Init
 
@@ -46,7 +47,7 @@ public struct Target: Equatable, Hashable, Comparable {
                 entitlements: AbsolutePath? = nil,
                 settings: Settings? = nil,
                 sources: [SourceFile] = [],
-                resources: [FileElement] = [],
+                resources: [ResourceFileElement] = [],
                 copyFiles: [CopyFilesAction] = [],
                 headers: Headers? = nil,
                 coreDataModels: [CoreDataModel] = [],
@@ -54,9 +55,10 @@ public struct Target: Equatable, Hashable, Comparable {
                 environment: [String: String] = [:],
                 launchArguments: [LaunchArgument] = [],
                 filesGroup: ProjectGroup,
-                dependencies: [Dependency] = [],
+                dependencies: [TargetDependency] = [],
                 scripts: [TargetScript] = [],
-                playgrounds: [AbsolutePath] = [])
+                playgrounds: [AbsolutePath] = [],
+                prune: Bool = false)
     {
         self.name = name
         self.product = product
@@ -79,6 +81,7 @@ public struct Target: Equatable, Hashable, Comparable {
         self.dependencies = dependencies
         self.scripts = scripts
         self.playgrounds = playgrounds
+        self.prune = prune
     }
 
     /// Target can be included in the link phase of other targets

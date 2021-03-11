@@ -6,7 +6,7 @@ import TuistGraph
 import TuistSupport
 
 extension TuistGraph.SettingValue {
-    /// Maps a ProjectDescription.SettingValue instance into a TuistCore.SettingValue model.
+    /// Maps a ProjectDescription.SettingValue instance into a TuistGraph.SettingValue model.
     /// - Parameters:
     ///   - manifest: Manifest representation of setting value.
     ///   - generatorPaths: Generator paths.

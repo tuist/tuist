@@ -25,9 +25,11 @@ final class InfoPlistContentProviderTests: XCTestCase {
         let target = Target.test(platform: .iOS, product: .app)
 
         // When
-        let got = subject.content(project: .empty(),
-                                  target: target,
-                                  extendedWith: ["ExtraAttribute": "Value"])
+        let got = subject.content(
+            project: .empty(),
+            target: target,
+            extendedWith: ["ExtraAttribute": "Value"]
+        )
 
         // Then
         assertEqual(got, [
@@ -61,9 +63,11 @@ final class InfoPlistContentProviderTests: XCTestCase {
         let target = Target.test(platform: .macOS, product: .app)
 
         // When
-        let got = subject.content(project: .empty(),
-                                  target: target,
-                                  extendedWith: ["ExtraAttribute": "Value"])
+        let got = subject.content(
+            project: .empty(),
+            target: target,
+            extendedWith: ["ExtraAttribute": "Value"]
+        )
 
         // Then
         assertEqual(got, [
@@ -89,9 +93,11 @@ final class InfoPlistContentProviderTests: XCTestCase {
         let target = Target.test(platform: .macOS, product: .framework)
 
         // When
-        let got = subject.content(project: .empty(),
-                                  target: target,
-                                  extendedWith: ["ExtraAttribute": "Value"])
+        let got = subject.content(
+            project: .empty(),
+            target: target,
+            extendedWith: ["ExtraAttribute": "Value"]
+        )
 
         // Then
         assertEqual(got, [
@@ -113,9 +119,11 @@ final class InfoPlistContentProviderTests: XCTestCase {
         let target = Target.test(platform: .macOS, product: .staticLibrary)
 
         // When
-        let got = subject.content(project: .empty(),
-                                  target: target,
-                                  extendedWith: ["ExtraAttribute": "Value"])
+        let got = subject.content(
+            project: .empty(),
+            target: target,
+            extendedWith: ["ExtraAttribute": "Value"]
+        )
 
         // Then
         XCTAssertNil(got)
@@ -126,9 +134,11 @@ final class InfoPlistContentProviderTests: XCTestCase {
         let target = Target.test(platform: .macOS, product: .dynamicLibrary)
 
         // When
-        let got = subject.content(project: .empty(),
-                                  target: target,
-                                  extendedWith: ["ExtraAttribute": "Value"])
+        let got = subject.content(
+            project: .empty(),
+            target: target,
+            extendedWith: ["ExtraAttribute": "Value"]
+        )
 
         // Then
         XCTAssertNil(got)
@@ -139,9 +149,11 @@ final class InfoPlistContentProviderTests: XCTestCase {
         let target = Target.test(platform: .iOS, product: .bundle)
 
         // When
-        let got = subject.content(project: .empty(),
-                                  target: target,
-                                  extendedWith: ["ExtraAttribute": "Value"])
+        let got = subject.content(
+            project: .empty(),
+            target: target,
+            extendedWith: ["ExtraAttribute": "Value"]
+        )
 
         // Then
         assertEqual(got, [
@@ -158,9 +170,11 @@ final class InfoPlistContentProviderTests: XCTestCase {
 
     func test_contentPackageType() {
         func content(for target: Target) -> [String: Any]? {
-            subject.content(project: .empty(),
-                            target: target,
-                            extendedWith: [:])
+            subject.content(
+                project: .empty(),
+                target: target,
+                extendedWith: [:]
+            )
         }
 
         assertPackageType(content(for: .test(product: .app)), "APPL")
@@ -175,26 +189,32 @@ final class InfoPlistContentProviderTests: XCTestCase {
 
     func test_content_whenWatchOSApp() {
         // Given
-        let watchApp = Target.test(name: "MyWatchApp",
-                                   platform: .watchOS,
-                                   product: .watch2App)
-        let app = Target.test(platform: .iOS,
-                              product: .app,
-                              bundleId: "io.tuist.my.app.id",
-                              dependencies: [
-                                  .target(name: watchApp.name),
-                              ])
+        let watchApp = Target.test(
+            name: "MyWatchApp",
+            platform: .watchOS,
+            product: .watch2App
+        )
+        let app = Target.test(
+            platform: .iOS,
+            product: .app,
+            bundleId: "io.tuist.my.app.id",
+            dependencies: [
+                .target(name: watchApp.name),
+            ]
+        )
         let project = Project.test(targets: [
             app,
             watchApp,
         ])
 
         // When
-        let got = subject.content(project: project,
-                                  target: watchApp,
-                                  extendedWith: [
-                                      "ExtraAttribute": "Value",
-                                  ])
+        let got = subject.content(
+            project: project,
+            target: watchApp,
+            extendedWith: [
+                "ExtraAttribute": "Value",
+            ]
+        )
 
         // Then
         assertEqual(got, [
@@ -220,26 +240,32 @@ final class InfoPlistContentProviderTests: XCTestCase {
 
     func test_content_whenWatchOSAppExtension() {
         // Given
-        let watchAppExtension = Target.test(name: "MyWatchAppExtension",
-                                            platform: .watchOS,
-                                            product: .watch2Extension)
-        let watchApp = Target.test(platform: .watchOS,
-                                   product: .watch2App,
-                                   bundleId: "io.tuist.my.app.id.mywatchapp",
-                                   dependencies: [
-                                       .target(name: watchAppExtension.name),
-                                   ])
+        let watchAppExtension = Target.test(
+            name: "MyWatchAppExtension",
+            platform: .watchOS,
+            product: .watch2Extension
+        )
+        let watchApp = Target.test(
+            platform: .watchOS,
+            product: .watch2App,
+            bundleId: "io.tuist.my.app.id.mywatchapp",
+            dependencies: [
+                .target(name: watchAppExtension.name),
+            ]
+        )
         let project = Project.test(targets: [
             watchApp,
             watchAppExtension,
         ])
 
         // When
-        let got = subject.content(project: project,
-                                  target: watchAppExtension,
-                                  extendedWith: [
-                                      "ExtraAttribute": "Value",
-                                  ])
+        let got = subject.content(
+            project: project,
+            target: watchAppExtension,
+            extendedWith: [
+                "ExtraAttribute": "Value",
+            ]
+        )
 
         // Then
         assertEqual(got, [

@@ -25,7 +25,8 @@ let project = Project(name: "MyProject",
                                  sources: ["Sources/**"],
                                  resources: [
                                    "Resources/**",
-                                   .folderReference(path: "Stubs")
+                                   .folderReference(path: "Stubs"),
+                                   .folderReference(path: "ODR", tags: ["odr_tag"])
                                  ],
                                  headers: Headers(public: ["Sources/public/A/**", "Sources/public/B/**"],
                                                   private: "Sources/private/**",
@@ -107,6 +108,14 @@ A `Project.swift` should initialize a variable of type `Project`. It can take an
       typeLink: '#settings',
       optional: true,
       default: '',
+    },
+    {
+      name: 'FileHeaderTemplate',
+      description: 'Lets you define custom file header template macro for built-in Xcode file templates',
+      type: 'FileHeaderTemplate?',
+      typeLink: '#file-header-template',
+      optional: true,
+      default: 'nil',
     },
     {
       name: 'AdditionalFiles',
@@ -207,8 +216,8 @@ Each target in the list of project targets can be initialized with the following
     {
       name: 'Info plist',
       description: 'Relative path to the Info.plist',
-      type: 'Path',
-      typeLink: '#path',
+      type: 'InfoPlist',
+      typeLink: '#infoplist',
       optional: false,
       default: '',
     },
@@ -216,10 +225,10 @@ Each target in the list of project targets can be initialized with the following
       name: 'Resources',
       description:
         'List of files to include in the resources build phase. Note that localizable files, `*.lproj`, are supported.',
-      type: '[FileElement]',
-      typeLink: '#fileelement',
+      type: 'ResourceFileElements',
+      typeLink: '#resourcefileelements',
       optional: true,
-      default: '[]',
+      default: 'nil',
     },
     {
       name: 'Copy Files',
@@ -906,12 +915,20 @@ It represents the scheme action that runs the built products on the supported pl
       default: 'nil',
     },
     {
+      name: 'Options',
+      description: 'List of options to set to the action.',
+      type: 'RunActionOptions',
+      typeLink: '#run-action-options',
+      optional: true,
+      default: '.options()',
+    },    
+    {
       name: 'Diagnostics options',
       description: 'List of diagnostics options to set to the action.',
       type: '[SchemeDiagnosticsOption]',
       typeLink: '#scheme-diagnostics-option',
       optional: true,
-      default: '[]',
+      default: '[.mainThreadChecker]',
     },
   ]}
 />
@@ -1009,7 +1026,7 @@ You can create a test action with either a set of test targets or test plans.
       type: '[SchemeDiagnosticsOption]',
       typeLink: '#scheme-diagnostics-option',
       optional: true,
-      default: '[]',
+      default: '[.mainThreadChecker]',
     },
     {
       name: 'Language',
@@ -1159,6 +1176,31 @@ Arguments contain commandline arguments passed on launch and Environment variabl
       type: '[LaunchArgument]',
       optional: true,
       default: '[]',
+    },
+  ]}
+/>
+
+### Run Action Options
+
+Run action options represent the configuration of a run action.
+
+<PropertiesTable
+  properties={[
+    {
+      name: 'StoreKitConfigurationPath',
+      description:
+        'Path of the StoreKit Configuration file that is used to control and debug StoreKit purchases. It only works with Xcode 12 and above.',
+      type: 'Path',
+      optional: true,
+      default: 'nil',
+    },
+    {
+      name: 'SimulatedLocation',
+      description:
+        'A simulated GPS location to use when running the app.',
+      type: 'SimulatedLocation',
+      optional: true,
+      default: 'nil',
     },
   ]}
 />
@@ -1591,7 +1633,43 @@ A `FileElement` can be one of the following options:
     },
     {
       case: '.folderReference(path: Path)',
-      description: 'A directory path to include as a folder reference.',
+      description: 'A directory path to include as a folder reference. ',
+    },
+  ]}
+/>
+
+## ResourceFileElements
+
+List of files to include in the resources build phase. 
+
+<PropertiesTable
+  properties={[
+    {
+      name: 'resources',
+      description: 'Resources list.',
+      type: '[ResourceFileElement]',
+      typeLink: '#resourcefileelement',
+      optional: false
+    }
+  ]}
+/>
+
+It conforms the `ExpressibleByStringLiteral` and `ExpressibleByArrayLiteral` protocols and therefore it can be initialized with a string or an array directly.
+
+## ResourceFileElement
+
+A `ResourceFileElement` can be one of the following options:
+
+<EnumTable
+  cases={[
+    {
+      case: '.glob(pattern: Path, tags: [String])',
+      description:
+        'A file path (or glob pattern) to include and ODR tags list. For convenience, a string literal can be used as an alternate way to specify this option.',
+    },
+    {
+      case: '.folderReference(path: Path, tags: [String])',
+      description: 'A directory path to include as a folder reference and ODR tags list. ',
     },
   ]}
 />
@@ -1721,4 +1799,33 @@ A target within a specified project. The project is specified through the path a
       optional: false,
     },
   ]}
+/>
+
+## File Header Template
+
+Lets you define custom file header template for built-in Xcode templates, e.g. when you create new Swift file you can automatically have your custom define file header.
+
+Tuist automatically performs several template transformations for you
+  - if your template starts with comment slashes (`//`) we remove them as they are added automatically by Xcode
+  - if your template doesn't start with comment and whitespace or newline, we add a space - otherwise your header would be glued to implicit comment slashes which you probably do not want
+  - if your template has trailing newline, we remove it as it is implicitly added by Xcode
+
+<EnumTable
+  cases={[
+    {
+      case:
+        '.file(Path)',
+      description: 'Use file at given path as file header template',
+    },
+    {
+      case: '.string(String)',
+      description: 'Use given inline string as file header template',
+    },
+  ]}
+/>
+
+<Message
+  info
+  title="ExpressibleByStringInterpolation"
+  description="File header template can be initialized with a plain string, it is equivalent to using `.string(...)`"
 />

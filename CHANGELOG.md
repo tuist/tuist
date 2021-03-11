@@ -5,9 +5,90 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ## Next
 
 ### Added
+- Add support for `--no-use-binaries` Carthage flag. [#2608](https://github.com/tuist/tuist/pull/2608) by [@laxmorek](https://github.com/laxmorek)
 
+### Changed
+- **Breaking** Redesign `ProjectDescription.CarthageDependencies` manifest model. [#2608](https://github.com/tuist/tuist/pull/2608) by [@laxmorek](https://github.com/laxmorek)
+
+## 1.37.0 - Twister
+
+### Added
+
+- Allow using system SCM (for example: Git) when resolving SPM dependencies, instead of Xcode's accounts. [#2638](https://github.com/tuist/tuist/pull/2638) by [@freak4pc](https://github.com/freak4pc)
+- Add support for simulated location in a run action's options. [#2616](https://github.com/tuist/tuist/pull/2616) by [@freak4pc](https://github.com/freak4pc)
+- Add option for enabling XCFrameworks production for Carthage in `Setup.swift`. [#2565](https://github.com/tuist/tuist/pull/2565) by [@laxmorek](https://github.com/laxmorek)
+- Add support for custom file header templates that are used for built-in Xcode file templates [#2568](https://github.com/tuist/tuist/pull/2568) by [@olejnjak](https://github.com/olejnjak)
+
+### Changed
+
+- Double-quoted strings in ruby files [#2634](https://github.com/tuist/tuist/pull/2634) by [@fortmarek](https://github.com/fortmarek)
+- Improve `tuist generate` performance for projects with large amount of files [#2598](https://github.com/tuist/tuist/pull/2598) by [@adellibovi](https://github.com/adellibovi/)
+- Added wrap arguments swiftformat option [#2606](https://github.com/tuist/tuist/pull/2606) by [@fortmarek](https://github.com/fortmarek)
+- Remove build action for project generated in `tuist test` [#2592](https://github.com/tuist/tuist/pull/2592) [@fortmarek](https://github.com/fortmarek)
+- Change the graph tree-shaker mapper to work with the value graph too [#2545](https://github.com/tuist/tuist/pull/2545) by [@pepibumur](https://github.com/pepibumur).
+- Migrate `GraphViz` to `ValueGraph` [#2542](https://github.com/tuist/tuist/pull/2542) by [@fortmarek](https://github.com/fortmarek)
+- Rename `TuistGraph.Dependency` to `TuistGraph.TargetDepedency`. [#2614](https://github.com/tuist/tuist/pull/2614) by [@laxmorek](https://github.com/laxmorek)
+
+### Fixed
+
+- Fix incorrect detection of current Core Data model version. [#2612](https://github.com/tuist/tuist/pull/2612) by [@freak4pc](https://github.com/freak4pc)
+- Ignore `.DS_Store` files when hashing directory contents [#2591](https://github.com/tuist/tuist/pull/2591) by [@natanrolnik](https://github.com/natanrolnik).
+
+## 1.36.0 - Digital Love
+
+### Added
+
+- Support for `staticFramework` dependencies for `appExtension`s [#2559](https://github.com/tuist/tuist/pull/2559) by [@danyf90](https://github.com/danyf90)
+- Enable Main Thread Checker by default [#2549](https://github.com/tuist/tuist/pull/2549) by [@myihsan](https://github.com/myihsan)
+- Add option for enabling XCFrameworks production for Carthage in `Dependencies.swift`. [#2532](https://github.com/tuist/tuist/pull/2532) by [@laxmorek](https://github.com/laxmorek)
+- Add --strict to 'lint code' command [#2534](https://github.com/tuist/tuist/pull/2534) by [@joshdholtz](https://github.com/joshdholtz)
+
+### Fixed
+
+- Fix adding framework targets to AppClip [#2530](https://github.com/tuist/tuist/pull/2530) by [@sampettersson](https://github.com/sampettersson)
+- Make sure security and codesign can access certificates in signing.keychain [#2528]((https://github.com/tuist/tuist/pull/2528) by [@rist](https://github.com/rist).
+- Expose `ResourceFileElements` initializer [#2541](https://github.com/tuist/tuist/pull/2541) by [@kwridan](https://github.com/kwridan).
+  - Note: This fixes an issue where `ResourceFileElements` could not be created using variables within helpers
+
+### Changed
+
+- When enabling code coverage, tests targets such as `TestMyFrameworkA` gather coverage for all targets instead of only `TestMyFrameworkA` [#2501](https://github.com/tuist/tuist/pull/2501) by [@adellibovi](https://github.com/adellibovi)
+- Improve `tuist generate` speed by caching Swift version fetching [#2546](https://github.com/tuist/tuist/pull/2546) by [@adellibovi](https://github.com/adellibovi/)
+
+## 1.35.0 - Miracle
+
+- Fix missing linkable products for static frameworks with transitive precompiled dependencies [#2500](https://github.com/tuist/tuist/pull/2500) by [@kwridan](https://github.com/kwridan).
+
+### Added
+
+- Add ODR support [#2490](https://github.com/tuist/tuist/pull/2490) by [@DimaMishchenko](https://github.com/DimaMishchenko)
+- Add support for StoreKit configuration files [#2524](https://github.com/tuist/tuist/pull/2524) by [@bolismauro](https://github.com/bolismauro)
+- Selective tests [#2422](https://github.com/tuist/tuist/pull/2422) by [@fortmarek](https://github.com/fortmarek)
+- Installation of `tuist` on Big Sur [#2526](https://github.com/tuist/tuist/pull/2526) by [@pepibumur](https://github.com/pepibumur).
+
+### Fixed
+
+- Fix missing linkable products for static frameworks with transitive precompiled dependencies [#2500](https://github.com/tuist/tuist/pull/2500) by [@kwridan](https://github.com/kwridan).
+- Fix crash when using `tuist graph` in a project that leverages plugins [#2507](https://github.com/tuist/tuist/pull/2507) by [@bolismauro](https://github.com/bolismauro).
+
+### Changed
+
+- Migrate `BuildGraphInspector` to `ValueGraph` [#2527](https://github.com/tuist/tuist/pull/2527) by [@fortmarek](https://github.com/fortmarek/)
+- Replace `ExpressibleByStringLiteral` with `ExpressibleByStringInterpolation` for `ProjectDescription` objects by [@DimaMishchenko](https://github.com/DimaMishchenko)
+- Fix adding framework targets to AppClip by [@sampettersson](https://github.com/sampettersson)
+
+## 1.34.0 - Shipit
+
+### Added
+
+- Add support for `tuist cache warm` to cache a subset of targets via `tuist cache warm FrameworkA FrameworkB` [#2393]((https://github.com/tuist/tuist/pull/2393) by [@adellibovi](https://github.com/adellibovi).
 - Add documentation on how to use & create plugins by [@luispadron](https://github.com/luispadron)
 - Warn when targets with duplicate bundle identifiers exist per platform [#2444](https://github.com/tuist/tuist/pull/2444) by [@natanrolnik](https://github.com/natanrolnik).
+
+### Fixed
+
+- Fixed code coverage setting for project scheme [#2493](https://github.com/tuist/tuist/pull/2493) by [@adellibovi](https://github.com/adellibovi)
+- Fixed a bug in reporting stats event when Queue folder isn't created [#2497](https://github.com/tuist/tuist/pull/2497) by [@andreacipriani](https://github.com/andreacipriani).
 
 ### Changed
 
@@ -20,6 +101,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Add support for `tuist graph` to show the graph of a subset of targets via `tuist graph FrameworkA FrameworkB` [#2434]((https://github.com/tuist/tuist/pull/2434) by [@adellibovi](https://github.com/adellibovi).
 - Send Tuist usage analytics event to https://stats.tuist.io/ [#2331](https://github.com/tuist/tuist/pull/2331) by [@andreacipriani](https://github.com/andreacipriani).
 - Plugin integration for local and git plugins by [@luispadron](https://github.com/luispadron) and [@kwridan](https://github.com/kwridan).
+- Introduce caching profiles [#2356](https://github.com/tuist/tuist/pull/2431) by [@mollyIV](https://github.com/mollyIV).
 
 ### Fixed
 

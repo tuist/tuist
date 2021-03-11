@@ -78,10 +78,12 @@ final class XCFrameworkNodeLoaderTests: TuistUnitTestCase {
         let got = try subject.load(path: xcframeworkPath)
 
         // Then
-        XCTAssertEqual(got, XCFrameworkNode(path: xcframeworkPath,
-                                            infoPlist: infoPlist,
-                                            primaryBinaryPath: binaryPath,
-                                            linking: linking,
-                                            dependencies: []))
+        XCTAssertEqual(got, XCFrameworkNode(
+            path: xcframeworkPath,
+            infoPlist: infoPlist,
+            primaryBinaryPath: binaryPath,
+            linking: linking,
+            dependencies: []
+        ))
     }
 }

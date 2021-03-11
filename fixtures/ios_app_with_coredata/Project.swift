@@ -8,5 +8,8 @@ let project = Project(name: "App",
                                bundleId: "io.tuist.app",
                                infoPlist: "Info.plist",
                                sources: ["Sources/**"],
-                               coreDataModels: [CoreDataModel("CoreData/Users.xcdatamodeld", currentVersion: "1")])
+                               coreDataModels: [
+                                 CoreDataModel("CoreData/Users.xcdatamodeld", currentVersion: "1"),
+                                 CoreDataModel("CoreData/UsersAutoDetect.xcdatamodeld")
+                               ])
                       ])

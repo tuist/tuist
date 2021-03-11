@@ -57,9 +57,11 @@ final class UpHomebrewTests: TuistUnitTestCase {
 
         system.whichStub = { _ in nil }
         system.errorCommand("/usr/local/bin/brew", "list", "swiftlint")
-        system.succeedCommand("/usr/bin/ruby",
-                              "-e",
-                              "\"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)\"")
+        system.succeedCommand(
+            "/usr/bin/ruby",
+            "-e",
+            "\"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)\""
+        )
         system.succeedCommand("/usr/local/bin/brew", "install", "swiftlint")
 
         try subject.meet(projectPath: temporaryPath)

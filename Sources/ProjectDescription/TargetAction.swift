@@ -163,14 +163,16 @@ extension TargetAction {
                            outputFileListPaths: [Path] = [],
                            basedOnDependencyAnalysis: Bool? = nil) -> TargetAction
     {
-        TargetAction(name: name,
-                     script: .tool(tool, arguments),
-                     order: .pre,
-                     inputPaths: inputPaths,
-                     inputFileListPaths: inputFileListPaths,
-                     outputPaths: outputPaths,
-                     outputFileListPaths: outputFileListPaths,
-                     basedOnDependencyAnalysis: basedOnDependencyAnalysis)
+        TargetAction(
+            name: name,
+            script: .tool(tool, arguments),
+            order: .pre,
+            inputPaths: inputPaths,
+            inputFileListPaths: inputFileListPaths,
+            outputPaths: outputPaths,
+            outputFileListPaths: outputFileListPaths,
+            basedOnDependencyAnalysis: basedOnDependencyAnalysis
+        )
     }
 
     /// Returns a target action that gets executed before the sources and resources build phase.
@@ -194,14 +196,16 @@ extension TargetAction {
                            outputFileListPaths: [Path] = [],
                            basedOnDependencyAnalysis: Bool? = nil) -> TargetAction
     {
-        TargetAction(name: name,
-                     script: .tool(tool, arguments),
-                     order: .pre,
-                     inputPaths: inputPaths,
-                     inputFileListPaths: inputFileListPaths,
-                     outputPaths: outputPaths,
-                     outputFileListPaths: outputFileListPaths,
-                     basedOnDependencyAnalysis: basedOnDependencyAnalysis)
+        TargetAction(
+            name: name,
+            script: .tool(tool, arguments),
+            order: .pre,
+            inputPaths: inputPaths,
+            inputFileListPaths: inputFileListPaths,
+            outputPaths: outputPaths,
+            outputFileListPaths: outputFileListPaths,
+            basedOnDependencyAnalysis: basedOnDependencyAnalysis
+        )
     }
 
     /// Returns a target action that gets executed after the sources and resources build phase.
@@ -225,14 +229,16 @@ extension TargetAction {
                             outputFileListPaths: [Path] = [],
                             basedOnDependencyAnalysis: Bool? = nil) -> TargetAction
     {
-        TargetAction(name: name,
-                     script: .tool(tool, arguments),
-                     order: .post,
-                     inputPaths: inputPaths,
-                     inputFileListPaths: inputFileListPaths,
-                     outputPaths: outputPaths,
-                     outputFileListPaths: outputFileListPaths,
-                     basedOnDependencyAnalysis: basedOnDependencyAnalysis)
+        TargetAction(
+            name: name,
+            script: .tool(tool, arguments),
+            order: .post,
+            inputPaths: inputPaths,
+            inputFileListPaths: inputFileListPaths,
+            outputPaths: outputPaths,
+            outputFileListPaths: outputFileListPaths,
+            basedOnDependencyAnalysis: basedOnDependencyAnalysis
+        )
     }
 
     /// Returns a target action that gets executed after the sources and resources build phase.
@@ -256,14 +262,16 @@ extension TargetAction {
                             outputFileListPaths: [Path] = [],
                             basedOnDependencyAnalysis: Bool? = nil) -> TargetAction
     {
-        TargetAction(name: name,
-                     script: .tool(tool, arguments),
-                     order: .post,
-                     inputPaths: inputPaths,
-                     inputFileListPaths: inputFileListPaths,
-                     outputPaths: outputPaths,
-                     outputFileListPaths: outputFileListPaths,
-                     basedOnDependencyAnalysis: basedOnDependencyAnalysis)
+        TargetAction(
+            name: name,
+            script: .tool(tool, arguments),
+            order: .post,
+            inputPaths: inputPaths,
+            inputFileListPaths: inputFileListPaths,
+            outputPaths: outputPaths,
+            outputFileListPaths: outputFileListPaths,
+            basedOnDependencyAnalysis: basedOnDependencyAnalysis
+        )
     }
 }
 
@@ -291,14 +299,16 @@ extension TargetAction {
                            outputFileListPaths: [Path] = [],
                            basedOnDependencyAnalysis: Bool? = nil) -> TargetAction
     {
-        TargetAction(name: name,
-                     script: .scriptPath(path, args: arguments),
-                     order: .pre,
-                     inputPaths: inputPaths,
-                     inputFileListPaths: inputFileListPaths,
-                     outputPaths: outputPaths,
-                     outputFileListPaths: outputFileListPaths,
-                     basedOnDependencyAnalysis: basedOnDependencyAnalysis)
+        TargetAction(
+            name: name,
+            script: .scriptPath(path, args: arguments),
+            order: .pre,
+            inputPaths: inputPaths,
+            inputFileListPaths: inputFileListPaths,
+            outputPaths: outputPaths,
+            outputFileListPaths: outputFileListPaths,
+            basedOnDependencyAnalysis: basedOnDependencyAnalysis
+        )
     }
 
     /// Returns a target action that gets executed before the sources and resources build phase.
@@ -322,14 +332,16 @@ extension TargetAction {
                            outputFileListPaths: [Path] = [],
                            basedOnDependencyAnalysis: Bool? = nil) -> TargetAction
     {
-        TargetAction(name: name,
-                     script: .scriptPath(path, args: arguments),
-                     order: .pre,
-                     inputPaths: inputPaths,
-                     inputFileListPaths: inputFileListPaths,
-                     outputPaths: outputPaths,
-                     outputFileListPaths: outputFileListPaths,
-                     basedOnDependencyAnalysis: basedOnDependencyAnalysis)
+        TargetAction(
+            name: name,
+            script: .scriptPath(path, args: arguments),
+            order: .pre,
+            inputPaths: inputPaths,
+            inputFileListPaths: inputFileListPaths,
+            outputPaths: outputPaths,
+            outputFileListPaths: outputFileListPaths,
+            basedOnDependencyAnalysis: basedOnDependencyAnalysis
+        )
     }
 
     /// Returns a target action that gets executed after the sources and resources build phase.
@@ -353,14 +365,16 @@ extension TargetAction {
                             outputFileListPaths: [Path] = [],
                             basedOnDependencyAnalysis: Bool? = nil) -> TargetAction
     {
-        TargetAction(name: name,
-                     script: .scriptPath(path, args: arguments),
-                     order: .post,
-                     inputPaths: inputPaths,
-                     inputFileListPaths: inputFileListPaths,
-                     outputPaths: outputPaths,
-                     outputFileListPaths: outputFileListPaths,
-                     basedOnDependencyAnalysis: basedOnDependencyAnalysis)
+        TargetAction(
+            name: name,
+            script: .scriptPath(path, args: arguments),
+            order: .post,
+            inputPaths: inputPaths,
+            inputFileListPaths: inputFileListPaths,
+            outputPaths: outputPaths,
+            outputFileListPaths: outputFileListPaths,
+            basedOnDependencyAnalysis: basedOnDependencyAnalysis
+        )
     }
 
     /// Returns a target action that gets executed after the sources and resources build phase.
@@ -384,14 +398,16 @@ extension TargetAction {
                             outputFileListPaths: [Path] = [],
                             basedOnDependencyAnalysis: Bool? = nil) -> TargetAction
     {
-        TargetAction(name: name,
-                     script: .scriptPath(path, args: arguments),
-                     order: .post,
-                     inputPaths: inputPaths,
-                     inputFileListPaths: inputFileListPaths,
-                     outputPaths: outputPaths,
-                     outputFileListPaths: outputFileListPaths,
-                     basedOnDependencyAnalysis: basedOnDependencyAnalysis)
+        TargetAction(
+            name: name,
+            script: .scriptPath(path, args: arguments),
+            order: .post,
+            inputPaths: inputPaths,
+            inputFileListPaths: inputFileListPaths,
+            outputPaths: outputPaths,
+            outputFileListPaths: outputFileListPaths,
+            basedOnDependencyAnalysis: basedOnDependencyAnalysis
+        )
     }
 }
 
@@ -418,14 +434,16 @@ extension TargetAction {
                            outputFileListPaths: [Path] = [],
                            basedOnDependencyAnalysis: Bool? = nil) -> TargetAction
     {
-        TargetAction(name: name,
-                     script: .embedded(script),
-                     order: .pre,
-                     inputPaths: inputPaths,
-                     inputFileListPaths: inputFileListPaths,
-                     outputPaths: outputPaths,
-                     outputFileListPaths: outputFileListPaths,
-                     basedOnDependencyAnalysis: basedOnDependencyAnalysis)
+        TargetAction(
+            name: name,
+            script: .embedded(script),
+            order: .pre,
+            inputPaths: inputPaths,
+            inputFileListPaths: inputFileListPaths,
+            outputPaths: outputPaths,
+            outputFileListPaths: outputFileListPaths,
+            basedOnDependencyAnalysis: basedOnDependencyAnalysis
+        )
     }
 
     /// Returns a target action that gets executed after the sources and resources build phase.
@@ -448,13 +466,15 @@ extension TargetAction {
                             outputFileListPaths: [Path] = [],
                             basedOnDependencyAnalysis: Bool? = nil) -> TargetAction
     {
-        TargetAction(name: name,
-                     script: .embedded(script),
-                     order: .post,
-                     inputPaths: inputPaths,
-                     inputFileListPaths: inputFileListPaths,
-                     outputPaths: outputPaths,
-                     outputFileListPaths: outputFileListPaths,
-                     basedOnDependencyAnalysis: basedOnDependencyAnalysis)
+        TargetAction(
+            name: name,
+            script: .embedded(script),
+            order: .post,
+            inputPaths: inputPaths,
+            inputFileListPaths: inputFileListPaths,
+            outputPaths: outputPaths,
+            outputFileListPaths: outputFileListPaths,
+            basedOnDependencyAnalysis: basedOnDependencyAnalysis
+        )
     }
 }

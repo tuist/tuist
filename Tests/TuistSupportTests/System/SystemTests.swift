@@ -7,11 +7,13 @@ import XCTest
 final class ProcessResultTests: TuistUnitTestCase {
     func test_command_returns_the_right_command_when_xcrun() {
         // Given
-        let subject = ProcessResult(arguments: ["/usr/bin/xcrun", "swiftc"],
-                                    environment: [:],
-                                    exitStatus: .terminated(code: 1),
-                                    output: .failure(TestError("error")),
-                                    stderrOutput: .failure(TestError("error")))
+        let subject = ProcessResult(
+            arguments: ["/usr/bin/xcrun", "swiftc"],
+            environment: [:],
+            exitStatus: .terminated(code: 1),
+            output: .failure(TestError("error")),
+            stderrOutput: .failure(TestError("error"))
+        )
 
         // When
         let got = subject.command()

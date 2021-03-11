@@ -21,15 +21,25 @@ final class BuildConfigurationTests: XCTestCase {
     }
 
     func test_hashValue() {
-        XCTAssertEqual(BuildConfiguration(name: "Debug", variant: .debug).hashValue,
-                       BuildConfiguration(name: "Debug", variant: .debug).hashValue)
-        XCTAssertEqual(BuildConfiguration(name: "Debug", variant: .debug).hashValue,
-                       BuildConfiguration.debug.hashValue)
-        XCTAssertEqual(BuildConfiguration(name: "debug", variant: .debug).hashValue,
-                       BuildConfiguration.debug.hashValue)
-        XCTAssertNotEqual(BuildConfiguration(name: "Debug", variant: .debug).hashValue,
-                          BuildConfiguration.release.hashValue)
-        XCTAssertNotEqual(BuildConfiguration(name: "debug", variant: .debug).hashValue,
-                          BuildConfiguration.release.hashValue)
+        XCTAssertEqual(
+            BuildConfiguration(name: "Debug", variant: .debug).hashValue,
+            BuildConfiguration(name: "Debug", variant: .debug).hashValue
+        )
+        XCTAssertEqual(
+            BuildConfiguration(name: "Debug", variant: .debug).hashValue,
+            BuildConfiguration.debug.hashValue
+        )
+        XCTAssertEqual(
+            BuildConfiguration(name: "debug", variant: .debug).hashValue,
+            BuildConfiguration.debug.hashValue
+        )
+        XCTAssertNotEqual(
+            BuildConfiguration(name: "Debug", variant: .debug).hashValue,
+            BuildConfiguration.release.hashValue
+        )
+        XCTAssertNotEqual(
+            BuildConfiguration(name: "debug", variant: .debug).hashValue,
+            BuildConfiguration.release.hashValue
+        )
     }
 }

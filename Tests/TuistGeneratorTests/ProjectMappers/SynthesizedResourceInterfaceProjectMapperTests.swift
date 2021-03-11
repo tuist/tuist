@@ -138,22 +138,30 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
                     Target.test(
                         name: targetA.name,
                         sources: [
-                            SourceFile(path: derivedSourcesPath
-                                .appending(component: "Assets+TargetA.swift"),
+                            SourceFile(
+                                path: derivedSourcesPath
+                                    .appending(component: "Assets+TargetA.swift"),
                                 compilerFlags: nil,
-                                contentHash: try contentHasher.hash("a.xcassets".data(using: .utf8)!)),
-                            SourceFile(path: derivedSourcesPath
-                                .appending(component: "Strings+TargetA.swift"),
+                                contentHash: try contentHasher.hash("a.xcassets".data(using: .utf8)!)
+                            ),
+                            SourceFile(
+                                path: derivedSourcesPath
+                                    .appending(component: "Strings+TargetA.swift"),
                                 compilerFlags: nil,
-                                contentHash: try contentHasher.hash("aStrings.strings, aStrings.stringsdict".data(using: .utf8)!)),
-                            SourceFile(path: derivedSourcesPath
-                                .appending(component: "Environment.swift"),
+                                contentHash: try contentHasher.hash("aStrings.strings, aStrings.stringsdict".data(using: .utf8)!)
+                            ),
+                            SourceFile(
+                                path: derivedSourcesPath
+                                    .appending(component: "Environment.swift"),
                                 compilerFlags: nil,
-                                contentHash: try contentHasher.hash("Environment.plist".data(using: .utf8)!)),
-                            SourceFile(path: derivedSourcesPath
-                                .appending(component: "Fonts+TargetA.swift"),
+                                contentHash: try contentHasher.hash("Environment.plist".data(using: .utf8)!)
+                            ),
+                            SourceFile(
+                                path: derivedSourcesPath
+                                    .appending(component: "Fonts+TargetA.swift"),
                                 compilerFlags: nil,
-                                contentHash: try contentHasher.hash("ttfFont.ttf, otfFont.otf, ttcFont.ttc".data(using: .utf8)!)),
+                                contentHash: try contentHasher.hash("ttfFont.ttf, otfFont.otf, ttcFont.ttc".data(using: .utf8)!)
+                            ),
                         ],
                         resources: targetA.resources
                     ),

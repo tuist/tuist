@@ -22,9 +22,11 @@ public final class CloudHTTPRequestAuthenticator: CloudHTTPRequestAuthenticating
     let credentialsStore: CredentialsStoring
 
     public convenience init() {
-        self.init(ciChecker: CIChecker(),
-                  environmentVariables: { ProcessInfo.processInfo.environment },
-                  credentialsStore: CredentialsStore())
+        self.init(
+            ciChecker: CIChecker(),
+            environmentVariables: { ProcessInfo.processInfo.environment },
+            credentialsStore: CredentialsStore()
+        )
     }
 
     init(ciChecker: CIChecking,

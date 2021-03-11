@@ -6,13 +6,14 @@ public enum Constants {
     public static let binName = "tuist"
     public static let gitRepositoryURL = "https://github.com/tuist/tuist.git"
     public static let communityURL = "https://community.tuist.io"
-    public static let version = "1.33.0"
+    public static let version = "1.37.0"
     public static let bundleName: String = "tuist.zip"
     public static let trueValues: [String] = ["1", "true", "TRUE", "yes", "YES"]
     public static let tuistDirectoryName: String = "Tuist"
 
     public static let helpersDirectoryName: String = "ProjectDescriptionHelpers"
     public static let signingDirectoryName: String = "Signing"
+    public static let pluginsDirectoryName: String = "Plugins"
 
     public static let masterKey = "master.key"
     public static let encryptedExtension = "encrypted"
@@ -46,11 +47,15 @@ public enum Constants {
         public static let directoryName: String = "Queue"
     }
 
+    /// Pass these variables to make custom configuration of tuist
+    /// These variables are not supposed to be used by end users
+    /// But only eg. for acceptance tests and other cases needed internally
     public enum EnvironmentVariables {
         public static let verbose = "TUIST_VERBOSE"
         public static let colouredOutput = "TUIST_COLOURED_OUTPUT"
         public static let versionsDirectory = "TUIST_VERSIONS_DIRECTORY"
         public static let cacheDirectory = "TUIST_CACHE_DIRECTORY"
+        public static let automationPath = "TUIST_AUTOMATION_PATH"
         public static let queueDirectory = "TUIST_QUEUE_DIRECTORY"
         public static let cloudToken = "TUIST_CLOUD_TOKEN"
         public static let cacheManifests = "TUIST_CACHE_MANIFESTS"
@@ -59,9 +64,5 @@ public enum Constants {
 
     public enum GoogleCloud {
         public static let relasesBucketURL = "https://storage.googleapis.com/tuist-releases/"
-    }
-
-    public enum PluginDirectory {
-        public static let name = "Plugins"
     }
 }

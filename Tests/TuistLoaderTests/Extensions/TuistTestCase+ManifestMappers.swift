@@ -53,12 +53,18 @@ extension TuistTestCase {
                                                     line: UInt = #line)
     {
         XCTAssertTrue(configuration.0 == manifest, file: file, line: line)
-        XCTAssertEqual(configuration.1?.settings.count,
-                       manifest.configuration?.settings.count,
-                       file: file, line: line)
-        XCTAssertEqual(configuration.1?.xcconfig,
-                       try manifest.configuration?.xcconfig.map { try generatorPaths.resolve(path: $0) },
-                       file: file, line: line)
+        XCTAssertEqual(
+            configuration.1?.settings.count,
+            manifest.configuration?.settings.count,
+            file: file,
+            line: line
+        )
+        XCTAssertEqual(
+            configuration.1?.xcconfig,
+            try manifest.configuration?.xcconfig.map { try generatorPaths.resolve(path: $0) },
+            file: file,
+            line: line
+        )
     }
 
     func assert(coreDataModels: [TuistGraph.CoreDataModel],
@@ -69,9 +75,11 @@ extension TuistTestCase {
                 line: UInt = #line) throws
     {
         XCTAssertEqual(coreDataModels.count, manifests.count, file: file, line: line)
-        XCTAssertTrue(try coreDataModels.elementsEqual(manifests, by: { try coreDataModel($0, matches: $1, at: path, generatorPaths: generatorPaths) }),
-                      file: file,
-                      line: line)
+        XCTAssertTrue(
+            try coreDataModels.elementsEqual(manifests, by: { try coreDataModel($0, matches: $1, at: path, generatorPaths: generatorPaths) }),
+            file: file,
+            line: line
+        )
     }
 
     func coreDataModel(_ coreDataModel: TuistGraph.CoreDataModel,
@@ -143,9 +151,12 @@ extension TuistTestCase {
                 line: UInt = #line) throws
     {
         XCTAssertEqual(runAction.executable?.name, manifest.executable?.targetName)
-        XCTAssertEqual(runAction.executable?.projectPath, try generatorPaths.resolveSchemeActionProjectPath(manifest.executable?.projectPath),
-                       file: file,
-                       line: line)
+        XCTAssertEqual(
+            runAction.executable?.projectPath,
+            try generatorPaths.resolveSchemeActionProjectPath(manifest.executable?.projectPath),
+            file: file,
+            line: line
+        )
         XCTAssertTrue(runAction.configurationName == manifest.configurationName, file: file, line: line)
         try optionalAssert(runAction.arguments, manifest.arguments) {
             self.assert(arguments: $0, matches: $1, file: file, line: line)

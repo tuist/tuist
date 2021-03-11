@@ -61,8 +61,10 @@ final class SigningInstaller: SigningInstalling {
         if FileHandler.shared.exists(provisioningProfilePath) {
             try FileHandler.shared.delete(provisioningProfilePath)
         }
-        try FileHandler.shared.copy(from: provisioningProfileSourcePath,
-                                    to: provisioningProfilePath)
+        try FileHandler.shared.copy(
+            from: provisioningProfileSourcePath,
+            to: provisioningProfilePath
+        )
 
         logger.debug("Installed provisioning profile \(provisioningProfileSourcePath.pathString) to \(provisioningProfilePath.pathString)")
     }

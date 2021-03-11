@@ -45,8 +45,10 @@ final class LintCodeService {
     init(rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator(),
          codeLinter: CodeLinting = CodeLinter(),
          manifestLoading: ManifestLoading = ManifestLoader(),
-         graphLoader: GraphLoading = GraphLoader(modelLoader: GeneratorModelLoader(manifestLoader: ManifestLoader(),
-                                                                                   manifestLinter: AnyManifestLinter())))
+         graphLoader: GraphLoading = GraphLoader(modelLoader: GeneratorModelLoader(
+             manifestLoader: ManifestLoader(),
+             manifestLinter: AnyManifestLinter()
+         )))
     {
         self.rootDirectoryLocator = rootDirectoryLocator
         self.codeLinter = codeLinter
@@ -54,7 +56,7 @@ final class LintCodeService {
         self.graphLoader = graphLoader
     }
 
-    func run(path: String?, targetName: String?) throws {
+    func run(path: String?, targetName: String?, strict: Bool) throws {
         // Determine destination path
         let path = self.path(path)
 
@@ -66,7 +68,7 @@ final class LintCodeService {
 
         // Lint code
         logger.notice("Running code linting")
-        try codeLinter.lint(sources: sources, path: path)
+        try codeLinter.lint(sources: sources, path: path, strict: strict)
     }
 
     // MARK: - Destination path

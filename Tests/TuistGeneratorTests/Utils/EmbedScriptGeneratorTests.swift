@@ -25,10 +25,12 @@ final class EmbedScriptGeneratorTests: TuistUnitTestCase {
         let path = AbsolutePath("/frameworks/tuist.framework")
         let dsymPath = AbsolutePath("/frameworks/tuist.dSYM")
         let bcsymbolPath = AbsolutePath("/frameworks/tuist.bcsymbolmap")
-        let framework = GraphDependencyReference.testFramework(path: path,
-                                                               binaryPath: path.appending(component: "tuist"),
-                                                               dsymPath: dsymPath,
-                                                               bcsymbolmapPaths: [bcsymbolPath])
+        let framework = GraphDependencyReference.testFramework(
+            path: path,
+            binaryPath: path.appending(component: "tuist"),
+            dsymPath: dsymPath,
+            bcsymbolmapPaths: [bcsymbolPath]
+        )
         // When
         let got = try subject.script(sourceRootPath: framework.precompiledPath!.parentDirectory, frameworkReferences: [framework], includeSymbolsInFileLists: true)
 
@@ -42,9 +44,9 @@ final class EmbedScriptGeneratorTests: TuistUnitTestCase {
             "${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/\(path.basename)",
         ])
 
-        XCTAssertTrue(got.script.contains("install_framework \"\(path.basename)\""))
-        XCTAssertTrue(got.script.contains("install_dsym \"\(dsymPath.basename)\""))
-        XCTAssertTrue(got.script.contains("install_bcsymbolmap \"\(bcsymbolPath.basename)\""))
+        XCTAssertTrue(got.script.contains("install_framework \"$SRCROOT/\(path.basename)\""))
+        XCTAssertTrue(got.script.contains("install_dsym \"$SRCROOT/\(dsymPath.basename)\""))
+        XCTAssertTrue(got.script.contains("install_bcsymbolmap \"$SRCROOT/\(bcsymbolPath.basename)\""))
     }
 
     func test_script_when_not_includingSymbolsInFileLists() throws {
@@ -52,10 +54,12 @@ final class EmbedScriptGeneratorTests: TuistUnitTestCase {
         let path = AbsolutePath("/frameworks/tuist.framework")
         let dsymPath = AbsolutePath("/frameworks/tuist.dSYM")
         let bcsymbolPath = AbsolutePath("/frameworks/tuist.bcsymbolmap")
-        let framework = GraphDependencyReference.testFramework(path: path,
-                                                               binaryPath: path.appending(component: "tuist"),
-                                                               dsymPath: dsymPath,
-                                                               bcsymbolmapPaths: [bcsymbolPath])
+        let framework = GraphDependencyReference.testFramework(
+            path: path,
+            binaryPath: path.appending(component: "tuist"),
+            dsymPath: dsymPath,
+            bcsymbolmapPaths: [bcsymbolPath]
+        )
         // When
         let got = try subject.script(sourceRootPath: framework.precompiledPath!.parentDirectory, frameworkReferences: [framework], includeSymbolsInFileLists: false)
 
@@ -69,8 +73,8 @@ final class EmbedScriptGeneratorTests: TuistUnitTestCase {
             "${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/\(path.basename)",
         ])
 
-        XCTAssertTrue(got.script.contains("install_framework \"\(path.basename)\""))
-        XCTAssertTrue(got.script.contains("install_dsym \"\(dsymPath.basename)\""))
-        XCTAssertTrue(got.script.contains("install_bcsymbolmap \"\(bcsymbolPath.basename)\""))
+        XCTAssertTrue(got.script.contains("install_framework \"$SRCROOT/\(path.basename)\""))
+        XCTAssertTrue(got.script.contains("install_dsym \"$SRCROOT/\(dsymPath.basename)\""))
+        XCTAssertTrue(got.script.contains("install_bcsymbolmap \"$SRCROOT/\(bcsymbolPath.basename)\""))
     }
 }

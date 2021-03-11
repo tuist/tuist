@@ -3,7 +3,7 @@ import RxBlocking
 import TuistSupport
 
 protocol Updating: AnyObject {
-    func update(force: Bool) throws
+    func update() throws
 }
 
 final class Updater: Updating {
@@ -29,8 +29,9 @@ final class Updater: Updating {
 
     // MARK: - Internal
 
-    func update(force: Bool) throws {
+    func update() throws {
         defer {
+            logger.info("Updating tuistenv", metadata: .section)
             try? self.envUpdater.update()
         }
 
@@ -39,19 +40,16 @@ final class Updater: Updating {
             return
         }
 
-        if force {
-            logger.notice("Forcing the update of version \(highestRemoteVersion)")
-            try installer.install(version: highestRemoteVersion.description, force: true)
-        } else if let highestLocalVersion = versionsController.semverVersions().sorted().last {
+        if let highestLocalVersion = versionsController.semverVersions().sorted().last {
             if highestRemoteVersion <= highestLocalVersion {
                 logger.notice("There are no updates available")
             } else {
                 logger.notice("Installing new version available \(highestRemoteVersion)")
-                try installer.install(version: highestRemoteVersion.description, force: false)
+                try installer.install(version: highestRemoteVersion.description)
             }
         } else {
             logger.notice("No local versions available. Installing the latest version \(highestRemoteVersion)")
-            try installer.install(version: highestRemoteVersion.description, force: false)
+            try installer.install(version: highestRemoteVersion.description)
         }
     }
 }

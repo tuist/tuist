@@ -73,10 +73,12 @@ public final class CacheFrameworkBuilder: CacheArtifactBuilding {
                       configuration: String,
                       into outputDirectory: AbsolutePath) throws
     {
-        try build(.workspace(workspacePath),
-                  target: target,
-                  configuration: configuration,
-                  into: outputDirectory)
+        try build(
+            .workspace(workspacePath),
+            target: target,
+            configuration: configuration,
+            into: outputDirectory
+        )
     }
 
     public func build(projectPath: AbsolutePath,
@@ -84,10 +86,12 @@ public final class CacheFrameworkBuilder: CacheArtifactBuilding {
                       configuration: String,
                       into outputDirectory: AbsolutePath) throws
     {
-        try build(.project(projectPath),
-                  target: target,
-                  configuration: configuration,
-                  into: outputDirectory)
+        try build(
+            .project(projectPath),
+            target: target,
+            configuration: configuration,
+            into: outputDirectory
+        )
     }
 
     // MARK: - Fileprivate
@@ -106,9 +110,11 @@ public final class CacheFrameworkBuilder: CacheArtifactBuilding {
 
         let sdk = self.sdk(target: target)
 
-        let arguments = try self.arguments(target: target,
-                                           sdk: sdk,
-                                           configuration: configuration)
+        let arguments = try self.arguments(
+            target: target,
+            sdk: sdk,
+            configuration: configuration
+        )
 
         try xcodebuild(
             projectTarget: projectTarget,
@@ -117,14 +123,18 @@ public final class CacheFrameworkBuilder: CacheArtifactBuilding {
             arguments: arguments
         )
 
-        let buildDirectory = try self.buildDirectory(for: projectTarget,
-                                                     target: target,
-                                                     configuration: configuration,
-                                                     sdk: sdk)
+        let buildDirectory = try self.buildDirectory(
+            for: projectTarget,
+            target: target,
+            configuration: configuration,
+            sdk: sdk
+        )
 
-        try exportFrameworksAndDSYMs(from: buildDirectory,
-                                     into: outputDirectory,
-                                     target: target)
+        try exportFrameworksAndDSYMs(
+            from: buildDirectory,
+            into: outputDirectory,
+            target: target
+        )
     }
 
     fileprivate func buildDirectory(for projectTarget: XcodeBuildTarget,
@@ -203,17 +213,19 @@ public final class CacheFrameworkBuilder: CacheArtifactBuilding {
                                 target: Target,
                                 arguments: [XcodeBuildArgument]) throws
     {
-        _ = try xcodeBuildController.build(projectTarget,
-                                           scheme: scheme,
-                                           clean: false,
-                                           arguments: arguments)
-            .printFormattedOutput()
-            .do(onSubscribed: {
-                logger.notice("Building \(target.name) as .framework...", metadata: .subsection)
-            })
-            .ignoreElements()
-            .toBlocking()
-            .last()
+        _ = try xcodeBuildController.build(
+            projectTarget,
+            scheme: scheme,
+            clean: false,
+            arguments: arguments
+        )
+        .printFormattedOutput()
+        .do(onSubscribed: {
+            logger.notice("Building \(target.name) as .framework...", metadata: .subsection)
+        })
+        .ignoreElements()
+        .toBlocking()
+        .last()
     }
 
     fileprivate func exportFrameworksAndDSYMs(from buildDirectory: AbsolutePath,

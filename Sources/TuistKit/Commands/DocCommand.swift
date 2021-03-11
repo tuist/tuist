@@ -7,8 +7,10 @@ import TuistSupport
 
 struct DocCommand: ParsableCommand {
     static var configuration: CommandConfiguration {
-        CommandConfiguration(commandName: "doc",
-                             abstract: "Generates html documentation for a given target.")
+        CommandConfiguration(
+            commandName: "doc",
+            abstract: "Generates html documentation for a given target."
+        )
     }
 
     // MARK: - Options
@@ -26,8 +28,10 @@ struct DocCommand: ParsableCommand {
             absolutePath = FileHandler.shared.currentPath
         }
 
-        try DocService().run(project: absolutePath,
-                             target: options.target)
+        try DocService().run(
+            project: absolutePath,
+            target: options.target
+        )
     }
 }
 

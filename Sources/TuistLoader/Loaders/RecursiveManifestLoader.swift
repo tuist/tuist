@@ -48,9 +48,11 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
         }
 
         let projects = try loadProjects(paths: projectPaths)
-        return LoadedWorkspace(path: path,
-                               workspace: workspace,
-                               projects: projects.projects)
+        return LoadedWorkspace(
+            path: path,
+            workspace: workspace,
+            projects: projects.projects
+        )
     }
 
     // MARK: - Private

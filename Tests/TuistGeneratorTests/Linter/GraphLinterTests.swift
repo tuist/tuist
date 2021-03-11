@@ -18,8 +18,10 @@ final class GraphLinterTests: TuistUnitTestCase {
     override func setUp() {
         super.setUp()
         graphTraverser = MockGraphTraverser()
-        subject = GraphLinter(projectLinter: MockProjectLinter(),
-                              staticProductsLinter: MockStaticProductsGraphLinter())
+        subject = GraphLinter(
+            projectLinter: MockProjectLinter(),
+            staticProductsLinter: MockStaticProductsGraphLinter()
+        )
     }
 
     override func tearDown() {
@@ -106,9 +108,11 @@ final class GraphLinterTests: TuistUnitTestCase {
         let staticLibrary = Target.test(name: "staticLibrary", product: .staticLibrary)
 
         let app = Project.test(path: "/tmp/app", name: "App", targets: [appTarget])
-        let project = Project.test(path: path,
-                                   name: "projectStaticFramework",
-                                   targets: [staticFrameworkA, staticFrameworkB, staticLibrary])
+        let project = Project.test(
+            path: path,
+            name: "projectStaticFramework",
+            targets: [staticFrameworkA, staticFrameworkB, staticLibrary]
+        )
 
         let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
             .target(name: app.name, path: path): Set([.target(name: staticFrameworkA.name, path: path),
@@ -119,13 +123,15 @@ final class GraphLinterTests: TuistUnitTestCase {
             .target(name: staticLibrary.name, path: path): Set([]),
         ]
 
-        let graph = ValueGraph.test(path: path,
-                                    projects: [path: project],
-                                    targets: [path: [appTarget.name: appTarget,
-                                                     staticFrameworkA.name: staticFrameworkA,
-                                                     staticFrameworkB.name: staticFrameworkB,
-                                                     staticLibrary.name: staticLibrary]],
-                                    dependencies: dependencies)
+        let graph = ValueGraph.test(
+            path: path,
+            projects: [path: project],
+            targets: [path: [appTarget.name: appTarget,
+                             staticFrameworkA.name: staticFrameworkA,
+                             staticFrameworkB.name: staticFrameworkB,
+                             staticLibrary.name: staticLibrary]],
+            dependencies: dependencies
+        )
         let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
@@ -144,9 +150,11 @@ final class GraphLinterTests: TuistUnitTestCase {
         let staticFramework = Target.test(name: "staticFramework", product: .staticFramework)
 
         let app = Project.test(path: path, name: "App", targets: [appTarget])
-        let project = Project.test(path: "/tmp/staticframework",
-                                   name: "projectStaticFramework",
-                                   targets: [staticLibraryA, staticLibraryB, staticFramework])
+        let project = Project.test(
+            path: "/tmp/staticframework",
+            name: "projectStaticFramework",
+            targets: [staticLibraryA, staticLibraryB, staticFramework]
+        )
 
         let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
             .target(name: app.name, path: path): Set([.target(name: staticLibraryA.name, path: path),
@@ -157,13 +165,15 @@ final class GraphLinterTests: TuistUnitTestCase {
             .target(name: staticFramework.name, path: path): Set([]),
         ]
 
-        let graph = ValueGraph.test(path: path,
-                                    projects: [path: project],
-                                    targets: [path: [appTarget.name: appTarget,
-                                                     staticLibraryA.name: staticLibraryA,
-                                                     staticLibraryB.name: staticLibraryB,
-                                                     staticFramework.name: staticFramework]],
-                                    dependencies: dependencies)
+        let graph = ValueGraph.test(
+            path: path,
+            projects: [path: project],
+            targets: [path: [appTarget.name: appTarget,
+                             staticLibraryA.name: staticLibraryA,
+                             staticLibraryB.name: staticLibraryB,
+                             staticFramework.name: staticFramework]],
+            dependencies: dependencies
+        )
         let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
@@ -185,11 +195,13 @@ final class GraphLinterTests: TuistUnitTestCase {
             .target(name: framework.name, path: path): Set([.target(name: bundle.name, path: path)]),
         ]
 
-        let graph = ValueGraph.test(path: path,
-                                    projects: [path: project],
-                                    targets: [path: [bundle.name: bundle,
-                                                     framework.name: framework]],
-                                    dependencies: dependencies)
+        let graph = ValueGraph.test(
+            path: path,
+            projects: [path: project],
+            targets: [path: [bundle.name: bundle,
+                             framework.name: framework]],
+            dependencies: dependencies
+        )
         let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
@@ -211,11 +223,13 @@ final class GraphLinterTests: TuistUnitTestCase {
             .target(name: application.name, path: path): Set([.target(name: bundle.name, path: path)]),
         ]
 
-        let graph = ValueGraph.test(path: path,
-                                    projects: [path: project],
-                                    targets: [path: [bundle.name: bundle,
-                                                     application.name: application]],
-                                    dependencies: dependencies)
+        let graph = ValueGraph.test(
+            path: path,
+            projects: [path: project],
+            targets: [path: [bundle.name: bundle,
+                             application.name: application]],
+            dependencies: dependencies
+        )
         let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
@@ -239,12 +253,14 @@ final class GraphLinterTests: TuistUnitTestCase {
             .target(name: uiTests.name, path: path): Set([.target(name: bundle.name, path: path)]),
         ]
 
-        let graph = ValueGraph.test(path: path,
-                                    projects: [path: project],
-                                    targets: [path: [bundle.name: bundle,
-                                                     unitTests.name: unitTests,
-                                                     uiTests.name: uiTests]],
-                                    dependencies: dependencies)
+        let graph = ValueGraph.test(
+            path: path,
+            projects: [path: project],
+            targets: [path: [bundle.name: bundle,
+                             unitTests.name: unitTests,
+                             uiTests.name: uiTests]],
+            dependencies: dependencies
+        )
         let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
@@ -268,12 +284,14 @@ final class GraphLinterTests: TuistUnitTestCase {
             .target(name: dynamicFramework.name, path: path): Set([]),
         ]
 
-        let graph = ValueGraph.test(path: path,
-                                    projects: [path: project],
-                                    targets: [path: [staticFramework.name: staticFramework,
-                                                     staticLibrary.name: staticLibrary,
-                                                     dynamicFramework.name: dynamicFramework]],
-                                    dependencies: dependencies)
+        let graph = ValueGraph.test(
+            path: path,
+            projects: [path: project],
+            targets: [path: [staticFramework.name: staticFramework,
+                             staticLibrary.name: staticLibrary,
+                             dynamicFramework.name: dynamicFramework]],
+            dependencies: dependencies
+        )
         let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
@@ -297,12 +315,14 @@ final class GraphLinterTests: TuistUnitTestCase {
             .target(name: iosStaticLibrary.name, path: path): Set([]),
         ]
 
-        let graph = ValueGraph.test(path: path,
-                                    projects: [path: project],
-                                    targets: [path: [macStaticFramework.name: macStaticFramework,
-                                                     iosStaticFramework.name: iosStaticFramework,
-                                                     iosStaticLibrary.name: iosStaticLibrary]],
-                                    dependencies: dependencies)
+        let graph = ValueGraph.test(
+            path: path,
+            projects: [path: project],
+            targets: [path: [macStaticFramework.name: macStaticFramework,
+                             iosStaticFramework.name: iosStaticFramework,
+                             iosStaticLibrary.name: iosStaticLibrary]],
+            dependencies: dependencies
+        )
         let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
@@ -324,11 +344,13 @@ final class GraphLinterTests: TuistUnitTestCase {
             .target(name: watchExtension.name, path: path): Set([]),
         ]
 
-        let graph = ValueGraph.test(path: path,
-                                    projects: [path: project],
-                                    targets: [path: [watchExtension.name: watchExtension,
-                                                     watchApp.name: watchApp]],
-                                    dependencies: dependencies)
+        let graph = ValueGraph.test(
+            path: path,
+            projects: [path: project],
+            targets: [path: [watchExtension.name: watchExtension,
+                             watchApp.name: watchApp]],
+            dependencies: dependencies
+        )
         let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
@@ -350,11 +372,13 @@ final class GraphLinterTests: TuistUnitTestCase {
             .target(name: invalidDependency.name, path: path): Set([]),
         ]
 
-        let graph = ValueGraph.test(path: path,
-                                    projects: [path: project],
-                                    targets: [path: [invalidDependency.name: invalidDependency,
-                                                     watchApp.name: watchApp]],
-                                    dependencies: dependencies)
+        let graph = ValueGraph.test(
+            path: path,
+            projects: [path: project],
+            targets: [path: [invalidDependency.name: invalidDependency,
+                             watchApp.name: watchApp]],
+            dependencies: dependencies
+        )
         let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
@@ -390,15 +414,17 @@ final class GraphLinterTests: TuistUnitTestCase {
             .target(name: targetB.name, path: projectBPath): Set([.target(name: targetC.name, path: projectCPath)]),
             .target(name: targetC.name, path: projectCPath): Set([]),
         ]
-        let graph = ValueGraph.test(path: path,
-                                    workspace: Workspace.test(projects: [projectAPath, projectBPath, projectCPath]),
-                                    projects: [projectAPath: projectA,
-                                               projectBPath: projectB,
-                                               projectCPath: projectC],
-                                    targets: [projectAPath: [targetA.name: targetA],
-                                              projectBPath: [targetB.name: targetB],
-                                              projectCPath: [targetC.name: targetC]],
-                                    dependencies: dependencies)
+        let graph = ValueGraph.test(
+            path: path,
+            workspace: Workspace.test(projects: [projectAPath, projectBPath, projectCPath]),
+            projects: [projectAPath: projectA,
+                       projectBPath: projectB,
+                       projectCPath: projectC],
+            targets: [projectAPath: [targetA.name: targetA],
+                      projectBPath: [targetB.name: targetB],
+                      projectCPath: [targetC.name: targetC]],
+            dependencies: dependencies
+        )
         let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
@@ -406,8 +432,10 @@ final class GraphLinterTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(result, [
-            LintingIssue(reason: "The project 'ProjectC' has missing or mismatching configurations. It has [Debug (debug), Release (release)], other projects have [Beta (release), Debug (debug), Release (release), Testing (debug)]",
-                         severity: .warning),
+            LintingIssue(
+                reason: "The project 'ProjectC' has missing or mismatching configurations. It has [Debug (debug), Release (release)], other projects have [Beta (release), Debug (debug), Release (release), Testing (debug)]",
+                severity: .warning
+            ),
         ])
     }
 
@@ -444,15 +472,17 @@ final class GraphLinterTests: TuistUnitTestCase {
             .target(name: targetC.name, path: projectCPath): Set([]),
         ]
 
-        let graph = ValueGraph.test(path: path,
-                                    workspace: Workspace.test(projects: [projectAPath]),
-                                    projects: [projectAPath: projectA,
-                                               projectBPath: projectB,
-                                               projectCPath: projectC],
-                                    targets: [projectAPath: [targetA.name: targetA],
-                                              projectBPath: [targetB.name: targetB],
-                                              projectCPath: [targetC.name: targetC]],
-                                    dependencies: dependencies)
+        let graph = ValueGraph.test(
+            path: path,
+            workspace: Workspace.test(projects: [projectAPath]),
+            projects: [projectAPath: projectA,
+                       projectBPath: projectB,
+                       projectCPath: projectC],
+            targets: [projectAPath: [targetA.name: targetA],
+                      projectBPath: [targetB.name: targetB],
+                      projectCPath: [targetC.name: targetC]],
+            dependencies: dependencies
+        )
         let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
@@ -460,8 +490,10 @@ final class GraphLinterTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(result, [
-            LintingIssue(reason: "The project 'ProjectC' has missing or mismatching configurations. It has [Beta (release), Debug (release), Release (release), Testing (release)], other projects have [Beta (release), Debug (debug), Release (release), Testing (debug)]",
-                         severity: .warning),
+            LintingIssue(
+                reason: "The project 'ProjectC' has missing or mismatching configurations. It has [Beta (release), Debug (release), Release (release), Testing (release)], other projects have [Beta (release), Debug (debug), Release (release), Testing (debug)]",
+                severity: .warning
+            ),
         ])
     }
 
@@ -500,15 +532,17 @@ final class GraphLinterTests: TuistUnitTestCase {
             .target(name: targetC.name, path: projectCPath): Set([]),
         ]
 
-        let graph = ValueGraph.test(path: path,
-                                    workspace: Workspace.test(projects: [projectAPath, projectBPath]),
-                                    projects: [projectAPath: projectA,
-                                               projectBPath: projectB,
-                                               projectCPath: projectC],
-                                    targets: [projectAPath: [targetA.name: targetA],
-                                              projectBPath: [targetB.name: targetB],
-                                              projectCPath: [targetC.name: targetC]],
-                                    dependencies: dependencies)
+        let graph = ValueGraph.test(
+            path: path,
+            workspace: Workspace.test(projects: [projectAPath, projectBPath]),
+            projects: [projectAPath: projectA,
+                       projectBPath: projectB,
+                       projectCPath: projectC],
+            targets: [projectAPath: [targetA.name: targetA],
+                      projectBPath: [targetB.name: targetB],
+                      projectCPath: [targetC.name: targetC]],
+            dependencies: dependencies
+        )
         let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
@@ -521,17 +555,23 @@ final class GraphLinterTests: TuistUnitTestCase {
     func test_lint_valid_watchTargetBundleIdentifiers() throws {
         // Given
         let path: AbsolutePath = "/project"
-        let app = Target.test(name: "App",
-                              product: .app,
-                              bundleId: "app")
-        let watchApp = Target.test(name: "WatchApp",
-                                   platform: .watchOS,
-                                   product: .watch2App,
-                                   bundleId: "app.watchapp")
-        let watchExtension = Target.test(name: "WatchExtension",
-                                         platform: .watchOS,
-                                         product: .watch2Extension,
-                                         bundleId: "app.watchapp.watchextension")
+        let app = Target.test(
+            name: "App",
+            product: .app,
+            bundleId: "app"
+        )
+        let watchApp = Target.test(
+            name: "WatchApp",
+            platform: .watchOS,
+            product: .watch2App,
+            bundleId: "app.watchapp"
+        )
+        let watchExtension = Target.test(
+            name: "WatchExtension",
+            platform: .watchOS,
+            product: .watch2Extension,
+            bundleId: "app.watchapp.watchextension"
+        )
         let project = Project.test(path: path, targets: [app, watchApp, watchExtension])
 
         let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
@@ -540,11 +580,13 @@ final class GraphLinterTests: TuistUnitTestCase {
             .target(name: watchExtension.name, path: path): Set([]),
         ]
 
-        let graph = ValueGraph.test(path: path,
-                                    workspace: Workspace.test(projects: [path]),
-                                    projects: [path: project],
-                                    targets: [path: [app.name: app, watchApp.name: watchApp, watchExtension.name: watchExtension]],
-                                    dependencies: dependencies)
+        let graph = ValueGraph.test(
+            path: path,
+            workspace: Workspace.test(projects: [path]),
+            projects: [path: project],
+            targets: [path: [app.name: app, watchApp.name: watchApp, watchExtension.name: watchExtension]],
+            dependencies: dependencies
+        )
         let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
@@ -557,17 +599,23 @@ final class GraphLinterTests: TuistUnitTestCase {
     func test_lint_invalid_watchTargetBundleIdentifiers() throws {
         // Given
         let path: AbsolutePath = "/project"
-        let app = Target.test(name: "App",
-                              product: .app,
-                              bundleId: "app")
-        let watchApp = Target.test(name: "WatchApp",
-                                   platform: .watchOS,
-                                   product: .watch2App,
-                                   bundleId: "watchapp")
-        let watchExtension = Target.test(name: "WatchExtension",
-                                         platform: .watchOS,
-                                         product: .watch2Extension,
-                                         bundleId: "watchextension")
+        let app = Target.test(
+            name: "App",
+            product: .app,
+            bundleId: "app"
+        )
+        let watchApp = Target.test(
+            name: "WatchApp",
+            platform: .watchOS,
+            product: .watch2App,
+            bundleId: "watchapp"
+        )
+        let watchExtension = Target.test(
+            name: "WatchExtension",
+            platform: .watchOS,
+            product: .watch2Extension,
+            bundleId: "watchextension"
+        )
         let project = Project.test(targets: [app, watchApp, watchExtension])
 
         let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
@@ -576,11 +624,13 @@ final class GraphLinterTests: TuistUnitTestCase {
             .target(name: watchExtension.name, path: path): Set([]),
         ]
 
-        let graph = ValueGraph.test(path: path,
-                                    workspace: Workspace.test(projects: [path]),
-                                    projects: [path: project],
-                                    targets: [path: [app.name: app, watchApp.name: watchApp, watchExtension.name: watchExtension]],
-                                    dependencies: dependencies)
+        let graph = ValueGraph.test(
+            path: path,
+            workspace: Workspace.test(projects: [path]),
+            projects: [path: project],
+            targets: [path: [app.name: app, watchApp.name: watchApp, watchExtension.name: watchExtension]],
+            dependencies: dependencies
+        )
         let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
@@ -588,10 +638,14 @@ final class GraphLinterTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(got, [
-            LintingIssue(reason: "Watch app 'WatchApp' bundleId: watchapp isn't prefixed with its parent's app 'app' bundleId 'app'",
-                         severity: .error),
-            LintingIssue(reason: "Watch extension 'WatchExtension' bundleId: watchextension isn't prefixed with its parent's watch app 'watchapp' bundleId 'watchapp'",
-                         severity: .error),
+            LintingIssue(
+                reason: "Watch app 'WatchApp' bundleId: watchapp isn't prefixed with its parent's app 'app' bundleId 'app'",
+                severity: .error
+            ),
+            LintingIssue(
+                reason: "Watch extension 'WatchExtension' bundleId: watchextension isn't prefixed with its parent's watch app 'watchapp' bundleId 'watchapp'",
+                severity: .error
+            ),
         ])
     }
 
@@ -605,25 +659,31 @@ final class GraphLinterTests: TuistUnitTestCase {
 
         let entitlementsPath = temporaryPath.appending(RelativePath("entitlements/AppClip.entitlements"))
 
-        let app = Target.test(name: "App",
-                              product: .app,
-                              bundleId: "com.example.app")
-        let appClip = Target.test(name: "AppClip",
-                                  platform: .iOS,
-                                  product: .appClip,
-                                  bundleId: "com.example.app.clip",
-                                  entitlements: entitlementsPath)
+        let app = Target.test(
+            name: "App",
+            product: .app,
+            bundleId: "com.example.app"
+        )
+        let appClip = Target.test(
+            name: "AppClip",
+            platform: .iOS,
+            product: .appClip,
+            bundleId: "com.example.app.clip",
+            entitlements: entitlementsPath
+        )
         let project = Project.test(path: temporaryPath, targets: [app, appClip])
         let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
             .target(name: app.name, path: temporaryPath): Set([.target(name: appClip.name, path: temporaryPath)]),
             .target(name: appClip.name, path: temporaryPath): Set([]),
         ]
 
-        let graph = ValueGraph.test(path: temporaryPath,
-                                    workspace: Workspace.test(projects: [temporaryPath]),
-                                    projects: [temporaryPath: project],
-                                    targets: [temporaryPath: [app.name: app, appClip.name: appClip]],
-                                    dependencies: dependencies)
+        let graph = ValueGraph.test(
+            path: temporaryPath,
+            workspace: Workspace.test(projects: [temporaryPath]),
+            projects: [temporaryPath: project],
+            targets: [temporaryPath: [app.name: app, appClip.name: appClip]],
+            dependencies: dependencies
+        )
         let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
@@ -643,14 +703,18 @@ final class GraphLinterTests: TuistUnitTestCase {
 
         let entitlementsPath = temporaryPath.appending(RelativePath("entitlements/AppClip.entitlements"))
 
-        let app = Target.test(name: "TestApp",
-                              product: .app,
-                              bundleId: "com.example.app")
-        let appClip = Target.test(name: "TestAppClip",
-                                  platform: .iOS,
-                                  product: .appClip,
-                                  bundleId: "com.example1.app.clip",
-                                  entitlements: entitlementsPath)
+        let app = Target.test(
+            name: "TestApp",
+            product: .app,
+            bundleId: "com.example.app"
+        )
+        let appClip = Target.test(
+            name: "TestAppClip",
+            platform: .iOS,
+            product: .appClip,
+            bundleId: "com.example1.app.clip",
+            entitlements: entitlementsPath
+        )
         let project = Project.test(targets: [app, appClip])
 
         let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
@@ -658,11 +722,13 @@ final class GraphLinterTests: TuistUnitTestCase {
             .target(name: appClip.name, path: temporaryPath): Set([]),
         ]
 
-        let graph = ValueGraph.test(path: temporaryPath,
-                                    workspace: Workspace.test(projects: [temporaryPath]),
-                                    projects: [temporaryPath: project],
-                                    targets: [temporaryPath: [app.name: app, appClip.name: appClip]],
-                                    dependencies: dependencies)
+        let graph = ValueGraph.test(
+            path: temporaryPath,
+            workspace: Workspace.test(projects: [temporaryPath]),
+            projects: [temporaryPath: project],
+            targets: [temporaryPath: [app.name: app, appClip.name: appClip]],
+            dependencies: dependencies
+        )
         let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
@@ -670,21 +736,27 @@ final class GraphLinterTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(got, [
-            LintingIssue(reason: "AppClip 'TestAppClip' bundleId: com.example1.app.clip isn't prefixed with its parent's app 'TestApp' bundleId 'com.example.app'",
-                         severity: .error),
+            LintingIssue(
+                reason: "AppClip 'TestAppClip' bundleId: com.example1.app.clip isn't prefixed with its parent's app 'TestApp' bundleId 'com.example.app'",
+                severity: .error
+            ),
         ])
     }
 
     func test_lint_when_appclip_is_missing_required_entitlements() throws {
         // Given
         let path: AbsolutePath = "/project"
-        let app = Target.test(name: "App",
-                              product: .app,
-                              bundleId: "com.example.app")
-        let appClip = Target.test(name: "AppClip",
-                                  platform: .iOS,
-                                  product: .appClip,
-                                  bundleId: "com.example.app.clip")
+        let app = Target.test(
+            name: "App",
+            product: .app,
+            bundleId: "com.example.app"
+        )
+        let appClip = Target.test(
+            name: "AppClip",
+            platform: .iOS,
+            product: .appClip,
+            bundleId: "com.example.app.clip"
+        )
         let project = Project.test(path: path, targets: [app, appClip])
 
         let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
@@ -692,11 +764,13 @@ final class GraphLinterTests: TuistUnitTestCase {
             .target(name: appClip.name, path: path): Set([]),
         ]
 
-        let graph = ValueGraph.test(path: path,
-                                    workspace: Workspace.test(projects: [path]),
-                                    projects: [path: project],
-                                    targets: [path: [app.name: app, appClip.name: appClip]],
-                                    dependencies: dependencies)
+        let graph = ValueGraph.test(
+            path: path,
+            workspace: Workspace.test(projects: [path]),
+            projects: [path: project],
+            targets: [path: [app.name: app, appClip.name: appClip]],
+            dependencies: dependencies
+        )
         let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
@@ -704,22 +778,28 @@ final class GraphLinterTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(got, [
-            LintingIssue(reason: "An AppClip 'AppClip' requires its Parent Application Identifiers Entitlement to be set",
-                         severity: .error),
+            LintingIssue(
+                reason: "An AppClip 'AppClip' requires its Parent Application Identifiers Entitlement to be set",
+                severity: .error
+            ),
         ])
     }
 
     func test_lint_when_appclip_entitlements_does_not_exist() throws {
         // Given
         let path: AbsolutePath = "/project"
-        let app = Target.test(name: "App",
-                              product: .app,
-                              bundleId: "com.example.app")
-        let appClip = Target.test(name: "AppClip",
-                                  platform: .iOS,
-                                  product: .appClip,
-                                  bundleId: "com.example.app.clip",
-                                  entitlements: "/entitlements/AppClip.entitlements")
+        let app = Target.test(
+            name: "App",
+            product: .app,
+            bundleId: "com.example.app"
+        )
+        let appClip = Target.test(
+            name: "AppClip",
+            platform: .iOS,
+            product: .appClip,
+            bundleId: "com.example.app.clip",
+            entitlements: "/entitlements/AppClip.entitlements"
+        )
         let project = Project.test(path: path, targets: [app, appClip])
 
         let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
@@ -727,11 +807,13 @@ final class GraphLinterTests: TuistUnitTestCase {
             .target(name: appClip.name, path: path): Set([]),
         ]
 
-        let graph = ValueGraph.test(path: path,
-                                    workspace: Workspace.test(projects: [path]),
-                                    projects: [path: project],
-                                    targets: [path: [app.name: app, appClip.name: appClip]],
-                                    dependencies: dependencies)
+        let graph = ValueGraph.test(
+            path: path,
+            workspace: Workspace.test(projects: [path]),
+            projects: [path: project],
+            targets: [path: [app.name: app, appClip.name: appClip]],
+            dependencies: dependencies
+        )
         let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
@@ -739,8 +821,10 @@ final class GraphLinterTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(got, [
-            LintingIssue(reason: "The entitlements at path '/entitlements/AppClip.entitlements' referenced by target does not exist",
-                         severity: .error),
+            LintingIssue(
+                reason: "The entitlements at path '/entitlements/AppClip.entitlements' referenced by target does not exist",
+                severity: .error
+            ),
         ])
     }
 
@@ -754,20 +838,26 @@ final class GraphLinterTests: TuistUnitTestCase {
 
         let entitlementsPath = temporaryPath.appending(RelativePath("entitlements/AppClip.entitlements"))
 
-        let app = Target.test(name: "App",
-                              product: .app,
-                              bundleId: "com.example.app")
-        let appClip1 = Target.test(name: "AppClip1",
-                                   platform: .iOS,
-                                   product: .appClip,
-                                   bundleId: "com.example.app.clip1",
-                                   entitlements: entitlementsPath)
+        let app = Target.test(
+            name: "App",
+            product: .app,
+            bundleId: "com.example.app"
+        )
+        let appClip1 = Target.test(
+            name: "AppClip1",
+            platform: .iOS,
+            product: .appClip,
+            bundleId: "com.example.app.clip1",
+            entitlements: entitlementsPath
+        )
 
-        let appClip2 = Target.test(name: "AppClip2",
-                                   platform: .iOS,
-                                   product: .appClip,
-                                   bundleId: "com.example.app.clip2",
-                                   entitlements: entitlementsPath)
+        let appClip2 = Target.test(
+            name: "AppClip2",
+            platform: .iOS,
+            product: .appClip,
+            bundleId: "com.example.app.clip2",
+            entitlements: entitlementsPath
+        )
 
         let project = Project.test(path: temporaryPath, targets: [app, appClip1, appClip2])
 
@@ -777,11 +867,13 @@ final class GraphLinterTests: TuistUnitTestCase {
             .target(name: appClip2.name, path: temporaryPath): Set([]),
         ]
 
-        let graph = ValueGraph.test(path: temporaryPath,
-                                    workspace: Workspace.test(projects: [temporaryPath]),
-                                    projects: [temporaryPath: project],
-                                    targets: [temporaryPath: [app.name: app, appClip1.name: appClip1, appClip2.name: appClip2]],
-                                    dependencies: dependencies)
+        let graph = ValueGraph.test(
+            path: temporaryPath,
+            workspace: Workspace.test(projects: [temporaryPath]),
+            projects: [temporaryPath: project],
+            targets: [temporaryPath: [app.name: app, appClip1.name: appClip1, appClip2.name: appClip2]],
+            dependencies: dependencies
+        )
         let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
@@ -789,22 +881,76 @@ final class GraphLinterTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(got, [
-            LintingIssue(reason: "Target 'App' at path '\(temporaryPath.pathString)' cannot depend on more than one app clip: AppClip1 and AppClip2",
-                         severity: .error),
+            LintingIssue(
+                reason: "Target 'App' at path '\(temporaryPath.pathString)' cannot depend on more than one app clip: AppClip1 and AppClip2",
+                severity: .error
+            ),
         ])
+    }
+
+    func test_lint_when_appClip_has_a_framework_dependency() throws {
+        // Given
+        let temporaryPath = try self.temporaryPath()
+
+        try createFiles([
+            "entitlements/AppClip.entitlements",
+        ])
+
+        let entitlementsPath = temporaryPath.appending(RelativePath("entitlements/AppClip.entitlements"))
+
+        let framework = Target.empty(name: "Framework", product: .framework)
+
+        let app = Target.test(
+            name: "App",
+            product: .app,
+            bundleId: "com.example.app"
+        )
+        let appClip = Target.test(
+            name: "AppClip",
+            platform: .iOS,
+            product: .appClip,
+            bundleId: "com.example.app.clip1",
+            entitlements: entitlementsPath
+        )
+
+        let project = Project.test(path: temporaryPath, targets: [app, appClip, framework])
+
+        let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
+            .target(name: app.name, path: temporaryPath): Set([.target(name: appClip.name, path: temporaryPath)]),
+            .target(name: appClip.name, path: temporaryPath): Set([.target(name: framework.name, path: temporaryPath)]),
+        ]
+
+        let graph = ValueGraph.test(
+            path: temporaryPath,
+            workspace: Workspace.test(projects: [temporaryPath]),
+            projects: [temporaryPath: project],
+            targets: [temporaryPath: [app.name: app, appClip.name: appClip, framework.name: framework]],
+            dependencies: dependencies
+        )
+        let graphTraverser = ValueGraphTraverser(graph: graph)
+
+        // When
+        let got = subject.lint(graphTraverser: graphTraverser)
+
+        // Then
+        XCTAssertEmpty(got)
     }
 
     func test_lint_when_cli_tool_links_dynamic_framework() throws {
         // Given
         let path: AbsolutePath = "/project"
-        let tool = Target.test(name: "App",
-                               platform: .macOS,
-                               product: .commandLineTool,
-                               bundleId: "com.example.app")
-        let dynamic = Target.test(name: "Dynamic",
-                                  platform: .macOS,
-                                  product: .framework,
-                                  bundleId: "com.example.dynamic")
+        let tool = Target.test(
+            name: "App",
+            platform: .macOS,
+            product: .commandLineTool,
+            bundleId: "com.example.app"
+        )
+        let dynamic = Target.test(
+            name: "Dynamic",
+            platform: .macOS,
+            product: .framework,
+            bundleId: "com.example.dynamic"
+        )
 
         let project = Project.test(path: path, targets: [tool, dynamic])
 
@@ -813,11 +959,13 @@ final class GraphLinterTests: TuistUnitTestCase {
             .target(name: dynamic.name, path: path): Set([]),
         ]
 
-        let graph = ValueGraph.test(path: path,
-                                    workspace: Workspace.test(projects: [path]),
-                                    projects: [path: project],
-                                    targets: [path: [tool.name: tool, dynamic.name: dynamic]],
-                                    dependencies: dependencies)
+        let graph = ValueGraph.test(
+            path: path,
+            workspace: Workspace.test(projects: [path]),
+            projects: [path: project],
+            targets: [path: [tool.name: tool, dynamic.name: dynamic]],
+            dependencies: dependencies
+        )
         let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
@@ -825,22 +973,28 @@ final class GraphLinterTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(got, [
-            LintingIssue(reason: "Target App has a dependency with target Dynamic of type framework for platform 'macOS' which is invalid or not supported yet.",
-                         severity: .error),
+            LintingIssue(
+                reason: "Target App has a dependency with target Dynamic of type framework for platform 'macOS' which is invalid or not supported yet.",
+                severity: .error
+            ),
         ])
     }
 
     func test_lint_when_cli_tool_links_dynamic_library() throws {
         // Given
         let path: AbsolutePath = "/project"
-        let tool = Target.test(name: "App",
-                               platform: .macOS,
-                               product: .commandLineTool,
-                               bundleId: "com.example.app")
-        let dynamic = Target.test(name: "Dynamic",
-                                  platform: .macOS,
-                                  product: .dynamicLibrary,
-                                  bundleId: "com.example.dynamic")
+        let tool = Target.test(
+            name: "App",
+            platform: .macOS,
+            product: .commandLineTool,
+            bundleId: "com.example.app"
+        )
+        let dynamic = Target.test(
+            name: "Dynamic",
+            platform: .macOS,
+            product: .dynamicLibrary,
+            bundleId: "com.example.dynamic"
+        )
 
         let project = Project.test(path: path, targets: [tool, dynamic])
 
@@ -849,11 +1003,13 @@ final class GraphLinterTests: TuistUnitTestCase {
             .target(name: dynamic.name, path: path): Set([]),
         ]
 
-        let graph = ValueGraph.test(path: path,
-                                    workspace: Workspace.test(projects: [path]),
-                                    projects: [path: project],
-                                    targets: [path: [tool.name: tool, dynamic.name: dynamic]],
-                                    dependencies: dependencies)
+        let graph = ValueGraph.test(
+            path: path,
+            workspace: Workspace.test(projects: [path]),
+            projects: [path: project],
+            targets: [path: [tool.name: tool, dynamic.name: dynamic]],
+            dependencies: dependencies
+        )
         let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
@@ -867,18 +1023,24 @@ final class GraphLinterTests: TuistUnitTestCase {
         // Given
         let path: AbsolutePath = "/project"
 
-        let tool = Target.test(name: "App",
-                               platform: .macOS,
-                               product: .commandLineTool,
-                               bundleId: "com.example.app")
-        let staticLib = Target.test(name: "StaticLib",
-                                    platform: .macOS,
-                                    product: .staticLibrary,
-                                    bundleId: "com.example.staticlib")
-        let staticFmwk = Target.test(name: "StaticFramework",
-                                     platform: .macOS,
-                                     product: .staticLibrary,
-                                     bundleId: "com.example.staticfmwk")
+        let tool = Target.test(
+            name: "App",
+            platform: .macOS,
+            product: .commandLineTool,
+            bundleId: "com.example.app"
+        )
+        let staticLib = Target.test(
+            name: "StaticLib",
+            platform: .macOS,
+            product: .staticLibrary,
+            bundleId: "com.example.staticlib"
+        )
+        let staticFmwk = Target.test(
+            name: "StaticFramework",
+            platform: .macOS,
+            product: .staticLibrary,
+            bundleId: "com.example.staticfmwk"
+        )
 
         let project = Project.test(path: path, targets: [tool, staticLib, staticFmwk])
 
@@ -888,11 +1050,13 @@ final class GraphLinterTests: TuistUnitTestCase {
             .target(name: staticFmwk.name, path: path): Set([]),
         ]
 
-        let graph = ValueGraph.test(path: path,
-                                    workspace: Workspace.test(projects: [path]),
-                                    projects: [path: project],
-                                    targets: [path: [tool.name: tool, staticFmwk.name: staticFmwk, staticLib.name: staticLib]],
-                                    dependencies: dependencies)
+        let graph = ValueGraph.test(
+            path: path,
+            workspace: Workspace.test(projects: [path]),
+            projects: [path: project],
+            targets: [path: [tool.name: tool, staticFmwk.name: staticFmwk, staticLib.name: staticLib]],
+            dependencies: dependencies
+        )
         let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
@@ -910,9 +1074,11 @@ final class GraphLinterTests: TuistUnitTestCase {
         let frameworkB = Target.test(name: "frameworkB", product: .framework, bundleId: "com.tuist.frameworks.test2")
 
         let app = Project.test(path: path, name: "App", targets: [appTarget])
-        let frameworks1 = Project.test(path: "/tmp/frameworks1",
-                                       name: "Frameworks1",
-                                       targets: [frameworkA, frameworkB])
+        let frameworks1 = Project.test(
+            path: "/tmp/frameworks1",
+            name: "Frameworks1",
+            targets: [frameworkA, frameworkB]
+        )
 
         let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
             .target(name: app.name, path: path): Set([.target(name: frameworkA.name, path: frameworks1.path),
@@ -921,12 +1087,14 @@ final class GraphLinterTests: TuistUnitTestCase {
 
         let project = Project.test(path: path, targets: [appTarget, frameworkA, frameworkB])
 
-        let graph = ValueGraph.test(path: path,
-                                    workspace: Workspace.test(projects: [path]),
-                                    projects: [path: project],
-                                    targets: [path: [appTarget.name: appTarget],
-                                              frameworks1.path: [frameworkA.name: frameworkA, frameworkB.name: frameworkB]],
-                                    dependencies: dependencies)
+        let graph = ValueGraph.test(
+            path: path,
+            workspace: Workspace.test(projects: [path]),
+            projects: [path: project],
+            targets: [path: [appTarget.name: appTarget],
+                      frameworks1.path: [frameworkA.name: frameworkA, frameworkB.name: frameworkB]],
+            dependencies: dependencies
+        )
         let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
@@ -948,15 +1116,21 @@ final class GraphLinterTests: TuistUnitTestCase {
         let frameworkF = Target.test(name: "frameworkF", product: .framework, bundleId: "com.tuist.frameworks.test")
 
         let app = Project.test(path: path, name: "App", targets: [appTarget])
-        let frameworks1 = Project.test(path: "/tmp/frameworks1",
-                                       name: "Frameworks1",
-                                       targets: [frameworkA, frameworkB])
-        let frameworks2 = Project.test(path: "/tmp/frameworks2",
-                                       name: "Frameworks2",
-                                       targets: [frameworkC, frameworkD])
-        let frameworks3 = Project.test(path: "/tmp/frameworks3",
-                                       name: "Frameworks3",
-                                       targets: [frameworkE, frameworkF])
+        let frameworks1 = Project.test(
+            path: "/tmp/frameworks1",
+            name: "Frameworks1",
+            targets: [frameworkA, frameworkB]
+        )
+        let frameworks2 = Project.test(
+            path: "/tmp/frameworks2",
+            name: "Frameworks2",
+            targets: [frameworkC, frameworkD]
+        )
+        let frameworks3 = Project.test(
+            path: "/tmp/frameworks3",
+            name: "Frameworks3",
+            targets: [frameworkE, frameworkF]
+        )
 
         let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
             .target(name: app.name, path: path): Set([.target(name: frameworkA.name, path: frameworks1.path),
@@ -969,14 +1143,16 @@ final class GraphLinterTests: TuistUnitTestCase {
 
         let project = Project.test(path: path, targets: [appTarget, frameworkA, frameworkB, frameworkC, frameworkD, frameworkE, frameworkF])
 
-        let graph = ValueGraph.test(path: path,
-                                    workspace: Workspace.test(projects: [path]),
-                                    projects: [path: project],
-                                    targets: [path: [appTarget.name: appTarget],
-                                              frameworks1.path: [frameworkA.name: frameworkA, frameworkB.name: frameworkB],
-                                              frameworks2.path: [frameworkC.name: frameworkC, frameworkD.name: frameworkD],
-                                              frameworks3.path: [frameworkE.name: frameworkE, frameworkF.name: frameworkF]],
-                                    dependencies: dependencies)
+        let graph = ValueGraph.test(
+            path: path,
+            workspace: Workspace.test(projects: [path]),
+            projects: [path: project],
+            targets: [path: [appTarget.name: appTarget],
+                      frameworks1.path: [frameworkA.name: frameworkA, frameworkB.name: frameworkB],
+                      frameworks2.path: [frameworkC.name: frameworkC, frameworkD.name: frameworkD],
+                      frameworks3.path: [frameworkE.name: frameworkE, frameworkF.name: frameworkF]],
+            dependencies: dependencies
+        )
         let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
@@ -997,9 +1173,11 @@ final class GraphLinterTests: TuistUnitTestCase {
         let frameworkB = Target.test(name: "frameworkB", product: .framework, bundleId: "${ANY_VARIABLE}")
 
         let app = Project.test(path: path, name: "App", targets: [appTarget])
-        let frameworks1 = Project.test(path: "/tmp/frameworks1",
-                                       name: "Frameworks1",
-                                       targets: [frameworkA, frameworkB])
+        let frameworks1 = Project.test(
+            path: "/tmp/frameworks1",
+            name: "Frameworks1",
+            targets: [frameworkA, frameworkB]
+        )
 
         let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
             .target(name: app.name, path: path): Set([.target(name: frameworkA.name, path: frameworks1.path),
@@ -1008,12 +1186,14 @@ final class GraphLinterTests: TuistUnitTestCase {
 
         let project = Project.test(path: path, targets: [appTarget, frameworkA, frameworkB])
 
-        let graph = ValueGraph.test(path: path,
-                                    workspace: Workspace.test(projects: [path]),
-                                    projects: [path: project],
-                                    targets: [path: [appTarget.name: appTarget],
-                                              frameworks1.path: [frameworkA.name: frameworkA, frameworkB.name: frameworkB]],
-                                    dependencies: dependencies)
+        let graph = ValueGraph.test(
+            path: path,
+            workspace: Workspace.test(projects: [path]),
+            projects: [path: project],
+            targets: [path: [appTarget.name: appTarget],
+                      frameworks1.path: [frameworkA.name: frameworkA, frameworkB.name: frameworkB]],
+            dependencies: dependencies
+        )
         let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When

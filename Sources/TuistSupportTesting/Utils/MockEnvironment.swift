@@ -10,9 +10,11 @@ public class MockEnvironment: Environmenting {
 
     init() throws {
         directory = try TemporaryDirectory(removeTreeOnDeinit: true)
-        try FileManager.default.createDirectory(at: versionsDirectory.url,
-                                                withIntermediateDirectories: true,
-                                                attributes: nil)
+        try FileManager.default.createDirectory(
+            at: versionsDirectory.url,
+            withIntermediateDirectories: true,
+            attributes: nil
+        )
     }
 
     public var isVerbose: Bool = false
@@ -32,6 +34,10 @@ public class MockEnvironment: Environmenting {
         directory.path.appending(component: "settings.json")
     }
 
+    public var automationPath: AbsolutePath? {
+        nil
+    }
+
     public var cacheDirectory: AbsolutePath {
         cacheDirectoryStub ?? directory.path.appending(component: "Cache")
     }
@@ -46,6 +52,10 @@ public class MockEnvironment: Environmenting {
 
     public var projectsCacheDirectory: AbsolutePath {
         cacheDirectory.appending(component: "Projects")
+    }
+
+    public var testsCacheDirectory: AbsolutePath {
+        cacheDirectory.appending(component: "TestsCache")
     }
 
     public var buildCacheDirectory: AbsolutePath {

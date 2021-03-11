@@ -57,23 +57,27 @@ final class LinkGeneratorTests: XCTestCase {
         pbxproj.add(object: wakaFile)
         fileElements.products["Test"] = wakaFile
         let sourceRootPath = AbsolutePath("/")
-        embedScriptGenerator.scriptStub = .success(EmbedScript(script: "script",
-                                                               inputPaths: [RelativePath("frameworks/A.framework")],
-                                                               outputPaths: ["output/A.framework"]))
+        embedScriptGenerator.scriptStub = .success(EmbedScript(
+            script: "script",
+            inputPaths: [RelativePath("frameworks/A.framework")],
+            outputPaths: ["output/A.framework"]
+        ))
 
         // When
-        try subject.generateEmbedPhase(dependencies: dependencies,
-                                       target: target,
-                                       pbxTarget: pbxTarget,
-                                       pbxproj: pbxproj,
-                                       fileElements: fileElements,
-                                       sourceRootPath: sourceRootPath)
+        try subject.generateEmbedPhase(
+            dependencies: dependencies,
+            target: target,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            fileElements: fileElements,
+            sourceRootPath: sourceRootPath
+        )
 
         // Then
         let scriptBuildPhase: PBXShellScriptBuildPhase? = pbxTarget.buildPhases.first as? PBXShellScriptBuildPhase
         XCTAssertEqual(scriptBuildPhase?.name, "Embed Precompiled Frameworks")
         XCTAssertEqual(scriptBuildPhase?.shellScript, "script")
-        XCTAssertEqual(scriptBuildPhase?.inputPaths, ["frameworks/A.framework"])
+        XCTAssertEqual(scriptBuildPhase?.inputPaths, ["$(SRCROOT)/frameworks/A.framework"])
         XCTAssertEqual(scriptBuildPhase?.outputPaths, ["output/A.framework"])
 
         let embedBuildPhase = try XCTUnwrap(pbxTarget.embedFrameworksBuildPhases().first)
@@ -102,17 +106,21 @@ final class LinkGeneratorTests: XCTestCase {
             pbxproj.add(object: wakaFile)
             fileElements.products["Test"] = wakaFile
             let sourceRootPath = AbsolutePath("/")
-            embedScriptGenerator.scriptStub = .success(EmbedScript(script: "script",
-                                                                   inputPaths: [RelativePath("frameworks/A.framework")],
-                                                                   outputPaths: ["output/A.framework"]))
+            embedScriptGenerator.scriptStub = .success(EmbedScript(
+                script: "script",
+                inputPaths: [RelativePath("frameworks/A.framework")],
+                outputPaths: ["output/A.framework"]
+            ))
 
             // When
-            try subject.generateEmbedPhase(dependencies: dependencies,
-                                           target: target,
-                                           pbxTarget: pbxTarget,
-                                           pbxproj: pbxproj,
-                                           fileElements: fileElements,
-                                           sourceRootPath: sourceRootPath)
+            try subject.generateEmbedPhase(
+                dependencies: dependencies,
+                target: target,
+                pbxTarget: pbxTarget,
+                pbxproj: pbxproj,
+                fileElements: fileElements,
+                sourceRootPath: sourceRootPath
+            )
 
             XCTAssert(embedScriptGenerator.scriptArgs.last?.2 == true, "Expected `includeSymbolsInFileLists == true` for product `\(product)`")
         }
@@ -132,17 +140,21 @@ final class LinkGeneratorTests: XCTestCase {
             pbxproj.add(object: wakaFile)
             fileElements.products["Test"] = wakaFile
             let sourceRootPath = AbsolutePath("/")
-            embedScriptGenerator.scriptStub = .success(EmbedScript(script: "script",
-                                                                   inputPaths: [RelativePath("frameworks/A.framework")],
-                                                                   outputPaths: ["output/A.framework"]))
+            embedScriptGenerator.scriptStub = .success(EmbedScript(
+                script: "script",
+                inputPaths: [RelativePath("frameworks/A.framework")],
+                outputPaths: ["output/A.framework"]
+            ))
 
             // When
-            try subject.generateEmbedPhase(dependencies: dependencies,
-                                           target: target,
-                                           pbxTarget: pbxTarget,
-                                           pbxproj: pbxproj,
-                                           fileElements: fileElements,
-                                           sourceRootPath: sourceRootPath)
+            try subject.generateEmbedPhase(
+                dependencies: dependencies,
+                target: target,
+                pbxTarget: pbxTarget,
+                pbxproj: pbxproj,
+                fileElements: fileElements,
+                sourceRootPath: sourceRootPath
+            )
 
             XCTAssert(embedScriptGenerator.scriptArgs.last?.2 == false, "Expected `includeSymbolsInFileLists == false` for product `\(product)`")
         }
@@ -156,12 +168,14 @@ final class LinkGeneratorTests: XCTestCase {
         let fileElements = ProjectFileElements()
         let sourceRootPath = AbsolutePath("/")
 
-        XCTAssertThrowsError(try subject.generateEmbedPhase(dependencies: dependencies,
-                                                            target: target,
-                                                            pbxTarget: pbxTarget,
-                                                            pbxproj: pbxproj,
-                                                            fileElements: fileElements,
-                                                            sourceRootPath: sourceRootPath)) {
+        XCTAssertThrowsError(try subject.generateEmbedPhase(
+            dependencies: dependencies,
+            target: target,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            fileElements: fileElements,
+            sourceRootPath: sourceRootPath
+        )) {
             XCTAssertEqual($0 as? LinkGeneratorError, LinkGeneratorError.missingProduct(name: "Test"))
         }
     }
@@ -181,12 +195,14 @@ final class LinkGeneratorTests: XCTestCase {
         let fileElements = createFileElements(fileAbsolutePath: fileAbsolutePath)
 
         // When
-        try subject.generateEmbedPhase(dependencies: dependencies,
-                                       target: target,
-                                       pbxTarget: pbxTarget,
-                                       pbxproj: pbxproj,
-                                       fileElements: fileElements,
-                                       sourceRootPath: sourceRootPath)
+        try subject.generateEmbedPhase(
+            dependencies: dependencies,
+            target: target,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            fileElements: fileElements,
+            sourceRootPath: sourceRootPath
+        )
 
         // Then
         let copyBuildPhase = try XCTUnwrap(pbxTarget.embedFrameworksBuildPhases().first)
@@ -243,9 +259,11 @@ final class LinkGeneratorTests: XCTestCase {
         xcodeprojElements.config.buildSettings["FRAMEWORK_SEARCH_PATHS"] = "my/custom/path"
 
         // When
-        try subject.setupFrameworkSearchPath(dependencies: dependencies,
-                                             pbxTarget: xcodeprojElements.pbxTarget,
-                                             sourceRootPath: sourceRootPath)
+        try subject.setupFrameworkSearchPath(
+            dependencies: dependencies,
+            pbxTarget: xcodeprojElements.pbxTarget,
+            sourceRootPath: sourceRootPath
+        )
 
         // Then
         let config = xcodeprojElements.config
@@ -276,9 +294,11 @@ final class LinkGeneratorTests: XCTestCase {
 
         let sourceRootPath = AbsolutePath("/")
 
-        try subject.setupHeadersSearchPath(headersFolders,
-                                           pbxTarget: pbxTarget,
-                                           sourceRootPath: sourceRootPath)
+        try subject.setupHeadersSearchPath(
+            headersFolders,
+            pbxTarget: pbxTarget,
+            sourceRootPath: sourceRootPath
+        )
 
         let expected = ["$(inherited)", "$(SRCROOT)/headers"]
         XCTAssertEqual(config.buildSettings["HEADER_SEARCH_PATHS"] as? [String], expected)
@@ -295,9 +315,11 @@ final class LinkGeneratorTests: XCTestCase {
         xcodeprojElements.config.buildSettings["HEADER_SEARCH_PATHS"] = "my/custom/path"
 
         // When
-        try subject.setupHeadersSearchPath(searchPaths,
-                                           pbxTarget: xcodeprojElements.pbxTarget,
-                                           sourceRootPath: sourceRootPath)
+        try subject.setupHeadersSearchPath(
+            searchPaths,
+            pbxTarget: xcodeprojElements.pbxTarget,
+            sourceRootPath: sourceRootPath
+        )
 
         // Then
         let config = xcodeprojElements.config
@@ -320,9 +342,11 @@ final class LinkGeneratorTests: XCTestCase {
         let xcodeprojElements = createXcodeprojElements()
 
         // When
-        try subject.setupHeadersSearchPath(searchPaths,
-                                           pbxTarget: xcodeprojElements.pbxTarget,
-                                           sourceRootPath: sourceRootPath)
+        try subject.setupHeadersSearchPath(
+            searchPaths,
+            pbxTarget: xcodeprojElements.pbxTarget,
+            sourceRootPath: sourceRootPath
+        )
 
         // Then
         let config = xcodeprojElements.config
@@ -340,9 +364,11 @@ final class LinkGeneratorTests: XCTestCase {
         pbxproj.add(object: pbxTarget)
         let sourceRootPath = AbsolutePath("/")
 
-        XCTAssertThrowsError(try subject.setupHeadersSearchPath(headersFolders,
-                                                                pbxTarget: pbxTarget,
-                                                                sourceRootPath: sourceRootPath)) {
+        XCTAssertThrowsError(try subject.setupHeadersSearchPath(
+            headersFolders,
+            pbxTarget: pbxTarget,
+            sourceRootPath: sourceRootPath
+        )) {
             XCTAssertEqual($0 as? LinkGeneratorError, LinkGeneratorError.missingConfigurationList(targetName: pbxTarget.name))
         }
     }
@@ -357,9 +383,11 @@ final class LinkGeneratorTests: XCTestCase {
         let xcodeprojElements = createXcodeprojElements()
 
         // When
-        try subject.setupLibrarySearchPaths(searchPaths,
-                                            pbxTarget: xcodeprojElements.pbxTarget,
-                                            sourceRootPath: sourceRootPath)
+        try subject.setupLibrarySearchPaths(
+            searchPaths,
+            pbxTarget: xcodeprojElements.pbxTarget,
+            sourceRootPath: sourceRootPath
+        )
 
         // Then
         let config = xcodeprojElements.config
@@ -374,9 +402,11 @@ final class LinkGeneratorTests: XCTestCase {
         let xcodeprojElements = createXcodeprojElements()
 
         // When
-        try subject.setupLibrarySearchPaths(searchPaths,
-                                            pbxTarget: xcodeprojElements.pbxTarget,
-                                            sourceRootPath: sourceRootPath)
+        try subject.setupLibrarySearchPaths(
+            searchPaths,
+            pbxTarget: xcodeprojElements.pbxTarget,
+            sourceRootPath: sourceRootPath
+        )
 
         // Then
         let config = xcodeprojElements.config
@@ -393,9 +423,11 @@ final class LinkGeneratorTests: XCTestCase {
         let xcodeprojElements = createXcodeprojElements()
 
         // When
-        try subject.setupSwiftIncludePaths(searchPaths,
-                                           pbxTarget: xcodeprojElements.pbxTarget,
-                                           sourceRootPath: sourceRootPath)
+        try subject.setupSwiftIncludePaths(
+            searchPaths,
+            pbxTarget: xcodeprojElements.pbxTarget,
+            sourceRootPath: sourceRootPath
+        )
 
         // Then
         let config = xcodeprojElements.config
@@ -410,9 +442,11 @@ final class LinkGeneratorTests: XCTestCase {
         let xcodeprojElements = createXcodeprojElements()
 
         // When
-        try subject.setupSwiftIncludePaths(searchPaths,
-                                           pbxTarget: xcodeprojElements.pbxTarget,
-                                           sourceRootPath: sourceRootPath)
+        try subject.setupSwiftIncludePaths(
+            searchPaths,
+            pbxTarget: xcodeprojElements.pbxTarget,
+            sourceRootPath: sourceRootPath
+        )
 
         // Then
         let config = xcodeprojElements.config
@@ -433,10 +467,12 @@ final class LinkGeneratorTests: XCTestCase {
         fileElements.products["Test"] = wakaFile
         fileElements.elements[AbsolutePath("/test.framework")] = testFile
 
-        try subject.generateLinkingPhase(dependencies: dependencies,
-                                         pbxTarget: pbxTarget,
-                                         pbxproj: pbxproj,
-                                         fileElements: fileElements)
+        try subject.generateLinkingPhase(
+            dependencies: dependencies,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            fileElements: fileElements
+        )
 
         let buildPhase = try pbxTarget.frameworksBuildPhase()
 
@@ -454,10 +490,12 @@ final class LinkGeneratorTests: XCTestCase {
         let pbxTarget = PBXNativeTarget(name: "Test")
         let fileElements = ProjectFileElements()
 
-        XCTAssertThrowsError(try subject.generateLinkingPhase(dependencies: dependencies,
-                                                              pbxTarget: pbxTarget,
-                                                              pbxproj: pbxproj,
-                                                              fileElements: fileElements)) {
+        XCTAssertThrowsError(try subject.generateLinkingPhase(
+            dependencies: dependencies,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            fileElements: fileElements
+        )) {
             XCTAssertEqual($0 as? LinkGeneratorError, LinkGeneratorError.missingReference(path: AbsolutePath("/test.framework")))
         }
     }
@@ -469,10 +507,12 @@ final class LinkGeneratorTests: XCTestCase {
         let pbxTarget = PBXNativeTarget(name: "Test")
         let fileElements = ProjectFileElements()
 
-        XCTAssertThrowsError(try subject.generateLinkingPhase(dependencies: dependencies,
-                                                              pbxTarget: pbxTarget,
-                                                              pbxproj: pbxproj,
-                                                              fileElements: fileElements)) {
+        XCTAssertThrowsError(try subject.generateLinkingPhase(
+            dependencies: dependencies,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            fileElements: fileElements
+        )) {
             XCTAssertEqual($0 as? LinkGeneratorError, LinkGeneratorError.missingProduct(name: "Test"))
         }
     }
@@ -492,10 +532,12 @@ final class LinkGeneratorTests: XCTestCase {
         fileElements.sdks["/Weak/Bar.framework"] = optionalFile
 
         // When
-        try subject.generateLinkingPhase(dependencies: dependencies,
-                                         pbxTarget: pbxTarget,
-                                         pbxproj: pbxproj,
-                                         fileElements: fileElements)
+        try subject.generateLinkingPhase(
+            dependencies: dependencies,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            fileElements: fileElements
+        )
 
         // Then
         let buildPhase = try pbxTarget.frameworksBuildPhase()
@@ -516,23 +558,27 @@ final class LinkGeneratorTests: XCTestCase {
         let path = AbsolutePath("/path/")
         let staticDependency = Target.test(name: "StaticDependency", product: .staticLibrary)
         let target = Target.test(name: "Static", product: .staticLibrary)
-        let graph = Graph.create(project: .test(path: path),
-                                 dependencies: [
-                                     (target: target, dependencies: [staticDependency]),
-                                     (target: staticDependency, dependencies: []),
-                                 ])
+        let graph = Graph.create(
+            project: .test(path: path),
+            dependencies: [
+                (target: target, dependencies: [staticDependency]),
+                (target: staticDependency, dependencies: []),
+            ]
+        )
         let valueGraph = ValueGraph(graph: graph)
         let graphTraverser = ValueGraphTraverser(graph: valueGraph)
         let fileElements = createProjectFileElements(for: [staticDependency])
         let xcodeProjElements = createXcodeprojElements()
 
         // When
-        try subject.generateCopyProductsBuildPhase(path: path,
-                                                   target: target,
-                                                   graphTraverser: graphTraverser,
-                                                   pbxTarget: xcodeProjElements.pbxTarget,
-                                                   pbxproj: xcodeProjElements.pbxproj,
-                                                   fileElements: fileElements)
+        try subject.generateCopyProductsBuildPhase(
+            path: path,
+            target: target,
+            graphTraverser: graphTraverser,
+            pbxTarget: xcodeProjElements.pbxTarget,
+            pbxproj: xcodeProjElements.pbxproj,
+            fileElements: fileElements
+        )
 
         // Then
         let copyProductsPhase = xcodeProjElements
@@ -553,23 +599,27 @@ final class LinkGeneratorTests: XCTestCase {
         let path = AbsolutePath("/path/")
         let staticDependency = Target.test(name: "StaticDependency", product: .staticLibrary)
         let target = Target.test(name: "Dynamic", product: .framework)
-        let graph = Graph.create(project: .test(path: path),
-                                 dependencies: [
-                                     (target: target, dependencies: [staticDependency]),
-                                     (target: staticDependency, dependencies: []),
-                                 ])
+        let graph = Graph.create(
+            project: .test(path: path),
+            dependencies: [
+                (target: target, dependencies: [staticDependency]),
+                (target: staticDependency, dependencies: []),
+            ]
+        )
         let valueGraph = ValueGraph(graph: graph)
         let graphTraverser = ValueGraphTraverser(graph: valueGraph)
         let fileElements = createProjectFileElements(for: [staticDependency])
         let xcodeProjElements = createXcodeprojElements()
 
         // When
-        try subject.generateCopyProductsBuildPhase(path: path,
-                                                   target: target,
-                                                   graphTraverser: graphTraverser,
-                                                   pbxTarget: xcodeProjElements.pbxTarget,
-                                                   pbxproj: xcodeProjElements.pbxproj,
-                                                   fileElements: fileElements)
+        try subject.generateCopyProductsBuildPhase(
+            path: path,
+            target: target,
+            graphTraverser: graphTraverser,
+            pbxTarget: xcodeProjElements.pbxTarget,
+            pbxproj: xcodeProjElements.pbxproj,
+            fileElements: fileElements
+        )
 
         // Then
         let copyProductsPhase = xcodeProjElements
@@ -585,23 +635,27 @@ final class LinkGeneratorTests: XCTestCase {
         let path = AbsolutePath("/path/")
         let resourceBundle = Target.test(name: "ResourceBundle", product: .bundle)
         let target = Target.test(name: "Target", product: .app)
-        let graph = Graph.create(project: .test(path: path),
-                                 dependencies: [
-                                     (target: target, dependencies: [resourceBundle]),
-                                     (target: resourceBundle, dependencies: []),
-                                 ])
+        let graph = Graph.create(
+            project: .test(path: path),
+            dependencies: [
+                (target: target, dependencies: [resourceBundle]),
+                (target: resourceBundle, dependencies: []),
+            ]
+        )
         let fileElements = createProjectFileElements(for: [resourceBundle])
         let xcodeProjElements = createXcodeprojElements()
         let valueGraph = ValueGraph(graph: graph)
         let graphTraverser = ValueGraphTraverser(graph: valueGraph)
 
         // When
-        try subject.generateCopyProductsBuildPhase(path: path,
-                                                   target: target,
-                                                   graphTraverser: graphTraverser,
-                                                   pbxTarget: xcodeProjElements.pbxTarget,
-                                                   pbxproj: xcodeProjElements.pbxproj,
-                                                   fileElements: fileElements)
+        try subject.generateCopyProductsBuildPhase(
+            path: path,
+            target: target,
+            graphTraverser: graphTraverser,
+            pbxTarget: xcodeProjElements.pbxTarget,
+            pbxproj: xcodeProjElements.pbxproj,
+            fileElements: fileElements
+        )
 
         // Then
         let copyProductsPhase = xcodeProjElements
@@ -638,9 +692,11 @@ final class LinkGeneratorTests: XCTestCase {
         pbxproj.add(object: config)
         configurationList.buildConfigurations.append(config)
 
-        return XcodeprojElements(pbxproj: pbxproj,
-                                 pbxTarget: pbxTarget,
-                                 config: config)
+        return XcodeprojElements(
+            pbxproj: pbxproj,
+            pbxTarget: pbxTarget,
+            config: config
+        )
     }
 
     func createProjectFileElements(for targets: [Target]) -> ProjectFileElements {

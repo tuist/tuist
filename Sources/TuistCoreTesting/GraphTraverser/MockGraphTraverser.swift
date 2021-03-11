@@ -104,16 +104,6 @@ final class MockGraphTraverser: GraphTraversing {
         return stubbedRootTargetsResult
     }
 
-    var invokedAllTargets = false
-    var invokedAllTargetsCount = 0
-    var stubbedAllTargetsResult: Set<ValueGraphTarget>! = []
-
-    func allTargets() -> Set<ValueGraphTarget> {
-        invokedAllTargets = true
-        invokedAllTargetsCount += 1
-        return stubbedAllTargetsResult
-    }
-
     var invokedCocoapodsPaths = false
     var invokedCocoapodsPathsCount = 0
     var stubbedCocoapodsPathsResult: Set<AbsolutePath>! = []
@@ -132,6 +122,16 @@ final class MockGraphTraverser: GraphTraversing {
         invokedRootProjects = true
         invokedRootProjectsCount += 1
         return stubbedRootProjectsResult
+    }
+
+    var invokedAllTargets = false
+    var invokedAllTargetsCount = 0
+    var stubbedAllTargetsResult: Set<ValueGraphTarget>! = []
+
+    func allTargets() -> Set<ValueGraphTarget> {
+        invokedAllTargets = true
+        invokedAllTargetsCount += 1
+        return stubbedAllTargetsResult
     }
 
     var invokedPrecompiledFrameworksPaths = false
@@ -184,6 +184,20 @@ final class MockGraphTraverser: GraphTraversing {
         invokedTargetsAtParameters = (path, ())
         invokedTargetsAtParametersList.append((path, ()))
         return stubbedTargetsAtResult
+    }
+
+    var invokedDirectLocalTargetDependencies = false
+    var invokedDirectLocalTargetDependenciesCount = 0
+    var invokedDirectLocalTargetDependenciesParameters: (path: AbsolutePath, name: String)?
+    var invokedDirectLocalTargetDependenciesParametersList = [(path: AbsolutePath, name: String)]()
+    var stubbedDirectLocalTargetDependenciesResult: Set<ValueGraphTarget>! = []
+
+    func directLocalTargetDependencies(path: AbsolutePath, name: String) -> Set<ValueGraphTarget> {
+        invokedDirectLocalTargetDependencies = true
+        invokedDirectLocalTargetDependenciesCount += 1
+        invokedDirectLocalTargetDependenciesParameters = (path, name)
+        invokedDirectLocalTargetDependenciesParametersList.append((path, name))
+        return stubbedDirectLocalTargetDependenciesResult
     }
 
     var invokedDirectTargetDependencies = false
@@ -402,5 +416,24 @@ final class MockGraphTraverser: GraphTraversing {
             throw error
         }
         return stubbedAllProjectDependenciesResult
+    }
+
+    var invokedDependsOnXCTest = false
+    var invokedDependsOnXCTestCount = 0
+    var invokedDependsOnXCTestParameters: (path: AbsolutePath, name: String)?
+    var invokedDependsOnXCTestParametersList = [(path: AbsolutePath, name: String)]()
+    var stubbedDependsOnXCTestResult: Bool! = false
+
+    func dependsOnXCTest(path: AbsolutePath, name: String) -> Bool {
+        invokedDependsOnXCTest = true
+        invokedDependsOnXCTestCount += 1
+        invokedDependsOnXCTestParameters = (path, name)
+        invokedDependsOnXCTestParametersList.append((path, name))
+        return stubbedDependsOnXCTestResult
+    }
+
+    var schemesStub: (() -> [Scheme])?
+    func schemes() -> [Scheme] {
+        schemesStub?() ?? []
     }
 }

@@ -71,10 +71,12 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
         )
 
         // When
-        let structure = subject.generateStructure(path: "/path/to/workspace",
-                                                  workspace: workspace,
-                                                  xcodeProjPaths: xcodeProjPaths,
-                                                  fileHandler: fileHandler)
+        let structure = subject.generateStructure(
+            path: "/path/to/workspace",
+            workspace: workspace,
+            xcodeProjPaths: xcodeProjPaths,
+            fileHandler: fileHandler
+        )
 
         // Then
         XCTAssertEqual(structure.contents, [
@@ -114,10 +116,12 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
         let workspace = Workspace.test(additionalFiles: additionalFiles)
 
         // When
-        let structure = subject.generateStructure(path: "/path/to/workspace",
-                                                  workspace: workspace,
-                                                  xcodeProjPaths: [],
-                                                  fileHandler: fileHandler)
+        let structure = subject.generateStructure(
+            path: "/path/to/workspace",
+            workspace: workspace,
+            xcodeProjPaths: [],
+            fileHandler: fileHandler
+        )
 
         // Then
         XCTAssertEqual(structure.contents, [
@@ -148,10 +152,12 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
         let workspace = Workspace.test(additionalFiles: paths.map { .file(path: AbsolutePath($0)) })
 
         // When
-        let structure = subject.generateStructure(path: "/path/to/workspace",
-                                                  workspace: workspace,
-                                                  xcodeProjPaths: [],
-                                                  fileHandler: fileHandler)
+        let structure = subject.generateStructure(
+            path: "/path/to/workspace",
+            workspace: workspace,
+            xcodeProjPaths: [],
+            fileHandler: fileHandler
+        )
 
         // Then
         XCTAssertEqual(structure.contents, [
@@ -178,10 +184,12 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
         let workspace = Workspace.test(additionalFiles: paths.map { .file(path: AbsolutePath($0)) })
 
         // When
-        let structure = subject.generateStructure(path: "/path/to/workspace",
-                                                  workspace: workspace,
-                                                  xcodeProjPaths: [],
-                                                  fileHandler: fileHandler)
+        let structure = subject.generateStructure(
+            path: "/path/to/workspace",
+            workspace: workspace,
+            xcodeProjPaths: [],
+            fileHandler: fileHandler
+        )
 
         // Then
         XCTAssertEqual(structure.contents, [])
@@ -202,10 +210,12 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
         let workspace = Workspace.test(additionalFiles: paths.map { .file(path: AbsolutePath($0)) })
 
         // When
-        let structure = subject.generateStructure(path: "/path/to/workspace",
-                                                  workspace: workspace,
-                                                  xcodeProjPaths: [],
-                                                  fileHandler: fileHandler)
+        let structure = subject.generateStructure(
+            path: "/path/to/workspace",
+            workspace: workspace,
+            xcodeProjPaths: [],
+            fileHandler: fileHandler
+        )
 
         // Then
         XCTAssertEqual(structure.contents, [
@@ -228,10 +238,12 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
         )
 
         // When
-        let structure = subject.generateStructure(path: "/path/to/workspace",
-                                                  workspace: workspace,
-                                                  xcodeProjPaths: xcodeProjPaths,
-                                                  fileHandler: fileHandler)
+        let structure = subject.generateStructure(
+            path: "/path/to/workspace",
+            workspace: workspace,
+            xcodeProjPaths: xcodeProjPaths,
+            fileHandler: fileHandler
+        )
 
         // Then
         XCTAssertEqual(structure.contents, [
@@ -255,10 +267,12 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
         let workspace = Workspace.test(additionalFiles: files.map { .file(path: $0) })
 
         // When
-        let structure = subject.generateStructure(path: "/path/to/workspace",
-                                                  workspace: workspace,
-                                                  xcodeProjPaths: xcodeProjPaths,
-                                                  fileHandler: fileHandler)
+        let structure = subject.generateStructure(
+            path: "/path/to/workspace",
+            workspace: workspace,
+            xcodeProjPaths: xcodeProjPaths,
+            fileHandler: fileHandler
+        )
 
         // Then
         XCTAssertEqual(structure.contents, [
@@ -346,6 +360,10 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
             []
         }
 
+        func resolveSymlinks(_ path: AbsolutePath) -> AbsolutePath {
+            path
+        }
+
         func write(_: String, path _: AbsolutePath, atomically _: Bool) throws {
             // Do nothing
         }
@@ -392,12 +410,8 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
             []
         }
 
-        func md5(path _: AbsolutePath) throws -> String {
-            "md5"
-        }
-
-        func base64MD5(path _: AbsolutePath) throws -> String {
-            "base64MD5"
+        func urlSafeBase64MD5(path _: AbsolutePath) throws -> String {
+            "urlSafeBase64MD5"
         }
 
         func fileSize(path _: AbsolutePath) throws -> UInt64 {

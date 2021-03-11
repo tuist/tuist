@@ -13,14 +13,16 @@ extension SimulatorDevice {
                      availabilityError: String? = nil,
                      runtimeIdentifier: String = "com.apple.CoreSimulator.SimRuntime.iOS-13-5") -> SimulatorDevice
     {
-        SimulatorDevice(dataPath: dataPath,
-                        logPath: logPath,
-                        udid: udid,
-                        isAvailable: isAvailable,
-                        deviceTypeIdentifier: deviceTypeIdentifier,
-                        state: state,
-                        name: name,
-                        availabilityError: availabilityError,
-                        runtimeIdentifier: runtimeIdentifier)
+        SimulatorDevice(
+            dataPath: dataPath,
+            logPath: logPath,
+            udid: udid,
+            isAvailable: isAvailable,
+            deviceTypeIdentifier: deviceTypeIdentifier,
+            state: state,
+            name: name,
+            availabilityError: availabilityError,
+            runtimeIdentifier: runtimeIdentifier
+        )
     }
 }

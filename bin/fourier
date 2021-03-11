@@ -13,6 +13,6 @@ fourier_directory = File.expand_path("../tools/fourier/lib", __dir__)
 $LOAD_PATH.unshift(fourier_directory) unless $LOAD_PATH.include?(fourier_directory)
 
 # Load Fourier
-require 'fourier'
+require "fourier"
 
 Fourier::CLI.start(ARGV)

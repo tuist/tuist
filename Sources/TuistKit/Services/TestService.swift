@@ -1,5 +1,6 @@
 import Foundation
 import RxBlocking
+import RxSwift
 import TSCBasic
 import struct TSCUtility.Version
 import TuistAutomation
@@ -35,48 +36,35 @@ enum TestServiceError: FatalError {
 }
 
 final class TestService {
-    /// Project generator
-    let generator: Generating
-
-    /// Xcode build controller.
-    let xcodebuildController: XcodeBuildControlling
-
-    /// Build graph inspector.
-    let buildGraphInspector: BuildGraphInspecting
-
-    /// Simulator controller
-    let simulatorController: SimulatorControlling
+    private let testServiceGeneratorFactory: TestServiceGeneratorFactorying
+    private let xcodebuildController: XcodeBuildControlling
+    private let buildGraphInspector: BuildGraphInspecting
+    private let simulatorController: SimulatorControlling
 
     private let temporaryDirectory: TemporaryDirectory
+    private let testsCacheTemporaryDirectory: TemporaryDirectory
 
-    convenience init(
-        xcodebuildController _: XcodeBuildControlling = XcodeBuildController(),
-        buildGraphInspector _: BuildGraphInspecting = BuildGraphInspector(),
-        simulatorController _: SimulatorControlling = SimulatorController()
-    ) throws {
+    convenience init() throws {
         let temporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
+        let testsCacheTemporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
         self.init(
             temporaryDirectory: temporaryDirectory,
-            generator: Generator(
-                projectMapperProvider: AutomationProjectMapperProvider(),
-                graphMapperProvider: GraphMapperProvider(),
-                workspaceMapperProvider: AutomationWorkspaceMapperProvider(
-                    workspaceDirectory: temporaryDirectory.path
-                ),
-                manifestLoaderFactory: ManifestLoaderFactory()
-            )
+            testsCacheTemporaryDirectory: testsCacheTemporaryDirectory,
+            testServiceGeneratorFactory: TestServiceGeneratorFactory()
         )
     }
 
     init(
         temporaryDirectory: TemporaryDirectory,
-        generator: Generating,
+        testsCacheTemporaryDirectory: TemporaryDirectory,
+        testServiceGeneratorFactory: TestServiceGeneratorFactorying,
         xcodebuildController: XcodeBuildControlling = XcodeBuildController(),
         buildGraphInspector: BuildGraphInspecting = BuildGraphInspector(),
         simulatorController: SimulatorControlling = SimulatorController()
     ) {
         self.temporaryDirectory = temporaryDirectory
-        self.generator = generator
+        self.testsCacheTemporaryDirectory = testsCacheTemporaryDirectory
+        self.testServiceGeneratorFactory = testServiceGeneratorFactory
         self.xcodebuildController = xcodebuildController
         self.buildGraphInspector = buildGraphInspector
         self.simulatorController = simulatorController
@@ -90,20 +78,26 @@ final class TestService {
         deviceName: String?,
         osVersion: String?
     ) throws {
+        let generator = testServiceGeneratorFactory.generator(
+            automationPath: Environment.shared.automationPath ?? temporaryDirectory.path,
+            testsCacheDirectory: testsCacheTemporaryDirectory.path
+        )
         logger.notice("Generating project for testing", metadata: .section)
-        let graph: Graph = try generator.generateWithGraph(
-            path: path,
-            projectOnly: false
-        ).1
+        let graph = ValueGraph(
+            graph: try generator.generateWithGraph(
+                path: path,
+                projectOnly: false
+            ).1
+        )
+        let graphTraverser = ValueGraphTraverser(graph: graph)
         let version = osVersion?.version()
 
-        let testableSchemes = buildGraphInspector.testableSchemes(graph: graph)
+        let testableSchemes = buildGraphInspector.testableSchemes(graphTraverser: graphTraverser) + buildGraphInspector.projectSchemes(graphTraverser: graphTraverser)
         logger.log(
             level: .debug,
-            "Found the following testable schemes: \(testableSchemes.map(\.name).joined(separator: ", "))"
+            "Found the following testable schemes: \(Set(testableSchemes.map(\.name)).joined(separator: ", "))"
         )
 
-        let testSchemes: [Scheme]
         if let schemeName = schemeName {
             guard
                 let scheme = testableSchemes.first(where: { $0.name == schemeName })
@@ -113,65 +107,100 @@ final class TestService {
                     existing: testableSchemes.map(\.name)
                 )
             }
-            testSchemes = [scheme]
-        } else {
-            testSchemes = buildGraphInspector.projectSchemes(graph: graph)
-            guard
-                !testSchemes.isEmpty
-            else {
-                throw TestServiceError.schemeNotFound(
-                    scheme: "\(graph.workspace.name)-Project",
-                    existing: testableSchemes.map(\.name)
+
+            if scheme.testAction.map(\.targets.isEmpty) ?? true {
+                logger.log(level: .info, "There are no tests to run, finishing early")
+                return
+            }
+
+            let testSchemes: [Scheme] = [scheme]
+
+            try testSchemes.forEach { testScheme in
+                try self.testScheme(
+                    scheme: testScheme,
+                    graphTraverser: graphTraverser,
+                    clean: clean,
+                    configuration: configuration,
+                    version: version,
+                    deviceName: deviceName
                 )
             }
-        }
+        } else {
+            let testSchemes: [Scheme] = buildGraphInspector.projectSchemes(graphTraverser: graphTraverser)
+                .filter {
+                    $0.testAction.map { !$0.targets.isEmpty } ?? false
+                }
 
-        try testSchemes.forEach { testScheme in
-            try self.testScheme(
-                scheme: testScheme,
-                graph: graph,
-                path: path,
-                clean: clean,
-                configuration: configuration,
-                version: version,
-                deviceName: deviceName
-            )
+            if testSchemes.isEmpty {
+                logger.log(level: .info, "There are no tests to run, finishing early")
+                return
+            }
+
+            try testSchemes.forEach {
+                try testScheme(
+                    scheme: $0,
+                    graphTraverser: graphTraverser,
+                    clean: clean,
+                    configuration: configuration,
+                    version: version,
+                    deviceName: deviceName
+                )
+            }
+
+            if !FileHandler.shared.exists(
+                Environment.shared.testsCacheDirectory
+            ) {
+                try FileHandler.shared.createFolder(Environment.shared.testsCacheDirectory)
+            }
+
+            // Saving hashes to `testsCacheTemporaryDirectory` after all the tests have run successfully
+            try FileHandler.shared
+                .contentsOfDirectory(testsCacheTemporaryDirectory.path)
+                .forEach { hashPath in
+                    let destination = Environment.shared.testsCacheDirectory.appending(component: hashPath.basename)
+                    guard !FileHandler.shared.exists(destination) else { return }
+                    try FileHandler.shared.move(
+                        from: hashPath,
+                        to: destination
+                    )
+                }
         }
 
         logger.log(level: .notice, "The project tests ran successfully", metadata: .success)
     }
 
-    // MARK: - private
+    // MARK: - Helpers
 
     private func testScheme(
         scheme: Scheme,
-        graph: Graph,
-        path _: AbsolutePath,
+        graphTraverser: GraphTraversing,
         clean: Bool,
         configuration: String?,
         version: Version?,
         deviceName: String?
     ) throws {
         logger.log(level: .notice, "Testing scheme \(scheme.name)", metadata: .section)
-        guard let (project, target) = buildGraphInspector.testableTarget(scheme: scheme, graph: graph) else {
+        guard let buildableTarget = buildGraphInspector.testableTarget(scheme: scheme, graphTraverser: graphTraverser) else {
             throw TestServiceError.schemeWithoutTestableTargets(scheme: scheme.name)
         }
 
         let destination = try findDestination(
-            target: target,
+            target: buildableTarget.target,
             scheme: scheme,
-            graph: graph,
+            graphTraverser: graphTraverser,
             version: version,
             deviceName: deviceName
         )
+
         _ = try xcodebuildController.test(
-            .workspace(graph.workspace.xcWorkspacePath),
+            .workspace(graphTraverser.workspace.xcWorkspacePath),
             scheme: scheme.name,
             clean: clean,
             destination: destination,
+            derivedDataPath: nil,
             arguments: buildGraphInspector.buildArguments(
-                project: project,
-                target: target,
+                project: buildableTarget.project,
+                target: buildableTarget.target,
                 configuration: configuration,
                 skipSigning: true
             )
@@ -184,7 +213,7 @@ final class TestService {
     private func findDestination(
         target: Target,
         scheme: Scheme,
-        graph: Graph,
+        graphTraverser: GraphTraversing,
         version: Version?,
         deviceName: String?
     ) throws -> XcodeBuildDestination {
@@ -195,12 +224,13 @@ final class TestService {
                 minVersion = deploymentTarget.version.version()
             } else {
                 minVersion = scheme.targetDependencies()
-                    .compactMap { graph.findTargetNode(path: $0.projectPath, name: $0.name) }
                     .flatMap {
-                        $0.targetDependencies
-                            .compactMap { $0.target.deploymentTarget?.version }
+                        graphTraverser
+                            .directLocalTargetDependencies(path: $0.projectPath, name: $0.name)
+                            .map(\.target)
+                            .map(\.deploymentTarget)
+                            .compactMap { $0?.version.version() }
                     }
-                    .compactMap { $0.version() }
                     .sorted()
                     .first
             }

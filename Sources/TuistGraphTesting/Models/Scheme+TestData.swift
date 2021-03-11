@@ -12,13 +12,15 @@ public extension Scheme {
                      profileAction: ProfileAction? = ProfileAction.test(),
                      analyzeAction: AnalyzeAction? = AnalyzeAction.test()) -> Scheme
     {
-        Scheme(name: name,
-               shared: shared,
-               buildAction: buildAction,
-               testAction: testAction,
-               runAction: runAction,
-               archiveAction: archiveAction,
-               profileAction: profileAction,
-               analyzeAction: analyzeAction)
+        Scheme(
+            name: name,
+            shared: shared,
+            buildAction: buildAction,
+            testAction: testAction,
+            runAction: runAction,
+            archiveAction: archiveAction,
+            profileAction: profileAction,
+            analyzeAction: analyzeAction
+        )
     }
 }

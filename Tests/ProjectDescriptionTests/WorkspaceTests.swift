@@ -11,11 +11,13 @@ final class WorkspaceTests: XCTestCase {
     }
 
     func test_codable_withAdditionalFiles() throws {
-        let subject = Workspace(name: "name",
-                                projects: ["ProjectA"],
-                                additionalFiles: [
-                                    .glob(pattern: "Documentation/**"),
-                                ])
+        let subject = Workspace(
+            name: "name",
+            projects: ["ProjectA"],
+            additionalFiles: [
+                .glob(pattern: "Documentation/**"),
+            ]
+        )
         XCTAssertCodable(subject)
     }
 }

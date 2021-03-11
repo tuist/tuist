@@ -41,11 +41,15 @@ final class XcodeProjWriterTests: TuistTestCase {
         let xcodeProjPath = path.appending(component: "Project.xcodeproj")
         let filePath = path.appending(component: "MyFile")
         let contents = "Testing".data(using: .utf8)!
-        let sideEffect = SideEffectDescriptor.file(.init(path: filePath,
-                                                         contents: contents))
-        let descriptor = ProjectDescriptor.test(path: path,
-                                                xcodeprojPath: xcodeProjPath,
-                                                sideEffects: [sideEffect])
+        let sideEffect = SideEffectDescriptor.file(.init(
+            path: filePath,
+            contents: contents
+        ))
+        let descriptor = ProjectDescriptor.test(
+            path: path,
+            xcodeprojPath: xcodeProjPath,
+            sideEffects: [sideEffect]
+        )
 
         // When
         try subject.write(project: descriptor)
@@ -65,9 +69,11 @@ final class XcodeProjWriterTests: TuistTestCase {
         try fileHandler.touch(filePath)
 
         let sideEffect = SideEffectDescriptor.file(FileDescriptor(path: filePath, state: .absent))
-        let descriptor = ProjectDescriptor.test(path: path,
-                                                xcodeprojPath: xcodeProjPath,
-                                                sideEffects: [sideEffect])
+        let descriptor = ProjectDescriptor.test(
+            path: path,
+            xcodeprojPath: xcodeProjPath,
+            sideEffects: [sideEffect]
+        )
 
         // When
         try subject.write(project: descriptor)
@@ -85,8 +91,10 @@ final class XcodeProjWriterTests: TuistTestCase {
         ])
 
         let xcodeProjPath = path.appending(component: "Foo.xcodeproj")
-        let descriptor = ProjectDescriptor.test(path: path,
-                                                xcodeprojPath: xcodeProjPath)
+        let descriptor = ProjectDescriptor.test(
+            path: path,
+            xcodeprojPath: xcodeProjPath
+        )
 
         // When
         try (0 ..< 2).forEach { _ in
@@ -112,9 +120,11 @@ final class XcodeProjWriterTests: TuistTestCase {
 
         // When
         try schemesWriteOperations.forEach {
-            let descriptor = ProjectDescriptor.test(path: path,
-                                                    xcodeprojPath: xcodeProjPath,
-                                                    schemes: $0)
+            let descriptor = ProjectDescriptor.test(
+                path: path,
+                xcodeprojPath: xcodeProjPath,
+                schemes: $0
+            )
             try subject.write(project: descriptor)
         }
 

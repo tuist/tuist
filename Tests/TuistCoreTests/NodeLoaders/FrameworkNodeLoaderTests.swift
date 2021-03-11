@@ -89,11 +89,13 @@ final class FrameworkNodeLoaderTests: TuistUnitTestCase {
         let got = try subject.load(path: frameworkPath)
 
         // Then
-        XCTAssertEqual(got, FrameworkNode(path: frameworkPath,
-                                          dsymPath: dsymPath,
-                                          bcsymbolmapPaths: bcsymbolmapPaths,
-                                          linking: linking,
-                                          architectures: architectures,
-                                          dependencies: []))
+        XCTAssertEqual(got, FrameworkNode(
+            path: frameworkPath,
+            dsymPath: dsymPath,
+            bcsymbolmapPaths: bcsymbolmapPaths,
+            linking: linking,
+            architectures: architectures,
+            dependencies: []
+        ))
     }
 }

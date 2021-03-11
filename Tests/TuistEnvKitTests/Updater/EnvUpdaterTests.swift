@@ -1,4 +1,5 @@
 import Foundation
+import TSCBasic
 import XCTest
 
 @testable import TuistEnvKit
@@ -24,16 +25,13 @@ final class EnvUpdaterTests: TuistUnitTestCase {
 
     func test_update() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
-        let downloadURL = URL(string: "https://file.download.com/tuistenv.zip")!
-        googleCloudStorageClient.latestTuistEnvBundleURLStub = downloadURL
-        let downloadPath = temporaryPath.appending(component: "tuistenv.zip")
-        system.succeedCommand(["/usr/bin/curl", "-LSs", "--output", downloadPath.pathString, downloadURL.absoluteString])
-        system.succeedCommand(["/usr/bin/unzip", "-o", downloadPath.pathString, "-d", "/tmp/"])
-        system.succeedCommand(["/bin/chmod", "+x", "/tmp/tuistenv"])
-        system.succeedCommand(["/bin/cp", "-rf", "/tmp/tuistenv", "/usr/local/bin/tuist"])
-        system.succeedCommand(["/bin/ln", "-sf", "/usr/local/bin/tuist", "/usr/local/bin/swift-project"])
-        system.succeedCommand(["/bin/rm", "/tmp/tuistenv"])
+        let installScriptPath = AbsolutePath(#file.replacingOccurrences(of: "file://", with: ""))
+            .removingLastComponent()
+            .removingLastComponent()
+            .removingLastComponent()
+            .removingLastComponent()
+            .appending(RelativePath("script/install"))
+        system.succeedCommand([installScriptPath.pathString])
 
         // When
         try subject.update()

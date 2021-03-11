@@ -7,8 +7,10 @@ public extension Headers {
                      private: [AbsolutePath] = [],
                      project: [AbsolutePath] = []) -> Headers
     {
-        Headers(public: `public`,
-                private: `private`,
-                project: project)
+        Headers(
+            public: `public`,
+            private: `private`,
+            project: project
+        )
     }
 }

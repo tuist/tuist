@@ -215,16 +215,18 @@ final class SigningInteractorTests: TuistUnitTestCase {
         let expectedCertificate = Certificate.test(name: "certA")
         let expectedProvisioningProfile = ProvisioningProfile.test(name: "profileA", developerCertificateFingerprints: ["fingerprint"])
         signingMatcher.matchStub = { _ in
-            (certificates: [
-                "fingerprint": expectedCertificate,
-                "otherFingerprint": Certificate.test(name: "certB"),
-            ],
-            provisioningProfiles: [
-                targetName: [
-                    configuration: expectedProvisioningProfile,
-                    "some-other-config": ProvisioningProfile.test(),
+            (
+                certificates: [
+                    "fingerprint": expectedCertificate,
+                    "otherFingerprint": Certificate.test(name: "certB"),
                 ],
-            ])
+                provisioningProfiles: [
+                    targetName: [
+                        configuration: expectedProvisioningProfile,
+                        "some-other-config": ProvisioningProfile.test(),
+                    ],
+                ]
+            )
         }
 
         let target = Target.test(

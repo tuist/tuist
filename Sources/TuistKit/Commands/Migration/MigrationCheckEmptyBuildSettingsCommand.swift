@@ -5,8 +5,11 @@ import TuistSupport
 
 struct MigrationCheckEmptyBuildSettingsCommand: ParsableCommand {
     static var configuration: CommandConfiguration {
-        CommandConfiguration(commandName: "check-empty-settings",
-                             abstract: "It checks if the build settings of a project or target are empty. Otherwise it exits unsuccessfully.")
+        CommandConfiguration(
+            commandName: "check-empty-settings",
+            _superCommandName: "migration",
+            abstract: "It checks if the build settings of a project or target are empty. Otherwise it exits unsuccessfully."
+        )
     }
 
     @Option(
@@ -23,7 +26,9 @@ struct MigrationCheckEmptyBuildSettingsCommand: ParsableCommand {
     var target: String?
 
     func run() throws {
-        try MigrationCheckEmptyBuildSettingsService().run(xcodeprojPath: AbsolutePath(xcodeprojPath, relativeTo: FileHandler.shared.currentPath),
-                                                          target: target)
+        try MigrationCheckEmptyBuildSettingsService().run(
+            xcodeprojPath: AbsolutePath(xcodeprojPath, relativeTo: FileHandler.shared.currentPath),
+            target: target
+        )
     }
 }

@@ -20,9 +20,11 @@ final class InitServiceTests: TuistUnitTestCase {
         templatesDirectoryLocator = MockTemplatesDirectoryLocator()
         templateGenerator = MockTemplateGenerator()
         templateLoader = MockTemplateLoader()
-        subject = InitService(templateLoader: templateLoader,
-                              templatesDirectoryLocator: templatesDirectoryLocator,
-                              templateGenerator: templateGenerator)
+        subject = InitService(
+            templateLoader: templateLoader,
+            templatesDirectoryLocator: templatesDirectoryLocator,
+            templateGenerator: templateGenerator
+        )
     }
 
     override func tearDown() {
@@ -94,11 +96,13 @@ extension InitService {
                  requiredTemplateOptions: [String: String] = [:],
                  optionalTemplateOptions: [String: String?] = [:]) throws
     {
-        try run(name: name,
-                platform: platform,
-                path: path,
-                templateName: templateName,
-                requiredTemplateOptions: requiredTemplateOptions,
-                optionalTemplateOptions: optionalTemplateOptions)
+        try run(
+            name: name,
+            platform: platform,
+            path: path,
+            templateName: templateName,
+            requiredTemplateOptions: requiredTemplateOptions,
+            optionalTemplateOptions: optionalTemplateOptions
+        )
     }
 }

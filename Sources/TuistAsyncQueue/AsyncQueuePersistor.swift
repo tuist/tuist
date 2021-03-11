@@ -39,6 +39,7 @@ final class AsyncQueuePersistor: AsyncQueuePersisting {
         Completable.create { (observer) -> Disposable in
             let path = self.directory.appending(component: self.filename(event: event))
             do {
+                try self.createDirectoryIfNeeded()
                 let data = try self.jsonEncoder.encode(event)
                 try data.write(to: path.url)
                 observer(.completed)
@@ -85,11 +86,13 @@ final class AsyncQueuePersistor: AsyncQueuePersisting {
                 }
                 do {
                     let data = try Data(contentsOf: eventPath.url)
-                    let event = (dispatcherId: String(components[1]),
-                                 id: id,
-                                 date: Date(timeIntervalSince1970: timestamp),
-                                 data: data,
-                                 filename: eventPath.basename)
+                    let event = (
+                        dispatcherId: String(components[1]),
+                        id: id,
+                        date: Date(timeIntervalSince1970: timestamp),
+                        data: data,
+                        filename: eventPath.basename
+                    )
                     events.append(event)
                 } catch {
                     try? FileHandler.shared.delete(eventPath)
@@ -104,5 +107,10 @@ final class AsyncQueuePersistor: AsyncQueuePersisting {
 
     private func filename<T: AsyncQueueEvent>(event: T) -> String {
         "\(Int(event.date.timeIntervalSince1970)).\(event.dispatcherId).\(event.id.uuidString).json"
+    }
+
+    private func createDirectoryIfNeeded() throws {
+        guard !FileManager.default.fileExists(atPath: directory.pathString) else { return }
+        try FileManager.default.createDirectory(atPath: directory.pathString, withIntermediateDirectories: true)
     }
 }

@@ -14,11 +14,11 @@ public final class CoreDataVersionExtractor {
             let dict = try decoder.decode([String: String].self, from: data)
             guard
                 let currentVersionName = dict["_XCCurrentVersionName"],
-                let versionNumberString = currentVersionName.split(separator: ".").first
+                currentVersionName.hasSuffix(".xcdatamodel")
             else {
                 throw CoreDataVersionExtractorError.couldNotExtractVersionFrom(filePath)
             }
-            return String(versionNumberString)
+            return currentVersionName.dropSuffix(".xcdatamodel")
         } catch {
             throw CoreDataVersionExtractorError.couldNotReadCurrentVersion(filePath)
         }

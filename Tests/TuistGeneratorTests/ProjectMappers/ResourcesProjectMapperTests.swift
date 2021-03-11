@@ -26,7 +26,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
 
     func test_map_when_a_target_that_has_resources_and_doesnt_supports_them() throws {
         // Given
-        let resources: [FileElement] = [.file(path: "/image.png")]
+        let resources: [ResourceFileElement] = [.file(path: "/image.png")]
         let target = Target.test(product: .staticLibrary, resources: resources)
         project = Project.test(targets: [target])
 
@@ -58,7 +58,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         XCTAssertEqual(gotTarget.sources.count, 1)
         XCTAssertEqual(gotTarget.sources.first?.path, expectedPath)
         XCTAssertEqual(gotTarget.dependencies.count, 1)
-        XCTAssertEqual(gotTarget.dependencies.first, Dependency.target(name: "\(target.name)Resources"))
+        XCTAssertEqual(gotTarget.dependencies.first, TargetDependency.target(name: "\(target.name)Resources"))
 
         let resourcesTarget = try XCTUnwrap(gotProject.targets.last)
         XCTAssertEqual(resourcesTarget.name, "\(target.name)Resources")
@@ -104,7 +104,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         XCTAssertEqual(gotTarget.sources.count, 1)
         XCTAssertEqual(gotTarget.sources.first?.path, expectedPath)
         XCTAssertEqual(gotTarget.dependencies.count, 1)
-        XCTAssertEqual(gotTarget.dependencies.first, Dependency.target(name: "\(target.name)Resources"))
+        XCTAssertEqual(gotTarget.dependencies.first, TargetDependency.target(name: "\(target.name)Resources"))
 
         let resourcesTarget = try XCTUnwrap(gotProject.targets.last)
         XCTAssertEqual(resourcesTarget.name, "\(target.name)Resources")
@@ -117,7 +117,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
 
     func test_map_when_a_target_that_has_resources_and_supports_them() throws {
         // Given
-        let resources: [FileElement] = [.file(path: "/image.png")]
+        let resources: [ResourceFileElement] = [.file(path: "/image.png")]
         let target = Target.test(product: .framework, resources: resources)
         project = Project.test(targets: [target])
 
@@ -189,7 +189,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
 
     func test_map_when_a_target_has_no_resources() throws {
         // Given
-        let resources: [FileElement] = []
+        let resources: [ResourceFileElement] = []
         let target = Target.test(product: .framework, resources: resources)
         project = Project.test(targets: [target])
 
@@ -203,7 +203,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
 
     func test_map_when_a_target_does_not_support_sources() throws {
         // Given
-        let resources: [FileElement] = [
+        let resources: [ResourceFileElement] = [
             .file(path: "/Some/ResourceA"),
             .file(path: "/Some/ResourceB"),
         ]

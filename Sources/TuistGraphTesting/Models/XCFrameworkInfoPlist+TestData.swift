@@ -14,8 +14,10 @@ public extension XCFrameworkInfoPlist.Library {
                      path: RelativePath = RelativePath("relative/to/library"),
                      architectures: [BinaryArchitecture] = [.i386]) -> XCFrameworkInfoPlist.Library
     {
-        XCFrameworkInfoPlist.Library(identifier: identifier,
-                                     path: path,
-                                     architectures: architectures)
+        XCFrameworkInfoPlist.Library(
+            identifier: identifier,
+            path: path,
+            architectures: architectures
+        )
     }
 }

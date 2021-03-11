@@ -6,3 +6,4 @@ Feature: Setup project tools using Tuist
     Then I copy the fixture ios_app_with_setup into the working directory
     Then tuist sets up the project
     Then I should have /tmp/my_test_tool installed
+    Then a directory Carthage/Build/Alamofire.xcframework exists

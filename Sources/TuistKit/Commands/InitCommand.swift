@@ -13,8 +13,10 @@ private typealias Product = TuistGraph.Product
 
 struct InitCommand: ParsableCommand, HasTrackableParameters {
     static var configuration: CommandConfiguration {
-        CommandConfiguration(commandName: "init",
-                             abstract: "Bootstraps a project")
+        CommandConfiguration(
+            commandName: "init",
+            abstract: "Bootstraps a project"
+        )
     }
 
     static var analyticsDelegate: TrackableParametersDelegate?
@@ -57,23 +59,29 @@ struct InitCommand: ParsableCommand, HasTrackableParameters {
         template = try container.decodeIfPresent(Option<String>.self, forKey: .template)?.wrappedValue
         path = try container.decodeIfPresent(Option<String>.self, forKey: .path)?.wrappedValue
         try InitCommand.requiredTemplateOptions.forEach { option in
-            requiredTemplateOptions[option.name] = try container.decode(Option<String>.self,
-                                                                        forKey: .required(option.name)).wrappedValue
+            requiredTemplateOptions[option.name] = try container.decode(
+                Option<String>.self,
+                forKey: .required(option.name)
+            ).wrappedValue
         }
         try InitCommand.optionalTemplateOptions.forEach { option in
-            optionalTemplateOptions[option.name] = try container.decode(Option<String?>.self,
-                                                                        forKey: .optional(option.name)).wrappedValue
+            optionalTemplateOptions[option.name] = try container.decode(
+                Option<String?>.self,
+                forKey: .optional(option.name)
+            ).wrappedValue
         }
     }
 
     func run() throws {
         InitCommand.analyticsDelegate?.willRun(withParameters: ["platform": platform ?? "unknown"])
-        try InitService().run(name: name,
-                              platform: platform,
-                              path: path,
-                              templateName: template,
-                              requiredTemplateOptions: requiredTemplateOptions,
-                              optionalTemplateOptions: optionalTemplateOptions)
+        try InitService().run(
+            name: name,
+            platform: platform,
+            path: path,
+            templateName: template,
+            requiredTemplateOptions: requiredTemplateOptions,
+            optionalTemplateOptions: optionalTemplateOptions
+        )
     }
 }
 
@@ -108,8 +116,10 @@ extension InitCommand {
             templateName != "default"
         else { return }
 
-        let (required, optional) = try InitService().loadTemplateOptions(templateName: templateName,
-                                                                         path: command.path)
+        let (required, optional) = try InitService().loadTemplateOptions(
+            templateName: templateName,
+            path: command.path
+        )
 
         InitCommand.requiredTemplateOptions = required.map {
             (name: $0, option: Option<String>())

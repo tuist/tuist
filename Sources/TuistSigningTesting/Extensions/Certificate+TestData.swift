@@ -10,11 +10,13 @@ extension Certificate {
                      name: String = "",
                      isRevoked: Bool = false) -> Certificate
     {
-        Certificate(publicKey: publicKey,
-                    privateKey: privateKey,
-                    fingerprint: fingerprint,
-                    developmentTeam: developmentTeam,
-                    name: name,
-                    isRevoked: isRevoked)
+        Certificate(
+            publicKey: publicKey,
+            privateKey: privateKey,
+            fingerprint: fingerprint,
+            developmentTeam: developmentTeam,
+            name: name,
+            isRevoked: isRevoked
+        )
     }
 }

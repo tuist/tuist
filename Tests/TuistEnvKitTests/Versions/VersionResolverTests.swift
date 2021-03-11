@@ -40,13 +40,17 @@ final class VersionResolverTests: XCTestCase {
         let binPath = tmp_dir.path.appending(component: Constants.binFolderName)
 
         // /tmp/dir/.tuist-version
-        try "3.2.1".write(to: URL(fileURLWithPath: versionPath.pathString),
-                          atomically: true,
-                          encoding: .utf8)
+        try "3.2.1".write(
+            to: URL(fileURLWithPath: versionPath.pathString),
+            atomically: true,
+            encoding: .utf8
+        )
         // /tmp/dir/.tuist-bin
-        try FileManager.default.createDirectory(at: URL(fileURLWithPath: binPath.pathString),
-                                                withIntermediateDirectories: true,
-                                                attributes: nil)
+        try FileManager.default.createDirectory(
+            at: URL(fileURLWithPath: binPath.pathString),
+            withIntermediateDirectories: true,
+            attributes: nil
+        )
 
         let got = try subject.resolve(path: tmp_dir.path)
         XCTAssertEqual(got, .bin(binPath))
@@ -57,9 +61,11 @@ final class VersionResolverTests: XCTestCase {
         let versionPath = tmp_dir.path.appending(component: Constants.versionFileName)
 
         // /tmp/dir/.tuist-version
-        try "3.2.1".write(to: URL(fileURLWithPath: versionPath.pathString),
-                          atomically: true,
-                          encoding: .utf8)
+        try "3.2.1".write(
+            to: URL(fileURLWithPath: versionPath.pathString),
+            atomically: true,
+            encoding: .utf8
+        )
 
         let got = try subject.resolve(path: tmp_dir.path)
         XCTAssertEqual(got, .versionFile(versionPath, "3.2.1"))
@@ -70,9 +76,11 @@ final class VersionResolverTests: XCTestCase {
         let versionPath = tmp_dir.path.appending(component: Constants.versionFileName)
 
         // /tmp/dir/.tuist-version
-        try "3.2.1 \n".write(to: URL(fileURLWithPath: versionPath.pathString),
-                             atomically: true,
-                             encoding: .utf8)
+        try "3.2.1 \n".write(
+            to: URL(fileURLWithPath: versionPath.pathString),
+            atomically: true,
+            encoding: .utf8
+        )
 
         let got = try subject.resolve(path: tmp_dir.path)
         XCTAssertEqual(got, .versionFile(versionPath, "3.2.1"))
@@ -83,9 +91,11 @@ final class VersionResolverTests: XCTestCase {
         let binPath = tmp_dir.path.appending(component: Constants.binFolderName)
 
         // /tmp/dir/.tuist-bin
-        try FileManager.default.createDirectory(at: URL(fileURLWithPath: binPath.pathString),
-                                                withIntermediateDirectories: true,
-                                                attributes: nil)
+        try FileManager.default.createDirectory(
+            at: URL(fileURLWithPath: binPath.pathString),
+            withIntermediateDirectories: true,
+            attributes: nil
+        )
 
         let got = try subject.resolve(path: tmp_dir.path)
         XCTAssertEqual(got, .bin(binPath))
@@ -97,12 +107,16 @@ final class VersionResolverTests: XCTestCase {
         let childPath = tmp_dir.path.appending(component: "child")
 
         // /tmp/dir/.tuist-version
-        try "3.2.1".write(to: URL(fileURLWithPath: versionPath.pathString),
-                          atomically: true,
-                          encoding: .utf8)
-        try FileManager.default.createDirectory(at: URL(fileURLWithPath: childPath.pathString),
-                                                withIntermediateDirectories: true,
-                                                attributes: nil)
+        try "3.2.1".write(
+            to: URL(fileURLWithPath: versionPath.pathString),
+            atomically: true,
+            encoding: .utf8
+        )
+        try FileManager.default.createDirectory(
+            at: URL(fileURLWithPath: childPath.pathString),
+            withIntermediateDirectories: true,
+            attributes: nil
+        )
 
         let got = try subject.resolve(path: childPath)
         XCTAssertEqual(got, .versionFile(versionPath, "3.2.1"))
@@ -114,12 +128,16 @@ final class VersionResolverTests: XCTestCase {
         let childPath = tmp_dir.path.appending(component: "child")
 
         // /tmp/dir/.tuist-bin
-        try FileManager.default.createDirectory(at: URL(fileURLWithPath: binPath.pathString),
-                                                withIntermediateDirectories: true,
-                                                attributes: nil)
-        try FileManager.default.createDirectory(at: URL(fileURLWithPath: childPath.pathString),
-                                                withIntermediateDirectories: true,
-                                                attributes: nil)
+        try FileManager.default.createDirectory(
+            at: URL(fileURLWithPath: binPath.pathString),
+            withIntermediateDirectories: true,
+            attributes: nil
+        )
+        try FileManager.default.createDirectory(
+            at: URL(fileURLWithPath: childPath.pathString),
+            withIntermediateDirectories: true,
+            attributes: nil
+        )
 
         let got = try subject.resolve(path: childPath)
         XCTAssertEqual(got, .bin(binPath))

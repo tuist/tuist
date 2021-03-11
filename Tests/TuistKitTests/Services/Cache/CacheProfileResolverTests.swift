@@ -9,7 +9,7 @@ import XCTest
 @testable import TuistSupportTesting
 
 final class CacheProfileResolverTests: TuistUnitTestCase {
-    private typealias ResolvedCacheProfile = CacheProfileResolver.ResolvedCacheProfile
+    private typealias CacheProfile = TuistGraph.Cache.Profile
 
     var subject: CacheProfileResolver!
 
@@ -23,66 +23,60 @@ final class CacheProfileResolverTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_resolves_default_profile_from_tuist_defaults() {
+    func test_resolves_default_profile_from_tuist_defaults() throws {
         // When
-        let resolvedProfile = subject.resolveCacheProfile(
+        let resolvedProfile = try subject.resolveCacheProfile(
             named: nil,
             from: .test(cache: nil)
         )
 
         // Then
         XCTAssertEqual(
-            ResolvedCacheProfile.defaultFromTuist(
-                .init(
-                    name: "development",
-                    configuration: "Debug"
-                )
+            CacheProfile(
+                name: "Development",
+                configuration: "Debug"
             ),
             resolvedProfile
         )
     }
 
-    func test_resolves_default_profile_from_tuist_defaults_when_profiles_list_is_empty() {
+    func test_resolves_default_profile_from_tuist_defaults_when_profiles_list_is_empty() throws {
         // When
-        let resolvedProfile = subject.resolveCacheProfile(
+        let resolvedProfile = try subject.resolveCacheProfile(
             named: nil,
             from: .test(cache: .test(profiles: []))
         )
 
         // Then
         XCTAssertEqual(
-            ResolvedCacheProfile.defaultFromTuist(
-                .init(
-                    name: "development",
-                    configuration: "Debug"
-                )
+            CacheProfile(
+                name: "Development",
+                configuration: "Debug"
             ),
             resolvedProfile
         )
     }
 
-    func test_resolves_default_profile_from_config() {
+    func test_resolves_default_profile_from_config() throws {
         // When
-        let resolvedProfile = subject.resolveCacheProfile(
+        let resolvedProfile = try subject.resolveCacheProfile(
             named: nil,
             from: .test(cache: Cache(profiles: [.init(name: "foo", configuration: "configuration")]))
         )
 
         // Then
         XCTAssertEqual(
-            ResolvedCacheProfile.defaultFromConfig(
-                .init(
-                    name: "foo",
-                    configuration: "configuration"
-                )
+            CacheProfile(
+                name: "foo",
+                configuration: "configuration"
             ),
             resolvedProfile
         )
     }
 
-    func test_resolves_selected_profile_from_config() {
+    func test_resolves_selected_profile_from_config() throws {
         // When
-        let resolvedProfile = subject.resolveCacheProfile(
+        let resolvedProfile = try subject.resolveCacheProfile(
             named: "bar",
             from: .test(
                 cache: Cache(
@@ -96,30 +90,22 @@ final class CacheProfileResolverTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(
-            ResolvedCacheProfile.selectedFromConfig(
-                .init(
-                    name: "bar",
-                    configuration: "release"
-                )
+            CacheProfile(
+                name: "bar",
+                configuration: "release"
             ),
             resolvedProfile
         )
     }
 
-    func test_resolves_not_found_profile() {
-        // When
-        let resolvedProfile = subject.resolveCacheProfile(
-            named: "foo",
-            from: .test(cache: Cache(profiles: [.init(name: "bar", configuration: "debug")]))
-        )
-
+    func test_resolves_not_found_profile() throws {
         // Then
-        XCTAssertEqual(
-            ResolvedCacheProfile.notFound(
-                profileName: "foo",
-                availableProfiles: ["bar"]
+        XCTAssertThrowsSpecific(
+            try subject.resolveCacheProfile(
+                named: "foo",
+                from: .test(cache: Cache(profiles: [.init(name: "bar", configuration: "debug")]))
             ),
-            resolvedProfile
+            CacheProfileResolverError.missingProfile(name: "foo", availableProfiles: ["bar"])
         )
     }
 }

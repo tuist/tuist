@@ -1,10 +1,12 @@
 import Foundation
 import TSCBasic
 import TuistCore
+import TuistGraph
 import TuistSupport
 
 public protocol TargetContentHashing {
-    func contentHash(for target: TargetNode, cacheOutputType: CacheOutputType) throws -> String
+    func contentHash(for target: TargetNode) throws -> String
+    func contentHash(for target: TargetNode, additionalStrings: [String]) throws -> String
 }
 
 /// `TargetContentHasher`
@@ -68,8 +70,12 @@ public final class TargetContentHasher: TargetContentHashing {
 
     // MARK: - TargetContentHashing
 
-    public func contentHash(for targetNode: TargetNode, cacheOutputType: CacheOutputType) throws -> String {
-        let target = targetNode.target
+    public func contentHash(for target: TargetNode) throws -> String {
+        try contentHash(for: target, additionalStrings: [])
+    }
+
+    public func contentHash(for target: TargetNode, additionalStrings: [String]) throws -> String {
+        let target = target.target
         let sourcesHash = try sourceFilesContentHasher.hash(sources: target.sources)
         let resourcesHash = try resourcesContentHasher.hash(resources: target.resources)
         let copyFilesHash = try copyFilesContentHasher.hash(copyFiles: target.copyFiles)
@@ -77,18 +83,20 @@ public final class TargetContentHasher: TargetContentHashing {
         let targetActionsHash = try targetActionsContentHasher.hash(targetActions: target.actions)
         let dependenciesHash = try dependenciesContentHasher.hash(dependencies: target.dependencies)
         let environmentHash = try contentHasher.hash(target.environment)
-        var stringsToHash = [target.name,
-                             target.platform.rawValue,
-                             target.product.rawValue,
-                             target.bundleId,
-                             target.productName,
-                             dependenciesHash,
-                             sourcesHash,
-                             resourcesHash,
-                             copyFilesHash,
-                             coreDataModelHash,
-                             targetActionsHash,
-                             environmentHash]
+        var stringsToHash = [
+            target.name,
+            target.platform.rawValue,
+            target.product.rawValue,
+            target.bundleId,
+            target.productName,
+            dependenciesHash,
+            sourcesHash,
+            resourcesHash,
+            copyFilesHash,
+            coreDataModelHash,
+            targetActionsHash,
+            environmentHash,
+        ]
         if let headers = target.headers {
             let headersHash = try headersContentHasher.hash(headers: headers)
             stringsToHash.append(headersHash)
@@ -109,8 +117,8 @@ public final class TargetContentHasher: TargetContentHashing {
             let settingsHash = try settingsContentHasher.hash(settings: settings)
             stringsToHash.append(settingsHash)
         }
+        stringsToHash += additionalStrings
 
-        stringsToHash.append(cacheOutputType.description)
         return try contentHasher.hash(stringsToHash)
     }
 }

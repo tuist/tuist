@@ -58,10 +58,12 @@ public final class CloudSessionController: CloudSessionControlling {
     let opener: Opening
 
     public convenience init() {
-        self.init(credentialsStore: CredentialsStore(),
-                  httpRedirectListener: HTTPRedirectListener(),
-                  ciChecker: CIChecker(),
-                  opener: Opener())
+        self.init(
+            credentialsStore: CredentialsStore(),
+            httpRedirectListener: HTTPRedirectListener(),
+            ciChecker: CIChecker(),
+            opener: Opener()
+        )
     }
 
     init(credentialsStore: CredentialsStoring,
@@ -88,10 +90,12 @@ public final class CloudSessionController: CloudSessionControlling {
 
         let logoURL = serverURL.appendingPathComponent("redirect-logo.svg")
         let redirectMessage = "Switch back to your terminal to continue the authentication."
-        let result = httpRedirectListener.listen(port: CloudSessionController.port,
-                                                 path: "auth",
-                                                 redirectMessage: redirectMessage,
-                                                 logoURL: logoURL)
+        let result = httpRedirectListener.listen(
+            port: CloudSessionController.port,
+            path: "auth",
+            redirectMessage: redirectMessage,
+            logoURL: logoURL
+        )
         switch result {
         case let .failure(error): throw error
         case let .success(parameters):

@@ -20,8 +20,10 @@ final class CodeLinterTests: TuistUnitTestCase {
         rootDirectoryLocator = MockRootDirectoryLocator()
         binaryLocator = MockBinaryLocator()
 
-        subject = CodeLinter(rootDirectoryLocator: rootDirectoryLocator,
-                             binaryLocator: binaryLocator)
+        subject = CodeLinter(
+            rootDirectoryLocator: rootDirectoryLocator,
+            binaryLocator: binaryLocator
+        )
     }
 
     override func tearDown() {
@@ -46,7 +48,7 @@ final class CodeLinterTests: TuistUnitTestCase {
         binaryLocator.stubbedSwiftLintPathError = fakeError
 
         // When
-        XCTAssertThrowsSpecific(try subject.lint(sources: fakeSources, path: fakePath), fakeError)
+        XCTAssertThrowsSpecific(try subject.lint(sources: fakeSources, path: fakePath, strict: false), fakeError)
     }
 
     func test_lint_no_configuration() throws {
@@ -58,12 +60,34 @@ final class CodeLinterTests: TuistUnitTestCase {
         ]
         let fakePath = AbsolutePath("/foo/bar")
         binaryLocator.stubbedSwiftLintPathResult = "/swiftlint"
-        system.succeedCommand(binaryLocator.stubbedSwiftLintPathResult.pathString,
-                              "lint",
-                              "--use-script-input-files")
+        system.succeedCommand(
+            binaryLocator.stubbedSwiftLintPathResult.pathString,
+            "lint",
+            "--use-script-input-files"
+        )
 
         // When
-        try subject.lint(sources: fakeSources, path: fakePath)
+        try subject.lint(sources: fakeSources, path: fakePath, strict: false)
+    }
+
+    func test_lint_no_configuration_strict() throws {
+        // Given
+        let fakeSources = [
+            AbsolutePath("/xyz/abc"),
+            AbsolutePath("/xyz/def"),
+            AbsolutePath("/xyz/hij"),
+        ]
+        let fakePath = AbsolutePath("/foo/bar")
+        binaryLocator.stubbedSwiftLintPathResult = "/swiftlint"
+        system.succeedCommand(
+            binaryLocator.stubbedSwiftLintPathResult.pathString,
+            "lint",
+            "--use-script-input-files",
+            "--strict"
+        )
+
+        // When
+        try subject.lint(sources: fakeSources, path: fakePath, strict: true)
     }
 
     func test_lint_with_configuration_yml() throws {
@@ -88,14 +112,16 @@ final class CodeLinterTests: TuistUnitTestCase {
             "SCRIPT_INPUT_FILE_1": fakeSources[1].pathString,
             "SCRIPT_INPUT_FILE_2": fakeSources[2].pathString,
         ]
-        system.succeedCommand(binaryLocator.stubbedSwiftLintPathResult.pathString,
-                              "lint",
-                              "--use-script-input-files",
-                              "--config",
-                              swiftLintConfigPath.pathString)
+        system.succeedCommand(
+            binaryLocator.stubbedSwiftLintPathResult.pathString,
+            "lint",
+            "--use-script-input-files",
+            "--config",
+            swiftLintConfigPath.pathString
+        )
 
         // When
-        try subject.lint(sources: fakeSources, path: fakePath)
+        try subject.lint(sources: fakeSources, path: fakePath, strict: false)
     }
 
     func test_lint_with_configuration_yaml() throws {
@@ -113,13 +139,15 @@ final class CodeLinterTests: TuistUnitTestCase {
         rootDirectoryLocator.locateStub = fakeRoot
         binaryLocator.stubbedSwiftLintPathResult = fakeSwiftLintPath
         fileHandler.stubExists = { $0 == swiftLintConfigPath }
-        system.succeedCommand(binaryLocator.stubbedSwiftLintPathResult.pathString,
-                              "lint",
-                              "--use-script-input-files",
-                              "--config",
-                              swiftLintConfigPath.pathString)
+        system.succeedCommand(
+            binaryLocator.stubbedSwiftLintPathResult.pathString,
+            "lint",
+            "--use-script-input-files",
+            "--config",
+            swiftLintConfigPath.pathString
+        )
 
         // When
-        try subject.lint(sources: fakeSources, path: fakePath)
+        try subject.lint(sources: fakeSources, path: fakePath, strict: false)
     }
 }

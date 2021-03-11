@@ -21,9 +21,11 @@ final class CopyFilesManifestMapperTests: TuistUnitTestCase {
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
         try createFiles(files)
 
-        let manifest = ProjectDescription.CopyFilesAction.resources(name: "Copy Fonts",
-                                                                    subpath: "Fonts",
-                                                                    files: "Fonts/**")
+        let manifest = ProjectDescription.CopyFilesAction.resources(
+            name: "Copy Fonts",
+            subpath: "Fonts",
+            files: "Fonts/**"
+        )
 
         // When
         let model = try TuistGraph.CopyFilesAction.from(manifest: manifest, generatorPaths: generatorPaths)
@@ -52,9 +54,11 @@ final class CopyFilesManifestMapperTests: TuistUnitTestCase {
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
         try createFiles(files)
 
-        let manifest = ProjectDescription.CopyFilesAction.sharedSupport(name: "Copy Templates",
-                                                                        subpath: "Templates",
-                                                                        files: "SharedSupport/**")
+        let manifest = ProjectDescription.CopyFilesAction.sharedSupport(
+            name: "Copy Templates",
+            subpath: "Templates",
+            files: "SharedSupport/**"
+        )
 
         // When
         let model = try TuistGraph.CopyFilesAction.from(manifest: manifest, generatorPaths: generatorPaths)

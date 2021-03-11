@@ -4,7 +4,7 @@ import TuistCore
 import TuistGraph
 
 extension TuistGraph.SDKStatus {
-    /// Maps a ProjectDescription.SDKStatus instance into a TuistCore.SDKStatus instance.
+    /// Maps a ProjectDescription.SDKStatus instance into a TuistGraph.SDKStatus instance.
     /// - Parameters:
     ///   - manifest: Manifest representation of SDK status model.
     ///   - generatorPaths: Generator paths.

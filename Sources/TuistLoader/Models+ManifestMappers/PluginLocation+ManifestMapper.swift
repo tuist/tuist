@@ -3,7 +3,7 @@ import ProjectDescription
 import TuistGraph
 
 extension TuistGraph.PluginLocation {
-    /// Convert from `ProjectDescription.PluginLocation` to `TuistCore.PluginLocation`
+    /// Convert from `ProjectDescription.PluginLocation` to `TuistGraph.PluginLocation`
     static func from(
         manifest: ProjectDescription.PluginLocation,
         generatorPaths: GeneratorPaths

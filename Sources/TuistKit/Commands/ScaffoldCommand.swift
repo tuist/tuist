@@ -24,9 +24,11 @@ enum ScaffoldCommandError: FatalError, Equatable {
 
 struct ScaffoldCommand: ParsableCommand {
     static var configuration: CommandConfiguration {
-        CommandConfiguration(commandName: "scaffold",
-                             abstract: "Generates new project based on template",
-                             subcommands: [ListCommand.self])
+        CommandConfiguration(
+            commandName: "scaffold",
+            abstract: "Generates new project based on template",
+            subcommands: [ListCommand.self]
+        )
     }
 
     @Flag(
@@ -58,12 +60,16 @@ struct ScaffoldCommand: ParsableCommand {
         json = try container.decodeIfPresent(Option<Bool>.self, forKey: .json)?.wrappedValue ?? false
         path = try container.decodeIfPresent(Option<String>.self, forKey: .path)?.wrappedValue
         try ScaffoldCommand.requiredTemplateOptions.forEach { option in
-            requiredTemplateOptions[option.name] = try container.decode(Option<String>.self,
-                                                                        forKey: .required(option.name)).wrappedValue
+            requiredTemplateOptions[option.name] = try container.decode(
+                Option<String>.self,
+                forKey: .required(option.name)
+            ).wrappedValue
         }
         try ScaffoldCommand.optionalTemplateOptions.forEach { option in
-            optionalTemplateOptions[option.name] = try container.decode(Option<String?>.self,
-                                                                        forKey: .optional(option.name)).wrappedValue
+            optionalTemplateOptions[option.name] = try container.decode(
+                Option<String?>.self,
+                forKey: .optional(option.name)
+            ).wrappedValue
         }
     }
 
@@ -73,10 +79,12 @@ struct ScaffoldCommand: ParsableCommand {
             let format: ListService.OutputFormat = json ? .json : .table
             try ListService().run(path: path, outputFormat: format)
         } else {
-            try ScaffoldService().run(path: path,
-                                      templateName: template,
-                                      requiredTemplateOptions: requiredTemplateOptions,
-                                      optionalTemplateOptions: optionalTemplateOptions)
+            try ScaffoldService().run(
+                path: path,
+                templateName: template,
+                requiredTemplateOptions: requiredTemplateOptions,
+                optionalTemplateOptions: optionalTemplateOptions
+            )
         }
     }
 }
@@ -107,8 +115,10 @@ extension ScaffoldCommand {
 
         guard let command = try parseAsRoot([arguments[1]] + filteredArguments) as? ScaffoldCommand else { return }
 
-        let (required, optional) = try ScaffoldService().loadTemplateOptions(templateName: command.template,
-                                                                             path: command.path)
+        let (required, optional) = try ScaffoldService().loadTemplateOptions(
+            templateName: command.template,
+            path: command.path
+        )
 
         ScaffoldCommand.requiredTemplateOptions = required.map {
             (name: $0, option: Option<String>())

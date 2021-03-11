@@ -1,14 +1,14 @@
 import Foundation
 
 public struct Dependencies: Equatable {
-    public let carthageDependencies: [CarthageDependency]
-    public let swiftPackageManagerDependencies: [SwiftPackageManagerDependency]
+    public let carthage: CarthageDependencies?
+    public let swiftPackageManager: SwiftPackageManagerDependencies?
 
     public init(
-        carthageDependencies: [CarthageDependency],
-        swiftPackageManagerDependencies: [SwiftPackageManagerDependency]
+        carthage: CarthageDependencies?,
+        swiftPackageManager: SwiftPackageManagerDependencies?
     ) {
-        self.carthageDependencies = carthageDependencies
-        self.swiftPackageManagerDependencies = swiftPackageManagerDependencies
+        self.carthage = carthage
+        self.swiftPackageManager = swiftPackageManager
     }
 }

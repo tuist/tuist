@@ -164,8 +164,10 @@ class TargetLinter: TargetLinting {
 
         if target.resources.isEmpty == false {
             return [
-                LintingIssue(reason: "Target \(target.name) cannot contain resources. \(target.product) targets do not support resources",
-                             severity: .error),
+                LintingIssue(
+                    reason: "Target \(target.name) cannot contain resources. \(target.product) targets do not support resources",
+                    severity: .error
+                ),
             ]
         }
 
@@ -204,8 +206,10 @@ class TargetLinter: TargetLinting {
             invalidProducts.contains(target.product)
         {
             return [
-                LintingIssue(reason: "'\(target.name)' for platform '\(target.platform)' can't have a product type '\(target.product)'",
-                             severity: .error),
+                LintingIssue(
+                    reason: "'\(target.name)' for platform '\(target.platform)' can't have a product type '\(target.product)'",
+                    severity: .error
+                ),
             ]
         }
 
@@ -214,7 +218,7 @@ class TargetLinter: TargetLinting {
 
     private func lintDuplicateDependency(target: Target) -> [LintingIssue] {
         typealias Occurence = Int
-        var seen: [Dependency: Occurence] = [:]
+        var seen: [TargetDependency: Occurence] = [:]
         target.dependencies.forEach { seen[$0, default: 0] += 1 }
         let duplicates = seen.enumerated().filter { $0.element.value > 1 }
         return duplicates.map {
@@ -223,7 +227,7 @@ class TargetLinter: TargetLinting {
     }
 }
 
-private extension Dependency {
+private extension TargetDependency {
     var typeName: String {
         switch self {
         case .target:

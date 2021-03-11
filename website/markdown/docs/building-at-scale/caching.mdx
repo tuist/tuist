@@ -23,6 +23,11 @@ We recommend setting up a continuous integration pipeline that runs on every mas
 tuist cache warm
 ```
 
+To warm the cache of only specific targets and their dependencies, you can run:
+```
+tuist cache warm FrameworkA FrameworkB
+```
+
 ### Arguments
 
 <ArgumentsTable
@@ -40,15 +45,31 @@ tuist cache warm
         'Cache the targets as .xcframeworks. It requires targets to be enabled for library distribution.',
       default: '`false`',
     },
+    {
+      long: '`--profile`',
+      short: '`-P`',
+      description: 'The name of the profile to be used when warming up the cache.',
+      default: '',
+    },
+    {
+      long: '`--targets`',
+      short: '`-t`',
+      description:
+        'A list of targets to cache. Those and their dependent targets will be cached. If empty, every cacheable target will be cached.',
+      default: '`Empty list`',
+    },
   ]}
 />
 
 One the cache is warmed, you can use the [focus](/docs/commands/focus/) command to generate a project replacing direct and transitive dependencies with artifacts from the cache.
 
-You can change the location of cache on your local machine the by setting the environment variable:
+### Caching profile 
+
+The caching profile allows users to specify how targets will be cached, for example setting a configuration. Instead of passing the configuration through CLI arguments, developers can define a profile and reference it with `tuist cache warm --profile MyProfile`.
+You can define a caching profile in `Config.swift`, for example:
 
 ```
-TUIST_CACHE_DIRECTORY
+let config = Config(cache: .cache(profiles: [.profile(name: "Simulator", configuration: "Debug")]))
 ```
 
 ## Debugging

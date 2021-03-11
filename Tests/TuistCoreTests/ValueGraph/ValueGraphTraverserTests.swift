@@ -9,6 +9,98 @@ import XCTest
 @testable import TuistSupportTesting
 
 final class ValueGraphTraverserTests: TuistUnitTestCase {
+    func test_dependsOnXCTest_when_is_framework() {
+        // Given
+        let project = Project.test()
+        let frameworkTarget = ValueGraphTarget.test(
+            path: project.path,
+            target: Target.test(
+                name: "Framework",
+                product: .framework
+            )
+        )
+        let graph = ValueGraph.test(
+            projects: [
+                project.path: project,
+            ],
+            targets: [
+                project.path: [
+                    frameworkTarget.target.name: frameworkTarget.target,
+                ],
+            ]
+        )
+        let subject = ValueGraphTraverser(graph: graph)
+
+        // When
+        let got = subject.dependsOnXCTest(path: project.path, name: "Framework")
+
+        // Then
+        XCTAssertFalse(got)
+    }
+
+    func test_dependsOnXCTest_when_is_tests_bundle() {
+        // Given
+        let project = Project.test()
+        let unitTestsTarget = ValueGraphTarget.test(
+            path: project.path,
+            target: Target.test(
+                name: "UnitTests",
+                product: .unitTests
+            )
+        )
+        let graph = ValueGraph.test(
+            projects: [
+                project.path: project,
+            ],
+            targets: [
+                project.path: [
+                    unitTestsTarget.target.name: unitTestsTarget.target,
+                ],
+            ]
+        )
+        let subject = ValueGraphTraverser(graph: graph)
+
+        // When
+        let got = subject.dependsOnXCTest(path: project.path, name: "UnitTests")
+
+        // Then
+        XCTAssertTrue(got)
+    }
+
+    func test_dependsOnXCTest_when_direct_dependency_is_XCTest_SDK() {
+        // Given
+        let project = Project.test()
+        let frameworkTarget = ValueGraphTarget.test(
+            path: project.path,
+            target: Target.test(
+                name: "Framework",
+                product: .framework
+            )
+        )
+        let graph = ValueGraph.test(
+            projects: [
+                project.path: project,
+            ],
+            targets: [
+                project.path: [
+                    frameworkTarget.target.name: frameworkTarget.target,
+                ],
+            ],
+            dependencies: [
+                .target(name: frameworkTarget.target.name, path: project.path): [
+                    .testSDK(name: "XCTest"),
+                ],
+            ]
+        )
+        let subject = ValueGraphTraverser(graph: graph)
+
+        // When
+        let got = subject.dependsOnXCTest(path: project.path, name: "Framework")
+
+        // Then
+        XCTAssertTrue(got)
+    }
+
     func test_target() {
         // Given
         let path = AbsolutePath.root
@@ -17,11 +109,13 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         let project = Project.test(path: path)
 
         // Given: Value Graph
-        let valueGraph = ValueGraph.test(path: path,
-                                         projects: [path: project],
-                                         targets: [
-                                             "/": ["App": app, "Framework": framework],
-                                         ])
+        let valueGraph = ValueGraph.test(
+            path: path,
+            projects: [path: project],
+            targets: [
+                "/": ["App": app, "Framework": framework],
+            ]
+        )
         let subject = ValueGraphTraverser(graph: valueGraph)
 
         // When
@@ -39,11 +133,13 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         let framework = Target.test(name: "Framework", product: .framework)
 
         // When: Value Graph
-        let valueGraph = ValueGraph.test(path: path,
-                                         projects: [path: project],
-                                         targets: [
-                                             path: ["App": app, "Framework": framework],
-                                         ])
+        let valueGraph = ValueGraph.test(
+            path: path,
+            projects: [path: project],
+            targets: [
+                path: ["App": app, "Framework": framework],
+            ]
+        )
         let subject = ValueGraphTraverser(graph: valueGraph)
 
         // When
@@ -74,10 +170,12 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         ]
 
         // Given: Value Graph
-        let valueGraph = ValueGraph.test(path: path,
-                                         projects: [path: project],
-                                         targets: targets,
-                                         dependencies: dependencies)
+        let valueGraph = ValueGraph.test(
+            path: path,
+            projects: [path: project],
+            targets: targets,
+            dependencies: dependencies
+        )
         let subject = ValueGraphTraverser(graph: valueGraph)
 
         // When
@@ -101,9 +199,11 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         ]
 
         // Given: Value Graph
-        let valueGraph = ValueGraph.test(path: path,
-                                         targets: targets,
-                                         dependencies: dependencies)
+        let valueGraph = ValueGraph.test(
+            path: path,
+            targets: targets,
+            dependencies: dependencies
+        )
         let subject = ValueGraphTraverser(graph: valueGraph)
 
         // When
@@ -113,7 +213,7 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         XCTAssertEqual(got, [.product(target: staticLibrary.name, productName: staticLibrary.productNameWithExtension)])
     }
 
-    func test_directTargetDependencies() {
+    func test_directLocalTargetDependencies() {
         // Given
         // A -> B -> C
         let project = Project.test()
@@ -130,20 +230,22 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
             c.name: c,
         ]]
         // Given: Value Graph
-        let valueGraph = ValueGraph.test(path: project.path,
-                                         projects: [project.path: project],
-                                         targets: targets,
-                                         dependencies: dependencies)
+        let valueGraph = ValueGraph.test(
+            path: project.path,
+            projects: [project.path: project],
+            targets: targets,
+            dependencies: dependencies
+        )
         let subject = ValueGraphTraverser(graph: valueGraph)
 
         // When
-        let got = subject.directTargetDependencies(path: project.path, name: a.name).sorted()
+        let got = subject.directLocalTargetDependencies(path: project.path, name: a.name).sorted()
 
         // Then
         XCTAssertEqual(got.map(\.target), [b])
     }
 
-    func test_directTargetDependencies_returnsLocalProjectTargetsOnly() {
+    func test_directLocalTargetDependencies_returnsLocalProjectTargetsOnly() {
         // Given
         // Project A: A1 -> A2
         //               -> (Project B) B1
@@ -169,17 +271,68 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
             ],
         ]
         // Given: Value Graph
-        let valueGraph = ValueGraph.test(path: projectA.path,
-                                         projects: [projectA.path: projectA, projectB.path: projectB],
-                                         targets: targets,
-                                         dependencies: dependencies)
+        let valueGraph = ValueGraph.test(
+            path: projectA.path,
+            projects: [projectA.path: projectA, projectB.path: projectB],
+            targets: targets,
+            dependencies: dependencies
+        )
+        let subject = ValueGraphTraverser(graph: valueGraph)
+
+        // When
+        let got = subject.directLocalTargetDependencies(path: projectA.path, name: a1.name).sorted()
+
+        // Then
+        XCTAssertEqual(got.map(\.target), [a2])
+    }
+
+    func test_directTargetDependencies_returnsAllTargets() {
+        // Given
+        // Project A: A1 -> A2
+        //               -> (Project B) B1
+        // Project B: B1
+        let projectA = Project.test(path: "/ProjectA", name: "ProjectA")
+        let projectB = Project.test(path: "/ProjectB", name: "ProjectB")
+        let a1 = Target.test(name: "A1")
+        let a2 = Target.test(name: "A2")
+        let b1 = Target.test(
+            name: "B1"
+        )
+        let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
+            .target(name: a1.name, path: projectA.path): Set([
+                .target(name: a2.name, path: projectA.path),
+                .target(name: b1.name, path: projectB.path),
+            ]),
+        ]
+        let targets: [AbsolutePath: [String: Target]] = [
+            projectA.path: [
+                a1.name: a1,
+                a2.name: a2,
+            ],
+            projectB.path: [
+                b1.name: b1,
+            ],
+        ]
+        // Given: Value Graph
+        let valueGraph = ValueGraph.test(
+            path: projectA.path,
+            projects: [projectA.path: projectA, projectB.path: projectB],
+            targets: targets,
+            dependencies: dependencies
+        )
         let subject = ValueGraphTraverser(graph: valueGraph)
 
         // When
         let got = subject.directTargetDependencies(path: projectA.path, name: a1.name).sorted()
 
         // Then
-        XCTAssertEqual(got.map(\.target), [a2])
+        XCTAssertEqual(
+            got,
+            [
+                ValueGraphTarget(path: projectA.path, target: a2, project: projectA),
+                ValueGraphTarget(path: projectB.path, target: b1, project: projectB),
+            ]
+        )
     }
 
     func test_resourceBundleDependencies_returns_an_empty_list_when_a_dependency_can_host_resources() {
@@ -197,12 +350,14 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         ]
 
         // Given: Value Graph
-        let valueGraph = ValueGraph.test(path: project.path,
-                                         projects: [project.path: project],
-                                         targets: [project.path: [app.name: app,
-                                                                  watchApp.name: watchApp,
-                                                                  bundle.name: bundle]],
-                                         dependencies: dependencies)
+        let valueGraph = ValueGraph.test(
+            path: project.path,
+            projects: [project.path: project],
+            targets: [project.path: [app.name: app,
+                                     watchApp.name: watchApp,
+                                     bundle.name: bundle]],
+            dependencies: dependencies
+        )
         let subject = ValueGraphTraverser(graph: valueGraph)
 
         // When
@@ -227,12 +382,14 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         ]
 
         // Given: Value Graph
-        let valueGraph = ValueGraph.test(path: project.path,
-                                         projects: [project.path: project],
-                                         targets: [project.path: [app.name: app,
-                                                                  staticLibrary.name: staticLibrary,
-                                                                  bundle.name: bundle]],
-                                         dependencies: dependencies)
+        let valueGraph = ValueGraph.test(
+            path: project.path,
+            projects: [project.path: project],
+            targets: [project.path: [app.name: app,
+                                     staticLibrary.name: staticLibrary,
+                                     bundle.name: bundle]],
+            dependencies: dependencies
+        )
         let subject = ValueGraphTraverser(graph: valueGraph)
 
         // When
@@ -255,11 +412,13 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         ]
 
         // Given: Value Graph
-        let valueGraph = ValueGraph.test(path: project.path,
-                                         projects: [project.path: project],
-                                         targets: [project.path: [staticLibrary.name: staticLibrary,
-                                                                  bundle.name: bundle]],
-                                         dependencies: dependencies)
+        let valueGraph = ValueGraph.test(
+            path: project.path,
+            projects: [project.path: project],
+            targets: [project.path: [staticLibrary.name: staticLibrary,
+                                     bundle.name: bundle]],
+            dependencies: dependencies
+        )
         let subject = ValueGraphTraverser(graph: valueGraph)
 
         // When
@@ -281,11 +440,13 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         ]
 
         // Given: Value graph
-        let valueGraph = ValueGraph.test(path: project.path,
-                                         projects: [project.path: project],
-                                         targets: [project.path: [app.name: app,
-                                                                  bundle.name: bundle]],
-                                         dependencies: dependencies)
+        let valueGraph = ValueGraph.test(
+            path: project.path,
+            projects: [project.path: project],
+            targets: [project.path: [app.name: app,
+                                     bundle.name: bundle]],
+            dependencies: dependencies
+        )
         let subject = ValueGraphTraverser(graph: valueGraph)
 
         // When
@@ -311,12 +472,14 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         ]
 
         // Given: Value Graph
-        let valueGraph = ValueGraph.test(path: .root,
-                                         projects: [projectA.path: projectA,
-                                                    projectB.path: projectB],
-                                         targets: [projectA.path: [bundle.name: bundle],
-                                                   projectB.path: [app.name: app]],
-                                         dependencies: dependencies)
+        let valueGraph = ValueGraph.test(
+            path: .root,
+            projects: [projectA.path: projectA,
+                       projectB.path: projectB],
+            targets: [projectA.path: [bundle.name: bundle],
+                      projectB.path: [app.name: app]],
+            dependencies: dependencies
+        )
         let subject = ValueGraphTraverser(graph: valueGraph)
 
         // When
@@ -344,13 +507,15 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         ]
 
         // Given: Value Graph
-        let valueGraph = ValueGraph.test(path: .root,
-                                         projects: [projectA.path: projectA,
-                                                    projectB.path: projectB],
-                                         targets: [projectA.path: [bundle.name: bundle,
-                                                                   staticFramework.name: staticFramework],
-                                                   projectB.path: [app.name: app]],
-                                         dependencies: dependencies)
+        let valueGraph = ValueGraph.test(
+            path: .root,
+            projects: [projectA.path: projectA,
+                       projectB.path: projectB],
+            targets: [projectA.path: [bundle.name: bundle,
+                                      staticFramework.name: staticFramework],
+                      projectB.path: [app.name: app]],
+            dependencies: dependencies
+        )
         let subject = ValueGraphTraverser(graph: valueGraph)
 
         // When
@@ -383,15 +548,17 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         ]
 
         // Given: Value Graph
-        let valueGraph = ValueGraph.test(path: .root,
-                                         projects: [projectA.path: projectA,
-                                                    projectB.path: projectB],
-                                         targets: [projectA.path: [bundle1.name: bundle1,
-                                                                   bundle2.name: bundle2,
-                                                                   staticFramework1.name: staticFramework1,
-                                                                   staticFramework2.name: staticFramework2],
-                                                   projectB.path: [app.name: app]],
-                                         dependencies: dependencies)
+        let valueGraph = ValueGraph.test(
+            path: .root,
+            projects: [projectA.path: projectA,
+                       projectB.path: projectB],
+            targets: [projectA.path: [bundle1.name: bundle1,
+                                      bundle2.name: bundle2,
+                                      staticFramework1.name: staticFramework1,
+                                      staticFramework2.name: staticFramework2],
+                      projectB.path: [app.name: app]],
+            dependencies: dependencies
+        )
         let subject = ValueGraphTraverser(graph: valueGraph)
 
         // When
@@ -427,15 +594,17 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         ]
 
         // Given: Value Graph
-        let valueGraph = ValueGraph.test(path: .root,
-                                         projects: [projectA.path: projectA,
-                                                    projectB.path: projectB],
-                                         targets: [projectA.path: [bundle.name: bundle,
-                                                                   staticFramework1.name: staticFramework1,
-                                                                   staticFramework2.name: staticFramework2,
-                                                                   dynamicFramework.name: dynamicFramework],
-                                                   projectB.path: [app.name: app]],
-                                         dependencies: dependencies)
+        let valueGraph = ValueGraph.test(
+            path: .root,
+            projects: [projectA.path: projectA,
+                       projectB.path: projectB],
+            targets: [projectA.path: [bundle.name: bundle,
+                                      staticFramework1.name: staticFramework1,
+                                      staticFramework2.name: staticFramework2,
+                                      dynamicFramework.name: dynamicFramework],
+                      projectB.path: [app.name: app]],
+            dependencies: dependencies
+        )
         let subject = ValueGraphTraverser(graph: valueGraph)
 
         // When
@@ -459,10 +628,12 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         let app = Target.test(name: "App", product: .app)
 
         // Given: Value Graph
-        let valueGraph = ValueGraph.test(path: project.path,
-                                         projects: [project.path: project],
-                                         targets: [project.path: [app.name: app]],
-                                         dependencies: [.target(name: app.name, path: project.path): Set()])
+        let valueGraph = ValueGraph.test(
+            path: project.path,
+            projects: [project.path: project],
+            targets: [project.path: [app.name: app]],
+            dependencies: [.target(name: app.name, path: project.path): Set()]
+        )
         let subject = ValueGraphTraverser(graph: valueGraph)
 
         // When
@@ -487,12 +658,14 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         ]
 
         // Given: Value Graph
-        let valueGraph = ValueGraph.test(path: project.path,
-                                         projects: [project.path: project],
-                                         targets: [project.path: [app.name: app,
-                                                                  staticLibrary.name: staticLibrary,
-                                                                  bundle.name: bundle]],
-                                         dependencies: dependencies)
+        let valueGraph = ValueGraph.test(
+            path: project.path,
+            projects: [project.path: project],
+            targets: [project.path: [app.name: app,
+                                     staticLibrary.name: staticLibrary,
+                                     bundle.name: bundle]],
+            dependencies: dependencies
+        )
         let subject = ValueGraphTraverser(graph: valueGraph)
 
         // When
@@ -526,26 +699,30 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
             .target(name: frameworkA.name, path: project.path): Set([.target(name: frameworkB.name, path: project.path)]),
         ]
 
-        let graph = ValueGraph.test(path: project.path,
-                                    projects: [project.path: project],
-                                    targets: [project.path: [app.name: app,
-                                                             staticLibrary.name: staticLibrary,
-                                                             bundle.name: bundle,
-                                                             frameworkA.name: frameworkA,
-                                                             frameworkB.name: frameworkB]],
-                                    dependencies: dependencies)
+        let graph = ValueGraph.test(
+            path: project.path,
+            projects: [project.path: project],
+            targets: [project.path: [app.name: app,
+                                     staticLibrary.name: staticLibrary,
+                                     bundle.name: bundle,
+                                     frameworkA.name: frameworkA,
+                                     frameworkB.name: frameworkB]],
+            dependencies: dependencies
+        )
         let subject = ValueGraphTraverser(graph: graph)
 
         // When
-        let got = subject.filterDependencies(from: .target(name: app.name, path: project.path),
-                                             test: { _ in true },
-                                             skip: {
-                                                 if case let ValueGraphDependency.target(name, _) = $0, name == "FrameworkA" {
-                                                     return true
-                                                 } else {
-                                                     return false
-                                                 }
-                                             })
+        let got = subject.filterDependencies(
+            from: .target(name: app.name, path: project.path),
+            test: { _ in true },
+            skip: {
+                if case let ValueGraphDependency.target(name, _) = $0, name == "FrameworkA" {
+                    return true
+                } else {
+                    return false
+                }
+            }
+        )
 
         // Then
         XCTAssertEqual(Set(got), Set([
@@ -566,11 +743,13 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         ]
 
         // Given: Value Graph
-        let valueGraph = ValueGraph.test(path: project.path,
-                                         projects: [project.path: project],
-                                         targets: [project.path: [target.name: target,
-                                                                  dependency.name: dependency]],
-                                         dependencies: dependencies)
+        let valueGraph = ValueGraph.test(
+            path: project.path,
+            projects: [project.path: project],
+            targets: [project.path: [target.name: target,
+                                     dependency.name: dependency]],
+            dependencies: dependencies
+        )
         let subject = ValueGraphTraverser(graph: valueGraph)
 
         // When
@@ -591,11 +770,13 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         ]
 
         // Given: Value graph
-        let valueGraph = ValueGraph.test(path: project.path,
-                                         projects: [project.path: project],
-                                         targets: [project.path: [target.name: target,
-                                                                  dependency.name: dependency]],
-                                         dependencies: dependencies)
+        let valueGraph = ValueGraph.test(
+            path: project.path,
+            projects: [project.path: project],
+            targets: [project.path: [target.name: target,
+                                     dependency.name: dependency]],
+            dependencies: dependencies
+        )
         let subject = ValueGraphTraverser(graph: valueGraph)
 
         // Given
@@ -616,11 +797,13 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         ]
 
         // Given: Value Graph
-        let valueGraph = ValueGraph.test(path: project.path,
-                                         projects: [project.path: project],
-                                         targets: [project.path: [app.name: app,
-                                                                  messageExtension.name: messageExtension]],
-                                         dependencies: dependencies)
+        let valueGraph = ValueGraph.test(
+            path: project.path,
+            projects: [project.path: project],
+            targets: [project.path: [app.name: app,
+                                     messageExtension.name: messageExtension]],
+            dependencies: dependencies
+        )
         let subject = ValueGraphTraverser(graph: valueGraph)
 
         // When
@@ -639,9 +822,11 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         let appClip = Target.test(name: "clip", product: .appClip)
 
         // Given: Value graph
-        let valueGraph = ValueGraph.test(projects: [project.path: project],
-                                         targets: [project.path: [app.name: app, appClip.name: appClip]],
-                                         dependencies: [.target(name: app.name, path: project.path): Set(arrayLiteral: .target(name: appClip.name, path: project.path))])
+        let valueGraph = ValueGraph.test(
+            projects: [project.path: project],
+            targets: [project.path: [app.name: app, appClip.name: appClip]],
+            dependencies: [.target(name: app.name, path: project.path): Set(arrayLiteral: .target(name: appClip.name, path: project.path))]
+        )
         let subject = ValueGraphTraverser(graph: valueGraph)
 
         // When
@@ -658,11 +843,13 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         let project = Project.test(targets: [target])
 
         // Given: Value Graph
-        let valueGraph = ValueGraph.test(projects: [project.path: project],
-                                         targets: [project.path: [dependency.name: dependency, target.name: target]],
-                                         dependencies: [
-                                             .target(name: target.name, path: project.path): Set(arrayLiteral: .target(name: dependency.name, path: project.path)),
-                                         ])
+        let valueGraph = ValueGraph.test(
+            projects: [project.path: project],
+            targets: [project.path: [dependency.name: dependency, target.name: target]],
+            dependencies: [
+                .target(name: target.name, path: project.path): Set(arrayLiteral: .target(name: dependency.name, path: project.path)),
+            ]
+        )
         let subject = ValueGraphTraverser(graph: valueGraph)
 
         // When
@@ -679,11 +866,13 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         let project = Project.test(targets: [target])
 
         // Given: Value Graph
-        let valueGraph = ValueGraph.test(projects: [project.path: project],
-                                         targets: [project.path: [dependency.name: dependency, target.name: target]],
-                                         dependencies: [
-                                             .target(name: target.name, path: project.path): Set(arrayLiteral: .target(name: dependency.name, path: project.path)),
-                                         ])
+        let valueGraph = ValueGraph.test(
+            projects: [project.path: project],
+            targets: [project.path: [dependency.name: dependency, target.name: target]],
+            dependencies: [
+                .target(name: target.name, path: project.path): Set(arrayLiteral: .target(name: dependency.name, path: project.path)),
+            ]
+        )
         let subject = ValueGraphTraverser(graph: valueGraph)
 
         // When
@@ -700,18 +889,22 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         let project = Project.test(targets: [target])
 
         // Given: Value Graph
-        let frameworkDependency = ValueGraphDependency.testFramework(path: frameworkPath,
-                                                                     binaryPath: frameworkPath.appending(component: "test"),
-                                                                     dsymPath: nil,
-                                                                     bcsymbolmapPaths: [],
-                                                                     linking: .dynamic,
-                                                                     architectures: [.arm64],
-                                                                     isCarthage: false)
-        let valueGraph = ValueGraph.test(projects: [project.path: project],
-                                         targets: [project.path: [target.name: target]],
-                                         dependencies: [
-                                             .target(name: target.name, path: project.path): Set(arrayLiteral: frameworkDependency),
-                                         ])
+        let frameworkDependency = ValueGraphDependency.testFramework(
+            path: frameworkPath,
+            binaryPath: frameworkPath.appending(component: "test"),
+            dsymPath: nil,
+            bcsymbolmapPaths: [],
+            linking: .dynamic,
+            architectures: [.arm64],
+            isCarthage: false
+        )
+        let valueGraph = ValueGraph.test(
+            projects: [project.path: project],
+            targets: [project.path: [target.name: target]],
+            dependencies: [
+                .target(name: target.name, path: project.path): Set(arrayLiteral: frameworkDependency),
+            ]
+        )
         let subject = ValueGraphTraverser(graph: valueGraph)
 
         // When
@@ -727,22 +920,28 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         let project = Project.test(targets: [app])
 
         // Given: Value Graph
-        let cDependency = ValueGraphDependency.xcframework(path: "/xcframeworks/c.xcframework",
-                                                           infoPlist: .test(libraries: [.test(identifier: "id", path: RelativePath("path"), architectures: [.arm64])]),
-                                                           primaryBinaryPath: "/xcframeworks/c.xcframework/c",
-                                                           linking: .dynamic)
-        let dDependency = ValueGraphDependency.xcframework(path: "/xcframeworks/d.xcframework",
-                                                           infoPlist: .test(libraries: [.test(identifier: "id", path: RelativePath("path"), architectures: [.arm64])]),
-                                                           primaryBinaryPath: "/xcframeworks/d.xcframework/d",
-                                                           linking: .dynamic)
+        let cDependency = ValueGraphDependency.xcframework(
+            path: "/xcframeworks/c.xcframework",
+            infoPlist: .test(libraries: [.test(identifier: "id", path: RelativePath("path"), architectures: [.arm64])]),
+            primaryBinaryPath: "/xcframeworks/c.xcframework/c",
+            linking: .dynamic
+        )
+        let dDependency = ValueGraphDependency.xcframework(
+            path: "/xcframeworks/d.xcframework",
+            infoPlist: .test(libraries: [.test(identifier: "id", path: RelativePath("path"), architectures: [.arm64])]),
+            primaryBinaryPath: "/xcframeworks/d.xcframework/d",
+            linking: .dynamic
+        )
         let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
             .target(name: app.name, path: project.path): Set(arrayLiteral: cDependency),
             cDependency: Set(arrayLiteral: dDependency),
             dDependency: Set(),
         ]
-        let valueGraph = ValueGraph.test(projects: [project.path: project],
-                                         targets: [project.path: [app.name: app]],
-                                         dependencies: dependencies)
+        let valueGraph = ValueGraph.test(
+            projects: [project.path: project],
+            targets: [project.path: [app.name: app]],
+            dependencies: dependencies
+        )
         let subject = ValueGraphTraverser(graph: valueGraph)
 
         // When
@@ -762,20 +961,24 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         let project = Project.test(targets: [target])
 
         // Given: Value Graph
-        let frameworkDependency = ValueGraphDependency.testFramework(path: "/framework.framework",
-                                                                     binaryPath: "/framework.framework/framework",
-                                                                     dsymPath: nil,
-                                                                     bcsymbolmapPaths: [],
-                                                                     linking: .dynamic,
-                                                                     architectures: [.arm64],
-                                                                     isCarthage: false)
+        let frameworkDependency = ValueGraphDependency.testFramework(
+            path: "/framework.framework",
+            binaryPath: "/framework.framework/framework",
+            dsymPath: nil,
+            bcsymbolmapPaths: [],
+            linking: .dynamic,
+            architectures: [.arm64],
+            isCarthage: false
+        )
         let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
             .target(name: target.name, path: project.path): Set(arrayLiteral: .target(name: dependency.name, path: project.path)),
             .target(name: dependency.name, path: project.path): Set(arrayLiteral: frameworkDependency),
         ]
-        let valueGraph = ValueGraph.test(projects: [project.path: project],
-                                         targets: [project.path: [target.name: target, dependency.name: dependency]],
-                                         dependencies: dependencies)
+        let valueGraph = ValueGraph.test(
+            projects: [project.path: project],
+            targets: [project.path: [target.name: target, dependency.name: dependency]],
+            dependencies: dependencies
+        )
         let subject = ValueGraphTraverser(graph: valueGraph)
 
         // When
@@ -795,17 +998,21 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
 
         // Given: Value Graph
         let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
-            .target(name: target.name, path: project.path): Set(arrayLiteral: .testFramework(path: "/test/StaticFramework.framework",
-                                                                                             binaryPath: "/test/StaticFramework.framework/StaticFramework",
-                                                                                             dsymPath: nil,
-                                                                                             bcsymbolmapPaths: [],
-                                                                                             linking: .static,
-                                                                                             architectures: [.arm64],
-                                                                                             isCarthage: false)),
+            .target(name: target.name, path: project.path): Set(arrayLiteral: .testFramework(
+                path: "/test/StaticFramework.framework",
+                binaryPath: "/test/StaticFramework.framework/StaticFramework",
+                dsymPath: nil,
+                bcsymbolmapPaths: [],
+                linking: .static,
+                architectures: [.arm64],
+                isCarthage: false
+            )),
         ]
-        let valueGraph = ValueGraph.test(projects: [project.path: project],
-                                         targets: [project.path: [target.name: target]],
-                                         dependencies: dependencies)
+        let valueGraph = ValueGraph.test(
+            projects: [project.path: project],
+            targets: [project.path: [target.name: target]],
+            dependencies: dependencies
+        )
         let subject = ValueGraphTraverser(graph: valueGraph)
 
         // When
@@ -828,11 +1035,13 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
             .target(name: frameworkB.name, path: project.path): Set(),
             .target(name: frameworkA.name, path: project.path): Set(arrayLiteral: .target(name: frameworkB.name, path: project.path)),
         ]
-        let valueGraph = ValueGraph.test(projects: [project.path: project],
-                                         targets: [project.path: [frameworkA.name: frameworkA,
-                                                                  frameworkB.name: frameworkB,
-                                                                  watchExtension.name: watchExtension]],
-                                         dependencies: dependencies)
+        let valueGraph = ValueGraph.test(
+            projects: [project.path: project],
+            targets: [project.path: [frameworkA.name: frameworkA,
+                                     frameworkB.name: frameworkB,
+                                     watchExtension.name: watchExtension]],
+            dependencies: dependencies
+        )
         let subject = ValueGraphTraverser(graph: valueGraph)
 
         // When
@@ -847,8 +1056,10 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
 
     func test_embeddableDependencies_whenHostedTestTarget() throws {
         // Given
-        let framework = Target.test(name: "Framework",
-                                    product: .framework)
+        let framework = Target.test(
+            name: "Framework",
+            product: .framework
+        )
 
         let app = Target.test(name: "App", product: .app)
         let tests = Target.test(name: "AppTests", product: .unitTests)
@@ -860,11 +1071,13 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
             .target(name: framework.name, path: project.path): Set(),
             .target(name: tests.name, path: project.path): Set(arrayLiteral: .target(name: app.name, path: project.path)),
         ]
-        let valueGraph = ValueGraph.test(projects: [project.path: project],
-                                         targets: [project.path: [app.name: app,
-                                                                  tests.name: tests,
-                                                                  framework.name: framework]],
-                                         dependencies: dependencies)
+        let valueGraph = ValueGraph.test(
+            projects: [project.path: project],
+            targets: [project.path: [app.name: app,
+                                     tests.name: tests,
+                                     framework.name: framework]],
+            dependencies: dependencies
+        )
         let subject = ValueGraphTraverser(graph: valueGraph)
 
         // When
@@ -881,21 +1094,25 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         let target = Target.test(name: "LocallyBuiltFramework", product: .framework)
 
         // Given: Value Graph
-        let precompiledDependency = ValueGraphDependency.testFramework(path: "/test/test.framework",
-                                                                       binaryPath: "/test/test.framework/test",
-                                                                       dsymPath: nil,
-                                                                       bcsymbolmapPaths: [],
-                                                                       linking: .dynamic,
-                                                                       architectures: [.arm64],
-                                                                       isCarthage: false)
+        let precompiledDependency = ValueGraphDependency.testFramework(
+            path: "/test/test.framework",
+            binaryPath: "/test/test.framework/test",
+            dsymPath: nil,
+            bcsymbolmapPaths: [],
+            linking: .dynamic,
+            architectures: [.arm64],
+            isCarthage: false
+        )
         let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
             .target(name: target.name, path: project.path): Set(),
             .target(name: unitTests.name, path: project.path): Set(arrayLiteral: .target(name: target.name, path: project.path), precompiledDependency),
         ]
-        let valueGraph = ValueGraph.test(projects: [project.path: project],
-                                         targets: [project.path: [unitTests.name: unitTests,
-                                                                  target.name: target]],
-                                         dependencies: dependencies)
+        let valueGraph = ValueGraph.test(
+            projects: [project.path: project],
+            targets: [project.path: [unitTests.name: unitTests,
+                                     target.name: target]],
+            dependencies: dependencies
+        )
         let subject = ValueGraphTraverser(graph: valueGraph)
 
         // When
@@ -907,11 +1124,15 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
 
     func test_embeddableDependencies_whenHostedTestTarget_transitiveDepndencies() throws {
         // Given
-        let framework = Target.test(name: "Framework",
-                                    product: .framework)
+        let framework = Target.test(
+            name: "Framework",
+            product: .framework
+        )
 
-        let staticFramework = Target.test(name: "StaticFramework",
-                                          product: .framework)
+        let staticFramework = Target.test(
+            name: "StaticFramework",
+            product: .framework
+        )
 
         let app = Target.test(name: "App", product: .app)
         let tests = Target.test(name: "AppTests", product: .unitTests)
@@ -924,12 +1145,14 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
             .target(name: staticFramework.name, path: project.path): Set(arrayLiteral: .target(name: framework.name, path: project.path)),
             .target(name: tests.name, path: project.path): Set(arrayLiteral: .target(name: app.name, path: project.path), .target(name: staticFramework.name, path: project.path)),
         ]
-        let valueGraph = ValueGraph.test(projects: [project.path: project],
-                                         targets: [project.path: [framework.name: framework,
-                                                                  staticFramework.name: staticFramework,
-                                                                  app.name: app,
-                                                                  tests.name: tests]],
-                                         dependencies: dependencies)
+        let valueGraph = ValueGraph.test(
+            projects: [project.path: project],
+            targets: [project.path: [framework.name: framework,
+                                     staticFramework.name: staticFramework,
+                                     app.name: app,
+                                     tests.name: tests]],
+            dependencies: dependencies
+        )
         let subject = ValueGraphTraverser(graph: valueGraph)
 
         // When
@@ -946,22 +1169,26 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         let project = Project.test(path: "/path/a")
 
         // Given: Value Graph
-        let precompiledDependency = ValueGraphDependency.testFramework(path: "/test/test.framework",
-                                                                       binaryPath: "/test/test.framework/test",
-                                                                       dsymPath: nil,
-                                                                       bcsymbolmapPaths: [],
-                                                                       linking: .dynamic,
-                                                                       architectures: [.arm64],
-                                                                       isCarthage: false)
+        let precompiledDependency = ValueGraphDependency.testFramework(
+            path: "/test/test.framework",
+            binaryPath: "/test/test.framework/test",
+            dsymPath: nil,
+            bcsymbolmapPaths: [],
+            linking: .dynamic,
+            architectures: [.arm64],
+            isCarthage: false
+        )
         let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
             .target(name: app.name, path: project.path): Set(arrayLiteral: precompiledDependency),
             .target(name: uiTests.name, path: project.path): Set(arrayLiteral: .target(name: app.name, path: project.path)),
             precompiledDependency: Set(),
         ]
-        let valueGraph = ValueGraph.test(projects: [project.path: project],
-                                         targets: [project.path: [app.name: app,
-                                                                  uiTests.name: uiTests]],
-                                         dependencies: dependencies)
+        let valueGraph = ValueGraph.test(
+            projects: [project.path: project],
+            targets: [project.path: [app.name: app,
+                                     uiTests.name: uiTests]],
+            dependencies: dependencies
+        )
         let subject = ValueGraphTraverser(graph: valueGraph)
 
         // When
@@ -978,21 +1205,27 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         let project = Project.test(targets: [target])
 
         // Given: Value Graph
-        let precompiledDependency = ValueGraphDependency.testLibrary(path: AbsolutePath("/test/test.a"),
-                                                                     publicHeaders: publicHeadersPath,
-                                                                     linking: .static,
-                                                                     architectures: [])
+        let precompiledDependency = ValueGraphDependency.testLibrary(
+            path: AbsolutePath("/test/test.a"),
+            publicHeaders: publicHeadersPath,
+            linking: .static,
+            architectures: []
+        )
         let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
             .target(name: target.name, path: project.path): Set(arrayLiteral: precompiledDependency),
         ]
-        let valueGraph = ValueGraph.test(projects: [project.path: project],
-                                         targets: [project.path: [target.name: target]],
-                                         dependencies: dependencies)
+        let valueGraph = ValueGraph.test(
+            projects: [project.path: project],
+            targets: [project.path: [target.name: target]],
+            dependencies: dependencies
+        )
         let subject = ValueGraphTraverser(graph: valueGraph)
 
         // When
-        let got = subject.librariesPublicHeadersFolders(path: project.path,
-                                                        name: target.name).sorted()
+        let got = subject.librariesPublicHeadersFolders(
+            path: project.path,
+            name: target.name
+        ).sorted()
 
         // Then
         XCTAssertEqual(got.first, publicHeadersPath)
@@ -1004,16 +1237,20 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         let project = Project.test(targets: [target])
 
         // Given: Value Graph
-        let precompiledDependency = ValueGraphDependency.testLibrary(path: "/test/test.a",
-                                                                     publicHeaders: "/test/public/",
-                                                                     linking: .static,
-                                                                     architectures: [])
+        let precompiledDependency = ValueGraphDependency.testLibrary(
+            path: "/test/test.a",
+            publicHeaders: "/test/public/",
+            linking: .static,
+            architectures: []
+        )
         let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
             .target(name: target.name, path: project.path): Set(arrayLiteral: precompiledDependency),
         ]
-        let valueGraph = ValueGraph.test(projects: [project.path: project],
-                                         targets: [project.path: [target.name: target]],
-                                         dependencies: dependencies)
+        let valueGraph = ValueGraph.test(
+            projects: [project.path: project],
+            targets: [project.path: [target.name: target]],
+            dependencies: dependencies
+        )
         let subject = ValueGraphTraverser(graph: valueGraph)
 
         // When
@@ -1029,19 +1266,23 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         let project = Project.test(targets: [target])
 
         // Given: Value Graph
-        let precompiledDependency = ValueGraphDependency.testFramework(path: "/test/test.framework",
-                                                                       binaryPath: "/test/test.framework/test",
-                                                                       dsymPath: nil,
-                                                                       bcsymbolmapPaths: [],
-                                                                       linking: .dynamic,
-                                                                       architectures: [.arm64],
-                                                                       isCarthage: false)
+        let precompiledDependency = ValueGraphDependency.testFramework(
+            path: "/test/test.framework",
+            binaryPath: "/test/test.framework/test",
+            dsymPath: nil,
+            bcsymbolmapPaths: [],
+            linking: .dynamic,
+            architectures: [.arm64],
+            isCarthage: false
+        )
         let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
             .target(name: target.name, path: project.path): Set(arrayLiteral: precompiledDependency),
         ]
-        let valueGraph = ValueGraph.test(projects: [project.path: project],
-                                         targets: [project.path: [target.name: target]],
-                                         dependencies: dependencies)
+        let valueGraph = ValueGraph.test(
+            projects: [project.path: project],
+            targets: [project.path: [target.name: target]],
+            dependencies: dependencies
+        )
         let subject = ValueGraphTraverser(graph: valueGraph)
 
         // When
@@ -1083,9 +1324,11 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
             dependencyPrecompiledStaticBinaryA:
                 Set(arrayLiteral: dependencyPrecompiledStaticBinaryB),
         ]
-        let valueGraph = ValueGraph.test(projects: [project.path: project],
-                                         targets: [project.path: [target.name: target]],
-                                         dependencies: dependencies)
+        let valueGraph = ValueGraph.test(
+            projects: [project.path: project],
+            targets: [project.path: [target.name: target]],
+            dependencies: dependencies
+        )
         let subject = ValueGraphTraverser(graph: valueGraph)
 
         // When
@@ -1136,9 +1379,11 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
             dependencyPrecompiledDynamicBinaryA:
                 Set(arrayLiteral: dependencyPrecompiledDynamicBinaryB),
         ]
-        let valueGraph = ValueGraph.test(projects: [project.path: project],
-                                         targets: [project.path: [target.name: target]],
-                                         dependencies: dependencies)
+        let valueGraph = ValueGraph.test(
+            projects: [project.path: project],
+            targets: [project.path: [target.name: target]],
+            dependencies: dependencies
+        )
         let subject = ValueGraphTraverser(graph: valueGraph)
 
         // When
@@ -1192,9 +1437,11 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
             dependencyPrecompiledStaticBinaryA:
                 Set(arrayLiteral: dependencyPrecompiledDynamicBinaryB),
         ]
-        let valueGraph = ValueGraph.test(projects: [project.path: project],
-                                         targets: [project.path: [target.name: target]],
-                                         dependencies: dependencies)
+        let valueGraph = ValueGraph.test(
+            projects: [project.path: project],
+            targets: [project.path: [target.name: target]],
+            dependencies: dependencies
+        )
         let subject = ValueGraphTraverser(graph: valueGraph)
 
         // When
@@ -1247,9 +1494,11 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
             dependencyPrecompiledDynamicBinaryA:
                 Set(arrayLiteral: dependencyPrecompiledStaticBinaryB),
         ]
-        let valueGraph = ValueGraph.test(projects: [project.path: project],
-                                         targets: [project.path: [target.name: target]],
-                                         dependencies: dependencies)
+        let valueGraph = ValueGraph.test(
+            projects: [project.path: project],
+            targets: [project.path: [target.name: target]],
+            dependencies: dependencies
+        )
         let subject = ValueGraphTraverser(graph: valueGraph)
 
         // When
@@ -1281,9 +1530,11 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
             .target(name: target.name, path: project.path): Set(arrayLiteral: .target(name: dependency.name, path: project.path)),
             .target(name: dependency.name, path: project.path): Set(),
         ]
-        let valueGraph = ValueGraph.test(projects: [project.path: project],
-                                         targets: [project.path: [target.name: target, dependency.name: dependency]],
-                                         dependencies: dependencies)
+        let valueGraph = ValueGraph.test(
+            projects: [project.path: project],
+            targets: [project.path: [target.name: target, dependency.name: dependency]],
+            dependencies: dependencies
+        )
         let subject = ValueGraphTraverser(graph: valueGraph)
 
         // When
@@ -1306,16 +1557,20 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
             .target(name: dependency.name, path: project.path): Set(arrayLiteral: .target(name: staticDependency.name, path: project.path)),
             .target(name: staticDependency.name, path: project.path): Set(),
         ]
-        let valueGraph = ValueGraph.test(projects: [project.path: project],
-                                         targets: [project.path: [target.name: target,
-                                                                  dependency.name: dependency,
-                                                                  staticDependency.name: staticDependency]],
-                                         dependencies: dependencies)
+        let valueGraph = ValueGraph.test(
+            projects: [project.path: project],
+            targets: [project.path: [target.name: target,
+                                     dependency.name: dependency,
+                                     staticDependency.name: staticDependency]],
+            dependencies: dependencies
+        )
         let subject = ValueGraphTraverser(graph: valueGraph)
 
         // When
-        let got = try subject.linkableDependencies(path: project.path,
-                                                   name: target.name).sorted()
+        let got = try subject.linkableDependencies(
+            path: project.path,
+            name: target.name
+        ).sorted()
 
         // Then
         XCTAssertEqual(got.count, 1)
@@ -1329,12 +1584,16 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
 
     func test_linkableDependencies_transitiveDynamicLibrariesOneStaticHop() throws {
         // Given
-        let staticFramework = Target.test(name: "StaticFramework",
-                                          product: .staticFramework,
-                                          dependencies: [])
-        let dynamicFramework = Target.test(name: "DynamicFramework",
-                                           product: .framework,
-                                           dependencies: [])
+        let staticFramework = Target.test(
+            name: "StaticFramework",
+            product: .staticFramework,
+            dependencies: []
+        )
+        let dynamicFramework = Target.test(
+            name: "DynamicFramework",
+            product: .framework,
+            dependencies: []
+        )
         let app = Target.test(name: "App", product: .app)
         let project = Project.test(path: "/path/a")
 
@@ -1344,11 +1603,13 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
             .target(name: staticFramework.name, path: project.path): Set(arrayLiteral: .target(name: dynamicFramework.name, path: project.path)),
             .target(name: dynamicFramework.name, path: project.path): Set(),
         ]
-        let valueGraph = ValueGraph.test(projects: [project.path: project],
-                                         targets: [project.path: [app.name: app,
-                                                                  staticFramework.name: staticFramework,
-                                                                  dynamicFramework.name: dynamicFramework]],
-                                         dependencies: dependencies)
+        let valueGraph = ValueGraph.test(
+            projects: [project.path: project],
+            targets: [project.path: [app.name: app,
+                                     staticFramework.name: staticFramework,
+                                     dynamicFramework.name: dynamicFramework]],
+            dependencies: dependencies
+        )
         let subject = ValueGraphTraverser(graph: valueGraph)
 
         // When
@@ -1361,18 +1622,26 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
 
     func test_linkableDependencies_transitiveDynamicLibrariesThreeHops() throws {
         // Given
-        let dynamicFramework1 = Target.test(name: "DynamicFramework1",
-                                            product: .framework,
-                                            dependencies: [])
-        let dynamicFramework2 = Target.test(name: "DynamicFramework2",
-                                            product: .framework,
-                                            dependencies: [])
-        let staticFramework1 = Target.test(name: "StaticFramework1",
-                                           product: .staticLibrary,
-                                           dependencies: [])
-        let staticFramework2 = Target.test(name: "StaticFramework2",
-                                           product: .staticLibrary,
-                                           dependencies: [])
+        let dynamicFramework1 = Target.test(
+            name: "DynamicFramework1",
+            product: .framework,
+            dependencies: []
+        )
+        let dynamicFramework2 = Target.test(
+            name: "DynamicFramework2",
+            product: .framework,
+            dependencies: []
+        )
+        let staticFramework1 = Target.test(
+            name: "StaticFramework1",
+            product: .staticLibrary,
+            dependencies: []
+        )
+        let staticFramework2 = Target.test(
+            name: "StaticFramework2",
+            product: .staticLibrary,
+            dependencies: []
+        )
         let app = Target.test(name: "App", product: .app)
         let project = Project.test(path: "/path/a")
 
@@ -1384,13 +1653,15 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
             .target(name: staticFramework2.name, path: project.path): Set(arrayLiteral: .target(name: dynamicFramework2.name, path: project.path)),
             .target(name: dynamicFramework2.name, path: project.path): Set(),
         ]
-        let valueGraph = ValueGraph.test(projects: [project.path: project],
-                                         targets: [project.path: [app.name: app,
-                                                                  dynamicFramework1.name: dynamicFramework1,
-                                                                  dynamicFramework2.name: dynamicFramework2,
-                                                                  staticFramework1.name: staticFramework1,
-                                                                  staticFramework2.name: staticFramework2]],
-                                         dependencies: dependencies)
+        let valueGraph = ValueGraph.test(
+            projects: [project.path: project],
+            targets: [project.path: [app.name: app,
+                                     dynamicFramework1.name: dynamicFramework1,
+                                     dynamicFramework2.name: dynamicFramework2,
+                                     staticFramework1.name: staticFramework1,
+                                     staticFramework2.name: staticFramework2]],
+            dependencies: dependencies
+        )
         let subject = ValueGraphTraverser(graph: valueGraph)
 
         // When
@@ -1410,21 +1681,31 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
 
     func test_linkableDependencies_transitiveDynamicLibrariesCheckNoDuplicatesInParentDynamic() throws {
         // Given
-        let dynamicFramework1 = Target.test(name: "DynamicFramework1",
-                                            product: .framework,
-                                            dependencies: [])
-        let dynamicFramework2 = Target.test(name: "DynamicFramework2",
-                                            product: .framework,
-                                            dependencies: [])
-        let dynamicFramework3 = Target.test(name: "DynamicFramework3",
-                                            product: .framework,
-                                            dependencies: [])
-        let staticFramework1 = Target.test(name: "StaticFramework1",
-                                           product: .staticLibrary,
-                                           dependencies: [])
-        let staticFramework2 = Target.test(name: "StaticFramework2",
-                                           product: .staticLibrary,
-                                           dependencies: [])
+        let dynamicFramework1 = Target.test(
+            name: "DynamicFramework1",
+            product: .framework,
+            dependencies: []
+        )
+        let dynamicFramework2 = Target.test(
+            name: "DynamicFramework2",
+            product: .framework,
+            dependencies: []
+        )
+        let dynamicFramework3 = Target.test(
+            name: "DynamicFramework3",
+            product: .framework,
+            dependencies: []
+        )
+        let staticFramework1 = Target.test(
+            name: "StaticFramework1",
+            product: .staticLibrary,
+            dependencies: []
+        )
+        let staticFramework2 = Target.test(
+            name: "StaticFramework2",
+            product: .staticLibrary,
+            dependencies: []
+        )
 
         let app = Target.test(name: "App", product: .app)
 
@@ -1439,14 +1720,16 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
             .target(name: staticFramework2.name, path: project.path): Set(arrayLiteral: .target(name: dynamicFramework3.name, path: project.path)),
             .target(name: dynamicFramework3.name, path: project.path): Set(),
         ]
-        let valueGraph = ValueGraph.test(projects: [project.path: project],
-                                         targets: [project.path: [app.name: app,
-                                                                  dynamicFramework1.name: dynamicFramework1,
-                                                                  dynamicFramework2.name: dynamicFramework2,
-                                                                  staticFramework1.name: staticFramework1,
-                                                                  staticFramework2.name: staticFramework2,
-                                                                  dynamicFramework3.name: dynamicFramework3]],
-                                         dependencies: dependencies)
+        let valueGraph = ValueGraph.test(
+            projects: [project.path: project],
+            targets: [project.path: [app.name: app,
+                                     dynamicFramework1.name: dynamicFramework1,
+                                     dynamicFramework2.name: dynamicFramework2,
+                                     staticFramework1.name: staticFramework1,
+                                     staticFramework2.name: staticFramework2,
+                                     dynamicFramework3.name: dynamicFramework3]],
+            dependencies: dependencies
+        )
         let subject = ValueGraphTraverser(graph: valueGraph)
 
         // When
@@ -1458,12 +1741,16 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
 
     func test_linkableDependencies_transitiveSDKDependenciesStatic() throws {
         // Given
-        let staticFrameworkA = Target.test(name: "StaticFrameworkA",
-                                           product: .staticFramework,
-                                           dependencies: [.sdk(name: "some.framework", status: .optional)])
-        let staticFrameworkB = Target.test(name: "StaticFrameworkB",
-                                           product: .staticFramework,
-                                           dependencies: [])
+        let staticFrameworkA = Target.test(
+            name: "StaticFrameworkA",
+            product: .staticFramework,
+            dependencies: [.sdk(name: "some.framework", status: .optional)]
+        )
+        let staticFrameworkB = Target.test(
+            name: "StaticFrameworkB",
+            product: .staticFramework,
+            dependencies: []
+        )
         let app = Target.test(name: "App", product: .app)
         let project = Project.test(path: "/path/a")
 
@@ -1471,16 +1758,20 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
             .target(name: app.name, path: project.path): Set(arrayLiteral: .target(name: staticFrameworkB.name, path: project.path)),
             .target(name: staticFrameworkB.name, path: project.path): Set(arrayLiteral: .target(name: staticFrameworkA.name, path: project.path)),
-            .target(name: staticFrameworkA.name, path: project.path): Set(arrayLiteral: .sdk(name: "some.framework",
-                                                                                             path: "/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk/System/Library/Frameworks/some.framework",
-                                                                                             status: .optional,
-                                                                                             source: .developer)),
+            .target(name: staticFrameworkA.name, path: project.path): Set(arrayLiteral: .sdk(
+                name: "some.framework",
+                path: "/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk/System/Library/Frameworks/some.framework",
+                status: .optional,
+                source: .developer
+            )),
         ]
-        let valueGraph = ValueGraph.test(projects: [project.path: project],
-                                         targets: [project.path: [app.name: app,
-                                                                  staticFrameworkB.name: staticFrameworkB,
-                                                                  staticFrameworkA.name: staticFrameworkA]],
-                                         dependencies: dependencies)
+        let valueGraph = ValueGraph.test(
+            projects: [project.path: project],
+            targets: [project.path: [app.name: app,
+                                     staticFrameworkB.name: staticFrameworkB,
+                                     staticFrameworkA.name: staticFrameworkA]],
+            dependencies: dependencies
+        )
         let subject = ValueGraphTraverser(graph: valueGraph)
 
         // When
@@ -1494,12 +1785,16 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
 
     func test_linkableDependencies_transitiveSDKDependenciesDynamic() throws {
         // Given
-        let staticFramework = Target.test(name: "StaticFramework",
-                                          product: .staticFramework,
-                                          dependencies: [.sdk(name: "some.framework", status: .optional)])
-        let dynamicFramework = Target.test(name: "DynamicFramework",
-                                           product: .framework,
-                                           dependencies: [])
+        let staticFramework = Target.test(
+            name: "StaticFramework",
+            product: .staticFramework,
+            dependencies: [.sdk(name: "some.framework", status: .optional)]
+        )
+        let dynamicFramework = Target.test(
+            name: "DynamicFramework",
+            product: .framework,
+            dependencies: []
+        )
         let app = Target.test(name: "App", product: .app)
         let project = Project.test(path: "/path/a")
 
@@ -1507,16 +1802,20 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
             .target(name: app.name, path: project.path): Set(arrayLiteral: .target(name: dynamicFramework.name, path: project.path)),
             .target(name: dynamicFramework.name, path: project.path): Set(arrayLiteral: .target(name: staticFramework.name, path: project.path)),
-            .target(name: staticFramework.name, path: project.path): Set(arrayLiteral: .sdk(name: "some.framework",
-                                                                                            path: "/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk/System/Library/Frameworks/some.framework",
-                                                                                            status: .optional,
-                                                                                            source: .developer)),
+            .target(name: staticFramework.name, path: project.path): Set(arrayLiteral: .sdk(
+                name: "some.framework",
+                path: "/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk/System/Library/Frameworks/some.framework",
+                status: .optional,
+                source: .developer
+            )),
         ]
-        let valueGraph = ValueGraph.test(projects: [project.path: project],
-                                         targets: [project.path: [app.name: app,
-                                                                  staticFramework.name: staticFramework,
-                                                                  dynamicFramework.name: dynamicFramework]],
-                                         dependencies: dependencies)
+        let valueGraph = ValueGraph.test(
+            projects: [project.path: project],
+            targets: [project.path: [app.name: app,
+                                     staticFramework.name: staticFramework,
+                                     dynamicFramework.name: dynamicFramework]],
+            dependencies: dependencies
+        )
         let subject = ValueGraphTraverser(graph: valueGraph)
 
         // When
@@ -1525,33 +1824,43 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(appGot.compactMap(sdkDependency), [])
-        XCTAssertEqual(dynamicGot.compactMap(sdkDependency),
-                       [SDKPathAndStatus(name: "some.framework", status: .optional)])
+        XCTAssertEqual(
+            dynamicGot.compactMap(sdkDependency),
+            [SDKPathAndStatus(name: "some.framework", status: .optional)]
+        )
     }
 
     func test_linkableDependencies_transitiveSDKDependenciesNotDuplicated() throws {
         // Given
-        let staticFramework = Target.test(name: "StaticFramework",
-                                          product: .staticFramework,
-                                          dependencies: [.sdk(name: "some.framework", status: .optional)])
-        let app = Target.test(name: "App",
-                              product: .app,
-                              dependencies: [.sdk(name: "some.framework", status: .optional)])
+        let staticFramework = Target.test(
+            name: "StaticFramework",
+            product: .staticFramework,
+            dependencies: [.sdk(name: "some.framework", status: .optional)]
+        )
+        let app = Target.test(
+            name: "App",
+            product: .app,
+            dependencies: [.sdk(name: "some.framework", status: .optional)]
+        )
 
         let project = Project.test(path: "/path/a")
 
         // Given: Value Graph
         let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
             .target(name: app.name, path: project.path): Set(arrayLiteral: .target(name: staticFramework.name, path: project.path)),
-            .target(name: staticFramework.name, path: project.path): Set(arrayLiteral: .sdk(name: "some.framework",
-                                                                                            path: "/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk/System/Library/Frameworks/some.framework",
-                                                                                            status: .optional,
-                                                                                            source: .developer)),
+            .target(name: staticFramework.name, path: project.path): Set(arrayLiteral: .sdk(
+                name: "some.framework",
+                path: "/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk/System/Library/Frameworks/some.framework",
+                status: .optional,
+                source: .developer
+            )),
         ]
-        let valueGraph = ValueGraph.test(projects: [project.path: project],
-                                         targets: [project.path: [app.name: app,
-                                                                  staticFramework.name: staticFramework]],
-                                         dependencies: dependencies)
+        let valueGraph = ValueGraph.test(
+            projects: [project.path: project],
+            targets: [project.path: [app.name: app,
+                                     staticFramework.name: staticFramework]],
+            dependencies: dependencies
+        )
         let subject = ValueGraphTraverser(graph: valueGraph)
 
         // When
@@ -1563,73 +1872,244 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
 
     func test_linkableDependencies_transitiveSDKDependenciesImmediateDependencies() throws {
         // Given
-        let staticFramework = Target.test(name: "StaticFrameworkA",
-                                          product: .staticFramework,
-                                          dependencies: [.sdk(name: "thingone.framework", status: .optional),
-                                                         .sdk(name: "thingtwo.framework", status: .required)])
+        let staticFramework = Target.test(
+            name: "StaticFrameworkA",
+            product: .staticFramework,
+            dependencies: [.sdk(name: "thingone.framework", status: .optional),
+                           .sdk(name: "thingtwo.framework", status: .required)]
+        )
 
         let project = Project.test(path: "/path/a")
 
         // Given: Value Graph
         let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
-            .target(name: staticFramework.name, path: project.path): Set(arrayLiteral: .sdk(name: "thingone.framework",
-                                                                                            path: "/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk/System/Library/Frameworks/thingone.framework",
-                                                                                            status: .optional,
-                                                                                            source: .developer),
-                                                                         .sdk(name: "thingtwo.framework",
-                                                                              path: "/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk/System/Library/Frameworks/thingtwo.framework",
-                                                                              status: .required,
-                                                                              source: .developer)),
+            .target(name: staticFramework.name, path: project.path): Set(
+                arrayLiteral: .sdk(
+                    name: "thingone.framework",
+                    path: "/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk/System/Library/Frameworks/thingone.framework",
+                    status: .optional,
+                    source: .developer
+                ),
+                .sdk(
+                    name: "thingtwo.framework",
+                    path: "/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk/System/Library/Frameworks/thingtwo.framework",
+                    status: .required,
+                    source: .developer
+                )
+            ),
         ]
-        let valueGraph = ValueGraph.test(projects: [project.path: project],
-                                         targets: [project.path: [staticFramework.name: staticFramework]],
-                                         dependencies: dependencies)
+        let valueGraph = ValueGraph.test(
+            projects: [project.path: project],
+            targets: [project.path: [staticFramework.name: staticFramework]],
+            dependencies: dependencies
+        )
         let subject = ValueGraphTraverser(graph: valueGraph)
 
         // When
         let got = try subject.linkableDependencies(path: project.path, name: staticFramework.name).sorted()
 
         // Then
-        XCTAssertEqual(got.compactMap(sdkDependency),
-                       [SDKPathAndStatus(name: "thingone.framework", status: .optional),
-                        SDKPathAndStatus(name: "thingtwo.framework", status: .required)])
+        XCTAssertEqual(
+            got.compactMap(sdkDependency),
+            [SDKPathAndStatus(name: "thingone.framework", status: .optional),
+             SDKPathAndStatus(name: "thingtwo.framework", status: .required)]
+        )
     }
 
     func test_linkableDependencies_NoTransitiveSDKDependenciesForStaticFrameworks() throws {
         // Given
-        let staticFrameworkA = Target.test(name: "StaticFrameworkA",
-                                           product: .staticFramework,
-                                           dependencies: [.sdk(name: "ThingOne.framework", status: .optional)])
-        let staticFrameworkB = Target.test(name: "StaticFrameworkB",
-                                           product: .staticFramework,
-                                           dependencies: [.sdk(name: "ThingTwo.framework", status: .optional)])
+        let staticFrameworkA = Target.test(
+            name: "StaticFrameworkA",
+            product: .staticFramework,
+            dependencies: [.sdk(name: "ThingOne.framework", status: .optional)]
+        )
+        let staticFrameworkB = Target.test(
+            name: "StaticFrameworkB",
+            product: .staticFramework,
+            dependencies: [.sdk(name: "ThingTwo.framework", status: .optional)]
+        )
 
         let project = Project.test(path: "/path/a")
 
         // Given: Value Graph
         let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
-            .target(name: staticFrameworkA.name, path: project.path): Set(arrayLiteral: .target(name: staticFrameworkB.name, path: project.path),
-                                                                          .sdk(name: "ThingOne.framework",
-                                                                               path: "/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk/System/Library/Frameworks/ThingOne.framework",
-                                                                               status: .optional,
-                                                                               source: .developer)),
-            .target(name: staticFrameworkB.name, path: project.path): Set(arrayLiteral: .sdk(name: "ThingTwo.framework",
-                                                                                             path: "/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk/System/Library/Frameworks/ThingTwo.framework",
-                                                                                             status: .optional,
-                                                                                             source: .developer)),
+            .target(name: staticFrameworkA.name, path: project.path): Set(
+                arrayLiteral: .target(name: staticFrameworkB.name, path: project.path),
+                .sdk(
+                    name: "ThingOne.framework",
+                    path: "/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk/System/Library/Frameworks/ThingOne.framework",
+                    status: .optional,
+                    source: .developer
+                )
+            ),
+            .target(name: staticFrameworkB.name, path: project.path): Set(arrayLiteral: .sdk(
+                name: "ThingTwo.framework",
+                path: "/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk/System/Library/Frameworks/ThingTwo.framework",
+                status: .optional,
+                source: .developer
+            )),
         ]
-        let valueGraph = ValueGraph.test(projects: [project.path: project],
-                                         targets: [project.path: [staticFrameworkA.name: staticFrameworkA,
-                                                                  staticFrameworkB.name: staticFrameworkB]],
-                                         dependencies: dependencies)
+        let valueGraph = ValueGraph.test(
+            projects: [project.path: project],
+            targets: [project.path: [staticFrameworkA.name: staticFrameworkA,
+                                     staticFrameworkB.name: staticFrameworkB]],
+            dependencies: dependencies
+        )
         let subject = ValueGraphTraverser(graph: valueGraph)
 
         // When
         let got = try subject.linkableDependencies(path: project.path, name: staticFrameworkA.name).sorted()
 
         // Then
-        XCTAssertEqual(got.compactMap(sdkDependency),
-                       [SDKPathAndStatus(name: "ThingOne.framework", status: .optional)])
+        XCTAssertEqual(
+            got.compactMap(sdkDependency),
+            [SDKPathAndStatus(name: "ThingOne.framework", status: .optional)]
+        )
+    }
+
+    func test_linkableDependencies_includeTransitivePrecompiledDependenciesOfStaticFrameworks() throws {
+        // Given
+        // App > StaticFramework > PrecompiledDynamicFramework
+        let app = Target.test(name: "App", product: .app)
+        let staticFramework = Target.test(name: "StaticFramework", product: .staticFramework)
+        let precompiled = ValueGraphDependency.framework(
+            path: "/path/to/frameworks/precompiled.framework",
+            binaryPath: "/path/to/frameworks/precompiled.framework/precompiled",
+            dsymPath: nil,
+            bcsymbolmapPaths: [],
+            linking: .dynamic,
+            architectures: [.arm64],
+            isCarthage: false
+        )
+        let project = Project.test(path: "/path/project", targets: [app, staticFramework])
+        let valueGraph = ValueGraph.test(
+            projects: [project.path: project],
+            targets: [
+                project.path: [
+                    app.name: app,
+                    staticFramework.name: staticFramework,
+                ],
+            ],
+            dependencies: [
+                .target(name: app.name, path: project.path): Set([
+                    .target(name: staticFramework.name, path: project.path),
+                ]),
+                .target(name: staticFramework.name, path: project.path): Set([
+                    precompiled,
+                ]),
+            ]
+        )
+        let subject = ValueGraphTraverser(graph: valueGraph)
+
+        // When
+        let result = try subject.linkableDependencies(path: project.path, name: app.name)
+
+        // Then
+        XCTAssertEqual(result.sorted(), [
+            .product(target: "StaticFramework", productName: "StaticFramework.framework"),
+            .framework(
+                path: "/path/to/frameworks/precompiled.framework",
+                binaryPath: "/path/to/frameworks/precompiled.framework/precompiled",
+                isCarthage: false,
+                dsymPath: nil,
+                bcsymbolmapPaths: [],
+                linking: .dynamic,
+                architectures: [.arm64],
+                product: .framework
+            ),
+        ])
+    }
+
+    func test_linkableDependencies_doNotIncludeTransitivePrecompiledDependenciesOfDynamicFrameworks() throws {
+        // Given
+        // App > DynamicFramework > PrecompiledDynamicFramework
+        let app = Target.test(name: "App", product: .app)
+        let framework = Target.test(name: "DynamicFramework", product: .framework)
+        let precompiled = ValueGraphDependency.framework(
+            path: "/path/to/frameworks/precompiled.framework",
+            binaryPath: "/path/to/frameworks/precompiled.framework/precompiled",
+            dsymPath: nil,
+            bcsymbolmapPaths: [],
+            linking: .dynamic,
+            architectures: [.arm64],
+            isCarthage: false
+        )
+        let project = Project.test(path: "/path/project", targets: [app, framework])
+        let valueGraph = ValueGraph.test(
+            projects: [project.path: project],
+            targets: [
+                project.path: [
+                    app.name: app,
+                    framework.name: framework,
+                ],
+            ],
+            dependencies: [
+                .target(name: app.name, path: project.path): Set([
+                    .target(name: framework.name, path: project.path),
+                ]),
+                .target(name: framework.name, path: project.path): Set([
+                    precompiled,
+                ]),
+            ]
+        )
+        let subject = ValueGraphTraverser(graph: valueGraph)
+
+        // When
+        let result = try subject.linkableDependencies(path: project.path, name: app.name)
+
+        // Then
+        XCTAssertEqual(result.sorted(), [
+            .product(target: "DynamicFramework", productName: "DynamicFramework.framework"),
+        ])
+    }
+
+    func test_linkableDependencies_doNotIncludeTransitivePrecompiledDependenciesOfDynamicFrameworks2() throws {
+        // Given
+        // App > StaticFramework > DynamicFramework > PrecompiledDynamicFramework
+        let app = Target.test(name: "App", product: .app)
+        let staticFramework = Target.test(name: "StaticFramework", product: .staticFramework)
+        let framework = Target.test(name: "DynamicFramework", product: .framework)
+        let precompiled = ValueGraphDependency.framework(
+            path: "/path/to/frameworks/precompiled.framework",
+            binaryPath: "/path/to/frameworks/precompiled.framework/precompiled",
+            dsymPath: nil,
+            bcsymbolmapPaths: [],
+            linking: .dynamic,
+            architectures: [.arm64],
+            isCarthage: false
+        )
+        let project = Project.test(path: "/path/project", targets: [app, staticFramework, framework])
+        let valueGraph = ValueGraph.test(
+            projects: [project.path: project],
+            targets: [
+                project.path: [
+                    app.name: app,
+                    staticFramework.name: staticFramework,
+                    framework.name: framework,
+                ],
+            ],
+            dependencies: [
+                .target(name: app.name, path: project.path): Set([
+                    .target(name: staticFramework.name, path: project.path),
+                ]),
+                .target(name: staticFramework.name, path: project.path): Set([
+                    .target(name: framework.name, path: project.path),
+                ]),
+                .target(name: framework.name, path: project.path): Set([
+                    precompiled,
+                ]),
+            ]
+        )
+        let subject = ValueGraphTraverser(graph: valueGraph)
+
+        // When
+        let result = try subject.linkableDependencies(path: project.path, name: app.name)
+
+        // Then
+        XCTAssertEqual(result.sorted(), [
+            .product(target: "DynamicFramework", productName: "DynamicFramework.framework"),
+            .product(target: "StaticFramework", productName: "StaticFramework.framework"),
+        ])
     }
 
     func test_linkableDependencies_when_watchExtension() throws {
@@ -1645,11 +2125,13 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
             .target(name: frameworkA.name, path: project.path): Set(arrayLiteral: .target(name: frameworkB.name, path: project.path)),
             .target(name: frameworkB.name, path: project.path): Set(),
         ]
-        let valueGraph = ValueGraph.test(projects: [project.path: project],
-                                         targets: [project.path: [watchExtension.name: watchExtension,
-                                                                  frameworkA.name: frameworkA,
-                                                                  frameworkB.name: frameworkB]],
-                                         dependencies: dependencies)
+        let valueGraph = ValueGraph.test(
+            projects: [project.path: project],
+            targets: [project.path: [watchExtension.name: watchExtension,
+                                     frameworkA.name: frameworkA,
+                                     frameworkB.name: frameworkB]],
+            dependencies: dependencies
+        )
         let subject = ValueGraphTraverser(graph: valueGraph)
 
         // When
@@ -1674,11 +2156,13 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
             .target(name: frameworkA.name, path: project.path): Set(arrayLiteral: .target(name: frameworkB.name, path: project.path)),
             .target(name: frameworkB.name, path: project.path): Set(),
         ]
-        let valueGraph = ValueGraph.test(projects: [project.path: project],
-                                         targets: [project.path: [watchExtension.name: watchExtension,
-                                                                  frameworkA.name: frameworkA,
-                                                                  frameworkB.name: frameworkB]],
-                                         dependencies: dependencies)
+        let valueGraph = ValueGraph.test(
+            projects: [project.path: project],
+            targets: [project.path: [watchExtension.name: watchExtension,
+                                     frameworkA.name: frameworkA,
+                                     frameworkB.name: frameworkB]],
+            dependencies: dependencies
+        )
         let subject = ValueGraphTraverser(graph: valueGraph)
 
         // When
@@ -1693,8 +2177,10 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
 
     func test_linkableDependencies_whenHostedTestTarget_withCommonStaticProducts() throws {
         // Given
-        let staticFramework = Target.test(name: "StaticFramework",
-                                          product: .staticFramework)
+        let staticFramework = Target.test(
+            name: "StaticFramework",
+            product: .staticFramework
+        )
 
         let app = Target.test(name: "App", product: .app)
         let tests = Target.test(name: "AppTests", product: .unitTests)
@@ -1704,14 +2190,18 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
             .target(name: app.name, path: project.path): Set(arrayLiteral: .target(name: staticFramework.name, path: project.path)),
             .target(name: staticFramework.name, path: project.path): Set(),
-            .target(name: tests.name, path: project.path): Set(arrayLiteral: .target(name: staticFramework.name, path: project.path),
-                                                               .target(name: app.name, path: project.path)),
+            .target(name: tests.name, path: project.path): Set(
+                arrayLiteral: .target(name: staticFramework.name, path: project.path),
+                .target(name: app.name, path: project.path)
+            ),
         ]
-        let valueGraph = ValueGraph.test(projects: [project.path: project],
-                                         targets: [project.path: [app.name: app,
-                                                                  staticFramework.name: staticFramework,
-                                                                  tests.name: tests]],
-                                         dependencies: dependencies)
+        let valueGraph = ValueGraph.test(
+            projects: [project.path: project],
+            targets: [project.path: [app.name: app,
+                                     staticFramework.name: staticFramework,
+                                     tests.name: tests]],
+            dependencies: dependencies
+        )
         let subject = ValueGraphTraverser(graph: valueGraph)
 
         // When
@@ -1723,8 +2213,10 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
 
     func test_linkableDependencies_whenHostedTestTarget_withCommonDynamicProducts() throws {
         // Given
-        let framework = Target.test(name: "Framework",
-                                    product: .framework)
+        let framework = Target.test(
+            name: "Framework",
+            product: .framework
+        )
 
         let app = Target.test(name: "App", product: .app)
         let tests = Target.test(name: "AppTests", product: .unitTests)
@@ -1734,14 +2226,18 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
             .target(name: app.name, path: project.path): Set(arrayLiteral: .target(name: framework.name, path: project.path)),
             .target(name: framework.name, path: project.path): Set(),
-            .target(name: tests.name, path: project.path): Set(arrayLiteral: .target(name: framework.name, path: project.path),
-                                                               .target(name: app.name, path: project.path)),
+            .target(name: tests.name, path: project.path): Set(
+                arrayLiteral: .target(name: framework.name, path: project.path),
+                .target(name: app.name, path: project.path)
+            ),
         ]
-        let valueGraph = ValueGraph.test(projects: [project.path: project],
-                                         targets: [project.path: [app.name: app,
-                                                                  framework.name: framework,
-                                                                  tests.name: tests]],
-                                         dependencies: dependencies)
+        let valueGraph = ValueGraph.test(
+            projects: [project.path: project],
+            targets: [project.path: [app.name: app,
+                                     framework.name: framework,
+                                     tests.name: tests]],
+            dependencies: dependencies
+        )
         let subject = ValueGraphTraverser(graph: valueGraph)
 
         // When
@@ -1755,8 +2251,10 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
 
     func test_linkableDependencies_whenHostedTestTarget_doNotIncludeRedundantDependencies() throws {
         // Given
-        let framework = Target.test(name: "Framework",
-                                    product: .framework)
+        let framework = Target.test(
+            name: "Framework",
+            product: .framework
+        )
 
         let app = Target.test(name: "App", product: .app)
         let tests = Target.test(name: "AppTests", product: .unitTests)
@@ -1768,11 +2266,13 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
             .target(name: framework.name, path: project.path): Set(),
             .target(name: tests.name, path: project.path): Set(arrayLiteral: .target(name: app.name, path: project.path)),
         ]
-        let valueGraph = ValueGraph.test(projects: [project.path: project],
-                                         targets: [project.path: [app.name: app,
-                                                                  framework.name: framework,
-                                                                  tests.name: tests]],
-                                         dependencies: dependencies)
+        let valueGraph = ValueGraph.test(
+            projects: [project.path: project],
+            targets: [project.path: [app.name: app,
+                                     framework.name: framework,
+                                     tests.name: tests]],
+            dependencies: dependencies
+        )
         let subject = ValueGraphTraverser(graph: valueGraph)
 
         // When
@@ -1791,9 +2291,11 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
             .target(name: target.name, path: project.path): Set(arrayLiteral: .sdk(name: "AppClip.framework", path: "/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk/System/Library/Frameworks/AppClip.framework", status: .required, source: .system)),
         ]
-        let valueGraph = ValueGraph.test(projects: [project.path: project],
-                                         targets: [project.path: [target.name: target]],
-                                         dependencies: dependencies)
+        let valueGraph = ValueGraph.test(
+            projects: [project.path: project],
+            targets: [project.path: [target.name: target]],
+            dependencies: dependencies
+        )
         let subject = ValueGraphTraverser(graph: valueGraph)
 
         // When
@@ -1810,18 +2312,22 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         let project = Project.test(targets: [target])
 
         // Given: Value Graph
-        let frameworkDependency = ValueGraphDependency.testFramework(path: frameworkPath,
-                                                                     binaryPath: frameworkPath.appending(component: "test"),
-                                                                     dsymPath: nil,
-                                                                     bcsymbolmapPaths: [],
-                                                                     linking: .dynamic,
-                                                                     architectures: [.arm64],
-                                                                     isCarthage: false)
-        let valueGraph = ValueGraph.test(projects: [project.path: project],
-                                         targets: [project.path: [target.name: target]],
-                                         dependencies: [
-                                             .target(name: target.name, path: project.path): Set(arrayLiteral: frameworkDependency),
-                                         ])
+        let frameworkDependency = ValueGraphDependency.testFramework(
+            path: frameworkPath,
+            binaryPath: frameworkPath.appending(component: "test"),
+            dsymPath: nil,
+            bcsymbolmapPaths: [],
+            linking: .dynamic,
+            architectures: [.arm64],
+            isCarthage: false
+        )
+        let valueGraph = ValueGraph.test(
+            projects: [project.path: project],
+            targets: [project.path: [target.name: target]],
+            dependencies: [
+                .target(name: target.name, path: project.path): Set(arrayLiteral: frameworkDependency),
+            ]
+        )
         let subject = ValueGraphTraverser(graph: valueGraph)
 
         // When
@@ -1839,19 +2345,23 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         let project = Project.test(targets: [target])
 
         // Given: Value Graph
-        let frameworkDependency = ValueGraphDependency.testFramework(path: "/test/StaticFramework.framework",
-                                                                     binaryPath: "/test/StaticFramework.framework/StaticFramework",
-                                                                     dsymPath: nil,
-                                                                     bcsymbolmapPaths: [],
-                                                                     linking: .static,
-                                                                     architectures: [.arm64],
-                                                                     isCarthage: false)
+        let frameworkDependency = ValueGraphDependency.testFramework(
+            path: "/test/StaticFramework.framework",
+            binaryPath: "/test/StaticFramework.framework/StaticFramework",
+            dsymPath: nil,
+            bcsymbolmapPaths: [],
+            linking: .static,
+            architectures: [.arm64],
+            isCarthage: false
+        )
         let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
             .target(name: target.name, path: project.path): Set(arrayLiteral: frameworkDependency),
         ]
-        let valueGraph = ValueGraph.test(projects: [project.path: project],
-                                         targets: [project.path: [target.name: target]],
-                                         dependencies: dependencies)
+        let valueGraph = ValueGraph.test(
+            projects: [project.path: project],
+            targets: [project.path: [target.name: target]],
+            dependencies: dependencies
+        )
         let subject = ValueGraphTraverser(graph: valueGraph)
 
         // When
@@ -1869,16 +2379,18 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         let project = Project.test(targets: [target])
 
         // Given: Value Graph
-        let valueGraph = ValueGraph.test(projects: [project.path: project],
-                                         targets: [project.path: [target.name: target]],
-                                         dependencies: [
-                                             .target(name: target.name, path: project.path): Set([
-                                                 .testLibrary(path: "/test/test.a", swiftModuleMap: "/test/modules/test.swiftmodulemap"),
-                                                 .testLibrary(path: "/test/another.b"),
-                                             ]),
-                                             .testLibrary(path: "/test/test.a", swiftModuleMap: "/test/modules/test.swiftmodulemap"): Set([]),
-                                             .testLibrary(path: "/test/another.b"): Set([]),
-                                         ])
+        let valueGraph = ValueGraph.test(
+            projects: [project.path: project],
+            targets: [project.path: [target.name: target]],
+            dependencies: [
+                .target(name: target.name, path: project.path): Set([
+                    .testLibrary(path: "/test/test.a", swiftModuleMap: "/test/modules/test.swiftmodulemap"),
+                    .testLibrary(path: "/test/another.b"),
+                ]),
+                .testLibrary(path: "/test/test.a", swiftModuleMap: "/test/modules/test.swiftmodulemap"): Set([]),
+                .testLibrary(path: "/test/another.b"): Set([]),
+            ]
+        )
         let subject = ValueGraphTraverser(graph: valueGraph)
 
         // When
@@ -1894,27 +2406,33 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         let project = Project.test(path: "/path/a")
 
         // Given: Value Graph
-        let precompiledDependency = ValueGraphDependency.testFramework(path: "/test/test.famework",
-                                                                       binaryPath: "/test/test.framework/test",
-                                                                       dsymPath: nil,
-                                                                       bcsymbolmapPaths: [],
-                                                                       linking: .dynamic,
-                                                                       architectures: [.arm64],
-                                                                       isCarthage: false)
-        let precompiledBDependency = ValueGraphDependency.testFramework(path: "/test/testb.famework",
-                                                                        binaryPath: "/test/testb.framework/testb",
-                                                                        dsymPath: nil,
-                                                                        bcsymbolmapPaths: [],
-                                                                        linking: .dynamic,
-                                                                        architectures: [.arm64],
-                                                                        isCarthage: false)
-        let valueGraph = ValueGraph.test(projects: [project.path: project],
-                                         targets: [project.path: [unitTests.name: unitTests]],
-                                         dependencies: [
-                                             .target(name: unitTests.name, path: project.path): Set([precompiledDependency, precompiledBDependency]),
-                                             precompiledDependency: Set(),
-                                             precompiledBDependency: Set(),
-                                         ])
+        let precompiledDependency = ValueGraphDependency.testFramework(
+            path: "/test/test.famework",
+            binaryPath: "/test/test.framework/test",
+            dsymPath: nil,
+            bcsymbolmapPaths: [],
+            linking: .dynamic,
+            architectures: [.arm64],
+            isCarthage: false
+        )
+        let precompiledBDependency = ValueGraphDependency.testFramework(
+            path: "/test/testb.famework",
+            binaryPath: "/test/testb.framework/testb",
+            dsymPath: nil,
+            bcsymbolmapPaths: [],
+            linking: .dynamic,
+            architectures: [.arm64],
+            isCarthage: false
+        )
+        let valueGraph = ValueGraph.test(
+            projects: [project.path: project],
+            targets: [project.path: [unitTests.name: unitTests]],
+            dependencies: [
+                .target(name: unitTests.name, path: project.path): Set([precompiledDependency, precompiledBDependency]),
+                precompiledDependency: Set(),
+                precompiledBDependency: Set(),
+            ]
+        )
         let subject = ValueGraphTraverser(graph: valueGraph)
 
         // When
@@ -1934,21 +2452,25 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         let project = Project.test(path: "/path/a")
 
         // Given: Value Graph
-        let precompiledDependency = ValueGraphDependency.testFramework(path: "/test/test.famework",
-                                                                       binaryPath: "/test/test.framework/test",
-                                                                       dsymPath: nil,
-                                                                       bcsymbolmapPaths: [],
-                                                                       linking: .dynamic,
-                                                                       architectures: [.arm64],
-                                                                       isCarthage: false)
-        let valueGraph = ValueGraph.test(projects: [project.path: project],
-                                         targets: [project.path: [unitTests.name: unitTests,
-                                                                  app.name: app]],
-                                         dependencies: [
-                                             .target(name: unitTests.name, path: project.path): Set([precompiledDependency, .target(name: app.name, path: project.path)]),
-                                             .target(name: app.name, path: project.path): Set([]),
-                                             precompiledDependency: Set(),
-                                         ])
+        let precompiledDependency = ValueGraphDependency.testFramework(
+            path: "/test/test.famework",
+            binaryPath: "/test/test.framework/test",
+            dsymPath: nil,
+            bcsymbolmapPaths: [],
+            linking: .dynamic,
+            architectures: [.arm64],
+            isCarthage: false
+        )
+        let valueGraph = ValueGraph.test(
+            projects: [project.path: project],
+            targets: [project.path: [unitTests.name: unitTests,
+                                     app.name: app]],
+            dependencies: [
+                .target(name: unitTests.name, path: project.path): Set([precompiledDependency, .target(name: app.name, path: project.path)]),
+                .target(name: app.name, path: project.path): Set([]),
+                precompiledDependency: Set(),
+            ]
+        )
         let subject = ValueGraphTraverser(graph: valueGraph)
 
         // When
@@ -1965,13 +2487,15 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         let project = Project.test(path: "/path/a")
 
         // Given: Value Graph
-        let valueGraph = ValueGraph.test(projects: [project.path: project],
-                                         targets: [project.path: [app.name: app,
-                                                                  watchApp.name: watchApp]],
-                                         dependencies: [
-                                             .target(name: app.name, path: project.path): Set([.target(name: watchApp.name, path: project.path)]),
-                                             .target(name: watchApp.name, path: project.path): Set([]),
-                                         ])
+        let valueGraph = ValueGraph.test(
+            projects: [project.path: project],
+            targets: [project.path: [app.name: app,
+                                     watchApp.name: watchApp]],
+            dependencies: [
+                .target(name: app.name, path: project.path): Set([.target(name: watchApp.name, path: project.path)]),
+                .target(name: watchApp.name, path: project.path): Set([]),
+            ]
+        )
         let subject = ValueGraphTraverser(graph: valueGraph)
 
         // When
@@ -1988,13 +2512,15 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         let project = Project.test(path: "/path/a")
 
         // Given: Value Graph
-        let valueGraph = ValueGraph.test(projects: [project.path: project],
-                                         targets: [project.path: [watchAppExtension.name: watchAppExtension,
-                                                                  watchApp.name: watchApp]],
-                                         dependencies: [
-                                             .target(name: watchApp.name, path: project.path): Set([.target(name: watchAppExtension.name, path: project.path)]),
-                                             .target(name: watchAppExtension.name, path: project.path): Set([]),
-                                         ])
+        let valueGraph = ValueGraph.test(
+            projects: [project.path: project],
+            targets: [project.path: [watchAppExtension.name: watchAppExtension,
+                                     watchApp.name: watchApp]],
+            dependencies: [
+                .target(name: watchApp.name, path: project.path): Set([.target(name: watchAppExtension.name, path: project.path)]),
+                .target(name: watchAppExtension.name, path: project.path): Set([]),
+            ]
+        )
         let subject = ValueGraphTraverser(graph: valueGraph)
 
         // When
@@ -2012,15 +2538,17 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         let project = Project.test(path: "/project")
 
         // Given: Value Graph
-        let valueGraph = ValueGraph.test(projects: [project.path: project],
-                                         targets: [project.path: [macosApp.name: macosApp,
-                                                                  tvosApp.name: tvosApp,
-                                                                  framework.name: framework]],
-                                         dependencies: [
-                                             .target(name: macosApp.name, path: project.path): Set(),
-                                             .target(name: tvosApp.name, path: project.path): Set(),
-                                             .target(name: framework.name, path: project.path): Set(),
-                                         ])
+        let valueGraph = ValueGraph.test(
+            projects: [project.path: project],
+            targets: [project.path: [macosApp.name: macosApp,
+                                     tvosApp.name: tvosApp,
+                                     framework.name: framework]],
+            dependencies: [
+                .target(name: macosApp.name, path: project.path): Set(),
+                .target(name: tvosApp.name, path: project.path): Set(),
+                .target(name: framework.name, path: project.path): Set(),
+            ]
+        )
         let subject = ValueGraphTraverser(graph: valueGraph)
 
         // When
@@ -2040,10 +2568,12 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         let secondProject = Project.test(path: secondPath)
         let firstTarget = Target.test(name: "first")
         let secondTarget = Target.test(name: "second")
-        let graph = ValueGraph.test(projects: [firstPath: firstProject,
-                                               secondPath: secondProject],
-                                    targets: [firstPath: [firstTarget.name: firstTarget],
-                                              secondPath: [secondTarget.name: secondTarget]])
+        let graph = ValueGraph.test(
+            projects: [firstPath: firstProject,
+                       secondPath: secondProject],
+            targets: [firstPath: [firstTarget.name: firstTarget],
+                      secondPath: [secondTarget.name: secondTarget]]
+        )
         let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
@@ -2061,8 +2591,10 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         // Given
         let path = AbsolutePath("/project")
         let package = Package.remote(url: "https://git.tuist.io", requirement: .branch("main"))
-        let graph = ValueGraph.test(packages: [path: ["Test": package]],
-                                    dependencies: [.packageProduct(path: path, product: "Test"): Set()])
+        let graph = ValueGraph.test(
+            packages: [path: ["Test": package]],
+            dependencies: [.packageProduct(path: path, product: "Test"): Set()]
+        )
         let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // Then

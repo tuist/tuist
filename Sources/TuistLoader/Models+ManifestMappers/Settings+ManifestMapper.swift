@@ -7,7 +7,7 @@ import TuistGraph
 extension TuistGraph.Settings {
     typealias BuildConfigurationTuple = (TuistGraph.BuildConfiguration, TuistGraph.Configuration?)
 
-    /// Maps a ProjectDescription.Settings instance into a TuistCore.Settings instance.
+    /// Maps a ProjectDescription.Settings instance into a TuistGraph.Settings instance.
     /// - Parameters:
     ///   - manifest: Manifest representation of  the settings.
     ///   - generatorPaths: Generator paths.
@@ -21,9 +21,11 @@ extension TuistGraph.Settings {
                 return result
             }
         let defaultSettings = TuistGraph.DefaultSettings.from(manifest: manifest.defaultSettings)
-        return TuistGraph.Settings(base: base,
-                                   configurations: configurations,
-                                   defaultSettings: defaultSettings)
+        return TuistGraph.Settings(
+            base: base,
+            configurations: configurations,
+            defaultSettings: defaultSettings
+        )
     }
 
     private static func buildConfigurationTuple(from customConfiguration: CustomConfiguration,

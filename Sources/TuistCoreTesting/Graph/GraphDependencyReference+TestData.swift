@@ -14,14 +14,16 @@ public extension GraphDependencyReference {
         architectures: [BinaryArchitecture] = [.arm64],
         product: Product = .framework
     ) -> GraphDependencyReference {
-        GraphDependencyReference.framework(path: path,
-                                           binaryPath: binaryPath,
-                                           isCarthage: isCarthage,
-                                           dsymPath: dsymPath,
-                                           bcsymbolmapPaths: bcsymbolmapPaths,
-                                           linking: linking,
-                                           architectures: architectures,
-                                           product: product)
+        GraphDependencyReference.framework(
+            path: path,
+            binaryPath: binaryPath,
+            isCarthage: isCarthage,
+            dsymPath: dsymPath,
+            bcsymbolmapPaths: bcsymbolmapPaths,
+            linking: linking,
+            architectures: architectures,
+            product: product
+        )
     }
 
     static func testXCFramework(
@@ -31,10 +33,12 @@ public extension GraphDependencyReference {
         binaryPath: AbsolutePath = "/frameworks/tuist.xcframework/ios-arm64/tuist",
         linking _: BinaryLinking = .dynamic
     ) -> GraphDependencyReference {
-        GraphDependencyReference.xcframework(path: path,
-                                             infoPlist: infoPlist,
-                                             primaryBinaryPath: primaryBinaryPath,
-                                             binaryPath: binaryPath)
+        GraphDependencyReference.xcframework(
+            path: path,
+            infoPlist: infoPlist,
+            primaryBinaryPath: primaryBinaryPath,
+            binaryPath: binaryPath
+        )
     }
 
     static func testLibrary(path: AbsolutePath = "/libraries/library.a",
@@ -42,23 +46,29 @@ public extension GraphDependencyReference {
                             architectures: [BinaryArchitecture] = [BinaryArchitecture.arm64],
                             product: Product = .staticLibrary) -> GraphDependencyReference
     {
-        GraphDependencyReference.library(path: path,
-                                         linking: linking,
-                                         architectures: architectures,
-                                         product: product)
+        GraphDependencyReference.library(
+            path: path,
+            linking: linking,
+            architectures: architectures,
+            product: product
+        )
     }
 
     static func testSDK(path: AbsolutePath = "/path/CoreData.framework",
                         status: SDKStatus = .required,
                         source: SDKSource = .system) -> GraphDependencyReference
     {
-        GraphDependencyReference.sdk(path: path,
-                                     status: status,
-                                     source: source)
+        GraphDependencyReference.sdk(
+            path: path,
+            status: status,
+            source: source
+        )
     }
 
     static func testProduct(target: String = "Target", productName: String = "Target.framework") -> GraphDependencyReference {
-        GraphDependencyReference.product(target: target,
-                                         productName: productName)
+        GraphDependencyReference.product(
+            target: target,
+            productName: productName
+        )
     }
 }

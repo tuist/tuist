@@ -14,6 +14,8 @@ public struct Config: Equatable, Hashable {
         case disableSynthesizedResourceAccessors
         case disableShowEnvironmentVarsInScriptPhases
         case enableCodeCoverage
+        case templateMacros(IDETemplateMacros)
+        case resolveDependenciesWithSystemScm
     }
 
     /// List of `Plugin`s used to extend Tuist.

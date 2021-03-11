@@ -22,10 +22,12 @@ final class ProjectLinterTests: XCTestCase {
         schemeLinter = MockSchemeLinter()
         settingsLinter = MockSettingsLinter()
         packageLinter = MockPackageLinter()
-        subject = ProjectLinter(targetLinter: targetLinter,
-                                settingsLinter: settingsLinter,
-                                schemeLinter: schemeLinter,
-                                packageLinter: packageLinter)
+        subject = ProjectLinter(
+            targetLinter: targetLinter,
+            settingsLinter: settingsLinter,
+            schemeLinter: schemeLinter,
+            packageLinter: packageLinter
+        )
     }
 
     override func tearDown() {

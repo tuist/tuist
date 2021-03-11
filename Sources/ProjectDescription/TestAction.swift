@@ -79,21 +79,23 @@ public struct TestAction: Equatable, Codable {
                 codeCoverageTargets: [TargetReference] = [],
                 preActions: [ExecutionAction] = [],
                 postActions: [ExecutionAction] = [],
-                diagnosticsOptions: [SchemeDiagnosticsOption] = [],
+                diagnosticsOptions: [SchemeDiagnosticsOption] = [.mainThreadChecker],
                 language: String? = nil,
                 region: String? = nil)
     {
-        self.init(testPlans: nil,
-                  targets: targets,
-                  arguments: arguments,
-                  configurationName: configurationName,
-                  coverage: coverage,
-                  codeCoverageTargets: codeCoverageTargets,
-                  preActions: preActions,
-                  postActions: postActions,
-                  diagnosticsOptions: diagnosticsOptions,
-                  language: language,
-                  region: region)
+        self.init(
+            testPlans: nil,
+            targets: targets,
+            arguments: arguments,
+            configurationName: configurationName,
+            coverage: coverage,
+            codeCoverageTargets: codeCoverageTargets,
+            preActions: preActions,
+            postActions: postActions,
+            diagnosticsOptions: diagnosticsOptions,
+            language: language,
+            region: region
+        )
     }
 
     /// Initializes a new instance of a test action
@@ -115,21 +117,23 @@ public struct TestAction: Equatable, Codable {
                 codeCoverageTargets: [TargetReference] = [],
                 preActions: [ExecutionAction] = [],
                 postActions: [ExecutionAction] = [],
-                diagnosticsOptions: [SchemeDiagnosticsOption] = [],
+                diagnosticsOptions: [SchemeDiagnosticsOption] = [.mainThreadChecker],
                 language: String? = nil,
                 region: String? = nil)
     {
-        self.init(testPlans: nil,
-                  targets: targets,
-                  arguments: arguments,
-                  configurationName: config.name,
-                  coverage: coverage,
-                  codeCoverageTargets: codeCoverageTargets,
-                  preActions: preActions,
-                  postActions: postActions,
-                  diagnosticsOptions: diagnosticsOptions,
-                  language: language,
-                  region: region)
+        self.init(
+            testPlans: nil,
+            targets: targets,
+            arguments: arguments,
+            configurationName: config.name,
+            coverage: coverage,
+            codeCoverageTargets: codeCoverageTargets,
+            preActions: preActions,
+            postActions: postActions,
+            diagnosticsOptions: diagnosticsOptions,
+            language: language,
+            region: region
+        )
     }
 
     /// Initializes a new instance of a test action using test plans
@@ -143,17 +147,19 @@ public struct TestAction: Equatable, Codable {
                                  preActions: [ExecutionAction] = [],
                                  postActions: [ExecutionAction] = []) -> Self
     {
-        Self(testPlans: testPlans,
-             targets: [],
-             arguments: nil,
-             configurationName: config.name,
-             coverage: false,
-             codeCoverageTargets: [],
-             preActions: preActions,
-             postActions: postActions,
-             diagnosticsOptions: [],
-             language: nil,
-             region: nil)
+        Self(
+            testPlans: testPlans,
+            targets: [],
+            arguments: nil,
+            configurationName: config.name,
+            coverage: false,
+            codeCoverageTargets: [],
+            preActions: preActions,
+            postActions: postActions,
+            diagnosticsOptions: [.mainThreadChecker],
+            language: nil,
+            region: nil
+        )
     }
 
     /// Initializes a new instance of a test action using test plans
@@ -167,16 +173,18 @@ public struct TestAction: Equatable, Codable {
                                  preActions: [ExecutionAction] = [],
                                  postActions: [ExecutionAction] = []) -> Self
     {
-        Self(testPlans: testPlans,
-             targets: [],
-             arguments: nil,
-             configurationName: configurationName,
-             coverage: false,
-             codeCoverageTargets: [],
-             preActions: preActions,
-             postActions: postActions,
-             diagnosticsOptions: [],
-             language: nil,
-             region: nil)
+        Self(
+            testPlans: testPlans,
+            targets: [],
+            arguments: nil,
+            configurationName: configurationName,
+            coverage: false,
+            codeCoverageTargets: [],
+            preActions: preActions,
+            postActions: postActions,
+            diagnosticsOptions: [.mainThreadChecker],
+            language: nil,
+            region: nil
+        )
     }
 }

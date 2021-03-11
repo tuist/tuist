@@ -1,7 +1,7 @@
 import Foundation
 import TuistGraph
 
-public struct WorkspaceWithProjects {
+public struct WorkspaceWithProjects: Equatable {
     public var workspace: Workspace
     public var projects: [Project]
     public init(workspace: Workspace, projects: [Project]) {
@@ -45,8 +45,10 @@ public final class ProjectWorkspaceMapper: WorkspaceMapping {
             results.projects.append(updatedProject)
             results.sideEffects.append(contentsOf: sideEffects)
         }
-        let updatedWorkspace = WorkspaceWithProjects(workspace: workspace.workspace,
-                                                     projects: results.projects)
+        let updatedWorkspace = WorkspaceWithProjects(
+            workspace: workspace.workspace,
+            projects: results.projects
+        )
         return (updatedWorkspace, results.sideEffects)
     }
 }

@@ -6,7 +6,7 @@ import TuistGraph
 import TuistSupport
 
 extension TuistGraph.DefaultSettings {
-    /// Maps a ProjectDescription.DefaultSettings instance into a TuistCore.DefaultSettings model.
+    /// Maps a ProjectDescription.DefaultSettings instance into a TuistGraph.DefaultSettings model.
     /// - Parameters:
     ///   - manifest: Manifest representation of default settings.
     ///   - generatorPaths: Generator paths.

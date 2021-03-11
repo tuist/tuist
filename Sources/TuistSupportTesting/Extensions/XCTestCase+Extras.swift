@@ -154,9 +154,11 @@ public extension XCTestCase {
 
     func XCTUnwrap<T>(_ element: T?, file: StaticString = #file, line: UInt = #line) throws -> T {
         guard let element = element else {
-            XCTFail("expected non-nil value of type \"\(type(of: T.self))\"",
-                    file: file,
-                    line: line)
+            XCTFail(
+                "expected non-nil value of type \"\(type(of: T.self))\"",
+                file: file,
+                line: line
+            )
             throw XCTUnwrapError.nilValueDetected
         }
         return element

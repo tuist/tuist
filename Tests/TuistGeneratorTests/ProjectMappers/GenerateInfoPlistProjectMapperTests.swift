@@ -16,9 +16,11 @@ public final class GenerateInfoPlistProjectMapperTests: TuistUnitTestCase {
     override public func setUp() {
         super.setUp()
         infoPlistContentProvider = MockInfoPlistContentProvider()
-        subject = GenerateInfoPlistProjectMapper(infoPlistContentProvider: infoPlistContentProvider,
-                                                 derivedDirectoryName: Constants.DerivedDirectory.name,
-                                                 infoPlistsDirectoryName: Constants.DerivedDirectory.infoPlists)
+        subject = GenerateInfoPlistProjectMapper(
+            infoPlistContentProvider: infoPlistContentProvider,
+            derivedDirectoryName: Constants.DerivedDirectory.name,
+            infoPlistsDirectoryName: Constants.DerivedDirectory.infoPlists
+        )
     }
 
     override public func tearDown() {
@@ -40,18 +42,26 @@ public final class GenerateInfoPlistProjectMapperTests: TuistUnitTestCase {
         XCTAssertEqual(sideEffects.count, 2)
         XCTAssertEqual(mappedProject.targets.count, 2)
 
-        try XCTAssertSideEffectsCreateDerivedInfoPlist(named: "A.plist",
-                                                       content: ["A": "A_VALUE"],
-                                                       projectPath: project.path,
-                                                       sideEffects: sideEffects)
-        try XCTAssertSideEffectsCreateDerivedInfoPlist(named: "B.plist",
-                                                       content: ["B": "B_VALUE"],
-                                                       projectPath: project.path,
-                                                       sideEffects: sideEffects)
-        XCTAssertTargetExistsWithDerivedInfoPlist(named: "A.plist",
-                                                  project: mappedProject)
-        XCTAssertTargetExistsWithDerivedInfoPlist(named: "B.plist",
-                                                  project: mappedProject)
+        try XCTAssertSideEffectsCreateDerivedInfoPlist(
+            named: "A.plist",
+            content: ["A": "A_VALUE"],
+            projectPath: project.path,
+            sideEffects: sideEffects
+        )
+        try XCTAssertSideEffectsCreateDerivedInfoPlist(
+            named: "B.plist",
+            content: ["B": "B_VALUE"],
+            projectPath: project.path,
+            sideEffects: sideEffects
+        )
+        XCTAssertTargetExistsWithDerivedInfoPlist(
+            named: "A.plist",
+            project: mappedProject
+        )
+        XCTAssertTargetExistsWithDerivedInfoPlist(
+            named: "B.plist",
+            project: mappedProject
+        )
     }
 
     // MARK: - Helpers
@@ -63,9 +73,11 @@ public final class GenerateInfoPlistProjectMapperTests: TuistUnitTestCase {
                                                             file: StaticString = #file,
                                                             line: UInt = #line) throws
     {
-        let data = try PropertyListSerialization.data(fromPropertyList: content,
-                                                      format: .xml,
-                                                      options: 0)
+        let data = try PropertyListSerialization.data(
+            fromPropertyList: content,
+            format: .xml,
+            options: 0
+        )
 
         XCTAssertNotNil(sideEffects.first(where: { sideEffect in
             guard case let SideEffectDescriptor.file(file) = sideEffect else { return false }

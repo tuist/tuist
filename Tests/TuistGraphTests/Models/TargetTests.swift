@@ -123,9 +123,11 @@ final class TargetTests: TuistUnitTestCase {
 
         // When
         let sources = try Target.sources(targetName: "Target", sources: [
-            SourceFileGlob(glob: temporaryPath.appending(RelativePath("sources/**")).pathString,
-                           excluding: [temporaryPath.appending(RelativePath("sources/**/*Tests.swift")).pathString],
-                           compilerFlags: nil),
+            SourceFileGlob(
+                glob: temporaryPath.appending(RelativePath("sources/**")).pathString,
+                excluding: [temporaryPath.appending(RelativePath("sources/**/*Tests.swift")).pathString],
+                compilerFlags: nil
+            ),
         ])
 
         // Then
@@ -163,9 +165,11 @@ final class TargetTests: TuistUnitTestCase {
 
         // When
         let sources = try Target.sources(targetName: "Target", sources: [
-            SourceFileGlob(glob: temporaryPath.appending(RelativePath("sources/**")).pathString,
-                           excluding: excluding,
-                           compilerFlags: nil),
+            SourceFileGlob(
+                glob: temporaryPath.appending(RelativePath("sources/**")).pathString,
+                excluding: excluding,
+                compilerFlags: nil
+            ),
         ])
 
         // Then
@@ -182,11 +186,15 @@ final class TargetTests: TuistUnitTestCase {
         // Given
         let temporaryPath = try self.temporaryPath()
         let invalidGlobs: [InvalidGlob] = [
-            .init(pattern: temporaryPath.appending(RelativePath("invalid/path/**")).pathString,
-                  nonExistentPath: temporaryPath.appending(RelativePath("invalid/path"))),
+            .init(
+                pattern: temporaryPath.appending(RelativePath("invalid/path/**")).pathString,
+                nonExistentPath: temporaryPath.appending(RelativePath("invalid/path"))
+            ),
         ]
-        let error = TargetError.invalidSourcesGlob(targetName: "Target",
-                                                   invalidGlobs: invalidGlobs)
+        let error = TargetError.invalidSourcesGlob(
+            targetName: "Target",
+            invalidGlobs: invalidGlobs
+        )
         // When
         XCTAssertThrowsSpecific(try Target.sources(targetName: "Target", sources: [
             SourceFileGlob(glob: temporaryPath.appending(RelativePath("invalid/path/**")).pathString),

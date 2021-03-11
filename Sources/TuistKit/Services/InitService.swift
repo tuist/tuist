@@ -53,14 +53,17 @@ class InitService {
     }
 
     func loadTemplateOptions(templateName: String,
-                             path: String?) throws -> (required: [String],
-                                                       optional: [String])
-    {
+                             path: String?) throws -> (
+        required: [String],
+        optional: [String]
+    ) {
         let path = self.path(path)
         let directories = try templatesDirectoryLocator.templateDirectories(at: path)
 
-        let templateDirectory = try self.templateDirectory(templateDirectories: directories,
-                                                           template: templateName)
+        let templateDirectory = try self.templateDirectory(
+            templateDirectories: directories,
+            template: templateName
+        )
 
         let template = try templateLoader.loadTemplate(at: templateDirectory)
 
@@ -92,23 +95,29 @@ class InitService {
                 let templateDirectory = directories.first(where: { $0.basename == templateName })
             else { throw InitServiceError.templateNotFound(templateName) }
             let template = try templateLoader.loadTemplate(at: templateDirectory)
-            let parsedAttributes = try parseAttributes(name: name,
-                                                       platform: platform,
-                                                       requiredTemplateOptions: requiredTemplateOptions,
-                                                       optionalTemplateOptions: optionalTemplateOptions,
-                                                       template: template)
+            let parsedAttributes = try parseAttributes(
+                name: name,
+                platform: platform,
+                requiredTemplateOptions: requiredTemplateOptions,
+                optionalTemplateOptions: optionalTemplateOptions,
+                template: template
+            )
 
-            try templateGenerator.generate(template: template,
-                                           to: path,
-                                           attributes: parsedAttributes)
+            try templateGenerator.generate(
+                template: template,
+                to: path,
+                attributes: parsedAttributes
+            )
         } else {
             guard
                 let templateDirectory = directories.first(where: { $0.basename == "default" })
             else { throw InitServiceError.templateNotFound("default") }
             let template = try templateLoader.loadTemplate(at: templateDirectory)
-            try templateGenerator.generate(template: template,
-                                           to: path,
-                                           attributes: ["name": name, "platform": platform.caseValue])
+            try templateGenerator.generate(
+                template: template,
+                to: path,
+                attributes: ["name": name, "platform": platform.caseValue]
+            )
         }
 
         logger.notice("Project generated at path \(path.pathString).", metadata: .success)

@@ -3,7 +3,7 @@ import ProjectDescription
 import TuistGraph
 
 extension TuistGraph.Platform {
-    /// Maps a ProjectDescription.Platform instance into a TuistCore.Platform instance.
+    /// Maps a ProjectDescription.Platform instance into a TuistGraph.Platform instance.
     /// - Parameters:
     ///   - manifest: Manifest representation of platform model.
     ///   - generatorPaths: Generator paths.

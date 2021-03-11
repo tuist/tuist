@@ -13,12 +13,14 @@ extension SimulatorRuntime {
                      isAvailable: Bool = true,
                      name: String = "iOS 13.5") -> SimulatorRuntime
     {
-        SimulatorRuntime(bundlePath: bundlePath,
-                         buildVersion: buildVersion,
-                         runtimeRoot: runtimeRoot,
-                         identifier: identifier,
-                         version: version,
-                         isAvailable: isAvailable,
-                         name: name)
+        SimulatorRuntime(
+            bundlePath: bundlePath,
+            buildVersion: buildVersion,
+            runtimeRoot: runtimeRoot,
+            identifier: identifier,
+            version: version,
+            isAvailable: isAvailable,
+            name: name
+        )
     }
 }

@@ -40,9 +40,11 @@ final class GenerateServiceTests: TuistUnitTestCase {
             AbsolutePath("/Test")
         }
 
-        subject = GenerateService(clock: clock,
-                                  opener: opener,
-                                  projectGeneratorFactory: projectGeneratorFactory)
+        subject = GenerateService(
+            clock: clock,
+            opener: opener,
+            projectGeneratorFactory: projectGeneratorFactory
+        )
     }
 
     override func tearDown() {
@@ -167,8 +169,10 @@ extension GenerateService {
                  projectOnly: Bool = false,
                  open: Bool = false) throws
     {
-        try run(path: path,
-                projectOnly: projectOnly,
-                open: open)
+        try run(
+            path: path,
+            projectOnly: projectOnly,
+            open: open
+        )
     }
 }

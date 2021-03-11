@@ -18,12 +18,12 @@ gem "thor", "~> 1.1"
 
 group :test do
   gem "mocha", "~> 1.12"
-  gem 'minitest'
-  gem 'minitest-reporters'
+  gem "minitest"
+  gem "minitest-reporters"
 end
 
 group :development do
-  gem "rubocop", "~> 1.9.1"
+  gem "rubocop", "~> 1.11.0"
   gem "rubocop-minitest", "~> 0.10.3"
   gem "rubocop-rake", "~> 0.5.1"
 end
@@ -33,3 +33,5 @@ group :development, :test do
 end
 
 gem "octokit", "~> 4.20"
+
+gem "zeitwerk", "~> 2.4"

@@ -28,20 +28,28 @@ public class TemplateLoader: TemplateLoading {
     public func loadTemplate(at path: AbsolutePath) throws -> TuistGraph.Template {
         let template = try manifestLoader.loadTemplate(at: path)
         let generatorPaths = GeneratorPaths(manifestDirectory: path)
-        return try TuistGraph.Template.from(manifest: template,
-                                            generatorPaths: generatorPaths)
+        return try TuistGraph.Template.from(
+            manifest: template,
+            generatorPaths: generatorPaths
+        )
     }
 }
 
 extension TuistGraph.Template {
     static func from(manifest: ProjectDescription.Template, generatorPaths: GeneratorPaths) throws -> TuistGraph.Template {
         let attributes = try manifest.attributes.map(TuistGraph.Template.Attribute.from)
-        let files = try manifest.files.map { File(path: RelativePath($0.path),
-                                                  contents: try TuistGraph.Template.Contents.from(manifest: $0.contents,
-                                                                                                  generatorPaths: generatorPaths)) }
-        return TuistGraph.Template(description: manifest.description,
-                                   attributes: attributes,
-                                   files: files)
+        let files = try manifest.files.map { File(
+            path: RelativePath($0.path),
+            contents: try TuistGraph.Template.Contents.from(
+                manifest: $0.contents,
+                generatorPaths: generatorPaths
+            )
+        ) }
+        return TuistGraph.Template(
+            description: manifest.description,
+            attributes: attributes,
+            files: files
+        )
     }
 }
 

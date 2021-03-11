@@ -19,7 +19,7 @@ final class CarthageTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_bootstrap() throws {
+    func test_bootstrap_regularFrameworks() throws {
         let temporaryPath = try self.temporaryPath()
         system.whichStub = { tool in
             if tool == "carthage" {
@@ -28,12 +28,85 @@ final class CarthageTests: TuistUnitTestCase {
                 throw NSError.test()
             }
         }
-        system.succeedCommand("/path/to/carthage", "bootstrap", "--project-directory", temporaryPath.pathString, "--platform", "iOS,macOS", "Alamofire",
-                              output: "")
+        system.succeedCommand(
+            "/path/to/carthage",
+            "bootstrap",
+            "--project-directory",
+            temporaryPath.pathString,
+            "--platform",
+            "iOS,macOS",
+            "Alamofire",
+            output: ""
+        )
 
-        try subject.bootstrap(path: temporaryPath,
-                              platforms: [.iOS, .macOS],
-                              dependencies: ["Alamofire"])
+        try subject.bootstrap(
+            path: temporaryPath,
+            platforms: [.iOS, .macOS],
+            useXCFrameworks: false,
+            noUseBinaries: false,
+            dependencies: ["Alamofire"]
+        )
+    }
+
+    func test_bootstrap_XCFrameworks() throws {
+        let temporaryPath = try self.temporaryPath()
+        system.whichStub = { tool in
+            if tool == "carthage" {
+                return "/path/to/carthage"
+            } else {
+                throw NSError.test()
+            }
+        }
+        system.succeedCommand(
+            "/path/to/carthage",
+            "bootstrap",
+            "--project-directory",
+            temporaryPath.pathString,
+            "--use-xcframeworks",
+            "--platform",
+            "iOS,macOS",
+            "Alamofire",
+            output: ""
+        )
+
+        try subject.bootstrap(
+            path: temporaryPath,
+            platforms: [.iOS, .macOS],
+            useXCFrameworks: true,
+            noUseBinaries: false,
+            dependencies: ["Alamofire"]
+        )
+    }
+
+    func test_bootstrap_XCFrameworks_and_noUseBinaries() throws {
+        let temporaryPath = try self.temporaryPath()
+        system.whichStub = { tool in
+            if tool == "carthage" {
+                return "/path/to/carthage"
+            } else {
+                throw NSError.test()
+            }
+        }
+        system.succeedCommand(
+            "/path/to/carthage",
+            "bootstrap",
+            "--project-directory",
+            temporaryPath.pathString,
+            "--use-xcframeworks",
+            "--no-use-binaries",
+            "--platform",
+            "iOS,macOS",
+            "Alamofire",
+            output: ""
+        )
+
+        try subject.bootstrap(
+            path: temporaryPath,
+            platforms: [.iOS, .macOS],
+            useXCFrameworks: true,
+            noUseBinaries: true,
+            dependencies: ["Alamofire"]
+        )
     }
 
     func test_outdated() throws {
@@ -48,9 +121,11 @@ final class CarthageTests: TuistUnitTestCase {
         binary "Tuist/DependencyE.json" "4.12.0"
         """
         let cartfileResolvedPath = temporaryPath.appending(component: "Cartfile.resolved")
-        try cartfileResolved.write(to: cartfileResolvedPath.url,
-                                   atomically: true,
-                                   encoding: .utf8)
+        try cartfileResolved.write(
+            to: cartfileResolvedPath.url,
+            atomically: true,
+            encoding: .utf8
+        )
 
         let carthagePath = temporaryPath.appending(component: "Carthage")
         try FileHandler.shared.createFolder(carthagePath)

@@ -39,8 +39,10 @@ class GeneratorPathsTests: TuistUnitTestCase {
         path = try! temporaryPath()
         rootDirectoryLocator = MockRootDirectoryLocator()
         rootDirectoryLocator.locateStub = path.appending(component: "Root")
-        subject = GeneratorPaths(manifestDirectory: path,
-                                 rootDirectoryLocator: rootDirectoryLocator)
+        subject = GeneratorPaths(
+            manifestDirectory: path,
+            rootDirectoryLocator: rootDirectoryLocator
+        )
     }
 
     override func tearDown() {
@@ -52,9 +54,11 @@ class GeneratorPathsTests: TuistUnitTestCase {
 
     func test_resolve_when_relative_to_current_file() throws {
         // Given
-        let filePath = Path("file.swift",
-                            type: .relativeToCurrentFile,
-                            callerPath: path.pathString)
+        let filePath = Path(
+            "file.swift",
+            type: .relativeToCurrentFile,
+            callerPath: path.pathString
+        )
 
         // When
         let got = try subject.resolve(path: filePath)

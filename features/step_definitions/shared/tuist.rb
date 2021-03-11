@@ -1,5 +1,5 @@
 # frozen_string_literal: true
-require 'open3'
+require "open3"
 
 Given(/tuist is available/) do
   system("swift", "build", "--package-path", File.expand_path("../../..", __dir__))
@@ -35,6 +35,12 @@ end
 
 Then(/^tuist focuses the target ([a-zA-Z]+)$/) do |target|
   system("swift", "run", "tuist", "focus", "--no-open", "--path", @dir, target)
+  @workspace_path = Dir.glob(File.join(@dir, "*.xcworkspace")).first
+  @xcodeproj_path = Dir.glob(File.join(@dir, "*.xcodeproj")).first
+end
+
+Then(/^tuist focuses the target ([a-zA-Z]+) with ([a-zA-Z]+) profile$/) do |target, cache_profile|
+  system("swift", "run", "tuist", "focus", "--no-open", "--path", @dir, target, "--profile", cache_profile)
   @workspace_path = Dir.glob(File.join(@dir, "*.xcworkspace")).first
   @xcodeproj_path = Dir.glob(File.join(@dir, "*.xcodeproj")).first
 end

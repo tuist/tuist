@@ -23,8 +23,10 @@ final class DependenciesFetchServiceTests: TuistUnitTestCase {
         dependenciesController = MockDependenciesController()
         dependenciesModelLoader = MockDependenciesModelLoader()
 
-        subject = DependenciesFetchService(dependenciesController: dependenciesController,
-                                           dependenciesModelLoader: dependenciesModelLoader)
+        subject = DependenciesFetchService(
+            dependenciesController: dependenciesController,
+            dependenciesModelLoader: dependenciesModelLoader
+        )
     }
 
     override func tearDown() {
@@ -40,11 +42,14 @@ final class DependenciesFetchServiceTests: TuistUnitTestCase {
         // Given
         let stubbedPath = try temporaryPath()
         let stubbedDependencies = Dependencies(
-            carthageDependencies: [
-                CarthageDependency(origin: .github(path: "Dependency1"), requirement: .exact("1.1.1"), platforms: [.iOS, .macOS]),
-            ],
-            swiftPackageManagerDependencies: [
-            ]
+            carthage: .init(
+                [
+                    .github(path: "Dependency1", requirement: .exact("1.1.1")),
+                ],
+                platforms: [.iOS, .macOS],
+                options: []
+            ),
+            swiftPackageManager: nil
         )
         dependenciesModelLoader.loadDependenciesStub = { _ in stubbedDependencies }
 

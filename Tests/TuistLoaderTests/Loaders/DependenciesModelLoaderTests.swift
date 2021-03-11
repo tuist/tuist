@@ -36,27 +36,43 @@ final class DependenciesModelLoaderTests: TuistUnitTestCase {
         let localSwiftPackagePath = temporaryPath.appending(component: "LocalPackage")
 
         manifestLoader.loadDependenciesStub = { _ in
-            Dependencies([
-                .carthage(origin: .github(path: "Dependency1"), requirement: .exact("1.1.1"), platforms: [.iOS]),
-                .carthage(origin: .git(path: "Dependency1"), requirement: .exact("2.3.4"), platforms: [.macOS, .tvOS]),
-                .swiftPackageManager(package: .local(path: Path(localSwiftPackagePath.pathString))),
-                .swiftPackageManager(package: .remote(url: "RemoteUrl.com", requirement: .exact("1.2.3"))),
-            ])
+            Dependencies(
+                carthage: .carthage(
+                    [
+                        .github(path: "Dependency1", requirement: .exact("1.1.1")),
+                        .git(path: "Dependency1", requirement: .exact("2.3.4")),
+                    ],
+                    platforms: [.iOS, .macOS],
+                    options: [.useXCFrameworks, .noUseBinaries]
+                ),
+                swiftPackageManager: .swiftPackageManager(
+                    [
+                        .local(path: Path(localSwiftPackagePath.pathString)),
+                        .remote(url: "RemoteUrl.com", requirement: .exact("1.2.3")),
+                    ]
+                )
+            )
         }
 
         // When
         let got = try subject.loadDependencies(at: temporaryPath)
 
         // Then
-        let expected = TuistGraph.Dependencies(
-            carthageDependencies: [
-                CarthageDependency(origin: .github(path: "Dependency1"), requirement: .exact("1.1.1"), platforms: Set([.iOS])),
-                CarthageDependency(origin: .git(path: "Dependency1"), requirement: .exact("2.3.4"), platforms: Set([.macOS, .tvOS])),
-            ],
-            swiftPackageManagerDependencies: [
-                SwiftPackageManagerDependency(package: .local(path: localSwiftPackagePath)),
-                SwiftPackageManagerDependency(package: .remote(url: "RemoteUrl.com", requirement: .exact("1.2.3"))),
-            ]
+        let expected: TuistGraph.Dependencies = .init(
+            carthage: .init(
+                [
+                    .github(path: "Dependency1", requirement: .exact("1.1.1")),
+                    .git(path: "Dependency1", requirement: .exact("2.3.4")),
+                ],
+                platforms: [.iOS, .macOS],
+                options: [.useXCFrameworks, .noUseBinaries]
+            ),
+            swiftPackageManager: .init(
+                [
+                    .local(path: localSwiftPackagePath),
+                    .remote(url: "RemoteUrl.com", requirement: .exact("1.2.3")),
+                ]
+            )
         )
         XCTAssertEqual(got, expected)
     }

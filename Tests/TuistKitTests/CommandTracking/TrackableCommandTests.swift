@@ -25,9 +25,11 @@ final class TrackableCommandTests: TuistUnitTestCase {
     }
 
     private func makeSubject(flag: Bool = true) {
-        subject = TrackableCommand(command: TestCommand(flag: flag),
-                                   clock: WallClock(),
-                                   asyncQueue: mockAsyncQueue)
+        subject = TrackableCommand(
+            command: TestCommand(flag: flag),
+            clock: WallClock(),
+            asyncQueue: mockAsyncQueue
+        )
     }
 
     // MARK: - Tests

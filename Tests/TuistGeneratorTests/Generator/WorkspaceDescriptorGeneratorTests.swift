@@ -84,19 +84,23 @@ final class WorkspaceDescriptorGeneratorTests: TuistUnitTestCase {
         // Given
         let temporaryPath = try self.temporaryPath()
         let target = anyTarget()
-        let project = Project.test(path: temporaryPath,
-                                   sourceRootPath: temporaryPath,
-                                   xcodeProjPath: temporaryPath.appending(component: "Test.xcodeproj"),
-                                   name: "Test",
-                                   settings: .default,
-                                   targets: [target])
+        let project = Project.test(
+            path: temporaryPath,
+            sourceRootPath: temporaryPath,
+            xcodeProjPath: temporaryPath.appending(component: "Test.xcodeproj"),
+            name: "Test",
+            settings: .default,
+            targets: [target]
+        )
 
         let workspace = Workspace.test(
             xcWorkspacePath: temporaryPath.appending(component: "Test.xcworkspace"),
             projects: [project.path]
         )
-        let graph = Graph.create(project: project,
-                                 dependencies: [(target, [])])
+        let graph = Graph.create(
+            project: project,
+            dependencies: [(target, [])]
+        )
         let valueGraph = ValueGraph(graph: graph.with(workspace: workspace))
         let graphTraverser = ValueGraphTraverser(graph: valueGraph)
 
@@ -112,11 +116,13 @@ final class WorkspaceDescriptorGeneratorTests: TuistUnitTestCase {
 
     // MARK: - Helpers
 
-    func anyTarget(dependencies: [Dependency] = []) -> Target {
-        Target.test(infoPlist: nil,
-                    entitlements: nil,
-                    settings: nil,
-                    dependencies: dependencies)
+    func anyTarget(dependencies: [TargetDependency] = []) -> Target {
+        Target.test(
+            infoPlist: nil,
+            entitlements: nil,
+            settings: nil,
+            dependencies: dependencies
+        )
     }
 }
 

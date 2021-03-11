@@ -4,8 +4,10 @@ import TSCBasic
 
 struct VersionCommand: ParsableCommand {
     static var configuration: CommandConfiguration {
-        CommandConfiguration(commandName: "version",
-                             abstract: "Outputs the current version of tuist")
+        CommandConfiguration(
+            commandName: "version",
+            abstract: "Outputs the current version of tuist"
+        )
     }
 
     func run() throws {

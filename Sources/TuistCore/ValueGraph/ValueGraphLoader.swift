@@ -155,7 +155,7 @@ public final class ValueGraphLoader: ValueGraphLoading {
         path: AbsolutePath,
         fromTarget: String,
         fromPlatform: Platform,
-        dependency: Dependency,
+        dependency: TargetDependency,
         cache: Cache,
         cycleDetector: GraphCircularDetector
     ) throws -> ValueGraphDependency {

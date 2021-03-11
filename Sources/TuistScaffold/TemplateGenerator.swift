@@ -25,14 +25,20 @@ public final class TemplateGenerator: TemplateGenerating {
                          to destinationPath: AbsolutePath,
                          attributes: [String: String]) throws
     {
-        let renderedFiles = renderFiles(template: template,
-                                        attributes: attributes)
-        try generateDirectories(renderedFiles: renderedFiles,
-                                destinationPath: destinationPath)
+        let renderedFiles = renderFiles(
+            template: template,
+            attributes: attributes
+        )
+        try generateDirectories(
+            renderedFiles: renderedFiles,
+            destinationPath: destinationPath
+        )
 
-        try generateFiles(renderedFiles: renderedFiles,
-                          attributes: attributes,
-                          destinationPath: destinationPath)
+        try generateFiles(
+            renderedFiles: renderedFiles,
+            attributes: attributes,
+            destinationPath: destinationPath
+        )
     }
 
     // MARK: - Helpers
@@ -86,23 +92,29 @@ public final class TemplateGenerator: TemplateGenerating {
             let renderedContents: String
             switch $0.contents {
             case let .string(contents):
-                renderedContents = try environment.renderTemplate(string: contents,
-                                                                  context: attributes)
+                renderedContents = try environment.renderTemplate(
+                    string: contents,
+                    context: attributes
+                )
             case let .file(path):
                 let fileContents = try FileHandler.shared.readTextFile(path)
                 // Render only files with .stencil extension
                 if path.extension == "stencil" {
-                    renderedContents = try environment.renderTemplate(string: fileContents,
-                                                                      context: attributes)
+                    renderedContents = try environment.renderTemplate(
+                        string: fileContents,
+                        context: attributes
+                    )
                 } else {
                     renderedContents = fileContents
                 }
             }
             // Generate file only when it has some content
             guard !renderedContents.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-            try FileHandler.shared.write(renderedContents,
-                                         path: destinationPath.appending($0.path),
-                                         atomically: true)
+            try FileHandler.shared.write(
+                renderedContents,
+                path: destinationPath.appending($0.path),
+                atomically: true
+            )
         }
     }
 }
