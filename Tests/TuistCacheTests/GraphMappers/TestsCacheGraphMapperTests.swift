@@ -68,6 +68,14 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
             schemes: [
                 Scheme.test(
                     name: "SchemeA",
+                    buildAction: .test(
+                        targets: [
+                            TargetReference(
+                                projectPath: project.path,
+                                name: unitTestsA.name
+                            ),
+                        ]
+                    ),
                     testAction: TestAction.test(
                         targets: [
                             TestableTarget(
@@ -81,6 +89,18 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
                 ),
                 Scheme.test(
                     name: "SchemeB",
+                    buildAction: .test(
+                        targets: [
+                            TargetReference(
+                                projectPath: project.path,
+                                name: unitTestsA.name
+                            ),
+                            TargetReference(
+                                projectPath: project.path,
+                                name: unitTestsB.name
+                            ),
+                        ]
+                    ),
                     testAction: TestAction.test(
                         targets: [
                             TestableTarget(
@@ -131,14 +151,23 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
                 schemes: [
                     Scheme.test(
                         name: "SchemeA",
-                        buildAction: nil,
+                        buildAction: BuildAction.test(
+                            targets: []
+                        ),
                         testAction: TestAction.test(
                             targets: []
                         )
                     ),
                     Scheme.test(
                         name: "SchemeB",
-                        buildAction: nil,
+                        buildAction: BuildAction.test(
+                            targets: [
+                                TargetReference(
+                                    projectPath: project.path,
+                                    name: unitTestsB.name
+                                ),
+                            ]
+                        ),
                         testAction: TestAction.test(
                             targets: [
                                 TestableTarget(
@@ -227,6 +256,14 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
 
         let schemeA = Scheme.test(
             name: "SchemeA",
+            buildAction: .test(
+                targets: [
+                    TargetReference(
+                        projectPath: project.path,
+                        name: unitTestsA.name
+                    ),
+                ]
+            ),
             testAction: TestAction.test(
                 targets: [
                     TestableTarget(
@@ -271,7 +308,14 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
                 schemes: [
                     Scheme.test(
                         name: "SchemeA",
-                        buildAction: nil,
+                        buildAction: .test(
+                            targets: [
+                                TargetReference(
+                                    projectPath: project.path,
+                                    name: unitTestsA.name
+                                ),
+                            ]
+                        ),
                         testAction: TestAction.test(
                             targets: [
                                 TestableTarget(
