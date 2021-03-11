@@ -49,7 +49,11 @@ final class DependenciesFetchServiceTests: TuistUnitTestCase {
                 platforms: [.iOS, .macOS],
                 options: []
             ),
-            swiftPackageManager: nil
+            swiftPackageManager: .init(
+                [
+                    .remote(url: "Depedency1/Depedency1", requirement: .upToNextMajor("1.2.3"))
+                ]
+            )
         )
         dependenciesModelLoader.loadDependenciesStub = { _ in stubbedDependencies }
 
