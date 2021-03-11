@@ -15,6 +15,9 @@ module Fourier
     desc "generate", "Generate the Xcode project to work on Tuist"
     subcommand "generate", Commands::Generate
 
+    desc "edit", "Edit Tuist's project manifest in Xcode"
+    subcommand "edit", Commands::Edit
+
     def self.exit_on_failure?
       true
     end

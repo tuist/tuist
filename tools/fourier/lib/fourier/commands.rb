@@ -6,5 +6,6 @@ module Fourier
     autoload :Build,      "fourier/commands/build"
     autoload :Generate,   "fourier/commands/generate"
     autoload :GitHub,     "fourier/commands/github"
+    autoload :Edit,       "fourier/commands/edit"
   end
 end

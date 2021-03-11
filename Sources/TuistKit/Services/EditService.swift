@@ -46,7 +46,8 @@ final class EditService {
     }
 
     func run(path: String?,
-             permanent: Bool) throws
+             permanent: Bool,
+             onlyCurrentDirectory: Bool) throws
     {
         let path = self.path(path)
 

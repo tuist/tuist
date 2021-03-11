@@ -6,5 +6,6 @@ module Fourier
     autoload :Test, "fourier/services/test"
     autoload :GitHub, "fourier/services/github"
     autoload :Generate, "fourier/services/generate"
+    autoload :Edit, "fourier/services/edit"
   end
 end

@@ -29,6 +29,7 @@ protocol ProjectEditing: AnyObject {
     /// Generates an Xcode project to edit the Project defined in the given directory.
     /// - Parameters:
     ///   - editingPath: Directory whose project will be edited.
+    ///   - onlyCurrentDirectory: True if only the manifest in the current directory should be included.
     ///   - destinationDirectory: Directory in which the Xcode project will be generated.
     ///   - plugins: The plugins to load as part of the edit project.
     /// - Returns: The path to the generated Xcode project.
