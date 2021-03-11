@@ -324,6 +324,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "FranzBusch",
+      "name": "Franz Busch",
+      "avatar_url": "https://avatars.githubusercontent.com/u/3491887?v=4",
+      "profile": "https://twitter.com/FranzJBusch",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,
