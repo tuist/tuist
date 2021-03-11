@@ -18,6 +18,11 @@ module Fourier
     desc "edit", "Edit Tuist's project manifest in Xcode"
     subcommand "edit", Commands::Edit
 
+    desc "focus TARGET", "Edit Tuist's project focusing on the target TARGET"
+    def focus(target)
+      Services::Focus.call(target: target)
+    end
+
     def self.exit_on_failure?
       true
     end
