@@ -25,7 +25,7 @@ struct EditCommand: ParsableCommand {
         help: "It creates the project in the current directory or the one indicated by -p and doesn't block the process"
     )
     var permanent: Bool = false
-    
+
     @Flag(
         name: [.long, .customShort("o")],
         help: "It only includes the manifest in the current directory."
