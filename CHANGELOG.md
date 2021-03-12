@@ -17,6 +17,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Fixed running `tuist test` with `--clean` flag [#2649](https://github.com/tuist/tuist/pull/2649) by [@fortmarek](https://github.com/fortmarek)
 
+### Removed
+
+- Support for Xcode 11.x. [#2651](https://github.com/tuist/tuist/pull/2651) by [@pepibumur](https://github.com/pepibumur)
+
 ## 1.37.0 - Twister
 
 ### Added
