@@ -16,6 +16,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Fixed
 
 - Fixed running `tuist test` with `--clean` flag [#2649](https://github.com/tuist/tuist/pull/2649) by [@fortmarek](https://github.com/fortmarek)
+- Fixed `Environment` retrieve methods [#2653](https://github.com/tuist/tuist/pull/2653) by [@DimaMishchenko](https://github.com/DimaMishchenko)
 
 ## 1.37.0 - Twister
 
