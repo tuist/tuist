@@ -16,6 +16,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Fixed
 
 - Fixed running `tuist test` with `--clean` flag [#2649](https://github.com/tuist/tuist/pull/2649) by [@fortmarek](https://github.com/fortmarek)
+- Install script bug fix: Adding bin folder to usr/local/bin when it is missing [#2655](https://github.com/tuist/tuist/pull/2655) by [@tiarnann](https://github.com/tiarnann)
 
 ## 1.37.0 - Twister
 
