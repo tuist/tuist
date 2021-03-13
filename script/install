@@ -80,6 +80,7 @@ curl -LSs --output /tmp/tuistenv.zip https://storage.googleapis.com/tuist-releas
 ohai "Unzipping tuistenv..."
 unzip -o /tmp/tuistenv.zip -d /tmp/tuistenv > /dev/null
 ohai "Installing tuistenv..."
+[ ! -d "/usr/local/bin" ] && execute_sudo mkdir /usr/local/bin/
 execute_sudo mv /tmp/tuistenv/tuistenv /usr/local/bin/tuist
 execute_sudo ln -sf /usr/local/bin/tuist /usr/local/bin/swift-project
 execute_sudo chmod +x /usr/local/bin/tuist
