@@ -8,10 +8,10 @@ final class SwiftPackageManagerDependenciesTests: TuistUnitTestCase {
         // Given
         let subject = SwiftPackageManagerDependencies(
             [
-                .remote(url: "url/url/url", requirement: .branch("branch"))
+                .remote(url: "url/url/url", requirement: .branch("branch")),
             ]
         )
-        
+
         let expected = """
         // swift-tools-version:5.3
 
@@ -24,14 +24,14 @@ final class SwiftPackageManagerDependenciesTests: TuistUnitTestCase {
             ]
         )
         """
-        
+
         // When
         let got = subject.stringValue()
-        
+
         // Then
         XCTAssertEqual(got, expected)
     }
-    
+
     func test_stringValue_multipleDependencies() {
         // Given
         let subject = SwiftPackageManagerDependencies(
@@ -42,10 +42,10 @@ final class SwiftPackageManagerDependenciesTests: TuistUnitTestCase {
                 .remote(url: "http://xyz.com", requirement: .branch("develop")),
                 .remote(url: "https://www.google.com/", requirement: .revision("a083aa1435eb35d8a1cb369115a7636cb4b65135")),
                 .remote(url: "url/url/url", requirement: .range(from: "1.2.3", to: "5.2.1")),
-                .local(path: "/path/path/path")
+                .local(path: "/path/path/path"),
             ]
         )
-        
+
         let expected = """
         // swift-tools-version:5.3
 
@@ -64,10 +64,10 @@ final class SwiftPackageManagerDependenciesTests: TuistUnitTestCase {
             ]
         )
         """
-        
+
         // When
         let got = subject.stringValue()
-        
+
         // Then
         XCTAssertEqual(got, expected)
     }

@@ -10,22 +10,22 @@ import XCTest
 
 final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
     private var subject: SwiftPackageManagerInteractor!
-    
+
     private var fileHandlerMock: MockFileHandler!
 
     private var temporaryDirectoryPath: AbsolutePath!
-    
+
     override func setUp() {
         super.setUp()
-        
+
         do {
             temporaryDirectoryPath = try TemporaryDirectory(removeTreeOnDeinit: true).path
         } catch {
             XCTFail("Failed to setup TemporaryDirectory")
         }
-        
+
         fileHandlerMock = MockFileHandler(temporaryDirectory: { self.temporaryDirectoryPath })
-        
+
         subject = SwiftPackageManagerInteractor(
             fileHandler: fileHandlerMock
         )
@@ -33,11 +33,11 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
 
     override func tearDown() {
         fileHandlerMock = nil
-        
+
         temporaryDirectoryPath = nil
-        
+
         subject = nil
-        
+
         super.tearDown()
     }
 
@@ -47,11 +47,11 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             .appending(component: Constants.DependenciesDirectory.packageResolvedName)
         let temporaryBuildDirectory = temporaryDirectoryPath
             .appending(component: ".build")
-        
+
         let rootPath = try temporaryPath()
         let dependenciesDirectory = rootPath
             .appending(component: Constants.DependenciesDirectory.name)
-        
+
         try fileHandler.touch(temporaryPackageResolvedPath)
         try fileHandler.touch(temporaryBuildDirectory.appending(component: "manifest.db"))
         try fileHandler.touch(temporaryBuildDirectory.appending(component: "workspace-state.json"))
@@ -62,16 +62,16 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
 
         let command = ["swift", "package", "--package-path", "\(temporaryDirectoryPath.pathString)", "resolve"]
         system.succeedCommand(command)
-        
+
         let depedencies = SwiftPackageManagerDependencies(
             [
                 .remote(url: "https://github.com/Alamofire/Alamofire.git", requirement: .upToNextMajor("5.2.0")),
             ]
         )
-        
+
         // When
         try subject.fetch(dependenciesDirectory: dependenciesDirectory, dependencies: depedencies)
-        
+
         // Then
         let expectedPackageResolvedPath = dependenciesDirectory
             .appending(component: Constants.DependenciesDirectory.lockfilesDirectoryName)
@@ -79,7 +79,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         let expectedBuildDirectory = dependenciesDirectory
             .appending(component: Constants.DependenciesDirectory.swiftPackageManagerDirectoryName)
             .appending(component: ".build")
-        
+
         XCTAssertTrue(fileHandler.exists(expectedPackageResolvedPath))
         XCTAssertTrue(fileHandler.exists(expectedBuildDirectory.appending(component: "manifest.db")))
         XCTAssertTrue(fileHandler.exists(expectedBuildDirectory.appending(component: "workspace-state.json")))

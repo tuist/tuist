@@ -62,11 +62,11 @@ final class DependenciesControllerTests: TuistUnitTestCase {
         XCTAssertTrue(carthageInteractor.invokedFetch)
         XCTAssertEqual(carthageInteractor.invokedFetchParameters?.dependenciesDirectory, dependenciesDirectoryPath)
         XCTAssertEqual(carthageInteractor.invokedFetchParameters?.dependencies, carthageDependencies)
-        
+
         XCTAssertFalse(swiftPackageManagerInteractor.invokedFetch)
         XCTAssertFalse(cocoaPodsInteractor.invokedFetch)
     }
-    
+
     func test_fetch_swiftPackageManger() throws {
         // Given
         let rootPath = try temporaryPath()
@@ -77,7 +77,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
         let swiftPackageManagerDependencies = SwiftPackageManagerDependencies(
             [
                 .remote(url: "Moya", requirement: .exact("2.3.4")),
-                .remote(url: "Alamofire", requirement: .upToNextMajor("5.0.0"))
+                .remote(url: "Alamofire", requirement: .upToNextMajor("5.0.0")),
             ]
         )
         let dependencies = Dependencies(carthage: nil, swiftPackageManager: swiftPackageManagerDependencies)
@@ -89,11 +89,11 @@ final class DependenciesControllerTests: TuistUnitTestCase {
         XCTAssertTrue(swiftPackageManagerInteractor.invokedFetch)
         XCTAssertEqual(swiftPackageManagerInteractor.invokedFetchParameters?.dependenciesDirectory, dependenciesDirectoryPath)
         XCTAssertEqual(swiftPackageManagerInteractor.invokedFetchParameters?.dependencies, swiftPackageManagerDependencies)
-        
+
         XCTAssertFalse(carthageInteractor.invokedFetch)
         XCTAssertFalse(cocoaPodsInteractor.invokedFetch)
     }
-    
+
     func test_fetch_carthage_swiftPackageManger() throws {
         // Given
         let rootPath = try temporaryPath()
@@ -112,7 +112,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
         let swiftPackageManagerDependencies = SwiftPackageManagerDependencies(
             [
                 .remote(url: "Moya", requirement: .exact("2.3.4")),
-                .remote(url: "Alamofire", requirement: .upToNextMajor("5.0.0"))
+                .remote(url: "Alamofire", requirement: .upToNextMajor("5.0.0")),
             ]
         )
         let dependencies = Dependencies(carthage: carthageDependencies, swiftPackageManager: swiftPackageManagerDependencies)
@@ -124,11 +124,11 @@ final class DependenciesControllerTests: TuistUnitTestCase {
         XCTAssertTrue(carthageInteractor.invokedFetch)
         XCTAssertEqual(carthageInteractor.invokedFetchParameters?.dependenciesDirectory, dependenciesDirectoryPath)
         XCTAssertEqual(carthageInteractor.invokedFetchParameters?.dependencies, carthageDependencies)
-        
+
         XCTAssertTrue(swiftPackageManagerInteractor.invokedFetch)
         XCTAssertEqual(swiftPackageManagerInteractor.invokedFetchParameters?.dependenciesDirectory, dependenciesDirectoryPath)
         XCTAssertEqual(swiftPackageManagerInteractor.invokedFetchParameters?.dependencies, swiftPackageManagerDependencies)
-        
+
         XCTAssertFalse(cocoaPodsInteractor.invokedFetch)
     }
 }

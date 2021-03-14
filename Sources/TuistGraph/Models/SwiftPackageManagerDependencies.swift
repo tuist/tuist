@@ -10,7 +10,7 @@ public struct SwiftPackageManagerDependencies: Equatable {
     public init(_ packages: [Package]) {
         self.packages = packages
     }
-    
+
     /// Returns `Package.swift` representation.
     ///
     /// **NOTE** It is a temorary solution until Apple resolves: https://forums.swift.org/t/pitch-package-editor-commands/42224
