@@ -5,6 +5,26 @@ public struct Environment {
     public enum Value {
         case boolean(Bool)
         case string(String)
+
+        /// Retrieve the Environment value as a string or return the specified default string value
+        /// - Parameters:
+        ///   - default: default String value to be returned
+        /// - Returns: String
+        @available(*, deprecated, message: "Was moved to Optional extension. Remove question mark to fix.")
+        public func getString(default defaultString: String) -> String {
+            if case let .string(value) = self { return value }
+            return defaultString
+        }
+
+        /// Retrieve the Environment value as a boolean or return the specified default boolean value
+        /// - Parameters:
+        ///   - default: default Boolean value to be returned
+        /// - Returns: Bool
+        @available(*, deprecated, message: "Was moved to Optional extension. Remove question mark to fix.")
+        public func getBoolean(default defaultBoolean: Bool) -> Bool {
+            if case let .boolean(value) = self { return value }
+            return defaultBoolean
+        }
     }
 
     public static subscript(dynamicMember member: String) -> Value? {
@@ -31,7 +51,7 @@ extension Optional where Wrapped == Environment.Value {
         if case let .string(value) = self { return value }
         return defaultString
     }
-    
+
     /// Retrieve the Environment value as a boolean or return the specified default boolean value
     /// - Parameters:
     ///   - default: default Boolean value to be returned
