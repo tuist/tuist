@@ -16,7 +16,7 @@ Feature: Tests projects using Tuist test
     Given that tuist is available
     And I have a working directory
     Then I copy the fixture app_with_framework_and_tests into the working directory
-    Then tuist tests the project
+    Then tuist tests and cleans the project
     Then tuist tests the scheme App from the project
     Then tuist tests the scheme App-Project from the project
 
