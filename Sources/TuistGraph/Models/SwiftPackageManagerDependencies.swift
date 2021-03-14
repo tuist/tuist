@@ -12,6 +12,8 @@ public struct SwiftPackageManagerDependencies: Equatable {
     }
     
     /// Returns `Package.swift` representation.
+    ///
+    /// **NOTE** It is a temorary solution until Apple resolves: https://forums.swift.org/t/pitch-package-editor-commands/42224
     public func stringValue() -> String {
         """
         // swift-tools-version:5.3
