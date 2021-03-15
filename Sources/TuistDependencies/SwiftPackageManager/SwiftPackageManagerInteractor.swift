@@ -95,7 +95,7 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
         }
 
         // create `Package.swift`
-        let packageManifestContent = dependencies.stringValue()
+        let packageManifestContent = dependencies.manifestValue()
         let packageManifestPath = pathsProvider.temporaryDirectoryPath.appending(component: "Package.swift")
         try fileHandler.write(packageManifestContent, path: packageManifestPath, atomically: true)
 

@@ -4,7 +4,7 @@ import XCTest
 @testable import TuistSupportTesting
 
 final class SwiftPackageManagerDependenciesTests: TuistUnitTestCase {
-    func test_stringValue_singleDependency() {
+    func test_manifestValue_singleDependency() {
         // Given
         let subject = SwiftPackageManagerDependencies(
             [
@@ -26,13 +26,13 @@ final class SwiftPackageManagerDependenciesTests: TuistUnitTestCase {
         """
 
         // When
-        let got = subject.stringValue()
+        let got = subject.manifestValue()
 
         // Then
         XCTAssertEqual(got, expected)
     }
 
-    func test_stringValue_multipleDependencies() {
+    func test_manifestValue_multipleDependencies() {
         // Given
         let subject = SwiftPackageManagerDependencies(
             [
@@ -66,7 +66,7 @@ final class SwiftPackageManagerDependenciesTests: TuistUnitTestCase {
         """
 
         // When
-        let got = subject.stringValue()
+        let got = subject.manifestValue()
 
         // Then
         XCTAssertEqual(got, expected)

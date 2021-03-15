@@ -14,7 +14,7 @@ public struct SwiftPackageManagerDependencies: Equatable {
     /// Returns `Package.swift` representation.
     ///
     /// **NOTE** It is a temporary solution until Apple resolves: https://forums.swift.org/t/pitch-package-editor-commands/42224
-    public func stringValue() -> String {
+    public func manifestValue() -> String {
         """
         // swift-tools-version:5.3
 
@@ -23,7 +23,7 @@ public struct SwiftPackageManagerDependencies: Equatable {
         let package = Package(
             name: "PackageName",
             dependencies: [
-                \(packages.map { $0.stringValue + "," }.joined(separator: "\n        "))
+                \(packages.map { $0.manifestValue + "," }.joined(separator: "\n        "))
             ]
         )
         """
@@ -34,12 +34,12 @@ public struct SwiftPackageManagerDependencies: Equatable {
 
 private extension Package {
     /// Returns `Package.swift` representation.
-    var stringValue: String {
+    var manifestValue: String {
         switch self {
         case let .local(path):
             return #".package(path: "\#(path)")"#
         case let .remote(url, requirement):
-            return #".package(url: "\#(url)", \#(requirement.stringValue))"#
+            return #".package(url: "\#(url)", \#(requirement.manifestValue))"#
         }
     }
 }
@@ -48,7 +48,7 @@ private extension Package {
 
 private extension Requirement {
     /// Returns `Package.swift` representation.
-    var stringValue: String {
+    var manifestValue: String {
         switch self {
         case let .exact(version):
             return #".exact("\#(version)")"#
