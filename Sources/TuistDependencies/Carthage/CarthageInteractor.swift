@@ -10,9 +10,9 @@ import TuistSupport
 enum CarthageInteractorError: FatalError, Equatable {
     /// Thrown when Carthage cannot be found.
     case carthageNotFound
-    /// Thrown when `Carfile.resolved` cannont be found in temporary directory after Carthage installation.
+    /// Thrown when `Carfile.resolved` cannot be found in temporary directory after Carthage installation.
     case cartfileResolvedNotFound
-    /// Thrown when `Carthage/Build` directory cannont be found in temporary directory after Carthage installation.
+    /// Thrown when `Carthage/Build` directory cannot be found in temporary directory after Carthage installation.
     case buildDirectoryNotFound
     /// Thrown when version of Carthage installed in environment does not support XCFrameworks production.
     case xcFrameworksProductionNotSupported

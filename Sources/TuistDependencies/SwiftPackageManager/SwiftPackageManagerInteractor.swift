@@ -3,9 +3,9 @@ import TuistGraph
 import TuistSupport
 
 enum SwiftPackageManagerInteractorError: FatalError, Equatable {
-    /// Thrown when `Package.resolved` cannont be found in temporary directory after `Swift Package Manager` installation.
+    /// Thrown when `Package.resolved` cannot be found in temporary directory after `Swift Package Manager` installation.
     case packageResolvedNotFound
-    /// Thrown when `.build` directory cannont be found in temporary directory after `Swift Package Manager` installation.
+    /// Thrown when `.build` directory cannot be found in temporary directory after `Swift Package Manager` installation.
     case buildDirectoryNotFound
 
     /// Error type.
