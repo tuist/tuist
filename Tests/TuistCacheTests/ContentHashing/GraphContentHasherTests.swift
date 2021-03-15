@@ -2,6 +2,7 @@ import Foundation
 import TSCBasic
 import TuistCore
 import TuistCoreTesting
+import TuistGraph
 import XCTest
 
 @testable import TuistCache
@@ -22,7 +23,7 @@ final class GraphContentHasherTests: TuistUnitTestCase {
 
     func test_contentHashes_emptyGraph() throws {
         // Given
-        let graph = Graph.test()
+        let graph = ValueGraph.test()
 
         // When
         let hashes = try subject.contentHashes(for: graph)
@@ -34,29 +35,87 @@ final class GraphContentHasherTests: TuistUnitTestCase {
     func test_contentHashes_returnsOnlyFrameworks() throws {
         // Given
         let path: AbsolutePath = "/project"
-        let frameworkTarget = TargetNode.test(project: .test(path: path), target: .test(name: "FrameworkA", product: .framework, infoPlist: nil, entitlements: nil))
-        let secondFrameworkTarget = TargetNode.test(project: .test(path: path), target: .test(name: "FrameworkB", product: .framework, infoPlist: nil, entitlements: nil))
-        let appTarget = TargetNode.test(project: .test(path: path), target: .test(name: "App", product: .app, infoPlist: nil, entitlements: nil))
-        let dynamicLibraryTarget = TargetNode.test(project: .test(path: path), target: .test(name: "DynamicLibrary", product: .dynamicLibrary, infoPlist: nil, entitlements: nil))
-        let staticFrameworkTarget = TargetNode.test(project: .test(path: path), target: .test(name: "StaticFramework", product: .staticFramework, infoPlist: nil, entitlements: nil))
+        let project: Project = .test(
+            path: path
+        )
+        let frameworkTarget = ValueGraphTarget.test(
+            path: path,
+            target: .test(
+                name: "FrameworkA",
+                product: .framework,
+                infoPlist: nil,
+                entitlements: nil
+            ),
+            project: .test(path: path)
+        )
+        let secondFrameworkTarget = ValueGraphTarget.test(
+            path: path,
+            target: .test(
+                name: "FrameworkB",
+                product: .framework,
+                infoPlist: nil,
+                entitlements: nil
+            ),
+            project: .test(path: path)
+        )
+        let appTarget = ValueGraphTarget.test(
+            path: path,
+            target: .test(
+                name: "App",
+                product: .app,
+                infoPlist: nil,
+                entitlements: nil
+            ),
+            project: .test(path: path)
+        )
+        let dynamicLibraryTarget = ValueGraphTarget.test(
+            path: path,
+            target: .test(
+                name: "DynamicLibrary",
+                product: .dynamicLibrary,
+                infoPlist: nil,
+                entitlements: nil
+            ),
+            project: .test(path: path)
+        )
+        let staticFrameworkTarget = ValueGraphTarget.test(
+            path: path,
+            target: .test(
+                name: "StaticFramework",
+                product: .staticFramework,
+                infoPlist: nil,
+                entitlements: nil
+            ),
+            project: .test(path: path)
+        )
 
-        let graph = Graph.test(
-            entryPath: path,
-            entryNodes: [],
-            projects: [],
-            cocoapods: [],
-            packages: [],
-            precompiled: [],
-            targets: [path: [frameworkTarget, secondFrameworkTarget, appTarget, dynamicLibraryTarget, staticFrameworkTarget]]
+        let graph = ValueGraph.test(
+            path: path,
+            projects: [project.path: project],
+            targets: [
+                path: [
+                    frameworkTarget.target.name: frameworkTarget.target,
+                    secondFrameworkTarget.target.name: secondFrameworkTarget.target,
+                    appTarget.target.name: appTarget.target,
+                    dynamicLibraryTarget.target.name: dynamicLibraryTarget.target,
+                    staticFrameworkTarget.target.name: staticFrameworkTarget.target,
+                ],
+            ]
         )
 
         let expectedCachableTargets = [frameworkTarget, secondFrameworkTarget].sorted(by: { $0.target.name < $1.target.name })
 
         // When
-        let hashes = try subject.contentHashes(for: graph, filter: { $0.target.product == .framework })
-        let hashedTargets: [TargetNode] = hashes.keys.sorted { left, right -> Bool in
-            left.project.path.pathString < right.project.path.pathString
-        }.sorted(by: { $0.target.name < $1.target.name })
+        let hashes = try subject.contentHashes(
+            for: graph,
+            filter: {
+                $0.target.product == .framework
+            }
+        )
+        let hashedTargets: [ValueGraphTarget] = hashes.keys.sorted { left, right -> Bool in
+            left.path.pathString < right.path.pathString
+        }
+        .sorted(by: { $0.target.name < $1.target.name })
 
         // Then
         XCTAssertEqual(hashedTargets, expectedCachableTargets)
