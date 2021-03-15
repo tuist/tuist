@@ -1,5 +1,5 @@
 import ProjectDescription
 
 public extension Project {
-    static let helper = "Helper"   
+    static let helper = "Helper"
 }

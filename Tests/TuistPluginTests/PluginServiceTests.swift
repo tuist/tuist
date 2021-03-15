@@ -53,7 +53,7 @@ final class PluginServiceTests: TuistTestCase {
         let config = mockConfig(plugins: [TuistGraph.PluginLocation.local(path: pluginPath.pathString)])
         let plugins = try subject.loadPlugins(using: config)
         let expectedHelpersPath = pluginPath.appending(component: Constants.helpersDirectoryName)
-        let expectedPlugins = Plugins(projectDescriptionHelpers: [.init(name: pluginName, path: expectedHelpersPath)])
+        let expectedPlugins = Plugins(projectDescriptionHelpers: [.init(name: pluginName, path: expectedHelpersPath, location: .local)])
         XCTAssertEqual(plugins, expectedPlugins)
     }
 
@@ -79,7 +79,7 @@ final class PluginServiceTests: TuistTestCase {
         let config = mockConfig(plugins: [TuistGraph.PluginLocation.gitWithTag(url: pluginGitUrl, tag: pluginGitId)])
         let plugins = try subject.loadPlugins(using: config)
         let expectedHelpersPath = cachedPluginPath.appending(component: Constants.helpersDirectoryName)
-        let expectedPlugins = Plugins(projectDescriptionHelpers: [.init(name: pluginName, path: expectedHelpersPath)])
+        let expectedPlugins = Plugins(projectDescriptionHelpers: [.init(name: pluginName, path: expectedHelpersPath, location: .remote)])
         XCTAssertEqual(plugins, expectedPlugins)
     }
 

@@ -36,31 +36,52 @@ public final class PluginService: PluginServicing {
     }
 
     public func loadPlugins(using config: Config) throws -> Plugins {
-        let pluginPaths = try fetchPlugins(config: config)
-        let pluginManifests = try pluginPaths.map(manifestLoader.loadPlugin)
-        let projectDescriptionHelpers = zip(pluginManifests, pluginPaths)
-            .compactMap { plugin, path -> ProjectDescriptionHelpersPlugin? in
-                let helpersPath = path.appending(RelativePath(Constants.helpersDirectoryName))
-                guard fileHandler.exists(helpersPath) else { return nil }
-                return ProjectDescriptionHelpersPlugin(name: plugin.name, path: helpersPath)
-            }
+        guard !config.plugins.isEmpty else { return .none }
+        logger.notice("Fetching plugin(s)", metadata: .section)
 
-        return Plugins(projectDescriptionHelpers: projectDescriptionHelpers)
-    }
-
-    private func fetchPlugins(config: Config) throws -> [AbsolutePath] {
-        try config.plugins
-            .map { plugin in
-                switch plugin {
+        let localPluginPaths: [AbsolutePath] = config.plugins
+            .compactMap { pluginLocation in
+                switch pluginLocation {
                 case let .local(path):
-                    logger.debug("Fetching \(plugin.description) at: \(path)")
+                    logger.notice("Using plugin \(pluginLocation.description)", metadata: .subsection)
                     return AbsolutePath(path)
-                case let .gitWithTag(url, id),
-                     let .gitWithSha(url, id):
-                    logger.debug("Fetching \(plugin.description) at: \(url) @ \(id)")
-                    return try fetchGitPlugin(at: url, with: id)
+                case .gitWithSha,
+                     .gitWithTag:
+                    return nil
                 }
             }
+        let localPluginManifests = try localPluginPaths.map(manifestLoader.loadPlugin)
+
+        let remotePluginPaths: [AbsolutePath] = try config.plugins
+            .compactMap { pluginLocation in
+                switch pluginLocation {
+                case let .gitWithSha(url, id),
+                     let .gitWithTag(url, id):
+                    logger.notice("Downloading plugin \(pluginLocation.description)", metadata: .subsection)
+                    return try fetchGitPlugin(at: url, with: id)
+                case .local:
+                    return nil
+                }
+            }
+        let remotePluginManifests = try remotePluginPaths.map(manifestLoader.loadPlugin)
+
+        let localProjectDescriptionHelperPlugins = zip(localPluginManifests, localPluginPaths)
+            .compactMap { plugin, path -> ProjectDescriptionHelpersPlugin? in
+                let helpersPath = path.appending(component: Constants.helpersDirectoryName)
+                guard fileHandler.exists(helpersPath) else { return nil }
+                return ProjectDescriptionHelpersPlugin(name: plugin.name, path: helpersPath, location: .local)
+            }
+
+        let remoteProjectDescriptionHelperPlugins = zip(remotePluginManifests, remotePluginPaths)
+            .compactMap { plugin, path -> ProjectDescriptionHelpersPlugin? in
+                let helpersPath = path.appending(component: Constants.helpersDirectoryName)
+                guard fileHandler.exists(helpersPath) else { return nil }
+                return ProjectDescriptionHelpersPlugin(name: plugin.name, path: helpersPath, location: .remote)
+            }
+
+        return Plugins(
+            projectDescriptionHelpers: localProjectDescriptionHelperPlugins + remoteProjectDescriptionHelperPlugins
+        )
     }
 
     /// fetches the git plugins from the remote server and caches them in

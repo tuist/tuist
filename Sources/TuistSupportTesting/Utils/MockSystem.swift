@@ -42,6 +42,7 @@ public final class MockSystem: Systeming {
                 standardError: standardError
             )
         }
+        calls.append(arguments.joined(separator: " "))
     }
 
     public func run(_ arguments: String...) throws {

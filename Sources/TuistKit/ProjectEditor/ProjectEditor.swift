@@ -30,8 +30,13 @@ protocol ProjectEditing: AnyObject {
     /// - Parameters:
     ///   - editingPath: Directory whose project will be edited.
     ///   - destinationDirectory: Directory in which the Xcode project will be generated.
+    ///   - plugins: The plugins to load as part of the edit project.
     /// - Returns: The path to the generated Xcode project.
-    func edit(at editingPath: AbsolutePath, in destinationDirectory: AbsolutePath) throws -> AbsolutePath
+    func edit(
+        at editingPath: AbsolutePath,
+        in destinationDirectory: AbsolutePath,
+        plugins: Plugins
+    ) throws -> AbsolutePath
 }
 
 final class ProjectEditor: ProjectEditing {
@@ -50,8 +55,11 @@ final class ProjectEditor: ProjectEditing {
     /// Utility to locate the helpers directory.
     let helpersDirectoryLocator: HelpersDirectoryLocating
 
-    /// Utiltity to locate the custom templates directory
+    /// Utility to locate the custom templates directory
     let templatesDirectoryLocator: TemplatesDirectoryLocating
+
+    /// Builder used to compile and build the loaded plugins
+    let projectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding
 
     /// Xcode Project writer
     private let writer: XcodeProjWriting
@@ -63,7 +71,8 @@ final class ProjectEditor: ProjectEditing {
         manifestFilesLocator: ManifestFilesLocating = ManifestFilesLocator(),
         helpersDirectoryLocator: HelpersDirectoryLocating = HelpersDirectoryLocator(),
         writer: XcodeProjWriting = XcodeProjWriter(),
-        templatesDirectoryLocator: TemplatesDirectoryLocating = TemplatesDirectoryLocator()
+        templatesDirectoryLocator: TemplatesDirectoryLocating = TemplatesDirectoryLocator(),
+        projectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding = ProjectDescriptionHelpersBuilder()
     ) {
         self.generator = generator
         self.projectEditorMapper = projectEditorMapper
@@ -72,12 +81,16 @@ final class ProjectEditor: ProjectEditing {
         self.helpersDirectoryLocator = helpersDirectoryLocator
         self.writer = writer
         self.templatesDirectoryLocator = templatesDirectoryLocator
+        self.projectDescriptionHelpersBuilder = projectDescriptionHelpersBuilder
     }
 
-    func edit(at editingPath: AbsolutePath, in destinationDirectory: AbsolutePath) throws -> AbsolutePath {
+    func edit(
+        at editingPath: AbsolutePath,
+        in destinationDirectory: AbsolutePath,
+        plugins: Plugins
+    ) throws -> AbsolutePath {
         let projectDescriptionPath = try resourceLocator.projectDescription()
         let projectManifests = manifestFilesLocator.locateProjectManifests(at: editingPath)
-        let pluginManifests = manifestFilesLocator.locatePluginManifests(at: editingPath)
         let configPath = manifestFilesLocator.locateConfig(at: editingPath)
         let dependenciesPath = manifestFilesLocator.locateDependencies(at: editingPath)
         let setupPath = manifestFilesLocator.locateSetup(at: editingPath)
@@ -90,14 +103,20 @@ final class ProjectEditor: ProjectEditing {
             FileHandler.shared.glob($0, glob: "**/*.swift") + FileHandler.shared.glob($0, glob: "**/*.stencil")
         } ?? []
 
+        let editablePluginManifests = locateEditablePluginManifests(at: editingPath, plugins: plugins)
+        let builtPluginHelperModules = try buildRemotePluginModules(
+            in: editingPath,
+            projectDescriptionPath: projectDescriptionPath,
+            plugins: plugins
+        )
+
         /// We error if the user tries to edit a project in a directory where there are no editable files.
-        if projectManifests.isEmpty, pluginManifests.isEmpty, helpers.isEmpty, templates.isEmpty {
+        if projectManifests.isEmpty, editablePluginManifests.isEmpty, helpers.isEmpty, templates.isEmpty {
             throw ProjectEditorError.noEditableFiles(editingPath)
         }
 
         // To be sure that we are using the same binary of Tuist that invoked `edit`
         let tuistPath = AbsolutePath(TuistCommand.processArguments()!.first!)
-
         let workspaceName = "Manifests"
 
         let graph = try projectEditorMapper.map(
@@ -109,7 +128,8 @@ final class ProjectEditor: ProjectEditing {
             configPath: configPath,
             dependenciesPath: dependenciesPath,
             projectManifests: projectManifests.map(\.1),
-            pluginManifests: pluginManifests,
+            editablePluginManifests: editablePluginManifests,
+            pluginProjectDescriptionHelpersModule: builtPluginHelperModules,
             helpers: helpers,
             templates: templates,
             projectDescriptionPath: projectDescriptionPath
@@ -119,5 +139,31 @@ final class ProjectEditor: ProjectEditing {
         let descriptor = try generator.generateWorkspace(graphTraverser: graphTraverser)
         try writer.write(workspace: descriptor)
         return descriptor.xcworkspacePath
+    }
+
+    /// - Returns: A list of plugin manifests which should be loaded as part of the project.
+    private func locateEditablePluginManifests(at path: AbsolutePath, plugins: Plugins) -> [EditablePluginManifest] {
+        let loadedEditablePluginManifests = plugins.projectDescriptionHelpers
+            .filter { $0.location == .local }
+            .map { EditablePluginManifest(name: $0.name, path: $0.path.parentDirectory) }
+
+        let localEditablePluginManifests = manifestFilesLocator.locatePluginManifests(at: path)
+            .map { EditablePluginManifest(name: $0.parentDirectory.basename, path: $0.parentDirectory) }
+
+        return Array(Set(loadedEditablePluginManifests + localEditablePluginManifests))
+    }
+
+    /// - Returns: Builds all remote plugins and returns a list of the helper modules.
+    private func buildRemotePluginModules(
+        in path: AbsolutePath,
+        projectDescriptionPath: AbsolutePath,
+        plugins: Plugins
+    ) throws -> [ProjectDescriptionHelpersModule] {
+        let loadedPluginHelpers = plugins.projectDescriptionHelpers.filter { $0.location == .remote }
+        return try projectDescriptionHelpersBuilder.buildPlugins(
+            at: path,
+            projectDescriptionSearchPaths: ProjectDescriptionSearchPaths.paths(for: projectDescriptionPath),
+            projectDescriptionHelperPlugins: loadedPluginHelpers
+        )
     }
 }

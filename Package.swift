@@ -179,6 +179,8 @@ let package = Package(
                 "TuistDocTesting",
                 "TuistAsyncQueueTesting",
                 "TuistGraphTesting",
+                "TuistPlugin",
+                "TuistPluginTesting",
             ]
         ),
         .testTarget(
@@ -726,6 +728,14 @@ let package = Package(
                 "TuistGraph",
                 "TuistLoader",
                 "TuistSupport",
+                swiftToolsSupportDependency,
+            ]
+        ),
+        .target(
+            name: "TuistPluginTesting",
+            dependencies: [
+                "TuistGraph",
+                "TuistPlugin",
                 swiftToolsSupportDependency,
             ]
         ),

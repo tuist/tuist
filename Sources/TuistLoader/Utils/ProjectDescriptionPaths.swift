@@ -5,7 +5,7 @@ import TSCBasic
 ///
 /// A small utility that works out the various search paths needed
 /// for a given `ProjectDescription` library.
-struct ProjectDescriptionSearchPaths {
+public struct ProjectDescriptionSearchPaths {
     enum Style {
         /// `libProjectDescription.dylib` library built via Swift PM in the command line
         ///
@@ -75,7 +75,7 @@ struct ProjectDescriptionSearchPaths {
     }
 
     /// Creates the `ProjectDescription` search paths based on the library path specified
-    static func paths(for libraryPath: AbsolutePath) -> ProjectDescriptionSearchPaths {
+    public static func paths(for libraryPath: AbsolutePath) -> ProjectDescriptionSearchPaths {
         ProjectDescriptionSearchPaths(
             path: libraryPath,
             style: pathStyle(for: libraryPath)
