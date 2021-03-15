@@ -43,10 +43,6 @@ public final class CacheFrameworkBuilder: CacheArtifactBuilding {
     /// Developer's environment.
     private let developerEnvironment: DeveloperEnvironmenting
 
-    /// a map between the path of a project or workspace, and the path to derived data
-    /// using the hash calculated by Xcode.
-    private var projectPathHashes: [String: AbsolutePath] = [:]
-
     // MARK: - Init
 
     /// Initialzies the builder.
@@ -145,10 +141,6 @@ public final class CacheFrameworkBuilder: CacheArtifactBuilding {
         let projectPath = projectTarget.path
         let pathString = projectPath.pathString
 
-        if let existing = projectPathHashes[pathString] {
-            return existing
-        }
-
         let derivedDataPath = developerEnvironment.derivedDataDirectory
         let hash = try XcodeProjectPathHasher.hashString(for: pathString)
         var buildDirectory = derivedDataPath
@@ -160,7 +152,6 @@ public final class CacheFrameworkBuilder: CacheArtifactBuilding {
         } else {
             buildDirectory = buildDirectory.appending(component: "\(configuration)-\(sdk)")
         }
-        projectPathHashes[pathString] = buildDirectory
 
         return buildDirectory
     }

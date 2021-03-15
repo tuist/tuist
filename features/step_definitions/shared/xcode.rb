@@ -4,11 +4,8 @@ require "simctl"
 require "xcodeproj"
 
 Then(/I should be able to (.+) for (iOS|macOS|tvOS|watchOS) the scheme (.+)/) do |action, platform, scheme|
-  @derived_data_path = File.join(@dir, "DerivedData")
-
   args = [
     "-scheme", scheme,
-    "-derivedDataPath", @derived_data_path
   ]
   unless @workspace_path.nil?
     args.concat(["-workspace", @workspace_path]) unless @workspace_path.nil?
@@ -21,6 +18,8 @@ Then(/I should be able to (.+) for (iOS|macOS|tvOS|watchOS) the scheme (.+)/) do
   else
     args << "-destination 'platform=OS X,arch=x86_64'"
   end
+
+  args.concat(["-derivedDataPath", @derived_data_dir])
 
   args << "clean"
   args << action
