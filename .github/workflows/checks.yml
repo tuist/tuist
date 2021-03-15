@@ -22,7 +22,7 @@ jobs:
     runs-on: macos-latest
     strategy:
       matrix:
-        xcode: ['11.5', '12.3']
+        xcode: ['12', '12.4']
     steps:
       - uses: actions/checkout@v1
       - name: Select Xcode ${{ matrix.xcode }}
@@ -41,7 +41,7 @@ jobs:
     runs-on: macOS-latest
     strategy:
       matrix:
-        xcode: ['11.5', '12.3']
+        xcode: ['12', '12.4']
     steps:
       - uses: actions/checkout@v1
       - name: Select Xcode
