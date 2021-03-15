@@ -24,7 +24,7 @@
     "autoprefixer": "^10.2.5",
     "copy-text-to-clipboard": "^3.0.1",
     "focus-visible": "^5.2.0",
-    "gatsby": "^2.32.9",
+    "gatsby": "^2.32.11",
     "gatsby-image": "^3.0.0",
     "gatsby-plugin-favicon": "3.1.6",
     "gatsby-plugin-feed": "^2.13.1",
