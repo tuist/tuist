@@ -10,8 +10,8 @@ import TuistSupport
 enum CarthageInteractorError: FatalError, Equatable {
     /// Thrown when Carthage cannot be found.
     case carthageNotFound
-    /// Thrown when Carfile cannont be found in temporary directory after Carthage installation.
-    case cartfileNotFound
+    /// Thrown when `Carfile.resolved` cannont be found in temporary directory after Carthage installation.
+    case cartfileResolvedNotFound
     /// Thrown when `Carthage/Build` directory cannont be found in temporary directory after Carthage installation.
     case buildDirectoryNotFound
     /// Thrown when version of Carthage installed in environment does not support XCFrameworks production.
@@ -20,9 +20,10 @@ enum CarthageInteractorError: FatalError, Equatable {
     /// Error type.
     var type: ErrorType {
         switch self {
+        case .cartfileResolvedNotFound,
+             .buildDirectoryNotFound:
+            return .bug
         case .carthageNotFound,
-             .cartfileNotFound,
-             .buildDirectoryNotFound,
              .xcFrameworksProductionNotSupported:
             return .abort
         }
@@ -32,11 +33,14 @@ enum CarthageInteractorError: FatalError, Equatable {
     var description: String {
         switch self {
         case .carthageNotFound:
-            return "Carthage was not found in the environment. It's possible that the tool is not installed or hasn't been exposed to your environment."
-        case .cartfileNotFound:
-            return "Cartfile was not found after Carthage installation."
+            return """
+            Carthage was not found in the environment.
+            It's possible that the tool is not installed or hasn't been exposed to your environment."
+            """
+        case .cartfileResolvedNotFound:
+            return "The Cartfile.resolved lockfile was not found after resolving the dependencies using the Carthage."
         case .buildDirectoryNotFound:
-            return "Carthage/Build directory was not found after Carthage installation."
+            return "The Carthage/Build directory was not found after resolving the dependencies using the Carthage."
         case .xcFrameworksProductionNotSupported:
             return """
             The version of Carthage installed in your environment doesn't suppport production of XCFrameworks.
@@ -73,7 +77,7 @@ public final class CarthageInteractor: CarthageInteracting {
     }
 
     public func fetch(dependenciesDirectory: AbsolutePath, dependencies: CarthageDependencies) throws {
-        logger.info("We are starting to fetch the Carthage dependencies.", metadata: .section)
+        logger.info("Resolving and fetching Carthage dependencies.", metadata: .section)
 
         // check availability of `carthage`
         guard carthageController.canUseSystemCarthage() else {
@@ -135,7 +139,7 @@ public final class CarthageInteractor: CarthageInteracting {
     private func postInstallationActions(pathsProvider: CarthagePathsProvider) throws {
         // validation
         guard fileHandler.exists(pathsProvider.temporaryCarfileResolvedPath) else {
-            throw CarthageInteractorError.cartfileNotFound
+            throw CarthageInteractorError.cartfileResolvedNotFound
         }
         guard fileHandler.exists(pathsProvider.temporaryCarthageBuildDirectory) else {
             throw CarthageInteractorError.buildDirectoryNotFound

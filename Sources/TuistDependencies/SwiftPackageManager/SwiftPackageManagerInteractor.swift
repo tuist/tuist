@@ -13,7 +13,7 @@ enum SwiftPackageManagerInteractorError: FatalError, Equatable {
         switch self {
         case .packageResolvedNotFound,
              .buildDirectoryNotFound:
-            return .abort
+            return .bug
         }
     }
 
@@ -21,9 +21,9 @@ enum SwiftPackageManagerInteractorError: FatalError, Equatable {
     var description: String {
         switch self {
         case .packageResolvedNotFound:
-            return "Package.resolved file was not found after Carthage installation."
+            return "The Package.resolved lockfile was not found after resolving the dependencies using the Swift Package Manager."
         case .buildDirectoryNotFound:
-            return ".build directory was not found after Carthage installation."
+            return "The .build directory was not found after resolving the dependencies using the Swift Package Manager"
         }
     }
 }
@@ -49,7 +49,7 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
     }
 
     public func fetch(dependenciesDirectory: AbsolutePath, dependencies: SwiftPackageManagerDependencies) throws {
-        logger.info("We are starting to fetch the Swift Package Manager dependencies.", metadata: .section)
+        logger.info("Resolving and fetching Swift Package Manager dependencies.", metadata: .section)
 
         try fileHandler.inTemporaryDirectory { temporaryDirectoryPath in
             // prepare paths
