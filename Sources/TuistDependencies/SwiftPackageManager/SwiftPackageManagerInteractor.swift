@@ -62,17 +62,16 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
             try prepareForInstallation(pathsProvider: pathsProvider, dependencies: dependencies)
 
             // build command
-            let command = buildCommand(packagePath: temporaryDirectoryPath)
+            let command = ["swift", "package", "--package-path", "\(temporaryDirectoryPath.pathString)", "resolve"]
 
             // run `Swift Package Manager`
-            logger.info("SwiftPackageManager:", metadata: .subsection)
             try System.shared.runAndPrint(command)
 
             // post installation
             try postInstallationActions(pathsProvider: pathsProvider)
         }
 
-        logger.info("Swift Package Manage dependencies were fetched successfully.", metadata: .subsection)
+        logger.info("Packages resolved and fetched successfully.", metadata: .subsection)
     }
 
     // MARK: - Installation
@@ -100,18 +99,8 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
         try fileHandler.write(packageManifestContent, path: packageManifestPath, atomically: true)
 
         // log
-        logger.info("Package.swift:", metadata: .subsection)
-        logger.info("\(packageManifestContent)")
-    }
-
-    private func buildCommand(packagePath: AbsolutePath) -> [String] {
-        let command = ["swift", "package", "--package-path", "\(packagePath.pathString)", "resolve"]
-
-        // log
-        logger.info("Command:", metadata: .subsection)
-        logger.info("\(command.joined(separator: " "))")
-
-        return command
+        logger.debug("Package.swift:", metadata: .subsection)
+        logger.debug("\(packageManifestContent)")
     }
 
     private func postInstallationActions(pathsProvider: SwiftPackageManagerPathsProvider) throws {

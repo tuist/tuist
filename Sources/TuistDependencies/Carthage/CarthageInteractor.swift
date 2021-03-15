@@ -103,19 +103,14 @@ public final class CarthageInteractor: CarthageInteracting {
                 options: dependencies.options
             )
 
-            // log
-            logger.info("Command:", metadata: .subsection)
-            logger.info("\(command.joined(separator: " "))")
-
             // run `carthage`
-            logger.info("Carthage:", metadata: .subsection)
             try System.shared.runAndPrint(command)
 
             // post intallation actions
             try postInstallationActions(pathsProvider: pathsProvider)
         }
 
-        logger.info("Carthage dependencies were fetched successfully.", metadata: .subsection)
+        logger.info("Carthage dependencies resolved and fetched successfully.", metadata: .subsection)
     }
 
     // MARK: - Installation
@@ -132,8 +127,8 @@ public final class CarthageInteractor: CarthageInteracting {
         try fileHandler.write(cartfileContent, path: cartfilePath, atomically: true)
 
         // log
-        logger.info("Cartfile:", metadata: .subsection)
-        logger.info("\(cartfileContent)")
+        logger.debug("Cartfile:", metadata: .subsection)
+        logger.debug("\(cartfileContent)")
     }
 
     private func postInstallationActions(pathsProvider: CarthagePathsProvider) throws {
