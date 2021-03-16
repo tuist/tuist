@@ -8,6 +8,7 @@ import Email from '../../markdown/docs/components/email'
 import ArgumentsTable from '../../markdown/docs/components/arguments-table'
 import EventsTable from '../../markdown/docs/components/events-table'
 import RecommendationsTable from '../../markdown/docs/components/recommendations-table'
+import EnumTable from '../../markdown/docs/components/enum'
 
 const heading = (Tag) => (props) => {
   if (!props.id) return <Tag {...props} />
@@ -34,4 +35,5 @@ export default {
   ArgumentsTable: ArgumentsTable,
   EventsTable: EventsTable,
   RecommendationsTable: RecommendationsTable,
+  EnumTable: EnumTable,
 }
