@@ -19,6 +19,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Fixed running `tuist test` with `--clean` flag [#2649](https://github.com/tuist/tuist/pull/2649) by [@fortmarek](https://github.com/fortmarek)
 - Install script bug fix: Adding bin folder to usr/local/ when it is missing [#2655](https://github.com/tuist/tuist/pull/2655) by [@tiarnann](https://github.com/tiarnann)
+- Fixed `Environment` retrieve methods [#2653](https://github.com/tuist/tuist/pull/2653) by [@DimaMishchenko](https://github.com/DimaMishchenko)
 
 ### Removed
 

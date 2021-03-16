@@ -1,16 +1,8 @@
 import ProjectDescription
 
-func frameworkName() -> String {
-    if case let .string(environmentFrameworkName) = Environment.frameworkName {
-        return environmentFrameworkName
-    } else {
-        return "Framework"
-    }
-}
-
 let project = Project(name: "Framework",
                       targets: [
-                          Target(name: frameworkName(),
+                          Target(name: Environment.frameworkName.getString(default: "Framework"),
                                  platform: .macOS,
                                  product: .framework,
                                  bundleId: "io.tuist.App",
