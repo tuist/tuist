@@ -19,7 +19,7 @@ Then(/I should be able to (.+) for (iOS|macOS|tvOS|watchOS) the scheme (.+)/) do
     args << "-destination 'platform=OS X,arch=x86_64'"
   end
 
-  args.concat(["-derivedDataPath", @derived_data_dir])
+  args.concat(["-derivedDataPath", @derived_data_path])
 
   args << "clean"
   args << action
