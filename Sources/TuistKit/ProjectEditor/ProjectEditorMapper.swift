@@ -224,7 +224,8 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             packages: [],
             schemes: [scheme],
             ideTemplateMacros: nil,
-            additionalFiles: []
+            additionalFiles: [],
+            options: []
         )
     }
 
@@ -289,7 +290,8 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             packages: [],
             schemes: allSchemes,
             ideTemplateMacros: nil,
-            additionalFiles: []
+            additionalFiles: [],
+            options: []
         )
     }
 

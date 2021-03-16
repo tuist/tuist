@@ -83,7 +83,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
                 .file(path: ttfFont),
                 .file(path: otfFont),
                 .file(path: ttcFont),
-            ]
+                ]
         )
 
         let project = Project.test(
@@ -174,5 +174,24 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
             at: .warning,
             ==
         )
+    }
+
+    func test_projectWithoutSynthesizedResources_returnsNoSideEffects() {
+//        let project = Project(path: .root,
+//                              sourceRootPath: .root,
+//                              xcodeProjPath: .root,
+//                              name: "Test",
+//                              settings: .none,
+//                              filesGroup: .none,
+//                              targets: [
+//                                Target(name: <#T##String#>, platform: <#T##Platform#>, product: <#T##Product#>, productName: <#T##String?#>, bundleId: <#T##String#>, deploymentTarget: <#T##DeploymentTarget?#>, infoPlist: <#T##InfoPlist?#>, entitlements: <#T##AbsolutePath?#>, settings: <#T##Settings?#>, sources: <#T##[SourceFile]#>, resources: <#T##[ResourceFileElement]#>, copyFiles: <#T##[CopyFilesAction]#>, headers: <#T##Headers?#>, coreDataModels: <#T##[CoreDataModel]#>, actions: <#T##[TargetAction]#>, environment: <#T##[String : String]#>, launchArguments: <#T##[LaunchArgument]#>, filesGroup: <#T##ProjectGroup#>, dependencies: <#T##[Dependency]#>, scripts: <#T##[TargetScript]#>, playgrounds: <#T##[AbsolutePath]#>)
+//                              ],
+//                              packages: [],
+//                              schemes: [],
+//                              additionalFiles: [],
+//                              options: []
+//        )
+//
+//        subject.map(project: <#T##Project#>)
     }
 }

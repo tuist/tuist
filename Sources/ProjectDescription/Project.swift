@@ -11,6 +11,7 @@ public struct Project: Codable, Equatable {
     public let settings: Settings?
     public let fileHeaderTemplate: FileHeaderTemplate?
     public let additionalFiles: [FileElement]
+    public let options: [ProjectOptions]
 
     public init(name: String,
                 organizationName: String? = nil,
@@ -19,7 +20,8 @@ public struct Project: Codable, Equatable {
                 targets: [Target] = [],
                 schemes: [Scheme] = [],
                 fileHeaderTemplate: FileHeaderTemplate? = nil,
-                additionalFiles: [FileElement] = [])
+                additionalFiles: [FileElement] = [],
+                options: [ProjectOptions] = [])
     {
         self.name = name
         self.organizationName = organizationName
@@ -29,6 +31,7 @@ public struct Project: Codable, Equatable {
         self.settings = settings
         self.additionalFiles = additionalFiles
         self.fileHeaderTemplate = fileHeaderTemplate
+        self.options = options
         dumpIfNeeded(self)
     }
 }
