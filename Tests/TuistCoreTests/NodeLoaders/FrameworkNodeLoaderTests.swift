@@ -6,11 +6,11 @@ import XCTest
 @testable import TuistCoreTesting
 @testable import TuistSupportTesting
 
-final class FrameworkNodeLoaderErrorTests: TuistUnitTestCase {
+final class FrameworkLoaderErrorTests: TuistUnitTestCase {
     func test_type_when_frameworkNotFound() {
         // Given
         let path = AbsolutePath("/frameworks/tuist.framework")
-        let subject = FrameworkNodeLoaderError.frameworkNotFound(path)
+        let subject = FrameworkLoaderError.frameworkNotFound(path)
 
         // When
         let got = subject.type
@@ -22,7 +22,7 @@ final class FrameworkNodeLoaderErrorTests: TuistUnitTestCase {
     func test_description_when_frameworkNotFound() {
         // Given
         let path = AbsolutePath("/frameworks/tuist.framework")
-        let subject = FrameworkNodeLoaderError.frameworkNotFound(path)
+        let subject = FrameworkLoaderError.frameworkNotFound(path)
 
         // When
         let got = subject.description
@@ -32,13 +32,13 @@ final class FrameworkNodeLoaderErrorTests: TuistUnitTestCase {
     }
 }
 
-final class FrameworkNodeLoaderTests: TuistUnitTestCase {
+final class FrameworkLoaderTests: TuistUnitTestCase {
     var frameworkMetadataProvider: MockFrameworkMetadataProvider!
-    var subject: FrameworkNodeLoader!
+    var subject: FrameworkLoader!
 
     override func setUp() {
         frameworkMetadataProvider = MockFrameworkMetadataProvider()
-        subject = FrameworkNodeLoader(frameworkMetadataProvider: frameworkMetadataProvider)
+        subject = FrameworkLoader(frameworkMetadataProvider: frameworkMetadataProvider)
         super.setUp()
     }
 
@@ -54,7 +54,7 @@ final class FrameworkNodeLoaderTests: TuistUnitTestCase {
         let frameworkPath = path.appending(component: "tuist.framework")
 
         // Then
-        XCTAssertThrowsSpecific(try subject.load(path: frameworkPath), FrameworkNodeLoaderError.frameworkNotFound(frameworkPath))
+        XCTAssertThrowsSpecific(try subject.load(path: frameworkPath) as FrameworkNode, FrameworkLoaderError.frameworkNotFound(frameworkPath))
     }
 
     func test_oad_when_the_framework_exists() throws {
@@ -86,7 +86,7 @@ final class FrameworkNodeLoaderTests: TuistUnitTestCase {
         }
 
         // When
-        let got = try subject.load(path: frameworkPath)
+        let got: FrameworkNode = try subject.load(path: frameworkPath)
 
         // Then
         XCTAssertEqual(got, FrameworkNode(
