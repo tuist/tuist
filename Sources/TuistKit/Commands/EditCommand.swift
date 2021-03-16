@@ -26,10 +26,17 @@ struct EditCommand: ParsableCommand {
     )
     var permanent: Bool = false
 
+    @Flag(
+        name: [.long, .customShort("o")],
+        help: "It only includes the manifest in the current directory."
+    )
+    var onlyCurrentDirectory: Bool = false
+
     func run() throws {
         try EditService().run(
             path: path,
-            permanent: permanent
+            permanent: permanent,
+            onlyCurrentDirectory: onlyCurrentDirectory
         )
     }
 }

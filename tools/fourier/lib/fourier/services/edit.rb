@@ -1,8 +1,8 @@
 # frozen_string_literal: true
 module Fourier
   module Services
-    module Build
-      autoload :Tuist, "fourier/services/build/tuist"
+    module Edit
+      autoload :Tuist, "fourier/services/edit/tuist"
     end
   end
 end

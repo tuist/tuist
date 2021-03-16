@@ -1,21 +1,19 @@
 # frozen_string_literal: true
 require "test_helper"
 
-# frozen_string_literal: true
-
 module Fourier
   module Services
-    module Test
+    module Build
       module Tuist
-        class UnitTest < TestCase
+        class SupportTest < TestCase
           def test_call
             # Given
             Utilities::System
               .expects(:tuist)
-              .with("test")
+              .with("build", "TuistSupport")
 
-            # When/Then
-            Unit.call
+            # Then
+            Services::Build::Tuist::Support.call
           end
         end
       end

@@ -3,10 +3,10 @@ module Fourier
   module Services
     module Test
       module Tuist
-        class Unit < Base
+        class Support < Base
           def call
             Dir.chdir(Constants::ROOT_DIRECTORY) do
-              Utilities::System.tuist("test")
+              Utilities::System.tuist("test", "TuistSupport")
             end
           end
         end
