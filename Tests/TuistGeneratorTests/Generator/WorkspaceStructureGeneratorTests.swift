@@ -342,6 +342,10 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
             try JSONDecoder().decode(T.self, from: Data())
         }
 
+        func determineTemporaryDirectory() throws -> AbsolutePath {
+            currentPath
+        }
+
         func inTemporaryDirectory(_: (AbsolutePath) throws -> Void) throws {}
         func inTemporaryDirectory(removeOnCompletion _: Bool, _: (AbsolutePath) throws -> Void) throws {}
         func inTemporaryDirectory<Result>(_ closure: (AbsolutePath) throws -> Result) throws -> Result {

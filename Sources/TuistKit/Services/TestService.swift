@@ -27,9 +27,7 @@ enum TestServiceError: FatalError {
     // Error type
     var type: ErrorType {
         switch self {
-        case .schemeNotFound:
-            return .abort
-        case .schemeWithoutTestableTargets:
+        case .schemeNotFound, .schemeWithoutTestableTargets:
             return .abort
         }
     }
@@ -40,34 +38,32 @@ final class TestService {
     private let xcodebuildController: XcodeBuildControlling
     private let buildGraphInspector: BuildGraphInspecting
     private let simulatorController: SimulatorControlling
+    private let contentHasher: ContentHashing
 
-    private let temporaryDirectory: TemporaryDirectory
     private let testsCacheTemporaryDirectory: TemporaryDirectory
 
     convenience init() throws {
-        let temporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
         let testsCacheTemporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
         self.init(
-            temporaryDirectory: temporaryDirectory,
             testsCacheTemporaryDirectory: testsCacheTemporaryDirectory,
             testServiceGeneratorFactory: TestServiceGeneratorFactory()
         )
     }
 
     init(
-        temporaryDirectory: TemporaryDirectory,
         testsCacheTemporaryDirectory: TemporaryDirectory,
         testServiceGeneratorFactory: TestServiceGeneratorFactorying,
         xcodebuildController: XcodeBuildControlling = XcodeBuildController(),
         buildGraphInspector: BuildGraphInspecting = BuildGraphInspector(),
-        simulatorController: SimulatorControlling = SimulatorController()
+        simulatorController: SimulatorControlling = SimulatorController(),
+        contentHasher: ContentHashing = ContentHasher()
     ) {
-        self.temporaryDirectory = temporaryDirectory
         self.testsCacheTemporaryDirectory = testsCacheTemporaryDirectory
         self.testServiceGeneratorFactory = testServiceGeneratorFactory
         self.xcodebuildController = xcodebuildController
         self.buildGraphInspector = buildGraphInspector
         self.simulatorController = simulatorController
+        self.contentHasher = contentHasher
     }
 
     func run(
@@ -78,8 +74,14 @@ final class TestService {
         deviceName: String?,
         osVersion: String?
     ) throws {
+        let projectDirectory = Environment.shared.projectsCacheDirectory
+            .appending(component: "\(try contentHasher.hash(path.pathString))")
+        if !FileHandler.shared.exists(projectDirectory) {
+            try FileHandler.shared.createFolder(projectDirectory)
+        }
+
         let generator = testServiceGeneratorFactory.generator(
-            automationPath: Environment.shared.automationPath ?? temporaryDirectory.path,
+            automationPath: Environment.shared.automationPath ?? projectDirectory,
             testsCacheDirectory: testsCacheTemporaryDirectory.path
         )
         logger.notice("Generating project for testing", metadata: .section)

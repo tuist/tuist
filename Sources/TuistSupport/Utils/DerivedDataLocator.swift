@@ -1,5 +1,20 @@
 import CryptoKit
 import Foundation
+import TSCBasic
+
+public protocol DerivedDataLocating {
+    func locate(for projectPath: AbsolutePath) throws -> AbsolutePath
+}
+
+public final class DerivedDataLocator: DerivedDataLocating {
+    public init() {}
+
+    public func locate(for projectPath: AbsolutePath) throws -> AbsolutePath {
+        let hash = try XcodeProjectPathHasher.hashString(for: projectPath.pathString)
+        return DeveloperEnvironment.shared.derivedDataDirectory
+            .appending(component: "\(projectPath.basenameWithoutExt)-\(hash)")
+    }
+}
 
 // Thanks to https://pewpewthespells.com/blog/xcode_deriveddata_hashes.html for
 // the initial Objective-C implementation.

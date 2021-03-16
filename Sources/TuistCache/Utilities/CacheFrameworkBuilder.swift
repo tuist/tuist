@@ -43,6 +43,8 @@ public final class CacheFrameworkBuilder: CacheArtifactBuilding {
     /// Developer's environment.
     private let developerEnvironment: DeveloperEnvironmenting
 
+    private let derivedDataLocator: DerivedDataLocating
+
     // MARK: - Init
 
     /// Initialzies the builder.
@@ -50,13 +52,16 @@ public final class CacheFrameworkBuilder: CacheArtifactBuilding {
     ///   - xcodeBuildController: Xcode build controller.
     ///   - simulatorController: Simulator controller.
     ///   - developerEnvironment: Developer environment.
-    public init(xcodeBuildController: XcodeBuildControlling,
-                simulatorController: SimulatorControlling = SimulatorController(),
-                developerEnvironment: DeveloperEnvironmenting = DeveloperEnvironment.shared)
-    {
+    public init(
+        xcodeBuildController: XcodeBuildControlling,
+        simulatorController: SimulatorControlling = SimulatorController(),
+        developerEnvironment: DeveloperEnvironmenting = DeveloperEnvironment.shared,
+        derivedDataLocator: DerivedDataLocating = DerivedDataLocator()
+    ) {
         self.xcodeBuildController = xcodeBuildController
         self.simulatorController = simulatorController
         self.developerEnvironment = developerEnvironment
+        self.derivedDataLocator = derivedDataLocator
     }
 
     // MARK: - ArtifactBuilding
@@ -141,10 +146,8 @@ public final class CacheFrameworkBuilder: CacheArtifactBuilding {
         let projectPath = projectTarget.path
         let pathString = projectPath.pathString
 
-        let derivedDataPath = developerEnvironment.derivedDataDirectory
-        let hash = try XcodeProjectPathHasher.hashString(for: pathString)
+        let derivedDataPath = try derivedDataLocator.locate(for: projectPath)
         var buildDirectory = derivedDataPath
-            .appending(component: "\(projectTarget.path.basenameWithoutExt)-\(hash)")
             .appending(component: "Build")
             .appending(component: "Products")
         if target.platform == .macOS {
