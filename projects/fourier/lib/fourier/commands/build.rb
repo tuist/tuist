@@ -4,6 +4,11 @@ module Fourier
     class Build < Base
       desc "tuist SUBCOMMAND ...ARGS", "Build Tuist"
       subcommand "tuist", Commands::Build::Tuist
+
+      desc "benchmark", "Build tuistbench"
+      def benchmark
+        Services::Build::Bench.call
+      end
     end
   end
 end

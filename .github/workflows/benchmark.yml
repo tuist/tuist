@@ -13,7 +13,7 @@ env:
 
 jobs:
   test:
-    name: Build tuistbench with Xcode ${{ matrix.xcode }}
+    name: Build benchmarking tooling with Xcode ${{ matrix.xcode }}
     runs-on: macOS-latest
     strategy:
       matrix:
@@ -23,5 +23,4 @@ jobs:
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_${{ matrix.xcode }}.app
       - name: Build Package
-        working-directory: ./projects/tuistbench
-        run: swift build
+        run: ./fourier build benchmark

@@ -22,13 +22,7 @@ jobs:
       - uses: actions/checkout@v1
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_${{ matrix.xcode }}.app
-      - name: Build Package
-        working-directory: ./projects/fixturegen
-        run: swift build
       - name: Generate Fixture
-        working-directory: ./projects/fixturegen
-        run: swift run fixturegen --projects 1 --targets 1 --sources 1
-      - name: Build Tuist
-        run: swift build
+        run: ./fourier fixture --projects 1 --targets 1 --sources 1
       - name: Generate Fixture Project
-        run: swift run tuist generate --path ./projects/fixturegen/Fixture
+        run: ./fourier tuist generate --path Fixture
