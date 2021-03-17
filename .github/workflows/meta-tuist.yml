@@ -43,10 +43,10 @@ jobs:
           bundle install --jobs 4 --retry 3
       - name: Generate Xcode project
         run: |
-          ./bin/fourier generate tuist
+          ./fourier generate tuist
       - name: Build
         run: |
-          ./bin/fourier build tuist all
+          ./fourier build tuist all
   test:
     name: Test with Xcode ${{ matrix.xcode }}
     runs-on: macos-latest
@@ -72,7 +72,7 @@ jobs:
           bundle install --jobs 4 --retry 3
       - name: Generate Xcode project
         run: |
-          ./bin/fourier generate tuist
+          ./fourier generate tuist
       - name: Test
         run: |
-          ./bin/fourier test tuist unit
+          ./fourier test tuist unit
