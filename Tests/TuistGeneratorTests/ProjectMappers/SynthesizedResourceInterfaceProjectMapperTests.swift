@@ -54,7 +54,6 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
         let otfFont = targetAPath.appending(component: "otfFont.otf")
         let ttcFont = targetAPath.appending(component: "ttcFont.ttc")
 
-
         try fileHandler.createFolder(aAssets)
         try fileHandler.touch(aAsset)
         try fileHandler.touch(frenchStrings)
@@ -190,15 +189,13 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
         let aAssets = targetAPath.appending(component: "a.xcassets")
         let aAsset = aAssets.appending(component: "asset")
 
-
-
         try fileHandler.createFolder(aAssets)
         try fileHandler.touch(aAsset)
 
         let targetA = Target.test(
             name: "TargetA",
             resources: [
-                .folderReference(path: aAssets)
+                .folderReference(path: aAssets),
             ]
         )
 
