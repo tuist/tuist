@@ -6,7 +6,7 @@ on:
       - main
   pull_request:
     paths:
-      - tools/tuistbench/**
+      - projects/tuistbench/**
 
 env:
   TUIST_STATS_OPT_OUT: true
@@ -23,5 +23,5 @@ jobs:
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_${{ matrix.xcode }}.app
       - name: Build Package
-        working-directory: ./tools/tuistbench
+        working-directory: ./projects/tuistbench
         run: swift build

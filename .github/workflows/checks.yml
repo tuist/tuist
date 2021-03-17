@@ -10,8 +10,8 @@ on:
     paths:
       - Sources/**
       - Tests/**
-      - tools/fixturegen/**
-      - tools/tuistbench/**
+      - projects/fixturegen/**
+      - projects/tuistbench/**
 
 env:
   RUBY_VERSION: '2.7.2'

@@ -133,14 +133,14 @@ task :benchmark do
   system(
     "swift", "build",
     "-c", "release",
-    "--package-path", "tools/tuistbench"
+    "--package-path", "projects/tuistbench"
   )
 
   # Build fixturegen
   system(
     "swift", "build",
     "-c", "release",
-    "--package-path", "tools/fixturegen"
+    "--package-path", "projects/fixturegen"
   )
 
   # Generate large fixture
@@ -148,13 +148,13 @@ task :benchmark do
   FileUtils.mkdir_p("generated_fixtures")
 
   system(
-    "tools/fixturegen/.build/release/fixturegen",
+    "projects/fixturegen/.build/release/fixturegen",
     "--path", "generated_fixtures/50_projects",
     "--projects", "50",
   )
 
   system(
-    "tools/fixturegen/.build/release/fixturegen",
+    "projects/fixturegen/.build/release/fixturegen",
     "--path", "generated_fixtures/2000_sources",
     "--projects", "2",
     "--sources", "2000",
@@ -190,7 +190,7 @@ task :benchmark do
 
   print_section("⏱ Benchmarking ...")
   system(
-    "tools/tuistbench/.build/release/tuistbench",
+    "projects/tuistbench/.build/release/tuistbench",
     "-b", ".build/release/tuist",
     "-r", ".build/release/tuistenv",
     "-l", ".fixtures.generated.json",

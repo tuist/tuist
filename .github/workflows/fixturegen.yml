@@ -6,7 +6,7 @@ on:
       - main
   pull_request:
     paths:
-      - tools/fixturegen/**
+      - projects/fixturegen/**
       - Package.swift
       - Package.resolved
       - Sources/**
@@ -23,12 +23,12 @@ jobs:
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_${{ matrix.xcode }}.app
       - name: Build Package
-        working-directory: ./tools/fixturegen
+        working-directory: ./projects/fixturegen
         run: swift build
       - name: Generate Fixture
-        working-directory: ./tools/fixturegen
+        working-directory: ./projects/fixturegen
         run: swift run fixturegen --projects 1 --targets 1 --sources 1
       - name: Build Tuist
         run: swift build
       - name: Generate Fixture Project
-        run: swift run tuist generate --path ./tools/fixturegen/Fixture
+        run: swift run tuist generate --path ./projects/fixturegen/Fixture
