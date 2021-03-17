@@ -7,6 +7,12 @@ module Fourier
       def tuist
         Services::Lint::Tuist.call(fix: options[:fix])
       end
+
+      desc "fourier", "Lint the source code of the Fourier CLI"
+      option :fix, desc: "When passed, it fixes the issues", type: :boolean, default: false
+      def fourier
+        Services::Lint::Fourier.call(fix: options[:fix])
+      end
     end
   end
 end
