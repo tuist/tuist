@@ -61,7 +61,6 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
 
     public var options: [ProjectOptions]
 
-
     // MARK: - Init
 
     /// Initializes the project with its attributes.
@@ -132,20 +131,22 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
     /// Returns a copy of the project with the given targets set.
     /// - Parameter targets: Targets to be set to the copy.
     public func with(targets: [Target]) -> Project {
-        Project(path: path,
-                sourceRootPath: sourceRootPath,
-                xcodeProjPath: xcodeProjPath,
-                name: name,
-                organizationName: organizationName,
-                developmentRegion: developmentRegion,
-                settings: settings,
-                filesGroup: filesGroup,
-                targets: targets,
-                packages: packages,
-                schemes: schemes,
-                ideTemplateMacros: ideTemplateMacros,
-                additionalFiles: additionalFiles,
-                options: options)
+        Project(
+            path: path,
+            sourceRootPath: sourceRootPath,
+            xcodeProjPath: xcodeProjPath,
+            name: name,
+            organizationName: organizationName,
+            developmentRegion: developmentRegion,
+            settings: settings,
+            filesGroup: filesGroup,
+            targets: targets,
+            packages: packages,
+            schemes: schemes,
+            ideTemplateMacros: ideTemplateMacros,
+            additionalFiles: additionalFiles,
+            options: options
+        )
     }
 
     /// Returns a copy of the project with the given schemes set.

@@ -14,9 +14,10 @@ extension ProjectOptions {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let key = container.allKeys.first
 
-        switch key  {
+        switch key {
         case .synthesizedResourceAccessors:
             self = .synthesizedResourceAccessors
+            return
         default:
             fatalError("")
         }

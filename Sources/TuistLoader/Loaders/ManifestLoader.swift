@@ -251,7 +251,7 @@ public class ManifestLoader: ManifestLoading {
         arguments.append(contentsOf: projectDescriptionHelperArguments)
         arguments.append(path.pathString)
         arguments.append("--tuist-dump")
-print(arguments)
+
         let result = System.shared
             .observable(arguments, verbose: false, environment: environment.manifestLoadingVariables)
             .toBlocking()

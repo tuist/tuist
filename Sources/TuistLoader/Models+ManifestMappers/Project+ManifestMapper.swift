@@ -22,19 +22,21 @@ extension TuistGraph.Project {
         let ideTemplateMacros = try manifest.fileHeaderTemplate.map { try IDETemplateMacros.from(manifest: $0, generatorPaths: generatorPaths) }
         let options = try manifest.options.map { try TuistGraph.ProjectOptions.from(manifest: $0, generatorPaths: generatorPaths) }
 
-        return Project(path: generatorPaths.manifestDirectory,
-                       sourceRootPath: generatorPaths.manifestDirectory,
-                       xcodeProjPath: generatorPaths.manifestDirectory.appending(component: "\(name).xcodeproj"),
-                       name: name,
-                       organizationName: organizationName,
-                       developmentRegion: nil,
-                       settings: settings ?? .default,
-                       filesGroup: .group(name: "Project"),
-                       targets: targets,
-                       packages: packages,
-                       schemes: schemes,
-                       ideTemplateMacros: ideTemplateMacros,
-                       additionalFiles: additionalFiles,
-                       options: options)
+        return Project(
+            path: generatorPaths.manifestDirectory,
+            sourceRootPath: generatorPaths.manifestDirectory,
+            xcodeProjPath: generatorPaths.manifestDirectory.appending(component: "\(name).xcodeproj"),
+            name: name,
+            organizationName: organizationName,
+            developmentRegion: nil,
+            settings: settings ?? .default,
+            filesGroup: .group(name: "Project"),
+            targets: targets,
+            packages: packages,
+            schemes: schemes,
+            ideTemplateMacros: ideTemplateMacros,
+            additionalFiles: additionalFiles,
+            options: options
+        )
     }
 }

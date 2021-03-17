@@ -83,7 +83,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
                 .file(path: ttfFont),
                 .file(path: otfFont),
                 .file(path: ttcFont),
-                ]
+            ]
         )
 
         let project = Project.test(

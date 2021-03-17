@@ -22,23 +22,25 @@ final class ProjectGroupsTests: XCTestCase {
         let path = AbsolutePath("/test/")
         sourceRootPath = AbsolutePath("/test/")
 
-        project = Project(path: path,
-                          sourceRootPath: path,
-                          xcodeProjPath: path.appending(component: "Project.xcodeproj"),
-                          name: "Project",
-                          organizationName: nil,
-                          developmentRegion: nil,
-                          settings: .default,
-                          filesGroup: .group(name: "Project"),
-                          targets: [
-                              .test(filesGroup: .group(name: "Target")),
-                              .test(),
-                          ],
-                          packages: [],
-                          schemes: [],
-                          ideTemplateMacros: nil,
-                          additionalFiles: [],
-                          options: [])
+        project = Project(
+            path: path,
+            sourceRootPath: path,
+            xcodeProjPath: path.appending(component: "Project.xcodeproj"),
+            name: "Project",
+            organizationName: nil,
+            developmentRegion: nil,
+            settings: .default,
+            filesGroup: .group(name: "Project"),
+            targets: [
+                .test(filesGroup: .group(name: "Target")),
+                .test(),
+            ],
+            packages: [],
+            schemes: [],
+            ideTemplateMacros: nil,
+            additionalFiles: [],
+            options: []
+        )
         pbxproj = PBXProj()
     }
 

@@ -25,7 +25,7 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping {
     }
 
     public func map(project: Project) throws -> (Project, [SideEffectDescriptor]) {
-        guard projectHasSynthesizedResourcesEnabled(project) else { return (project, [])}
+        guard projectHasSynthesizedResourcesEnabled(project) else { return (project, []) }
 
         let mappings = try project.targets
             .map { try mapTarget($0, project: project) }

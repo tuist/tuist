@@ -110,20 +110,22 @@ final class TestModelGenerator {
     }
 
     private func createProject(path: AbsolutePath, name: String, settings: Settings, targets: [Target], packages: [Package] = [], schemes: [Scheme], options: [ProjectOptions] = []) -> Project {
-        Project(path: path,
-                sourceRootPath: path,
-                xcodeProjPath: path.appending(component: "App.xcodeproj"),
-                name: name,
-                organizationName: nil,
-                developmentRegion: nil,
-                settings: settings,
-                filesGroup: .group(name: "Project"),
-                targets: targets,
-                packages: packages,
-                schemes: schemes,
-                ideTemplateMacros: nil,
-                additionalFiles: createAdditionalFiles(path: path),
-                options: options)
+        Project(
+            path: path,
+            sourceRootPath: path,
+            xcodeProjPath: path.appending(component: "App.xcodeproj"),
+            name: name,
+            organizationName: nil,
+            developmentRegion: nil,
+            settings: settings,
+            filesGroup: .group(name: "Project"),
+            targets: targets,
+            packages: packages,
+            schemes: schemes,
+            ideTemplateMacros: nil,
+            additionalFiles: createAdditionalFiles(path: path),
+            options: options
+        )
     }
 
     private func createTarget(path: AbsolutePath, name: String, product: Product = .app, settings: Settings?, dependencies: [String]) -> Target {

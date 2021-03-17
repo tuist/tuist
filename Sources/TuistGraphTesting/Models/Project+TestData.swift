@@ -18,20 +18,22 @@ public extension Project {
                      additionalFiles: [FileElement] = [],
                      options: [ProjectOptions] = []) -> Project
     {
-        Project(path: path,
-                sourceRootPath: sourceRootPath,
-                xcodeProjPath: xcodeProjPath,
-                name: name,
-                organizationName: organizationName,
-                developmentRegion: developmentRegion,
-                settings: settings,
-                filesGroup: filesGroup,
-                targets: targets,
-                packages: packages,
-                schemes: schemes,
-                ideTemplateMacros: ideTemplateMacros,
-                additionalFiles: additionalFiles,
-                options: options)
+        Project(
+            path: path,
+            sourceRootPath: sourceRootPath,
+            xcodeProjPath: xcodeProjPath,
+            name: name,
+            organizationName: organizationName,
+            developmentRegion: developmentRegion,
+            settings: settings,
+            filesGroup: filesGroup,
+            targets: targets,
+            packages: packages,
+            schemes: schemes,
+            ideTemplateMacros: ideTemplateMacros,
+            additionalFiles: additionalFiles,
+            options: options
+        )
     }
 
     static func empty(path: AbsolutePath = AbsolutePath("/test/"),
@@ -48,21 +50,22 @@ public extension Project {
                       ideTemplateMacros: IDETemplateMacros? = nil,
                       additionalFiles: [FileElement] = [],
                       options: [ProjectOptions] = []) -> Project
-
     {
-        Project(path: path,
-                sourceRootPath: sourceRootPath,
-                xcodeProjPath: xcodeProjPath,
-                name: name,
-                organizationName: organizationName,
-                developmentRegion: developmentRegion,
-                settings: settings,
-                filesGroup: filesGroup,
-                targets: targets,
-                packages: packages,
-                schemes: schemes,
-                ideTemplateMacros: ideTemplateMacros,
-                additionalFiles: additionalFiles,
-                options: options)
+        Project(
+            path: path,
+            sourceRootPath: sourceRootPath,
+            xcodeProjPath: xcodeProjPath,
+            name: name,
+            organizationName: organizationName,
+            developmentRegion: developmentRegion,
+            settings: settings,
+            filesGroup: filesGroup,
+            targets: targets,
+            packages: packages,
+            schemes: schemes,
+            ideTemplateMacros: ideTemplateMacros,
+            additionalFiles: additionalFiles,
+            options: options
+        )
     }
 }
