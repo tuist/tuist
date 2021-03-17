@@ -33,3 +33,5 @@ end
 group :development, :test do
   gem "byebug", "~> 11.1"
 end
+
+gem "cli-kit", "~> 3.3"

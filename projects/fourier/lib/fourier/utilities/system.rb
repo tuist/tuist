@@ -1,9 +1,10 @@
 # frozen_string_literal: true
+require "cli/kit"
 module Fourier
   module Utilities
     module System
       def self.system(*args)
-        Kernel.system(*args) || Kernel.abort
+        ::CLI::Kit::System.system(*args) || Kernel.abort
       end
 
       def self.tuist(*args)

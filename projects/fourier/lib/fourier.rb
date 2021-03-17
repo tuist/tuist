@@ -4,6 +4,8 @@ require "cli/ui"
 require "zeitwerk"
 require "thor"
 
+::CLI::UI::StdoutRouter.enable
+
 loader = Zeitwerk::Loader.new
 loader.push_dir(__dir__)
 loader.inflector.inflect("github_client" => "GitHubClient")
@@ -72,13 +74,20 @@ module Fourier
       required: true,
       aliases: :s
     )
-    def fixture(*_arguments)
+    def fixture
       Services::Fixture.call(
         path: options[:path],
         projects: options[:projects],
         targets: options[:targets],
         sources: options[:sources]
       )
+    end
+
+    desc "benchmark", "Benchmark Tuist"
+    def benchmark
+      ::CLI::UI.frame("Benchmarking Tuist", frame_style: :bracket) do
+        Services::Benchmark.call
+      end
     end
 
     def self.exit_on_failure?
