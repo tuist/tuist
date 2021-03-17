@@ -10,8 +10,13 @@ module Fourier
         end
 
         def call
-          puts "yolo"
-          # Kernel.system(swiftformat_path, "--lint", ".") || abort
+          Dir.chdir(Constants::ROOT_DIRECTORY) do
+            arguments = [vendor_path("swiftformat"), ".", "--quiet"]
+            unless fix
+              arguments << "--lint"
+            end
+            Fourier::Utilities::System.system(*arguments)
+          end
         end
       end
     end
