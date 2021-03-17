@@ -7,5 +7,10 @@ let dependencies = Dependencies(
         ],
         platforms: [.iOS, .macOS],
         options: [.useXCFrameworks, .noUseBinaries]
+    ),
+    swiftPackageManager: .swiftPackageManager(
+        [
+            .package(url: "https://github.com/SnapKit/SnapKit.git", .upToNextMajor(from: "5.0.1"))
+        ]
     )
 )
