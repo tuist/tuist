@@ -17,7 +17,7 @@ env:
   RUBY_VERSION: '2.7.2'
 
 jobs:
-  swiftformat:
+  format:
     name: SwiftFormat with Xcode ${{ matrix.xcode }}
     runs-on: macos-latest
     strategy:
@@ -35,8 +35,8 @@ jobs:
       - name: Install Bundler dependencies
         run: bundle install
       - name: Run swiftformat
-        run: bundle exec rake swift_format
-  swiftlint:
+        run: ./fourier format tuist
+  lint:
     name: Swiftlint with Xcode ${{ matrix.xcode }}
     runs-on: macOS-latest
     strategy:
@@ -53,5 +53,5 @@ jobs:
         run: gem install bundler --version 2.1.4
       - name: Install Bundler dependencies
         run: bundle install
-      - name: Run swiftlint
-        run: bundle exec rake swift_lint
+      - name: Run
+        run: ./fourier lint tuist
