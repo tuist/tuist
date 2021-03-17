@@ -59,16 +59,14 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
             )
 
             // prepare for installation
-            try prepareForInstallation(pathsProvider: pathsProvider, dependencies: dependencies)
-
-            // build command
-            let command = ["swift", "package", "--package-path", "\(temporaryDirectoryPath.pathString)", "resolve"]
+            try loadDependencies(pathsProvider: pathsProvider, packageManifestContent: dependencies.manifestValue())
 
             // run `Swift Package Manager`
+            let command = ["swift", "package", "--package-path", "\(temporaryDirectoryPath.pathString)", "resolve"]
             try System.shared.runAndPrint(command)
 
             // post installation
-            try postInstallationActions(pathsProvider: pathsProvider)
+            try saveDepedencies(pathsProvider: pathsProvider)
         }
 
         logger.info("Packages resolved and fetched successfully.", metadata: .subsection)
@@ -76,7 +74,8 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
 
     // MARK: - Installation
 
-    private func prepareForInstallation(pathsProvider: SwiftPackageManagerPathsProvider, dependencies: SwiftPackageManagerDependencies) throws {
+    /// Loads lockfile and dependencies into working directory if they had been saved before.
+    private func loadDependencies(pathsProvider: SwiftPackageManagerPathsProvider, packageManifestContent: String) throws {
         // copy `.build` directory from previous run if exist
         if fileHandler.exists(pathsProvider.destinationSwiftPackageManagerBuildDirectory) {
             try copyDirectory(
@@ -94,7 +93,6 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
         }
 
         // create `Package.swift`
-        let packageManifestContent = dependencies.manifestValue()
         let packageManifestPath = pathsProvider.temporaryDirectoryPath.appending(component: "Package.swift")
         try fileHandler.write(packageManifestContent, path: packageManifestPath, atomically: true)
 
@@ -103,7 +101,8 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
         logger.debug("\(packageManifestContent)")
     }
 
-    private func postInstallationActions(pathsProvider: SwiftPackageManagerPathsProvider) throws {
+    /// Saves lockfile resolved depedencies in `Tuist/Depedencies` directory.
+    private func saveDepedencies(pathsProvider: SwiftPackageManagerPathsProvider) throws {
         // validation
         guard fileHandler.exists(pathsProvider.temporaryPackageResolvedPath) else {
             throw SwiftPackageManagerInteractorError.packageResolvedNotFound

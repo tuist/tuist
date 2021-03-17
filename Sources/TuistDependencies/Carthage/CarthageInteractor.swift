@@ -91,23 +91,24 @@ public final class CarthageInteractor: CarthageInteracting {
 
         try fileHandler.inTemporaryDirectory { temporaryDirectoryPath in
             // prepare paths
-            let pathsProvider = CarthagePathsProvider(dependenciesDirectory: dependenciesDirectory, temporaryDirectoryPath: temporaryDirectoryPath)
+            let pathsProvider = CarthagePathsProvider(
+                dependenciesDirectory: dependenciesDirectory,
+                temporaryDirectoryPath: temporaryDirectoryPath
+            )
 
             // prepare for installation
-            try prepareForInstallation(pathsProvider: pathsProvider, dependencies: dependencies)
+            try loadDependencies(pathsProvider: pathsProvider, dependencies: dependencies)
 
-            // create `carthage` shell command
+            // run `Carthage`
             let command = carthageCommandGenerator.command(
                 path: temporaryDirectoryPath,
                 platforms: dependencies.platforms,
                 options: dependencies.options
             )
-
-            // run `carthage`
             try System.shared.runAndPrint(command)
 
-            // post intallation actions
-            try postInstallationActions(pathsProvider: pathsProvider)
+            // post installation
+            try saveDepedencies(pathsProvider: pathsProvider)
         }
 
         logger.info("Carthage dependencies resolved and fetched successfully.", metadata: .subsection)
@@ -115,10 +116,19 @@ public final class CarthageInteractor: CarthageInteracting {
 
     // MARK: - Installation
 
-    private func prepareForInstallation(pathsProvider: CarthagePathsProvider, dependencies: CarthageDependencies) throws {
+    /// Loads lockfile and dependencies into working directory if they had been saved before.
+    private func loadDependencies(pathsProvider: CarthagePathsProvider, dependencies: CarthageDependencies) throws {
         // copy build directory from previous run if exist
         if fileHandler.exists(pathsProvider.destinationCarthageDirectory) {
             try copyDirectory(from: pathsProvider.destinationCarthageDirectory, to: pathsProvider.temporaryCarthageBuildDirectory)
+        }
+        
+        // copy `Cartfile.resolved` directory from previous run if exist
+        if fileHandler.exists(pathsProvider.destinationCarfileResolvedPath) {
+            try copyDirectory(
+                from: pathsProvider.destinationCarfileResolvedPath,
+                to: pathsProvider.temporaryCarfileResolvedPath
+            )
         }
 
         // create `Cartfile`
@@ -131,7 +141,8 @@ public final class CarthageInteractor: CarthageInteracting {
         logger.debug("\(cartfileContent)")
     }
 
-    private func postInstallationActions(pathsProvider: CarthagePathsProvider) throws {
+    /// Saves lockfile resolved depedencies in `Tuist/Depedencies` directory.
+    private func saveDepedencies(pathsProvider: CarthagePathsProvider) throws {
         // validation
         guard fileHandler.exists(pathsProvider.temporaryCarfileResolvedPath) else {
             throw CarthageInteractorError.cartfileResolvedNotFound
@@ -141,9 +152,16 @@ public final class CarthageInteractor: CarthageInteracting {
         }
 
         // save `Cartfile.resolved`
-        try copyFile(from: pathsProvider.temporaryCarfileResolvedPath, to: pathsProvider.destinationCarfileResolvedPath)
+        try copyFile(
+            from: pathsProvider.temporaryCarfileResolvedPath,
+            to: pathsProvider.destinationCarfileResolvedPath
+        )
+        
         // save build directory
-        try copyDirectory(from: pathsProvider.temporaryCarthageBuildDirectory, to: pathsProvider.destinationCarthageDirectory)
+        try copyDirectory(
+            from: pathsProvider.temporaryCarthageBuildDirectory,
+            to: pathsProvider.destinationCarthageDirectory
+        )
     }
 
     // MARK: - Helpers
