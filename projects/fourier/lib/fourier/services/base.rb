@@ -14,6 +14,10 @@ module Fourier
         Fourier::Constants::ROOT_DIRECTORY
       end
 
+      def fixturegen_directory
+        File.join(Fourier::Constants::ROOT_DIRECTORY, "projects/fixturegen")
+      end
+
       def fourier_directory
         File.join(Fourier::Constants::ROOT_DIRECTORY, "projects/fourier")
       end
