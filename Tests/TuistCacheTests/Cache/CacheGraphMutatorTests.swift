@@ -67,14 +67,14 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             targets: self.graphTargets(graphTargets),
             dependencies: [
                 .target(name: bFramework.name, path: bFrameworkGraphTarget.path): [
-                    .target(name: dFramework.name, path: dFrameworkGraphTarget.path)
+                    .target(name: dFramework.name, path: dFrameworkGraphTarget.path),
                 ],
                 .target(name: cFramework.name, path: cFrameworkGraphTarget.path): [
-                    .target(name: dFramework.name, path: dFrameworkGraphTarget.path)
+                    .target(name: dFramework.name, path: dFrameworkGraphTarget.path),
                 ],
                 .target(name: app.name, path: appTargetGraphTarget.path): [
                     .target(name: bFramework.name, path: bFrameworkGraphTarget.path),
-                    .target(name: cFramework.name, path: cFrameworkGraphTarget.path)
+                    .target(name: cFramework.name, path: cFrameworkGraphTarget.path),
                 ],
             ]
         )
@@ -102,7 +102,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         frameworkLoader.loadStub = { _ in
             throw "Can't find .framework here"
         }
-        
+
         let expectedGraph = ValueGraph.test(
             projects: graphProjects(graphTargets),
             targets: self.graphTargets(graphTargets),
@@ -171,7 +171,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
                 ],
                 .target(name: appTarget.name, path: appGraphTarget.path): [
                     .target(name: bFramework.name, path: bGraphTarget.path),
-                    .target(name: cFramework.name, path: cGraphTarget.path)
+                    .target(name: cFramework.name, path: cGraphTarget.path),
                 ],
             ]
         )
@@ -196,7 +196,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             if path == dFrameworkPath { return dFramework }
             throw "Can't find .framework here"
         }
-        
+
         let expectedGraph = ValueGraph.test(
             projects: graphProjects(graphTargets),
             targets: self.graphTargets(graphTargets),
@@ -315,7 +315,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
                 ],
             ]
         )
-        
+
         // When
         let got = try subject.map(graph: graph, precompiledFrameworks: xcframeworks, sources: Set(["App"]))
 
@@ -397,7 +397,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             if path == dFrameworkPath { return dFramework }
             throw "Can't find .framework here"
         }
-        
+
         let expectedGraph = ValueGraph.test(
             projects: graphProjects(graphTargets),
             targets: self.graphTargets(graphTargets),
@@ -440,7 +440,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         // Given: B
         let bFramework = Target.test(name: "B", platform: .iOS, product: .framework)
         let bProject = Project.test(path: path.appending(component: "B"), name: "B", targets: [bFramework])
-            let bGraphTarget = ValueGraphTarget.test(path: bProject.path, target: bFramework, project: bProject)
+        let bGraphTarget = ValueGraphTarget.test(path: bProject.path, target: bFramework, project: bProject)
 
         // Given: App
         let appProject = Project.test(path: path.appending(component: "App"), name: "App")
@@ -459,7 +459,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
                     .target(name: cFramework.name, path: cGraphTarget.path),
                 ],
                 .target(name: cFramework.name, path: cGraphTarget.path): [
-                    .testSDK(name: "XCTest")
+                    .testSDK(name: "XCTest"),
                 ],
                 .target(name: appGraphTarget.target.name, path: appGraphTarget.path): [
                     .target(name: bFramework.name, path: bGraphTarget.path),
@@ -549,7 +549,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         xcframeworkLoader.loadStub = { _ in
             throw "Can't find an .xcframework here"
         }
-        
+
         let expectedGraph = ValueGraph.test(
             projects: graphProjects(graphTargets),
             targets: self.graphTargets(graphTargets),
@@ -643,7 +643,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         xcframeworkLoader.loadStub = { _ in
             throw "Can't find .framework here"
         }
-        
+
         let expectedGraph = ValueGraph.test(
             projects: graphProjects(graphTargets),
             targets: self.graphTargets(graphTargets),
@@ -670,7 +670,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             expectedGraph
         )
     }
-    
+
     // Eighth scenario
     //       +---->B (Cached Framework)+
     //       |                         |
@@ -679,32 +679,32 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
     //       +---->C (Cached Framework)+------>E Precompiled .xcframework
     func test_map_when_eighth_scenario() throws {
         let path = try temporaryPath()
-        
+
         // Given nodes
-        
+
         // Given E
         let eXCFrameworkPath = path.appending(component: "E.xcframework")
         let eXCFramework = ValueGraphDependency.testXCFramework(path: eXCFrameworkPath)
-        
+
         // Given: D
         let dFrameworkPath = path.appending(component: "D.framework")
         let dFramework = ValueGraphDependency.testFramework(path: dFrameworkPath)
-        
+
         // Given: B
         let bFramework = Target.test(name: "B", platform: .iOS, product: .framework)
         let bProject = Project.test(path: path.appending(component: "B"), name: "B", targets: [bFramework])
         let bGraphTarget = ValueGraphTarget.test(path: bProject.path, target: bFramework, project: bProject)
-        
+
         // Given: C
         let cFramework = Target.test(name: "C", platform: .iOS, product: .framework)
         let cProject = Project.test(path: path.appending(component: "C"), name: "C", targets: [cFramework])
         let cGraphTarget = ValueGraphTarget.test(path: cProject.path, target: cFramework, project: cProject)
-        
+
         // Given: App
         let appTarget = Target.test(name: "App", platform: .iOS, product: .app)
         let appProject = Project.test(path: path.appending(component: "App"), name: "App", targets: [appTarget])
         let appGraphTarget = ValueGraphTarget.test(path: appProject.path, target: appTarget, project: appProject)
-        
+
         let graphTargets = [bGraphTarget, cGraphTarget, appGraphTarget]
         let graph = ValueGraph.test(
             projects: graphProjects(graphTargets),
@@ -723,7 +723,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
                 ],
             ]
         )
-        
+
         // Given xcframeworks
         let bCachedFrameworkPath = path.appending(component: "B.framework")
         let bCachedFramework = ValueGraphDependency.testFramework(path: bCachedFrameworkPath)
@@ -733,19 +733,19 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             bGraphTarget: bCachedFrameworkPath,
             cGraphTarget: cCachedFrameworkPath,
         ]
-        
+
         frameworkLoader.loadStub = { path in
             if path == bCachedFrameworkPath { return bCachedFramework }
             else if path == cCachedFrameworkPath { return cCachedFramework }
             else if path == dFrameworkPath { return dFramework }
             else { fatalError("Unexpected load call") }
         }
-        
+
         xcframeworkLoader.loadStub = { path in
             if path == eXCFrameworkPath { return eXCFramework }
             throw "Can't find an .xcframework here"
         }
-        
+
         let expectedGraph = ValueGraph.test(
             projects: graphProjects(graphTargets),
             targets: self.graphTargets(graphTargets),
@@ -763,17 +763,17 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
                 ],
             ]
         )
-        
+
         // When
         let got = try subject.map(graph: graph, precompiledFrameworks: frameworks, sources: Set(["App"]))
-        
+
         // Then
         XCTAssertEqual(
             got,
             expectedGraph
         )
     }
-    
+
     // 9th scenario
     //       +---->B (Framework)+------>D Precompiled .framework
     //       |
@@ -782,31 +782,31 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
     //       +---->C (Cached Framework)+------>E Precompiled .xcframework
     func test_map_when_nineth_scenario() throws {
         let path = try temporaryPath()
-        
+
         // Given nodes
-        
+
         // Given: E
         let eXCFrameworkPath = path.appending(component: "E.xcframework")
         let eXCFramework = ValueGraphDependency.testXCFramework(path: eXCFrameworkPath)
-        
+
         // Given: D
         let dFrameworkPath = path.appending(component: "D.framework")
         let dFramework = ValueGraphDependency.testFramework(path: dFrameworkPath)
-        
+
         // Given: B
         let bFramework = Target.test(name: "B", platform: .iOS, product: .framework)
         let bProject = Project.test(path: path.appending(component: "B"), name: "B", targets: [bFramework])
         let bGraphTarget = ValueGraphTarget.test(path: bProject.path, target: bFramework, project: bProject)
-        
+
         // Given: C
         let cProject = Project.test(path: path.appending(component: "C"), name: "C")
         let cFramework = Target.test(name: "C", platform: .iOS, product: .framework)
         let cGraphTarget = ValueGraphTarget.test(path: cProject.path, target: cFramework, project: cProject)
-        
+
         // Given: App
         let appProject = Project.test(path: path.appending(component: "App"), name: "App")
         let appGraphTarget = ValueGraphTarget.test(path: appProject.path, target: Target.test(name: "App", platform: .iOS, product: .app), project: appProject)
-        
+
         let graphTargets = [bGraphTarget, cGraphTarget, appGraphTarget]
         let graph = ValueGraph.test(
             projects: graphProjects(graphTargets),
@@ -824,23 +824,23 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
                 ],
             ]
         )
-        
+
         // Given xcframeworks
         let cCachedFrameworkPath = path.appending(component: "C.xcframework")
         let cCachedFramework = ValueGraphDependency.testFramework(path: cCachedFrameworkPath)
         let frameworks = [
             cGraphTarget: cCachedFrameworkPath,
         ]
-        
+
         frameworkLoader.loadStub = { path in
             if path == cCachedFrameworkPath { return cCachedFramework }
             else { fatalError("Unexpected load call") }
         }
-        
+
         xcframeworkLoader.loadStub = { _ in
             throw "Can't find an .xcframework here"
         }
-        
+
         let expectedGraph = ValueGraph.test(
             projects: graphProjects(graphTargets),
             targets: self.graphTargets(graphTargets),
@@ -857,10 +857,10 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
                 ],
             ]
         )
-        
+
         // When
         let got = try subject.map(graph: graph, precompiledFrameworks: frameworks, sources: Set(["App"]))
-        
+
         // Then
         XCTAssertEqual(
             got,
@@ -874,7 +874,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
     }
 
     fileprivate func graphProjects(_ targets: [ValueGraphTarget]) -> [AbsolutePath: Project] {
-        return targets.reduce(into: [AbsolutePath: Project]()) { acc, target in
+        targets.reduce(into: [AbsolutePath: Project]()) { acc, target in
             acc[target.project.path] = target.project
         }
     }

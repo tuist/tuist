@@ -1,7 +1,7 @@
 import Foundation
 import TSCBasic
-import TuistSupport
 import TuistGraph
+import TuistSupport
 
 enum FrameworkLoaderError: FatalError, Equatable {
     case frameworkNotFound(AbsolutePath)
@@ -57,7 +57,7 @@ public final class FrameworkLoader: FrameworkLoading {
             architectures: metadata.architectures
         )
     }
-    
+
     public func load(path: AbsolutePath) throws -> ValueGraphDependency {
         guard FileHandler.shared.exists(path) else {
             throw FrameworkLoaderError.frameworkNotFound(path)

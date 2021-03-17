@@ -2,8 +2,8 @@ import Foundation
 import RxSwift
 import TSCBasic
 import TuistCore
-import TuistSupport
 import TuistGraph
+import TuistSupport
 
 /// It defines the interface to mutate a graph using information from the cache.
 protocol CacheGraphMutating {
@@ -14,14 +14,14 @@ protocol CacheGraphMutating {
     ///   - precompiledFrameworks: Dictionary that maps targets with the paths to their cached `.framework`s or `.xcframework`s.
     ///   - source: Contains a list of targets that won't be replaced with their pre-compiled version from the cache.
     func map(graph: Graph, precompiledFrameworks: [TargetNode: AbsolutePath], sources: Set<String>) throws -> Graph
-    
+
     /// Given a graph an a dictionary whose keys are targets of the graph, and the values are paths
     /// to the .xcframeworks in the cache, it mutates the graph to link the enry nodes against the .xcframeworks instead.
     /// - Parameters:
     ///   - graph: Dependency graph.
     ///   - precompiledFrameworks: Dictionary that maps targets with the paths to their cached `.framework`s or `.xcframework`s.
     ///   - source: Contains a list of targets that won't be replaced with their pre-compiled version from the cache.
-//    func map(graph: ValueGraph, precompiledFrameworks: [ValueGraphTarget: AbsolutePath], sources: Set<String>) throws -> ValueGraph
+    func map(graph: ValueGraph, precompiledFrameworks: [ValueGraphTarget: AbsolutePath], sources: Set<String>) throws -> ValueGraph
 }
 
 class CacheGraphMutator: CacheGraphMutating {
@@ -47,7 +47,7 @@ class CacheGraphMutator: CacheGraphMutating {
     }
 
     // MARK: - CacheGraphMapping
-    
+
     /// Given a graph an a dictionary whose keys are targets of the graph, and the values are paths
     /// to the .xcframeworks in the cache, it mutates the graph to link the enry nodes against the .xcframeworks instead.
     /// - Parameters:
@@ -124,7 +124,6 @@ class CacheGraphMutator: CacheGraphMutating {
         )
     }
 
-    
     fileprivate func mapDependencies(
         _ dependencies: Set<ValueGraphDependency>,
         graph: ValueGraph,
@@ -233,8 +232,7 @@ class CacheGraphMutator: CacheGraphMutating {
         graphTraverser: GraphTraversing,
         precompiledFrameworks: [ValueGraphTarget: AbsolutePath],
         visitedPrecompiledFrameworkPaths: inout [ValueGraphTarget: VisitedPrecompiledFramework?]
-    ) -> AbsolutePath?
-    {
+    ) -> AbsolutePath? {
         // Already visited
         if let visited = visitedPrecompiledFrameworkPaths[target] { return visited?.path }
 
@@ -246,14 +244,15 @@ class CacheGraphMutator: CacheGraphMutating {
         // The target can be replaced
         else if
             let path = precompiledFrameworks[target],
-            graphTraverser.directTargetDependencies(path: target.path, name: target.target.name).allSatisfy ({
-            precompiledFrameworkPath(
-                target: $0,
-                graphTraverser: graphTraverser,
-                precompiledFrameworks: precompiledFrameworks,
-                visitedPrecompiledFrameworkPaths: &visitedPrecompiledFrameworkPaths
-            ) != nil
-        }) {
+            graphTraverser.directTargetDependencies(path: target.path, name: target.target.name).allSatisfy({
+                precompiledFrameworkPath(
+                    target: $0,
+                    graphTraverser: graphTraverser,
+                    precompiledFrameworks: precompiledFrameworks,
+                    visitedPrecompiledFrameworkPaths: &visitedPrecompiledFrameworkPaths
+                ) != nil
+            })
+        {
             visitedPrecompiledFrameworkPaths[target] = VisitedPrecompiledFramework(path: path)
             return path
         } else {

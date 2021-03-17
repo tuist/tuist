@@ -23,4 +23,3 @@ final class UpdateWorkspaceProjectsGraphMapper: GraphMapping {
         return (graph, [])
     }
 }
-

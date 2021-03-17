@@ -1,7 +1,7 @@
 import Foundation
 import TSCBasic
-import TuistSupport
 import TuistGraph
+import TuistSupport
 
 enum XCFrameworkLoaderError: FatalError, Equatable {
     case xcframeworkNotFound(AbsolutePath)
@@ -64,7 +64,7 @@ public final class XCFrameworkLoader: XCFrameworkLoading {
             dependencies: []
         )
     }
-    
+
     public func load(path: AbsolutePath) throws -> ValueGraphDependency {
         guard FileHandler.shared.exists(path) else {
             throw XCFrameworkLoaderError.xcframeworkNotFound(path)

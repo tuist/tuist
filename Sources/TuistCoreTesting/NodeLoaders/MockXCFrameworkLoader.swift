@@ -14,7 +14,7 @@ public final class MockXCFrameworkLoader: XCFrameworkLoading {
             return XCFrameworkNode.test(path: path)
         }
     }
-    
+
     var loadStub: ((AbsolutePath) throws -> ValueGraphDependency)?
     public func load(path: AbsolutePath) throws -> ValueGraphDependency {
         if let loadStub = loadStub {

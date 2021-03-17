@@ -15,7 +15,7 @@ public final class MockFrameworkLoader: FrameworkLoading {
             return FrameworkNode.test(path: path)
         }
     }
-    
+
     var loadStub: ((AbsolutePath) throws -> ValueGraphDependency)?
     public func load(path: AbsolutePath) throws -> ValueGraphDependency {
         if let loadStub = loadStub {

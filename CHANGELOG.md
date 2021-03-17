@@ -6,6 +6,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Changed
 
+- Migrate CacheMapper and CacheGraphMutator to ValueGraph [#2681](https://github.com/tuist/tuist/pull/2681) by [@fortmarek](https://github.com/fortmarek)
 - Migrate TestsCacheGraphMapper to ValueGraph [#2674](https://github.com/tuist/tuist/pull/2674) by [@fortmarek](https://github.com/fortmarek)
 
 ## 1.38.0 - Cold Waves
