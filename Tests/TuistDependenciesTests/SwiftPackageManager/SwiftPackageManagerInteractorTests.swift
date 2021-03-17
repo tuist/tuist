@@ -11,56 +11,35 @@ import XCTest
 final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
     private var subject: SwiftPackageManagerInteractor!
 
-    private var fileHandlerMock: MockFileHandler!
-
-    private var temporaryDirectoryPath: AbsolutePath!
-
     override func setUp() {
         super.setUp()
-
-        do {
-            temporaryDirectoryPath = try TemporaryDirectory(removeTreeOnDeinit: true).path
-        } catch {
-            XCTFail("Failed to setup TemporaryDirectory")
-        }
-
-        fileHandlerMock = MockFileHandler(temporaryDirectory: { self.temporaryDirectoryPath })
-
-        subject = SwiftPackageManagerInteractor(
-            fileHandler: fileHandlerMock
-        )
+        
+        subject = SwiftPackageManagerInteractor()
     }
 
     override func tearDown() {
-        fileHandlerMock = nil
-
-        temporaryDirectoryPath = nil
-
         subject = nil
-
+        
         super.tearDown()
     }
 
     func test_fetch() throws {
         // Given
-        let temporaryPackageResolvedPath = temporaryDirectoryPath
-            .appending(component: Constants.DependenciesDirectory.packageResolvedName)
-        let temporaryBuildDirectory = temporaryDirectoryPath
-            .appending(component: ".build")
-
-        let rootPath = try temporaryPath()
+        let rootPath = try TemporaryDirectory(removeTreeOnDeinit: true).path
         let dependenciesDirectory = rootPath
             .appending(component: Constants.DependenciesDirectory.name)
 
-        try fileHandler.touch(temporaryPackageResolvedPath)
-        try fileHandler.touch(temporaryBuildDirectory.appending(component: "manifest.db"))
-        try fileHandler.touch(temporaryBuildDirectory.appending(component: "workspace-state.json"))
-        try fileHandler.touch(temporaryBuildDirectory.appending(components: "artifacts", "foo.txt"))
-        try fileHandler.touch(temporaryBuildDirectory.appending(components: "checkouts", "Alamofire", "Info.plist"))
-        try fileHandler.touch(temporaryBuildDirectory.appending(components: "repositories", "checkouts-state.json"))
-        try fileHandler.touch(temporaryBuildDirectory.appending(components: "repositories", "Alamofire-e8f130fe", "config"))
+        try createFiles([
+            "Package.resolved",
+            ".build/manifest.db",
+            ".build/workspace-state.json",
+            ".build/artifacts/foo.txt",
+            ".build/checkouts/Alamofire/Info.plist",
+            ".build/repositories/checkouts-state.json",
+            ".build/repositories/Alamofire-e8f130fe/config"
+        ])
 
-        let command = ["swift", "package", "--package-path", "\(temporaryDirectoryPath.pathString)", "resolve"]
+        let command = ["swift", "package", "--package-path", "\(try temporaryPath().pathString)", "resolve"]
         system.succeedCommand(command)
 
         let depedencies = SwiftPackageManagerDependencies(

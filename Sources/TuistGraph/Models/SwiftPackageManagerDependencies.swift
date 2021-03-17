@@ -30,7 +30,7 @@ public struct SwiftPackageManagerDependencies: Equatable {
     }
 }
 
-// MARK: - Package.stringValue()
+// MARK: - Package.manifestValue()
 
 private extension Package {
     /// Returns `Package.swift` representation.
@@ -44,7 +44,7 @@ private extension Package {
     }
 }
 
-// MARK: - Requirement.stringValue()
+// MARK: - Requirement.manifestValue()
 
 private extension Requirement {
     /// Returns `Package.swift` representation.
