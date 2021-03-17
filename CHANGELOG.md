@@ -4,6 +4,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Changed
+
+- Migrate TestsCacheGraphMapper to ValueGraph [#2674](https://github.com/tuist/tuist/pull/2674) by [@fortmarek](https://github.com/fortmarek)
+
 ## 1.38.0 - Cold Waves
 
 ### Added

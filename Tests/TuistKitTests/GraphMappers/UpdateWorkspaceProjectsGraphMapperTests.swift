@@ -33,7 +33,12 @@ final class UpdateWorkspaceProjectsGraphMapperTests: TuistUnitTestCase {
         let secondProjectPath: AbsolutePath = "/second-project"
         let secondProject = Project.test(path: secondProjectPath)
         let workspace = Workspace.test(projects: [firstProjectPath, secondProjectPath])
-        let graph = Graph.test(workspace: workspace, projects: [secondProject])
+        let graph = ValueGraph.test(
+            workspace: workspace,
+            projects: [
+                secondProject.path: secondProject,
+            ]
+        )
 
         // When
         let (gotGraph, gotSideEffects) = try subject.map(graph: graph)
