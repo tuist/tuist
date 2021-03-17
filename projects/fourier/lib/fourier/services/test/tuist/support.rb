@@ -5,7 +5,7 @@ module Fourier
       module Tuist
         class Support < Base
           def call
-            Dir.chdir(Constants::ROOT_DIRECTORY) do
+            Dir.chdir(tuist_directory) do
               Utilities::System.tuist("test", "TuistSupport")
             end
           end

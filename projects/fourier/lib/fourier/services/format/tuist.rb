@@ -10,7 +10,7 @@ module Fourier
         end
 
         def call
-          Dir.chdir(Constants::ROOT_DIRECTORY) do
+          Dir.chdir(tuist_directory) do
             arguments = [vendor_path("swiftformat"), ".", "--quiet"]
             unless fix
               arguments << "--lint"

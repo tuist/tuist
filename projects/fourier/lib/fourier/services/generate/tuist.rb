@@ -10,7 +10,7 @@ module Fourier
         end
 
         def call
-          Dir.chdir(Constants::ROOT_DIRECTORY) do
+          Dir.chdir(tuist_directory) do
             arguments = ["generate"]
             arguments << "--open" if open
             Utilities::System.tuist(*arguments)

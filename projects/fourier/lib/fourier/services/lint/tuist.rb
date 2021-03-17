@@ -10,10 +10,10 @@ module Fourier
         end
 
         def call
-          Dir.chdir(Constants::ROOT_DIRECTORY) do
+          Dir.chdir(tuist_directory) do
             arguments = [vendor_path("swiftlint"), "--quiet"]
             arguments << "autocorrect" if fix
-            Fourier::Utilities::System.system(*arguments)
+            Utilities::System.system(*arguments)
           end
         end
       end

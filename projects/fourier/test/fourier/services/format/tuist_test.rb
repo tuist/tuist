@@ -1,0 +1,32 @@
+# frozen_string_literal: true
+require "test_helper"
+
+module Fourier
+  module Services
+    module Format
+      class TuistTest < TestCase
+        def test_calls_system_with_the_right_arguments
+          # Given
+          subject = Services::Format::Tuist.new(fix: false)
+          Utilities::System
+            .expects(:system)
+            .with(subject.vendor_path("swiftformat"), ".", "--quiet", "--lint")
+
+          # When/Then
+          subject.call
+        end
+
+        def test_calls_system_with_the_right_arguments_when_fix_is_true
+          # Given
+          subject = Services::Format::Tuist.new(fix: true)
+          Utilities::System
+            .expects(:system)
+            .with(subject.vendor_path("swiftformat"), ".", "--quiet")
+
+          # When/Then
+          subject.call
+        end
+      end
+    end
+  end
+end

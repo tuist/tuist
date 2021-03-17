@@ -22,7 +22,7 @@ module Fourier
             # Given
             ::Cucumber::Cli::Main
               .expects(:execute)
-              .with(["--format", "pretty", File.join(Constants::ROOT_DIRECTORY, "features/")])
+              .with(["--format", "pretty", File.join(tuist_directory, "features/")])
 
             # Then
             Acceptance.call(feature: nil)
@@ -33,7 +33,7 @@ module Fourier
             cucumber_error = StandardError.new("cucumber error")
             ::Cucumber::Cli::Main
               .expects(:execute)
-              .with(["--format", "pretty", File.join(Constants::ROOT_DIRECTORY, "features/")])
+              .with(["--format", "pretty", File.join(tuist_directory, "features/")])
               .returns(cucumber_error)
 
             # When

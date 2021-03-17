@@ -10,7 +10,7 @@ module Fourier
         end
 
         def call
-          Dir.chdir(Constants::ROOT_DIRECTORY) do
+          Dir.chdir(fourier_directory) do
             gem_path = Gem.loaded_specs["rubocop"].full_gem_path
             executable_path = File.join(gem_path, "exe/rubocop")
             arguments = [executable_path]

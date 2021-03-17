@@ -18,7 +18,7 @@ module Fourier
             args = ["--format", "pretty"]
 
             args << if feature.nil?
-              File.join(Constants::ROOT_DIRECTORY, "features/")
+              File.join(tuist_directory, "features/")
             else
               feature
             end
