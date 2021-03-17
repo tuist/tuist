@@ -1,8 +1,8 @@
 # frozen_string_literal: true
 
 SWIFTDOC_VERSION = "1.0.0-beta.5"
-SWIFTLINT_VERSION = "0.40.2"
-XCBEAUTIFY_VERSION = "0.8.1"
+SWIFTLINT_VERSION = "0.43.1"
+XCBEAUTIFY_VERSION = "0.9.1"
 
 require "rake/testtask"
 require "rubygems"
