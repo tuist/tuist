@@ -9,14 +9,15 @@ module Fourier
           Dir.chdir(root_directory) do
             lib_directory = File.expand_path("lib", fourier_directory)
             test_directory = File.expand_path("test", fourier_directory)
+            test_paths = Dir.glob(File.join(fourier_directory, "test/**/*_test.rb"))
             arguments = [
               "ruby",
               "-I#{lib_directory}",
               "-I#{test_directory}",
-              *Dir.glob(File.join(fourier_directory, "test/**/*_test.rb")),
-            ]
-
-            Utilities::System.system(*arguments)
+              "-e \"ARGV.each {|f| require f}\"",
+              *test_paths,
+            ].join(" ")
+            Utilities::System.system(arguments)
           end
         end
       end

@@ -19,16 +19,6 @@ require "json"
 require "zip"
 require "macho"
 
-desc("Runs the Fourier tests")
-Rake::TestTask.new do |t|
-  t.name = "test_fourier"
-  t.libs += [File.expand_path("./projects/fourier/test", __dir__)]
-  test_root = File.expand_path("./projects/fourier/test", __dir__)
-  t.test_files = FileList[File.join(test_root, "**", "*_test.rb")]
-  t.verbose = false
-  t.warning = false
-end
-
 desc("Updates swift-doc binary with the latest version available.")
 task :swift_doc_update do
   root_dir = File.expand_path(__dir__)

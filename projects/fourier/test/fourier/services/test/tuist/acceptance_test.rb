@@ -20,25 +20,27 @@ module Fourier
 
           def test_call_when_no_feature_is_provided
             # Given
+            @subject = Acceptance.new(feature: nil)
             ::Cucumber::Cli::Main
               .expects(:execute)
-              .with(["--format", "pretty", File.join(tuist_directory, "features/")])
+              .with(["--format", "pretty", File.join(@subject.tuist_directory, "features/")])
 
             # Then
-            Acceptance.call(feature: nil)
+            @subject.call
           end
 
           def test_raises_when_cucumber_returns_unsuncessfully
             # Given
             cucumber_error = StandardError.new("cucumber error")
+            @subject = Acceptance.new(feature: nil)
             ::Cucumber::Cli::Main
               .expects(:execute)
-              .with(["--format", "pretty", File.join(tuist_directory, "features/")])
+              .with(["--format", "pretty", File.join(@subject.tuist_directory, "features/")])
               .returns(cucumber_error)
 
             # When
             error = assert_raises(Acceptance::Error) do
-              Acceptance.call(feature: nil)
+              @subject.call
             end
 
             # Then

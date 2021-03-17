@@ -28,7 +28,7 @@ module Fourier
         environment = {}
 
         # Then
-        assert_raises(Utilities::GitHubClient::TokenNotFound) do
+        assert_raises(Fourier::Utilities::GitHubClient::TokenNotFound) do
           Utilities::GitHubClient.new(environment: environment)
         end
       end

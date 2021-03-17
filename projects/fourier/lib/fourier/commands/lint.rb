@@ -13,6 +13,13 @@ module Fourier
       def fourier
         Services::Lint::Fourier.call(fix: options[:fix])
       end
+
+      desc "all", "Lint all the code in the repository"
+      option :fix, desc: "When passed, it fixes the issues", type: :boolean, default: false
+      def all
+        Services::Lint::Tuist.call(fix: options[:fix])
+        Services::Lint::Fourier.call(fix: options[:fix])
+      end
     end
   end
 end
