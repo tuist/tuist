@@ -42,7 +42,7 @@ final class DumpServiceTests: TuistTestCase {
             encoding: .utf8
         )
         try subject.run(path: tmpDir.pathString)
-        let expected = "{\n  \"additionalFiles\": [\n\n  ],\n  \"name\": \"tuist\",\n  \"organizationName\": \"tuist\",\n  \"packages\": [\n\n  ],\n  \"schemes\": [\n\n  ],\n  \"targets\": [\n\n  ]\n}\n"
+        let expected = "{\n  \"additionalFiles\": [\n\n  ],\n  \"name\": \"tuist\",\n  \"options\": [\n\n  ],\n  \"organizationName\": \"tuist\",\n  \"packages\": [\n\n  ],\n  \"schemes\": [\n\n  ],\n  \"targets\": [\n\n  ]\n}\n"
 
         XCTAssertPrinterOutputContains(expected)
     }

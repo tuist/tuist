@@ -54,6 +54,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
         let otfFont = targetAPath.appending(component: "otfFont.otf")
         let ttcFont = targetAPath.appending(component: "ttcFont.ttc")
 
+
         try fileHandler.createFolder(aAssets)
         try fileHandler.touch(aAsset)
         try fileHandler.touch(frenchStrings)
@@ -90,7 +91,8 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
             path: projectPath,
             targets: [
                 targetA,
-            ]
+            ],
+            options: [.synthesizedResourceAccessors]
         )
 
         // When
@@ -176,22 +178,62 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
         )
     }
 
-    func test_projectWithoutSynthesizedResources_returnsNoSideEffects() {
-//        let project = Project(path: .root,
-//                              sourceRootPath: .root,
-//                              xcodeProjPath: .root,
-//                              name: "Test",
-//                              settings: .none,
-//                              filesGroup: .none,
-//                              targets: [
-//                                Target(name: <#T##String#>, platform: <#T##Platform#>, product: <#T##Product#>, productName: <#T##String?#>, bundleId: <#T##String#>, deploymentTarget: <#T##DeploymentTarget?#>, infoPlist: <#T##InfoPlist?#>, entitlements: <#T##AbsolutePath?#>, settings: <#T##Settings?#>, sources: <#T##[SourceFile]#>, resources: <#T##[ResourceFileElement]#>, copyFiles: <#T##[CopyFilesAction]#>, headers: <#T##Headers?#>, coreDataModels: <#T##[CoreDataModel]#>, actions: <#T##[TargetAction]#>, environment: <#T##[String : String]#>, launchArguments: <#T##[LaunchArgument]#>, filesGroup: <#T##ProjectGroup#>, dependencies: <#T##[Dependency]#>, scripts: <#T##[TargetScript]#>, playgrounds: <#T##[AbsolutePath]#>)
-//                              ],
-//                              packages: [],
-//                              schemes: [],
-//                              additionalFiles: [],
-//                              options: []
-//        )
-//
-//        subject.map(project: <#T##Project#>)
+    func test_projectWithoutSynthesizedResources_returnsNoSideEffects() throws {
+        // Given
+        synthesizedResourceInterfacesGenerator.renderStub = { _, _, paths in
+            let content = paths.map(\.basename).joined(separator: ", ")
+            return content
+        }
+
+        let projectPath = try temporaryPath()
+        let targetAPath = projectPath.appending(component: "TargetA")
+        let aAssets = targetAPath.appending(component: "a.xcassets")
+        let aAsset = aAssets.appending(component: "asset")
+
+
+
+        try fileHandler.createFolder(aAssets)
+        try fileHandler.touch(aAsset)
+
+        let targetA = Target.test(
+            name: "TargetA",
+            resources: [
+                .folderReference(path: aAssets)
+            ]
+        )
+
+        let project = Project.test(
+            path: projectPath,
+            targets: [
+                targetA,
+            ],
+            options: []
+        )
+
+        // When
+        let (mappedProject, sideEffects) = try subject.map(project: project)
+
+        // Then
+        let derivedPath = projectPath
+            .appending(component: Constants.DerivedDirectory.name)
+        let derivedSourcesPath = derivedPath
+            .appending(component: Constants.DerivedDirectory.sources)
+        XCTAssertEqual(
+            sideEffects,
+            []
+        )
+        XCTAssertEqual(
+            mappedProject,
+            Project.test(
+                path: projectPath,
+                targets: [
+                    Target.test(
+                        name: targetA.name,
+                        sources: [],
+                        resources: targetA.resources
+                    ),
+                ]
+            )
+        )
     }
 }
