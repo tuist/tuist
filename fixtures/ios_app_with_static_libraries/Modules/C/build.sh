@@ -16,7 +16,7 @@ lipo -create \
     "$IPHONE_SIM_DIR/libC.a" \
     -output "$(pwd)/prebuilt/C/libC.a"
 
-mkdir -p prebuilt/C.swiftmodule
+mkdir -p prebuilt/C/C.swiftmodule
 cp -r \
     "$IPHONE_OS_DIR/C.swiftmodule/"* \
     "$IPHONE_SIM_DIR/C.swiftmodule/"* \

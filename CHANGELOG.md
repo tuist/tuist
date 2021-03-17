@@ -4,18 +4,30 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+## 1.38.0 - Cold Waves
+
 ### Added
 
 - Add support for `--no-use-binaries` Carthage flag. [#2608](https://github.com/tuist/tuist/pull/2608) by [@laxmorek](https://github.com/laxmorek)
+- Add support for `tuist edit` for projects with plugins. [#2642](https://github.com/tuist/tuist/pull/2642) by [@luispadron](https://github.com/luispadron)
+- Add support for `--only-current-directory` option to `tuist edit` [#2648](https://github.com/tuist/tuist/pull/2648) by [@pepibumur](https://github.com/pepibumur)
 
 ### Changed
 
+- Ensure reusing derived data for `tuist test` [#2563](https://github.com/tuist/tuist/pull/2563) by [@fortmarek](https://github.com/fortmarek)
 - **Breaking** Redesign `ProjectDescription.CarthageDependencies` manifest model. [#2608](https://github.com/tuist/tuist/pull/2608) by [@laxmorek](https://github.com/laxmorek)
-- Changed the auto generated scheme heuristic to pick test bundles that have a matching name prefixed with either `Tests`, `IntegrationTests` or `UITests`. [#2641](https://github.com/tuist/tuist/pull/2641) by [@FranzBusch](https://github.com/FranzBusch) 
+- Changed the auto generated scheme heuristic to pick test bundles that have a matching name prefixed with either `Tests`, `IntegrationTests` or `UITests`. [#2641](https://github.com/tuist/tuist/pull/2641) by [@FranzBusch](https://github.com/FranzBusch)
+- Remove building of ProjectDescriptionHelpers for `Plugin.swift` and `Config.swift` manifests (not supported for these manifests). [#2642](https://github.com/tuist/tuist/pull/2642) by [@luispadron](https://github.com/luispadron)
 
 ### Fixed
 
 - Fixed running `tuist test` with `--clean` flag [#2649](https://github.com/tuist/tuist/pull/2649) by [@fortmarek](https://github.com/fortmarek)
+- Install script bug fix: Adding bin folder to usr/local/ when it is missing [#2655](https://github.com/tuist/tuist/pull/2655) by [@tiarnann](https://github.com/tiarnann)
+- Fixed `Environment` retrieve methods [#2653](https://github.com/tuist/tuist/pull/2653) by [@DimaMishchenko](https://github.com/DimaMishchenko)
+
+### Removed
+
+- Support for Xcode 11.x. [#2651](https://github.com/tuist/tuist/pull/2651) by [@pepibumur](https://github.com/pepibumur)
 
 ## 1.37.0 - Twister
 

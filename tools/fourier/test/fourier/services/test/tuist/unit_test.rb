@@ -11,8 +11,8 @@ module Fourier
           def test_call
             # Given
             Utilities::System
-              .expects(:system)
-              .with("swift", "test", "--package-path", Fourier::Constants::ROOT_DIRECTORY)
+              .expects(:tuist)
+              .with("test")
 
             # When/Then
             Unit.call

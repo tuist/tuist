@@ -23,7 +23,7 @@ jobs:
     runs-on: macos-latest
     strategy:
       matrix:
-        xcode: ['11.5', '12.3']
+        xcode: ['12', '12.4']
     steps:
       - uses: actions/checkout@v1
       - name: Select Xcode
@@ -46,4 +46,33 @@ jobs:
           ./bin/fourier generate tuist
       - name: Build
         run: |
-          ./bin/fourier build all
+          ./bin/fourier build tuist all
+  test:
+    name: Test with Xcode ${{ matrix.xcode }}
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        xcode: ['12', '12.4']
+    steps:
+      - uses: actions/checkout@v1
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_${{ matrix.xcode }}.app
+      - uses: actions/setup-ruby@v1
+        with:
+          ruby-version: ${{ env.RUBY_VERSION }}
+      - uses: actions/cache@v2
+        with:
+          path: vendor/bundle
+          key: ${{ runner.os }}-gems-${{ hashFiles('**/Gemfile.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-gems-
+      - name: Bundle install
+        run: |
+          bundle config path vendor/bundle
+          bundle install --jobs 4 --retry 3
+      - name: Generate Xcode project
+        run: |
+          ./bin/fourier generate tuist
+      - name: Test
+        run: |
+          ./bin/fourier test tuist unit

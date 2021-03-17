@@ -5,10 +5,9 @@ module Fourier
       module Tuist
         class Unit < Base
           def call
-            Utilities::System.system(
-              "swift", "test",
-              "--package-path", Constants::ROOT_DIRECTORY
-            )
+            Dir.chdir(Constants::ROOT_DIRECTORY) do
+              Utilities::System.tuist("test")
+            end
           end
         end
       end

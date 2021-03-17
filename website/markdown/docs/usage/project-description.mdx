@@ -6,7 +6,6 @@ excerpt: 'This page documents the models that users can use to define their proj
 import PropertiesTable from '../components/properties-table'
 import SettingsDictionaryTable from '../components/settingsdictionary-table'
 import Message from '../components/message'
-import EnumTable from '../components/enum'
 
 # Project description
 
@@ -111,7 +110,8 @@ A `Project.swift` should initialize a variable of type `Project`. It can take an
     },
     {
       name: 'FileHeaderTemplate',
-      description: 'Lets you define custom file header template macro for built-in Xcode file templates',
+      description:
+        'Lets you define custom file header template macro for built-in Xcode file templates',
       type: 'FileHeaderTemplate?',
       typeLink: '#file-header-template',
       optional: true,
@@ -696,10 +696,10 @@ Target actions, represented as target script build phases, are useful to define 
         'Action executed before the target-specific build phases where path is the path to the tool to be executed.',
     },
     {
-    case:
-      '.pre(script: String, name: String, inputPaths: [Path], inputFileListPaths: [Path], outputPaths: [Path], outputFileListPaths: [Path], basedOnDependencyAnalysis: Bool)',
-    description:
-      'Action executed before the target-specific build phases where script is an embedded script to run. It is advised to keep embedded scripts as small as possible',
+      case:
+        '.pre(script: String, name: String, inputPaths: [Path], inputFileListPaths: [Path], outputPaths: [Path], outputFileListPaths: [Path], basedOnDependencyAnalysis: Bool)',
+      description:
+        'Action executed before the target-specific build phases where script is an embedded script to run. It is advised to keep embedded scripts as small as possible',
     },
     {
       case:
@@ -714,10 +714,10 @@ Target actions, represented as target script build phases, are useful to define 
         'Action executed after all the target-specific build phases where path is the path to the tool to be executed.',
     },
     {
-    case:
-      '.post(script: String, name: String, inputPaths: [Path], inputFileListPaths: [Path], outputPaths: [Path], outputFileListPaths: [Path], basedOnDependencyAnalysis: Bool)',
-    description:
-      'Action executed after all the target-specific build phases where script is an embedded script to run. It is advised to keep embedded scripts as small as possible',
+      case:
+        '.post(script: String, name: String, inputPaths: [Path], inputFileListPaths: [Path], outputPaths: [Path], outputFileListPaths: [Path], basedOnDependencyAnalysis: Bool)',
+      description:
+        'Action executed after all the target-specific build phases where script is an embedded script to run. It is advised to keep embedded scripts as small as possible',
     },
   ]}
 />
@@ -921,7 +921,7 @@ It represents the scheme action that runs the built products on the supported pl
       typeLink: '#run-action-options',
       optional: true,
       default: '.options()',
-    },    
+    },
     {
       name: 'Diagnostics options',
       description: 'List of diagnostics options to set to the action.',
@@ -1196,8 +1196,7 @@ Run action options represent the configuration of a run action.
     },
     {
       name: 'SimulatedLocation',
-      description:
-        'A simulated GPS location to use when running the app.',
+      description: 'A simulated GPS location to use when running the app.',
       type: 'SimulatedLocation',
       optional: true,
       default: 'nil',
@@ -1311,7 +1310,6 @@ Alternatively, when leveraging custom configurations, the configuration name can
     },
   ]}
 />
-
 
 <Message
   info
@@ -1640,7 +1638,7 @@ A `FileElement` can be one of the following options:
 
 ## ResourceFileElements
 
-List of files to include in the resources build phase. 
+List of files to include in the resources build phase.
 
 <PropertiesTable
   properties={[
@@ -1649,8 +1647,8 @@ List of files to include in the resources build phase.
       description: 'Resources list.',
       type: '[ResourceFileElement]',
       typeLink: '#resourcefileelement',
-      optional: false
-    }
+      optional: false,
+    },
   ]}
 />
 
@@ -1669,7 +1667,8 @@ A `ResourceFileElement` can be one of the following options:
     },
     {
       case: '.folderReference(path: Path, tags: [String])',
-      description: 'A directory path to include as a folder reference and ODR tags list. ',
+      description:
+        'A directory path to include as a folder reference and ODR tags list. ',
     },
   ]}
 />
@@ -1806,15 +1805,15 @@ A target within a specified project. The project is specified through the path a
 Lets you define custom file header template for built-in Xcode templates, e.g. when you create new Swift file you can automatically have your custom define file header.
 
 Tuist automatically performs several template transformations for you
-  - if your template starts with comment slashes (`//`) we remove them as they are added automatically by Xcode
-  - if your template doesn't start with comment and whitespace or newline, we add a space - otherwise your header would be glued to implicit comment slashes which you probably do not want
-  - if your template has trailing newline, we remove it as it is implicitly added by Xcode
+
+- if your template starts with comment slashes (`//`) we remove them as they are added automatically by Xcode
+- if your template doesn't start with comment and whitespace or newline, we add a space - otherwise your header would be glued to implicit comment slashes which you probably do not want
+- if your template has trailing newline, we remove it as it is implicitly added by Xcode
 
 <EnumTable
   cases={[
     {
-      case:
-        '.file(Path)',
+      case: '.file(Path)',
       description: 'Use file at given path as file header template',
     },
     {

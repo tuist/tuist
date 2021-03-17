@@ -8,6 +8,11 @@ module Fourier
           Services::Test::Tuist::Unit.call
         end
 
+        desc "support", "Run TuistSupport unit tests"
+        def support
+          Services::Test::Tuist::Support.call
+        end
+
         desc "acceptance FEATURE", "Runs the acceptance tests for a given feature."\
           " When no feature is given, it runs the acceptance tests for all the features."
         def acceptance(feature = nil)

@@ -2,17 +2,10 @@
 module Fourier
   module Commands
     class Build < Base
-      autoload :Support, "fourier/commands/build/support"
+      autoload :Tuist, "fourier/commands/build/tuist"
 
-      desc "support", "Build TuistSupport"
-      def support
-        Services::Build::Support.call
-      end
-
-      desc "all", "Build all targets"
-      def all
-        Services::Build::All.call
-      end
+      desc "tuist SUBCOMMAND ...ARGS", "Build Tuist"
+      subcommand "tuist", Commands::Build::Tuist
     end
   end
 end
