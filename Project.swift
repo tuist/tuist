@@ -16,11 +16,11 @@ func releaseSettings() -> SettingsDictionary {
 
 let packages: [Package] = [
     .package(url: "https://github.com/tuist/XcodeProj.git", .upToNextMajor(from: "7.17.0")),
-    .package(url: "https://github.com/CombineCommunity/CombineExt.git", .upToNextMajor(from: "1.2.0")),
-    .package(url: "https://github.com/apple/swift-tools-support-core.git", .upToNextMinor(from: "0.1.12")),
+    .package(url: "https://github.com/CombineCommunity/CombineExt.git", .upToNextMajor(from: "1.3.0")),
+    .package(url: "https://github.com/apple/swift-tools-support-core.git", .upToNextMinor(from: "0.2.12")),
     .package(url: "https://github.com/ReactiveX/RxSwift.git", .upToNextMajor(from: "5.1.1")),
     .package(url: "https://github.com/apple/swift-log.git", .upToNextMajor(from: "1.4.0")),
-    .package(url: "https://github.com/kishikawakatsumi/KeychainAccess.git", .upToNextMajor(from: "4.1.0")),
+    .package(url: "https://github.com/kishikawakatsumi/KeychainAccess.git", .upToNextMajor(from: "4.2.2")),
     .package(url: "https://github.com/httpswift/swifter.git", .upToNextMajor(from: "1.5.0")),
     .package(url: "https://github.com/tuist/BlueSignals.git", .upToNextMajor(from: "1.0.21")),
     .package(url: "https://github.com/marmelroy/Zip.git", .upToNextMinor(from: "2.1.1")),
