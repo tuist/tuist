@@ -4,7 +4,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
-## 1.38.0
+## 1.38.0 - Cold Waves
 
 ### Added
 
@@ -16,7 +16,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Ensure reusing derived data for `tuist test` [#2563](https://github.com/tuist/tuist/pull/2563) by [@fortmarek](https://github.com/fortmarek)
 - **Breaking** Redesign `ProjectDescription.CarthageDependencies` manifest model. [#2608](https://github.com/tuist/tuist/pull/2608) by [@laxmorek](https://github.com/laxmorek)
-- Changed the auto generated scheme heuristic to pick test bundles that have a matching name prefixed with either `Tests`, `IntegrationTests` or `UITests`. [#2641](https://github.com/tuist/tuist/pull/2641) by [@FranzBusch](https://github.com/FranzBusch) 
+- Changed the auto generated scheme heuristic to pick test bundles that have a matching name prefixed with either `Tests`, `IntegrationTests` or `UITests`. [#2641](https://github.com/tuist/tuist/pull/2641) by [@FranzBusch](https://github.com/FranzBusch)
 - Remove building of ProjectDescriptionHelpers for `Plugin.swift` and `Config.swift` manifests (not supported for these manifests). [#2642](https://github.com/tuist/tuist/pull/2642) by [@luispadron](https://github.com/luispadron)
 
 ### Fixed
