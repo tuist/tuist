@@ -12,6 +12,7 @@ on:
       - Sources/**
       - Tests/**
       - features/**
+      - Project.swift
 
 env:
   RUBY_VERSION: '2.7.2'
