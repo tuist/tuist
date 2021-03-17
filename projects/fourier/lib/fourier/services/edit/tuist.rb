@@ -4,9 +4,7 @@ module Fourier
     module Edit
       class Tuist < Base
         def call
-          Dir.chdir(tuist_directory) do
-            Utilities::System.tuist("edit", "--only-current-directory")
-          end
+          Utilities::System.tuist("edit", "--only-current-directory")
         end
       end
     end

@@ -38,6 +38,49 @@ module Fourier
       Services::Focus.call(target: target)
     end
 
+    desc "tuist", "Runs Tuist"
+    def tuist(*arguments)
+      Services::Tuist.call(*arguments)
+    end
+
+    desc "fixture", "Generate a fixture"
+    option(
+      :path,
+      desc: "The path to the directory where the fixture will be generated",
+      type: :string,
+      required: true,
+      aliases: :p
+    )
+    option(
+      :projects,
+      desc: "The number of projects to generate",
+      type: :numeric,
+      required: true,
+      aliases: :P
+    )
+    option(
+      :targets,
+      desc: "The number of targets to generate",
+      type: :numeric,
+      required: true,
+      aliases: :t
+    )
+    option(
+      :sources,
+      desc: "The number of sources to generate",
+      type: :numeric,
+      required: true,
+      aliases: :s
+    )
+    def fixture(*_arguments)
+      Services::Fixture.call(
+        path: options[:path],
+        projects: options[:projects],
+        targets: options[:targets],
+        sources: options[:sources]
+      )
+    end
+
     def self.exit_on_failure?
       true
     end

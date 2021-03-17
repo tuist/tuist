@@ -10,11 +10,9 @@ module Fourier
         end
 
         def call
-          Dir.chdir(tuist_directory) do
-            arguments = ["generate"]
-            arguments << "--open" if open
-            Utilities::System.tuist(*arguments)
-          end
+          arguments = ["generate"]
+          arguments << "--open" if open
+          Utilities::System.tuist(*arguments)
         end
       end
     end

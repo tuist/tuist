@@ -5,9 +5,7 @@ module Fourier
       module Tuist
         class All < Base
           def call
-            Dir.chdir(tuist_directory) do
-              Utilities::System.tuist("build")
-            end
+            Utilities::System.tuist("build")
           end
         end
       end

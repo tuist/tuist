@@ -7,9 +7,16 @@ module Fourier
       end
 
       def self.tuist(*args)
-        Dir.chdir(Constants::ROOT_DIRECTORY) do
+        Dir.chdir(Constants::TUIST_DIRECTORY) do
           self.system("swift", "build")
           self.system("swift", "run", "tuist", *args)
+        end
+      end
+
+      def self.fixturegen(*args)
+        Dir.chdir(Constants::FIXTUREGEN_DIRECTORY) do
+          self.system("swift", "build")
+          self.system("swift", "run", "fixturegen", *args)
         end
       end
     end

@@ -9,9 +9,7 @@ module Fourier
       end
 
       def call
-        Dir.chdir(tuist_directory) do
-          Utilities::System.tuist("focus", target)
-        end
+        Utilities::System.tuist("focus", target)
       end
     end
   end
