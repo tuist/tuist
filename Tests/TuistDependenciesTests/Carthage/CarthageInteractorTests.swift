@@ -82,7 +82,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
     func test_fetch_allPlatforms() throws {
         // Given
         carthageController.canUseSystemCarthageStub = { true }
-        
+
         let rootPath = try TemporaryDirectory(removeTreeOnDeinit: true).path
         let dependenciesDirectory = rootPath
             .appending(component: Constants.DependenciesDirectory.name)
@@ -152,7 +152,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
     func test_fetch_onePlatform() throws {
         // Given
         carthageController.canUseSystemCarthageStub = { true }
-        
+
         let rootPath = try TemporaryDirectory(removeTreeOnDeinit: true).path
         let dependenciesDirectory = rootPath
             .appending(component: Constants.DependenciesDirectory.name)

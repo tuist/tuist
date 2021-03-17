@@ -13,13 +13,13 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
 
     override func setUp() {
         super.setUp()
-        
+
         subject = SwiftPackageManagerInteractor()
     }
 
     override func tearDown() {
         subject = nil
-        
+
         super.tearDown()
     }
 
@@ -36,7 +36,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             ".build/artifacts/foo.txt",
             ".build/checkouts/Alamofire/Info.plist",
             ".build/repositories/checkouts-state.json",
-            ".build/repositories/Alamofire-e8f130fe/config"
+            ".build/repositories/Alamofire-e8f130fe/config",
         ])
 
         let command = ["swift", "package", "--package-path", "\(try temporaryPath().pathString)", "resolve"]
