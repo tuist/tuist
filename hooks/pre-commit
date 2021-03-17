@@ -1,3 +1,5 @@
 #!/bin/bash
 
-script/code_style.sh
+./fourier lint tuist
+./fourier lint fourier
+./fourier format tuist
