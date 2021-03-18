@@ -19,7 +19,7 @@ public final class AnyGraphMapper: GraphMapping {
     public init(mapper: @escaping (ValueGraph) throws -> (ValueGraph, [SideEffectDescriptor])) {
         self.mapper = mapper
     }
-    
+
     public func map(graph: ValueGraph) throws -> (ValueGraph, [SideEffectDescriptor]) {
         try mapper(graph)
     }

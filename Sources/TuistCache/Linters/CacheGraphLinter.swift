@@ -1,7 +1,7 @@
 import Foundation
 import TuistCore
-import TuistSupport
 import TuistGraph
+import TuistSupport
 
 /// Protocol that defines the interface to lint a graph and warn
 /// the user if the projects have traits that are not caching-compliant.

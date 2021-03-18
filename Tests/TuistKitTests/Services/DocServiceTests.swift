@@ -135,8 +135,8 @@ final class TuistDocServiceTests: TuistUnitTestCase {
             projects: [project.path: project],
             targets: [
                 path: [
-                    graphTarget.target.name: graphTarget.target
-                ]
+                    graphTarget.target.name: graphTarget.target,
+                ],
             ]
         )
 

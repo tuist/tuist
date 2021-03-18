@@ -126,7 +126,7 @@ final class CacheController: CacheControlling {
         }
 
         logger.notice("Building cacheable targets")
-        
+
         let graphTraveser = ValueGraphTraverser(graph: graph)
         let sortedCacheableTargets = try topologicalSort(
             filteredTargets,

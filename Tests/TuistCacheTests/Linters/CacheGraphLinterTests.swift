@@ -28,7 +28,7 @@ final class CacheGraphLinterTests: TuistUnitTestCase {
         let graph = ValueGraph.test(
             projects: [project.path: project],
             targets: [
-                graphTarget.path: [graphTarget.target.name: graphTarget.target]
+                graphTarget.path: [graphTarget.target.name: graphTarget.target],
             ]
         )
 
