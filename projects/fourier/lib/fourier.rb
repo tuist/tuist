@@ -17,8 +17,11 @@ module Fourier
     desc "test", "Run tests"
     subcommand "test", Commands::Test
 
-    desc "build", "Build targets"
+    desc "build", "Build projects"
     subcommand "build", Commands::Build
+
+    desc "serve", "Serve projects"
+    subcommand "serve", Commands::Serve
 
     desc "github", "Utilities to manage the repository and the organization on GitHub"
     subcommand "github", Commands::GitHub
@@ -87,9 +90,7 @@ module Fourier
 
     desc "benchmark", "Benchmark Tuist"
     def benchmark
-      ::CLI::UI.frame("Benchmarking Tuist", frame_style: :bracket) do
-        Services::Benchmark.call
-      end
+      Services::Benchmark.call
     end
 
     desc "up", "Ensures the environment is ready to work on Tuist"
