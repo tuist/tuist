@@ -2,7 +2,7 @@
 module Fourier
   module Services
     module Lint
-      class Fourier < Base
+      class Ruby < Base
         attr_reader :fix
 
         def initialize(fix:)
@@ -10,7 +10,7 @@ module Fourier
         end
 
         def call
-          Dir.chdir(Constants::FOURIER_DIRECTORY) do
+          Dir.chdir(Constants::ROOT_DIRECTORY) do
             gem_path = Gem.loaded_specs["rubocop"].full_gem_path
             executable_path = File.join(gem_path, "exe/rubocop")
             arguments = [executable_path]

@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 require "cli/kit"
+
 module Fourier
   module Utilities
     module System

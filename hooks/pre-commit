@@ -1,5 +1,5 @@
 #!/bin/bash
 
-./fourier lint tuist
-./fourier lint fourier
+./fourier lint swift
+./fourier lint ruby
 ./fourier format tuist

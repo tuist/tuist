@@ -2,7 +2,7 @@
 module Fourier
   module Services
     module Lint
-      class Tuist < Base
+      class Swift < Base
         attr_reader :fix
 
         def initialize(fix:)
@@ -10,7 +10,7 @@ module Fourier
         end
 
         def call
-          Dir.chdir(Constants::TUIST_DIRECTORY) do
+          Dir.chdir(Constants::ROOT_DIRECTORY) do
             arguments = [vendor_path("swiftlint"), "--quiet"]
             arguments << "autocorrect" if fix
             Utilities::System.system(*arguments)

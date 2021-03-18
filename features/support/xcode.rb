@@ -14,7 +14,7 @@ module Xcode
     workspace(workspace_path)
       .file_references
       .filter { |f| f.path.include?(".xcodeproj") }
-      .map { |f| File.join(File.dirname(workspace_path), f.path)}
+      .map { |f| File.join(File.dirname(workspace_path), f.path) }
       .map { |p| Xcodeproj::Project.open(p) }
   end
 

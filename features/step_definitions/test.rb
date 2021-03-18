@@ -1,3 +1,4 @@
+# frozen_string_literal: true
 require "xcodeproj"
 
 Then(/^tuist tests the scheme ([a-zA-Z\-]+) from the project$/) do |scheme|
@@ -30,13 +31,15 @@ Then(/^generated project is deleted/) do
 end
 
 Then(/^([a-zA-Z\-]+) scheme has nothing to test/) do |scheme_name|
-  scheme_file = File.join(Xcodeproj::Workspace.new_from_xcworkspace(@workspace_path).schemes[scheme_name], "xcshareddata", "xcschemes", "#{scheme_name}.xcscheme")
-  scheme = Xcodeproj::XCScheme.new scheme_file
-  flunk("Project #{scheme_name} scheme has nothing to test") if !scheme.test_action.testables.empty?
+  scheme_file = File.join(Xcodeproj::Workspace.new_from_xcworkspace(@workspace_path).schemes[scheme_name],
+    "xcshareddata", "xcschemes", "#{scheme_name}.xcscheme")
+  scheme = Xcodeproj::XCScheme.new(scheme_file)
+  flunk("Project #{scheme_name} scheme has nothing to test") unless scheme.test_action.testables.empty?
 end
 
 Then(/^([a-zA-Z\-]+) scheme has something to test/) do |scheme_name|
-  scheme_file = File.join(Xcodeproj::Workspace.new_from_xcworkspace(@workspace_path).schemes[scheme_name], "xcshareddata", "xcschemes", "#{scheme_name}.xcscheme")
-  scheme = Xcodeproj::XCScheme.new scheme_file
+  scheme_file = File.join(Xcodeproj::Workspace.new_from_xcworkspace(@workspace_path).schemes[scheme_name],
+    "xcshareddata", "xcschemes", "#{scheme_name}.xcscheme")
+  scheme = Xcodeproj::XCScheme.new(scheme_file)
   flunk("Project #{scheme_name} scheme has nothing to test") if scheme.test_action.testables.empty?
 end

@@ -15,17 +15,7 @@ AllCops:
   TargetRubyVersion: 2.5
   DisplayCopNames: true
   DisplayStyleGuide: true
-  Exclude:
-    - features/**/*
-    - fixtures/**/*
-    - .build/**/*
-    - .vscode/**/*
-    - assets/**/*
-    - build/**/*
-    - Carthage/**/*
-    - Sources/**/*
-    - Tests/**/*
-    - .github/**/*
-    - website/**/*
-    - next/**/*
-    - vendor/**/*
+  Include:
+    - Gemfile
+    - Rakefile
+    - projects/fourier/**/*.rb

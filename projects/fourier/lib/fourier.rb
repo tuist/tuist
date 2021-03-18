@@ -92,6 +92,16 @@ module Fourier
       end
     end
 
+    desc "up", "Ensures the environment is ready to work on Tuist"
+    def up
+      Services::Up.call
+    end
+
+    desc "check", "Checks whether the environment is setup for working on Tuist"
+    def check
+      Services::Check.call
+    end
+
     def self.exit_on_failure?
       true
     end
