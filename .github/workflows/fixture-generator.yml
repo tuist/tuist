@@ -1,4 +1,4 @@
-name: Tuist Benchmark
+name: Fixture Generator
 
 on:
   push:
@@ -6,16 +6,17 @@ on:
       - main
   pull_request:
     paths:
-      - projects/tuistbench/**
-
+      - projects/fixturegen/**
+      - Package.swift
+      - Package.resolved
+      - Sources/**
 env:
-  TUIST_STATS_OPT_OUT: true
   RUBY_VERSION: '2.7.2'
 
 jobs:
   test:
-    name: Build benchmarking tooling with Xcode ${{ matrix.xcode }}
-    runs-on: macOS-latest
+    name: Test the fixture generator with Xcode ${{ matrix.xcode }}
+    runs-on: macos-latest
     strategy:
       matrix:
         xcode: ['12', '12.4']
@@ -36,5 +37,7 @@ jobs:
         run: |
           bundle config path vendor/bundle
           bundle install --jobs 4 --retry 3
-      - name: Build
-        run: ./fourier build benchmark
+      - name: Generate Fixture
+        run: ./fourier fixture --projects 1 --targets 1 --sources 1 --path Fixture
+      - name: Generate Fixture Project
+        run: ./fourier tuist generate --path Fixture

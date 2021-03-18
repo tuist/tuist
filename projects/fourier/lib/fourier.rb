@@ -50,8 +50,9 @@ module Fourier
       :path,
       desc: "The path to the directory where the fixture will be generated",
       type: :string,
-      required: true,
-      aliases: :p
+      required: false,
+      aliases: :p,
+      default: "Fixture"
     )
     option(
       :projects,
@@ -75,8 +76,9 @@ module Fourier
       aliases: :s
     )
     def fixture
+      path = File.expand_path(options[:path], Dir.pwd)
       Services::Fixture.call(
-        path: options[:path],
+        path: path,
         projects: options[:projects],
         targets: options[:targets],
         sources: options[:sources]
