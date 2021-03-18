@@ -5,9 +5,7 @@ module Fourier
       module Tuist
         class Support < Base
           def call
-            Dir.chdir(tuist_directory) do
-              Utilities::System.tuist("build", "TuistSupport")
-            end
+            Utilities::System.tuist("build", "TuistSupport")
           end
         end
       end

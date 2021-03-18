@@ -5,9 +5,7 @@ module Fourier
       module Tuist
         class Unit < Base
           def call
-            Dir.chdir(tuist_directory) do
-              Utilities::System.tuist("test")
-            end
+            Utilities::System.tuist("test")
           end
         end
       end

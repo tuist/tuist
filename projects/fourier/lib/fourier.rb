@@ -4,6 +4,8 @@ require "cli/ui"
 require "zeitwerk"
 require "thor"
 
+::CLI::UI::StdoutRouter.enable
+
 loader = Zeitwerk::Loader.new
 loader.push_dir(__dir__)
 loader.inflector.inflect("github_client" => "GitHubClient")
@@ -36,6 +38,58 @@ module Fourier
     desc "focus TARGET", "Edit Tuist's project focusing on the target TARGET"
     def focus(target)
       Services::Focus.call(target: target)
+    end
+
+    desc "tuist", "Runs Tuist"
+    def tuist(*arguments)
+      Services::Tuist.call(*arguments)
+    end
+
+    desc "fixture", "Generate a fixture"
+    option(
+      :path,
+      desc: "The path to the directory where the fixture will be generated",
+      type: :string,
+      required: false,
+      aliases: :p,
+      default: "Fixture"
+    )
+    option(
+      :projects,
+      desc: "The number of projects to generate",
+      type: :numeric,
+      required: true,
+      aliases: :P
+    )
+    option(
+      :targets,
+      desc: "The number of targets to generate",
+      type: :numeric,
+      required: true,
+      aliases: :t
+    )
+    option(
+      :sources,
+      desc: "The number of sources to generate",
+      type: :numeric,
+      required: true,
+      aliases: :s
+    )
+    def fixture
+      path = File.expand_path(options[:path], Dir.pwd)
+      Services::Fixture.call(
+        path: path,
+        projects: options[:projects],
+        targets: options[:targets],
+        sources: options[:sources]
+      )
+    end
+
+    desc "benchmark", "Benchmark Tuist"
+    def benchmark
+      ::CLI::UI.frame("Benchmarking Tuist", frame_style: :bracket) do
+        Services::Benchmark.call
+      end
     end
 
     def self.exit_on_failure?

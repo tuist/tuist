@@ -10,14 +10,14 @@ To test out generation speeds and to provide some utilities to aid profiling Tui
 - `fixturegen`: A tool to generate large fixtures
 - `tuistbench`: A tool to benchmark Tuist
 
-Those tools are located within the [`tools/`](https://github.com/tuist/tuist/blob/main/tools) directory.
+Those tools are located within the [`projects/`](https://github.com/tuist/tuist/blob/main/projects) directory.
 
 ## Benchmarking
 
 As a convenience to automate the benchmarking process which entails leveraging several tools, a rake task is included with Tuist.
 
 ```sh
-bundle exec rake benchmark
+./fourier benchmark
 ```
 
 This benchmarks the current branch's version of Tuist against the latest published release using the tools described below.
@@ -29,7 +29,7 @@ This benchmarks the current branch's version of Tuist against the latest publish
 Example:
 
 ```sh
-swift run fixturegen --projects 100 --targets 10 --sources 500
+./fourier fixture --projects 100 --targets 10 --sources 500
 ```
 
 Generating those large fixtures can be helpful in profiling Tuist and identifying any hot spots that may otherwise go unnoticed when generating smaller fixtures during development.

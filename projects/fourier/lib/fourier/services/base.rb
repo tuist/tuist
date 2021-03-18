@@ -10,18 +10,6 @@ module Fourier
         raise NotImplementedError
       end
 
-      def root_directory
-        Fourier::Constants::ROOT_DIRECTORY
-      end
-
-      def fourier_directory
-        File.join(Fourier::Constants::ROOT_DIRECTORY, "projects/fourier")
-      end
-
-      def tuist_directory
-        File.join(Fourier::Constants::ROOT_DIRECTORY)
-      end
-
       def vendor_path(path)
         File.join(Fourier::Constants::VENDOR_DIRECTORY, path)
       end
