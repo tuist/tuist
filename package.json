@@ -1,0 +1,9 @@
+{
+  "name": "tuist",
+  "private": true,
+  "repository": "https://github.com/tuist/tuist.git",
+  "workspaces": [
+    "projects/next",
+    "projects/website"
+  ]
+}
