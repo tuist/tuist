@@ -78,7 +78,7 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
     private func loadDependencies(pathsProvider: SwiftPackageManagerPathsProvider, packageManifestContent: String) throws {
         // copy `.build` directory from previous run if exist
         if fileHandler.exists(pathsProvider.destinationSwiftPackageManagerBuildDirectory) {
-            try copyDirectory(
+            try copy(
                 from: pathsProvider.destinationSwiftPackageManagerBuildDirectory,
                 to: pathsProvider.temporarySwiftPackageManagerBuildDirectory
             )
@@ -86,7 +86,7 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
 
         // copy `Package.resolved` directory from previous run if exist
         if fileHandler.exists(pathsProvider.destinationPackageResolvedPath) {
-            try copyDirectory(
+            try copy(
                 from: pathsProvider.destinationPackageResolvedPath,
                 to: pathsProvider.temporaryPackageResolvedPath
             )
@@ -112,13 +112,13 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
         }
 
         // save `Package.resolved`
-        try copyFile(
+        try copy(
             from: pathsProvider.temporaryPackageResolvedPath,
             to: pathsProvider.destinationPackageResolvedPath
         )
 
-        // save `.build` direcotry
-        try copyDirectory(
+        // save `.build` directory
+        try copy(
             from: pathsProvider.temporarySwiftPackageManagerBuildDirectory,
             to: pathsProvider.destinationSwiftPackageManagerBuildDirectory
         )
@@ -126,24 +126,13 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
 
     // MARK: - Helpers
 
-    private func copyFile(from fromPath: AbsolutePath, to toPath: AbsolutePath) throws {
-        try fileHandler.createFolder(toPath.removingLastComponent())
-
+    private func copy(from fromPath: AbsolutePath, to toPath: AbsolutePath) throws {
         if fileHandler.exists(toPath) {
             try fileHandler.replace(toPath, with: fromPath)
         } else {
+            try fileHandler.createFolder(toPath.removingLastComponent())
             try fileHandler.copy(from: fromPath, to: toPath)
         }
-    }
-
-    private func copyDirectory(from fromPath: AbsolutePath, to toPath: AbsolutePath) throws {
-        try fileHandler.createFolder(toPath.removingLastComponent())
-
-        if fileHandler.exists(toPath) {
-            try fileHandler.delete(toPath)
-        }
-
-        try fileHandler.copy(from: fromPath, to: toPath)
     }
 }
 

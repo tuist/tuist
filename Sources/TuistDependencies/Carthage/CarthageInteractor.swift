@@ -120,12 +120,15 @@ public final class CarthageInteractor: CarthageInteracting {
     private func loadDependencies(pathsProvider: CarthagePathsProvider, dependencies: CarthageDependencies) throws {
         // copy build directory from previous run if exist
         if fileHandler.exists(pathsProvider.destinationCarthageDirectory) {
-            try copyDirectory(from: pathsProvider.destinationCarthageDirectory, to: pathsProvider.temporaryCarthageBuildDirectory)
+            try copy(
+                from: pathsProvider.destinationCarthageDirectory,
+                to: pathsProvider.temporaryCarthageBuildDirectory
+            )
         }
         
         // copy `Cartfile.resolved` directory from previous run if exist
         if fileHandler.exists(pathsProvider.destinationCarfileResolvedPath) {
-            try copyDirectory(
+            try copy(
                 from: pathsProvider.destinationCarfileResolvedPath,
                 to: pathsProvider.temporaryCarfileResolvedPath
             )
@@ -152,13 +155,13 @@ public final class CarthageInteractor: CarthageInteracting {
         }
 
         // save `Cartfile.resolved`
-        try copyFile(
+        try copy(
             from: pathsProvider.temporaryCarfileResolvedPath,
             to: pathsProvider.destinationCarfileResolvedPath
         )
         
         // save build directory
-        try copyDirectory(
+        try copy(
             from: pathsProvider.temporaryCarthageBuildDirectory,
             to: pathsProvider.destinationCarthageDirectory
         )
@@ -166,24 +169,13 @@ public final class CarthageInteractor: CarthageInteracting {
 
     // MARK: - Helpers
 
-    private func copyFile(from fromPath: AbsolutePath, to toPath: AbsolutePath) throws {
-        try fileHandler.createFolder(toPath.removingLastComponent())
-
+    private func copy(from fromPath: AbsolutePath, to toPath: AbsolutePath) throws {
         if fileHandler.exists(toPath) {
             try fileHandler.replace(toPath, with: fromPath)
         } else {
+            try fileHandler.createFolder(toPath.removingLastComponent())
             try fileHandler.copy(from: fromPath, to: toPath)
         }
-    }
-
-    private func copyDirectory(from fromPath: AbsolutePath, to toPath: AbsolutePath) throws {
-        try fileHandler.createFolder(toPath.removingLastComponent())
-
-        if fileHandler.exists(toPath) {
-            try fileHandler.delete(toPath)
-        }
-
-        try fileHandler.copy(from: fromPath, to: toPath)
     }
 }
 

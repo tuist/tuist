@@ -42,9 +42,13 @@ public final class DependenciesController: DependenciesControlling {
         if let depedencies = dependencies.carthage {
             try carthageInteractor.fetch(dependenciesDirectory: dependenciesDirectory, dependencies: depedencies)
         }
+        #warning("TODO: What if depedencies.depedencies is empty?")
+        #warning("TODO: if empty maybe cleaning exsiting carthage depdencies will be needed?")
 
         if let dependencies = dependencies.swiftPackageManager {
             try swiftPackageManagerInteractor.fetch(dependenciesDirectory: dependenciesDirectory, dependencies: dependencies)
         }
+        #warning("TODO: What if depedencies.packages is empty?")
+        #warning("TODO: if empty maybe cleaning exsiting SPM depdencies will be needed?")
     }
 }
