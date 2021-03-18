@@ -1,0 +1,18 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+Encoding.default_external = Encoding::UTF_8
+Encoding.default_internal = Encoding::UTF_8
+
+require "pathname"
+
+# Load Bundler dependencies
+require "bundler/setup"
+
+# Load fourier's directory
+fourier_directory = File.expand_path("./projects/fourier/lib", __dir__)
+$LOAD_PATH.unshift(fourier_directory) unless $LOAD_PATH.include?(fourier_directory)
+
+# Load Fourier
+require "fourier"
+
+Fourier::CLI.start(ARGV)

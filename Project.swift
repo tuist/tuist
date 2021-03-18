@@ -27,13 +27,45 @@ let packages: [Package] = [
     .package(url: "https://github.com/rnine/Checksum.git", .upToNextMajor(from: "1.0.2")),
 ]
 
-func module(name: String, dependencies: [TargetDependency]) -> [Target] {
+func projectDescription() -> [Target] {
+    [
+        Target(name: "ProjectDescription",
+               platform: .macOS,
+               product: .framework,
+               bundleId: "io.tuist.ProjectDescription",
+               deploymentTarget: deploymentTarget,
+               infoPlist: .default,
+               sources: ["Sources/ProjectDescription/**/*.swift"],
+               dependencies: [],
+               settings: Settings(configurations: [
+                   .debug(name: "Debug", settings: [:], xcconfig: nil),
+                   .release(name: "Release", settings: [:], xcconfig: nil),
+               ])),
+        Target(name: "ProjectDescriptionTests",
+               platform: .macOS,
+               product: .unitTests,
+               bundleId: "io.tuist.ProjectDescriptionTests",
+               deploymentTarget: deploymentTarget,
+               infoPlist: .default,
+               sources: ["Tests/ProjectDescriptionTests/**/*.swift"],
+               dependencies: [
+                .target(name: "ProjectDescription"),
+                .target(name: "TuistSupportTesting")
+               ],
+               settings: Settings(configurations: [
+                   .debug(name: "Debug", settings: [:], xcconfig: nil),
+                   .release(name: "Release", settings: [:], xcconfig: nil),
+               ]))
+    ]
+}
+
+func module(name: String, product: Product = .staticLibrary, dependencies: [TargetDependency]) -> [Target] {
     var testDependencies = dependencies + [.target(name: "Tuist\(name)"), .target(name: "Tuist\(name)Testing"), .package(product: "RxBlocking")]
     var testingDependencies = dependencies + [.target(name: "Tuist\(name)")]
     return [
         Target(name: "Tuist\(name)",
                platform: .macOS,
-               product: .staticLibrary,
+               product: product,
                bundleId: "io.tuist.Tuist\(name)",
                deploymentTarget: deploymentTarget,
                infoPlist: .default,
@@ -84,6 +116,7 @@ func targets() -> [Target] {
         .package(product: "Zip"),
         .package(product: "Checksum"),
     ]))
+    targets.append(contentsOf: projectDescription())
     return targets
 }
 

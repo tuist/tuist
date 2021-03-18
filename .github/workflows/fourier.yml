@@ -34,27 +34,4 @@ jobs:
           bundle install --jobs 4 --retry 3
       - name: Unit tests
         run: |
-          bundle exec rake test_fourier
-  rubocop:
-    name: Rubocop
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v1
-      - uses: actions/setup-ruby@v1
-        with:
-          ruby-version: ${{ env.RUBY_VERSION }}
-      - name: Install Bundler 2.1.4
-        run: gem install bundler --version 2.1.4
-      - uses: actions/cache@v2
-        with:
-          path: vendor/bundle
-          key: ${{ runner.os }}-gems-${{ hashFiles('**/Gemfile.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-gems-
-      - name: Bundle install
-        run: |
-          bundle config path vendor/bundle
-          bundle install --jobs 4 --retry 3
-      - name: Rubocop
-        run: |
-          bundle exec rubocop
+          ./fourier test fourier

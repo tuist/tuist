@@ -7,6 +7,8 @@ import TuistSupport
 public protocol TargetContentHashing {
     func contentHash(for target: TargetNode) throws -> String
     func contentHash(for target: TargetNode, additionalStrings: [String]) throws -> String
+    func contentHash(for target: ValueGraphTarget) throws -> String
+    func contentHash(for target: ValueGraphTarget, additionalStrings: [String]) throws -> String
 }
 
 /// `TargetContentHasher`
@@ -75,7 +77,18 @@ public final class TargetContentHasher: TargetContentHashing {
     }
 
     public func contentHash(for target: TargetNode, additionalStrings: [String]) throws -> String {
-        let target = target.target
+        try contentHash(for: target.target, additionalStrings: additionalStrings)
+    }
+
+    public func contentHash(for target: ValueGraphTarget) throws -> String {
+        try contentHash(for: target, additionalStrings: [])
+    }
+
+    public func contentHash(for target: ValueGraphTarget, additionalStrings: [String]) throws -> String {
+        try contentHash(for: target.target, additionalStrings: additionalStrings)
+    }
+
+    private func contentHash(for target: Target, additionalStrings: [String]) throws -> String {
         let sourcesHash = try sourceFilesContentHasher.hash(sources: target.sources)
         let resourcesHash = try resourcesContentHasher.hash(resources: target.resources)
         let copyFilesHash = try copyFilesContentHasher.hash(copyFiles: target.copyFiles)

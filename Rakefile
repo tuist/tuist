@@ -19,16 +19,6 @@ require "json"
 require "zip"
 require "macho"
 
-desc("Runs the Fourier tests")
-Rake::TestTask.new do |t|
-  t.name = "test_fourier"
-  t.libs += [File.expand_path("./tools/fourier/test", __dir__)]
-  test_root = File.expand_path("./tools/fourier/test", __dir__)
-  t.test_files = FileList[File.join(test_root, "**", "*_test.rb")]
-  t.verbose = false
-  t.warning = false
-end
-
 desc("Updates swift-doc binary with the latest version available.")
 task :swift_doc_update do
   root_dir = File.expand_path(__dir__)
@@ -113,31 +103,6 @@ task :xcbeautify_update do
   File.write(File.join(root_dir, "vendor/.xcbeautify.version"), XCBEAUTIFY_VERSION)
 end
 
-desc("Formats the code style")
-task :style_correct do
-  system(code_style_path)
-end
-
-desc("Swift format check")
-task :swift_format do
-  Kernel.system(swiftformat_path, "--lint", ".") || abort
-end
-
-desc("Swift lint check")
-task :swift_lint do
-  Kernel.system(swiftlint_path) || abort
-end
-
-desc("Lints the Ruby code style")
-task :style_ruby do
-  system("bundle", "exec", "rubocop")
-end
-
-desc("Corrects the issues with the Ruby style")
-task :style_ruby_correct do
-  system("bundle", "exec", "rubocop", "-a")
-end
-
 desc("Builds and archive a release version of tuist and tuistenv for local testing.")
 task :local_package do
   package
@@ -158,91 +123,6 @@ end
 desc("Encrypt secret keys")
 task :encrypt_secrets do
   Encrypted::Environment.encrypt_ejson("secrets.ejson", private_key: ENV["SECRET_KEY"])
-end
-
-desc("Benchmarks tuist against a specified versiom")
-task :benchmark do
-  print_section("🛠 Building supporting tools")
-
-  # Build tuistbench
-  system(
-    "swift", "build",
-    "-c", "release",
-    "--package-path", "tools/tuistbench"
-  )
-
-  # Build fixturegen
-  system(
-    "swift", "build",
-    "-c", "release",
-    "--package-path", "tools/fixturegen"
-  )
-
-  # Generate large fixture
-  print_section("📁 Generating fixtures ...")
-  FileUtils.mkdir_p("generated_fixtures")
-
-  system(
-    "tools/fixturegen/.build/release/fixturegen",
-    "--path", "generated_fixtures/50_projects",
-    "--projects", "50",
-  )
-
-  system(
-    "tools/fixturegen/.build/release/fixturegen",
-    "--path", "generated_fixtures/2000_sources",
-    "--projects", "2",
-    "--sources", "2000",
-  )
-
-  # Generate fixture list
-  fixtures = {
-    "paths" => [
-      "generated_fixtures/50_projects",
-      "generated_fixtures/2000_sources",
-      "fixtures/ios_app_with_static_frameworks",
-      "fixtures/ios_app_with_framework_and_resources",
-      "fixtures/ios_app_with_transitive_framework",
-      "fixtures/ios_app_with_xcframeworks",
-    ],
-  }
-  File.open(".fixtures.generated.json", "w") do |f|
-    f.write(fixtures.to_json)
-  end
-
-  # Build current version of tuist
-  print_section("🔨 Building release version of tuist ...")
-  system("swift", "build", "--product", "tuist", "--configuration", "release")
-  system("swift", "build", "--product", "tuistenv", "--configuration", "release")
-  system("swift", "build", "--product", "ProjectDescription", "--configuration", "release")
-
-  # Download latest tuist
-  print_section("⬇️ Downloading latest published version of tuist ...")
-
-  system(".build/release/tuistenv", "update")
-  puts("Reference tuist version:")
-  system(".build/release/tuistenv", "version")
-
-  print_section("⏱ Benchmarking ...")
-  system(
-    "tools/tuistbench/.build/release/tuistbench",
-    "-b", ".build/release/tuist",
-    "-r", ".build/release/tuistenv",
-    "-l", ".fixtures.generated.json",
-    "--format", "markdown"
-  )
-end
-
-def swiftformat_path
-  File.expand_path("bin/swiftformat", __dir__)
-end
-
-def swiftlint_path
-  File.expand_path("bin/swiftlint", __dir__)
-end
-
-def code_style_path
-  File.expand_path("script/code_style.sh", __dir__)
 end
 
 def decrypt_secrets

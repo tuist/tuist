@@ -15,6 +15,9 @@ gem "rubyzip", "~> 2.3.0"
 gem "ruby-macho", "~> 1.4"
 gem "cli-ui", "~> 1.4"
 gem "thor", "~> 1.1"
+gem "octokit", "~> 4.20"
+gem "zeitwerk", "~> 2.4"
+gem "cli-kit", "~> 3.3"
 
 group :test do
   gem "mocha", "~> 1.12"
@@ -31,7 +34,3 @@ end
 group :development, :test do
   gem "byebug", "~> 11.1"
 end
-
-gem "octokit", "~> 4.20"
-
-gem "zeitwerk", "~> 2.4"

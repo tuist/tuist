@@ -5,8 +5,8 @@ excluded:
   - fixtures
   - Tests
   - .build
-  - tools/fixturegen/.build
-  - tools/tuistbench/.build
+  - projects/fixturegen/.build
+  - projects/tuistbench/.build
   - bin
   - design
   - next

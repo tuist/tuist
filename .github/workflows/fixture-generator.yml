@@ -1,0 +1,43 @@
+name: Fixture Generator
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    paths:
+      - projects/fixturegen/**
+      - Package.swift
+      - Package.resolved
+      - Sources/**
+env:
+  RUBY_VERSION: '2.7.2'
+
+jobs:
+  test:
+    name: Test the fixture generator with Xcode ${{ matrix.xcode }}
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        xcode: ['12', '12.4']
+    steps:
+      - uses: actions/checkout@v1
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_${{ matrix.xcode }}.app
+      - uses: actions/setup-ruby@v1
+        with:
+          ruby-version: ${{ env.RUBY_VERSION }}
+      - uses: actions/cache@v2
+        with:
+          path: vendor/bundle
+          key: ${{ runner.os }}-gems-${{ hashFiles('**/Gemfile.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-gems-
+      - name: Bundle install
+        run: |
+          bundle config path vendor/bundle
+          bundle install --jobs 4 --retry 3
+      - name: Generate Fixture
+        run: ./fourier fixture --projects 1 --targets 1 --sources 1 --path Fixture
+      - name: Generate Fixture Project
+        run: ./fourier tuist generate --path Fixture

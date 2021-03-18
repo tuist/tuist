@@ -19,10 +19,10 @@ public class GraphLoader: GraphLoading {
     fileprivate let modelLoader: GeneratorModelLoading
 
     /// Utility to load framework nodes by parsing their information from disk.
-    fileprivate let frameworkNodeLoader: FrameworkNodeLoading
+    fileprivate let frameworkLoader: FrameworkLoading
 
     /// Utility to load xcframework nodes by parsing their information from disk.
-    fileprivate let xcframeworkNodeLoader: XCFrameworkNodeLoading
+    fileprivate let xcframeworkLoader: XCFrameworkLoading
 
     /// Utility to load library nodes by parsing their information from disk.
     fileprivate let libraryNodeLoader: LibraryNodeLoading
@@ -32,20 +32,20 @@ public class GraphLoader: GraphLoading {
     public convenience init(modelLoader: GeneratorModelLoading) {
         self.init(
             modelLoader: modelLoader,
-            frameworkNodeLoader: FrameworkNodeLoader(),
-            xcframeworkNodeLoader: XCFrameworkNodeLoader(),
+            frameworkLoader: FrameworkLoader(),
+            xcframeworkLoader: XCFrameworkLoader(),
             libraryNodeLoader: LibraryNodeLoader()
         )
     }
 
     public init(modelLoader: GeneratorModelLoading,
-                frameworkNodeLoader: FrameworkNodeLoading,
-                xcframeworkNodeLoader: XCFrameworkNodeLoading,
+                frameworkLoader: FrameworkLoading,
+                xcframeworkLoader: XCFrameworkLoading,
                 libraryNodeLoader: LibraryNodeLoading)
     {
         self.modelLoader = modelLoader
-        self.frameworkNodeLoader = frameworkNodeLoader
-        self.xcframeworkNodeLoader = xcframeworkNodeLoader
+        self.frameworkLoader = frameworkLoader
+        self.xcframeworkLoader = xcframeworkLoader
         self.libraryNodeLoader = libraryNodeLoader
     }
 
@@ -255,7 +255,7 @@ public class GraphLoader: GraphLoading {
     ///   - graphLoaderCache: Graph loader cache.
     fileprivate func loadFrameworkNode(frameworkPath: AbsolutePath, graphLoaderCache: GraphLoaderCaching) throws -> FrameworkNode {
         if let frameworkNode = graphLoaderCache.precompiledNode(frameworkPath) as? FrameworkNode { return frameworkNode }
-        let framewokNode = try frameworkNodeLoader.load(path: frameworkPath)
+        let framewokNode: FrameworkNode = try frameworkLoader.load(path: frameworkPath)
         graphLoaderCache.add(precompiledNode: framewokNode)
         return framewokNode
     }
@@ -308,7 +308,7 @@ public class GraphLoader: GraphLoading {
         if let cachedXCFramework = graphLoaderCache.precompiledNode(path) as? XCFrameworkNode {
             return cachedXCFramework
         }
-        let xcframework = try xcframeworkNodeLoader.load(path: path)
+        let xcframework: XCFrameworkNode = try xcframeworkLoader.load(path: path)
         graphLoaderCache.add(precompiledNode: xcframework)
         return xcframework
     }
