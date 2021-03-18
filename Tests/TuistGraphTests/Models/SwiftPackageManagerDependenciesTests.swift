@@ -26,7 +26,7 @@ final class SwiftPackageManagerDependenciesTests: TuistUnitTestCase {
         """
 
         // When
-        let got = subject.manifestValue()
+        let got = subject.manifestValue(swiftVersion: "5.3")
 
         // Then
         XCTAssertEqual(got, expected)
@@ -47,7 +47,7 @@ final class SwiftPackageManagerDependenciesTests: TuistUnitTestCase {
         )
 
         let expected = """
-        // swift-tools-version:5.3
+        // swift-tools-version:5.4
 
         import PackageDescription
 
@@ -66,7 +66,7 @@ final class SwiftPackageManagerDependenciesTests: TuistUnitTestCase {
         """
 
         // When
-        let got = subject.manifestValue()
+        let got = subject.manifestValue(swiftVersion: "5.4")
 
         // Then
         XCTAssertEqual(got, expected)

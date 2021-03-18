@@ -14,9 +14,9 @@ public struct SwiftPackageManagerDependencies: Equatable {
     /// Returns `Package.swift` representation.
     ///
     /// **NOTE** It is a temporary solution until Apple resolves: https://forums.swift.org/t/pitch-package-editor-commands/42224
-    public func manifestValue() -> String {
+    public func manifestValue(swiftVersion: String) -> String {
         """
-        // swift-tools-version:5.3
+        // swift-tools-version:\(swiftVersion)
 
         import PackageDescription
 

@@ -125,7 +125,7 @@ public final class CarthageInteractor: CarthageInteracting {
                 to: pathsProvider.temporaryCarthageBuildDirectory
             )
         }
-        
+
         // copy `Cartfile.resolved` directory from previous run if exist
         if fileHandler.exists(pathsProvider.destinationCarfileResolvedPath) {
             try copy(
@@ -159,7 +159,7 @@ public final class CarthageInteractor: CarthageInteracting {
             from: pathsProvider.temporaryCarfileResolvedPath,
             to: pathsProvider.destinationCarfileResolvedPath
         )
-        
+
         // save build directory
         try copy(
             from: pathsProvider.temporaryCarthageBuildDirectory,

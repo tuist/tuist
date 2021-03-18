@@ -41,6 +41,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
 
         let command = ["swift", "package", "--package-path", "\(try temporaryPath().pathString)", "resolve"]
         system.succeedCommand(command)
+        system.swiftVersionStub = { "5.3" }
 
         let depedencies = SwiftPackageManagerDependencies(
             [
