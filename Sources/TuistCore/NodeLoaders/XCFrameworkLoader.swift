@@ -1,8 +1,9 @@
 import Foundation
 import TSCBasic
+import TuistGraph
 import TuistSupport
 
-enum XCFrameworkNodeLoaderError: FatalError, Equatable {
+enum XCFrameworkLoaderError: FatalError, Equatable {
     case xcframeworkNotFound(AbsolutePath)
 
     /// Error type.
@@ -22,13 +23,16 @@ enum XCFrameworkNodeLoaderError: FatalError, Equatable {
     }
 }
 
-public protocol XCFrameworkNodeLoading {
+public protocol XCFrameworkLoading {
     /// Reads an existing xcframework and returns its in-memory representation, XCFrameworkNode..
     /// - Parameter path: Path to the .xcframework.
     func load(path: AbsolutePath) throws -> XCFrameworkNode
+    /// Reads an existing xcframework and returns its in-memory representation, `ValueGraphDependency.xcframework`.
+    /// - Parameter path: Path to the .xcframework.
+    func load(path: AbsolutePath) throws -> ValueGraphDependency
 }
 
-public final class XCFrameworkNodeLoader: XCFrameworkNodeLoading {
+public final class XCFrameworkLoader: XCFrameworkLoading {
     /// xcframework metadata provider.
     fileprivate let xcframeworkMetadataProvider: XCFrameworkMetadataProviding
 
@@ -44,7 +48,7 @@ public final class XCFrameworkNodeLoader: XCFrameworkNodeLoading {
 
     public func load(path: AbsolutePath) throws -> XCFrameworkNode {
         guard FileHandler.shared.exists(path) else {
-            throw XCFrameworkNodeLoaderError.xcframeworkNotFound(path)
+            throw XCFrameworkLoaderError.xcframeworkNotFound(path)
         }
         let infoPlist = try xcframeworkMetadataProvider.infoPlist(xcframeworkPath: path)
         let primaryBinaryPath = try xcframeworkMetadataProvider.binaryPath(
@@ -58,6 +62,19 @@ public final class XCFrameworkNodeLoader: XCFrameworkNodeLoading {
             primaryBinaryPath: primaryBinaryPath,
             linking: linking,
             dependencies: []
+        )
+    }
+
+    public func load(path: AbsolutePath) throws -> ValueGraphDependency {
+        guard FileHandler.shared.exists(path) else {
+            throw XCFrameworkLoaderError.xcframeworkNotFound(path)
+        }
+        let metadata = try xcframeworkMetadataProvider.loadMetadata(at: path)
+        return .xcframework(
+            path: path,
+            infoPlist: metadata.infoPlist,
+            primaryBinaryPath: metadata.primaryBinaryPath,
+            linking: metadata.linking
         )
     }
 }

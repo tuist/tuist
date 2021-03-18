@@ -99,7 +99,7 @@ final class CacheControllerTests: TuistUnitTestCase {
             XCTAssertEqual(loadPath, path)
             return xcworkspacePath
         }
-        cacheGraphContentHasher.contentHashesStub = { _, _, _ in
+        cacheGraphContentHasher.contentHashesGraphStub = { _, _, _ in
             nodeWithHashes
         }
         artifactBuilder.stubbedCacheOutputType = .xcframework
@@ -163,7 +163,7 @@ final class CacheControllerTests: TuistUnitTestCase {
             XCTAssertEqual(loadPath, path)
             return xcworkspacePath
         }
-        cacheGraphContentHasher.contentHashesStub = { _, _, _ in
+        cacheGraphContentHasher.contentHashesGraphStub = { _, _, _ in
             nodeWithHashes
         }
         artifactBuilder.stubbedCacheOutputType = .xcframework

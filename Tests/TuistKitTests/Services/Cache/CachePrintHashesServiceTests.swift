@@ -75,7 +75,7 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
         generator.loadStub = { _ in graph }
 
         var invokedGraph: Graph?
-        cacheGraphContentHasher.contentHashesStub = { graph, _, _ in
+        cacheGraphContentHasher.contentHashesGraphStub = { graph, _, _ in
             invokedGraph = graph
             return [:]
         }
@@ -91,7 +91,7 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
         // Given
         let target1 = TargetNode.test(target: .test(name: "ShakiOne"))
         let target2 = TargetNode.test(target: .test(name: "ShakiTwo"))
-        cacheGraphContentHasher.contentHashesStub = { _, _, _ in
+        cacheGraphContentHasher.contentHashesGraphStub = { _, _, _ in
             [target1: "hash1", target2: "hash2"]
         }
 

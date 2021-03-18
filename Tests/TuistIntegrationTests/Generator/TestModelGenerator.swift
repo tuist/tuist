@@ -28,15 +28,15 @@ final class TestModelGenerator {
     }
 
     func generate() throws -> Graph {
-        let frameworkNodeLoader = MockFrameworkNodeLoader()
+        let frameworkLoader = MockFrameworkLoader()
         let libraryNodeLoader = MockLibraryNodeLoader()
-        let xcframeworkNodeLoader = MockXCFrameworkNodeLoader()
+        let xcframeworkLoader = MockXCFrameworkLoader()
         let modelLoader = try createModelLoader()
 
         let graphLoader = GraphLoader(
             modelLoader: modelLoader,
-            frameworkNodeLoader: frameworkNodeLoader,
-            xcframeworkNodeLoader: xcframeworkNodeLoader,
+            frameworkLoader: frameworkLoader,
+            xcframeworkLoader: xcframeworkLoader,
             libraryNodeLoader: libraryNodeLoader
         )
 

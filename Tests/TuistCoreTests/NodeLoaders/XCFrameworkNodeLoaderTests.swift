@@ -7,10 +7,10 @@ import XCTest
 @testable import TuistCoreTesting
 @testable import TuistSupportTesting
 
-final class XCFrameworkNodeLoaderErrorTests: TuistUnitTestCase {
+final class XCFrameworkLoaderErrorTests: TuistUnitTestCase {
     func test_type_when_xcframeworkNotFound() {
         // Given
-        let subject = XCFrameworkNodeLoaderError.xcframeworkNotFound("/frameworks/tuist.xcframework")
+        let subject = XCFrameworkLoaderError.xcframeworkNotFound("/frameworks/tuist.xcframework")
 
         // Then
         XCTAssertEqual(subject.type, .abort)
@@ -18,20 +18,20 @@ final class XCFrameworkNodeLoaderErrorTests: TuistUnitTestCase {
 
     func test_description_when_xcframeworkNotFound() {
         // Given
-        let subject = XCFrameworkNodeLoaderError.xcframeworkNotFound("/frameworks/tuist.xcframework")
+        let subject = XCFrameworkLoaderError.xcframeworkNotFound("/frameworks/tuist.xcframework")
 
         // Then
         XCTAssertEqual(subject.description, "Couldn't find xcframework at /frameworks/tuist.xcframework")
     }
 }
 
-final class XCFrameworkNodeLoaderTests: TuistUnitTestCase {
+final class XCFrameworkLoaderTests: TuistUnitTestCase {
     var xcframeworkMetadataProvider: MockXCFrameworkMetadataProvider!
-    var subject: XCFrameworkNodeLoader!
+    var subject: XCFrameworkLoader!
 
     override func setUp() {
         xcframeworkMetadataProvider = MockXCFrameworkMetadataProvider()
-        subject = XCFrameworkNodeLoader(xcframeworkMetadataProvider: xcframeworkMetadataProvider)
+        subject = XCFrameworkLoader(xcframeworkMetadataProvider: xcframeworkMetadataProvider)
         super.setUp()
     }
 
@@ -47,7 +47,7 @@ final class XCFrameworkNodeLoaderTests: TuistUnitTestCase {
         let xcframeworkPath = path.appending(component: "tuist.xcframework")
 
         // Then
-        XCTAssertThrowsSpecific(try subject.load(path: xcframeworkPath), XCFrameworkNodeLoaderError.xcframeworkNotFound(xcframeworkPath))
+        XCTAssertThrowsSpecific(try subject.load(path: xcframeworkPath) as XCFrameworkNode, XCFrameworkLoaderError.xcframeworkNotFound(xcframeworkPath))
     }
 
     func test_load_when_the_xcframework_exists() throws {
@@ -75,7 +75,7 @@ final class XCFrameworkNodeLoaderTests: TuistUnitTestCase {
         }
 
         // When
-        let got = try subject.load(path: xcframeworkPath)
+        let got: XCFrameworkNode = try subject.load(path: xcframeworkPath)
 
         // Then
         XCTAssertEqual(got, XCFrameworkNode(
