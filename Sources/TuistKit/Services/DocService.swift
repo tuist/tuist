@@ -77,7 +77,7 @@ final class DocService {
     }
 
     func run(project path: AbsolutePath, target targetName: String) throws {
-        let graph = ValueGraph(graph: try generator.load(path: path))
+        let graph = try generator.load(path: path)
         let graphTraverser = ValueGraphTraverser(graph: graph)
 
         let targets = graphTraverser.allTargets()

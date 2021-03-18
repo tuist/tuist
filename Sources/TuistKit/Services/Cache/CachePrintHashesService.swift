@@ -53,9 +53,9 @@ final class CachePrintHashesService {
             logger.notice("No cacheable targets were found")
             return
         }
-        let sortedHashes = hashes.sorted { $0.key.name < $1.key.name }
+        let sortedHashes = hashes.sorted { $0.key.target.name < $1.key.target.name }
         for (target, hash) in sortedHashes {
-            logger.info("\(target.name) - \(hash)")
+            logger.info("\(target.target.name) - \(hash)")
         }
         logger.notice("Total time taken: \(time)s")
     }

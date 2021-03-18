@@ -126,10 +126,18 @@ final class TuistDocServiceTests: TuistUnitTestCase {
             path: path
         )
         let target = Target.test(name: targetName)
-        let targetNode = TargetNode(project: project, target: target, dependencies: [])
-        let graph = Graph.test(
-            projects: [project],
-            targets: [path: [targetNode]]
+        let graphTarget = ValueGraphTarget(
+            path: project.path,
+            target: target,
+            project: project
+        )
+        let graph = ValueGraph.test(
+            projects: [project.path: project],
+            targets: [
+                path: [
+                    graphTarget.target.name: graphTarget.target
+                ]
+            ]
         )
 
         generator.loadStub = { _ in
