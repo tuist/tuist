@@ -43,9 +43,7 @@ public final class CacheFrameworkBuilder: CacheArtifactBuilding {
     /// Developer's environment.
     private let developerEnvironment: DeveloperEnvironmenting
 
-    /// a map between the path of a project or workspace, and the path to derived data
-    /// using the hash calculated by Xcode.
-    private var projectPathHashes: [String: AbsolutePath] = [:]
+    private let derivedDataLocator: DerivedDataLocating
 
     // MARK: - Init
 
@@ -54,13 +52,16 @@ public final class CacheFrameworkBuilder: CacheArtifactBuilding {
     ///   - xcodeBuildController: Xcode build controller.
     ///   - simulatorController: Simulator controller.
     ///   - developerEnvironment: Developer environment.
-    public init(xcodeBuildController: XcodeBuildControlling,
-                simulatorController: SimulatorControlling = SimulatorController(),
-                developerEnvironment: DeveloperEnvironmenting = DeveloperEnvironment.shared)
-    {
+    public init(
+        xcodeBuildController: XcodeBuildControlling,
+        simulatorController: SimulatorControlling = SimulatorController(),
+        developerEnvironment: DeveloperEnvironmenting = DeveloperEnvironment.shared,
+        derivedDataLocator: DerivedDataLocating = DerivedDataLocator()
+    ) {
         self.xcodeBuildController = xcodeBuildController
         self.simulatorController = simulatorController
         self.developerEnvironment = developerEnvironment
+        self.derivedDataLocator = derivedDataLocator
     }
 
     // MARK: - ArtifactBuilding
@@ -145,14 +146,8 @@ public final class CacheFrameworkBuilder: CacheArtifactBuilding {
         let projectPath = projectTarget.path
         let pathString = projectPath.pathString
 
-        if let existing = projectPathHashes[pathString] {
-            return existing
-        }
-
-        let derivedDataPath = developerEnvironment.derivedDataDirectory
-        let hash = try XcodeProjectPathHasher.hashString(for: pathString)
+        let derivedDataPath = try derivedDataLocator.locate(for: projectPath)
         var buildDirectory = derivedDataPath
-            .appending(component: "\(projectTarget.path.basenameWithoutExt)-\(hash)")
             .appending(component: "Build")
             .appending(component: "Products")
         if target.platform == .macOS {
@@ -160,7 +155,6 @@ public final class CacheFrameworkBuilder: CacheArtifactBuilding {
         } else {
             buildDirectory = buildDirectory.appending(component: "\(configuration)-\(sdk)")
         }
-        projectPathHashes[pathString] = buildDirectory
 
         return buildDirectory
     }

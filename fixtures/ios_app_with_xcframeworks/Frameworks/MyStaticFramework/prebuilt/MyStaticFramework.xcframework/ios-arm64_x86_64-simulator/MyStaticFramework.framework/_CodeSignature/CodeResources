@@ -10,55 +10,55 @@
 		</data>
 		<key>Info.plist</key>
 		<data>
-		yOPcQnilkWacBob5FrgxHHYashM=
+		kspVFk3Rw13BMO0WbNX5axZDLdk=
 		</data>
 		<key>Modules/MyStaticFramework.swiftmodule/arm64-apple-ios-simulator.swiftdoc</key>
 		<data>
-		J8Ukyl+FGu8Fy1ewSWybdnDVUfE=
+		vfY6Nfjk1jenRgIeYEjYgw2xK8E=
 		</data>
 		<key>Modules/MyStaticFramework.swiftmodule/arm64-apple-ios-simulator.swiftinterface</key>
 		<data>
-		xVvk8Pk7Sa9DDWMsoLAqqM63mds=
+		rrXo2aC9wPEUy7b0gGaVnARR7JU=
 		</data>
 		<key>Modules/MyStaticFramework.swiftmodule/arm64-apple-ios-simulator.swiftmodule</key>
 		<data>
-		urJevyJveiier++NtFO/o9xMok4=
+		vrq3uHvuRktcBb/brueTGrYJ3WE=
 		</data>
 		<key>Modules/MyStaticFramework.swiftmodule/arm64.swiftdoc</key>
 		<data>
-		J8Ukyl+FGu8Fy1ewSWybdnDVUfE=
+		vfY6Nfjk1jenRgIeYEjYgw2xK8E=
 		</data>
 		<key>Modules/MyStaticFramework.swiftmodule/arm64.swiftinterface</key>
 		<data>
-		xVvk8Pk7Sa9DDWMsoLAqqM63mds=
+		rrXo2aC9wPEUy7b0gGaVnARR7JU=
 		</data>
 		<key>Modules/MyStaticFramework.swiftmodule/arm64.swiftmodule</key>
 		<data>
-		urJevyJveiier++NtFO/o9xMok4=
+		vrq3uHvuRktcBb/brueTGrYJ3WE=
 		</data>
 		<key>Modules/MyStaticFramework.swiftmodule/x86_64-apple-ios-simulator.swiftdoc</key>
 		<data>
-		EgrTGDubNUmlmky0p7Ak0Fw8FlY=
+		R8sZnFi8WRhMpRgYbQcJLL3c5no=
 		</data>
 		<key>Modules/MyStaticFramework.swiftmodule/x86_64-apple-ios-simulator.swiftinterface</key>
 		<data>
-		c7yvmUuIb8TciCRPNdBauhcef78=
+		BsYKTb+jEuXQBYnxSJseNMkWWTY=
 		</data>
 		<key>Modules/MyStaticFramework.swiftmodule/x86_64-apple-ios-simulator.swiftmodule</key>
 		<data>
-		fT0N4MNtMqBIcYV6+RgeJKKPQ0k=
+		Rcbf6hTNC2Rf43JB0HZt3Q7lEbo=
 		</data>
 		<key>Modules/MyStaticFramework.swiftmodule/x86_64.swiftdoc</key>
 		<data>
-		EgrTGDubNUmlmky0p7Ak0Fw8FlY=
+		R8sZnFi8WRhMpRgYbQcJLL3c5no=
 		</data>
 		<key>Modules/MyStaticFramework.swiftmodule/x86_64.swiftinterface</key>
 		<data>
-		c7yvmUuIb8TciCRPNdBauhcef78=
+		BsYKTb+jEuXQBYnxSJseNMkWWTY=
 		</data>
 		<key>Modules/MyStaticFramework.swiftmodule/x86_64.swiftmodule</key>
 		<data>
-		fT0N4MNtMqBIcYV6+RgeJKKPQ0k=
+		Rcbf6hTNC2Rf43JB0HZt3Q7lEbo=
 		</data>
 		<key>Modules/module.modulemap</key>
 		<data>
@@ -82,132 +82,132 @@
 		<dict>
 			<key>hash</key>
 			<data>
-			J8Ukyl+FGu8Fy1ewSWybdnDVUfE=
+			vfY6Nfjk1jenRgIeYEjYgw2xK8E=
 			</data>
 			<key>hash2</key>
 			<data>
-			AegG/muCr7lWpgaGzzq+vsuJCwr0BxEuI1gXSzQLTCc=
+			inc8urT6Y/GOIKtfdi8IhOjpOSu5rmB2p5QQQ4B/iHo=
 			</data>
 		</dict>
 		<key>Modules/MyStaticFramework.swiftmodule/arm64-apple-ios-simulator.swiftinterface</key>
 		<dict>
 			<key>hash</key>
 			<data>
-			xVvk8Pk7Sa9DDWMsoLAqqM63mds=
+			rrXo2aC9wPEUy7b0gGaVnARR7JU=
 			</data>
 			<key>hash2</key>
 			<data>
-			vqyT3ixsmKYtCVHONu4iDDn/QBKqkhWTqyDTpM9zTuI=
+			N5GjkiACODbnWlNAuabYWaAhO/2JrU9L1QSnjqD66mM=
 			</data>
 		</dict>
 		<key>Modules/MyStaticFramework.swiftmodule/arm64-apple-ios-simulator.swiftmodule</key>
 		<dict>
 			<key>hash</key>
 			<data>
-			urJevyJveiier++NtFO/o9xMok4=
+			vrq3uHvuRktcBb/brueTGrYJ3WE=
 			</data>
 			<key>hash2</key>
 			<data>
-			EHpb4T29q18/cNWdXFyzgw7XhZGSJFiKLqLjKGkIREU=
+			4gtmu/M9v8vag6SGPH/VR75+x5CHuiBubV20uXJ551U=
 			</data>
 		</dict>
 		<key>Modules/MyStaticFramework.swiftmodule/arm64.swiftdoc</key>
 		<dict>
 			<key>hash</key>
 			<data>
-			J8Ukyl+FGu8Fy1ewSWybdnDVUfE=
+			vfY6Nfjk1jenRgIeYEjYgw2xK8E=
 			</data>
 			<key>hash2</key>
 			<data>
-			AegG/muCr7lWpgaGzzq+vsuJCwr0BxEuI1gXSzQLTCc=
+			inc8urT6Y/GOIKtfdi8IhOjpOSu5rmB2p5QQQ4B/iHo=
 			</data>
 		</dict>
 		<key>Modules/MyStaticFramework.swiftmodule/arm64.swiftinterface</key>
 		<dict>
 			<key>hash</key>
 			<data>
-			xVvk8Pk7Sa9DDWMsoLAqqM63mds=
+			rrXo2aC9wPEUy7b0gGaVnARR7JU=
 			</data>
 			<key>hash2</key>
 			<data>
-			vqyT3ixsmKYtCVHONu4iDDn/QBKqkhWTqyDTpM9zTuI=
+			N5GjkiACODbnWlNAuabYWaAhO/2JrU9L1QSnjqD66mM=
 			</data>
 		</dict>
 		<key>Modules/MyStaticFramework.swiftmodule/arm64.swiftmodule</key>
 		<dict>
 			<key>hash</key>
 			<data>
-			urJevyJveiier++NtFO/o9xMok4=
+			vrq3uHvuRktcBb/brueTGrYJ3WE=
 			</data>
 			<key>hash2</key>
 			<data>
-			EHpb4T29q18/cNWdXFyzgw7XhZGSJFiKLqLjKGkIREU=
+			4gtmu/M9v8vag6SGPH/VR75+x5CHuiBubV20uXJ551U=
 			</data>
 		</dict>
 		<key>Modules/MyStaticFramework.swiftmodule/x86_64-apple-ios-simulator.swiftdoc</key>
 		<dict>
 			<key>hash</key>
 			<data>
-			EgrTGDubNUmlmky0p7Ak0Fw8FlY=
+			R8sZnFi8WRhMpRgYbQcJLL3c5no=
 			</data>
 			<key>hash2</key>
 			<data>
-			bKGqtHLRRIZ94zT7IfFkqQeMbUWDK5P7zGo1clnY7iQ=
+			X96YOmxZt6IKsvPd6lS+Un1vMGZMk0OpD2EvsaK2pyc=
 			</data>
 		</dict>
 		<key>Modules/MyStaticFramework.swiftmodule/x86_64-apple-ios-simulator.swiftinterface</key>
 		<dict>
 			<key>hash</key>
 			<data>
-			c7yvmUuIb8TciCRPNdBauhcef78=
+			BsYKTb+jEuXQBYnxSJseNMkWWTY=
 			</data>
 			<key>hash2</key>
 			<data>
-			P807jhJCByzMMZwEt73cBIP0Oiuh8dtHx5VGUQdIbo4=
+			KuiULJC94OndjsS6PXLzZIUVVxV0L0zbGqFqTDPqS4U=
 			</data>
 		</dict>
 		<key>Modules/MyStaticFramework.swiftmodule/x86_64-apple-ios-simulator.swiftmodule</key>
 		<dict>
 			<key>hash</key>
 			<data>
-			fT0N4MNtMqBIcYV6+RgeJKKPQ0k=
+			Rcbf6hTNC2Rf43JB0HZt3Q7lEbo=
 			</data>
 			<key>hash2</key>
 			<data>
-			/2TI/0T7l53uOfyX9tkMB/CKm6CgVzYzi0f9tYZIK5Y=
+			MqZ7Yzvf/34ljSLlq9oG7Bo525vg+yh5NlNUc/Gk1LU=
 			</data>
 		</dict>
 		<key>Modules/MyStaticFramework.swiftmodule/x86_64.swiftdoc</key>
 		<dict>
 			<key>hash</key>
 			<data>
-			EgrTGDubNUmlmky0p7Ak0Fw8FlY=
+			R8sZnFi8WRhMpRgYbQcJLL3c5no=
 			</data>
 			<key>hash2</key>
 			<data>
-			bKGqtHLRRIZ94zT7IfFkqQeMbUWDK5P7zGo1clnY7iQ=
+			X96YOmxZt6IKsvPd6lS+Un1vMGZMk0OpD2EvsaK2pyc=
 			</data>
 		</dict>
 		<key>Modules/MyStaticFramework.swiftmodule/x86_64.swiftinterface</key>
 		<dict>
 			<key>hash</key>
 			<data>
-			c7yvmUuIb8TciCRPNdBauhcef78=
+			BsYKTb+jEuXQBYnxSJseNMkWWTY=
 			</data>
 			<key>hash2</key>
 			<data>
-			P807jhJCByzMMZwEt73cBIP0Oiuh8dtHx5VGUQdIbo4=
+			KuiULJC94OndjsS6PXLzZIUVVxV0L0zbGqFqTDPqS4U=
 			</data>
 		</dict>
 		<key>Modules/MyStaticFramework.swiftmodule/x86_64.swiftmodule</key>
 		<dict>
 			<key>hash</key>
 			<data>
-			fT0N4MNtMqBIcYV6+RgeJKKPQ0k=
+			Rcbf6hTNC2Rf43JB0HZt3Q7lEbo=
 			</data>
 			<key>hash2</key>
 			<data>
-			/2TI/0T7l53uOfyX9tkMB/CKm6CgVzYzi0f9tYZIK5Y=
+			MqZ7Yzvf/34ljSLlq9oG7Bo525vg+yh5NlNUc/Gk1LU=
 			</data>
 		</dict>
 		<key>Modules/module.modulemap</key>

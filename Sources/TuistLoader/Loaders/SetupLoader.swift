@@ -69,7 +69,7 @@ public class SetupLoader: SetupLoading {
     ///           or if there isn't a `Setup.swift` file within the project path.
     public func meet(at path: AbsolutePath) throws {
         guard let setupPath = manifestFilesLocator.locateSetup(at: path) else { throw SetupLoaderError.setupNotFound(path) }
-        logger.info("Setting up the environment defined in \(setupPath).pathString)")
+        logger.info("Setting up the environment defined in \(setupPath.pathString)")
 
         let setupParentPath = setupPath.parentDirectory
 

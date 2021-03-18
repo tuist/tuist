@@ -45,10 +45,11 @@ public class Up: Codable, Equatable {
     /// - Parameters:
     ///   - platforms: The platforms Carthage dependencies should be updated for. If the argument is not passed, the frameworks will be updated for all the platforms.
     ///   - useXCFrameworks: Indicates whether Carthage produces XCFrameworks or regular frameworks. The default value is `false`.
+    ///   - noUseBinaries: Indicates whether Carthage rebuilds the dependency from source instead of using downloaded binaries when possible.
     /// - Returns: Up to pull Carthage dependencies.
-    public static func carthage(platforms: [Platform]? = nil, useXCFrameworks: Bool = false) -> Up {
+    public static func carthage(platforms: [Platform]? = nil, useXCFrameworks: Bool = false, noUseBinaries: Bool = false) -> Up {
         let platforms = platforms ?? [.iOS, .macOS, .tvOS, .watchOS]
-        return UpCarthage(platforms: platforms, useXCFrameworks: useXCFrameworks)
+        return UpCarthage(platforms: platforms, useXCFrameworks: useXCFrameworks, noUseBinaries: noUseBinaries)
     }
 
     /// Returns an up that installs Mint packages specified in the Mintfile.

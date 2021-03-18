@@ -2,7 +2,7 @@ import Foundation
 import TSCBasic
 import TuistSupport
 
-protocol ProjectDescriptionHelpersHashing: AnyObject {
+public protocol ProjectDescriptionHelpersHashing: AnyObject {
     /// Given the path to the directory that contains the helpers, it returns a hash that includes
     /// the hash of the files, the environment, as well as the versions of Swift and Tuist.
     /// - Parameter helpersDirectory: Path to the helpers directory.
@@ -14,17 +14,17 @@ protocol ProjectDescriptionHelpersHashing: AnyObject {
     func prefixHash(helpersDirectory: AbsolutePath) -> String
 }
 
-final class ProjectDescriptionHelpersHasher: ProjectDescriptionHelpersHashing {
+public final class ProjectDescriptionHelpersHasher: ProjectDescriptionHelpersHashing {
     /// Tuist version.
     let tuistVersion: String
 
-    init(tuistVersion: String = Constants.version) {
+    public init(tuistVersion: String = Constants.version) {
         self.tuistVersion = tuistVersion
     }
 
     // MARK: - ProjectDescriptionHelpersHashing
 
-    func hash(helpersDirectory: AbsolutePath) throws -> String {
+    public func hash(helpersDirectory: AbsolutePath) throws -> String {
         let fileHashes = FileHandler.shared
             .glob(helpersDirectory, glob: "**/*.swift")
             .sorted()

@@ -6,8 +6,9 @@ import TuistSupport
 /// This protocol defines the interface to compile a temporary module with the
 /// helper files under /Tuist/ProjectDescriptionHelpers that can be imported
 /// from any manifest being loaded.
-protocol ProjectDescriptionHelpersBuilding: AnyObject {
-    /// Builds the helpers module and returns it.
+public protocol ProjectDescriptionHelpersBuilding: AnyObject {
+    /// Builds **all** the helpers module and returns it.
+    ///
     /// - Parameters:
     ///   - path: Path to the directory that contains the manifest being loaded.
     ///   - projectDescriptionPath: Path to the project description module.
@@ -17,9 +18,21 @@ protocol ProjectDescriptionHelpersBuilding: AnyObject {
         projectDescriptionSearchPaths: ProjectDescriptionSearchPaths,
         projectDescriptionHelperPlugins: [ProjectDescriptionHelpersPlugin]
     ) throws -> [ProjectDescriptionHelpersModule]
+
+    /// Builds **only** the plugin helpers module and returns it.
+    ///
+    /// - Parameters:
+    ///   - path: Path to the directory that contains the manifest being loaded.
+    ///   - projectDescriptionPath: Path to the project description module.
+    ///   - projectDescriptionHelperPlugins: List of custom project description helper plugins to include and build.
+    func buildPlugins(
+        at path: AbsolutePath,
+        projectDescriptionSearchPaths: ProjectDescriptionSearchPaths,
+        projectDescriptionHelperPlugins: [ProjectDescriptionHelpersPlugin]
+    ) throws -> [ProjectDescriptionHelpersModule]
 }
 
-final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding {
+public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding {
     /// A dictionary that keeps in memory the helpers (value of the dictionary) that have been built
     /// in the current process for helpers directories (key of the dictionary)
     private var builtHelpers: [AbsolutePath: ProjectDescriptionHelpersModule] = [:]
@@ -41,7 +54,7 @@ final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding 
     ///   - projectDescriptionHelpersHasher: Project description helpers hasher.
     ///   - cacheDirectory: Path to the cache directory.
     ///   - helpersDirectoryLocating: Instance to locate the helpers directory.
-    init(
+    public init(
         projectDescriptionHelpersHasher: ProjectDescriptionHelpersHashing = ProjectDescriptionHelpersHasher(),
         cacheDirectory: AbsolutePath = Environment.shared.projectDescriptionHelpersCacheDirectory,
         helpersDirectoryLocator: HelpersDirectoryLocating = HelpersDirectoryLocator()
@@ -51,24 +64,38 @@ final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding 
         self.helpersDirectoryLocator = helpersDirectoryLocator
     }
 
-    func build(
+    public func build(
         at path: AbsolutePath,
         projectDescriptionSearchPaths: ProjectDescriptionSearchPaths,
         projectDescriptionHelperPlugins: [ProjectDescriptionHelpersPlugin]
     ) throws -> [ProjectDescriptionHelpersModule] {
-        let customHelpers = try projectDescriptionHelperPlugins.map {
-            try buildHelpers(name: $0.name, in: $0.path, projectDescriptionSearchPaths: projectDescriptionSearchPaths)
-        }
+        let pluginHelpers = try buildPlugins(
+            at: path,
+            projectDescriptionSearchPaths: projectDescriptionSearchPaths,
+            projectDescriptionHelperPlugins: projectDescriptionHelperPlugins
+        )
 
         let defaultHelpers = try buildDefaultHelpers(
             in: path,
             projectDescriptionSearchPaths: projectDescriptionSearchPaths,
-            customProjectDescriptionHelperModules: customHelpers
+            customProjectDescriptionHelperModules: pluginHelpers
         )
 
-        guard let builtDefaultHelpers = defaultHelpers else { return customHelpers }
+        guard let builtDefaultHelpers = defaultHelpers else { return pluginHelpers }
 
-        return [builtDefaultHelpers] + customHelpers
+        return [builtDefaultHelpers] + pluginHelpers
+    }
+
+    public func buildPlugins(
+        at _: AbsolutePath,
+        projectDescriptionSearchPaths: ProjectDescriptionSearchPaths,
+        projectDescriptionHelperPlugins: [ProjectDescriptionHelpersPlugin]
+    ) throws -> [ProjectDescriptionHelpersModule] {
+        let pluginHelpers = try projectDescriptionHelperPlugins.map {
+            try buildHelpers(name: $0.name, in: $0.path, projectDescriptionSearchPaths: projectDescriptionSearchPaths)
+        }
+
+        return pluginHelpers
     }
 
     private func buildDefaultHelpers(

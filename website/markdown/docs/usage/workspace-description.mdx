@@ -6,7 +6,6 @@ excerpt: 'This page documents how the Workspace.swift manifest file can be used 
 import PropertiesTable from '../components/properties-table'
 import SettingsDictionaryTable from '../components/settingsdictionary-table'
 import Message from '../components/message'
-import EnumTable from '../components/enum'
 import {
   List,
   ListItem,
@@ -126,7 +125,8 @@ A `Workspace.swift` should initialize a variable of type `Workspace`. It can tak
     },
     {
       name: 'FileHeaderTemplate',
-      description: 'Lets you define custom file header template macro for built-in Xcode file templates',
+      description:
+        'Lets you define custom file header template macro for built-in Xcode file templates',
       type: 'FileHeaderTemplate?',
       typeLink: '/docs/usage/project-description#file-header-template',
       optional: true,

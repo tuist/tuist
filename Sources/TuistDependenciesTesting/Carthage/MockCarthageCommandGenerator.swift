@@ -8,19 +8,29 @@ public final class MockCarthageCommandGenerator: CarthageCommandGenerating {
 
     var invokedCommand = false
     var invokedCommandCount = 0
-    var invokedCommandParameters: (path: AbsolutePath, produceXCFrameworks: Bool, platforms: Set<Platform>?)?
-    var invokedCommandParametersList = [(path: AbsolutePath, produceXCFrameworks: Bool, platforms: Set<Platform>?)]()
-    var commandStub: ((AbsolutePath, Bool, Set<Platform>?) -> [String])?
+    var invokedCommandParameters: CommandArgs?
+    var invokedCommandParametersList = [CommandArgs]()
+    var commandStub: ((CommandArgs) -> [String])?
 
-    public func command(path: AbsolutePath, produceXCFrameworks: Bool, platforms: Set<Platform>?) -> [String] {
+    public func command(path: AbsolutePath, platforms: Set<Platform>?, options: Set<CarthageDependencies.Options>?) -> [String] {
         invokedCommand = true
         invokedCommandCount += 1
-        invokedCommandParameters = (path, produceXCFrameworks, platforms)
-        invokedCommandParametersList.append((path, produceXCFrameworks, platforms))
+        invokedCommandParameters = CommandArgs(path: path, platforms: platforms, options: options)
+        invokedCommandParametersList.append(CommandArgs(path: path, platforms: platforms, options: options))
         if let stub = commandStub {
-            return stub(path, produceXCFrameworks, platforms)
+            return stub(CommandArgs(path: path, platforms: platforms, options: options))
         } else {
             return []
         }
+    }
+}
+
+// MARK: - Models
+
+extension MockCarthageCommandGenerator {
+    struct CommandArgs {
+        let path: AbsolutePath
+        let platforms: Set<Platform>?
+        let options: Set<CarthageDependencies.Options>?
     }
 }

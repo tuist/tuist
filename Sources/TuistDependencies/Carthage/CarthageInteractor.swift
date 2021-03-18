@@ -81,6 +81,11 @@ public final class CarthageInteractor: CarthageInteracting {
             throw CarthageInteractorError.carthageNotFound
         }
 
+        // check if XCFrameworks production supported if it is needed
+        if dependencies.options.contains(.useXCFrameworks), !(try carthageController.isXCFrameworksProductionSupported()) {
+            throw CarthageInteractorError.xcFrameworksProductionNotSupported
+        }
+
         try fileHandler.inTemporaryDirectory { temporaryDirectoryPath in
             // prepare paths
             let pathsProvider = CarthagePathsProvider(dependenciesDirectory: dependenciesDirectory, temporaryDirectoryPath: temporaryDirectoryPath)
@@ -91,8 +96,8 @@ public final class CarthageInteractor: CarthageInteracting {
             // create `carthage` shell command
             let command = carthageCommandGenerator.command(
                 path: temporaryDirectoryPath,
-                produceXCFrameworks: try shouldProduceXCFrameworks(dependencies: dependencies),
-                platforms: dependencies.platforms
+                platforms: dependencies.platforms,
+                options: dependencies.options
             )
 
             // log
@@ -144,17 +149,6 @@ public final class CarthageInteractor: CarthageInteracting {
     }
 
     // MARK: - Helpers
-
-    private func shouldProduceXCFrameworks(dependencies: CarthageDependencies) throws -> Bool {
-        guard dependencies.useXCFrameworks else {
-            return false
-        }
-        guard try carthageController.isXCFrameworksProductionSupported() else {
-            throw CarthageInteractorError.xcFrameworksProductionNotSupported
-        }
-
-        return true
-    }
 
     private func copyFile(from fromPath: AbsolutePath, to toPath: AbsolutePath) throws {
         try fileHandler.createFolder(toPath.removingLastComponent())

@@ -60,11 +60,13 @@ final class UpTests: TuistUnitTestCase {
             "type": "carthage",
             "platforms": JSON.array([JSON.string("macos")]),
             "useXCFrameworks": JSON.bool(true),
+            "noUseBinaries": JSON.bool(true),
         ])
         let got = try Up.with(dictionary: dictionary, projectPath: temporaryPath) as? UpCarthage
         XCTAssertEqual(got?.name, "Carthage bootstrap")
         XCTAssertEqual(got?.platforms, [.macOS])
         XCTAssertEqual(got?.useXCFrameworks, true)
+        XCTAssertEqual(got?.noUseBinaries, true)
     }
 
     func test_with_when_mint() throws {

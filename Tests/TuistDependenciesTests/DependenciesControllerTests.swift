@@ -51,7 +51,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
                 .github(path: "RxSwift", requirement: .exact("2.0.0")),
             ],
             platforms: [.iOS],
-            useXCFrameworks: true
+            options: [.useXCFrameworks, .noUseBinaries]
         )
         let stubbedDependencies = Dependencies(carthage: stubbedCarthageDependencies)
 

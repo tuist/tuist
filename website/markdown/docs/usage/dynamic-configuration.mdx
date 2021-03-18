@@ -3,6 +3,8 @@ name: Dynamic configuration
 excerpt: Learn how to leverage environment variables that can be read from the manifest files.
 ---
 
+import EnumTable from '../components/enum'
+
 # Dynamic configurations
 
 There are certain scenarios where you might need to customize the projects at generation time. For example, if you are building a white-label app, you might want to use the same project structure, but adjust some attributes in a per-app basis. For example, the name of the app.
@@ -51,9 +53,9 @@ Accessing variables returns an instance of type `Environment.Value?` which can t
 You can also retrieve the string or boolean Environment variable using either of the helper methods defined below, these methods require a default value to be passed to ensure the user gets consistent results each time. This avoids the need to define the function appName() defined above.
 
 ```swift
-Environment.appName?.getString(default: "TuistApp")
+Environment.appName.getString(default: "TuistApp")
 ```
 
 ```swift
-Environment.isCI?.getBoolean(default: false)
+Environment.isCI.getBoolean(default: false)
 ```

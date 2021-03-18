@@ -19,16 +19,6 @@ require "json"
 require "zip"
 require "macho"
 
-desc("Runs the Fourier tests")
-Rake::TestTask.new do |t|
-  t.name = "test_fourier"
-  t.libs += [File.expand_path("./tools/fourier/test", __dir__)]
-  test_root = File.expand_path("./tools/fourier/test", __dir__)
-  t.test_files = FileList[File.join(test_root, "**", "*_test.rb")]
-  t.verbose = false
-  t.warning = false
-end
-
 desc("Updates swift-doc binary with the latest version available.")
 task :swift_doc_update do
   root_dir = File.expand_path(__dir__)
@@ -111,31 +101,6 @@ task :xcbeautify_update do
   end
   # Write version
   File.write(File.join(root_dir, "vendor/.xcbeautify.version"), XCBEAUTIFY_VERSION)
-end
-
-desc("Formats the code style")
-task :style_correct do
-  system(code_style_path)
-end
-
-desc("Swift format check")
-task :swift_format do
-  Kernel.system(swiftformat_path, "--lint", ".") || abort
-end
-
-desc("Swift lint check")
-task :swift_lint do
-  Kernel.system(swiftlint_path) || abort
-end
-
-desc("Lints the Ruby code style")
-task :style_ruby do
-  system("bundle", "exec", "rubocop")
-end
-
-desc("Corrects the issues with the Ruby style")
-task :style_ruby_correct do
-  system("bundle", "exec", "rubocop", "-a")
 end
 
 desc("Builds and archive a release version of tuist and tuistenv for local testing.")
@@ -231,18 +196,6 @@ task :benchmark do
     "-l", ".fixtures.generated.json",
     "--format", "markdown"
   )
-end
-
-def swiftformat_path
-  File.expand_path("bin/swiftformat", __dir__)
-end
-
-def swiftlint_path
-  File.expand_path("bin/swiftlint", __dir__)
-end
-
-def code_style_path
-  File.expand_path("script/code_style.sh", __dir__)
 end
 
 def decrypt_secrets

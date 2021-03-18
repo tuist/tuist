@@ -41,7 +41,7 @@ final class DependenciesModelLoaderTests: TuistUnitTestCase {
                         .git(path: "Dependency1", requirement: .exact("2.3.4")),
                     ],
                     platforms: [.iOS, .macOS],
-                    useXCFrameworks: true
+                    options: [.useXCFrameworks, .noUseBinaries]
                 )
             )
         }
@@ -57,7 +57,7 @@ final class DependenciesModelLoaderTests: TuistUnitTestCase {
                     .git(path: "Dependency1", requirement: .exact("2.3.4")),
                 ],
                 platforms: [.iOS, .macOS],
-                useXCFrameworks: true
+                options: [.useXCFrameworks, .noUseBinaries]
             )
         )
         XCTAssertEqual(model, expected)

@@ -34,7 +34,7 @@ jobs:
           bundle install --jobs 4 --retry 3
       - name: Unit tests
         run: |
-          bundle exec rake test_fourier
+          ./fourier test fourier
   rubocop:
     name: Rubocop
     runs-on: ubuntu-latest

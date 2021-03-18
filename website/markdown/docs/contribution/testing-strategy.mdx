@@ -11,11 +11,11 @@ Tuist employs a diverse suite tests that help ensure it works as intended and pr
 
 Acceptance tests run the built `tuist` command line against a wide range of [fixtures](https://github.com/tuist/tuist/tree/main/fixtures) and verify its output and results. They are the slowest to run however provide the most coverage. The idea is to **test a few complete scenarios for each major feature**.
 
-Those are written in [Cucumber](https://cucumber.io/docs) and Ruby and can be found in [features](https://github.com/tuist/tuist/tree/main/features). Those are run when calling `./bin/fourier test tuist acceptance`:
+Those are written in [Cucumber](https://cucumber.io/docs) and Ruby and can be found in [features](https://github.com/tuist/tuist/tree/main/features). Those are run when calling `./fourier test tuist acceptance`:
 
 ```bash
 # 3 is the line where the definition of the test starts
-./bin/fourier test tuist acceptance features/generate-1.feature:3
+./fourier test tuist acceptance features/generate-1.feature:3
 ```
 
 <Message

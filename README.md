@@ -81,6 +81,7 @@ If you are interested in contributed to the project, our documentation has a sec
     <td align="center"><a href="https://github.com/ollieatkinson"><img src="https://avatars1.githubusercontent.com/u/1382565?v=4" width="100px;" alt=""/><br /><sub><b>Oliver Atkinson</b></sub></a><br /></td>
     <td align="center"><a href="https://github.com/RomainBoulay"><img src="https://avatars1.githubusercontent.com/u/169323?v=4" width="100px;" alt=""/><br /><sub><b>Romain Boulay</b></sub></a><br /></td>
     <td align="center"><a href="https://github.com/laxmorek"><img src="https://avatars1.githubusercontent.com/u/4774319?v=4" width="100px;" alt=""/><br /><sub><b>Kamil Harasimowicz</b></sub></a><br /></td>
+    <td align="center"><a href="http://www.luispadron.com"><img src="https://avatars3.githubusercontent.com/u/13840545?v=4" width="100px;" alt=""/><br /><sub><b>Luis Padron</b></sub></a></td>
   </tr>
 </table>
 
@@ -136,6 +137,10 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
     <td align="center"><a href="http://www.joshholtz.com"><img src="https://avatars.githubusercontent.com/u/401294?v=4" width="100px;" alt=""/><br /><sub><b>Josh Holtz</b></sub></a></td>
     <td align="center"><a href="http://jierong.dev"><img src="https://avatars.githubusercontent.com/u/7414906?v=4" width="100px;" alt=""/><br /><sub><b>Jierong Li</b></sub></a></td>
     <td align="center"><a href="https://twitter.com/freak4pc"><img src="https://avatars.githubusercontent.com/u/605076?v=4" width="100px;" alt=""/><br /><sub><b>Shai Mishali</b></sub></a></td>
+  </tr>
+  <tr>
+    <td align="center"><a href="https://twitter.com/FranzJBusch"><img src="https://avatars.githubusercontent.com/u/3491887?v=4" width="100px;" alt=""/><br /><sub><b>Franz Busch</b></sub></a></td>
+    <td align="center"><a href="https://github.com/tiarnann"><img src="https://avatars.githubusercontent.com/u/10522081?v=4" width="100px;" alt=""/><br /><sub><b>Tíarnán McGrath</b></sub></a></td>
   </tr>
 </table>
 

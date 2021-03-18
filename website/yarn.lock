@@ -7780,7 +7780,7 @@ gatsby-plugin-manifest@2.12.1:
     semver "^7.3.2"
     sharp "^0.27.0"
 
-gatsby-plugin-mdx@^1.10.1:
+gatsby-plugin-mdx@^1.0.1:
   version "1.10.1"
   resolved "https://registry.yarnpkg.com/gatsby-plugin-mdx/-/gatsby-plugin-mdx-1.10.1.tgz#44d175b8f339955ca2119b73c9ac55ec2a2f1c6f"
   integrity sha512-imNVJEMBgaVX5P/V6/+cDja4RqG9i/h+9+2x+B5lM6JeAWz/GsiZ1xmv0iUPMTgMWSh+DRYW9gWc9KXeXJzCFQ==
@@ -8138,10 +8138,10 @@ gatsby-transformer-yaml@^2.11.0:
     lodash "^4.17.20"
     unist-util-select "^1.5.0"
 
-gatsby@^2.32.9:
-  version "2.32.9"
-  resolved "https://registry.yarnpkg.com/gatsby/-/gatsby-2.32.9.tgz#8ce47133b143acaa577f8cf0907be89afa3fa514"
-  integrity sha512-4QyrOUGLG6V51YSOJW+cFmRDcey6DnF8YMbsOQ1efp9MJ91fSgOI3r6dYd6lc1lJwppN4KZWbqE9WOXtFgda7w==
+gatsby@^2.32.11:
+  version "2.32.11"
+  resolved "https://registry.yarnpkg.com/gatsby/-/gatsby-2.32.11.tgz#2f4fdf5b8a007e5a3596107992388e6c4d1de4c7"
+  integrity sha512-y1L/WB6bEsbtr3cThykVG+ynParU6ndIQW5TWTvfajsBGSOpi8kcU5LNjIM4VWb1JzgHdzUM6kALII6+bRqZew==
   dependencies:
     "@babel/code-frame" "^7.10.4"
     "@babel/core" "^7.12.3"
@@ -13107,10 +13107,10 @@ postcss@^7.0.0, postcss@^7.0.1, postcss@^7.0.26, postcss@^7.0.27, postcss@^7.0.3
     source-map "^0.6.1"
     supports-color "^6.1.0"
 
-postcss@^8.1.6, postcss@^8.2.1, postcss@^8.2.7:
-  version "8.2.7"
-  resolved "https://registry.yarnpkg.com/postcss/-/postcss-8.2.7.tgz#48ed8d88b4de10afa0dfd1c3f840aa57b55c4d47"
-  integrity sha512-DsVLH3xJzut+VT+rYr0mtvOtpTjSyqDwPf5EZWXcb0uAKfitGpTY9Ec+afi2+TgdN8rWS9Cs88UDYehKo/RvOw==
+postcss@^8.1.6, postcss@^8.2.1, postcss@^8.2.8:
+  version "8.2.8"
+  resolved "https://registry.yarnpkg.com/postcss/-/postcss-8.2.8.tgz#0b90f9382efda424c4f0f69a2ead6f6830d08ece"
+  integrity sha512-1F0Xb2T21xET7oQV9eKuctbM9S7BC0fetoHCc4H13z0PT6haiRLP4T0ZY4XWh7iLP0usgqykT6p9B2RtOf4FPw==
   dependencies:
     colorette "^1.2.2"
     nanoid "^3.1.20"
@@ -13542,10 +13542,10 @@ react-animated-term@^2.0.0:
     classnames "^2.2.5"
     prop-types "^15.6.1"
 
-react-burger-menu@^3.0.3:
-  version "3.0.3"
-  resolved "https://registry.yarnpkg.com/react-burger-menu/-/react-burger-menu-3.0.3.tgz#be1268423b7a4a21d99243ae63842e480a5ba70b"
-  integrity sha512-BqOZnAktmd6uoiQYcKQmx8RFaZXbol5K8cApN2rKWz/qg1U4IPYGeHPKkLaYKDBelQz4IPaD2GMzo4PKCvXwNg==
+react-burger-menu@^3.0.4:
+  version "3.0.4"
+  resolved "https://registry.yarnpkg.com/react-burger-menu/-/react-burger-menu-3.0.4.tgz#936418aa6d35da52a6a9436ffb2b33432a56ea8e"
+  integrity sha512-6+zufJT7ZFeUGg3apJEzRjirkwH80aLcZSp9OqDwRGwvfM4a18vzmNNT3cr4WDl+CQ5PtR268l743VAb65yCdw==
   dependencies:
     browserify-optional "^1.0.0"
     classnames "^2.2.6"

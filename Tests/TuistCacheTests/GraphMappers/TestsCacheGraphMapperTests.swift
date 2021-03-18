@@ -36,44 +36,49 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
     // SchemeB: UnitTestsA -> FrameworkA, UnitTestsB (UnitTestsB cached)
     func test_map_all_cached() throws {
         let project = Project.test()
-        let frameworkA = TargetNode.test(
-            project: project,
+        let frameworkA = ValueGraphTarget.test(
+            path: project.path,
             target: Target.test(
                 name: "FrameworkA"
-            )
+            ),
+            project: project
         )
-        let unitTestsA = TargetNode.test(
-            project: project,
+        let unitTestsA = ValueGraphTarget.test(
+            path: project.path,
             target: Target.test(
                 name: "UnitTestsA",
                 dependencies: [
                     .target(name: "FrameworkA"),
                 ]
             ),
-            dependencies: [
-                frameworkA,
-            ]
+            project: project
         )
-        let unitTestsB = TargetNode.test(
-            project: project,
+        let unitTestsB = ValueGraphTarget.test(
+            path: project.path,
             target: Target.test(
                 name: "UnitTestsB"
             ),
-            dependencies: [
-                frameworkA,
-            ]
+            project: project
         )
 
         let workspace = Workspace.test(
             schemes: [
                 Scheme.test(
                     name: "SchemeA",
+                    buildAction: .test(
+                        targets: [
+                            TargetReference(
+                                projectPath: project.path,
+                                name: unitTestsA.target.name
+                            ),
+                        ]
+                    ),
                     testAction: TestAction.test(
                         targets: [
                             TestableTarget(
                                 target: TargetReference(
                                     projectPath: project.path,
-                                    name: unitTestsA.name
+                                    name: unitTestsA.target.name
                                 )
                             ),
                         ]
@@ -81,18 +86,30 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
                 ),
                 Scheme.test(
                     name: "SchemeB",
+                    buildAction: .test(
+                        targets: [
+                            TargetReference(
+                                projectPath: project.path,
+                                name: unitTestsA.target.name
+                            ),
+                            TargetReference(
+                                projectPath: project.path,
+                                name: unitTestsB.target.name
+                            ),
+                        ]
+                    ),
                     testAction: TestAction.test(
                         targets: [
                             TestableTarget(
                                 target: TargetReference(
                                     projectPath: project.path,
-                                    name: unitTestsA.name
+                                    name: unitTestsA.target.name
                                 )
                             ),
                             TestableTarget(
                                 target: TargetReference(
                                     projectPath: project.path,
-                                    name: unitTestsB.name
+                                    name: unitTestsB.target.name
                                 )
                             ),
                         ]
@@ -101,20 +118,28 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
             ]
         )
 
-        let graph = Graph.test(
+        let graph = ValueGraph.test(
             workspace: workspace,
-            projects: [project],
+            projects: [project.path: project],
             targets: [
                 project.path: [
-                    frameworkA,
-                    unitTestsA,
-                    unitTestsB,
+                    frameworkA.target.name: frameworkA.target,
+                    unitTestsA.target.name: unitTestsA.target,
+                    unitTestsB.target.name: unitTestsB.target,
+                ],
+            ],
+            dependencies: [
+                .target(name: unitTestsA.target.name, path: unitTestsA.path): [
+                    .target(name: frameworkA.target.name, path: frameworkA.path),
+                ],
+                .target(name: unitTestsB.target.name, path: unitTestsB.path): [
+                    .target(name: frameworkA.target.name, path: frameworkA.path),
                 ],
             ]
         )
 
         graphContentHasher.contentHashesStub = { graph, _, _ in
-            graph.targets.flatMap(\.value).reduce(into: [:]) { acc, target in
+            ValueGraphTraverser(graph: graph).allTargets().reduce(into: [:]) { acc, target in
                 acc[target] = target.target.name
             }
         }
@@ -126,25 +151,34 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
             environment.testsCacheDirectory.appending(component: "UnitTestsA")
         )
 
-        let expectedGraph = Graph.test(
+        let expectedGraph = ValueGraph.test(
             workspace: Workspace.test(
                 schemes: [
                     Scheme.test(
                         name: "SchemeA",
-                        buildAction: nil,
+                        buildAction: BuildAction.test(
+                            targets: []
+                        ),
                         testAction: TestAction.test(
                             targets: []
                         )
                     ),
                     Scheme.test(
                         name: "SchemeB",
-                        buildAction: nil,
+                        buildAction: BuildAction.test(
+                            targets: [
+                                TargetReference(
+                                    projectPath: project.path,
+                                    name: unitTestsB.target.name
+                                ),
+                            ]
+                        ),
                         testAction: TestAction.test(
                             targets: [
                                 TestableTarget(
                                     target: TargetReference(
                                         projectPath: project.path,
-                                        name: unitTestsB.name
+                                        name: unitTestsB.target.name
                                     )
                                 ),
                             ]
@@ -152,12 +186,20 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
                     ),
                 ]
             ),
-            projects: [project],
+            projects: [project.path: project],
             targets: [
                 project.path: [
-                    frameworkA,
-                    unitTestsA,
-                    unitTestsB,
+                    frameworkA.target.name: frameworkA.target,
+                    unitTestsA.target.name: unitTestsA.target,
+                    unitTestsB.target.name: unitTestsB.target,
+                ],
+            ],
+            dependencies: [
+                .target(name: unitTestsA.target.name, path: unitTestsA.path): [
+                    .target(name: frameworkA.target.name, path: frameworkA.path),
+                ],
+                .target(name: unitTestsB.target.name, path: unitTestsB.path): [
+                    .target(name: frameworkA.target.name, path: frameworkA.path),
                 ],
             ]
         )
@@ -167,12 +209,8 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(
-            gotGraph.workspace,
-            expectedGraph.workspace
-        )
-        XCTAssertEqual(
-            gotGraph.targets,
-            expectedGraph.targets
+            gotGraph,
+            expectedGraph
         )
         XCTAssertEqual(
             gotSideEffects.sorted(by: {
@@ -206,33 +244,40 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
     // SchemeA: UnitTestsA -> FrameworkA (only UnitTestsA cached)
     func test_map_only_tests_cached() throws {
         let project = Project.test()
-        let frameworkA = TargetNode.test(
-            project: project,
+        let frameworkA = ValueGraphTarget.test(
+            path: project.path,
             target: Target.test(
                 name: "FrameworkA"
-            )
+            ),
+            project: project
         )
-        let unitTestsA = TargetNode.test(
-            project: project,
+        let unitTestsA = ValueGraphTarget.test(
+            path: project.path,
             target: Target.test(
                 name: "UnitTestsA",
                 dependencies: [
                     .target(name: "FrameworkA"),
                 ]
             ),
-            dependencies: [
-                frameworkA,
-            ]
+            project: project
         )
 
         let schemeA = Scheme.test(
             name: "SchemeA",
+            buildAction: .test(
+                targets: [
+                    TargetReference(
+                        projectPath: project.path,
+                        name: unitTestsA.target.name
+                    ),
+                ]
+            ),
             testAction: TestAction.test(
                 targets: [
                     TestableTarget(
                         target: TargetReference(
                             projectPath: project.path,
-                            name: unitTestsA.name
+                            name: unitTestsA.target.name
                         )
                     ),
                 ]
@@ -245,19 +290,24 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
             ]
         )
 
-        let graph = Graph.test(
+        let graph = ValueGraph.test(
             workspace: workspace,
-            projects: [project],
+            projects: [project.path: project],
             targets: [
                 project.path: [
-                    frameworkA,
-                    unitTestsA,
+                    frameworkA.target.name: frameworkA.target,
+                    unitTestsA.target.name: unitTestsA.target,
+                ],
+            ],
+            dependencies: [
+                .target(name: unitTestsA.target.name, path: unitTestsA.path): [
+                    .target(name: frameworkA.target.name, path: frameworkA.path),
                 ],
             ]
         )
 
         graphContentHasher.contentHashesStub = { graph, _, _ in
-            graph.targets.flatMap(\.value).reduce(into: [:]) { acc, target in
+            ValueGraphTraverser(graph: graph).allTargets().reduce(into: [:]) { acc, target in
                 acc[target] = target.target.name
             }
         }
@@ -266,18 +316,25 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
             environment.testsCacheDirectory.appending(component: "UnitTestsA")
         )
 
-        let expectedGraph = Graph.test(
+        let expectedGraph = ValueGraph.test(
             workspace: Workspace.test(
                 schemes: [
                     Scheme.test(
                         name: "SchemeA",
-                        buildAction: nil,
+                        buildAction: .test(
+                            targets: [
+                                TargetReference(
+                                    projectPath: project.path,
+                                    name: unitTestsA.target.name
+                                ),
+                            ]
+                        ),
                         testAction: TestAction.test(
                             targets: [
                                 TestableTarget(
                                     target: TargetReference(
                                         projectPath: project.path,
-                                        name: unitTestsA.name
+                                        name: unitTestsA.target.name
                                     )
                                 ),
                             ]
@@ -285,11 +342,16 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
                     ),
                 ]
             ),
-            projects: [project],
+            projects: [project.path: project],
             targets: [
                 project.path: [
-                    frameworkA,
-                    unitTestsA,
+                    frameworkA.target.name: frameworkA.target,
+                    unitTestsA.target.name: unitTestsA.target,
+                ],
+            ],
+            dependencies: [
+                .target(name: unitTestsA.target.name, path: unitTestsA.path): [
+                    .target(name: frameworkA.target.name, path: frameworkA.path),
                 ],
             ]
         )
@@ -299,12 +361,8 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(
-            gotGraph.workspace,
-            expectedGraph.workspace
-        )
-        XCTAssertEqual(
-            gotGraph.targets,
-            expectedGraph.targets
+            gotGraph,
+            expectedGraph
         )
         XCTAssertEqual(
             gotSideEffects.sorted(by: {
