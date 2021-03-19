@@ -1,16 +1,9 @@
 # frozen_string_literal: true
 
 require "cli/ui"
-require "zeitwerk"
 require "thor"
 
 ::CLI::UI::StdoutRouter.enable
-
-loader = Zeitwerk::Loader.new
-loader.push_dir(__dir__)
-loader.inflector.inflect("github_client" => "GitHubClient")
-loader.inflector.inflect("github" => "GitHub")
-loader.setup
 
 module Fourier
   class CLI < Thor
@@ -37,6 +30,9 @@ module Fourier
 
     desc "format", "Format the project's code"
     subcommand "format", Commands::Format
+
+    desc "update", "Update project's components"
+    subcommand "update", Commands::Update
 
     desc "focus TARGET", "Edit Tuist's project focusing on the target TARGET"
     def focus(target)

@@ -9,7 +9,9 @@ require "fileutils"
 require "tmpdir"
 require "tempfile"
 require "byebug"
+require "load_zeitwerk"
 
+load_zeitwerk(additional_directories: [File.join(__dir__, "test_helpers")])
 CLI::UI::StdoutRouter.enable
 
 require "minitest/autorun"
