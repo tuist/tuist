@@ -44,4 +44,4 @@ jobs:
       - name: Install NPM dependencies
         run: yarn install --prod --pure-lockfile --cwd projects/next
       - name: Build
-        run: ./fourier build web
+        run: ./fourier build next
