@@ -1,5 +1,5 @@
 # frozen_string_literal: true
-require 'tmpdir'
+require "tmpdir"
 
 module Fourier
   module Services
@@ -35,7 +35,8 @@ module Fourier
               macho = MachO.open(dst_binary_path)
               break unless (toolchain = macho.rpaths.find { |path| path.include?(".xctoolchain") })
               syntax_parser_dylib_name = "lib_InternalSwiftSyntaxParser.dylib"
-              FileUtils.cp(File.join(toolchain, syntax_parser_dylib_name), File.join(vendor_dir, syntax_parser_dylib_name))
+              FileUtils.cp(File.join(toolchain, syntax_parser_dylib_name),
+                File.join(vendor_dir, syntax_parser_dylib_name))
 
               # Write version
               File.write(File.join(root_dir, "vendor/.swiftdoc.version"), SWIFTDOC_VERSION)

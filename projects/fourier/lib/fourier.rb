@@ -2,8 +2,15 @@
 
 require "cli/ui"
 require "thor"
+require "zeitwerk"
 
 ::CLI::UI::StdoutRouter.enable
+
+loader = Zeitwerk::Loader.new
+loader.push_dir(__dir__)
+loader.inflector.inflect("github_client" => "GitHubClient")
+loader.inflector.inflect("github" => "GitHub")
+loader.setup
 
 module Fourier
   class CLI < Thor

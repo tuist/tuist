@@ -5,7 +5,6 @@ module Fourier
     module Update
       class Swiftlint < Base
         def call
-
         end
       end
     end
