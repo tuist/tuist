@@ -6,6 +6,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Changed
 
+- Migrate mappers to ValueGraph [#2683](https://github.com/tuist/tuist/pull/2683) by [@fortmarek](https://github.com/fortmarek)
 - Migrate CacheMapper and CacheGraphMutator to ValueGraph [#2681](https://github.com/tuist/tuist/pull/2681) by [@fortmarek](https://github.com/fortmarek)
 - Migrate TestsCacheGraphMapper to ValueGraph [#2674](https://github.com/tuist/tuist/pull/2674) by [@fortmarek](https://github.com/fortmarek)
 - Updated swiftlint to 0.43.1 [#2679](https://github.com/tuist/tuist/pull/2679) by [@pepibumur](https://github.com/pepibumur)

@@ -94,7 +94,7 @@ final class TestServiceTests: TuistUnitTestCase {
         generator.generateWithGraphStub = {
             generatedPath = $0
             projectOnly = $1
-            return ($0, Graph.test())
+            return ($0, ValueGraph.test())
         }
 
         // When
@@ -123,7 +123,7 @@ final class TestServiceTests: TuistUnitTestCase {
             )
         }
         generator.generateWithGraphStub = { path, _ in
-            (path, Graph.test())
+            (path, ValueGraph.test())
         }
         var testedSchemes: [String] = []
         xcodebuildController.testStub = { _, scheme, _, _, _, _ in
@@ -155,7 +155,7 @@ final class TestServiceTests: TuistUnitTestCase {
             ]
         }
         generator.generateWithGraphStub = { path, _ in
-            (path, Graph.test())
+            (path, ValueGraph.test())
         }
         var testedSchemes: [String] = []
         xcodebuildController.testStub = { _, scheme, _, _, _, _ in
@@ -198,7 +198,7 @@ final class TestServiceTests: TuistUnitTestCase {
             ]
         }
         generator.generateWithGraphStub = { path, _ in
-            (path, Graph.test())
+            (path, ValueGraph.test())
         }
         var testedSchemes: [String] = []
         xcodebuildController.testStub = { _, scheme, _, _, _, _ in
@@ -233,7 +233,7 @@ final class TestServiceTests: TuistUnitTestCase {
             []
         }
         generator.generateWithGraphStub = { path, _ in
-            (path, Graph.test())
+            (path, ValueGraph.test())
         }
         var testedSchemes: [String] = []
         xcodebuildController.testStub = { _, scheme, _, _, _, _ in

@@ -85,12 +85,10 @@ final class TestService {
             testsCacheDirectory: testsCacheTemporaryDirectory.path
         )
         logger.notice("Generating project for testing", metadata: .section)
-        let graph = ValueGraph(
-            graph: try generator.generateWithGraph(
-                path: path,
-                projectOnly: false
-            ).1
-        )
+        let graph = try generator.generateWithGraph(
+            path: path,
+            projectOnly: false
+        ).1
         let graphTraverser = ValueGraphTraverser(graph: graph)
         let version = osVersion?.version()
 

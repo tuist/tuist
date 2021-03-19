@@ -23,8 +23,8 @@ final class MockGenerator: Generating {
     }
 
     var generateWithGraphCalls: [(path: AbsolutePath, projectOnly: Bool)] = []
-    var generateWithGraphStub: ((AbsolutePath, Bool) throws -> (AbsolutePath, Graph))?
-    func generateWithGraph(path: AbsolutePath, projectOnly: Bool) throws -> (AbsolutePath, Graph) {
+    var generateWithGraphStub: ((AbsolutePath, Bool) throws -> (AbsolutePath, ValueGraph))?
+    func generateWithGraph(path: AbsolutePath, projectOnly: Bool) throws -> (AbsolutePath, ValueGraph) {
         guard let generateWithGraphStub = generateWithGraphStub else {
             throw MockError.stubNotImplemented
         }
@@ -37,9 +37,9 @@ final class MockGenerator: Generating {
     var invokedGenerateProjectWorkspaceParameters: (path: AbsolutePath, Void)?
     var invokedGenerateProjectWorkspaceParametersList = [(path: AbsolutePath, Void)]()
     var stubbedGenerateProjectWorkspaceError: Error?
-    var stubbedGenerateProjectWorkspaceResult: (AbsolutePath, Graph)!
+    var stubbedGenerateProjectWorkspaceResult: (AbsolutePath, ValueGraph)!
 
-    func generateProjectWorkspace(path: AbsolutePath) throws -> (AbsolutePath, Graph) {
+    func generateProjectWorkspace(path: AbsolutePath) throws -> (AbsolutePath, ValueGraph) {
         invokedGenerateProjectWorkspace = true
         invokedGenerateProjectWorkspaceCount += 1
         invokedGenerateProjectWorkspaceParameters = (path, ())
@@ -51,22 +51,22 @@ final class MockGenerator: Generating {
     }
 
     var invokedLoadParameterPath: AbsolutePath?
-    var loadStub: ((AbsolutePath) throws -> Graph)?
-    func load(path: AbsolutePath) throws -> Graph {
+    var loadStub: ((AbsolutePath) throws -> ValueGraph)?
+    func load(path: AbsolutePath) throws -> ValueGraph {
         invokedLoadParameterPath = path
         if let loadStub = loadStub {
             return try loadStub(path)
         } else {
-            return Graph.test()
+            return ValueGraph.test()
         }
     }
 
-    var loadProjectStub: ((AbsolutePath) throws -> (Project, Graph, [SideEffectDescriptor]))?
-    func loadProject(path: AbsolutePath) throws -> (Project, Graph, [SideEffectDescriptor]) {
+    var loadProjectStub: ((AbsolutePath) throws -> (Project, ValueGraph, [SideEffectDescriptor]))?
+    func loadProject(path: AbsolutePath) throws -> (Project, ValueGraph, [SideEffectDescriptor]) {
         if let loadProjectStub = loadProjectStub {
             return try loadProjectStub(path)
         } else {
-            return (Project.test(), Graph.test(), [])
+            return (Project.test(), ValueGraph.test(), [])
         }
     }
 }

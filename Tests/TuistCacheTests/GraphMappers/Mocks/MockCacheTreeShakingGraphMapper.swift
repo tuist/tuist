@@ -6,39 +6,21 @@ import TuistGraph
 public final class MockCacheTreeShakingGraphMapper: GraphMapping {
     public init() {}
 
-    var invokedMapGraphGraph = false
-    var invokedMapGraphGraphCount = 0
-    var invokedMapGraphGraphParameters: (graph: Graph, Void)?
-    var invokedMapGraphGraphParametersList = [(graph: Graph, Void)]()
-    var stubbedMapGraphGraphError: Error?
-    var stubbedMapGraphGraphResult: (Graph, [SideEffectDescriptor])!
-
-    public func map(graph: Graph) throws -> (Graph, [SideEffectDescriptor]) {
-        invokedMapGraphGraph = true
-        invokedMapGraphGraphCount += 1
-        invokedMapGraphGraphParameters = (graph, ())
-        invokedMapGraphGraphParametersList.append((graph, ()))
-        if let error = stubbedMapGraphGraphError {
-            throw error
-        }
-        return stubbedMapGraphGraphResult
-    }
-
-    var invokedMapGraphValueGraph = false
-    var invokedMapGraphValueGraphCount = 0
-    var invokedMapGraphValueGraphParameters: (graph: ValueGraph, Void)?
-    var invokedMapGraphValueGraphParametersList = [(graph: ValueGraph, Void)]()
-    var stubbedMapGraphValueGraphError: Error?
-    var stubbedMapGraphValueGraphResult: (ValueGraph, [SideEffectDescriptor])!
+    var invokedMapGraph = false
+    var invokedMapGraphCount = 0
+    var invokedMapGraphParameters: (graph: ValueGraph, Void)?
+    var invokedMapGraphParametersList = [(graph: ValueGraph, Void)]()
+    var stubbedMapGraphError: Error?
+    var stubbedMapGraphResult: (ValueGraph, [SideEffectDescriptor])!
 
     public func map(graph: ValueGraph) throws -> (ValueGraph, [SideEffectDescriptor]) {
-        invokedMapGraphValueGraph = true
-        invokedMapGraphValueGraphCount += 1
-        invokedMapGraphValueGraphParameters = (graph, ())
-        invokedMapGraphValueGraphParametersList.append((graph, ()))
-        if let error = stubbedMapGraphValueGraphError {
+        invokedMapGraph = true
+        invokedMapGraphCount += 1
+        invokedMapGraphParameters = (graph, ())
+        invokedMapGraphParametersList.append((graph, ()))
+        if let error = stubbedMapGraphError {
             throw error
         }
-        return stubbedMapGraphValueGraphResult
+        return stubbedMapGraphResult
     }
 }

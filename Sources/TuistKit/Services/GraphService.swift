@@ -32,11 +32,6 @@ final class GraphService {
             )
         )
 
-        let modelLoader = GeneratorModelLoader(
-            manifestLoader: manifestLoader,
-            manifestLinter: manifestLinter
-        )
-
         let configLoader = ConfigLoader(manifestLoader: manifestLoader)
         let pluginsService = PluginService(manifestLoader: manifestLoader)
         self.init(

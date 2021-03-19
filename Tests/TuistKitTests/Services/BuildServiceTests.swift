@@ -54,7 +54,7 @@ final class BuildServiceTests: TuistUnitTestCase {
         // Given
         let path = try temporaryPath()
         let workspacePath = path.appending(component: "App.xcworkspace")
-        let graph = Graph.test()
+        let graph = ValueGraph.test()
         let scheme = Scheme.test()
         let project = Project.test()
         let target = Target.test()
@@ -102,7 +102,7 @@ final class BuildServiceTests: TuistUnitTestCase {
         // Given
         let path = try temporaryPath()
         let workspacePath = path.appending(component: "App.xcworkspace")
-        let graph = Graph.test()
+        let graph = ValueGraph.test()
         let scheme = Scheme.test()
         let project = Project.test()
         let target = Target.test()
@@ -149,7 +149,7 @@ final class BuildServiceTests: TuistUnitTestCase {
         // Given
         let path = try temporaryPath()
         let workspacePath = path.appending(component: "App.xcworkspace")
-        let graph = Graph.test()
+        let graph = ValueGraph.test()
         let project = Project.test()
         let schemeA = Scheme.test(name: "A")
         let schemeB = Scheme.test(name: "B")
@@ -205,7 +205,7 @@ final class BuildServiceTests: TuistUnitTestCase {
         // Given
         let path = try temporaryPath()
         let workspacePath = path.appending(component: "App.xcworkspace")
-        let graph = Graph.test()
+        let graph = ValueGraph.test()
         let project = Project.test()
         let schemeA = Scheme.test(name: "A")
         let schemeB = Scheme.test(name: "B")
@@ -258,7 +258,7 @@ final class BuildServiceTests: TuistUnitTestCase {
         // Given
         let path = try temporaryPath()
         let workspacePath = path.appending(component: "App.xcworkspace")
-        let graph = Graph.test()
+        let graph = ValueGraph.test()
         let schemeA = Scheme.test(name: "A")
         let schemeB = Scheme.test(name: "B")
         generator.loadStub = { _path in
