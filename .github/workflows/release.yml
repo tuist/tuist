@@ -16,7 +16,7 @@ jobs:
           token: ${{ secrets.GH_RELEASE_TOKEN }}
           ref: main
           fetch-depth: 0
-      - uses: actions/setup-ruby@v1
+      - uses: ruby/setup-ruby@v1
         with:
           ruby-version: '2.x'
       - name: Install Bundler 2.1.4
