@@ -4,8 +4,12 @@ import TSCBasic
 
 public extension Plugins {
     static func test(
-        projectDescriptionHelpers: [ProjectDescriptionHelpersPlugin] = []
+        projectDescriptionHelpers: [ProjectDescriptionHelpersPlugin] = [],
+        templatePaths: [AbsolutePath] = []
     ) -> Plugins {
-        Plugins(projectDescriptionHelpers: projectDescriptionHelpers)
+        Plugins(
+            projectDescriptionHelpers: projectDescriptionHelpers,
+            templatePaths: templatePaths
+        )
     }
 }
