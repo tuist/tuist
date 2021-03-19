@@ -19,7 +19,7 @@ extension ProjectOptions {
             self = .synthesizedResourceAccessors
             return
         default:
-            fatalError("")
+            fatalError("Unrecognized Project Option")
         }
     }
 
