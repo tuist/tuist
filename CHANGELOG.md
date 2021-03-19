@@ -4,6 +4,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Added
+
+- Added `.precondition` Up to Setup. [####](https://github.com/tuist/tuist/pull/####) by [@kalkwarf](https://github.com/kalkwarf)
+
 ### Changed
 
 - Migrate mappers to ValueGraph [#2683](https://github.com/tuist/tuist/pull/2683) by [@fortmarek](https://github.com/fortmarek)
