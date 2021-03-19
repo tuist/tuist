@@ -111,6 +111,37 @@ Besides the built-in commands, you can define yours using the custom option. It 
 
 - **Name:** Name of the command
 - **Meet:** Command to run in the system to configure the environment.
-- **Met:** Command to run in the system to verify whether the environment is already configure. A 0 exit code means that the environment is already configured.
+- **Met:** Command to run in the system to verify whether the environment is already configured. A 0 exit code means that the environment is already configured.
+
+### Precondition
+
+```swift
+  .precondition(
+      name: "Check GITHUB_TOKEN",
+      advice: "“GITHUB_TOKEN” environment variable must be set.",
+      isMet: ["scripts/validations/github_token.py"]
+  )
+```
+
+```python
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+import os
+import sys
+
+try:
+    t = os.environ["GITHUB_TOKEN"]
+except:
+    sys.exit(1)
+
+sys.exit(0)
+```
+
+This runs the command(s) listed in `isMet`, and throws an exception containing the `advice` if the precondition is not met.
+
+- **Name:** Name of the command
+- **Advice:** A string describing recommended actions to take if the precondition is not met.
+- **Met:** Command to run in the system to verify whether the precondition is met. A non-0 exit code will fail the `tuist up` command.
 
 If you have ideas of other built-in commands that Tuist could offer, don’t hesitate to [open an issue](https://github.com/tuist/tuist/issues/new) with your ideas.
