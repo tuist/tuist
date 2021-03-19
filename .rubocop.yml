@@ -19,3 +19,5 @@ AllCops:
     - Gemfile
     - Rakefile
     - projects/fourier/**/*.rb
+  Exclude:
+    - vendor/**/*
