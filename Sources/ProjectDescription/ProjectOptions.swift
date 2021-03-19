@@ -21,8 +21,6 @@ extension ProjectOptions {
         default:
             fatalError("")
         }
-
-        fatalError("Invalid Project Option")
     }
 
     public func encode(to encoder: Encoder) throws {

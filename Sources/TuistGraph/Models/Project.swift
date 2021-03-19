@@ -59,6 +59,7 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
     /// IDE template macros that represent content of IDETemplateMacros.plist
     public var ideTemplateMacros: IDETemplateMacros?
 
+    /// Options for customizing projects
     public var options: [ProjectOptions]
 
     // MARK: - Init
@@ -77,6 +78,7 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
     ///   - targets: The project targets
     ///   - additionalFiles: The additional files to include in the project
     ///                      *(Those won't be included in any build phases)*
+    ///   - options: Option to customize the project
     public init(path: AbsolutePath,
                 sourceRootPath: AbsolutePath,
                 xcodeProjPath: AbsolutePath,
