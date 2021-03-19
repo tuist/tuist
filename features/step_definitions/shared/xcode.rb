@@ -5,18 +5,18 @@ require "xcodeproj"
 
 Then(/I should be able to (.+) for (iOS|macOS|tvOS|watchOS) the scheme (.+)/) do |action, platform, scheme|
   args = [
-    "-scheme", scheme,
+    "-scheme", scheme
   ]
-  unless @workspace_path.nil?
-    args.concat(["-workspace", @workspace_path]) unless @workspace_path.nil?
-  else
+  if @workspace_path.nil?
     args.concat(["-project", @xcodeproj_path]) unless @xcodeproj_path.nil?
+  else
+    args.concat(["-workspace", @workspace_path]) unless @workspace_path.nil?
   end
 
-  if ["iOS", "tvOS", "watchOS"].include?(platform)
-    args << "-destination '#{Xcode.valid_simulator_destination_for_platform(platform)}'"
+  args << if ["iOS", "tvOS", "watchOS"].include?(platform)
+    "-destination '#{Xcode.valid_simulator_destination_for_platform(platform)}'"
   else
-    args << "-destination 'platform=OS X,arch=x86_64'"
+    "-destination 'platform=OS X,arch=x86_64'"
   end
 
   args.concat(["-derivedDataPath", @derived_data_path])

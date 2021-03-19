@@ -5,11 +5,23 @@ module Fourier
   module Services
     module Test
       class Fourier < Base
+        attr_reader :test
+
+        def initialize(test:)
+          @test = test
+        end
+
         def call
           Dir.chdir(Constants::ROOT_DIRECTORY) do
             lib_directory = File.expand_path("lib", Constants::FOURIER_DIRECTORY)
             test_directory = File.expand_path("test", Constants::FOURIER_DIRECTORY)
-            test_paths = Dir.glob(File.join(Constants::FOURIER_DIRECTORY, "test/**/*_test.rb"))
+
+            test_paths = if @test.nil?
+              Dir.glob(File.join(Constants::FOURIER_DIRECTORY, "test/**/*_test.rb"))
+            else
+              @test
+            end
+
             arguments = [
               "ruby",
               "-I#{lib_directory}",

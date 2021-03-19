@@ -7,6 +7,8 @@ on:
   pull_request:
     paths:
       - website/**
+env:
+  RUBY_VERSION: '2.7.2'
 
 jobs:
   build:
@@ -28,9 +30,20 @@ jobs:
           key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
           restore-keys: |
             ${{ runner.os }}-yarn-
-      - name: Install dependencies
-        working-directory: ./website
-        run: yarn install --prod --pure-lockfile
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ env.RUBY_VERSION }}
+      - uses: actions/cache@v2
+        with:
+          path: vendor/bundle
+          key: ${{ runner.os }}-gems-${{ hashFiles('**/Gemfile.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-gems-
+      - name: Install Bundler dependencies
+        run: |
+          bundle config path vendor/bundle
+          bundle install --jobs 4 --retry 3
+      - name: Install NPM dependencies
+        run: yarn install --prod --pure-lockfile --cwd projects/website
       - name: Build
-        working-directory: ./website
-        run: yarn build
+        run: ./fourier build web

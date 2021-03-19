@@ -1,3 +1,4 @@
+# frozen_string_literal: true
 Then(/^tuist builds the project$/) do
   system("swift", "run", "tuist", "build", "--path", @dir)
 end

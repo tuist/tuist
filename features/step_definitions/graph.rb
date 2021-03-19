@@ -1,3 +1,4 @@
+# frozen_string_literal: true
 Then(/^tuist graph$/) do
   system("swift", "run", "tuist", "graph", "--path", @dir, "--output-path", @dir)
 end

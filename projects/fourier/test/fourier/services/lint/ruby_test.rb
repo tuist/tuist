@@ -3,14 +3,16 @@ require "test_helper"
 
 module Fourier
   module Services
-    module Format
-      class TuistTest < TestCase
+    module Lint
+      class RubyTest < TestCase
         def test_calls_system_with_the_right_arguments
           # Given
-          subject = Services::Format::Tuist.new(fix: false)
+          subject = Services::Lint::Ruby.new(fix: false)
+          gem_path = Gem.loaded_specs["rubocop"].full_gem_path
+          executable_path = File.join(gem_path, "exe/rubocop")
           Utilities::System
             .expects(:system)
-            .with(subject.vendor_path("swiftformat"), ".", "--quiet", "--lint")
+            .with(executable_path)
 
           # When/Then
           subject.call
@@ -18,10 +20,12 @@ module Fourier
 
         def test_calls_system_with_the_right_arguments_when_fix_is_true
           # Given
-          subject = Services::Format::Tuist.new(fix: true)
+          subject = Services::Lint::Ruby.new(fix: true)
+          gem_path = Gem.loaded_specs["rubocop"].full_gem_path
+          executable_path = File.join(gem_path, "exe/rubocop")
           Utilities::System
             .expects(:system)
-            .with(subject.vendor_path("swiftformat"), ".", "--quiet")
+            .with(executable_path, "-A")
 
           # When/Then
           subject.call

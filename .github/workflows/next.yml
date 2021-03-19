@@ -28,15 +28,20 @@ jobs:
           key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
           restore-keys: |
             ${{ runner.os }}-yarn-
-      - name: Install dependencies
-        working-directory: ./next
-        run: yarn install --pure-lockfile
-      - name: Lint
-        working-directory: ./next
-        run: yarn lint
-      - name: Test
-        working-directory: ./next
-        run: yarn test
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ env.RUBY_VERSION }}
+      - uses: actions/cache@v2
+        with:
+          path: vendor/bundle
+          key: ${{ runner.os }}-gems-${{ hashFiles('**/Gemfile.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-gems-
+      - name: Install Bundler dependencies
+        run: |
+          bundle config path vendor/bundle
+          bundle install --jobs 4 --retry 3
+      - name: Install NPM dependencies
+        run: yarn install --prod --pure-lockfile --cwd projects/next
       - name: Build
-        working-directory: ./next
-        run: yarn build
+        run: ./fourier build next
