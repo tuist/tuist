@@ -6,7 +6,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Added
 
-- Added `.precondition` Up to Setup. [####](https://github.com/tuist/tuist/pull/####) by [@kalkwarf](https://github.com/kalkwarf)
+- Added `.precondition` Up to Setup. [#2688](https://github.com/tuist/tuist/pull/2688) by [@kalkwarf](https://github.com/kalkwarf)
 
 ### Changed
 
