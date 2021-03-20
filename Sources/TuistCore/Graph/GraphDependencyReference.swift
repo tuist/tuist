@@ -28,37 +28,6 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
     case product(target: String, productName: String)
     case sdk(path: AbsolutePath, status: SDKStatus, source: SDKSource)
 
-    init(precompiledNode: PrecompiledNode) {
-        if let frameworkNode = precompiledNode as? FrameworkNode {
-            self = .framework(
-                path: frameworkNode.path,
-                binaryPath: frameworkNode.binaryPath,
-                isCarthage: frameworkNode.isCarthage,
-                dsymPath: frameworkNode.dsymPath,
-                bcsymbolmapPaths: frameworkNode.bcsymbolmapPaths,
-                linking: frameworkNode.linking,
-                architectures: frameworkNode.architectures,
-                product: frameworkNode.product
-            )
-        } else if let libraryNode = precompiledNode as? LibraryNode {
-            self = .library(
-                path: libraryNode.path,
-                linking: libraryNode.linking,
-                architectures: libraryNode.architectures,
-                product: libraryNode.product
-            )
-        } else if let xcframeworkNode = precompiledNode as? XCFrameworkNode {
-            self = .xcframework(
-                path: xcframeworkNode.path,
-                infoPlist: xcframeworkNode.infoPlist,
-                primaryBinaryPath: xcframeworkNode.primaryBinaryPath,
-                binaryPath: xcframeworkNode.binaryPath
-            )
-        } else {
-            preconditionFailure("unsupported precompiled node")
-        }
-    }
-
     init(_ dependency: ValueGraphDependency) {
         switch dependency {
         case let .framework(path, binaryPath, dsymPath, bcsymbolmapPaths, linking, architectures, isCarthage):
@@ -72,14 +41,14 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
                 architectures: architectures,
                 product: (linking == .static) ? .staticFramework : .framework
             )
-        case let .library(path, publicHeaders, linking, architectures, swiftModuleMap):
+        case let .library(path, _, linking, architectures, _):
             self = .library(
                 path: path,
                 linking: linking,
                 architectures: architectures,
                 product: (linking == .static) ? .staticLibrary : .dynamicLibrary
             )
-        case let .xcframework(path, infoPlist, primaryBinaryPath, linking):
+        case let .xcframework(path, infoPlist, primaryBinaryPath, _):
             self = .xcframework(
                 path: path,
                 infoPlist: infoPlist,

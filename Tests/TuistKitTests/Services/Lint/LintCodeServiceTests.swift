@@ -45,7 +45,7 @@ final class LintCodeServiceTests: TuistUnitTestCase {
         manifestLoader = nil
         modelLoader = nil
         graphLoader = nil
-        
+
         basePath = nil
 
         super.tearDown()
@@ -63,7 +63,7 @@ final class LintCodeServiceTests: TuistUnitTestCase {
     func test_run_throws_an_error_when_target_no_exist() throws {
         // Given
         manifestLoader.manifestsAtStub = { _ in Set([.project]) }
-        
+
         let project = Project.test(path: basePath.appending(component: "test"))
         modelLoader.mockProject("test", loadClosure: { _ in project })
         let target01 = Target.test(name: "Target1")

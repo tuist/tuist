@@ -262,7 +262,13 @@ public class ValueGraphTraverser: GraphTraversing {
 
         // AppClip dependencies
         if target.target.isAppClip {
-            let path = try SDKNode.appClip(status: .required).path
+            let path = try SystemFrameworkMetadataProvider().loadMetadata(
+                sdkName: "AppClip.framework",
+                status: .required,
+                platform: .iOS,
+                source: .system
+            )
+            .path
             references.formUnion([GraphDependencyReference.sdk(
                 path: path,
                 status: .required,

@@ -3,10 +3,10 @@ import RxBlocking
 import TSCBasic
 import TuistCore
 import TuistGenerator
+import TuistGraph
 import TuistLinting
 import TuistLoader
 import TuistSupport
-import TuistGraph
 
 enum LintCodeServiceError: FatalError, Equatable {
     /// Thrown when neither a workspace or a project is found in the given path.
@@ -48,9 +48,9 @@ final class LintCodeService {
          codeLinter: CodeLinting = CodeLinter(),
          manifestLoading: ManifestLoading = ManifestLoader(),
          modelLoader: GeneratorModelLoading = GeneratorModelLoader(
-            manifestLoader: ManifestLoader(),
-            manifestLinter: AnyManifestLinter()
-        ),
+             manifestLoader: ManifestLoader(),
+             manifestLinter: AnyManifestLinter()
+         ),
          graphLoader: ValueGraphLoading = ValueGraphLoader())
     {
         self.rootDirectoryLocator = rootDirectoryLocator

@@ -12,7 +12,6 @@ import XCTest
 
 final class ConfigGeneratorTests: TuistUnitTestCase {
     var pbxproj: PBXProj!
-    var graph: Graph!
     var subject: ConfigGenerator!
     var pbxTarget: PBXNativeTarget!
 
@@ -523,9 +522,8 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
             settings: .default,
             targets: [target]
         )
-        let graph = Graph.test()
-        let valueGraph = ValueGraph.test(path: project.path)
-        let graphTraverser = ValueGraphTraverser(graph: valueGraph)
+        let graph = ValueGraph.test(path: project.path)
+        let graphTraverser = ValueGraphTraverser(graph: graph)
 
         let fileElements = ProjectFileElements()
         let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj)

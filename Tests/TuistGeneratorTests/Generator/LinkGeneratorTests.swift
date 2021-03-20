@@ -517,7 +517,7 @@ final class LinkGeneratorTests: XCTestCase {
         }
     }
 
-    func test_generateLinkingPhase_sdkNodes() throws {
+    func test_generateLinkingPhase_sdk() throws {
         // Given
         let dependencies: [GraphDependencyReference] = [
             .sdk(path: "/Strong/Foo.framework", status: .required, source: .developer),
@@ -558,15 +558,21 @@ final class LinkGeneratorTests: XCTestCase {
         let path = AbsolutePath("/path/")
         let staticDependency = Target.test(name: "StaticDependency", product: .staticLibrary)
         let target = Target.test(name: "Static", product: .staticLibrary)
-        let graph = Graph.create(
-            project: .test(path: path),
+        let graph = ValueGraph.test(
+            projects: [path: .test(path: path)],
+            targets: [
+                path: [
+                    target.name: target,
+                    staticDependency.name: staticDependency,
+                ],
+            ],
             dependencies: [
-                (target: target, dependencies: [staticDependency]),
-                (target: staticDependency, dependencies: []),
+                .target(name: target.name, path: path): [
+                    .target(name: staticDependency.name, path: path),
+                ],
             ]
         )
-        let valueGraph = ValueGraph(graph: graph)
-        let graphTraverser = ValueGraphTraverser(graph: valueGraph)
+        let graphTraverser = ValueGraphTraverser(graph: graph)
         let fileElements = createProjectFileElements(for: [staticDependency])
         let xcodeProjElements = createXcodeprojElements()
 
@@ -599,15 +605,21 @@ final class LinkGeneratorTests: XCTestCase {
         let path = AbsolutePath("/path/")
         let staticDependency = Target.test(name: "StaticDependency", product: .staticLibrary)
         let target = Target.test(name: "Dynamic", product: .framework)
-        let graph = Graph.create(
-            project: .test(path: path),
+        let graph = ValueGraph.test(
+            projects: [path: .test(path: path)],
+            targets: [
+                path: [
+                    target.name: target,
+                    staticDependency.name: staticDependency,
+                ],
+            ],
             dependencies: [
-                (target: target, dependencies: [staticDependency]),
-                (target: staticDependency, dependencies: []),
+                .target(name: target.name, path: path): [
+                    .target(name: staticDependency.name, path: path),
+                ],
             ]
         )
-        let valueGraph = ValueGraph(graph: graph)
-        let graphTraverser = ValueGraphTraverser(graph: valueGraph)
+        let graphTraverser = ValueGraphTraverser(graph: graph)
         let fileElements = createProjectFileElements(for: [staticDependency])
         let xcodeProjElements = createXcodeprojElements()
 
@@ -635,17 +647,23 @@ final class LinkGeneratorTests: XCTestCase {
         let path = AbsolutePath("/path/")
         let resourceBundle = Target.test(name: "ResourceBundle", product: .bundle)
         let target = Target.test(name: "Target", product: .app)
-        let graph = Graph.create(
-            project: .test(path: path),
+        let graph = ValueGraph.test(
+            projects: [path: .test(path: path)],
+            targets: [
+                path: [
+                    target.name: target,
+                    resourceBundle.name: resourceBundle,
+                ],
+            ],
             dependencies: [
-                (target: target, dependencies: [resourceBundle]),
-                (target: resourceBundle, dependencies: []),
+                .target(name: target.name, path: path): [
+                    .target(name: resourceBundle.name, path: path),
+                ],
             ]
         )
         let fileElements = createProjectFileElements(for: [resourceBundle])
         let xcodeProjElements = createXcodeprojElements()
-        let valueGraph = ValueGraph(graph: graph)
-        let graphTraverser = ValueGraphTraverser(graph: valueGraph)
+        let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
         try subject.generateCopyProductsBuildPhase(

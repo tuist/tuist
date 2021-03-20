@@ -109,7 +109,6 @@ final class CacheTreeShakingGraphMapperTests: TuistUnitTestCase {
             .test(buildAction: .test(targets: [.init(projectPath: path, name: target.name)])),
         ]
         let project = Project.test(path: path, targets: [target], schemes: schemes)
-        let targetNode = TargetNode.test(project: project, target: target)
         let workspace = Workspace.test(
             path: path,
             projects: [project.path, removedProjectPath]
@@ -139,7 +138,6 @@ final class CacheTreeShakingGraphMapperTests: TuistUnitTestCase {
             .test(buildAction: .test(targets: [.init(projectPath: path, name: target.name)])),
         ]
         let project = Project.test(path: path, targets: [target], schemes: [])
-        let targetNode = TargetNode.test(project: project, target: target)
         let workspace = Workspace.test(
             path: path,
             projects: [project.path, removedProjectPath],
