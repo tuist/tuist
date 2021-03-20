@@ -6,6 +6,7 @@ import TuistGenerator
 import TuistLinting
 import TuistLoader
 import TuistSupport
+import TuistGraph
 
 enum LintCodeServiceError: FatalError, Equatable {
     /// Thrown when neither a workspace or a project is found in the given path.
@@ -39,20 +40,23 @@ enum LintCodeServiceError: FatalError, Equatable {
 final class LintCodeService {
     private let rootDirectoryLocator: RootDirectoryLocating
     private let codeLinter: CodeLinting
-    private let graphLoader: GraphLoading
+    private let graphLoader: ValueGraphLoading
+    private let modelLoader: GeneratorModelLoading
     private let manifestLoading: ManifestLoading
 
     init(rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator(),
          codeLinter: CodeLinting = CodeLinter(),
          manifestLoading: ManifestLoading = ManifestLoader(),
-         graphLoader: GraphLoading = GraphLoader(modelLoader: GeneratorModelLoader(
-             manifestLoader: ManifestLoader(),
-             manifestLinter: AnyManifestLinter()
-         )))
+         modelLoader: GeneratorModelLoading = GeneratorModelLoader(
+            manifestLoader: ManifestLoader(),
+            manifestLinter: AnyManifestLinter()
+        ),
+         graphLoader: ValueGraphLoading = ValueGraphLoader())
     {
         self.rootDirectoryLocator = rootDirectoryLocator
         self.codeLinter = codeLinter
         self.manifestLoading = manifestLoading
+        self.modelLoader = modelLoader
         self.graphLoader = graphLoader
     }
 
@@ -64,7 +68,8 @@ final class LintCodeService {
         let graph = try loadDependencyGraph(at: path)
 
         // Get sources
-        let sources = try getSources(targetName: targetName, graph: graph)
+        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let sources = try getSources(targetName: targetName, graphTraverser: graphTraverser)
 
         // Lint code
         logger.notice("Running code linting")
@@ -81,17 +86,20 @@ final class LintCodeService {
 
     // MARK: - Load dependency graph
 
-    private func loadDependencyGraph(at path: AbsolutePath) throws -> Graph {
+    private func loadDependencyGraph(at path: AbsolutePath) throws -> ValueGraph {
         let manifests = manifestLoading.manifests(at: path)
 
         logger.notice("Loading the dependency graph")
         if manifests.contains(.workspace) {
             logger.notice("Loading workspace at \(path.pathString)")
-            let graph = try graphLoader.loadWorkspace(path: path)
+            let workspace = try modelLoader.loadWorkspace(at: path)
+            let projects = try workspace.projects.map(modelLoader.loadProject)
+            let graph = try graphLoader.loadWorkspace(workspace: workspace, projects: projects)
             return graph
         } else if manifests.contains(.project) {
             logger.notice("Loading project at \(path.pathString)")
-            let (graph, _) = try graphLoader.loadProject(path: path)
+            let project = try modelLoader.loadProject(at: path)
+            let (_, graph) = try graphLoader.loadProject(at: path, projects: [project])
             return graph
         } else {
             throw LintCodeServiceError.manifestNotFound(path)
@@ -100,19 +108,18 @@ final class LintCodeService {
 
     // MARK: - Get sources to lint
 
-    private func getSources(targetName: String?, graph: Graph) throws -> [AbsolutePath] {
+    private func getSources(targetName: String?, graphTraverser: GraphTraversing) throws -> [AbsolutePath] {
         if let targetName = targetName {
-            return try getTargetSources(targetName: targetName, graph: graph)
+            return try getTargetSources(targetName: targetName, graphTraverser: graphTraverser)
         } else {
-            return graph.targets
-                .flatMap(\.value)
+            return graphTraverser.allTargets()
                 .flatMap(\.target.sources)
                 .map(\.path)
         }
     }
 
-    private func getTargetSources(targetName: String, graph: Graph) throws -> [AbsolutePath] {
-        guard let target = graph.targets.flatMap(\.value)
+    private func getTargetSources(targetName: String, graphTraverser: GraphTraversing) throws -> [AbsolutePath] {
+        guard let target = graphTraverser.allTargets()
             .map(\.target)
             .first(where: { $0.name == targetName })
         else {
