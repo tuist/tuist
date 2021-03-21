@@ -32,7 +32,8 @@ final class LintProjectService {
     private let graphLinter: GraphLinting
     private let environmentLinter: EnvironmentLinting
     private let manifestLoading: ManifestLoading
-    private let graphLoader: GraphLoading
+    private let graphLoader: ValueGraphLoading
+    private let modelLoader: GeneratorModelLoading
     private let configLoader: ConfigLoading
 
     convenience init() {
@@ -41,7 +42,7 @@ final class LintProjectService {
             manifestLoader: manifestLoader,
             manifestLinter: AnyManifestLinter()
         )
-        let graphLoader = GraphLoader(modelLoader: modelLoader)
+        let graphLoader = ValueGraphLoader()
         let configLoader = ConfigLoader(manifestLoader: manifestLoader)
         let graphLinter = GraphLinter()
         let environmentLinter = EnvironmentLinter()
@@ -50,6 +51,7 @@ final class LintProjectService {
             environmentLinter: environmentLinter,
             manifestLoading: manifestLoader,
             graphLoader: graphLoader,
+            modelLoader: modelLoader,
             configLoader: configLoader
         )
     }
@@ -58,13 +60,15 @@ final class LintProjectService {
         graphLinter: GraphLinting,
         environmentLinter: EnvironmentLinting,
         manifestLoading: ManifestLoading,
-        graphLoader: GraphLoading,
+        graphLoader: ValueGraphLoading,
+        modelLoader: GeneratorModelLoading,
         configLoader: ConfigLoading
     ) {
         self.graphLinter = graphLinter
         self.environmentLinter = environmentLinter
         self.manifestLoading = manifestLoading
         self.graphLoader = graphLoader
+        self.modelLoader = modelLoader
         self.configLoader = configLoader
     }
 
@@ -73,20 +77,22 @@ final class LintProjectService {
 
         // Load graph
         let manifests = manifestLoading.manifests(at: path)
-        var graph: Graph!
+        let graph: ValueGraph
 
         logger.notice("Loading the dependency graph")
         if manifests.contains(.workspace) {
             logger.notice("Loading workspace at \(path.pathString)")
-            graph = try graphLoader.loadWorkspace(path: path)
+            let workspace = try modelLoader.loadWorkspace(at: path)
+            let projects = try workspace.projects.map(modelLoader.loadProject)
+            graph = try graphLoader.loadWorkspace(workspace: workspace, projects: projects)
         } else if manifests.contains(.project) {
             logger.notice("Loading project at \(path.pathString)")
-            (graph, _) = try graphLoader.loadProject(path: path)
+            let project = try modelLoader.loadProject(at: path)
+            (_, graph) = try graphLoader.loadProject(at: path, projects: [project])
         } else {
             throw LintProjectServiceError.manifestNotFound(path)
         }
-        let valueGraph = ValueGraph(graph: graph)
-        let graphTraverser = ValueGraphTraverser(graph: valueGraph)
+        let graphTraverser = ValueGraphTraverser(graph: graph)
 
         logger.notice("Running linters")
         let config = try configLoader.loadConfig(path: path)

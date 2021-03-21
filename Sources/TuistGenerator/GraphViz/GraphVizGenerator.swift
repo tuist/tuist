@@ -29,7 +29,9 @@ public protocol GraphVizGenerating {
 
 public final class GraphVizGenerator: GraphVizGenerating {
     /// Graph loader.
-    private let graphLoader: GraphLoading
+    private let graphLoader: ValueGraphLoading
+
+    private let modelLoader: GeneratorModelLoading
 
     /// Mapper to map graphs into a GraphViz.Graph.
     private let graphToGraphVizMapper: GraphToGraphVizMapping
@@ -39,8 +41,11 @@ public final class GraphVizGenerator: GraphVizGenerating {
     /// - Parameters:
     ///   - modelLoader: Instance to load the models.
     public convenience init(modelLoader: GeneratorModelLoading) {
-        let graphLoader = GraphLoader(modelLoader: modelLoader)
-        self.init(graphLoader: graphLoader, graphToGraphVizMapper: GraphToGraphVizMapper())
+        self.init(
+            graphLoader: ValueGraphLoader(),
+            modelLoader: modelLoader,
+            graphToGraphVizMapper: GraphToGraphVizMapper()
+        )
     }
 
     /// Initializes the generator with an instance to load the graph.
@@ -48,10 +53,13 @@ public final class GraphVizGenerator: GraphVizGenerating {
     /// - Parameters:
     ///   - graphLoader: Graph loader instance.
     ///   - graphToDotGraphMapper: Mapper to map the graph into a dot graph.
-    init(graphLoader: GraphLoading,
-         graphToGraphVizMapper: GraphToGraphVizMapping)
-    {
+    init(
+        graphLoader: ValueGraphLoading,
+        modelLoader: GeneratorModelLoading,
+        graphToGraphVizMapper: GraphToGraphVizMapping
+    ) {
         self.graphLoader = graphLoader
+        self.modelLoader = modelLoader
         self.graphToGraphVizMapper = graphToGraphVizMapper
     }
 
@@ -65,9 +73,10 @@ public final class GraphVizGenerator: GraphVizGenerating {
                                 skipExternalDependencies: Bool,
                                 targetsToFilter: [String]) throws -> GraphViz.Graph
     {
-        let (graph, _) = try graphLoader.loadProject(path: path)
+        let project = try modelLoader.loadProject(at: path)
+        let (_, graph) = try graphLoader.loadProject(at: path, projects: [project])
         return graphToGraphVizMapper.map(
-            graph: ValueGraph(graph: graph),
+            graph: graph,
             skipTestTargets: skipTestTargets,
             skipExternalDependencies: skipExternalDependencies,
             targetsToFilter: targetsToFilter
@@ -84,7 +93,9 @@ public final class GraphVizGenerator: GraphVizGenerating {
                                   skipExternalDependencies: Bool,
                                   targetsToFilter: [String]) throws -> GraphViz.Graph
     {
-        let graph = ValueGraph(graph: try graphLoader.loadWorkspace(path: path))
+        let workspace = try modelLoader.loadWorkspace(at: path)
+        let projects = try workspace.projects.map(modelLoader.loadProject)
+        let graph = try graphLoader.loadWorkspace(workspace: workspace, projects: projects)
         return graphToGraphVizMapper.map(
             graph: graph,
             skipTestTargets: skipTestTargets,

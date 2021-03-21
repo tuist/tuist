@@ -5,7 +5,7 @@ import TuistCore
 import TuistGraph
 import TuistSupport
 
-public class GeneratorModelLoader {
+public final class GeneratorModelLoader {
     private let manifestLoader: ManifestLoading
     private let manifestLinter: ManifestLinting
     private let rootDirectoryLocator: RootDirectoryLocating

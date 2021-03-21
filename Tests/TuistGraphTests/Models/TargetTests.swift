@@ -4,6 +4,7 @@ import TuistCore
 import TuistSupport
 import XCTest
 @testable import TuistGraph
+@testable import TuistGraphTesting
 @testable import TuistSupportTesting
 
 final class TargetErrorTests: TuistUnitTestCase {

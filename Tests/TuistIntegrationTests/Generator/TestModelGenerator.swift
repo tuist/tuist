@@ -27,20 +27,13 @@ final class TestModelGenerator {
         self.config = config
     }
 
-    func generate() throws -> Graph {
-        let frameworkLoader = MockFrameworkLoader()
-        let libraryNodeLoader = MockLibraryNodeLoader()
-        let xcframeworkLoader = MockXCFrameworkLoader()
+    func generate() throws -> ValueGraph {
         let modelLoader = try createModelLoader()
+        let graphLoader = ValueGraphLoader()
+        let workspace = try modelLoader.loadWorkspace(at: rootPath)
+        let projects = try workspace.projects.map(modelLoader.loadProject)
 
-        let graphLoader = GraphLoader(
-            modelLoader: modelLoader,
-            frameworkLoader: frameworkLoader,
-            xcframeworkLoader: xcframeworkLoader,
-            libraryNodeLoader: libraryNodeLoader
-        )
-
-        return try graphLoader.loadWorkspace(path: rootPath)
+        return try graphLoader.loadWorkspace(workspace: workspace, projects: projects)
     }
 
     private func createModelLoader() throws -> GeneratorModelLoading {

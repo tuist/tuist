@@ -45,21 +45,28 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
             targets: [app, test]
         )
 
-        let testTargetNode = TargetNode(
-            project: project,
+        let testGraphTarget = ValueGraphTarget(
+            path: project.path,
             target: test,
-            dependencies: [TargetNode(project: project, target: app, dependencies: [])]
+            project: project
         )
-        let appNode = TargetNode(project: project, target: app, dependencies: [])
+        let appGraphTarget = ValueGraphTarget(path: project.path, target: app, project: project)
 
-        let graph = Graph.test(
-            entryPath: temporaryPath,
-            entryNodes: [testTargetNode, appNode],
-            projects: [project],
-            targets: [project.path: [testTargetNode, appNode]]
+        let graph = ValueGraph.test(
+            projects: [project.path: project],
+            targets: [
+                project.path: [
+                    testGraphTarget.target.name: testGraphTarget.target,
+                    appGraphTarget.target.name: appGraphTarget.target,
+                ],
+            ],
+            dependencies: [
+                .target(name: testGraphTarget.target.name, path: testGraphTarget.path): [
+                    .target(name: appGraphTarget.target.name, path: appGraphTarget.path),
+                ],
+            ]
         )
-        let valueGraph = ValueGraph(graph: graph)
-        let graphTraverser = ValueGraphTraverser(graph: valueGraph)
+        let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
         let generatedProject = try subject.generate(project: project, graphTraverser: graphTraverser)
@@ -94,23 +101,26 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
         )
 
         let target = Target.test()
-        let packageNode = PackageNode(
-            package: .remote(url: "A", requirement: .exact("0.1")),
-            path: temporaryPath
+        let graphTarget = ValueGraphTarget.test(path: project.path, target: target, project: project)
+        let graph = ValueGraph.test(
+            projects: [project.path: project],
+            packages: [
+                project.path: [
+                    "A": .remote(url: "A", requirement: .exact("0.1")),
+                ],
+            ],
+            targets: [
+                graphTarget.path: [
+                    graphTarget.target.name: graphTarget.target,
+                ],
+            ],
+            dependencies: [
+                .target(name: graphTarget.target.name, path: graphTarget.path): [
+                    .packageProduct(path: project.path, product: "A"),
+                ],
+            ]
         )
-        let packageProductNode = PackageProductNode(product: "A", path: project.path)
-        let graph = Graph.test(
-            entryPath: temporaryPath,
-            entryNodes: [TargetNode(
-                project: project,
-                target: target,
-                dependencies: [packageProductNode]
-            )],
-            projects: [project],
-            packages: [packageNode]
-        )
-        let valueGraph = ValueGraph(graph: graph)
-        let graphTraverser = ValueGraphTraverser(graph: valueGraph)
+        let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
         let got = try subject.generate(project: project, graphTraverser: graphTraverser)
@@ -131,9 +141,10 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
             name: "Project",
             targets: []
         )
-        let graph = Graph.test(entryPath: temporaryPath)
-        let valueGraph = ValueGraph(graph: graph)
-        let graphTraverser = ValueGraphTraverser(graph: valueGraph)
+        let graph = ValueGraph.test(
+            projects: [project.path: project]
+        )
+        let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
         let got = try subject.generate(project: project, graphTraverser: graphTraverser)
@@ -154,9 +165,10 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
             name: "Project",
             targets: []
         )
-        let graph = Graph.test(entryPath: temporaryPath)
-        let valueGraph = ValueGraph(graph: graph)
-        let graphTraverser = ValueGraphTraverser(graph: valueGraph)
+        let graph = ValueGraph.test(
+            projects: [project.path: project]
+        )
+        let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
         let got = try subject.generate(project: project, graphTraverser: graphTraverser)
@@ -170,9 +182,8 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
     func test_knownRegions() throws {
         // Given
         let path = try temporaryPath()
-        let graph = Graph.test(entryPath: path)
-        let valueGraph = ValueGraph(graph: graph)
-        let graphTraverser = ValueGraphTraverser(graph: valueGraph)
+        let graph = ValueGraph.test(path: path)
+        let graphTraverser = ValueGraphTraverser(graph: graph)
         let resources = [
             "resources/en.lproj/App.strings",
             "resources/en.lproj/Extension.strings",
@@ -205,9 +216,8 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
     func test_generate_setsDefaultKnownRegions() throws {
         // Given
         let path = try temporaryPath()
-        let graph = Graph.test(entryPath: path)
-        let valueGraph = ValueGraph(graph: graph)
-        let graphTraverser = ValueGraphTraverser(graph: valueGraph)
+        let graph = ValueGraph.test(path: path)
+        let graphTraverser = ValueGraphTraverser(graph: graph)
         let project = Project.test(
             path: path,
             targets: []
@@ -227,9 +237,8 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
     func test_generate_setsOrganizationName() throws {
         // Given
         let path = try temporaryPath()
-        let graph = Graph.test(entryPath: path)
-        let valueGraph = ValueGraph(graph: graph)
-        let graphTraverser = ValueGraphTraverser(graph: valueGraph)
+        let graph = ValueGraph.test(path: path)
+        let graphTraverser = ValueGraphTraverser(graph: graph)
         let project = Project.test(
             path: path,
             organizationName: "tuist",
@@ -250,9 +259,8 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
     func test_generate_setsResourcesTagsName() throws {
         // Given
         let path = try temporaryPath()
-        let graph = Graph.test(entryPath: path)
-        let valueGraph = ValueGraph(graph: graph)
-        let graphTraverser = ValueGraphTraverser(graph: valueGraph)
+        let graph = ValueGraph.test(path: path)
+        let graphTraverser = ValueGraphTraverser(graph: graph)
         let resources: [ResourceFileElement] = [.file(path: "/", tags: ["fileTag", "commonTag"]),
                                                 .folderReference(path: "/", tags: ["folderTag", "commonTag"])]
         let project = Project.test(
@@ -274,9 +282,8 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
     func test_generate_setsDefaultDevelopmentRegion() throws {
         // Given
         let path = try temporaryPath()
-        let graph = Graph.test(entryPath: path)
-        let valueGraph = ValueGraph(graph: graph)
-        let graphTraverser = ValueGraphTraverser(graph: valueGraph)
+        let graph = ValueGraph.test(path: path)
+        let graphTraverser = ValueGraphTraverser(graph: graph)
         let project = Project.test(
             path: path,
             targets: []
@@ -293,9 +300,8 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
     func test_generate_setsDevelopmentRegion() throws {
         // Given
         let path = try temporaryPath()
-        let graph = Graph.test(entryPath: path)
-        let valueGraph = ValueGraph(graph: graph)
-        let graphTraverser = ValueGraphTraverser(graph: valueGraph)
+        let graph = ValueGraph.test(path: path)
+        let graphTraverser = ValueGraphTraverser(graph: graph)
         let project = Project.test(
             path: path,
             developmentRegion: "de",
@@ -323,23 +329,26 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
         )
 
         let target = Target.test()
-        let packageNode = PackageNode(
-            package: .local(path: localPackagePath),
-            path: localPackagePath
+        let graphTarget = ValueGraphTarget(path: project.path, target: target, project: project)
+        let graph = ValueGraph.test(
+            projects: [project.path: project],
+            packages: [
+                project.path: [
+                    "A": .local(path: localPackagePath),
+                ],
+            ],
+            targets: [
+                graphTarget.path: [
+                    graphTarget.target.name: graphTarget.target,
+                ],
+            ],
+            dependencies: [
+                .target(name: graphTarget.target.name, path: graphTarget.path): [
+                    .packageProduct(path: project.path, product: "A"),
+                ],
+            ]
         )
-        let packageProductNode = PackageProductNode(product: "A", path: localPackagePath)
-        let graph = Graph.test(
-            entryPath: projectPath,
-            entryNodes: [TargetNode(
-                project: project,
-                target: target,
-                dependencies: [packageProductNode]
-            )],
-            projects: [project],
-            packages: [packageNode]
-        )
-        let valueGraph = ValueGraph(graph: graph)
-        let graphTraverser = ValueGraphTraverser(graph: valueGraph)
+        let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
         let got = try subject.generate(project: project, graphTraverser: graphTraverser)

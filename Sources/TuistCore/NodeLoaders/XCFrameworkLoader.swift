@@ -24,9 +24,6 @@ enum XCFrameworkLoaderError: FatalError, Equatable {
 }
 
 public protocol XCFrameworkLoading {
-    /// Reads an existing xcframework and returns its in-memory representation, XCFrameworkNode..
-    /// - Parameter path: Path to the .xcframework.
-    func load(path: AbsolutePath) throws -> XCFrameworkNode
     /// Reads an existing xcframework and returns its in-memory representation, `ValueGraphDependency.xcframework`.
     /// - Parameter path: Path to the .xcframework.
     func load(path: AbsolutePath) throws -> ValueGraphDependency
@@ -44,25 +41,6 @@ public final class XCFrameworkLoader: XCFrameworkLoading {
     /// - Parameter xcframeworkMetadataProvider: xcframework metadata provider.
     init(xcframeworkMetadataProvider: XCFrameworkMetadataProviding) {
         self.xcframeworkMetadataProvider = xcframeworkMetadataProvider
-    }
-
-    public func load(path: AbsolutePath) throws -> XCFrameworkNode {
-        guard FileHandler.shared.exists(path) else {
-            throw XCFrameworkLoaderError.xcframeworkNotFound(path)
-        }
-        let infoPlist = try xcframeworkMetadataProvider.infoPlist(xcframeworkPath: path)
-        let primaryBinaryPath = try xcframeworkMetadataProvider.binaryPath(
-            xcframeworkPath: path,
-            libraries: infoPlist.libraries
-        )
-        let linking = try xcframeworkMetadataProvider.linking(binaryPath: primaryBinaryPath)
-        return XCFrameworkNode(
-            path: path,
-            infoPlist: infoPlist,
-            primaryBinaryPath: primaryBinaryPath,
-            linking: linking,
-            dependencies: []
-        )
     }
 
     public func load(path: AbsolutePath) throws -> ValueGraphDependency {

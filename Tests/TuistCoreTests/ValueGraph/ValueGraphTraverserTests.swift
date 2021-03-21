@@ -2302,7 +2302,18 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         let got = try subject.linkableDependencies(path: project.path, name: target.name).sorted()
 
         // Then
-        XCTAssertEqual(got, [.sdk(path: try SDKNode.appClip(status: .required).path, status: .required, source: .system)])
+        let path = try SystemFrameworkMetadataProvider().loadMetadata(
+            sdkName: "AppClip.framework",
+            status: .required,
+            platform: .iOS,
+            source: .system
+        )
+        .path
+        XCTAssertEqual(
+            got, [
+                .sdk(path: path, status: .required, source: .system),
+            ]
+        )
     }
 
     func test_linkableDependencies_when_dependencyIsAFramework() throws {

@@ -30,15 +30,15 @@ final class XCFrameworkLoaderTests: TuistUnitTestCase {
     var subject: XCFrameworkLoader!
 
     override func setUp() {
+        super.setUp()
         xcframeworkMetadataProvider = MockXCFrameworkMetadataProvider()
         subject = XCFrameworkLoader(xcframeworkMetadataProvider: xcframeworkMetadataProvider)
-        super.setUp()
     }
 
     override func tearDown() {
-        super.tearDown()
         xcframeworkMetadataProvider = nil
         subject = nil
+        super.tearDown()
     }
 
     func test_load_throws_when_the_xcframework_doesnt_exist() throws {
@@ -47,7 +47,7 @@ final class XCFrameworkLoaderTests: TuistUnitTestCase {
         let xcframeworkPath = path.appending(component: "tuist.xcframework")
 
         // Then
-        XCTAssertThrowsSpecific(try subject.load(path: xcframeworkPath) as XCFrameworkNode, XCFrameworkLoaderError.xcframeworkNotFound(xcframeworkPath))
+        XCTAssertThrowsSpecific(try subject.load(path: xcframeworkPath), XCFrameworkLoaderError.xcframeworkNotFound(xcframeworkPath))
     }
 
     func test_load_when_the_xcframework_exists() throws {
@@ -60,30 +60,27 @@ final class XCFrameworkLoaderTests: TuistUnitTestCase {
         let infoPlist = XCFrameworkInfoPlist.test()
         try FileHandler.shared.touch(xcframeworkPath)
 
-        xcframeworkMetadataProvider.infoPlistStub = { path in
-            XCTAssertEqual(xcframeworkPath, path)
-            return infoPlist
-        }
-        xcframeworkMetadataProvider.binaryPathStub = { path, libraries in
-            XCTAssertEqual(xcframeworkPath, path)
-            XCTAssertEqual(libraries, infoPlist.libraries)
-            return binaryPath
-        }
-        xcframeworkMetadataProvider.linkingStub = { path in
-            XCTAssertEqual(binaryPath, path)
-            return linking
+        xcframeworkMetadataProvider.loadMetadataStub = {
+            XCFrameworkMetadata(
+                path: $0,
+                infoPlist: infoPlist,
+                primaryBinaryPath: binaryPath,
+                linking: linking
+            )
         }
 
         // When
-        let got: XCFrameworkNode = try subject.load(path: xcframeworkPath)
+        let got = try subject.load(path: xcframeworkPath)
 
         // Then
-        XCTAssertEqual(got, XCFrameworkNode(
-            path: xcframeworkPath,
-            infoPlist: infoPlist,
-            primaryBinaryPath: binaryPath,
-            linking: linking,
-            dependencies: []
-        ))
+        XCTAssertEqual(
+            got,
+            .xcframework(
+                path: xcframeworkPath,
+                infoPlist: infoPlist,
+                primaryBinaryPath: binaryPath,
+                linking: linking
+            )
+        )
     }
 }
