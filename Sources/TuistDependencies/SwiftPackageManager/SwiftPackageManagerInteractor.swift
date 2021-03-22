@@ -35,6 +35,10 @@ public protocol SwiftPackageManagerInteracting {
     /// - Parameter dependenciesDirectory: The path to the directory that contains the `Tuist/Dependencies/` directory.
     /// - Parameter dependencies: List of dependencies to intall using `Swift Package Manager`.
     func fetch(dependenciesDirectory: AbsolutePath, dependencies: SwiftPackageManagerDependencies) throws
+    
+    /// Removes all cached `Swift Package Manager` dependencies.
+    /// - Parameter dependenciesDirectory: The path to the directory that contains the `Tuist/Dependencies/` directory.
+    func clean(dependenciesDirectory: AbsolutePath) throws
 }
 
 // MARK: - Swift Package Manager Interactor
@@ -70,6 +74,17 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
         }
 
         logger.info("Packages resolved and fetched successfully.", metadata: .subsection)
+    }
+    
+    public func clean(dependenciesDirectory: AbsolutePath) throws {
+        let swiftPackageManagerDirectory = dependenciesDirectory
+            .appending(component: Constants.DependenciesDirectory.swiftPackageManagerDirectoryName)
+        let packageResolvedPath = dependenciesDirectory
+            .appending(component: Constants.DependenciesDirectory.lockfilesDirectoryName)
+            .appending(component: Constants.DependenciesDirectory.packageResolvedName)
+        
+        try fileHandler.delete(swiftPackageManagerDirectory)
+        try fileHandler.delete(packageResolvedPath)
     }
 
     // MARK: - Installation

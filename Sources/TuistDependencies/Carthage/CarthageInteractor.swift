@@ -57,6 +57,10 @@ public protocol CarthageInteracting {
     /// - Parameter dependenciesDirectory: The path to the directory that contains the `Tuist/Dependencies/` directory.
     /// - Parameter dependencies: List of dependencies to intall using `Carthage`.
     func fetch(dependenciesDirectory: AbsolutePath, dependencies: CarthageDependencies) throws
+    
+    /// Removes all cached `Carthage` dependencies.
+    /// - Parameter dependenciesDirectory: The path to the directory that contains the `Tuist/Dependencies/` directory.
+    func clean(dependenciesDirectory: AbsolutePath) throws
 }
 
 // MARK: - Carthage Interactor
@@ -112,6 +116,17 @@ public final class CarthageInteractor: CarthageInteracting {
         }
 
         logger.info("Carthage dependencies resolved and fetched successfully.", metadata: .subsection)
+    }
+    
+    public func clean(dependenciesDirectory: AbsolutePath) throws {
+        let carthageDirectory = dependenciesDirectory
+            .appending(component: Constants.DependenciesDirectory.carthageDirectoryName)
+        let cartfileResolvedPath = dependenciesDirectory
+            .appending(component: Constants.DependenciesDirectory.lockfilesDirectoryName)
+            .appending(component: Constants.DependenciesDirectory.cartfileResolvedName)
+        
+        try fileHandler.delete(carthageDirectory)
+        try fileHandler.delete(cartfileResolvedPath)
     }
 
     // MARK: - Installation

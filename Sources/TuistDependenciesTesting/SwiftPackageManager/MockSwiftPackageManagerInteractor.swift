@@ -21,4 +21,20 @@ public final class MockSwiftPackageManagerInteractor: SwiftPackageManagerInterac
             throw error
         }
     }
+    
+    var invokedClean = false
+    var invokedCleanCount = 0
+    var invokedCleanParameters: AbsolutePath?
+    var invokedCleanParametersList = [AbsolutePath]()
+    var stubbedCleanError: Error?
+    
+    public func clean(dependenciesDirectory: AbsolutePath) throws {
+        invokedClean = true
+        invokedCleanCount += 1
+        invokedCleanParameters = (dependenciesDirectory)
+        invokedCleanParametersList.append((dependenciesDirectory))
+        if let error = stubbedCleanError {
+            throw error
+        }
+    }
 }
