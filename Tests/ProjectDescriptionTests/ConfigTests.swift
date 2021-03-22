@@ -14,6 +14,7 @@ final class ConfigTests: XCTestCase {
                 .disableSynthesizedResourceAccessors,
                 .disableShowEnvironmentVarsInScriptPhases,
                 .enableCodeCoverage,
+                .disablePackageVersionLocking,
             ]
         )
 
