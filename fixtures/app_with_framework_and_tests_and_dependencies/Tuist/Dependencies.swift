@@ -5,7 +5,7 @@ let dependencies = Dependencies(
         [
             .github(path: "Alamofire/Alamofire", requirement: .exact("5.0.4"))
         ],
-        platforms: [.iOS, .macOS],
+        platforms: [.iOS],
         options: [.useXCFrameworks, .noUseBinaries]
     ),
     swiftPackageManager: .swiftPackageManager(
