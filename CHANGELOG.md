@@ -4,6 +4,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Added
+
+- Add support for disabling Swift Package locking to speed up project generation when using Swift Package Manager [#2693](https://github.com/tuist/tuist/pull/2693) by [@jsorge](https://github.com/jsorge).
+
 ### Changed
 
 - Remove reference type Graph [#2689](https://github.com/tuist/tuist/pull/2689) by [@fortmarek](https://github.com/fortmarek)
