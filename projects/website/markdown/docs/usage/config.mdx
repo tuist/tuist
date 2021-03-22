@@ -135,6 +135,11 @@ Generation options allow customizing the generation of Xcode projects.
       description:
         "Resolve SPM dependencies using your system's SCM credentials, instead of Xcodes accounts.",
     },
+    {
+      case: '.disablePackageVersionLocking',
+      description:
+        'Disables locking Swift packages. This can speed up generation but does increase risk if packages are not locked in their declarations.'
+    },
   ]}
 />
 
