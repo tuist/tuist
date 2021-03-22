@@ -12,6 +12,10 @@ final class SwiftPackageManagerDependenciesTests: TuistUnitTestCase {
             ]
         )
 
+        // When
+        let got = subject.manifestValue()
+
+        // Then
         let expected = """
         // swift-tools-version:5.3
 
@@ -24,11 +28,6 @@ final class SwiftPackageManagerDependenciesTests: TuistUnitTestCase {
             ]
         )
         """
-
-        // When
-        let got = subject.manifestValue(swiftVersion: "5.3")
-
-        // Then
         XCTAssertEqual(got, expected)
     }
 
@@ -46,29 +45,31 @@ final class SwiftPackageManagerDependenciesTests: TuistUnitTestCase {
             ]
         )
 
+        // When
+        let got = subject.manifestValue()
+
+        // Then
+        let expectedPackagesManifestValues = [
+            #".package(url: "xyz", .exact("10.10.10")),"#,
+            #".package(url: "foo/foo", .upToNextMinor(from: "1.2.3")),"#,
+            #".package(url: "bar/bar", .upToNextMajor(from: "3.2.1")),"#,
+            #".package(url: "http://xyz.com", .branch("develop")),"#,
+            #".package(url: "https://www.google.com/", .revision("a083aa1435eb35d8a1cb369115a7636cb4b65135")),"#,
+            #".package(url: "url/url/url", "1.2.3"..<"5.2.1"),"#,
+            #".package(path: "/path/path/path"),"#,
+        ]
         let expected = """
-        // swift-tools-version:5.4
+        // swift-tools-version:5.3
 
         import PackageDescription
 
         let package = Package(
             name: "PackageName",
             dependencies: [
-                .package(url: "xyz", .exact("10.10.10")),
-                .package(url: "foo/foo", .upToNextMinor(from: "1.2.3")),
-                .package(url: "bar/bar", .upToNextMajor(from: "3.2.1")),
-                .package(url: "http://xyz.com", .branch("develop")),
-                .package(url: "https://www.google.com/", .revision("a083aa1435eb35d8a1cb369115a7636cb4b65135")),
-                .package(url: "url/url/url", "1.2.3"..<"5.2.1"),
-                .package(path: "/path/path/path"),
+                \(expectedPackagesManifestValues.joined(separator: "\n\t"))
             ]
         )
         """
-
-        // When
-        let got = subject.manifestValue(swiftVersion: "5.4")
-
-        // Then
         XCTAssertEqual(got, expected)
     }
 }

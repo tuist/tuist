@@ -59,7 +59,7 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
             )
 
             // prepare for installation
-            try loadDependencies(pathsProvider: pathsProvider, packageManifestContent: dependencies.manifestValue(swiftVersion: try System.shared.swiftVersion()))
+            try loadDependencies(pathsProvider: pathsProvider, packageManifestContent: dependencies.manifestValue())
 
             // run `Swift Package Manager`
             let command = ["swift", "package", "--package-path", "\(temporaryDirectoryPath.pathString)", "resolve"]
