@@ -52,6 +52,8 @@ let project = Project(name: "App",
                       ])
 ```
 
+If you are using Swift Packages and find project generation time being adversely affected, you can use [Config.GenerationOption.disablePackageVersionLocking](https://tuist.io/docs/usage/config/#generationoption) to disable locking to specific package versions. It is advised if you use this option to pin to specific package versions when declaring a package dependency to ensure that all developer and CI machines have the exact same package version installed.
+
 ### 2. Carthage
 
 Carthage frameworks are nodes in your project's dependency tree. Thus, Tuist can validate the dependency and make sure they are properly integrated into the generated project. We recommend following the project structure below:
