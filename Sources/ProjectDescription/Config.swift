@@ -103,6 +103,8 @@ extension Config.GenerationOptions {
             self = .disableShowEnvironmentVarsInScriptPhases
         } else if container.allKeys.contains(.enableCodeCoverage), try container.decode(Bool.self, forKey: .enableCodeCoverage) {
             self = .enableCodeCoverage
+        } else if container.allKeys.contains(.disablePackageVersionLocking), try container.decode(Bool.self, forKey: .disablePackageVersionLocking) {
+            self = .disablePackageVersionLocking
         } else {
             throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Unknown enum case"))
         }
