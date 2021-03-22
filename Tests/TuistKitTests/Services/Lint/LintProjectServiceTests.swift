@@ -13,10 +13,8 @@ import XCTest
 final class LintProjectServiceTests: TuistUnitTestCase {
     var graphLinter: MockGraphLinter!
     var environmentLinter: MockEnvironmentLinter!
-    var manifestLoader: MockManifestLoader!
-    var graphLoader: MockValueGraphLoader!
-    var modelLoader: MockGeneratorModelLoader!
     var configLoader: MockConfigLoader!
+    var simpleGraphLoader: MockSimpleGraphLoader!
     var subject: LintProjectService!
     var path: AbsolutePath!
 
@@ -24,53 +22,36 @@ final class LintProjectServiceTests: TuistUnitTestCase {
         try super.setUpWithError()
         graphLinter = MockGraphLinter()
         environmentLinter = MockEnvironmentLinter()
-        manifestLoader = MockManifestLoader()
-        graphLoader = MockValueGraphLoader()
         path = try temporaryPath()
-        modelLoader = MockGeneratorModelLoader(basePath: path)
         configLoader = MockConfigLoader()
+        simpleGraphLoader = MockSimpleGraphLoader()
         subject = LintProjectService(
             graphLinter: graphLinter,
             environmentLinter: environmentLinter,
-            manifestLoading: manifestLoader,
-            graphLoader: graphLoader,
-            modelLoader: modelLoader,
-            configLoader: configLoader
+            configLoader: configLoader,
+            simpleGraphLoader: simpleGraphLoader
         )
     }
 
     override func tearDown() {
         graphLinter = nil
         environmentLinter = nil
-        manifestLoader = nil
-        graphLoader = nil
-        modelLoader = nil
         path = nil
         subject = nil
         super.tearDown()
     }
 
-    func test_run_throws_an_error_when_no_manifests_exist() throws {
+    func test_run_when_relativePath() throws {
         // Given
-        manifestLoader.manifestsAtStub = { _ in Set() }
+        let lintPath = "relative"
 
         // When
-        XCTAssertThrowsSpecific(try subject.run(path: path.pathString), LintProjectServiceError.manifestNotFound(path))
-    }
-
-    func test_run_when_there_are_no_issues_and_project_manifest() throws {
-        // Given
-        manifestLoader.manifestsAtStub = { _ in Set([.project]) }
-        let project = Project.test(path: path.appending(component: "test"))
-        modelLoader.mockProject("test", loadClosure: { _ in project })
-
-        // When
-        try subject.run(path: project.path.pathString)
+        try subject.run(path: lintPath)
 
         // Then
+        let expectedPath = fileHandler.currentPath.appending(component: "relative")
         XCTAssertPrinterOutputContains("""
-        Loading the dependency graph
-        Loading project at \(project.path.pathString)
+        Loading the dependency graph at \(expectedPath)
         Running linters
         Linting the environment
         Linting the loaded dependency graph
@@ -78,19 +59,16 @@ final class LintProjectServiceTests: TuistUnitTestCase {
         """)
     }
 
-    func test_run_when_there_are_no_issues_and_workspace_manifest() throws {
+    func test_run_when_there_are_no_issues() throws {
         // Given
-        manifestLoader.manifestsAtStub = { _ in Set([.workspace]) }
-        let workspace = Workspace.test(path: path.appending(component: "test"))
-        modelLoader.mockWorkspace("test", loadClosure: { _ in workspace })
+        let lintPath = path.appending(component: "test")
 
         // When
-        try subject.run(path: workspace.path.pathString)
+        try subject.run(path: lintPath.pathString)
 
         // Then
         XCTAssertPrinterOutputContains("""
-        Loading the dependency graph
-        Loading workspace at \(workspace.path.pathString)
+        Loading the dependency graph at \(lintPath)
         Running linters
         Linting the environment
         Linting the loaded dependency graph
@@ -100,17 +78,14 @@ final class LintProjectServiceTests: TuistUnitTestCase {
 
     func test_run_when_linting_fails() throws {
         // Given
-        manifestLoader.manifestsAtStub = { _ in Set([.workspace]) }
-        let workspace = Workspace.test(path: path.appending(component: "test"))
-        modelLoader.mockWorkspace("test", loadClosure: { _ in workspace })
+        let lintPath = path.appending(component: "test")
         environmentLinter.lintStub = [LintingIssue(reason: "environment", severity: .error)]
         graphLinter.stubbedLintResult = [LintingIssue(reason: "graph", severity: .error)]
 
         // Then
-        XCTAssertThrowsSpecific(try subject.run(path: workspace.path.pathString), LintingError())
+        XCTAssertThrowsSpecific(try subject.run(path: lintPath.pathString), LintingError())
         XCTAssertPrinterOutputContains("""
-        Loading the dependency graph
-        Loading workspace at \(workspace.path.pathString)
+        Loading the dependency graph at \(lintPath)
         Running linters
         Linting the environment
         Linting the loaded dependency graph

@@ -14,9 +14,7 @@ import XCTest
 
 final class LintCodeServiceTests: TuistUnitTestCase {
     private var codeLinter: MockCodeLinter!
-    private var manifestLoader: MockManifestLoader!
-    private var graphLoader: MockValueGraphLoader!
-    private var modelLoader: MockGeneratorModelLoader!
+    private var simpleGraphLoader: MockSimpleGraphLoader!
     private var basePath: AbsolutePath!
 
     private var subject: LintCodeService!
@@ -25,16 +23,13 @@ final class LintCodeServiceTests: TuistUnitTestCase {
         try super.setUpWithError()
 
         codeLinter = MockCodeLinter()
-        manifestLoader = MockManifestLoader()
-        graphLoader = MockValueGraphLoader()
+        simpleGraphLoader = MockSimpleGraphLoader()
+
         basePath = try temporaryPath()
-        modelLoader = MockGeneratorModelLoader(basePath: basePath)
 
         subject = LintCodeService(
             codeLinter: codeLinter,
-            manifestLoading: manifestLoader,
-            modelLoader: modelLoader,
-            graphLoader: graphLoader
+            simpleGraphLoader: simpleGraphLoader
         )
     }
 
@@ -42,30 +37,15 @@ final class LintCodeServiceTests: TuistUnitTestCase {
         subject = nil
 
         codeLinter = nil
-        manifestLoader = nil
-        modelLoader = nil
-        graphLoader = nil
-
+        simpleGraphLoader = nil
         basePath = nil
 
         super.tearDown()
     }
 
-    func test_run_throws_an_error_when_no_manifests_exist() throws {
-        // Given
-        let path = try temporaryPath()
-        manifestLoader.manifestsAtStub = { _ in Set() }
-
-        // When
-        XCTAssertThrowsSpecific(try subject.run(path: path.pathString, targetName: nil, strict: false), LintCodeServiceError.manifestNotFound(path))
-    }
-
     func test_run_throws_an_error_when_target_no_exist() throws {
         // Given
-        manifestLoader.manifestsAtStub = { _ in Set([.project]) }
-
         let project = Project.test(path: basePath.appending(component: "test"))
-        modelLoader.mockProject("test", loadClosure: { _ in project })
         let target01 = Target.test(name: "Target1")
         let target02 = Target.test(name: "Target2")
         let target03 = Target.test(name: "Target3")
@@ -80,7 +60,7 @@ final class LintCodeServiceTests: TuistUnitTestCase {
             ]
         )
         let fakeNoExistTargetName = "Target_999"
-        graphLoader.loadProjectStub = { _, _ in (project, graph) }
+        simpleGraphLoader.stubLoadGraph = graph
 
         // When
         XCTAssertThrowsSpecific(try subject.run(path: project.path.pathString, targetName: fakeNoExistTargetName, strict: false), LintCodeServiceError.targetNotFound(fakeNoExistTargetName))
@@ -88,10 +68,7 @@ final class LintCodeServiceTests: TuistUnitTestCase {
 
     func test_run_throws_an_error_when_target_to_lint_has_no_sources() throws {
         // Given
-        manifestLoader.manifestsAtStub = { _ in Set([.project]) }
-
         let project = Project.test(path: basePath.appending(component: "test"))
-        modelLoader.mockProject("test", loadClosure: { _ in project })
         let target01 = Target.test(name: "Target1", sources: [])
         let target02 = Target.test(name: "Target2", sources: [])
         let target03 = Target.test(name: "Target3", sources: [])
@@ -105,7 +82,7 @@ final class LintCodeServiceTests: TuistUnitTestCase {
                 ],
             ]
         )
-        graphLoader.loadProjectStub = { _, _ in (project, graph) }
+        simpleGraphLoader.stubLoadGraph = graph
 
         // When
         XCTAssertThrowsSpecific(try subject.run(path: project.path.pathString, targetName: target01.name, strict: false), LintCodeServiceError.lintableFilesForTargetNotFound(target01.name))
@@ -114,9 +91,7 @@ final class LintCodeServiceTests: TuistUnitTestCase {
     func test_run_throws_an_error_when_code_liner_throws_error() throws {
         // Given
         let fakeError = TestError("codeLinterFailed")
-        manifestLoader.manifestsAtStub = { _ in Set([.project]) }
         let project = Project.test(path: basePath.appending(component: "test"))
-        modelLoader.mockProject("test", loadClosure: { _ in project })
         codeLinter.stubbedLintError = fakeError
 
         // When
@@ -125,11 +100,8 @@ final class LintCodeServiceTests: TuistUnitTestCase {
 
     func test_run_lint_workspace() throws {
         // Given
-        manifestLoader.manifestsAtStub = { _ in Set([.workspace]) }
-
         let workspace = Workspace.test(path: basePath.appending(component: "test"))
         let project = Project.test(path: basePath.appending(component: "test"))
-        modelLoader.mockWorkspace("test", loadClosure: { _ in workspace })
         let target01 = Target.test(
             name: "Target1",
             sources: [
@@ -162,8 +134,7 @@ final class LintCodeServiceTests: TuistUnitTestCase {
                 ],
             ]
         )
-        graphLoader.loadWorkspaceStub = { _, _ in graph }
-        graphLoader.loadProjectStub = { _, _ in (project, graph) }
+        simpleGraphLoader.stubLoadGraph = graph
 
         // When
         try subject.run(path: workspace.path.pathString, targetName: nil, strict: false)
@@ -187,18 +158,14 @@ final class LintCodeServiceTests: TuistUnitTestCase {
         XCTAssertEqual(invokedLintParameters?.strict, false)
 
         XCTAssertPrinterOutputContains("""
-        Loading the dependency graph
-        Loading workspace at \(workspace.path.pathString)
+        Loading the dependency graph at \(workspace.path)
         Running code linting
         """)
     }
 
     func test_run_lint_project() throws {
         // Given
-        manifestLoader.manifestsAtStub = { _ in Set([.project]) }
-
         let project = Project.test(path: basePath.appending(component: "test"))
-        modelLoader.mockProject("test", loadClosure: { _ in project })
         let target01 = Target.test(
             name: "Target1",
             sources: [
@@ -230,7 +197,7 @@ final class LintCodeServiceTests: TuistUnitTestCase {
                 ],
             ]
         )
-        graphLoader.loadProjectStub = { _, _ in (project, graph) }
+        simpleGraphLoader.stubLoadGraph = graph
 
         // When
         try subject.run(path: project.path.pathString, targetName: nil, strict: false)
@@ -254,18 +221,14 @@ final class LintCodeServiceTests: TuistUnitTestCase {
         XCTAssertEqual(invokedLintParameters?.strict, false)
 
         XCTAssertPrinterOutputContains("""
-        Loading the dependency graph
-        Loading project at \(project.path.pathString)
+        Loading the dependency graph at \(project.path)
         Running code linting
         """)
     }
 
     func test_run_lint_project_strict() throws {
         // Given
-        manifestLoader.manifestsAtStub = { _ in Set([.project]) }
-
         let project = Project.test(path: basePath.appending(component: "test"))
-        modelLoader.mockProject("test", loadClosure: { _ in project })
         let target01 = Target.test(
             name: "Target1",
             sources: [
@@ -297,7 +260,7 @@ final class LintCodeServiceTests: TuistUnitTestCase {
                 ],
             ]
         )
-        graphLoader.loadProjectStub = { _, _ in (project, graph) }
+        simpleGraphLoader.stubLoadGraph = graph
 
         // When
         try subject.run(path: project.path.pathString, targetName: nil, strict: true)
@@ -321,19 +284,15 @@ final class LintCodeServiceTests: TuistUnitTestCase {
         XCTAssertEqual(invokedLintParameters?.strict, true)
 
         XCTAssertPrinterOutputContains("""
-        Loading the dependency graph
-        Loading project at \(project.path.pathString)
+        Loading the dependency graph at \(project.path)
         Running code linting
         """)
     }
 
     func test_run_lint_target() throws {
         // Given
-        manifestLoader.manifestsAtStub = { _ in Set([.workspace]) }
-
         let workspace = Workspace.test(path: basePath.appending(component: "test"))
         let project = Project.test(path: basePath.appending(component: "test"))
-        modelLoader.mockWorkspace("test", loadClosure: { _ in workspace })
         let target01 = Target.test(
             name: "Target1",
             sources: [
@@ -366,8 +325,7 @@ final class LintCodeServiceTests: TuistUnitTestCase {
                 ],
             ]
         )
-        graphLoader.loadWorkspaceStub = { _, _ in graph }
-        graphLoader.loadProjectStub = { _, _ in (project, graph) }
+        simpleGraphLoader.stubLoadGraph = graph
 
         // When
         try subject.run(path: workspace.path.pathString, targetName: target01.name, strict: false)
@@ -384,8 +342,7 @@ final class LintCodeServiceTests: TuistUnitTestCase {
         XCTAssertEqual(invokedLintParameters?.strict, false)
 
         XCTAssertPrinterOutputContains("""
-        Loading the dependency graph
-        Loading workspace at \(workspace.path.pathString)
+        Loading the dependency graph at \(workspace.path)
         Running code linting
         """)
     }

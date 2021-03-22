@@ -28,78 +28,52 @@ enum LintProjectServiceError: FatalError, Equatable {
 }
 
 final class LintProjectService {
-    /// Graph linter
     private let graphLinter: GraphLinting
     private let environmentLinter: EnvironmentLinting
-    private let manifestLoading: ManifestLoading
-    private let graphLoader: ValueGraphLoading
-    private let modelLoader: GeneratorModelLoading
     private let configLoader: ConfigLoading
+    private let simpleGraphLoader: SimpleGraphLoading
 
     convenience init() {
-        let manifestLoader = ManifestLoader()
-        let modelLoader = GeneratorModelLoader(
-            manifestLoader: manifestLoader,
-            manifestLinter: AnyManifestLinter()
-        )
-        let graphLoader = ValueGraphLoader()
+        let manifestLoader = ManifestLoaderFactory()
+            .createManifestLoader()
         let configLoader = ConfigLoader(manifestLoader: manifestLoader)
         let graphLinter = GraphLinter()
         let environmentLinter = EnvironmentLinter()
+        let simpleGraphLoader = SimpleGraphLoader(manifestLoader: manifestLoader)
         self.init(
             graphLinter: graphLinter,
             environmentLinter: environmentLinter,
-            manifestLoading: manifestLoader,
-            graphLoader: graphLoader,
-            modelLoader: modelLoader,
-            configLoader: configLoader
+            configLoader: configLoader,
+            simpleGraphLoader: simpleGraphLoader
         )
     }
 
     init(
         graphLinter: GraphLinting,
         environmentLinter: EnvironmentLinting,
-        manifestLoading: ManifestLoading,
-        graphLoader: ValueGraphLoading,
-        modelLoader: GeneratorModelLoading,
-        configLoader: ConfigLoading
+        configLoader: ConfigLoading,
+        simpleGraphLoader: SimpleGraphLoading
     ) {
         self.graphLinter = graphLinter
         self.environmentLinter = environmentLinter
-        self.manifestLoading = manifestLoading
-        self.graphLoader = graphLoader
-        self.modelLoader = modelLoader
         self.configLoader = configLoader
+        self.simpleGraphLoader = simpleGraphLoader
     }
 
     func run(path: String?) throws {
         let path = self.path(path)
 
-        // Load graph
-        let manifests = manifestLoading.manifests(at: path)
-        let graph: ValueGraph
-
-        logger.notice("Loading the dependency graph")
-        if manifests.contains(.workspace) {
-            logger.notice("Loading workspace at \(path.pathString)")
-            let workspace = try modelLoader.loadWorkspace(at: path)
-            let projects = try workspace.projects.map(modelLoader.loadProject)
-            graph = try graphLoader.loadWorkspace(workspace: workspace, projects: projects)
-        } else if manifests.contains(.project) {
-            logger.notice("Loading project at \(path.pathString)")
-            let project = try modelLoader.loadProject(at: path)
-            (_, graph) = try graphLoader.loadProject(at: path, projects: [project])
-        } else {
-            throw LintProjectServiceError.manifestNotFound(path)
-        }
+        logger.notice("Loading the dependency graph at \(path)")
+        let graph = try simpleGraphLoader.loadGraph(at: path)
         let graphTraverser = ValueGraphTraverser(graph: graph)
 
         logger.notice("Running linters")
-        let config = try configLoader.loadConfig(path: path)
 
+        let config = try configLoader.loadConfig(path: path)
         var issues: [LintingIssue] = []
         logger.notice("Linting the environment")
         issues.append(contentsOf: try environmentLinter.lint(config: config))
+
         logger.notice("Linting the loaded dependency graph")
         issues.append(contentsOf: graphLinter.lint(graphTraverser: graphTraverser))
 
