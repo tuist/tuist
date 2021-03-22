@@ -48,7 +48,9 @@ public class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting {
         config: Config,
         graphTraverser: GraphTraversing
     ) throws {
-        guard graphTraverser.hasRemotePackages else {
+        guard !config.generationOptions.contains(.disablePackageVersionLocking),
+              graphTraverser.hasRemotePackages
+        else {
             return
         }
 
