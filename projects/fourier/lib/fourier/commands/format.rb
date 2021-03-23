@@ -2,10 +2,10 @@
 module Fourier
   module Commands
     class Format < Base
-      desc "tuist", "Format the source code of the Tuist CLI"
+      desc "swift", "Format the Swift code of the repo"
       option :fix, desc: "When passed, it fixes the issues", type: :boolean, default: false
-      def tuist
-        Services::Format::Tuist.call(fix: options[:fix])
+      def swift
+        Services::Format::Swift.call(fix: options[:fix])
       end
     end
   end

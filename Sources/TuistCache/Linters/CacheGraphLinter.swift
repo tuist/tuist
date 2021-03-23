@@ -1,5 +1,6 @@
 import Foundation
 import TuistCore
+import TuistGraph
 import TuistSupport
 
 /// Protocol that defines the interface to lint a graph and warn
@@ -7,18 +8,19 @@ import TuistSupport
 public protocol CacheGraphLinting {
     /// Lint a given graph.
     /// - Parameter graph: Graph to be linted.
-    func lint(graph: Graph)
+    func lint(graph: ValueGraph)
 }
 
 public final class CacheGraphLinter: CacheGraphLinting {
     public init() {}
 
-    public func lint(graph: Graph) {
-        let targets = graph.targets.flatMap(\.value)
+    public func lint(graph: ValueGraph) {
+        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let targets = graphTraverser.allTargets()
         let targetsWithActions = targets.filter { $0.target.actions.count != 0 }
         if !targetsWithActions.isEmpty {
             let message: Logger.Message = """
-            The following targets contain actions that might introduce non-cacheable side-effects: \(targetsWithActions.map(\.name).joined(separator: ", ")).
+            The following targets contain actions that might introduce non-cacheable side-effects: \(targetsWithActions.map(\.target.name).joined(separator: ", ")).
             Note that a side-effect is an action that affects the target built products based on a given input (e.g. Xcode build variable).
             These warnings can be ignored when the actions do not have side effects. Please report eventual use cases to the community forum \(Constants.communityURL).
             """

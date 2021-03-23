@@ -10,11 +10,11 @@ import TuistSupport
 
 protocol Generating {
     @discardableResult
-    func load(path: AbsolutePath) throws -> Graph
-    func loadProject(path: AbsolutePath) throws -> (Project, Graph, [SideEffectDescriptor])
+    func load(path: AbsolutePath) throws -> ValueGraph
+    func loadProject(path: AbsolutePath) throws -> (Project, ValueGraph, [SideEffectDescriptor])
     func generate(path: AbsolutePath, projectOnly: Bool) throws -> AbsolutePath
-    func generateWithGraph(path: AbsolutePath, projectOnly: Bool) throws -> (AbsolutePath, Graph)
-    func generateProjectWorkspace(path: AbsolutePath) throws -> (AbsolutePath, Graph)
+    func generateWithGraph(path: AbsolutePath, projectOnly: Bool) throws -> (AbsolutePath, ValueGraph)
+    func generateProjectWorkspace(path: AbsolutePath) throws -> (AbsolutePath, ValueGraph)
 }
 
 class Generator: Generating {
@@ -75,7 +75,7 @@ class Generator: Generating {
         return generatedPath
     }
 
-    func generateWithGraph(path: AbsolutePath, projectOnly: Bool) throws -> (AbsolutePath, Graph) {
+    func generateWithGraph(path: AbsolutePath, projectOnly: Bool) throws -> (AbsolutePath, ValueGraph) {
         let manifests = manifestLoader.manifests(at: path)
 
         if projectOnly {
@@ -89,7 +89,7 @@ class Generator: Generating {
         }
     }
 
-    func load(path: AbsolutePath) throws -> Graph {
+    func load(path: AbsolutePath) throws -> ValueGraph {
         let manifests = manifestLoader.manifests(at: path)
 
         if manifests.contains(.workspace) {
@@ -102,7 +102,7 @@ class Generator: Generating {
     }
 
     // swiftlint:disable:next large_tuple
-    func loadProject(path: AbsolutePath) throws -> (Project, Graph, [SideEffectDescriptor]) {
+    func loadProject(path: AbsolutePath) throws -> (Project, ValueGraph, [SideEffectDescriptor]) {
         // Load config
         let config = try configLoader.loadConfig(path: path)
 
@@ -128,21 +128,24 @@ class Generator: Generating {
         let modelMapperSideEffects = updatedModels.flatMap(\.1)
 
         // Load Graph
-        let cachedModelLoader = CachedModelLoader(projects: updatedProjects)
-        let cachedGraphLoader = GraphLoader(modelLoader: cachedModelLoader)
-        let (graph, project) = try cachedGraphLoader.loadProject(path: path)
+        let graphLoader = ValueGraphLoader()
+        let (project, graph) = try graphLoader.loadProject(
+            at: path,
+            projects: updatedProjects
+        )
 
         // Apply graph mappers
-        let (updatedGraph, graphMapperSideEffects) = try graphMapperProvider.mapper(config: config).map(graph: graph)
+        let (updatedGraph, graphMapperSideEffects) = try graphMapperProvider
+            .mapper(config: config)
+            .map(graph: graph)
 
         return (project, updatedGraph, modelMapperSideEffects + graphMapperSideEffects)
     }
 
-    private func generateProject(path: AbsolutePath) throws -> (AbsolutePath, Graph) {
+    private func generateProject(path: AbsolutePath) throws -> (AbsolutePath, ValueGraph) {
         // Load
         let (project, graph, sideEffects) = try loadProject(path: path)
-        let valueGraph = ValueGraph(graph: graph)
-        let graphTraverser = ValueGraphTraverser(graph: valueGraph)
+        let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // Lint
         try lint(graphTraverser: graphTraverser)
@@ -162,11 +165,10 @@ class Generator: Generating {
         return (projectDescriptor.xcodeprojPath, graph)
     }
 
-    private func generateWorkspace(path: AbsolutePath) throws -> (AbsolutePath, Graph) {
+    private func generateWorkspace(path: AbsolutePath) throws -> (AbsolutePath, ValueGraph) {
         // Load
         let (graph, sideEffects) = try loadWorkspace(path: path)
-        let valueGraph = ValueGraph(graph: graph)
-        let graphTraverser = ValueGraphTraverser(graph: valueGraph)
+        let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // Lint
         try lint(graphTraverser: graphTraverser)
@@ -186,11 +188,10 @@ class Generator: Generating {
         return (workspaceDescriptor.xcworkspacePath, graph)
     }
 
-    internal func generateProjectWorkspace(path: AbsolutePath) throws -> (AbsolutePath, Graph) {
+    internal func generateProjectWorkspace(path: AbsolutePath) throws -> (AbsolutePath, ValueGraph) {
         // Load
         let (_, graph, sideEffects) = try loadProjectWorkspace(path: path)
-        let valueGraph = ValueGraph(graph: graph)
-        let graphTraverser = ValueGraphTraverser(graph: valueGraph)
+        let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // Lint
         try lint(graphTraverser: graphTraverser)
@@ -226,7 +227,7 @@ class Generator: Generating {
     }
 
     // swiftlint:disable:next large_tuple
-    private func loadProjectWorkspace(path: AbsolutePath) throws -> (Project, Graph, [SideEffectDescriptor]) {
+    private func loadProjectWorkspace(path: AbsolutePath) throws -> (Project, ValueGraph, [SideEffectDescriptor]) {
         // Load config
         let config = try configLoader.loadConfig(path: path)
 
@@ -261,29 +262,31 @@ class Generator: Generating {
         )
 
         // Load Graph
-        let cachedModelLoader = CachedModelLoader(projects: updatedModels.projects)
-        let cachedGraphLoader = GraphLoader(modelLoader: cachedModelLoader)
-        let (graph, project) = try cachedGraphLoader.loadProject(path: path)
+        let graphLoader = ValueGraphLoader()
+        var (project, graph) = try graphLoader.loadProject(
+            at: path,
+            projects: updatedModels.projects
+        )
+        graph.workspace = updatedModels.workspace
 
         // Apply graph mappers
-        let (updatedGraph, graphMapperSideEffects) = try graphMapperProvider
+        var (updatedGraph, graphMapperSideEffects) = try graphMapperProvider
             .mapper(config: config)
-            .map(
-                graph: graph.with(workspace: updatedModels.workspace)
-            )
+            .map(graph: graph)
 
         var updatedWorkspace = updatedGraph.workspace
-        updatedWorkspace = updatedWorkspace.merging(projects: updatedGraph.projects.map(\.path))
+        updatedWorkspace = updatedWorkspace.merging(projects: updatedGraph.projects.map(\.key))
+        updatedGraph.workspace = updatedWorkspace
 
         return (
             project,
-            updatedGraph.with(workspace: updatedWorkspace),
+            updatedGraph,
             modelMapperSideEffects + graphMapperSideEffects
         )
     }
 
     // swiftlint:disable:next large_tuple
-    private func loadWorkspace(path: AbsolutePath) throws -> (Graph, [SideEffectDescriptor]) {
+    private func loadWorkspace(path: AbsolutePath) throws -> (ValueGraph, [SideEffectDescriptor]) {
         // Load config
         let config = try configLoader.loadConfig(path: path)
 
@@ -309,9 +312,11 @@ class Generator: Generating {
         )
 
         // Load Graph
-        let cachedModelLoader = CachedModelLoader(workspace: [updatedModels.workspace], projects: updatedModels.projects)
-        let cachedGraphLoader = GraphLoader(modelLoader: cachedModelLoader)
-        let graph = try cachedGraphLoader.loadWorkspace(path: path)
+        let graphLoader = ValueGraphLoader()
+        let graph = try graphLoader.loadWorkspace(
+            workspace: updatedModels.workspace,
+            projects: updatedModels.projects
+        )
 
         // Apply graph mappers
         let (mappedGraph, graphMapperSideEffects) = try graphMapperProvider

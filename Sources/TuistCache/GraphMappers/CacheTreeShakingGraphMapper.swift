@@ -8,7 +8,7 @@ public final class CacheTreeShakingGraphMapper: GraphMapping {
 
     public func map(graph: ValueGraph) throws -> (ValueGraph, [SideEffectDescriptor]) {
         let sourceTargets: Set<TargetReference> = Set(graph.targets.flatMap { (projectPath, targets) -> [TargetReference] in
-            guard let project = graph.projects[projectPath] else { return [] }
+            guard graph.projects[projectPath] != nil else { return [] }
             return targets.compactMap { (_, target) -> TargetReference? in
                 if target.prune { return nil }
                 return TargetReference(projectPath: projectPath, name: target.name)
@@ -55,53 +55,6 @@ public final class CacheTreeShakingGraphMapper: GraphMapping {
         return (graph, [])
     }
 
-    public func map(graph: Graph) throws -> (Graph, [SideEffectDescriptor]) {
-        let sourceTargets: Set<TargetReference> = graph.targets.reduce(into: Set<TargetReference>()) { acc, next in
-            acc.formUnion(next.value.filter { !$0.target.prune }.map { TargetReference(projectPath: $0.path, name: $0.name) })
-        }
-        // If the number of source targets matches the number of targets in the graph there's nothing to be pruned.
-        if sourceTargets.count == graph.targets.flatMap(\.value).count { return (graph, []) }
-
-        let projects = graph.projects.compactMap { (project) -> Project? in
-            let targets = self.treeShake(
-                targets: project.targets,
-                path: project.path,
-                graph: graph,
-                sourceTargets: sourceTargets
-            )
-
-            // If the project has no targets we remove the project.
-            if targets.isEmpty {
-                return nil
-            } else {
-                let schemes = self.treeShake(
-                    schemes: project.schemes,
-                    sourceTargets: sourceTargets
-                )
-                return project.with(targets: targets).with(schemes: schemes)
-            }
-        }
-
-        let workspace = treeShake(
-            workspace: graph.workspace,
-            projects: projects,
-            sourceTargets: sourceTargets
-        )
-
-        let graph = graph
-            .with(projects: projects)
-            .with(workspace: workspace)
-            .with(targets: sourceTargets.reduce(into: [AbsolutePath: [TargetNode]]()) { acc, targetReference in
-                var targets = acc[targetReference.projectPath, default: []]
-                if let target = graph.target(path: targetReference.projectPath, name: targetReference.name) {
-                    targets.append(target)
-                }
-                acc[targetReference.projectPath] = targets
-            })
-
-        return (graph, [])
-    }
-
     fileprivate func treeShake(workspace: Workspace, projects: [Project], sourceTargets: Set<TargetReference>) -> Workspace {
         let projects = workspace.projects.filter { projects.map(\.path).contains($0) }
         let schemes = treeShake(schemes: workspace.schemes, sourceTargets: sourceTargets)
@@ -109,15 +62,6 @@ public final class CacheTreeShakingGraphMapper: GraphMapping {
         workspace.schemes = schemes
         workspace.projects = projects
         return workspace
-    }
-
-    fileprivate func treeShake(targets: [Target], path: AbsolutePath, graph: Graph, sourceTargets: Set<TargetReference>) -> [Target] {
-        targets.compactMap { (target) -> Target? in
-            guard let targetNode = graph.target(path: path, name: target.name) else { return nil }
-            let targetReference = TargetReference(projectPath: targetNode.path, name: targetNode.name)
-            guard sourceTargets.contains(targetReference) else { return nil }
-            return target
-        }
     }
 
     fileprivate func treeShake(targets: [Target], path: AbsolutePath, graph: ValueGraph, sourceTargets: Set<TargetReference>) -> [Target] {

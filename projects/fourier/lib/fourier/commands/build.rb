@@ -14,6 +14,16 @@ module Fourier
       def fixture
         Services::Build::Fixture.call
       end
+
+      desc "web", "Build the website"
+      def web
+        Services::Build::Web.call
+      end
+
+      desc "next", "Build the next website"
+      def next
+        Services::Build::Next.call
+      end
     end
   end
 end

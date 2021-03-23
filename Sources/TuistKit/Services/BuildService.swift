@@ -60,9 +60,9 @@ final class BuildService {
     ) throws {
         let graph: ValueGraph
         if try (generate || buildGraphInspector.workspacePath(directory: path) == nil) {
-            graph = ValueGraph(graph: try generator.generateWithGraph(path: path, projectOnly: false).1)
+            graph = try generator.generateWithGraph(path: path, projectOnly: false).1
         } else {
-            graph = ValueGraph(graph: try generator.load(path: path))
+            graph = try generator.load(path: path)
         }
         let graphTraverser = ValueGraphTraverser(graph: graph)
 

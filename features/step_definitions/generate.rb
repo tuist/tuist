@@ -72,7 +72,7 @@ Then("the product {string} with destination {string} contains the Info.plist key
     derived_data_path: @derived_data_path
   )
   flunk("Product with name #{product} and destination #{destination} not found in DerivedData") if info_plist_path.nil?
-  
+
   unless system("/usr/libexec/PlistBuddy -c \"print :#{key}\" #{info_plist_path}")
     flunk("Key #{key} not found in the #{product} Info.plist")
   end
@@ -87,10 +87,10 @@ Then("the product {string} with destination {string} contains the Info.plist key
   )
   flunk("Product with name #{product} and destination #{destination} not found in DerivedData") if info_plist_path.nil?
 
-  output = `/usr/libexec/PlistBuddy -c \"print :#{key}\" #{info_plist_path}`
+  output = %x(/usr/libexec/PlistBuddy -c \"print :#{key}\" #{info_plist_path})
 
   flunk("Key #{key} not found in the #{product} Info.plist") if output.nil?
-  
+
   assert(output == "#{value}\n")
 end
 

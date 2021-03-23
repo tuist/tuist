@@ -17,20 +17,33 @@ final class ProjectTests: XCTestCase {
             framework, app, appTests, frameworkTests,
         ])
 
-        let graph = Graph.create(project: project, dependencies: [
-            (target: framework, dependencies: []),
-            (target: frameworkTests, dependencies: [framework]),
-            (target: app, dependencies: [framework]),
-            (target: appTests, dependencies: [app]),
-        ])
+        let graph = ValueGraph.test(
+            projects: [project.path: project],
+            targets: [
+                project.path: [
+                    framework.name: framework,
+                    frameworkTests.name: frameworkTests,
+                    app.name: app,
+                    appTests.name: appTests,
+                ],
+            ],
+            dependencies: [
+                .target(name: frameworkTests.name, path: project.path): [
+                    .target(name: framework.name, path: project.path),
+                ],
+                .target(name: appTests.name, path: project.path): [
+                    .target(name: app.name, path: project.path),
+                ],
+            ]
+        )
 
         // When
         let got = project.sortedTargetsForProjectScheme(graph: graph)
 
         // Then
         XCTAssertEqual(got.count, 4)
-        XCTAssertEqual(got[0], framework)
-        XCTAssertEqual(got[1], app)
+        XCTAssertEqual(got[0], app)
+        XCTAssertEqual(got[1], framework)
         XCTAssertEqual(got[2], appTests)
         XCTAssertEqual(got[3], frameworkTests)
     }

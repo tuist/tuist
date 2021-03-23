@@ -18,6 +18,7 @@ gem "thor", "~> 1.1"
 gem "octokit", "~> 4.20"
 gem "zeitwerk", "~> 2.4"
 gem "cli-kit", "~> 3.3"
+gem "semantic", "~> 1.6"
 
 group :test do
   gem "mocha", "~> 1.12"

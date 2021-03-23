@@ -28,30 +28,24 @@ final class WorkspaceGeneratorIntegrationTests: TuistTestCase {
     func test_generate_stressTest() throws {
         // Given
         let temporaryPath = try self.temporaryPath()
-        let projects = (0 ..< 20).map {
-            Project.test(
-                path: temporaryPath.appending(component: "Project\($0)"),
-                xcodeProjPath: temporaryPath.appending(components: "Project\($0)", "Project.xcodeproj"),
+        let projects: [AbsolutePath: Project] = (0 ..< 20).reduce(into: [:]) { acc, index in
+            let path = temporaryPath.appending(component: "Project\(index)")
+            acc[path] = Project.test(
+                path: path,
+                xcodeProjPath: temporaryPath.appending(components: "Project\(index)", "Project.xcodeproj"),
                 name: "Test",
                 settings: .default,
-                targets: [Target.test(name: "Project\($0)_Target")]
+                targets: [Target.test(name: "Project\(index)_Target")]
             )
         }
-        var graph = Graph.create(
-            projects: projects,
-            dependencies: projects.flatMap { project in
-                project.targets.map { target in
-                    (project: project, target: target, dependencies: [])
-                }
-            }
+        let graph = ValueGraph.test(
+            workspace: Workspace.test(
+                path: temporaryPath,
+                projects: projects.map(\.key)
+            ),
+            projects: projects
         )
-        let workspace = Workspace.test(
-            path: temporaryPath,
-            projects: projects.map(\.path)
-        )
-        graph = graph.with(workspace: workspace)
-        let valueGraph = ValueGraph(graph: graph)
-        let graphTraverser = ValueGraphTraverser(graph: valueGraph)
+        let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When / Then
         try (0 ..< 50).forEach { _ in

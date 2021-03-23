@@ -2,23 +2,23 @@
 module Fourier
   module Commands
     class Lint < Base
-      desc "tuist", "Lint the source code of the Tuist CLI"
+      desc "swift", "Lint the Swift code of the project"
       option :fix, desc: "When passed, it fixes the issues", type: :boolean, default: false
-      def tuist
-        Services::Lint::Tuist.call(fix: options[:fix])
+      def swift
+        Services::Lint::Swift.call(fix: options[:fix])
       end
 
-      desc "fourier", "Lint the source code of the Fourier CLI"
+      desc "ruby", "Lint the Ruby code of the project"
       option :fix, desc: "When passed, it fixes the issues", type: :boolean, default: false
-      def fourier
-        Services::Lint::Fourier.call(fix: options[:fix])
+      def ruby
+        Services::Lint::Ruby.call(fix: options[:fix])
       end
 
       desc "all", "Lint all the code in the repository"
       option :fix, desc: "When passed, it fixes the issues", type: :boolean, default: false
       def all
-        Services::Lint::Tuist.call(fix: options[:fix])
-        Services::Lint::Fourier.call(fix: options[:fix])
+        Services::Lint::Swift.call(fix: options[:fix])
+        Services::Lint::Ruby.call(fix: options[:fix])
       end
     end
   end

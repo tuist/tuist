@@ -103,12 +103,12 @@ final class CacheFrameworkBuilderIntegrationTests: TuistTestCase {
     }
 
     fileprivate func binaryLinking(path: AbsolutePath) throws -> BinaryLinking {
-        let binaryPath = FrameworkNode.binaryPath(frameworkPath: path)
+        let binaryPath = try FrameworkMetadataProvider().loadMetadata(at: path).binaryPath
         return try frameworkMetadataProvider.linking(binaryPath: binaryPath)
     }
 
     fileprivate func architectures(path: AbsolutePath) throws -> [BinaryArchitecture] {
-        let binaryPath = FrameworkNode.binaryPath(frameworkPath: path)
+        let binaryPath = try FrameworkMetadataProvider().loadMetadata(at: path).binaryPath
         return try frameworkMetadataProvider.architectures(binaryPath: binaryPath)
     }
 }

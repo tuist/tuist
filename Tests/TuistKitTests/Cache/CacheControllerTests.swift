@@ -74,24 +74,32 @@ final class CacheControllerTests: TuistUnitTestCase {
         try FileHandler.shared.createFolder(bFrameworkPath)
         try FileHandler.shared.createFolder(cFrameworkPath)
 
-        let aTargetNode = TargetNode.test(project: project, target: aTarget)
-        let bTargetNode = TargetNode.test(project: project, target: bTarget, dependencies: [aTargetNode])
-        let cTargetNode = TargetNode.test(project: project, target: cTarget, dependencies: [bTargetNode])
+        let aGraphTarget = ValueGraphTarget.test(path: project.path, target: aTarget, project: project)
+        let bGraphTarget = ValueGraphTarget.test(path: project.path, target: bTarget, project: project)
+        let cGraphTarget = ValueGraphTarget.test(path: project.path, target: cTarget, project: project)
         let nodeWithHashes = [
-            aTargetNode: "\(aTarget.name)_HASH",
-            bTargetNode: "\(bTarget.name)_HASH",
-            cTargetNode: "\(cTarget.name)_HASH",
+            aGraphTarget: "\(aTarget.name)_HASH",
+            bGraphTarget: "\(bTarget.name)_HASH",
+            cGraphTarget: "\(cTarget.name)_HASH",
         ]
-        let graph = Graph.test(
-            projects: [project],
-            targets: nodeWithHashes.keys.reduce(into: [project.path: [TargetNode]()]) { $0[project.path]?.append($1) }
+        let graph = ValueGraph.test(
+            projects: [project.path: project],
+            targets: nodeWithHashes.keys.reduce(into: [project.path: [String: Target]()]) { $0[project.path]?[$1.target.name] = $1.target },
+            dependencies: [
+                .target(name: bGraphTarget.target.name, path: bGraphTarget.path): [
+                    .target(name: aGraphTarget.target.name, path: aGraphTarget.path),
+                ],
+                .target(name: cGraphTarget.target.name, path: cGraphTarget.path): [
+                    .target(name: bGraphTarget.target.name, path: bGraphTarget.path),
+                ],
+            ]
         )
 
         manifestLoader.manifestsAtStub = { (loadPath: AbsolutePath) -> Set<Manifest> in
             XCTAssertEqual(loadPath, path)
             return Set(arrayLiteral: .project)
         }
-        generator.generateWithGraphStub = { (loadPath, _) -> (AbsolutePath, Graph) in
+        generator.generateWithGraphStub = { (loadPath, _) -> (AbsolutePath, ValueGraph) in
             XCTAssertEqual(loadPath, path)
             return (xcworkspacePath, graph)
         }
@@ -99,7 +107,7 @@ final class CacheControllerTests: TuistUnitTestCase {
             XCTAssertEqual(loadPath, path)
             return xcworkspacePath
         }
-        cacheGraphContentHasher.contentHashesGraphStub = { _, _, _ in
+        cacheGraphContentHasher.contentHashesStub = { _, _, _ in
             nodeWithHashes
         }
         artifactBuilder.stubbedCacheOutputType = .xcframework
@@ -138,24 +146,32 @@ final class CacheControllerTests: TuistUnitTestCase {
         try FileHandler.shared.createFolder(bFrameworkPath)
         try FileHandler.shared.createFolder(cFrameworkPath)
 
-        let aTargetNode = TargetNode.test(project: project, target: aTarget)
-        let bTargetNode = TargetNode.test(project: project, target: bTarget, dependencies: [aTargetNode])
-        let cTargetNode = TargetNode.test(project: project, target: cTarget, dependencies: [bTargetNode])
+        let aGraphTarget = ValueGraphTarget.test(path: project.path, target: aTarget, project: project)
+        let bGraphTarget = ValueGraphTarget.test(path: project.path, target: bTarget, project: project)
+        let cGraphTarget = ValueGraphTarget.test(path: project.path, target: cTarget, project: project)
         let nodeWithHashes = [
-            aTargetNode: "\(aTarget.name)_HASH",
-            bTargetNode: "\(bTarget.name)_HASH",
-            cTargetNode: "\(cTarget.name)_HASH",
+            aGraphTarget: "\(aTarget.name)_HASH",
+            bGraphTarget: "\(bTarget.name)_HASH",
+            cGraphTarget: "\(cTarget.name)_HASH",
         ]
-        let graph = Graph.test(
-            projects: [project],
-            targets: nodeWithHashes.keys.reduce(into: [project.path: [TargetNode]()]) { $0[project.path]?.append($1) }
+        let graph = ValueGraph.test(
+            projects: [project.path: project],
+            targets: nodeWithHashes.keys.reduce(into: [project.path: [String: Target]()]) { $0[project.path]?[$1.target.name] = $1.target },
+            dependencies: [
+                .target(name: bGraphTarget.target.name, path: bGraphTarget.path): [
+                    .target(name: aGraphTarget.target.name, path: aGraphTarget.path),
+                ],
+                .target(name: cGraphTarget.target.name, path: cGraphTarget.path): [
+                    .target(name: bGraphTarget.target.name, path: bGraphTarget.path),
+                ],
+            ]
         )
 
         manifestLoader.manifestsAtStub = { (loadPath: AbsolutePath) -> Set<Manifest> in
             XCTAssertEqual(loadPath, path)
             return Set(arrayLiteral: .project)
         }
-        generator.generateWithGraphStub = { (loadPath, _) -> (AbsolutePath, Graph) in
+        generator.generateWithGraphStub = { (loadPath, _) -> (AbsolutePath, ValueGraph) in
             XCTAssertEqual(loadPath, path)
             return (xcworkspacePath, graph)
         }
@@ -163,7 +179,7 @@ final class CacheControllerTests: TuistUnitTestCase {
             XCTAssertEqual(loadPath, path)
             return xcworkspacePath
         }
-        cacheGraphContentHasher.contentHashesGraphStub = { _, _, _ in
+        cacheGraphContentHasher.contentHashesStub = { _, _, _ in
             nodeWithHashes
         }
         artifactBuilder.stubbedCacheOutputType = .xcframework

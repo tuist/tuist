@@ -72,11 +72,6 @@ public class CacheMapper: GraphMapping {
 
     // MARK: - GraphMapping
 
-    public func map(graph: Graph) throws -> (Graph, [SideEffectDescriptor]) {
-        let single = hashes(graph: graph).flatMap { self.map(graph: graph, hashes: $0, sources: self.sources) }
-        return try (single.toBlocking().single(), [])
-    }
-
     public func map(graph: ValueGraph) throws -> (ValueGraph, [SideEffectDescriptor]) {
         let single = hashes(graph: graph).flatMap { self.map(graph: graph, hashes: $0, sources: self.sources) }
         return try (single.toBlocking().single(), [])
@@ -126,49 +121,6 @@ public class CacheMapper: GraphMapping {
         })
             .map { result in
                 result.reduce(into: [ValueGraphTarget: AbsolutePath]()) { acc, next in
-                    guard let path = next.path else { return }
-                    acc[next.target] = path
-                }
-            }
-    }
-
-    private func hashes(graph: Graph) -> Single<[TargetNode: String]> {
-        Single.create { (observer) -> Disposable in
-            do {
-                let hashes = try self.cacheGraphContentHasher.contentHashes(
-                    for: graph,
-                    cacheProfile: self.cacheProfile,
-                    cacheOutputType: self.cacheOutputType
-                )
-                observer(.success(hashes))
-            } catch {
-                observer(.error(error))
-            }
-            return Disposables.create {}
-        }
-        .subscribeOn(ConcurrentDispatchQueueScheduler(queue: queue))
-    }
-
-    private func map(graph: Graph, hashes: [TargetNode: String], sources: Set<String>) -> Single<Graph> {
-        fetch(hashes: hashes).map { xcframeworkPaths in
-            try self.cacheGraphMutator.map(
-                graph: graph,
-                precompiledFrameworks: xcframeworkPaths,
-                sources: sources
-            )
-        }
-    }
-
-    private func fetch(hashes: [TargetNode: String]) -> Single<[TargetNode: AbsolutePath]> {
-        Single.zip(hashes.map { target, hash in
-            self.cache.exists(hash: hash)
-                .flatMap { (exists) -> Single<(target: TargetNode, path: AbsolutePath?)> in
-                    guard exists else { return Single.just((target: target, path: nil)) }
-                    return self.cache.fetch(hash: hash).map { (target: target, path: $0) }
-                }
-        })
-            .map { result in
-                result.reduce(into: [TargetNode: AbsolutePath]()) { acc, next in
                     guard let path = next.path else { return }
                     acc[next.target] = path
                 }
