@@ -38,14 +38,14 @@ final class DependenciesControllerTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_fetch() throws {
+    func test_fetch_carthage() throws {
         // Given
         let rootPath = try temporaryPath()
         let dependenciesDirectoryPath = rootPath
             .appending(component: Constants.tuistDirectoryName)
             .appending(component: Constants.DependenciesDirectory.name)
 
-        let stubbedCarthageDependencies = CarthageDependencies(
+        let carthageDependencies = CarthageDependencies(
             [
                 .github(path: "Moya", requirement: .exact("1.1.1")),
                 .github(path: "RxSwift", requirement: .exact("2.0.0")),
@@ -53,14 +53,110 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             platforms: [.iOS],
             options: [.useXCFrameworks, .noUseBinaries]
         )
-        let stubbedDependencies = Dependencies(carthage: stubbedCarthageDependencies, swiftPackageManager: nil)
+        let dependencies = Dependencies(carthage: carthageDependencies, swiftPackageManager: nil)
 
         // When
-        try subject.fetch(at: rootPath, dependencies: stubbedDependencies)
+        try subject.fetch(at: rootPath, dependencies: dependencies)
+
+        // Then
+        XCTAssertFalse(carthageInteractor.invokedClean)
+        XCTAssertTrue(carthageInteractor.invokedFetch)
+        XCTAssertEqual(carthageInteractor.invokedFetchParameters?.dependenciesDirectory, dependenciesDirectoryPath)
+        XCTAssertEqual(carthageInteractor.invokedFetchParameters?.dependencies, carthageDependencies)
+
+        XCTAssertTrue(swiftPackageManagerInteractor.invokedClean)
+        XCTAssertFalse(swiftPackageManagerInteractor.invokedFetch)
+        
+        XCTAssertFalse(cocoaPodsInteractor.invokedFetch)
+    }
+
+    func test_fetch_swiftPackageManger() throws {
+        // Given
+        let rootPath = try temporaryPath()
+        let dependenciesDirectoryPath = rootPath
+            .appending(component: Constants.tuistDirectoryName)
+            .appending(component: Constants.DependenciesDirectory.name)
+
+        let swiftPackageManagerDependencies = SwiftPackageManagerDependencies(
+            [
+                .remote(url: "Moya", requirement: .exact("2.3.4")),
+                .remote(url: "Alamofire", requirement: .upToNextMajor("5.0.0")),
+            ]
+        )
+        let dependencies = Dependencies(carthage: nil, swiftPackageManager: swiftPackageManagerDependencies)
+
+        // When
+        try subject.fetch(at: rootPath, dependencies: dependencies)
+
+        // Then
+        XCTAssertFalse(swiftPackageManagerInteractor.invokedClean)
+        XCTAssertTrue(swiftPackageManagerInteractor.invokedFetch)
+        XCTAssertEqual(swiftPackageManagerInteractor.invokedFetchParameters?.dependenciesDirectory, dependenciesDirectoryPath)
+        XCTAssertEqual(swiftPackageManagerInteractor.invokedFetchParameters?.dependencies, swiftPackageManagerDependencies)
+
+        XCTAssertTrue(carthageInteractor.invokedClean)
+        XCTAssertFalse(carthageInteractor.invokedFetch)
+        
+        XCTAssertFalse(cocoaPodsInteractor.invokedFetch)
+    }
+
+    func test_fetch_carthage_swiftPackageManger() throws {
+        // Given
+        let rootPath = try temporaryPath()
+        let dependenciesDirectoryPath = rootPath
+            .appending(component: Constants.tuistDirectoryName)
+            .appending(component: Constants.DependenciesDirectory.name)
+
+        let carthageDependencies = CarthageDependencies(
+            [
+                .github(path: "Moya", requirement: .exact("1.1.1")),
+                .github(path: "RxSwift", requirement: .exact("2.0.0")),
+            ],
+            platforms: [.iOS],
+            options: [.useXCFrameworks, .noUseBinaries]
+        )
+        let swiftPackageManagerDependencies = SwiftPackageManagerDependencies(
+            [
+                .remote(url: "Moya", requirement: .exact("2.3.4")),
+                .remote(url: "Alamofire", requirement: .upToNextMajor("5.0.0")),
+            ]
+        )
+        let dependencies = Dependencies(carthage: carthageDependencies, swiftPackageManager: swiftPackageManagerDependencies)
+
+        // When
+        try subject.fetch(at: rootPath, dependencies: dependencies)
 
         // Then
         XCTAssertTrue(carthageInteractor.invokedFetch)
         XCTAssertEqual(carthageInteractor.invokedFetchParameters?.dependenciesDirectory, dependenciesDirectoryPath)
-        XCTAssertEqual(carthageInteractor.invokedFetchParameters?.dependencies, stubbedCarthageDependencies)
+        XCTAssertEqual(carthageInteractor.invokedFetchParameters?.dependencies, carthageDependencies)
+
+        XCTAssertTrue(swiftPackageManagerInteractor.invokedFetch)
+        XCTAssertEqual(swiftPackageManagerInteractor.invokedFetchParameters?.dependenciesDirectory, dependenciesDirectoryPath)
+        XCTAssertEqual(swiftPackageManagerInteractor.invokedFetchParameters?.dependencies, swiftPackageManagerDependencies)
+
+        XCTAssertFalse(cocoaPodsInteractor.invokedFetch)
+    }
+    
+    func test_fetch_no_depedencies() throws {
+        // Given
+        let rootPath = try temporaryPath()
+        
+        let dependencies = Dependencies(
+            carthage: .init([], platforms: [], options: []),
+            swiftPackageManager: .init([])
+        )
+        
+        // When
+        try subject.fetch(at: rootPath, dependencies: dependencies)
+        
+        // Then
+        XCTAssertTrue(carthageInteractor.invokedClean)
+        XCTAssertFalse(carthageInteractor.invokedFetch)
+        
+        XCTAssertTrue(swiftPackageManagerInteractor.invokedClean)
+        XCTAssertFalse(swiftPackageManagerInteractor.invokedFetch)
+        
+        XCTAssertFalse(cocoaPodsInteractor.invokedFetch)
     }
 }

@@ -39,8 +39,16 @@ public final class DependenciesController: DependenciesControlling {
             .appending(component: Constants.tuistDirectoryName)
             .appending(component: Constants.DependenciesDirectory.name)
 
-        if let depedencies = dependencies.carthage {
-            try carthageInteractor.fetch(dependenciesDirectory: dependenciesDirectory, dependencies: depedencies)
+        if let carthageDepedencies = dependencies.carthage, !carthageDepedencies.dependencies.isEmpty {
+            try carthageInteractor.fetch(dependenciesDirectory: dependenciesDirectory, dependencies: carthageDepedencies)
+        } else {
+            try carthageInteractor.clean(dependenciesDirectory: dependenciesDirectory)
+        }
+
+        if let swiftPackageManagerDependencies = dependencies.swiftPackageManager, !swiftPackageManagerDependencies.packages.isEmpty {
+            try swiftPackageManagerInteractor.fetch(dependenciesDirectory: dependenciesDirectory, dependencies: swiftPackageManagerDependencies)
+        } else {
+            try swiftPackageManagerInteractor.clean(dependenciesDirectory: dependenciesDirectory)
         }
     }
 }

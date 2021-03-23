@@ -32,6 +32,8 @@ public struct CarthageDependencies: Equatable {
     }
 }
 
+// MARK: - CarthageDependencies.Dependency
+
 public extension CarthageDependencies {
     enum Dependency: Equatable {
         case github(path: String, requirement: Requirement)
@@ -50,7 +52,11 @@ public extension CarthageDependencies {
             }
         }
     }
+}
 
+// MARK: - CarthageDependencies.Requirement
+
+public extension CarthageDependencies {
     enum Requirement: Equatable {
         case exact(String)
         case upToNext(String)
@@ -74,7 +80,11 @@ public extension CarthageDependencies {
             }
         }
     }
+}
 
+// MARK: - CarthageDependencies.Options
+
+public extension CarthageDependencies {
     enum Options: Equatable {
         case useXCFrameworks
         case noUseBinaries
