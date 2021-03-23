@@ -10,6 +10,7 @@ let project = Project(name: "App",
                                sources: ["Sources/**"],
                                coreDataModels: [
                                  CoreDataModel("CoreData/Users.xcdatamodeld", currentVersion: "1"),
-                                 CoreDataModel("CoreData/UsersAutoDetect.xcdatamodeld")
+                                 CoreDataModel("CoreData/UsersAutoDetect.xcdatamodeld"),
+                                 CoreDataModel("CoreData/Unversioned.xcdatamodeld")
                                ])
                       ])
