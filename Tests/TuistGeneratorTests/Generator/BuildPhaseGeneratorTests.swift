@@ -25,21 +25,17 @@ final class BuildPhaseGenerationErrorTests: TuistUnitTestCase {
 final class BuildPhaseGeneratorTests: TuistUnitTestCase {
     var subject: BuildPhaseGenerator!
     var errorHandler: MockErrorHandler!
-    var graph: Graph!
 
     override func setUp() {
         subject = BuildPhaseGenerator()
         errorHandler = MockErrorHandler()
-        graph = Graph.test()
         super.setUp()
     }
 
     override func tearDown() {
-        super.tearDown()
-
         subject = nil
         errorHandler = nil
-        graph = nil
+        super.tearDown()
     }
 
     func test_generateSourcesBuildPhase() throws {
@@ -747,9 +743,8 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         // Given
         system.swiftVersionStub = { "5.2" }
         let fileElements = ProjectFileElements([:])
-        let graph = Graph.test()
-        let valueGraph = ValueGraph(graph: graph)
-        let graphTraverser = ValueGraphTraverser(graph: valueGraph)
+        let graph = ValueGraph.test()
+        let graphTraverser = ValueGraphTraverser(graph: graph)
         let path = AbsolutePath("/test")
         let pbxproj = PBXProj()
         let pbxProject = createPbxProject(pbxproj: pbxproj)

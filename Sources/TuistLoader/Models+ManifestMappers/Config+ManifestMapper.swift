@@ -58,6 +58,8 @@ extension TuistGraph.Config.GenerationOption {
             return .disableShowEnvironmentVarsInScriptPhases
         case .enableCodeCoverage:
             return .enableCodeCoverage
+        case .disablePackageVersionLocking:
+            return .disablePackageVersionLocking
         }
     }
 }

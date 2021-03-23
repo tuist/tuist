@@ -14,6 +14,7 @@ public class ValueGraphTraverser: GraphTraversing {
     public var dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] { graph.dependencies }
 
     private let graph: ValueGraph
+    private let systemFrameworkMetadataProvider: SystemFrameworkMetadataProviding = SystemFrameworkMetadataProvider()
 
     public required init(graph: ValueGraph) {
         self.graph = graph
@@ -262,7 +263,13 @@ public class ValueGraphTraverser: GraphTraversing {
 
         // AppClip dependencies
         if target.target.isAppClip {
-            let path = try SDKNode.appClip(status: .required).path
+            let path = try systemFrameworkMetadataProvider.loadMetadata(
+                sdkName: "AppClip.framework",
+                status: .required,
+                platform: .iOS,
+                source: .system
+            )
+            .path
             references.formUnion([GraphDependencyReference.sdk(
                 path: path,
                 status: .required,

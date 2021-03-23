@@ -397,9 +397,8 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
             .test(name: "Framework", product: .framework),
             .test(name: "Library", product: .staticLibrary),
         ])
-        let graph = Graph.test()
-        let valueGraph = ValueGraph(graph: graph)
-        let graphTraverser = ValueGraphTraverser(graph: valueGraph)
+        let graph = ValueGraph.test()
+        let graphTraverser = ValueGraphTraverser(graph: graph)
         let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj)
 
         // When
@@ -437,9 +436,8 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
                 xcodeProjPath: AbsolutePath.root.appending(component: "Project.xcodeproj"),
                 targets: targets
             )
-            let graph = Graph.test()
-            let valueGraph = ValueGraph(graph: graph)
-            let graphTraverser = ValueGraphTraverser(graph: valueGraph)
+            let graph = ValueGraph.test()
+            let graphTraverser = ValueGraphTraverser(graph: graph)
             let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj)
 
             // When
@@ -473,9 +471,8 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
                 .test(name: "App", product: .app),
             ]
         )
-        let graph = Graph.test()
-        let valueGraph = ValueGraph(graph: graph)
-        let graphTraverser = ValueGraphTraverser(graph: valueGraph)
+        let graph = ValueGraph.test()
+        let graphTraverser = ValueGraphTraverser(graph: graph)
         let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj)
 
         // When
@@ -718,13 +715,10 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         let project = Project.test(path: sourceRootPath, sourceRootPath: sourceRootPath, xcodeProjPath: sourceRootPath.appending(component: "Project.xcodeproj"))
         let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj)
 
-        let sdk = try SDKNode(
-            name: "ARKit.framework",
-            platform: .iOS,
-            status: .required,
-            source: .developer
-        )
-        let sdkDependency = GraphDependencyReference.sdk(path: sdk.path, status: sdk.status, source: .developer)
+        let sdkPath = try temporaryPath().appending(component: "ARKit.framework")
+        let sdkStatus: SDKStatus = .required
+        let sdkSource: SDKSource = .developer
+        let sdkDependency = GraphDependencyReference.sdk(path: sdkPath, status: sdkStatus, source: sdkSource)
 
         // When
         try subject.generate(
@@ -740,11 +734,11 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
             "ARKit.framework",
         ])
 
-        let sdkElement = subject.sdks[sdk.path]
+        let sdkElement = subject.sdks[sdkPath]
         XCTAssertNotNil(sdkElement)
         XCTAssertEqual(sdkElement?.sourceTree, .developerDir)
-        XCTAssertEqual(sdkElement?.path, sdk.path.relative(to: "/").pathString)
-        XCTAssertEqual(sdkElement?.name, sdk.path.basename)
+        XCTAssertEqual(sdkElement?.path, sdkPath.relative(to: "/").pathString)
+        XCTAssertEqual(sdkElement?.name, sdkPath.basename)
     }
 
     func test_generateDependencies_remoteSwiftPackage_doNotGenerateElements() throws {
@@ -756,16 +750,31 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
             targets: [target],
             packages: [.remote(url: "url", requirement: .branch("master"))]
         )
+        let graphTarget: ValueGraphTarget = .test(path: project.path, target: target, project: project)
         let groups = ProjectGroups.generate(
             project: .test(path: .root, sourceRootPath: .root, xcodeProjPath: AbsolutePath.root.appending(component: "Project.xcodeproj")),
             pbxproj: pbxproj
         )
 
-        let package = PackageProductNode(product: "A", path: "/packages/url")
-
-        let graph = createGraph(project: project, target: target, dependencies: [package])
-        let valueGraph = ValueGraph(graph: graph)
-        let graphTraverser = ValueGraphTraverser(graph: valueGraph)
+        let graph = ValueGraph.test(
+            projects: [project.path: project],
+            packages: [
+                project.path: [
+                    "A": .remote(url: "url", requirement: .branch("master")),
+                ],
+            ],
+            targets: [
+                graphTarget.path: [
+                    graphTarget.target.name: graphTarget.target,
+                ],
+            ],
+            dependencies: [
+                .target(name: graphTarget.target.name, path: graphTarget.path): [
+                    .packageProduct(path: project.path, product: "A"),
+                ],
+            ]
+        )
+        let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // When
         try subject.generateProjectFiles(
@@ -778,13 +787,6 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         // Then
         let projectGroup = groups.sortedMain.group(named: "Project")
         XCTAssertEqual(projectGroup?.flattenedChildren, [])
-    }
-
-    // MARK: -
-
-    private func createGraph(project: Project, target: Target, dependencies: [GraphNode]) -> Graph {
-        let targetNode = TargetNode(project: project, target: target, dependencies: dependencies)
-        return Graph.test(projects: [project], targets: [project.path: [targetNode]])
     }
 }
 

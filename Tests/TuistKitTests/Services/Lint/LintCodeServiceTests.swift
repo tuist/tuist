@@ -15,20 +15,25 @@ import XCTest
 final class LintCodeServiceTests: TuistUnitTestCase {
     private var codeLinter: MockCodeLinter!
     private var manifestLoader: MockManifestLoader!
-    private var graphLoader: MockGraphLoader!
+    private var graphLoader: MockValueGraphLoader!
+    private var modelLoader: MockGeneratorModelLoader!
+    private var basePath: AbsolutePath!
 
     private var subject: LintCodeService!
 
-    override func setUp() {
-        super.setUp()
+    override func setUpWithError() throws {
+        try super.setUpWithError()
 
         codeLinter = MockCodeLinter()
         manifestLoader = MockManifestLoader()
-        graphLoader = MockGraphLoader()
+        graphLoader = MockValueGraphLoader()
+        basePath = try temporaryPath()
+        modelLoader = MockGeneratorModelLoader(basePath: basePath)
 
         subject = LintCodeService(
             codeLinter: codeLinter,
             manifestLoading: manifestLoader,
+            modelLoader: modelLoader,
             graphLoader: graphLoader
         )
     }
@@ -38,7 +43,10 @@ final class LintCodeServiceTests: TuistUnitTestCase {
 
         codeLinter = nil
         manifestLoader = nil
+        modelLoader = nil
         graphLoader = nil
+
+        basePath = nil
 
         super.tearDown()
     }
@@ -54,226 +62,315 @@ final class LintCodeServiceTests: TuistUnitTestCase {
 
     func test_run_throws_an_error_when_target_no_exist() throws {
         // Given
-        let path = try temporaryPath()
-        manifestLoader.manifestsAtStub = { _ in Set([.workspace]) }
+        manifestLoader.manifestsAtStub = { _ in Set([.project]) }
 
+        let project = Project.test(path: basePath.appending(component: "test"))
+        modelLoader.mockProject("test", loadClosure: { _ in project })
         let target01 = Target.test(name: "Target1")
         let target02 = Target.test(name: "Target2")
         let target03 = Target.test(name: "Target3")
-        let graph = Graph.test(targets: [
-            "/path1": [.test(target: target01), .test(target: target02), .test(target: target03)],
-        ])
+        let graph = ValueGraph.test(
+            projects: [project.path: project],
+            targets: [
+                project.path: [
+                    target01.name: target01,
+                    target02.name: target02,
+                    target03.name: target03,
+                ],
+            ]
+        )
         let fakeNoExistTargetName = "Target_999"
-        graphLoader.loadWorkspaceStub = { _ in graph }
+        graphLoader.loadProjectStub = { _, _ in (project, graph) }
 
         // When
-        XCTAssertThrowsSpecific(try subject.run(path: path.pathString, targetName: fakeNoExistTargetName, strict: false), LintCodeServiceError.targetNotFound(fakeNoExistTargetName))
+        XCTAssertThrowsSpecific(try subject.run(path: project.path.pathString, targetName: fakeNoExistTargetName, strict: false), LintCodeServiceError.targetNotFound(fakeNoExistTargetName))
     }
 
     func test_run_throws_an_error_when_target_to_lint_has_no_sources() throws {
         // Given
-        let path = try temporaryPath()
-        manifestLoader.manifestsAtStub = { _ in Set([.workspace]) }
+        manifestLoader.manifestsAtStub = { _ in Set([.project]) }
 
+        let project = Project.test(path: basePath.appending(component: "test"))
+        modelLoader.mockProject("test", loadClosure: { _ in project })
         let target01 = Target.test(name: "Target1", sources: [])
         let target02 = Target.test(name: "Target2", sources: [])
         let target03 = Target.test(name: "Target3", sources: [])
-        let graph = Graph.test(
+        let graph = ValueGraph.test(
+            projects: [project.path: project],
             targets: [
-                "/path1": [.test(target: target01), .test(target: target02), .test(target: target03)],
+                project.path: [
+                    target01.name: target01,
+                    target02.name: target02,
+                    target03.name: target03,
+                ],
             ]
         )
-        graphLoader.loadWorkspaceStub = { _ in graph }
+        graphLoader.loadProjectStub = { _, _ in (project, graph) }
 
         // When
-        XCTAssertThrowsSpecific(try subject.run(path: path.pathString, targetName: target01.name, strict: false), LintCodeServiceError.lintableFilesForTargetNotFound(target01.name))
+        XCTAssertThrowsSpecific(try subject.run(path: project.path.pathString, targetName: target01.name, strict: false), LintCodeServiceError.lintableFilesForTargetNotFound(target01.name))
     }
 
-    func test_run_thorws_an_error_when_code_liner_throws_error() throws {
+    func test_run_throws_an_error_when_code_liner_throws_error() throws {
         // Given
         let fakeError = TestError("codeLinterFailed")
-        let path = try temporaryPath()
-        manifestLoader.manifestsAtStub = { _ in Set([.workspace]) }
+        manifestLoader.manifestsAtStub = { _ in Set([.project]) }
+        let project = Project.test(path: basePath.appending(component: "test"))
+        modelLoader.mockProject("test", loadClosure: { _ in project })
         codeLinter.stubbedLintError = fakeError
 
         // When
-        XCTAssertThrowsSpecific(try subject.run(path: path.pathString, targetName: nil, strict: false), fakeError)
+        XCTAssertThrowsSpecific(try subject.run(path: project.path.pathString, targetName: nil, strict: false), fakeError)
     }
 
     func test_run_lint_workspace() throws {
         // Given
-        let path = try temporaryPath()
         manifestLoader.manifestsAtStub = { _ in Set([.workspace]) }
 
-        let target01 = Target.test(sources: [
-            SourceFile(path: "/target01/file1.swift", compilerFlags: nil),
-            SourceFile(path: "/target01/file2.swift", compilerFlags: nil),
-        ])
-        let target02 = Target.test(sources: [
-            SourceFile(path: "/target02/file1.swift", compilerFlags: nil),
-            SourceFile(path: "/target02/file2.swift", compilerFlags: nil),
-            SourceFile(path: "/target02/file3.swift", compilerFlags: nil),
-        ])
-        let target03 = Target.test(sources: [
-            SourceFile(path: "/target03/file1.swift", compilerFlags: nil),
-        ])
-        let graph = Graph.test(
-            entryPath: "/rootPath",
-            targets: [
-                "/path1": [.test(target: target01), .test(target: target02), .test(target: target03)],
+        let workspace = Workspace.test(path: basePath.appending(component: "test"))
+        let project = Project.test(path: basePath.appending(component: "test"))
+        modelLoader.mockWorkspace("test", loadClosure: { _ in workspace })
+        let target01 = Target.test(
+            name: "Target1",
+            sources: [
+                SourceFile(path: "/target01/file1.swift", compilerFlags: nil),
+                SourceFile(path: "/target01/file2.swift", compilerFlags: nil),
             ]
         )
-        graphLoader.loadWorkspaceStub = { _ in graph }
+        let target02 = Target.test(
+            name: "Target2",
+            sources: [
+                SourceFile(path: "/target02/file1.swift", compilerFlags: nil),
+                SourceFile(path: "/target02/file2.swift", compilerFlags: nil),
+                SourceFile(path: "/target02/file3.swift", compilerFlags: nil),
+            ]
+        )
+        let target03 = Target.test(
+            name: "Target3",
+            sources: [
+                SourceFile(path: "/target03/file1.swift", compilerFlags: nil),
+            ]
+        )
+        let graph = ValueGraph.test(
+            workspace: workspace,
+            projects: [project.path: project],
+            targets: [
+                project.path: [
+                    target01.name: target01,
+                    target02.name: target02,
+                    target03.name: target03,
+                ],
+            ]
+        )
+        graphLoader.loadWorkspaceStub = { _, _ in graph }
+        graphLoader.loadProjectStub = { _, _ in (project, graph) }
 
         // When
-        try subject.run(path: path.pathString, targetName: nil, strict: false)
+        try subject.run(path: workspace.path.pathString, targetName: nil, strict: false)
 
         // Then
         let invokedLintParameters = codeLinter.invokedLintParameters
 
         XCTAssertEqual(codeLinter.invokedLintCount, 1)
-        XCTAssertEqual(invokedLintParameters?.sources, [
-            "/target01/file1.swift",
-            "/target01/file2.swift",
-            "/target02/file1.swift",
-            "/target02/file2.swift",
-            "/target02/file3.swift",
-            "/target03/file1.swift",
-        ])
-        XCTAssertEqual(invokedLintParameters?.path, path)
+        XCTAssertEqual(
+            Set(invokedLintParameters?.sources ?? []),
+            [
+                "/target01/file1.swift",
+                "/target01/file2.swift",
+                "/target02/file1.swift",
+                "/target02/file2.swift",
+                "/target02/file3.swift",
+                "/target03/file1.swift",
+            ]
+        )
+        XCTAssertEqual(invokedLintParameters?.path, project.path)
         XCTAssertEqual(invokedLintParameters?.strict, false)
 
         XCTAssertPrinterOutputContains("""
         Loading the dependency graph
-        Loading workspace at \(path.pathString)
+        Loading workspace at \(workspace.path.pathString)
         Running code linting
         """)
     }
 
     func test_run_lint_project() throws {
         // Given
-        let path = try temporaryPath()
         manifestLoader.manifestsAtStub = { _ in Set([.project]) }
 
-        let target01 = Target.test(sources: [
-            SourceFile(path: "/target01/file1.swift", compilerFlags: nil),
-            SourceFile(path: "/target01/file2.swift", compilerFlags: nil),
-        ])
-        let target02 = Target.test(sources: [
-            SourceFile(path: "/target02/file1.swift", compilerFlags: nil),
-            SourceFile(path: "/target02/file2.swift", compilerFlags: nil),
-            SourceFile(path: "/target02/file3.swift", compilerFlags: nil),
-        ])
-        let target03 = Target.test(sources: [
-            SourceFile(path: "/target03/file1.swift", compilerFlags: nil),
-        ])
-        let graph = Graph.test(
-            entryPath: "/rootPath",
-            targets: [
-                "/path1": [.test(target: target01), .test(target: target02), .test(target: target03)],
+        let project = Project.test(path: basePath.appending(component: "test"))
+        modelLoader.mockProject("test", loadClosure: { _ in project })
+        let target01 = Target.test(
+            name: "Target1",
+            sources: [
+                SourceFile(path: "/target01/file1.swift", compilerFlags: nil),
+                SourceFile(path: "/target01/file2.swift", compilerFlags: nil),
             ]
         )
-        graphLoader.loadProjectStub = { _ in (graph, Project.test()) }
+        let target02 = Target.test(
+            name: "Target2",
+            sources: [
+                SourceFile(path: "/target02/file1.swift", compilerFlags: nil),
+                SourceFile(path: "/target02/file2.swift", compilerFlags: nil),
+                SourceFile(path: "/target02/file3.swift", compilerFlags: nil),
+            ]
+        )
+        let target03 = Target.test(
+            name: "Target3",
+            sources: [
+                SourceFile(path: "/target03/file1.swift", compilerFlags: nil),
+            ]
+        )
+        let graph = ValueGraph.test(
+            projects: [project.path: project],
+            targets: [
+                project.path: [
+                    target01.name: target01,
+                    target02.name: target02,
+                    target03.name: target03,
+                ],
+            ]
+        )
+        graphLoader.loadProjectStub = { _, _ in (project, graph) }
 
         // When
-        try subject.run(path: path.pathString, targetName: nil, strict: false)
+        try subject.run(path: project.path.pathString, targetName: nil, strict: false)
 
         // Then
         let invokedLintParameters = codeLinter.invokedLintParameters
 
         XCTAssertEqual(codeLinter.invokedLintCount, 1)
-        XCTAssertEqual(invokedLintParameters?.sources, [
-            "/target01/file1.swift",
-            "/target01/file2.swift",
-            "/target02/file1.swift",
-            "/target02/file2.swift",
-            "/target02/file3.swift",
-            "/target03/file1.swift",
-        ])
-        XCTAssertEqual(invokedLintParameters?.path, path)
+        XCTAssertEqual(
+            Set(invokedLintParameters?.sources ?? []),
+            [
+                "/target01/file1.swift",
+                "/target01/file2.swift",
+                "/target02/file1.swift",
+                "/target02/file2.swift",
+                "/target02/file3.swift",
+                "/target03/file1.swift",
+            ]
+        )
+        XCTAssertEqual(invokedLintParameters?.path, project.path)
         XCTAssertEqual(invokedLintParameters?.strict, false)
 
         XCTAssertPrinterOutputContains("""
         Loading the dependency graph
-        Loading project at \(path.pathString)
+        Loading project at \(project.path.pathString)
         Running code linting
         """)
     }
 
     func test_run_lint_project_strict() throws {
         // Given
-        let path = try temporaryPath()
         manifestLoader.manifestsAtStub = { _ in Set([.project]) }
 
-        let target01 = Target.test(sources: [
-            SourceFile(path: "/target01/file1.swift", compilerFlags: nil),
-            SourceFile(path: "/target01/file2.swift", compilerFlags: nil),
-        ])
-        let target02 = Target.test(sources: [
-            SourceFile(path: "/target02/file1.swift", compilerFlags: nil),
-            SourceFile(path: "/target02/file2.swift", compilerFlags: nil),
-            SourceFile(path: "/target02/file3.swift", compilerFlags: nil),
-        ])
-        let target03 = Target.test(sources: [
-            SourceFile(path: "/target03/file1.swift", compilerFlags: nil),
-        ])
-        let graph = Graph.test(
-            entryPath: "/rootPath",
-            targets: [
-                "/path1": [.test(target: target01), .test(target: target02), .test(target: target03)],
+        let project = Project.test(path: basePath.appending(component: "test"))
+        modelLoader.mockProject("test", loadClosure: { _ in project })
+        let target01 = Target.test(
+            name: "Target1",
+            sources: [
+                SourceFile(path: "/target01/file1.swift", compilerFlags: nil),
+                SourceFile(path: "/target01/file2.swift", compilerFlags: nil),
             ]
         )
-        graphLoader.loadProjectStub = { _ in (graph, Project.test()) }
+        let target02 = Target.test(
+            name: "Target2",
+            sources: [
+                SourceFile(path: "/target02/file1.swift", compilerFlags: nil),
+                SourceFile(path: "/target02/file2.swift", compilerFlags: nil),
+                SourceFile(path: "/target02/file3.swift", compilerFlags: nil),
+            ]
+        )
+        let target03 = Target.test(
+            name: "Target3",
+            sources: [
+                SourceFile(path: "/target03/file1.swift", compilerFlags: nil),
+            ]
+        )
+        let graph = ValueGraph.test(
+            projects: [project.path: project],
+            targets: [
+                project.path: [
+                    target01.name: target01,
+                    target02.name: target02,
+                    target03.name: target03,
+                ],
+            ]
+        )
+        graphLoader.loadProjectStub = { _, _ in (project, graph) }
 
         // When
-        try subject.run(path: path.pathString, targetName: nil, strict: true)
+        try subject.run(path: project.path.pathString, targetName: nil, strict: true)
 
         // Then
         let invokedLintParameters = codeLinter.invokedLintParameters
 
         XCTAssertEqual(codeLinter.invokedLintCount, 1)
-        XCTAssertEqual(invokedLintParameters?.sources, [
-            "/target01/file1.swift",
-            "/target01/file2.swift",
-            "/target02/file1.swift",
-            "/target02/file2.swift",
-            "/target02/file3.swift",
-            "/target03/file1.swift",
-        ])
-        XCTAssertEqual(invokedLintParameters?.path, path)
+        XCTAssertEqual(
+            Set(invokedLintParameters?.sources ?? []),
+            [
+                "/target01/file1.swift",
+                "/target01/file2.swift",
+                "/target02/file1.swift",
+                "/target02/file2.swift",
+                "/target02/file3.swift",
+                "/target03/file1.swift",
+            ]
+        )
+        XCTAssertEqual(invokedLintParameters?.path, project.path)
         XCTAssertEqual(invokedLintParameters?.strict, true)
 
         XCTAssertPrinterOutputContains("""
         Loading the dependency graph
-        Loading project at \(path.pathString)
+        Loading project at \(project.path.pathString)
         Running code linting
         """)
     }
 
     func test_run_lint_target() throws {
         // Given
-        let path = try temporaryPath()
         manifestLoader.manifestsAtStub = { _ in Set([.workspace]) }
 
-        let target01 = Target.test(name: "Target1", sources: [
-            SourceFile(path: "/target01/file1.swift", compilerFlags: nil),
-            SourceFile(path: "/target01/file2.swift", compilerFlags: nil),
-        ])
-        let target02 = Target.test(name: "Target2", sources: [
-            SourceFile(path: "/target02/file1.swift", compilerFlags: nil),
-            SourceFile(path: "/target02/file2.swift", compilerFlags: nil),
-            SourceFile(path: "/target02/file3.swift", compilerFlags: nil),
-        ])
-        let target03 = Target.test(name: "Target3", sources: [
-            SourceFile(path: "/target03/file1.swift", compilerFlags: nil),
-        ])
-        let graph = Graph.test(targets: [
-            "/path1": [.test(target: target01), .test(target: target02), .test(target: target03)],
-        ])
-        graphLoader.loadWorkspaceStub = { _ in graph }
+        let workspace = Workspace.test(path: basePath.appending(component: "test"))
+        let project = Project.test(path: basePath.appending(component: "test"))
+        modelLoader.mockWorkspace("test", loadClosure: { _ in workspace })
+        let target01 = Target.test(
+            name: "Target1",
+            sources: [
+                SourceFile(path: "/target01/file1.swift", compilerFlags: nil),
+                SourceFile(path: "/target01/file2.swift", compilerFlags: nil),
+            ]
+        )
+        let target02 = Target.test(
+            name: "Target2",
+            sources: [
+                SourceFile(path: "/target02/file1.swift", compilerFlags: nil),
+                SourceFile(path: "/target02/file2.swift", compilerFlags: nil),
+                SourceFile(path: "/target02/file3.swift", compilerFlags: nil),
+            ]
+        )
+        let target03 = Target.test(
+            name: "Target3",
+            sources: [
+                SourceFile(path: "/target03/file1.swift", compilerFlags: nil),
+            ]
+        )
+        let graph = ValueGraph.test(
+            workspace: workspace,
+            projects: [project.path: project],
+            targets: [
+                project.path: [
+                    target01.name: target01,
+                    target02.name: target02,
+                    target03.name: target03,
+                ],
+            ]
+        )
+        graphLoader.loadWorkspaceStub = { _, _ in graph }
+        graphLoader.loadProjectStub = { _, _ in (project, graph) }
 
         // When
-        try subject.run(path: path.pathString, targetName: target01.name, strict: false)
+        try subject.run(path: workspace.path.pathString, targetName: target01.name, strict: false)
 
         // Then
         let invokedLintParameters = codeLinter.invokedLintParameters
@@ -283,12 +380,12 @@ final class LintCodeServiceTests: TuistUnitTestCase {
             "/target01/file1.swift",
             "/target01/file2.swift",
         ])
-        XCTAssertEqual(invokedLintParameters?.path, path)
+        XCTAssertEqual(invokedLintParameters?.path, workspace.path)
         XCTAssertEqual(invokedLintParameters?.strict, false)
 
         XCTAssertPrinterOutputContains("""
         Loading the dependency graph
-        Loading workspace at \(path.pathString)
+        Loading workspace at \(workspace.path.pathString)
         Running code linting
         """)
     }

@@ -128,14 +128,16 @@ class Generator: Generating {
         let modelMapperSideEffects = updatedModels.flatMap(\.1)
 
         // Load Graph
-        let cachedModelLoader = CachedModelLoader(projects: updatedProjects)
-        let cachedGraphLoader = GraphLoader(modelLoader: cachedModelLoader)
-        let (graph, project) = try cachedGraphLoader.loadProject(path: path)
+        let graphLoader = ValueGraphLoader()
+        let (project, graph) = try graphLoader.loadProject(
+            at: path,
+            projects: updatedProjects
+        )
 
         // Apply graph mappers
         let (updatedGraph, graphMapperSideEffects) = try graphMapperProvider
             .mapper(config: config)
-            .map(graph: ValueGraph(graph: graph))
+            .map(graph: graph)
 
         return (project, updatedGraph, modelMapperSideEffects + graphMapperSideEffects)
     }
@@ -260,16 +262,17 @@ class Generator: Generating {
         )
 
         // Load Graph
-        let cachedModelLoader = CachedModelLoader(projects: updatedModels.projects)
-        let cachedGraphLoader = GraphLoader(modelLoader: cachedModelLoader)
-        let (graph, project) = try cachedGraphLoader.loadProject(path: path)
+        let graphLoader = ValueGraphLoader()
+        var (project, graph) = try graphLoader.loadProject(
+            at: path,
+            projects: updatedModels.projects
+        )
+        graph.workspace = updatedModels.workspace
 
         // Apply graph mappers
         var (updatedGraph, graphMapperSideEffects) = try graphMapperProvider
             .mapper(config: config)
-            .map(
-                graph: ValueGraph(graph: graph.with(workspace: updatedModels.workspace))
-            )
+            .map(graph: graph)
 
         var updatedWorkspace = updatedGraph.workspace
         updatedWorkspace = updatedWorkspace.merging(projects: updatedGraph.projects.map(\.key))
@@ -309,14 +312,16 @@ class Generator: Generating {
         )
 
         // Load Graph
-        let cachedModelLoader = CachedModelLoader(workspace: [updatedModels.workspace], projects: updatedModels.projects)
-        let cachedGraphLoader = GraphLoader(modelLoader: cachedModelLoader)
-        let graph = try cachedGraphLoader.loadWorkspace(path: path)
+        let graphLoader = ValueGraphLoader()
+        let graph = try graphLoader.loadWorkspace(
+            workspace: updatedModels.workspace,
+            projects: updatedModels.projects
+        )
 
         // Apply graph mappers
         let (mappedGraph, graphMapperSideEffects) = try graphMapperProvider
             .mapper(config: config)
-            .map(graph: ValueGraph(graph: graph))
+            .map(graph: graph)
 
         return (mappedGraph, modelMapperSideEffects + graphMapperSideEffects)
     }

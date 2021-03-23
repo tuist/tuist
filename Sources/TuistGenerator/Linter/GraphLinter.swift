@@ -223,14 +223,6 @@ public class GraphLinter: GraphLinting {
         return []
     }
 
-    private func products(ofType type: Product, for targetNode: TargetNode, graph: Graph) -> [TargetNode] {
-        graph.targetDependencies(
-            path: targetNode.path,
-            name: targetNode.name
-        )
-        .filter { $0.target.product == type }
-    }
-
     private func lint(appClip: ValueGraphTarget, parentApp: ValueGraphTarget) -> [LintingIssue] {
         var foundIssues = [LintingIssue]()
 

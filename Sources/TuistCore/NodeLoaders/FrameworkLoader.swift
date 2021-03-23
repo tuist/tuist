@@ -24,9 +24,6 @@ enum FrameworkLoaderError: FatalError, Equatable {
 }
 
 public protocol FrameworkLoading {
-    /// Reads an existing framework and returns its in-memory representation, FrameworkNode.
-    /// - Parameter path: Path to the .framework.
-    func load(path: AbsolutePath) throws -> FrameworkNode
     /// Reads an existing framework and returns its in-memory representation, `ValueGraphDependency.framework`.
     /// - Parameter path: Path to the .framework.
     func load(path: AbsolutePath) throws -> ValueGraphDependency
@@ -40,22 +37,6 @@ public final class FrameworkLoader: FrameworkLoading {
     /// - Parameter frameworkMetadataProvider: Framework metadata provider.
     public init(frameworkMetadataProvider: FrameworkMetadataProviding = FrameworkMetadataProvider()) {
         self.frameworkMetadataProvider = frameworkMetadataProvider
-    }
-
-    public func load(path: AbsolutePath) throws -> FrameworkNode {
-        guard FileHandler.shared.exists(path) else {
-            throw FrameworkLoaderError.frameworkNotFound(path)
-        }
-
-        let metadata = try frameworkMetadataProvider.loadMetadata(at: path)
-
-        return FrameworkNode(
-            path: path,
-            dsymPath: metadata.dsymPath,
-            bcsymbolmapPaths: metadata.bcsymbolmapPaths,
-            linking: metadata.linking,
-            architectures: metadata.architectures
-        )
     }
 
     public func load(path: AbsolutePath) throws -> ValueGraphDependency {
