@@ -19,6 +19,9 @@ public struct TestAction: Equatable, Codable {
 
     /// List of targets for which Xcode will collect the coverage results.
     public let codeCoverageTargets: [TargetReference]
+    
+    /// Set the target that will expand the variables for
+    public let expandVariableFromTarget: TargetReference?
 
     /// List of actions to be executed before running the tests.
     public let preActions: [ExecutionAction]
@@ -41,6 +44,7 @@ public struct TestAction: Equatable, Codable {
                  configurationName: String,
                  coverage: Bool,
                  codeCoverageTargets: [TargetReference],
+                 expandVariableFromTarget: TargetReference?,
                  preActions: [ExecutionAction],
                  postActions: [ExecutionAction],
                  diagnosticsOptions: [SchemeDiagnosticsOption],
@@ -55,6 +59,7 @@ public struct TestAction: Equatable, Codable {
         self.preActions = preActions
         self.postActions = postActions
         self.codeCoverageTargets = codeCoverageTargets
+        self.expandVariableFromTarget = expandVariableFromTarget
         self.diagnosticsOptions = diagnosticsOptions
         self.language = language
         self.region = region
@@ -77,6 +82,7 @@ public struct TestAction: Equatable, Codable {
                 configurationName: String,
                 coverage: Bool = false,
                 codeCoverageTargets: [TargetReference] = [],
+                expandVariableFromTarget: TargetReference? = nil,
                 preActions: [ExecutionAction] = [],
                 postActions: [ExecutionAction] = [],
                 diagnosticsOptions: [SchemeDiagnosticsOption] = [.mainThreadChecker],
@@ -90,6 +96,7 @@ public struct TestAction: Equatable, Codable {
             configurationName: configurationName,
             coverage: coverage,
             codeCoverageTargets: codeCoverageTargets,
+            expandVariableFromTarget: expandVariableFromTarget,
             preActions: preActions,
             postActions: postActions,
             diagnosticsOptions: diagnosticsOptions,
@@ -115,6 +122,7 @@ public struct TestAction: Equatable, Codable {
                 config: PresetBuildConfiguration = .debug,
                 coverage: Bool = false,
                 codeCoverageTargets: [TargetReference] = [],
+                expandVariableFromTarget: TargetReference? = nil,
                 preActions: [ExecutionAction] = [],
                 postActions: [ExecutionAction] = [],
                 diagnosticsOptions: [SchemeDiagnosticsOption] = [.mainThreadChecker],
@@ -128,6 +136,7 @@ public struct TestAction: Equatable, Codable {
             configurationName: config.name,
             coverage: coverage,
             codeCoverageTargets: codeCoverageTargets,
+            expandVariableFromTarget: expandVariableFromTarget,
             preActions: preActions,
             postActions: postActions,
             diagnosticsOptions: diagnosticsOptions,
@@ -154,6 +163,7 @@ public struct TestAction: Equatable, Codable {
             configurationName: config.name,
             coverage: false,
             codeCoverageTargets: [],
+            expandVariableFromTarget: nil,
             preActions: preActions,
             postActions: postActions,
             diagnosticsOptions: [.mainThreadChecker],
@@ -180,6 +190,7 @@ public struct TestAction: Equatable, Codable {
             configurationName: configurationName,
             coverage: false,
             codeCoverageTargets: [],
+            expandVariableFromTarget: nil,
             preActions: preActions,
             postActions: postActions,
             diagnosticsOptions: [.mainThreadChecker],
