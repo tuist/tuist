@@ -44,7 +44,7 @@ enum CarthageInteractorError: FatalError, Equatable {
         case .xcFrameworksProductionNotSupported:
             return """
             The version of Carthage installed in your environment doesn't suppport production of XCFrameworks.
-            Update the tool or disbale XCFrameworks in your Dependencies.swift manifest.
+            Update the tool or disable XCFrameworks in your Dependencies.swift manifest.
             """
         }
     }
