@@ -4,9 +4,8 @@ import TSCBasic
 /// This model allows to configure Tuist.
 public struct Config: Equatable, Hashable {
     /// Contains options related to the project generation.
-    ///
-    /// - xcodeProjectName: Name used for the Xcode project
     public enum GenerationOption: Hashable, Equatable {
+        /// Name used for the Xcode project
         case xcodeProjectName(String)
         case organizationName(String)
         case developmentRegion(String)
@@ -16,6 +15,9 @@ public struct Config: Equatable, Hashable {
         case enableCodeCoverage
         case templateMacros(IDETemplateMacros)
         case resolveDependenciesWithSystemScm
+        /// Disables locking Swift packages. This can speed up generation but does increase risk if packages are not locked
+        /// in their declarations.
+        case disablePackageVersionLocking
     }
 
     /// List of `Plugin`s used to extend Tuist.
