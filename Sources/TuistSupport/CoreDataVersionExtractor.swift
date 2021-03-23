@@ -9,9 +9,9 @@ public final class CoreDataVersionExtractor {
     ///
     /// - Returns: Whether or not the xcdatamodel has versions
     public static func isVersioned(at path: AbsolutePath) -> Bool {
-        FileManager.default.fileExists(atPath: path.appending(component: ".xccurrentversion").url.path)
+        FileHandler.shared.exists(path.appending(RelativePath(".xccurrentversion")))
     }
-    
+
     /// Extract version from .xccurrentversion file
     /// - Parameter filePath: absolute path to Model.xcdatamodel
     /// - Throws: In case can not find the .xcurrentversion file.
