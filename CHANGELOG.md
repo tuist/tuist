@@ -25,6 +25,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Updated Queuer to 2.1.1 [#2679](https://github.com/tuist/tuist/pull/2679) by [@pepibumur](https://github.com/pepibumur)
 - Updated CombineExt to 1.3.0 [#2679](https://github.com/tuist/tuist/pull/2679) by [@pepibumur](https://github.com/pepibumur)
 
+### Fixed
+
+- Fixed running `tuist dump` for projects with plugins [#2700](https://github.com/tuist/tuist/pull/2700) by [@danyf90](https://github.com/danyf90)
+
 ## 1.38.0 - Cold Waves
 
 ### Added
