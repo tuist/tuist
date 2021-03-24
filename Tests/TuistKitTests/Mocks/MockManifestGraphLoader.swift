@@ -4,7 +4,7 @@ import TuistGraph
 import TuistGraphTesting
 @testable import TuistKit
 
-final class MockSimpleGraphLoader: SimpleGraphLoading {
+final class MockManifestGraphLoader: ManifestGraphLoading {
     var stubLoadGraph: ValueGraph?
     func loadGraph(at _: AbsolutePath) throws -> ValueGraph {
         stubLoadGraph ?? .test()

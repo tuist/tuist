@@ -10,25 +10,25 @@ import TuistSupport
 
 final class GraphService {
     private let graphVizMapper: GraphToGraphVizMapping
-    private let simpleGraphLoader: SimpleGraphLoading
+    private let manifestGraphLoader: ManifestGraphLoading
 
     convenience init() {
         let manifestLoader = ManifestLoaderFactory()
             .createManifestLoader()
-        let simpleGraphLoader = SimpleGraphLoader(manifestLoader: manifestLoader)
+        let manifestGraphLoader = ManifestGraphLoader(manifestLoader: manifestLoader)
         let graphVizMapper = GraphToGraphVizMapper()
         self.init(
             graphVizGenerator: graphVizMapper,
-            simpleGraphLoader: simpleGraphLoader
+            manifestGraphLoader: manifestGraphLoader
         )
     }
 
     init(
         graphVizGenerator: GraphToGraphVizMapping,
-        simpleGraphLoader: SimpleGraphLoading
+        manifestGraphLoader: ManifestGraphLoading
     ) {
         graphVizMapper = graphVizGenerator
-        self.simpleGraphLoader = simpleGraphLoader
+        self.manifestGraphLoader = manifestGraphLoader
     }
 
     func run(format: GraphFormat,
@@ -39,7 +39,7 @@ final class GraphService {
              path: AbsolutePath,
              outputPath: AbsolutePath) throws
     {
-        let graph = try simpleGraphLoader.loadGraph(at: path)
+        let graph = try manifestGraphLoader.loadGraph(at: path)
 
         let graphVizGraph = graphVizMapper.map(
             graph: graph,

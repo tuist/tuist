@@ -35,25 +35,25 @@ enum LintCodeServiceError: FatalError, Equatable {
 
 final class LintCodeService {
     private let codeLinter: CodeLinting
-    private let simpleGraphLoader: SimpleGraphLoading
+    private let manifestGraphLoader: ManifestGraphLoading
 
     convenience init() {
         let manifestLoader = ManifestLoaderFactory()
             .createManifestLoader()
-        let simpleGraphLoader = SimpleGraphLoader(manifestLoader: manifestLoader)
+        let manifestGraphLoader = ManifestGraphLoader(manifestLoader: manifestLoader)
         let codeLinter = CodeLinter()
         self.init(
             codeLinter: codeLinter,
-            simpleGraphLoader: simpleGraphLoader
+            manifestGraphLoader: manifestGraphLoader
         )
     }
 
     init(
         codeLinter: CodeLinting,
-        simpleGraphLoader: SimpleGraphLoading
+        manifestGraphLoader: ManifestGraphLoading
     ) {
         self.codeLinter = codeLinter
-        self.simpleGraphLoader = simpleGraphLoader
+        self.manifestGraphLoader = manifestGraphLoader
     }
 
     func run(path: String?, targetName: String?, strict: Bool) throws {
@@ -62,7 +62,7 @@ final class LintCodeService {
 
         // Load graph
         logger.notice("Loading the dependency graph at \(path)")
-        let graph = try simpleGraphLoader.loadGraph(at: path)
+        let graph = try manifestGraphLoader.loadGraph(at: path)
 
         // Get sources
         let graphTraverser = ValueGraphTraverser(graph: graph)

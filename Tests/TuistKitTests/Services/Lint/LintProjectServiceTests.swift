@@ -14,7 +14,7 @@ final class LintProjectServiceTests: TuistUnitTestCase {
     var graphLinter: MockGraphLinter!
     var environmentLinter: MockEnvironmentLinter!
     var configLoader: MockConfigLoader!
-    var simpleGraphLoader: MockSimpleGraphLoader!
+    var manifestGraphLoader: MockManifestGraphLoader!
     var subject: LintProjectService!
     var path: AbsolutePath!
 
@@ -24,12 +24,12 @@ final class LintProjectServiceTests: TuistUnitTestCase {
         environmentLinter = MockEnvironmentLinter()
         path = try temporaryPath()
         configLoader = MockConfigLoader()
-        simpleGraphLoader = MockSimpleGraphLoader()
+        manifestGraphLoader = MockManifestGraphLoader()
         subject = LintProjectService(
             graphLinter: graphLinter,
             environmentLinter: environmentLinter,
             configLoader: configLoader,
-            simpleGraphLoader: simpleGraphLoader
+            manifestGraphLoader: manifestGraphLoader
         )
     }
 

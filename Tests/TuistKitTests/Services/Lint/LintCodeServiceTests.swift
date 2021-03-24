@@ -14,7 +14,7 @@ import XCTest
 
 final class LintCodeServiceTests: TuistUnitTestCase {
     private var codeLinter: MockCodeLinter!
-    private var simpleGraphLoader: MockSimpleGraphLoader!
+    private var manifestGraphLoader: MockManifestGraphLoader!
     private var basePath: AbsolutePath!
 
     private var subject: LintCodeService!
@@ -23,13 +23,13 @@ final class LintCodeServiceTests: TuistUnitTestCase {
         try super.setUpWithError()
 
         codeLinter = MockCodeLinter()
-        simpleGraphLoader = MockSimpleGraphLoader()
+        manifestGraphLoader = MockManifestGraphLoader()
 
         basePath = try temporaryPath()
 
         subject = LintCodeService(
             codeLinter: codeLinter,
-            simpleGraphLoader: simpleGraphLoader
+            manifestGraphLoader: manifestGraphLoader
         )
     }
 
@@ -37,7 +37,7 @@ final class LintCodeServiceTests: TuistUnitTestCase {
         subject = nil
 
         codeLinter = nil
-        simpleGraphLoader = nil
+        manifestGraphLoader = nil
         basePath = nil
 
         super.tearDown()
@@ -60,7 +60,7 @@ final class LintCodeServiceTests: TuistUnitTestCase {
             ]
         )
         let fakeNoExistTargetName = "Target_999"
-        simpleGraphLoader.stubLoadGraph = graph
+        manifestGraphLoader.stubLoadGraph = graph
 
         // When
         XCTAssertThrowsSpecific(try subject.run(path: project.path.pathString, targetName: fakeNoExistTargetName, strict: false), LintCodeServiceError.targetNotFound(fakeNoExistTargetName))
@@ -82,7 +82,7 @@ final class LintCodeServiceTests: TuistUnitTestCase {
                 ],
             ]
         )
-        simpleGraphLoader.stubLoadGraph = graph
+        manifestGraphLoader.stubLoadGraph = graph
 
         // When
         XCTAssertThrowsSpecific(try subject.run(path: project.path.pathString, targetName: target01.name, strict: false), LintCodeServiceError.lintableFilesForTargetNotFound(target01.name))
@@ -134,7 +134,7 @@ final class LintCodeServiceTests: TuistUnitTestCase {
                 ],
             ]
         )
-        simpleGraphLoader.stubLoadGraph = graph
+        manifestGraphLoader.stubLoadGraph = graph
 
         // When
         try subject.run(path: workspace.path.pathString, targetName: nil, strict: false)
@@ -197,7 +197,7 @@ final class LintCodeServiceTests: TuistUnitTestCase {
                 ],
             ]
         )
-        simpleGraphLoader.stubLoadGraph = graph
+        manifestGraphLoader.stubLoadGraph = graph
 
         // When
         try subject.run(path: project.path.pathString, targetName: nil, strict: false)
@@ -260,7 +260,7 @@ final class LintCodeServiceTests: TuistUnitTestCase {
                 ],
             ]
         )
-        simpleGraphLoader.stubLoadGraph = graph
+        manifestGraphLoader.stubLoadGraph = graph
 
         // When
         try subject.run(path: project.path.pathString, targetName: nil, strict: true)
@@ -325,7 +325,7 @@ final class LintCodeServiceTests: TuistUnitTestCase {
                 ],
             ]
         )
-        simpleGraphLoader.stubLoadGraph = graph
+        manifestGraphLoader.stubLoadGraph = graph
 
         // When
         try subject.run(path: workspace.path.pathString, targetName: target01.name, strict: false)

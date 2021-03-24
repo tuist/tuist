@@ -13,24 +13,24 @@ import XCTest
 @testable import TuistSupportTesting
 
 final class GraphServiceTests: TuistUnitTestCase {
-    var simpleGraphLoader: MockSimpleGraphLoader!
+    var manifestGraphLoader: MockManifestGraphLoader!
     var graphVizMapper: MockGraphToGraphVizMapper!
     var subject: GraphService!
 
     override func setUp() {
         super.setUp()
         graphVizMapper = MockGraphToGraphVizMapper()
-        simpleGraphLoader = MockSimpleGraphLoader()
+        manifestGraphLoader = MockManifestGraphLoader()
 
         subject = GraphService(
             graphVizGenerator: graphVizMapper,
-            simpleGraphLoader: simpleGraphLoader
+            manifestGraphLoader: manifestGraphLoader
         )
     }
 
     override func tearDown() {
         graphVizMapper = nil
-        simpleGraphLoader = nil
+        manifestGraphLoader = nil
         subject = nil
         super.tearDown()
     }

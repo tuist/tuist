@@ -31,7 +31,7 @@ final class LintProjectService {
     private let graphLinter: GraphLinting
     private let environmentLinter: EnvironmentLinting
     private let configLoader: ConfigLoading
-    private let simpleGraphLoader: SimpleGraphLoading
+    private let manifestGraphLoader: ManifestGraphLoading
 
     convenience init() {
         let manifestLoader = ManifestLoaderFactory()
@@ -39,12 +39,12 @@ final class LintProjectService {
         let configLoader = ConfigLoader(manifestLoader: manifestLoader)
         let graphLinter = GraphLinter()
         let environmentLinter = EnvironmentLinter()
-        let simpleGraphLoader = SimpleGraphLoader(manifestLoader: manifestLoader)
+        let manifestGraphLoader = ManifestGraphLoader(manifestLoader: manifestLoader)
         self.init(
             graphLinter: graphLinter,
             environmentLinter: environmentLinter,
             configLoader: configLoader,
-            simpleGraphLoader: simpleGraphLoader
+            manifestGraphLoader: manifestGraphLoader
         )
     }
 
@@ -52,19 +52,19 @@ final class LintProjectService {
         graphLinter: GraphLinting,
         environmentLinter: EnvironmentLinting,
         configLoader: ConfigLoading,
-        simpleGraphLoader: SimpleGraphLoading
+        manifestGraphLoader: ManifestGraphLoading
     ) {
         self.graphLinter = graphLinter
         self.environmentLinter = environmentLinter
         self.configLoader = configLoader
-        self.simpleGraphLoader = simpleGraphLoader
+        self.manifestGraphLoader = manifestGraphLoader
     }
 
     func run(path: String?) throws {
         let path = self.path(path)
 
         logger.notice("Loading the dependency graph at \(path)")
-        let graph = try simpleGraphLoader.loadGraph(at: path)
+        let graph = try manifestGraphLoader.loadGraph(at: path)
         let graphTraverser = ValueGraphTraverser(graph: graph)
 
         logger.notice("Running linters")
