@@ -30,6 +30,7 @@ module Fourier
                 File.join(temporary_output_directory, File.basename(syntax_parser_dylib)))
 
               FileUtils.rm_rf(output_directory) if Dir.exist?(output_directory)
+              FileUtils.mkdir_p(output_directory)
               FileUtils.copy_entry(temporary_output_directory, output_directory)
               puts(::CLI::UI.fmt("{{success:swiftdoc built and vendored successfully.}}"))
             end

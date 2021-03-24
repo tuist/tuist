@@ -1,9 +1,5 @@
 # frozen_string_literal: true
 
-SWIFTDOC_VERSION = "1.0.0-beta.5"
-SWIFTLINT_VERSION = "0.43.1"
-XCBEAUTIFY_VERSION = "0.9.1"
-
 require "rake/testtask"
 require "rubygems"
 require "cucumber"
@@ -19,50 +15,11 @@ require "json"
 require "zip"
 require "macho"
 
-desc("Updates swift-lint binary with the latest version available.")
-task :swift_lint_update do
-  root_dir = File.expand_path(__dir__)
-  Dir.mktmpdir do |temporary_dir|
-    Dir.chdir(temporary_dir) do
-      system("curl", "-LO",
-        "https://github.com/realm/SwiftLint/releases/download/#{SWIFTLINT_VERSION}/portable_swiftlint.zip")
-      extract_zip("portable_swiftlint.zip", "portable_swiftlint")
-      system("cp", "portable_swiftlint/swiftlint", "#{root_dir}/vendor/swiftlint")
-    end
-  end
-  File.write(File.join(root_dir, "vendor/.swiftlint.version"), SWIFTLINT_VERSION)
-end
-
 desc("Install git hooks")
 task :install_git_hooks do
   system("cp hooks/pre-commit .git/hooks/pre-commit")
   system("chmod u+x .git/hooks/pre-commit")
   puts("pre-commit hook installed on .git/hooks/")
-end
-
-desc("Updates xcbeautify binary with the latest version available.")
-task :xcbeautify_update do
-  root_dir = File.expand_path(__dir__)
-  Dir.mktmpdir do |temporary_dir|
-    Dir.chdir(temporary_dir) do
-      system("curl", "-LO", "https://github.com/thii/xcbeautify/archive/#{XCBEAUTIFY_VERSION}.zip")
-      extract_zip("#{XCBEAUTIFY_VERSION}.zip", "xcbeautify")
-      Dir.chdir("xcbeautify/xcbeautify-#{XCBEAUTIFY_VERSION}") do
-        system("make", "build")
-      end
-      release_dir = File.join(temporary_dir,
-        "xcbeautify/xcbeautify-#{XCBEAUTIFY_VERSION}/.build/release")
-      vendor_dir = File.join(root_dir, "vendor")
-      dst_binary_path = File.join(vendor_dir, "xcbeautify")
-
-      # Copy binary
-      binary_path = File.join(release_dir, "xcbeautify")
-      File.delete(dst_binary_path) if File.exist?(dst_binary_path)
-      FileUtils.cp(binary_path, dst_binary_path)
-    end
-  end
-  # Write version
-  File.write(File.join(root_dir, "vendor/.xcbeautify.version"), XCBEAUTIFY_VERSION)
 end
 
 desc("Builds and archive a release version of tuist and tuistenv for local testing.")
@@ -198,15 +155,4 @@ end
 
 def print_section(text)
   puts(text.bold.green)
-end
-
-def extract_zip(file, destination)
-  FileUtils.mkdir_p(destination)
-
-  Zip::File.open(file) do |zip_file|
-    zip_file.each do |f|
-      fpath = File.join(destination, f.name)
-      zip_file.extract(f, fpath) unless File.exist?(fpath)
-    end
-  end
 end
