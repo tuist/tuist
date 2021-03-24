@@ -208,6 +208,8 @@ GEM
       rubocop (>= 0.87, < 2.0)
     rubocop-rake (0.5.1)
       rubocop
+    rubocop-shopify (1.0.7)
+      rubocop (~> 1.4)
     ruby-macho (1.4.0)
     ruby-progressbar (1.11.0)
     ruby2_keywords (0.0.4)
@@ -261,9 +263,9 @@ DEPENDENCIES
   mocha (~> 1.12)
   octokit (~> 4.20)
   rake (~> 13.0)
-  rubocop (~> 1.11.0)
   rubocop-minitest (~> 0.10.3)
   rubocop-rake (~> 0.5.1)
+  rubocop-shopify
   ruby-macho (~> 1.4)
   rubyzip (~> 2.3.0)
   semantic (~> 1.6)

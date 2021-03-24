@@ -27,7 +27,7 @@ group :test do
 end
 
 group :development do
-  gem "rubocop", "~> 1.11.0"
+  gem 'rubocop-shopify'
   gem "rubocop-minitest", "~> 0.10.3"
   gem "rubocop-rake", "~> 0.5.1"
 end
