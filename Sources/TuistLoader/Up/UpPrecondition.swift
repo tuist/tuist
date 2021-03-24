@@ -3,7 +3,7 @@ import TSCBasic
 import TuistSupport
 
 /// Precondition required to succeed setup.
-class UpPrecondition: Up, GraphInitiatable {
+class UpPrecondition: UpRequired, GraphInitiatable {
     /// Advice to give the user if the condition isn’t met.
     let advice: String
 

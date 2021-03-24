@@ -20,7 +20,7 @@ public final class MockManifestLoader: ManifestLoading {
     public var manifestPathStub: ((AbsolutePath, Manifest) throws -> AbsolutePath)?
 
     public var loadSetupCount: UInt = 0
-    public var loadSetupStub: ((AbsolutePath) throws -> [Upping])?
+    public var loadSetupStub: ((AbsolutePath) throws -> SetupActions)?
 
     public var loadConfigCount: UInt = 0
     public var loadConfigStub: ((AbsolutePath) throws -> Config)?
@@ -54,9 +54,9 @@ public final class MockManifestLoader: ManifestLoading {
         return try manifestPathStub?(path, manifest) ?? TemporaryDirectory(removeTreeOnDeinit: true).path
     }
 
-    public func loadSetup(at path: AbsolutePath) throws -> [Upping] {
+    public func loadSetup(at path: AbsolutePath) throws -> SetupActions {
         loadSetupCount += 1
-        return try loadSetupStub?(path) ?? []
+        return try loadSetupStub?(path) ?? SetupActions(actions: [], requires: [])
     }
 
     public func loadConfig(at path: AbsolutePath) throws -> Config {

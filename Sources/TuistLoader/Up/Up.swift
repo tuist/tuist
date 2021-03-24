@@ -80,8 +80,6 @@ class Up: Upping {
             return try UpMint(dictionary: dictionary, projectPath: projectPath)
         } else if type == "rome" {
             return try UpRome(dictionary: dictionary, projectPath: projectPath)
-        } else if type == "precondition" {
-            return try UpPrecondition(dictionary: dictionary, projectPath: projectPath)
         }
         return nil
     }

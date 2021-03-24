@@ -72,15 +72,6 @@ public class Up: Codable, Equatable {
         return UpRome(platforms: platforms, cachePrefix: cachePrefix)
     }
 
-    /// Returns an up that fails the build if the precondition is not met.
-    ///
-    /// - Parameters
-    ///     - advice: A string describing recommended actions to take if the precondition is not met.
-    /// - Returns: Up instance to validate assumed preconditions.
-    public static func precondition(name: String, advice: String, isMet: [String]) -> Up {
-        UpPrecondition(name: name, advice: advice, isMet: isMet)
-    }
-
     public static func == (lhs: Up, rhs: Up) -> Bool {
         lhs.equals(rhs)
     }

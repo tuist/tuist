@@ -88,7 +88,7 @@ final class UpTests: TuistUnitTestCase {
             "is_met": JSON.array([JSON.string("is_met")]),
             "advice": "corrective advice",
         ])
-        let got = try Up.with(dictionary: dictionary, projectPath: temporaryPath) as? UpPrecondition
+        let got = try UpPrecondition.with(dictionary: dictionary, projectPath: temporaryPath) as? UpPrecondition
         XCTAssertEqual(got?.name, "test name")
         XCTAssertEqual(got?.advice, "corrective advice")
         XCTAssertEqual(got?.isMet, ["is_met"])

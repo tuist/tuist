@@ -1,7 +1,7 @@
 import Foundation
 
 /// Precondition required to succeed setup.
-class UpPrecondition: Up {
+class UpPrecondition: UpRequired {
     /// Name of the command.
     let name: String
 
@@ -50,10 +50,10 @@ class UpPrecondition: Up {
         try container.encode("precondition", forKey: .type)
     }
 
-    override func equals(_ other: Up) -> Bool {
-        guard let otherUpPrecondition = other as? UpPrecondition else { return false }
-        return advice == otherUpPrecondition.advice &&
-            isMet == otherUpPrecondition.isMet &&
-            name == otherUpPrecondition.name
+    override func equals(_ other: UpRequired) -> Bool {
+        guard let other = other as? UpPrecondition else { return false }
+        return advice == other.advice &&
+            isMet == other.isMet &&
+            name == other.name
     }
 }
