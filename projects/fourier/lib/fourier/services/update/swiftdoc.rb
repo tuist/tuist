@@ -18,27 +18,19 @@ module Fourier
             Dir.mktmpdir do |temporary_output_directory|
               sources_zip_path = download(temporary_dir: temporary_dir)
               sources_path = extract(sources_zip_path)
-              build_directory = build(sources_path)
+              build(sources_path, into: temporary_output_directory)
 
-              File.write(File.join(temporary_output_directory, ".version"), VERSION)
-              ["swift-doc", "swift-doc_swift-doc.bundle"].each do |file_name|
-                FileUtils.copy_entry(
-                  File.join(build_directory, file_name),
-                  File.join(temporary_output_directory, file_name)
-                )
-              end
+              # # swift-doc expects the lib_InternalSwiftSyntaxParser dynamic library.
+              # # https://github.com/SwiftDocOrg/homebrew-formulae/blob/master/Formula/swift-doc.rb#L43
+              # macho = MachO::FatFile.new(File.join(temporary_output_directory, "swift-doc"))
+              # toolchain = macho.rpaths.find { |path| path.include?(".xctoolchain") }
+              # syntax_parser_dylib = File.join(toolchain, "lib_InternalSwiftSyntaxParser.dylib")
+              # FileUtils.copy_entry(syntax_parser_dylib,
+              #   File.join(temporary_output_directory, File.basename(syntax_parser_dylib)))
 
-              # swift-doc expects the lib_InternalSwiftSyntaxParser dynamic library.
-              # https://github.com/SwiftDocOrg/homebrew-formulae/blob/master/Formula/swift-doc.rb#L43
-              macho = MachO::FatFile.new(File.join(temporary_output_directory, "swift-doc"))
-              toolchain = macho.rpaths.find { |path| path.include?(".xctoolchain") }
-              syntax_parser_dylib = File.join(toolchain, "lib_InternalSwiftSyntaxParser.dylib")
-              FileUtils.copy_entry(syntax_parser_dylib,
-                File.join(temporary_output_directory, File.basename(syntax_parser_dylib)))
-
-              FileUtils.rm_rf(output_directory) if Dir.exist?(output_directory)
-              FileUtils.copy_entry(temporary_output_directory, output_directory)
-              puts(::CLI::UI.fmt("{{success:swiftdoc built and vendored successfully.}}"))
+              # FileUtils.rm_rf(output_directory) if Dir.exist?(output_directory)
+              # FileUtils.copy_entry(temporary_output_directory, output_directory)
+              # puts(::CLI::UI.fmt("{{success:swiftdoc built and vendored successfully.}}"))
             end
           end
         end
@@ -72,19 +64,34 @@ module Fourier
           Dir.glob(File.join(zip_content_path, "*/")).first
         end
 
-        def build(sources_path)
+        def build(sources_path, into:)
           puts("Building...")
 
           command = [
             "swift", "build",
             "--configuration", "release",
-            "--arch", "arm64", "--arch", "x86_64",
             "--disable-sandbox",
             "--package-path", sources_path
           ]
-          Utilities::System.system(*command)
 
-          File.join(sources_path, ".build/apple/Products/Release")
+          arm_64 = command.dup
+          arm_64 += ["--triple", "arm64-apple-macosx"]
+          Utilities::System.system(*arm_64)
+
+          x86 = command.dup
+          x86 += ["--triple", "x86_64-apple-macosx"]
+          Utilities::System.system(*x86)
+
+          Utilities::System.system(
+            "lipo", "-create", "output", File.join(into, "swift-doc"),
+            File.join(sources_path, ".build/arm64-apple-macosx/release/swift-doc"),
+            File.join(sources_path, ".build/x86_64-apple-macosx/release/swift-doc")
+          )
+
+          FileUtils.copy_entry(
+            File.join(sources_path, ".build/arm64-apple-macosx/release/swift-doc_swift-doc.bundle"),
+            File.join(into, "swift-doc_swift-doc.bundle")
+          )
         end
       end
     end
