@@ -12,12 +12,13 @@ module Fourier
         SOURCE_TAR_URL = "https://github.com/SwiftDocOrg/swift-doc/archive/refs/tags/#{VERSION}.zip"
 
         def call
-          output_directory = File.join(Constants::TUIST_VENDOR_DIRECTORY)
+          output_directory = File.join(Constants::TUIST_VENDOR_DIRECTORY, "swift-doc")
 
           Dir.mktmpdir do |temporary_dir|
             Dir.mktmpdir do |temporary_output_directory|
               sources_zip_path = download(temporary_dir: temporary_dir)
               sources_path = extract(sources_zip_path)
+
               build(sources_path, into: temporary_output_directory)
 
               # # swift-doc expects the lib_InternalSwiftSyntaxParser dynamic library.
@@ -66,26 +67,10 @@ module Fourier
 
         def build(sources_path, into:)
           puts("Building...")
-
-          command = [
-            "swift", "build",
-            "--configuration", "release",
-            "--disable-sandbox",
-            "--package-path", sources_path
-          ]
-
-          arm_64 = command.dup
-          arm_64 += ["--triple", "arm64-apple-macosx"]
-          Utilities::System.system(*arm_64)
-
-          x86 = command.dup
-          x86 += ["--triple", "x86_64-apple-macosx"]
-          Utilities::System.system(*x86)
-
-          Utilities::System.system(
-            "lipo", "-create", "-output", File.join(into, "swift-doc"),
-            File.join(sources_path, ".build/arm64-apple-macosx/release/swift-doc"),
-            File.join(sources_path, ".build/x86_64-apple-macosx/release/swift-doc")
+          Utilities::SwiftPackageManager.build_fat_release_binary(
+            path: sources_path,
+            binary_name: "swift-doc",
+            output_directory: into
           )
 
           FileUtils.copy_entry(
