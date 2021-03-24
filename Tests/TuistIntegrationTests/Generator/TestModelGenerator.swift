@@ -29,7 +29,12 @@ final class TestModelGenerator {
 
     func generate() throws -> ValueGraph {
         let modelLoader = try createModelLoader()
-        let graphLoader = ValueGraphLoader()
+        let graphLoader = ValueGraphLoader(
+            frameworkMetadataProvider: MockFrameworkMetadataProvider(),
+            libraryMetadataProvider: MockLibraryMetadataProvider(),
+            xcframeworkMetadataProvider: MockXCFrameworkMetadataProvider(),
+            systemFrameworkMetadataProvider: SystemFrameworkMetadataProvider()
+        )
         let workspace = try modelLoader.loadWorkspace(at: rootPath)
         let projects = try workspace.projects.map(modelLoader.loadProject)
 
