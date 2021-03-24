@@ -12,7 +12,7 @@ module Fourier
         SOURCE_TAR_URL = "https://github.com/SwiftDocOrg/swift-doc/archive/refs/tags/#{VERSION}.zip"
 
         def call
-          output_directory = File.join(Constants::TUIST_VENDOR_DIRECTORY, "swift-doc")
+          output_directory = File.join(Constants::TUIST_VENDOR_DIRECTORY)
 
           Dir.mktmpdir do |temporary_dir|
             Dir.mktmpdir do |temporary_output_directory|
@@ -21,16 +21,16 @@ module Fourier
               build(sources_path, into: temporary_output_directory)
 
               # # swift-doc expects the lib_InternalSwiftSyntaxParser dynamic library.
-              # # https://github.com/SwiftDocOrg/homebrew-formulae/blob/master/Formula/swift-doc.rb#L43
-              # macho = MachO::FatFile.new(File.join(temporary_output_directory, "swift-doc"))
-              # toolchain = macho.rpaths.find { |path| path.include?(".xctoolchain") }
-              # syntax_parser_dylib = File.join(toolchain, "lib_InternalSwiftSyntaxParser.dylib")
-              # FileUtils.copy_entry(syntax_parser_dylib,
-              #   File.join(temporary_output_directory, File.basename(syntax_parser_dylib)))
+              # https://github.com/SwiftDocOrg/homebrew-formulae/blob/master/Formula/swift-doc.rb#L43
+              macho = MachO::FatFile.new(File.join(temporary_output_directory, "swift-doc"))
+              toolchain = macho.rpaths.find { |path| path.include?(".xctoolchain") }
+              syntax_parser_dylib = File.join(toolchain, "lib_InternalSwiftSyntaxParser.dylib")
+              FileUtils.copy_entry(syntax_parser_dylib,
+                File.join(temporary_output_directory, File.basename(syntax_parser_dylib)))
 
-              # FileUtils.rm_rf(output_directory) if Dir.exist?(output_directory)
-              # FileUtils.copy_entry(temporary_output_directory, output_directory)
-              # puts(::CLI::UI.fmt("{{success:swiftdoc built and vendored successfully.}}"))
+              FileUtils.rm_rf(output_directory) if Dir.exist?(output_directory)
+              FileUtils.copy_entry(temporary_output_directory, output_directory)
+              puts(::CLI::UI.fmt("{{success:swiftdoc built and vendored successfully.}}"))
             end
           end
         end
@@ -83,7 +83,7 @@ module Fourier
           Utilities::System.system(*x86)
 
           Utilities::System.system(
-            "lipo", "-create", "output", File.join(into, "swift-doc"),
+            "lipo", "-create", "-output", File.join(into, "swift-doc"),
             File.join(sources_path, ".build/arm64-apple-macosx/release/swift-doc"),
             File.join(sources_path, ".build/x86_64-apple-macosx/release/swift-doc")
           )
