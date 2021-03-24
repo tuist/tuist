@@ -77,14 +77,15 @@ private extension SchemeLinter {
         let reason = "The build configuration '\(buildConfigurationName)' specified in \(actionDescription) isn't defined in the project."
         return LintingIssue(reason: reason, severity: .error)
     }
-    
+
     func lintExpandVariableTarget(schemes: [Scheme], targets: [Target]) -> [LintingIssue] {
         let targetNames = targets.map(\.name)
         var issues: [LintingIssue] = []
-        
+
         for scheme in schemes {
             if let testAction = scheme.testAction,
-               let target = testAction.expandVariableFromTarget {
+                let target = testAction.expandVariableFromTarget
+            {
                 if !targetNames.contains(target.name) {
                     issues.append(missingExpandVariablesTargetIssue(missingTargetName: target.name, schemaName: scheme.name))
                 }
@@ -112,7 +113,7 @@ private extension SchemeLinter {
         let reason = "The target '\(missingTargetName)' specified in \(schemaName) code coverage targets list isn't defined in the project."
         return LintingIssue(reason: reason, severity: .error)
     }
-    
+
     func missingExpandVariablesTargetIssue(missingTargetName: String, schemaName: String) -> LintingIssue {
         let reason = "The target '\(missingTargetName)' specified in \(schemaName) expandVariableFromTarget isn't defined in the project."
         return LintingIssue(reason: reason, severity: .error)

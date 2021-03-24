@@ -304,8 +304,8 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
                 rootPath: rootPath
             )
         }
-        
-        var macroExpansion: XCScheme.BuildableReference? = nil
+
+        var macroExpansion: XCScheme.BuildableReference?
         if let expandVariableFromTarget = testAction.expandVariableFromTarget {
             guard let graphTarget = graphTraverser.target(path: expandVariableFromTarget.projectPath, name: expandVariableFromTarget.name) else { return nil }
             macroExpansion = try testCoverageTargetReferences(
@@ -315,7 +315,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
                 rootPath: rootPath
             )
         }
-        
+
         let onlyGenerateCoverageForSpecifiedTargets = codeCoverageTargets.count > 0 ? true : nil
 
         let disableMainThreadChecker = !testAction.diagnosticsOptions.contains(.mainThreadChecker)

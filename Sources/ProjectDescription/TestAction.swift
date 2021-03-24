@@ -19,7 +19,7 @@ public struct TestAction: Equatable, Codable {
 
     /// List of targets for which Xcode will collect the coverage results.
     public let codeCoverageTargets: [TargetReference]
-    
+
     /// Set the target that will expand the variables for
     public let expandVariableFromTarget: TargetReference?
 

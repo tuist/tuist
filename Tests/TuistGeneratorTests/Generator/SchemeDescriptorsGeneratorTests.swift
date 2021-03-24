@@ -315,7 +315,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         XCTAssertEqual(buildableReference.blueprintName, "AppTests")
         XCTAssertEqual(buildableReference.buildableIdentifier, "primary")
     }
-    
+
     func test_schemeTestAction_with_expandVariable() throws {
         // Given
         let target = Target.test(name: "App", product: .app)
@@ -366,9 +366,9 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         XCTAssertEqual(result.macroExpansion?.blueprintName, "App")
         XCTAssertEqual(result.macroExpansion?.referencedContainer, "container:Project.xcodeproj")
         XCTAssertEqual(result.macroExpansion?.buildableIdentifier, "primary")
-        
+
         XCTAssertEqual(testable.skipped, false)
-        
+
         XCTAssertEqual(buildableReference.referencedContainer, "container:Project.xcodeproj")
         XCTAssertEqual(buildableReference.buildableName, "AppTests.xctest")
         XCTAssertEqual(buildableReference.blueprintName, "AppTests")
