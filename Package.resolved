@@ -33,8 +33,8 @@
         "repositoryURL": "https://github.com/pointfreeco/combine-schedulers",
         "state": {
           "branch": null,
-          "revision": "f1250faa1c1436ca83950ce676a4fe97a309a457",
-          "version": "0.4.1"
+          "revision": "ae2f434e81017bb7de02c168fb0bde83cd8370c1",
+          "version": "0.3.1"
         }
       },
       {
@@ -114,8 +114,8 @@
         "repositoryURL": "https://github.com/ReactiveX/RxSwift.git",
         "state": {
           "branch": null,
-          "revision": "254617dd7fae0c45319ba5fbea435bf4d0e15b5d",
-          "version": "5.1.2"
+          "revision": "002d325b0bdee94e7882e1114af5ff4fe1e96afa",
+          "version": "5.1.1"
         }
       },
       {
@@ -195,17 +195,8 @@
         "repositoryURL": "https://github.com/tuist/XcodeProj.git",
         "state": {
           "branch": null,
-          "revision": "c8afc799be95bbc6c329ba12d15342ffa7c4577d",
-          "version": "7.19.0"
-        }
-      },
-      {
-        "package": "xctest-dynamic-overlay",
-        "repositoryURL": "https://github.com/pointfreeco/xctest-dynamic-overlay",
-        "state": {
-          "branch": null,
-          "revision": "603974e3909ad4b48ba04aad7e0ceee4f077a518",
-          "version": "0.1.0"
+          "revision": "82bf5efcaa27e94ed8c761c1eb3e397b6dea82b9",
+          "version": "7.18.0"
         }
       },
       {
@@ -213,8 +204,8 @@
         "repositoryURL": "https://github.com/jpsim/Yams.git",
         "state": {
           "branch": null,
-          "revision": "4ec0a3c5d6a2446667a2b22c8c7d0fc82dd1d3de",
-          "version": "4.0.5"
+          "revision": "9003d51672e516cc59297b7e96bff1dfdedcb4ea",
+          "version": "4.0.4"
         }
       },
       {
