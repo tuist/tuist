@@ -43,7 +43,29 @@ class UpRequired: Upping {
         let type: String = try dictionary.get("type")
         if type == "precondition" {
             return try UpPrecondition(dictionary: dictionary, projectPath: projectPath)
+        } else if type == "variable_is" {
+            return try UpEnvironmentEquals(dictionary: dictionary, projectPath: projectPath)
+        } else if type == "variable_exists" {
+            return try UpEnvironmentExists(dictionary: dictionary, projectPath: projectPath)
         }
         return nil
+    }
+}
+
+public enum CheckRequirementError: FatalError {
+    case unfulfilled(String)
+
+    public var type: ErrorType {
+        switch self {
+        case .unfulfilled:
+            return .abort
+        }
+    }
+
+    public var description: String {
+        switch self {
+        case let .unfulfilled(reason):
+            return reason
+        }
     }
 }

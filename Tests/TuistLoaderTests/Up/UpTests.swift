@@ -79,18 +79,4 @@ final class UpTests: TuistUnitTestCase {
         XCTAssertEqual(got?.name, "Mint")
         XCTAssertEqual(got?.linkPackagesGlobally, true)
     }
-
-    func test_with_when_precondition() throws {
-        let temporaryPath = try self.temporaryPath()
-        let dictionary = JSON([
-            "type": "precondition",
-            "name": "test name",
-            "is_met": JSON.array([JSON.string("is_met")]),
-            "advice": "corrective advice",
-        ])
-        let got = try UpPrecondition.with(dictionary: dictionary, projectPath: temporaryPath) as? UpPrecondition
-        XCTAssertEqual(got?.name, "test name")
-        XCTAssertEqual(got?.advice, "corrective advice")
-        XCTAssertEqual(got?.isMet, ["is_met"])
-    }
 }

@@ -91,21 +91,3 @@ class UpPrecondition: UpRequired, GraphInitiatable {
         }
     }
 }
-
-enum CheckRequirementError: FatalError {
-    case unfulfilled(String)
-
-    var type: ErrorType {
-        switch self {
-        case .unfulfilled:
-            return .abort
-        }
-    }
-
-    var description: String {
-        switch self {
-        case let .unfulfilled(reason):
-            return reason
-        }
-    }
-}
