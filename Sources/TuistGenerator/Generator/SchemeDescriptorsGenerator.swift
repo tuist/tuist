@@ -119,6 +119,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
     ///     - path: Path to workspace or project folder.
     ///     - graphTraverser: Graph traverser.
     ///     - generatedProjects: Project paths mapped to generated projects.
+    // swiftlint:disable:next function_body_length
     private func generateScheme(scheme: Scheme,
                                 path: AbsolutePath,
                                 graphTraverser: GraphTraversing,
@@ -203,13 +204,17 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         var postActions: [XCScheme.ExecutionAction] = []
 
         try buildAction.targets.forEach { buildActionTarget in
-            guard let buildActionGraphTarget = graphTraverser.target(path: buildActionTarget.projectPath, name: buildActionTarget.name) else { return }
-            guard let buildableReference = try createBuildableReference(
-                graphTarget: buildActionGraphTarget,
-                graphTraverser: graphTraverser,
-                rootPath: rootPath,
-                generatedProjects: generatedProjects
-            ) else { return }
+            guard
+                let buildActionGraphTarget = graphTraverser.target(path: buildActionTarget.projectPath, name: buildActionTarget.name),
+                let buildableReference = try createBuildableReference(
+                    graphTarget: buildActionGraphTarget,
+                    graphTraverser: graphTraverser,
+                    rootPath: rootPath,
+                    generatedProjects: generatedProjects
+                )
+            else {
+                return
+            }
             entries.append(XCScheme.BuildAction.Entry(buildableReference: buildableReference, buildFor: buildFor))
         }
 
@@ -258,13 +263,17 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         }
 
         try testAction.targets.forEach { testableTarget in
-            guard let testableGraphTarget = graphTraverser.target(path: testableTarget.target.projectPath, name: testableTarget.target.name) else { return }
-            guard let reference = try createBuildableReference(
-                graphTarget: testableGraphTarget,
-                graphTraverser: graphTraverser,
-                rootPath: rootPath,
-                generatedProjects: generatedProjects
-            ) else { return }
+            guard
+                let testableGraphTarget = graphTraverser.target(path: testableTarget.target.projectPath, name: testableTarget.target.name),
+                let reference = try createBuildableReference(
+                    graphTarget: testableGraphTarget,
+                    graphTraverser: graphTraverser,
+                    rootPath: rootPath,
+                    generatedProjects: generatedProjects
+                )
+            else {
+                return
+            }
             let testable = XCScheme.TestableReference(
                 skipped: testableTarget.isSkipped,
                 parallelizable: testableTarget.isParallelizable,
@@ -339,6 +348,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
     ///   - rootPath: Root path to either project or workspace.
     ///   - generatedProjects: Project paths mapped to generated projects.
     /// - Returns: Scheme launch action.
+    // swiftlint:disable:next function_body_length
     func schemeLaunchAction(scheme: Scheme,
                             graphTraverser: GraphTraversing,
                             rootPath: AbsolutePath,

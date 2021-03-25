@@ -53,7 +53,6 @@ public final class CacheXCFrameworkBuilder: CacheArtifactBuilding {
 
     // MARK: - Fileprivate
 
-    // swiftlint:disable:next function_body_length
     fileprivate func build(_ projectTarget: XcodeBuildTarget,
                            target: Target,
                            configuration: String,

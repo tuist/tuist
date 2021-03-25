@@ -23,7 +23,9 @@ protocol ProjectEditorMapping: AnyObject {
     ) throws -> ValueGraph
 }
 
+// swiftlint:disable:next type_body_length
 final class ProjectEditorMapper: ProjectEditorMapping {
+    // swiftlint:disable:next function_body_length
     func map(
         name: String,
         tuistPath: AbsolutePath,
@@ -116,6 +118,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         )
     }
 
+    // swiftlint:disable:next function_body_length
     private func mapManifestsProject(
         projectManifests: [AbsolutePath],
         projectDescriptionPath: AbsolutePath,
@@ -250,6 +253,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         )
     }
 
+    // swiftlint:disable:next function_body_length
     private func mapPluginsProject(
         pluginManifests: [EditablePluginManifest],
         projectDescriptionPath: AbsolutePath,

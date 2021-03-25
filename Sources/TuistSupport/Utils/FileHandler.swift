@@ -276,7 +276,8 @@ public class FileHandler: FileHandling {
 
         _ = digestData.withUnsafeMutableBytes { digestBytes -> UInt8 in
             data.withUnsafeBytes { messageBytes -> UInt8 in
-                if let messageBytesBaseAddress = messageBytes.baseAddress, let digestBytesBlindMemory = digestBytes.bindMemory(to: UInt8.self).baseAddress {
+                if let messageBytesBaseAddress = messageBytes.baseAddress,
+                   let digestBytesBlindMemory = digestBytes.bindMemory(to: UInt8.self).baseAddress {
                     let messageLength = CC_LONG(data.count)
                     CC_MD5(messageBytesBaseAddress, messageLength, digestBytesBlindMemory)
                 }

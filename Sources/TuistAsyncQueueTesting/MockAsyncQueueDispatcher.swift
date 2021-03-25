@@ -43,7 +43,7 @@ public class MockAsyncQueueDispatcher: AsyncQueueDispatching {
     public var invokedDispatchPersistedCount = 0
     public var invokedDispatchPersistedCallBack: () -> Void = {}
     public var invokedDispatchPersistedDataParameter: Data?
-    public var invokedDispatchPersistedParametersDataList = [Data]()
+    public var invokedDispatchPersistedParametersDataList = [Data]() // swiftlint:disable:this identifier_name
     public var stubbedDispatchPersistedError: Error?
 
     public func dispatchPersisted(data: Data, completion: @escaping () -> Void) throws {

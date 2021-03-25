@@ -9,6 +9,7 @@ public protocol ValueGraphLoading {
 
 // MARK: - ValueGraphLoader
 
+// swiftlint:disable:next type_body_length
 public final class ValueGraphLoader: ValueGraphLoading {
     private let frameworkMetadataProvider: FrameworkMetadataProviding
     private let libraryMetadataProvider: LibraryMetadataProviding
@@ -123,7 +124,7 @@ public final class ValueGraphLoader: ValueGraphLoading {
         guard !cache.targetLoaded(path: path, name: name) else {
             return
         }
-        guard let _ = cache.allProjects[path] else {
+        guard cache.allProjects[path] != nil else {
             throw GraphLoadingError.missingProject(path)
         }
         guard let referencedTargetProject = cache.allTargets[path],

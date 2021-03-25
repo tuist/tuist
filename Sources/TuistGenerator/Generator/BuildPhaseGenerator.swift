@@ -56,6 +56,7 @@ protocol BuildPhaseGenerating: AnyObject {
 final class BuildPhaseGenerator: BuildPhaseGenerating {
     // MARK: - Attributes
 
+    // swiftlint:disable:next function_body_length
     func generateBuildPhases(path: AbsolutePath,
                              target: Target,
                              graphTraverser: GraphTraversing,

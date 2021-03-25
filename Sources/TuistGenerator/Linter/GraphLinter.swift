@@ -106,7 +106,7 @@ public class GraphLinter: GraphLinting {
             $0.formUnion(Set($1.settings.configurations.keys))
         }
 
-        let projectBuildConfigurations = graphTraverser.projects.compactMap { project -> (name: String, buildConfigurations: Set<BuildConfiguration>)? in
+        let projectBuildConfigurations = graphTraverser.projects.compactMap { project in
             (name: project.value.name, buildConfigurations: Set(project.value.settings.configurations.keys))
         }
 

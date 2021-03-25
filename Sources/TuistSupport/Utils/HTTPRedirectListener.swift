@@ -41,7 +41,12 @@ public final class HTTPRedirectListener: HTTPRedirectListening {
 
     // MARK: - HTTPRedirectListening
 
-    public func listen(port: UInt16, path: String, redirectMessage: String, logoURL: URL) -> Swift.Result<[String: String]?, HTTPRedirectListenerError> {
+    public func listen(
+        port: UInt16,
+        path: String,
+        redirectMessage: String,
+        logoURL: URL
+    ) -> Swift.Result<[String: String]?, HTTPRedirectListenerError> {
         precondition(runningSemaphore == nil, "Trying to start a redirect server for localhost:\(port)\(path) when there's already one running.")
         let httpServer = HttpServer()
         var result: Swift.Result<[String: String]?, HTTPRedirectListenerError> = .success(nil)
@@ -68,6 +73,7 @@ public final class HTTPRedirectListener: HTTPRedirectListening {
         return result
     }
 
+    // swiftlint:disable:next function_body_length
     private func html(logoURL: URL, redirectMessage: String) -> String {
         """
         <!DOCTYPE html>

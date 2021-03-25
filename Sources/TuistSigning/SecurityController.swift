@@ -47,7 +47,14 @@ final class SecurityController: SecurityControlling {
 
     private func certificateExists(_ certificate: Certificate, keychainPath: AbsolutePath) throws -> Bool {
         do {
-            let existingCertificates = try System.shared.capture("/usr/bin/security", "find-certificate", "-c", certificate.name, "-a", keychainPath.pathString)
+            let existingCertificates = try System.shared.capture(
+                "/usr/bin/security",
+                "find-certificate",
+                "-c",
+                certificate.name,
+                "-a",
+                keychainPath.pathString
+            )
             return !existingCertificates.isEmpty
         } catch {
             return false

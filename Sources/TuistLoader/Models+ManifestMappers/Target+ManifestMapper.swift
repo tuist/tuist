@@ -94,10 +94,12 @@ extension TuistGraph.Target {
 
     // MARK: - Fileprivate
 
+    // swiftlint:disable large_tuple
     // swiftlint:disable line_length
     fileprivate static func resourcesAndPlaygrounds(manifest: ProjectDescription.Target,
                                                     generatorPaths: GeneratorPaths) throws -> (resources: [TuistGraph.ResourceFileElement], playgrounds: [AbsolutePath], invalidResourceGlobs: [InvalidGlob])
     {
+        // swiftlint:enable large_tuple
         // swiftlint:enable line_length
         let resourceFilter = { (path: AbsolutePath) -> Bool in
             TuistGraph.Target.isResource(path: path)
@@ -155,7 +157,7 @@ extension TuistGraph.Target {
         var playgrounds: Set<AbsolutePath> = []
 
         // Sources
-        let allSources = try TuistGraph.Target.sources(targetName: targetName, sources: manifest.sources?.globs.map { (glob: ProjectDescription.SourceFileGlob) in
+        let allSources = try TuistGraph.Target.sources(targetName: targetName, sources: manifest.sources?.globs.map { glob in
             let globPath = try generatorPaths.resolve(path: glob.glob).pathString
             let excluding: [String] = try glob.excluding.compactMap { try generatorPaths.resolve(path: $0).pathString }
             return TuistGraph.SourceFileGlob(glob: globPath, excluding: excluding, compilerFlags: glob.compilerFlags)
