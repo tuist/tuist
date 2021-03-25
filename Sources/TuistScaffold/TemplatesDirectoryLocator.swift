@@ -6,11 +6,17 @@ import TuistSupport
 public protocol TemplatesDirectoryLocating {
     /// Returns the path to the tuist built-in templates directory if it exists.
     func locateTuistTemplates() -> AbsolutePath?
+
     /// Returns the path to the user-defined templates directory if it exists.
     /// - Parameter at: Path from which we traverse the hierarchy to obtain the templates directory.
     func locateUserTemplates(at: AbsolutePath) -> AbsolutePath?
+
     /// - Returns: All available directories with defined templates (user-defined and built-in)
     func templateDirectories(at path: AbsolutePath) throws -> [AbsolutePath]
+
+    /// - Parameter path: The path to the `Templates` directory for a plugin.
+    /// - Returns: All available directories defined for the plugin at the given path
+    func templatePluginDirectories(at path: AbsolutePath) throws -> [AbsolutePath]
 }
 
 public final class TemplatesDirectoryLocator: TemplatesDirectoryLocating {
@@ -56,6 +62,10 @@ public final class TemplatesDirectoryLocator: TemplatesDirectoryLocating {
         let userTemplatesDirectory = locateUserTemplates(at: path)
         let userTemplates = try userTemplatesDirectory.map(FileHandler.shared.contentsOfDirectory) ?? []
         return (tuistTemplates + userTemplates).filter(FileHandler.shared.isFolder)
+    }
+
+    public func templatePluginDirectories(at path: AbsolutePath) throws -> [AbsolutePath] {
+        try FileHandler.shared.contentsOfDirectory(path).filter(FileHandler.shared.isFolder)
     }
 
     // MARK: - Helpers

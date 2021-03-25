@@ -728,6 +728,7 @@ let package = Package(
                 "TuistGraph",
                 "TuistLoader",
                 "TuistSupport",
+                "TuistScaffold",
                 swiftToolsSupportDependency,
             ]
         ),
