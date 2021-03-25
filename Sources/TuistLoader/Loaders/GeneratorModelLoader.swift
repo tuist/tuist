@@ -58,11 +58,21 @@ extension GeneratorModelLoader: GeneratorModelLoading {
 
 extension GeneratorModelLoader: ManifestModelConverting {
     public func convert(manifest: ProjectDescription.Project, path: AbsolutePath) throws -> TuistGraph.Project {
+        let signPost = Signpost(category: "GeneratorModelLoader", identifier: "convertProject", label: path.basename)
+        signPost.begin()
+        defer {
+            signPost.end()
+        }
         let generatorPaths = GeneratorPaths(manifestDirectory: path)
         return try TuistGraph.Project.from(manifest: manifest, generatorPaths: generatorPaths)
     }
 
     public func convert(manifest: ProjectDescription.Workspace, path: AbsolutePath) throws -> TuistGraph.Workspace {
+        let signPost = Signpost(category: "GeneratorModelLoader", identifier: "convertWorkspace", label: path.basename)
+        signPost.begin()
+        defer {
+            signPost.end()
+        }
         let generatorPaths = GeneratorPaths(manifestDirectory: path)
         let workspace = try TuistGraph.Workspace.from(
             manifest: manifest,

@@ -69,6 +69,12 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
         projectDescriptionSearchPaths: ProjectDescriptionSearchPaths,
         projectDescriptionHelperPlugins: [ProjectDescriptionHelpersPlugin]
     ) throws -> [ProjectDescriptionHelpersModule] {
+        let signpost = Signpost(category: "ProjectDescriptionHelpersBuilder", identifier: "build", label: path.basename)
+        signpost.begin()
+        defer {
+            signpost.end()
+        }
+
         let pluginHelpers = try buildPlugins(
             at: path,
             projectDescriptionSearchPaths: projectDescriptionSearchPaths,
@@ -87,10 +93,16 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
     }
 
     public func buildPlugins(
-        at _: AbsolutePath,
+        at path: AbsolutePath,
         projectDescriptionSearchPaths: ProjectDescriptionSearchPaths,
         projectDescriptionHelperPlugins: [ProjectDescriptionHelpersPlugin]
     ) throws -> [ProjectDescriptionHelpersModule] {
+        let signpost = Signpost(category: "ProjectDescriptionHelpersBuilder", identifier: "buildPlugins", label: path.basename)
+        signpost.begin()
+        defer {
+            signpost.end()
+        }
+
         let pluginHelpers = try projectDescriptionHelperPlugins.map {
             try buildHelpers(name: $0.name, in: $0.path, projectDescriptionSearchPaths: projectDescriptionSearchPaths)
         }
@@ -103,6 +115,11 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
         projectDescriptionSearchPaths: ProjectDescriptionSearchPaths,
         customProjectDescriptionHelperModules: [ProjectDescriptionHelpersModule]
     ) throws -> ProjectDescriptionHelpersModule? {
+        let signpost = Signpost(category: "ProjectDescriptionHelpersBuilder", identifier: "buildDefaultHelpers", label: path.basename)
+        signpost.begin()
+        defer {
+            signpost.end()
+        }
         guard let tuistHelpersDirectory = helpersDirectoryLocator.locate(at: path) else { return nil }
         return try buildHelpers(
             name: Self.defaultHelpersName,

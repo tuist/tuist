@@ -70,6 +70,12 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
     func generate(project: Project,
                   graphTraverser: GraphTraversing) throws -> ProjectDescriptor
     {
+        let signPost = Signpost(category: "ProjectDescriptorGenerator", identifier: "generate", label: project.name)
+        signPost.begin()
+        defer {
+            signPost.end()
+        }
+
         logger.notice("Generating project \(project.name)")
 
         let workspaceData = XCWorkspaceData(children: [])
@@ -80,42 +86,61 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
             archiveVersion: projectConstants.archiveVersion,
             classes: [:]
         )
-        let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj)
+        let groups = Signpost.measure(category: "ProjectDescriptorGenerator", identifier: "generateProjectGroups", label: project.name) {
+            ProjectGroups.generate(project: project, pbxproj: pbxproj)
+        }
         let fileElements = ProjectFileElements()
-        try fileElements.generateProjectFiles(
-            project: project,
-            graphTraverser: graphTraverser,
-            groups: groups,
-            pbxproj: pbxproj
-        )
-        let configurationList = try configGenerator.generateProjectConfig(project: project, pbxproj: pbxproj, fileElements: fileElements)
-        let pbxProject = try generatePbxproject(
-            project: project,
-            projectFileElements: fileElements,
-            configurationList: configurationList,
-            groups: groups,
-            pbxproj: pbxproj
-        )
+        try Signpost.measure(category: "ProjectDescriptorGenerator", identifier: "generateProjectFiles", label: project.name) {
+            try fileElements.generateProjectFiles(
+                project: project,
+                graphTraverser: graphTraverser,
+                groups: groups,
+                pbxproj: pbxproj
+            )
+        }
 
-        let nativeTargets = try generateTargets(
-            project: project,
-            pbxproj: pbxproj,
-            pbxProject: pbxProject,
-            fileElements: fileElements,
-            graphTraverser: graphTraverser
-        )
+        let configurationList = try Signpost.measure(category: "ProjectDescriptorGenerator", identifier: "generateProjectConfig", label: project.name) {
+            try configGenerator.generateProjectConfig(
+                project: project,
+                pbxproj: pbxproj,
+                fileElements: fileElements
+            )
+        }
+        let pbxProject = try Signpost.measure(category: "ProjectDescriptorGenerator", identifier: "generatePbxproject", label: project.name) {
+            try generatePbxproject(
+                project: project,
+                projectFileElements: fileElements,
+                configurationList: configurationList,
+                groups: groups,
+                pbxproj: pbxproj
+            )
+        }
 
-        generateTestTargetIdentity(
-            project: project,
-            pbxproj: pbxproj,
-            pbxProject: pbxProject
-        )
+        let nativeTargets = try Signpost.measure(category: "ProjectDescriptorGenerator", identifier: "generateTargets", label: project.name) {
+            try generateTargets(
+                project: project,
+                pbxproj: pbxproj,
+                pbxProject: pbxProject,
+                fileElements: fileElements,
+                graphTraverser: graphTraverser
+            )
+        }
 
-        try generateSwiftPackageReferences(
-            project: project,
-            pbxproj: pbxproj,
-            pbxProject: pbxProject
-        )
+        Signpost.measure(category: "ProjectDescriptorGenerator", identifier: "generateTestTargetIdentity", label: project.name) {
+            generateTestTargetIdentity(
+                project: project,
+                pbxproj: pbxproj,
+                pbxProject: pbxProject
+            )
+        }
+
+        try Signpost.measure(category: "ProjectDescriptorGenerator", identifier: "generateSwiftPackageReferences", label: project.name) {
+            try generateSwiftPackageReferences(
+                project: project,
+                pbxproj: pbxproj,
+                pbxProject: pbxProject
+            )
+        }
 
         let generatedProject = GeneratedProject(
             pbxproj: pbxproj,
@@ -124,11 +149,13 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
             name: project.xcodeProjPath.basename
         )
 
-        let schemes = try schemeDescriptorsGenerator.generateProjectSchemes(
-            project: project,
-            generatedProject: generatedProject,
-            graphTraverser: graphTraverser
-        )
+        let schemes = try Signpost.measure(category: "ProjectDescriptorGenerator", identifier: "generateProjectSchemes", label: project.name) {
+            try schemeDescriptorsGenerator.generateProjectSchemes(
+                project: project,
+                generatedProject: generatedProject,
+                graphTraverser: graphTraverser
+            )
+        }
 
         let xcodeProj = XcodeProj(workspace: workspace, pbxproj: pbxproj)
         return ProjectDescriptor(

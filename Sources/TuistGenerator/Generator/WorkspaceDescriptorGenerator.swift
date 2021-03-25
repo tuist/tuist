@@ -81,16 +81,24 @@ final class WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
     // MARK: - WorkspaceGenerating
 
     func generate(graphTraverser: GraphTraversing) throws -> WorkspaceDescriptor {
+        let signPost = Signpost(category: "WorkspaceDescriptorGenerator", identifier: "generate", label: graphTraverser.name)
+        signPost.begin()
+        defer {
+            signPost.end()
+        }
+
         let workspaceName = "\(graphTraverser.name).xcworkspace"
 
         logger.notice("Generating workspace \(workspaceName)", metadata: .section)
 
         /// Projects
-        let projects = try Array(graphTraverser.projects.values)
-            .sorted(by: { $0.path < $1.path })
-            .compactMap(context: config.projectGenerationContext) { project -> ProjectDescriptor? in
-                try projectDescriptorGenerator.generate(project: project, graphTraverser: graphTraverser)
-            }
+        let projects = try Signpost.measure(category: "WorkspaceDescriptorGenerator", identifier: "generateProjects", label: graphTraverser.name) {
+            try Array(graphTraverser.projects.values)
+                .sorted(by: { $0.path < $1.path })
+                .compactMap(context: config.projectGenerationContext) { project -> ProjectDescriptor? in
+                    try projectDescriptorGenerator.generate(project: project, graphTraverser: graphTraverser)
+                }
+        }
 
         let generatedProjects: [AbsolutePath: GeneratedProject] = Dictionary(uniqueKeysWithValues: projects.map { project in
             let pbxproj = project.xcodeProj.pbxproj
@@ -109,12 +117,14 @@ final class WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
         })
 
         // Workspace structure
-        let structure = workspaceStructureGenerator.generateStructure(
-            path: graphTraverser.workspace.xcWorkspacePath.parentDirectory,
-            workspace: graphTraverser.workspace,
-            xcodeProjPaths: generatedProjects.keys.map { $0 },
-            fileHandler: FileHandler.shared
-        )
+        let structure = Signpost.measure(category: "WorkspaceDescriptorGenerator", identifier: "generateStructure", label: graphTraverser.name) {
+            workspaceStructureGenerator.generateStructure(
+                path: graphTraverser.workspace.xcWorkspacePath.parentDirectory,
+                workspace: graphTraverser.workspace,
+                xcodeProjPaths: generatedProjects.keys.map { $0 },
+                fileHandler: FileHandler.shared
+            )
+        }
 
         let workspaceData = XCWorkspaceData(children: [])
         let xcWorkspace = XCWorkspace(data: workspaceData)
@@ -127,11 +137,13 @@ final class WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
         }
 
         // Schemes
-        let schemes = try schemeDescriptorsGenerator.generateWorkspaceSchemes(
-            workspace: graphTraverser.workspace,
-            generatedProjects: generatedProjects,
-            graphTraverser: graphTraverser
-        )
+        let schemes = try Signpost.measure(category: "WorkspaceDescriptorGenerator", identifier: "generateWorkspaceSchemes", label: graphTraverser.name) {
+            try schemeDescriptorsGenerator.generateWorkspaceSchemes(
+                workspace: graphTraverser.workspace,
+                generatedProjects: generatedProjects,
+                graphTraverser: graphTraverser
+            )
+        }
 
         return WorkspaceDescriptor(
             path: graphTraverser.workspace.path,

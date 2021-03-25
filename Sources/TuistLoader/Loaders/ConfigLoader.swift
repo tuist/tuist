@@ -31,8 +31,18 @@ public final class ConfigLoader: ConfigLoading {
     }
 
     public func loadConfig(path: AbsolutePath) throws -> TuistGraph.Config {
+        let signPost = Signpost(category: "ConfigLoader", identifier: "loadConfig", label: path.basename)
+        signPost.begin()
+
         if let cached = cachedConfigs[path] {
+            defer {
+                signPost.end(label: "[Cached] \(path.basename)")
+            }
             return cached
+        }
+
+        defer {
+            signPost.end()
         }
 
         // If the Config.swift file exists in the root Tuist/ directory, we load it from there

@@ -40,6 +40,12 @@ public final class PluginService: PluginServicing {
     }
 
     public func loadPlugins(using config: Config) throws -> Plugins {
+        let signPost = Signpost(category: "PluginsService", identifier: "loadPlugins")
+        signPost.begin()
+        defer {
+            signPost.end()
+        }
+
         guard !config.plugins.isEmpty else { return .none }
 
         let localPluginPaths: [AbsolutePath] = config.plugins

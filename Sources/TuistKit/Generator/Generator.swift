@@ -76,6 +76,12 @@ class Generator: Generating {
     }
 
     func generateWithGraph(path: AbsolutePath, projectOnly: Bool) throws -> (AbsolutePath, ValueGraph) {
+        let signPost = Signpost(category: "Generator", identifier: "generateWithGraph", label: path.basename)
+        signPost.begin()
+        defer {
+            signPost.end()
+        }
+
         let manifests = manifestLoader.manifests(at: path)
 
         if projectOnly {
@@ -90,6 +96,12 @@ class Generator: Generating {
     }
 
     func load(path: AbsolutePath) throws -> ValueGraph {
+        let signPost = Signpost(category: "Generator", identifier: "load", label: path.basename)
+        signPost.begin()
+        defer {
+            signPost.end()
+        }
+
         let manifests = manifestLoader.manifests(at: path)
 
         if manifests.contains(.workspace) {
@@ -103,6 +115,12 @@ class Generator: Generating {
 
     // swiftlint:disable:next large_tuple
     func loadProject(path: AbsolutePath) throws -> (Project, ValueGraph, [SideEffectDescriptor]) {
+        let signPost = Signpost(category: "Generator", identifier: "loadProject", label: path.basename)
+        signPost.begin()
+        defer {
+            signPost.end()
+        }
+
         // Load config
         let config = try configLoader.loadConfig(path: path)
 
@@ -167,46 +185,70 @@ class Generator: Generating {
 
     private func generateWorkspace(path: AbsolutePath) throws -> (AbsolutePath, ValueGraph) {
         // Load
-        let (graph, sideEffects) = try loadWorkspace(path: path)
+        let (graph, sideEffects) = try Signpost.measure(category: "Generator", identifier: "loadWorkspaceGraph") {
+            try loadWorkspace(path: path)
+        }
         let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // Lint
-        try lint(graphTraverser: graphTraverser)
+        try Signpost.measure(category: "Generator", identifier: "lint") {
+            try lint(graphTraverser: graphTraverser)
+        }
 
         // Generate
-        let workspaceDescriptor = try generator.generateWorkspace(graphTraverser: graphTraverser)
+        let workspaceDescriptor = try Signpost.measure(category: "Generator", identifier: "generateWorkspace") {
+            try generator.generateWorkspace(graphTraverser: graphTraverser)
+        }
 
         // Write
-        try writer.write(workspace: workspaceDescriptor)
+        try Signpost.measure(category: "Generator", identifier: "writeWorkspace") {
+            try writer.write(workspace: workspaceDescriptor)
+        }
 
         // Mapper side effects
-        try sideEffectDescriptorExecutor.execute(sideEffects: sideEffects)
+        try Signpost.measure(category: "Generator", identifier: "sideEffects") {
+            try sideEffectDescriptorExecutor.execute(sideEffects: sideEffects)
+        }
 
         // Post Generate Actions
-        try postGenerationActions(graphTraverser: graphTraverser, workspaceName: workspaceDescriptor.xcworkspacePath.basename)
+        try Signpost.measure(category: "Generator", identifier: "postGenerationActions") {
+            try postGenerationActions(graphTraverser: graphTraverser, workspaceName: workspaceDescriptor.xcworkspacePath.basename)
+        }
 
         return (workspaceDescriptor.xcworkspacePath, graph)
     }
 
     internal func generateProjectWorkspace(path: AbsolutePath) throws -> (AbsolutePath, ValueGraph) {
         // Load
-        let (_, graph, sideEffects) = try loadProjectWorkspace(path: path)
+        let (_, graph, sideEffects) = try Signpost.measure(category: "Generator", identifier: "loadProjectGraph") {
+            try loadProjectWorkspace(path: path)
+        }
         let graphTraverser = ValueGraphTraverser(graph: graph)
 
         // Lint
-        try lint(graphTraverser: graphTraverser)
+        try Signpost.measure(category: "Generator", identifier: "lint") {
+            try lint(graphTraverser: graphTraverser)
+        }
 
         // Generate
-        let workspaceDescriptor = try generator.generateWorkspace(graphTraverser: graphTraverser)
+        let workspaceDescriptor = try Signpost.measure(category: "Generator", identifier: "generateWorkspace") {
+            try generator.generateWorkspace(graphTraverser: graphTraverser)
+        }
 
         // Write
-        try writer.write(workspace: workspaceDescriptor)
+        try Signpost.measure(category: "Generator", identifier: "writeWorkspace") {
+            try writer.write(workspace: workspaceDescriptor)
+        }
 
         // Mapper side effects
-        try sideEffectDescriptorExecutor.execute(sideEffects: sideEffects)
+        try Signpost.measure(category: "Generator", identifier: "sideEffects") {
+            try sideEffectDescriptorExecutor.execute(sideEffects: sideEffects)
+        }
 
         // Post Generate Actions
-        try postGenerationActions(graphTraverser: graphTraverser, workspaceName: workspaceDescriptor.xcworkspacePath.basename)
+        try Signpost.measure(category: "Generator", identifier: "postGenerationActions") {
+            try postGenerationActions(graphTraverser: graphTraverser, workspaceName: workspaceDescriptor.xcworkspacePath.basename)
+        }
 
         return (workspaceDescriptor.xcworkspacePath, graph)
     }
@@ -221,30 +263,48 @@ class Generator: Generating {
     private func postGenerationActions(graphTraverser: GraphTraversing, workspaceName: String) throws {
         let config = try configLoader.loadConfig(path: graphTraverser.path)
 
-        try signingInteractor.install(graphTraverser: graphTraverser)
-        try swiftPackageManagerInteractor.install(graphTraverser: graphTraverser, workspaceName: workspaceName, config: config)
-        try cocoapodsInteractor.install(graphTraverser: graphTraverser)
+        try Signpost.measure(category: "Generator", identifier: "signingInteractor") {
+            try signingInteractor.install(graphTraverser: graphTraverser)
+        }
+
+        try Signpost.measure(category: "Generator", identifier: "swiftPackageManagerInteractor") {
+            try swiftPackageManagerInteractor.install(graphTraverser: graphTraverser, workspaceName: workspaceName, config: config)
+        }
+
+        try Signpost.measure(category: "Generator", identifier: "cocoapodsInteractor") {
+            try cocoapodsInteractor.install(graphTraverser: graphTraverser)
+        }
     }
 
     // swiftlint:disable:next large_tuple
     private func loadProjectWorkspace(path: AbsolutePath) throws -> (Project, ValueGraph, [SideEffectDescriptor]) {
         // Load config
-        let config = try configLoader.loadConfig(path: path)
+        let config = try Signpost.measure(category: "Generator", identifier: "loadConfig") {
+            try configLoader.loadConfig(path: path)
+        }
 
         // Load Plugins
-        let plugins = try pluginsService.loadPlugins(using: config)
-        manifestLoader.register(plugins: plugins)
+        try Signpost.measure(category: "Generator", identifier: "loadPlugins") {
+            let plugins = try pluginsService.loadPlugins(using: config)
+            manifestLoader.register(plugins: plugins)
+        }
 
         // Load all manifests
-        let manifests = try recursiveManifestLoader.loadProject(at: path)
+        let manifests = try Signpost.measure(category: "Generator", identifier: "loadAllManifests") {
+            try recursiveManifestLoader.loadProject(at: path)
+        }
 
         // Lint Manifests
-        try manifests.projects.flatMap {
-            manifestLinter.lint(project: $0.value)
-        }.printAndThrowIfNeeded()
+        try Signpost.measure(category: "Generator", identifier: "lintManifests") {
+            try manifests.projects.flatMap {
+                manifestLinter.lint(project: $0.value)
+            }.printAndThrowIfNeeded()
+        }
 
         // Convert to models
-        let projects = try convert(manifests: manifests)
+        let projects = try Signpost.measure(category: "Generator", identifier: "convertManifestsToModels") {
+            try convert(manifests: manifests)
+        }
 
         let workspaceName = manifests.projects[path]?.name ?? "Workspace"
         let workspace = Workspace(
@@ -257,22 +317,37 @@ class Generator: Generating {
 
         // Apply any registered model mappers
         let workspaceMapper = workspaceMapperProvider.mapper(config: config)
-        let (updatedModels, modelMapperSideEffects) = try workspaceMapper.map(
-            workspace: .init(workspace: models.workspace, projects: models.projects)
-        )
+        let (updatedModels, modelMapperSideEffects) = try Signpost.measure(
+            category: "Generator",
+            identifier: "workspaceMapper.map"
+        ) {
+            try workspaceMapper.map(
+                workspace: .init(workspace: models.workspace, projects: models.projects)
+            )
+        }
 
         // Load Graph
         let graphLoader = ValueGraphLoader()
-        var (project, graph) = try graphLoader.loadProject(
-            at: path,
-            projects: updatedModels.projects
-        )
+        var (project, graph) = try Signpost.measure(
+            category: "Generator",
+            identifier: "graphLoader.loadProject"
+        ) {
+            try graphLoader.loadProject(
+                at: path,
+                projects: updatedModels.projects
+            )
+        }
         graph.workspace = updatedModels.workspace
 
         // Apply graph mappers
-        var (updatedGraph, graphMapperSideEffects) = try graphMapperProvider
-            .mapper(config: config)
-            .map(graph: graph)
+        var (updatedGraph, graphMapperSideEffects) = try Signpost.measure(
+            category: "Generator",
+            identifier: "graphMapperProvider.map"
+        ) {
+            try graphMapperProvider
+                .mapper(config: config)
+                .map(graph: graph)
+        }
 
         var updatedWorkspace = updatedGraph.workspace
         updatedWorkspace = updatedWorkspace.merging(projects: updatedGraph.projects.map(\.key))
@@ -288,40 +363,65 @@ class Generator: Generating {
     // swiftlint:disable:next large_tuple
     private func loadWorkspace(path: AbsolutePath) throws -> (ValueGraph, [SideEffectDescriptor]) {
         // Load config
-        let config = try configLoader.loadConfig(path: path)
+        let config = try Signpost.measure(category: "Generator", identifier: "loadConfig") {
+            try configLoader.loadConfig(path: path)
+        }
 
         // Load Plugins
-        let plugins = try pluginsService.loadPlugins(using: config)
-        manifestLoader.register(plugins: plugins)
+        try Signpost.measure(category: "Generator", identifier: "loadPlugins") {
+            let plugins = try pluginsService.loadPlugins(using: config)
+            manifestLoader.register(plugins: plugins)
+        }
 
         // Load all manifests
-        let manifests = try recursiveManifestLoader.loadWorkspace(at: path)
+        let manifests = try Signpost.measure(category: "Generator", identifier: "loadAllManifests") {
+            try recursiveManifestLoader.loadWorkspace(at: path)
+        }
 
         // Lint Manifests
-        try manifests.projects.flatMap {
-            manifestLinter.lint(project: $0.value)
-        }.printAndThrowIfNeeded()
+        try Signpost.measure(category: "Generator", identifier: "lintManifests") {
+            try manifests.projects.flatMap {
+                manifestLinter.lint(project: $0.value)
+            }.printAndThrowIfNeeded()
+        }
 
         // Convert to models
-        let models = try convert(manifests: manifests)
+        let models = try Signpost.measure(category: "Generator", identifier: "convertManifestsToModels") {
+            try convert(manifests: manifests)
+        }
 
         // Apply model mappers
         let workspaceMapper = workspaceMapperProvider.mapper(config: config)
-        let (updatedModels, modelMapperSideEffects) = try workspaceMapper.map(
-            workspace: .init(workspace: models.workspace, projects: models.projects)
-        )
+        let (updatedModels, modelMapperSideEffects) = try Signpost.measure(
+            category: "Generator",
+            identifier: "workspaceMapper.map"
+        ) {
+            try workspaceMapper.map(
+                workspace: .init(workspace: models.workspace, projects: models.projects)
+            )
+        }
 
         // Load Graph
         let graphLoader = ValueGraphLoader()
-        let graph = try graphLoader.loadWorkspace(
-            workspace: updatedModels.workspace,
-            projects: updatedModels.projects
-        )
+        let graph = try Signpost.measure(
+            category: "Generator",
+            identifier: "graphLoader.loadProject"
+        ) {
+            try graphLoader.loadWorkspace(
+                workspace: updatedModels.workspace,
+                projects: updatedModels.projects
+            )
+        }
 
         // Apply graph mappers
-        let (mappedGraph, graphMapperSideEffects) = try graphMapperProvider
-            .mapper(config: config)
-            .map(graph: graph)
+        let (mappedGraph, graphMapperSideEffects) = try Signpost.measure(
+            category: "Generator",
+            identifier: "graphMapperProvider.map"
+        ) {
+            try graphMapperProvider
+                .mapper(config: config)
+                .map(graph: graph)
+        }
 
         return (mappedGraph, modelMapperSideEffects + graphMapperSideEffects)
     }

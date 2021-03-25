@@ -54,6 +54,12 @@ final class TargetGenerator: TargetGenerating {
                         path: AbsolutePath,
                         graphTraverser: GraphTraversing) throws -> PBXNativeTarget
     {
+        let signPost = Signpost(category: "TargetGenerator", identifier: "generate", label: target.name)
+        signPost.begin()
+        defer {
+            signPost.end()
+        }
+
         /// Products reference.
         let productFileReference = fileElements.products[target.name]!
 

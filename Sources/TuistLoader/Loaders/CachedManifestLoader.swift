@@ -101,6 +101,12 @@ public class CachedManifestLoader: ManifestLoading {
     // MARK: - Private
 
     private func load<T: Codable>(manifest: Manifest, at path: AbsolutePath, loader: () throws -> T) throws -> T {
+        let signPost = Signpost(category: "CachedManifestLoader", identifier: "load", label: "[\(manifest)] \(path.basename)")
+        signPost.begin()
+        defer {
+            signPost.end()
+        }
+
         guard let manifestPath = findManifestPath(for: manifest, at: path) else {
             throw ManifestLoaderError.manifestNotFound(manifest, path)
         }
