@@ -2,7 +2,6 @@
 import { jsx, Styled, useThemeUI } from 'theme-ui'
 import { useStaticQuery, graphql, Link } from 'gatsby'
 import {
-  faDiscourse,
   faGithub,
   faTwitter,
 } from '@fortawesome/free-brands-svg-icons'
@@ -17,7 +16,6 @@ export default () => {
         githubUrl,
         slackUrl,
         releasesUrl,
-        discourseUrl,
         twitterUrl,
       },
     },
@@ -26,7 +24,6 @@ export default () => {
       site {
         siteMetadata {
           twitterUrl
-          discourseUrl
           githubUrl
           slackUrl
           releasesUrl
@@ -102,23 +99,6 @@ export default () => {
                   '&:hover': { path: { fill: theme.colors.primary } },
                 }}
                 icon={faGithub}
-                size="lg"
-              />
-            </a>
-            <a
-              href={discourseUrl}
-              target="__blank"
-              alt="Opens the community forum"
-              className="ml-6 text-gray-400 hover:text-gray-500"
-            >
-              <span className="sr-only">Community</span>
-              <FontAwesomeIcon
-                sx={{
-                  mt: -1,
-                  path: { fill: theme.colors.gray },
-                  '&:hover': { path: { fill: theme.colors.primary } },
-                }}
-                icon={faDiscourse}
                 size="lg"
               />
             </a>
