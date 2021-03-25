@@ -78,7 +78,7 @@ def package
   FileUtils.cp_r(File.expand_path("Templates", __dir__), build_templates_path)
   FileUtils.rm_rf(script_path) if File.exist?(script_path)
   FileUtils.cp_r(File.expand_path("script", __dir__), script_path)
-  FileUtils.cp_r(File.expand_path("vendor", __dir__), vendor_path)
+  FileUtils.cp_r(File.expand_path("projects/tuist/vendor", __dir__), vendor_path)
 
   File.delete("tuist.zip") if File.exist?("tuist.zip")
   File.delete("tuistenv.zip") if File.exist?("tuistenv.zip")
