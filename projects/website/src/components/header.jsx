@@ -153,18 +153,6 @@ export default ({ menuOpen, setMenuOpen, menuRef }) => {
                   >
                     APPS AT SCALE
                   </Link>
-                  <Link
-                    sx={{
-                      ...linkStyle,
-                      ...(isBlog ? hoverStyle : {}),
-                      ml: [0, 4],
-                      variant: 'text.header',
-                    }}
-                    to="/stickers"
-                    alt="Ask for free nice-looking stickers"
-                  >
-                    STICKERS
-                  </Link>
                 </div>
 
                 <div sx={{ flexDirection: 'row', display: 'flex', mt: [3, 0] }}>
