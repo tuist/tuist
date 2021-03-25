@@ -5,7 +5,7 @@ import TuistCore
 import TuistGraph
 
 /// Interface that describes a mapper that convers a project graph into a GraphViz graph.
-protocol GraphToGraphVizMapping {
+public protocol GraphToGraphVizMapping {
     /// Maps the project graph into a dot graph representation.
     ///
     /// - Parameter graph: ValueGraph to be converted into a GraphViz.Graph.
@@ -13,12 +13,14 @@ protocol GraphToGraphVizMapping {
     func map(graph: ValueGraph, skipTestTargets: Bool, skipExternalDependencies: Bool, targetsToFilter: [String]) -> GraphViz.Graph
 }
 
-final class GraphToGraphVizMapper: GraphToGraphVizMapping {
+public final class GraphToGraphVizMapper: GraphToGraphVizMapping {
+    public init() {}
+
     /// Maps the project graph into a GraphViz graph representation.
     ///
     /// - Parameter graph: ValueGraph to be converted into a GraphViz.Graph.
     /// - Returns: The GraphViz.Graph representation.
-    func map(graph: ValueGraph, skipTestTargets: Bool, skipExternalDependencies: Bool, targetsToFilter: [String]) -> GraphViz.Graph {
+    public func map(graph: ValueGraph, skipTestTargets: Bool, skipExternalDependencies: Bool, targetsToFilter: [String]) -> GraphViz.Graph {
         var nodes: [GraphViz.Node] = []
         var dependencies: [GraphViz.Edge] = []
         var graphVizGraph = GraphViz.Graph(directed: true)
