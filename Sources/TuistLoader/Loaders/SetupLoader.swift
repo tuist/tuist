@@ -74,10 +74,19 @@ public class SetupLoader: SetupLoading {
         let setupParentPath = setupPath.parentDirectory
 
         let setup = try manifestLoader.loadSetup(at: setupParentPath)
-        try setup.map { command in upLinter.lint(up: command) }
+        try setup.requires.map { command in upLinter.lint(up: command) }
             .flatMap { $0 }
             .printAndThrowIfNeeded()
-        try setup.forEach { command in
+        try setup.requires.forEach { command in
+            if try !command.isMet(projectPath: setupParentPath) {
+                logger.notice("Validating \(command.name)", metadata: .subsection)
+                try command.meet(projectPath: setupParentPath)
+            }
+        }
+        try setup.actions.map { command in upLinter.lint(up: command) }
+            .flatMap { $0 }
+            .printAndThrowIfNeeded()
+        try setup.actions.forEach { command in
             if try !command.isMet(projectPath: setupParentPath) {
                 logger.notice("Configuring \(command.name)", metadata: .subsection)
                 try command.meet(projectPath: setupParentPath)

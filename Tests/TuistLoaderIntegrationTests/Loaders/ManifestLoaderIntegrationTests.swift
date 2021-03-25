@@ -118,8 +118,8 @@ final class ManifestLoaderTests: TuistTestCase {
         let got = try subject.loadSetup(at: temporaryPath)
 
         // Then
-        let customUp = got.first as? UpCustom
-        XCTAssertEqual(got.count, 1)
+        let customUp = got.actions.first as? UpCustom
+        XCTAssertEqual(got.actions.count, 1)
         XCTAssertEqual(customUp?.name, "hello")
         XCTAssertEqual(customUp?.meet, ["a", "b"])
         XCTAssertEqual(customUp?.isMet, ["c"])

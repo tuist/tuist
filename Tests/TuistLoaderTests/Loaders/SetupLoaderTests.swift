@@ -48,7 +48,7 @@ final class SetupLoaderTests: TuistUnitTestCase {
         var receivedPaths = [String]()
         manifestLoader.loadSetupStub = { gotPath in
             receivedPaths.append(gotPath.pathString)
-            return []
+            return SetupActions(actions: [], requires: [])
         }
 
         // when / then
@@ -69,7 +69,7 @@ final class SetupLoaderTests: TuistUnitTestCase {
         mockUp2.isMetStub = { _ in false }
         var lintedUps = [Upping]()
         upLinter.lintStub = { up in lintedUps.append(up); return [] }
-        manifestLoader.loadSetupStub = { _ in [mockUp1, mockUp2] }
+        manifestLoader.loadSetupStub = { _ in SetupActions(actions: [mockUp1, mockUp2], requires: []) }
 
         // when / then
         XCTAssertNoThrow(try subject.meet(at: projectPath))
@@ -81,6 +81,27 @@ final class SetupLoaderTests: TuistUnitTestCase {
         XCTAssertTrue(mockUp1 === lintedUps[0])
         XCTAssertTrue(mockUp2 === lintedUps[1])
         XCTAssertPrinterOutputContains("Configuring 2")
+    }
+
+    func test_meet_when_requires_provided() throws {
+        // given
+        let projectPath = try temporaryPath()
+        manifestFilesLocator.locateSetupStub = projectPath.appending(component: Manifest.setup.fileName(projectPath))
+
+        let mockUp1 = MockUpRequired(name: "1")
+        mockUp1.isMetStub = { _ in false }
+        var lintedUps = [Upping]()
+        upLinter.lintStub = { up in lintedUps.append(up); return [] }
+        manifestLoader.loadSetupStub = { _ in SetupActions(actions: [], requires: [mockUp1]) }
+
+        // when / then
+        XCTAssertNoThrow(try subject.meet(at: projectPath))
+
+        XCTAssertEqual(mockUp1.meetCallCount, 1)
+        XCTAssertEqual(upLinter.lintCount, 1)
+        XCTAssertEqual(lintedUps.count, 1)
+        XCTAssertTrue(mockUp1 === lintedUps[0])
+        XCTAssertPrinterOutputContains("Validating 1")
     }
 
     func test_meet_traverses_up_the_directory_structure() throws {
@@ -95,7 +116,7 @@ final class SetupLoaderTests: TuistUnitTestCase {
         mockUp2.isMetStub = { _ in false }
         var lintedUps = [Upping]()
         upLinter.lintStub = { up in lintedUps.append(up); return [] }
-        manifestLoader.loadSetupStub = { _ in [mockUp1, mockUp2] }
+        manifestLoader.loadSetupStub = { _ in SetupActions(actions: [mockUp1, mockUp2], requires: []) }
 
         // when / then
         XCTAssertNoThrow(try subject.meet(at: projectPath))
