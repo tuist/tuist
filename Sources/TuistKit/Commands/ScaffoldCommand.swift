@@ -2,6 +2,9 @@ import ArgumentParser
 import Foundation
 import TSCBasic
 import TuistCore
+import TuistGraph
+import TuistLoader
+import TuistPlugin
 import TuistSupport
 
 enum ScaffoldCommandError: FatalError, Equatable {

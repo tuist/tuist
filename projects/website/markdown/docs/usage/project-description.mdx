@@ -1003,6 +1003,14 @@ You can create a test action with either a set of test targets or test plans.
       default: '[]',
     },
     {
+      name: 'expandVariableFromTarget',
+      description:
+        'A target that will be used to expand the variables defined inside Environment Variables definition (e.g. $SOURCE_ROOT)',
+      type: 'TargetReference?',
+      optional: true,
+      default: 'nil',
+    },
+    {
       name: 'Pre-actions',
       description:
         'A list of actions that are executed before starting the tests-run process.',

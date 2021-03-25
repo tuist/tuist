@@ -96,6 +96,7 @@ class SchemeLinterTests: TuistTestCase {
                         configurationName: "Beta",
                         coverage: false,
                         codeCoverageTargets: [],
+                        expandVariableFromTarget: nil,
                         preActions: [],
                         postActions: [],
                         diagnosticsOptions: Set()

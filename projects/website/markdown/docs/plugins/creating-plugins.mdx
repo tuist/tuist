@@ -21,7 +21,7 @@ let plugin = Plugin(name: "MyPlugin")
 
 Project description helpers can be used to extend Tuist's functionality: Tuist automatically compiles the sources and allows it to be imported during project generation.
 
-In order for Tuist to find the source files for these helpers they must be placed in the same direcotry as the `Plugin.swift` manifest and in a
+In order for Tuist to find the source files for these helpers they must be placed in the same directory as the `Plugin.swift` manifest and in a
 directory called `ProjectDescriptionHelpers`
 
 ```
@@ -40,6 +40,20 @@ import ProjectDescription
 import MyPlugin
 
 ...
+```
+
+## Templates
+
+Template plugins can be used to share & reuse custom templates. Tuist will collect all templates from defined plugins and allow them to be used with commands like [`tuist scaffold`](/docs/commands/scaffold/).
+
+In order for Tuist to locate the templates for a plugin, they must be placed in the same directory as the `Plugin.swift` manifest and in a directory named `Templates`.
+
+```
+.
+├── ...
+├── Plugin.swift
+├── Templates
+└── ...
 ```
 
 ## Example
