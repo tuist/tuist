@@ -12,6 +12,7 @@ class SchemeLinter: SchemeLinting {
         var issues = [LintingIssue]()
         issues.append(contentsOf: lintReferencedBuildConfigurations(schemes: project.schemes, settings: project.settings))
         issues.append(contentsOf: lintCodeCoverageTargets(schemes: project.schemes, targets: project.targets))
+        issues.append(contentsOf: lintExpandVariableTarget(schemes: project.schemes, targets: project.targets))
         issues.append(contentsOf: projectSchemeCantReferenceRemoteTargets(schemes: project.schemes, project: project))
         return issues
     }
@@ -77,6 +78,22 @@ private extension SchemeLinter {
         return LintingIssue(reason: reason, severity: .error)
     }
 
+    func lintExpandVariableTarget(schemes: [Scheme], targets: [Target]) -> [LintingIssue] {
+        let targetNames = targets.map(\.name)
+        var issues: [LintingIssue] = []
+
+        for scheme in schemes {
+            if let testAction = scheme.testAction,
+                let target = testAction.expandVariableFromTarget
+            {
+                if !targetNames.contains(target.name) {
+                    issues.append(missingExpandVariablesTargetIssue(missingTargetName: target.name, schemaName: scheme.name))
+                }
+            }
+        }
+        return issues
+    }
+
     func lintCodeCoverageTargets(schemes: [Scheme], targets: [Target]) -> [LintingIssue] {
         let targetNames = targets.map(\.name)
         var issues: [LintingIssue] = []
@@ -94,6 +111,11 @@ private extension SchemeLinter {
 
     func missingCodeCoverageTargetIssue(missingTargetName: String, schemaName: String) -> LintingIssue {
         let reason = "The target '\(missingTargetName)' specified in \(schemaName) code coverage targets list isn't defined in the project."
+        return LintingIssue(reason: reason, severity: .error)
+    }
+
+    func missingExpandVariablesTargetIssue(missingTargetName: String, schemaName: String) -> LintingIssue {
+        let reason = "The target '\(missingTargetName)' specified in \(schemaName) expandVariableFromTarget isn't defined in the project."
         return LintingIssue(reason: reason, severity: .error)
     }
 

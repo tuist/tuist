@@ -10,6 +10,7 @@ public struct TestAction: Equatable {
     public var configurationName: String
     public var coverage: Bool
     public var codeCoverageTargets: [TargetReference]
+    public var expandVariableFromTarget: TargetReference?
     public var preActions: [ExecutionAction]
     public var postActions: [ExecutionAction]
     public var diagnosticsOptions: Set<SchemeDiagnosticsOption>
@@ -23,6 +24,7 @@ public struct TestAction: Equatable {
                 configurationName: String,
                 coverage: Bool,
                 codeCoverageTargets: [TargetReference],
+                expandVariableFromTarget: TargetReference?,
                 preActions: [ExecutionAction],
                 postActions: [ExecutionAction],
                 diagnosticsOptions: Set<SchemeDiagnosticsOption>,
@@ -38,6 +40,7 @@ public struct TestAction: Equatable {
         self.preActions = preActions
         self.postActions = postActions
         self.codeCoverageTargets = codeCoverageTargets
+        self.expandVariableFromTarget = expandVariableFromTarget
         self.diagnosticsOptions = diagnosticsOptions
         self.language = language
         self.region = region
