@@ -20,6 +20,7 @@ module Fourier
               sources_path = extract(sources_zip_path)
 
               build(sources_path, into: temporary_output_directory)
+              FileUtils.copy_entry(File.join(sources_path, "LICENSE.md"), File.join(temporary_output_directory, "LICENSE.md"))
 
               # # swift-doc expects the lib_InternalSwiftSyntaxParser dynamic library.
               # https://github.com/SwiftDocOrg/homebrew-formulae/blob/master/Formula/swift-doc.rb#L43
@@ -42,20 +43,7 @@ module Fourier
         def download(temporary_dir:)
           puts(::CLI::UI.fmt("Downloading source code from {{info:#{SOURCE_TAR_URL}}}"))
           sources_zip_path = File.join(temporary_dir, "swiftdoc.zip")
-
-          ::CLI::UI::Progress.progress do |bar|
-            file_size = 0
-            Down.download(
-              SOURCE_TAR_URL,
-              destination: sources_zip_path,
-              content_length_proc: ->(total_size) { file_size = total_size.to_i },
-              progress_proc: ->(size) {
-                break if file_size == 0
-                bar.tick(set_percent: size.to_i / file_size)
-              }
-            )
-          end
-
+          Down.download(SOURCE_TAR_URL, destination: sources_zip_path)
           sources_zip_path
         end
 

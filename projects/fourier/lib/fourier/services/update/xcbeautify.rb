@@ -1,33 +1,54 @@
 # frozen_string_literal: true
+require 'tmpdir'
+require 'down'
 
 module Fourier
   module Services
     module Update
       class Xcbeautify < Base
+        VERSION = "0.9.1"
+        SOURCE_TAR_URL = "https://github.com/thii/xcbeautify/archive/#{VERSION}.zip"
+
         def call
-          # XCBEAUTIFY_VERSION = "0.9.1"
+          output_directory = File.join(Constants::TUIST_VENDOR_DIRECTORY, "xcbeautify")
 
-          # root_dir = File.expand_path(__dir__)
-          # Dir.mktmpdir do |temporary_dir|
-          #   Dir.chdir(temporary_dir) do
-          #     system("curl", "-LO", "https://github.com/thii/xcbeautify/archive/#{XCBEAUTIFY_VERSION}.zip")
-          #     extract_zip("#{XCBEAUTIFY_VERSION}.zip", "xcbeautify")
-          #     Dir.chdir("xcbeautify/xcbeautify-#{XCBEAUTIFY_VERSION}") do
-          #       system("make", "build")
-          #     end
-          #     release_dir = File.join(temporary_dir,
-          #       "xcbeautify/xcbeautify-#{XCBEAUTIFY_VERSION}/.build/release")
-          #     vendor_dir = File.join(root_dir, "vendor")
-          #     dst_binary_path = File.join(vendor_dir, "xcbeautify")
+          Dir.mktmpdir do |temporary_dir|
+            Dir.mktmpdir do |temporary_output_directory|
+              sources_zip_path = download(temporary_dir: temporary_dir)
+              sources_path = extract(sources_zip_path)
+              build(sources_path, into: temporary_output_directory)
+              FileUtils.copy_entry(File.join(sources_path, "LICENSE"), File.join(temporary_output_directory, "LICENSE"))
+              FileUtils.rm_rf(output_directory) if Dir.exist?(output_directory)
+              FileUtils.mkdir_p(output_directory)
+              FileUtils.copy_entry(temporary_output_directory, output_directory)
+              puts(::CLI::UI.fmt("{{success:xcbeautify built and vendored successfully.}}"))
+            end
+          end
+        end
 
-          #     # Copy binary
-          #     binary_path = File.join(release_dir, "xcbeautify")
-          #     File.delete(dst_binary_path) if File.exist?(dst_binary_path)
-          #     FileUtils.cp(binary_path, dst_binary_path)
-          #   end
-          # end
-          # # Write version
-          # File.write(File.join(root_dir, "vendor/.xcbeautify.version"), XCBEAUTIFY_VERSION)
+        private
+
+        def download(temporary_dir:)
+          puts(::CLI::UI.fmt("Downloading source code from {{info:#{SOURCE_TAR_URL}}}"))
+          sources_zip_path = File.join(temporary_dir, "xcbeautify.zip")
+          Down.download(SOURCE_TAR_URL, destination: sources_zip_path)
+          sources_zip_path
+        end
+
+        def extract(sources_zip_path)
+          puts("Extracting source code...")
+          zip_content_path = File.join(File.dirname(sources_zip_path), "content")
+          Utilities::Zip.extract(zip: sources_zip_path, into: zip_content_path)
+          Dir.glob(File.join(zip_content_path, "*/")).first
+        end
+
+        def build(sources_path, into:)
+          puts("Building...")
+          Utilities::SwiftPackageManager.build_fat_release_binary(
+            path: sources_path,
+            binary_name: "xcbeautify",
+            output_directory: into
+          )
         end
       end
     end
