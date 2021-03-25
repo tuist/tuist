@@ -12,6 +12,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Changed
 
+- Add SRCROOT for Info.plist only when necessary [#2706](https://github.com/tuist/tuist/pull/2706) by [@fortmarek](https://github.com/fortmarek)
 - Support expand variables configuration in test scheme Environment Variables [#2697] by [@davebcn87](https://github.com/davebcn87)
 - Support unversioned core data models [#2694](https://github.com/tuist/tuist/pull/2694) by [@freak4pc](https://github.com/freak4pc)
 - Remove reference type Graph [#2689](https://github.com/tuist/tuist/pull/2689) by [@fortmarek](https://github.com/fortmarek)
