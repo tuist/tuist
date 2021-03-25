@@ -13,32 +13,24 @@ import XCTest
 @testable import TuistSupportTesting
 
 final class GraphServiceTests: TuistUnitTestCase {
+    var manifestGraphLoader: MockManifestGraphLoader!
+    var graphVizMapper: MockGraphToGraphVizMapper!
     var subject: GraphService!
-    var graphVizGenerator: MockGraphVizGenerator!
-    var manifestLoader: MockManifestLoader!
-    var configLoader: MockConfigLoader!
 
     override func setUp() {
         super.setUp()
-        graphVizGenerator = MockGraphVizGenerator()
-        manifestLoader = MockManifestLoader()
-        configLoader = MockConfigLoader()
+        graphVizMapper = MockGraphToGraphVizMapper()
+        manifestGraphLoader = MockManifestGraphLoader()
 
         subject = GraphService(
-            graphVizGenerator: graphVizGenerator,
-            manifestLoader: manifestLoader,
-            pluginsService: PluginService(
-                manifestLoader: manifestLoader,
-                fileHandler: fileHandler,
-                gitHandler: MockGitHandler()
-            ),
-            configLoader: configLoader
+            graphVizGenerator: graphVizMapper,
+            manifestGraphLoader: manifestGraphLoader
         )
     }
 
     override func tearDown() {
-        graphVizGenerator = nil
-        manifestLoader = nil
+        graphVizMapper = nil
+        manifestGraphLoader = nil
         subject = nil
         super.tearDown()
     }
@@ -51,14 +43,7 @@ final class GraphServiceTests: TuistUnitTestCase {
 
         try FileHandler.shared.touch(graphPath)
         try FileHandler.shared.touch(projectManifestPath)
-
-        manifestLoader.manifestsAtStub = {
-            if $0 == temporaryPath { return Set([.project]) }
-            else { return Set([]) }
-        }
-
-        let graph = GraphViz.Graph()
-        graphVizGenerator.generateProjectStub = graph
+        graphVizMapper.stubMap = Graph()
 
         // When
         try subject.run(

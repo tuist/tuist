@@ -34,7 +34,7 @@ final class PluginServiceTests: TuistTestCase {
         subject = nil
     }
 
-    func test_loadPlugins_usingConfig_WHEN_localHelpers() throws {
+    func test_loadPlugins_WHEN_localHelpers() throws {
         let pluginPath = AbsolutePath("/path/to/Plugin")
         let pluginName = "TestPlugin"
 
@@ -53,11 +53,11 @@ final class PluginServiceTests: TuistTestCase {
         let config = mockConfig(plugins: [TuistGraph.PluginLocation.local(path: pluginPath.pathString)])
         let plugins = try subject.loadPlugins(using: config)
         let expectedHelpersPath = pluginPath.appending(component: Constants.helpersDirectoryName)
-        let expectedPlugins = Plugins(projectDescriptionHelpers: [.init(name: pluginName, path: expectedHelpersPath, location: .local)])
+        let expectedPlugins = Plugins.test(projectDescriptionHelpers: [.init(name: pluginName, path: expectedHelpersPath, location: .local)])
         XCTAssertEqual(plugins, expectedPlugins)
     }
 
-    func test_loadPlugin_usingConfig_WHEN_gitHelpers() throws {
+    func test_loadPlugins_WHEN_gitHelpers() throws {
         let pluginGitUrl = "https://url/to/repo.git"
         let pluginGitId = "1.0.0"
         let pluginFingerprint = "\(pluginGitUrl)-\(pluginGitId)".md5
@@ -79,7 +79,60 @@ final class PluginServiceTests: TuistTestCase {
         let config = mockConfig(plugins: [TuistGraph.PluginLocation.gitWithTag(url: pluginGitUrl, tag: pluginGitId)])
         let plugins = try subject.loadPlugins(using: config)
         let expectedHelpersPath = cachedPluginPath.appending(component: Constants.helpersDirectoryName)
-        let expectedPlugins = Plugins(projectDescriptionHelpers: [.init(name: pluginName, path: expectedHelpersPath, location: .remote)])
+        let expectedPlugins = Plugins.test(projectDescriptionHelpers: [.init(name: pluginName, path: expectedHelpersPath, location: .remote)])
+        XCTAssertEqual(plugins, expectedPlugins)
+    }
+
+    func test_loadPlugins_WHEN_localTemplate() throws {
+        // Given
+        let pluginPath = try temporaryPath()
+        let pluginName = "TestPlugin"
+        let templatePath = pluginPath.appending(components: "Templates", "custom")
+
+        try makeDirectories(templatePath)
+
+        // When
+        manifestLoader.loadConfigStub = { _ in
+            .test(plugins: [.local(path: .relativeToRoot(pluginPath.pathString))])
+        }
+
+        manifestLoader.loadPluginStub = { _ in
+            ProjectDescription.Plugin(name: pluginName)
+        }
+
+        let config = mockConfig(plugins: [TuistGraph.PluginLocation.local(path: pluginPath.pathString)])
+
+        // Then
+        let plugins = try subject.loadPlugins(using: config)
+        let expectedPlugins = Plugins.test(templatePaths: [templatePath])
+        XCTAssertEqual(plugins, expectedPlugins)
+    }
+
+    func test_loadPlugins_WHEN_gitTemplate() throws {
+        // Given
+        let pluginGitUrl = "https://url/to/repo.git"
+        let pluginGitId = "1.0.0"
+        let pluginFingerprint = "\(pluginGitUrl)-\(pluginGitId)".md5
+        let cachedPluginPath = environment.cacheDirectory.appending(components: Constants.pluginsDirectoryName, pluginFingerprint)
+        let pluginName = "TestPlugin"
+        let templatePath = cachedPluginPath.appending(components: "Templates", "custom")
+
+        try makeDirectories(templatePath)
+
+        // When
+        manifestLoader.loadConfigStub = { _ in
+            .test(plugins: [ProjectDescription.PluginLocation.git(url: pluginGitUrl, tag: pluginGitId)])
+        }
+
+        manifestLoader.loadPluginStub = { _ in
+            ProjectDescription.Plugin(name: pluginName)
+        }
+
+        let config = mockConfig(plugins: [TuistGraph.PluginLocation.gitWithTag(url: pluginGitUrl, tag: pluginGitId)])
+
+        // Then
+        let plugins = try subject.loadPlugins(using: config)
+        let expectedPlugins = Plugins.test(templatePaths: [templatePath])
         XCTAssertEqual(plugins, expectedPlugins)
     }
 

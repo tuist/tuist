@@ -530,13 +530,19 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         let templates: [AbsolutePath] = []
         let projectDescriptionPath = sourceRootPath.appending(component: "ProjectDescription.framework")
         let tuistPath = AbsolutePath("/usr/bin/foo/bar/tuist")
+        try createFiles([
+            "Unrelated/Source.swift",
+            "Source.swift",
+            "ProjectDescriptionHelpers/data.json",
+            "Templates/strings.stencil",
+        ])
         let helperSources = try createFiles([
             "ProjectDescriptionHelpers/HelperA.swift",
             "ProjectDescriptionHelpers/HelperB.swift",
-            "Unrelated/Source.swift",
-            "Source.swift",
         ])
-
+        let templateSources = try createFiles([
+            "Templates/custom.swift",
+        ])
         // When
         let graph = try subject.map(
             name: "TestManifests",
@@ -560,7 +566,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
 
         XCTAssertEqual(
             pluginTarget.sources,
-            [pluginManifestPath, helperSources[0], helperSources[1]].map { SourceFile(path: $0) }
+            ([pluginManifestPath] + helperSources + templateSources).map { SourceFile(path: $0) }
         )
     }
 

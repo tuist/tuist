@@ -316,6 +316,65 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         XCTAssertEqual(buildableReference.buildableIdentifier, "primary")
     }
 
+    func test_schemeTestAction_with_expandVariable() throws {
+        // Given
+        let target = Target.test(name: "App", product: .app)
+        let testTarget = Target.test(name: "AppTests", product: .unitTests)
+        let project = Project.test(targets: [target, testTarget])
+
+        let testAction = TestAction.test(
+            targets: [TestableTarget(target: TargetReference(projectPath: project.path, name: "AppTests"))],
+            arguments: nil,
+            expandVariableFromTarget: TargetReference(projectPath: project.path, name: "App")
+        )
+
+        let scheme = Scheme.test(name: "AppTests", testAction: testAction)
+        let generatedProjects = createGeneratedProjects(projects: [project])
+
+        let graph = ValueGraph.test(
+            projects: [project.path: project],
+            targets: [
+                project.path: [
+                    target.name: target,
+                    testTarget.name: testTarget,
+                ],
+            ],
+            dependencies: [
+                .target(name: testTarget.name, path: project.path): [
+                    .target(name: target.name, path: project.path),
+                ],
+            ]
+        )
+        let graphTraverser = ValueGraphTraverser(graph: graph)
+
+        // When
+        let got = try subject.schemeTestAction(
+            scheme: scheme,
+            graphTraverser: graphTraverser,
+            rootPath: project.path,
+            generatedProjects: generatedProjects
+        )
+
+        // Then
+        let result = try XCTUnwrap(got)
+        XCTAssertEqual(result.buildConfiguration, "Debug")
+        XCTAssertEqual(result.shouldUseLaunchSchemeArgsEnv, true)
+        let testable = try XCTUnwrap(result.testables.first)
+        let buildableReference = testable.buildableReference
+
+        XCTAssertEqual(result.macroExpansion?.buildableName, "App.app")
+        XCTAssertEqual(result.macroExpansion?.blueprintName, "App")
+        XCTAssertEqual(result.macroExpansion?.referencedContainer, "container:Project.xcodeproj")
+        XCTAssertEqual(result.macroExpansion?.buildableIdentifier, "primary")
+
+        XCTAssertEqual(testable.skipped, false)
+
+        XCTAssertEqual(buildableReference.referencedContainer, "container:Project.xcodeproj")
+        XCTAssertEqual(buildableReference.buildableName, "AppTests.xctest")
+        XCTAssertEqual(buildableReference.blueprintName, "AppTests")
+        XCTAssertEqual(buildableReference.buildableIdentifier, "primary")
+    }
+
     func test_schemeTestAction_with_codeCoverageTargets() throws {
         // Given
         let projectPath = AbsolutePath("/somepath/Project")

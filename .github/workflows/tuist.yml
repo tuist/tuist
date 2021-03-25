@@ -101,6 +101,7 @@ jobs:
             'scaffold',
             'test',
             'up',
+            'graph'
           ]
     steps:
       - uses: actions/checkout@v1

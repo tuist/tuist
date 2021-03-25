@@ -3,6 +3,15 @@ import TSCBasic
 
 /// Extract version from .xccurrentversion file.
 public final class CoreDataVersionExtractor {
+    /// Returns whether or not the provided core data model has versions
+    ///
+    /// - Parameter path: absolute path to Model.xcdatamodel
+    ///
+    /// - Returns: Whether or not the xcdatamodel has versions
+    public static func isVersioned(at path: AbsolutePath) -> Bool {
+        FileHandler.shared.exists(path.appending(RelativePath(".xccurrentversion")))
+    }
+
     /// Extract version from .xccurrentversion file
     /// - Parameter filePath: absolute path to Model.xcdatamodel
     /// - Throws: In case can not find the .xcurrentversion file.

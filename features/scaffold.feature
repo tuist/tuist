@@ -26,3 +26,24 @@ Feature: Scaffold a project using Tuist
       // Generated file with platform: iOS and snake case name: template_project
 
       """
+
+  Scenario: The project is an application with templates from plugins (app_with_plugins)
+    Given that tuist is available
+    And I have a working directory
+    Then I copy the fixture app_with_plugins into the working directory
+    # Local template plugin
+    Then tuist scaffolds a custom template to PluginTemplate named PluginTemplate
+    Then content of a file named PluginTemplate/custom.swift in a directory PluginTemplate should be equal to // this is test PluginTemplate content
+    Then content of a file named PluginTemplate/generated.swift in a directory PluginTemplate should be equal to:
+      """
+      // Generated file with platform: ios and name: PluginTemplate
+
+      """
+    # Remote template plugin
+    Then tuist scaffolds a custom_two template to PluginTemplate named PluginTemplate
+    Then content of a file named PluginTemplate/custom.swift in a directory PluginTemplate should be equal to // this is test PluginTemplate content
+    Then content of a file named PluginTemplate/generated.swift in a directory PluginTemplate should be equal to:
+      """
+      // Generated file with platform: ios and name: PluginTemplate
+
+      """
