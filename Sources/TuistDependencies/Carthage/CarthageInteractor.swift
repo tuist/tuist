@@ -32,7 +32,7 @@ enum CarthageInteractorError: FatalError, Equatable {
     var description: String {
         switch self {
         case .carthageNotFound:
-            return "Carthage was not found in the environment. It's possible that the tool is not installed or hasn't been exposed to your environment."
+            return "Carthage was not found in the environment. It's possible that the tool is not installed or hasn't been exposed to your environment." // swiftlint:disable:this line_length
         case .cartfileNotFound:
             return "Cartfile was not found after Carthage installation."
         case .buildDirectoryNotFound:

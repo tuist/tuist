@@ -79,7 +79,7 @@ public class MockCloudCacheResourceFactory: CloudCacheResourceFactorying {
     public var invokedVerifyUploadResource = false
     public var invokedVerifyUploadResourceCount = 0
     public var invokedVerifyUploadResourceParameters: (hash: String, contentMD5: String)?
-    public var invokedVerifyUploadResourceParametersList = [(hash: String, contentMD5: String)]()
+    public var invokedVerifyUploadResourceParametersList = [(hash: String, contentMD5: String)]() // swiftlint:disable:this identifier_name
     public var stubbedVerifyUploadResourceError: Error?
     public var stubbedVerifyUploadResourceResult: CloudVerifyUploadResource = HTTPResource(
         request: { URLRequest.test() },

@@ -23,9 +23,9 @@ enum CarthageControllerError: FatalError, Equatable {
     var description: String {
         switch self {
         case .carthageNotFound:
-            return "Carthage was not found in the environment. It's possible that the tool is not installed or hasn't been exposed to your environment."
+            return "Carthage was not found in the environment. It's possible that the tool is not installed or hasn't been exposed to your environment." // swiftlint:disable:this line_length
         case .unrecognizedCarthageVersion:
-            return "Version of Carthage cannot be determined. It's possible that the tool is not installed or hasn't been exposed to your environment."
+            return "Version of Carthage cannot be determined. It's possible that the tool is not installed or hasn't been exposed to your environment." // swiftlint:disable:this line_length
         }
     }
 }

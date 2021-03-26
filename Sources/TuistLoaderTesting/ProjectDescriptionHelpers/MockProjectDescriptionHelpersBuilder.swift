@@ -6,7 +6,9 @@ import TuistSupport
 @testable import TuistLoader
 
 public final class MockProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding {
-    public var buildStub: (AbsolutePath, ProjectDescriptionSearchPaths, [ProjectDescriptionHelpersPlugin]) -> [ProjectDescriptionHelpersModule] = { _, _, _ in [] }
+    public var buildStub: (
+        AbsolutePath, ProjectDescriptionSearchPaths, [ProjectDescriptionHelpersPlugin]
+    ) -> [ProjectDescriptionHelpersModule] = { _, _, _ in [] }
     public func build(
         at path: AbsolutePath,
         projectDescriptionSearchPaths: ProjectDescriptionSearchPaths,
@@ -15,7 +17,9 @@ public final class MockProjectDescriptionHelpersBuilder: ProjectDescriptionHelpe
         buildStub(path, projectDescriptionSearchPaths, projectDescriptionHelperPlugins)
     }
 
-    public var buildPluginsStub: (AbsolutePath, ProjectDescriptionSearchPaths, [ProjectDescriptionHelpersPlugin]) -> [ProjectDescriptionHelpersModule] = { _, _, _ in [] }
+    public var buildPluginsStub: (
+        AbsolutePath, ProjectDescriptionSearchPaths, [ProjectDescriptionHelpersPlugin]
+    ) -> [ProjectDescriptionHelpersModule] = { _, _, _ in [] }
     public func buildPlugins(
         at path: AbsolutePath,
         projectDescriptionSearchPaths: ProjectDescriptionSearchPaths,
