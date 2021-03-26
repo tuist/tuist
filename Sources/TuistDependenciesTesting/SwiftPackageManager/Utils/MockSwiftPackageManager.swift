@@ -19,4 +19,18 @@ public final class MockSwiftPackageManager: SwiftPackageManaging {
         invokedResolveParametersList.append(path)
         try resolveStub?(path)
     }
+    
+    var invokedLoadDepedencies = false
+    var invokedLoadDepedenciesCount = 0
+    var invokedLoadDepedenciesParameters: AbsolutePath?
+    var invokedLoadDepedenciesParametersList = [AbsolutePath]()
+    var loadDepedenciesStub: ((AbsolutePath) throws  -> PackageDependency)?
+    
+    public func loadDepedencies(at path: AbsolutePath) throws -> PackageDependency {
+        invokedLoadDepedencies = true
+        invokedLoadDepedenciesCount += 1
+        invokedLoadDepedenciesParameters = path
+        invokedLoadDepedenciesParametersList.append(path)
+        return (try loadDepedenciesStub?(path)) ?? .test()
+    }
 }

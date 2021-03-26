@@ -1,3 +1,4 @@
+import Foundation
 import TSCBasic
 import TuistGraph
 import TuistSupport
@@ -7,6 +8,10 @@ public protocol SwiftPackageManaging {
     /// Resolve package dependencies.
     /// - Parameter path: Directory where the `Package.swift` is defined.
     func resolve(at path: AbsolutePath) throws
+    
+    /// Loads the resolved dependency graph.
+    /// - Parameter path: Directory where the `Package.swift` is defined.
+    func loadDepedencies(at path: AbsolutePath) throws -> PackageDependency
 }
 
 public final class SwiftPackageManager: SwiftPackageManaging {
@@ -22,5 +27,24 @@ public final class SwiftPackageManager: SwiftPackageManaging {
         ]
         
         try System.shared.run(command)
+    }
+    
+    public func loadDepedencies(at path: AbsolutePath) throws -> PackageDependency {
+        let command = [
+            "swift",
+            "package",
+            "--package-path",
+            path.pathString,
+            "show-dependencies",
+            "--format",
+            "json",
+        ]
+        
+        let json = try System.shared.capture(command)
+        
+        let data = Data(json.utf8)
+        let decoder = JSONDecoder()
+        
+        return try decoder.decode(PackageDependency.self, from: data)
     }
 }
