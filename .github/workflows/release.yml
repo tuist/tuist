@@ -18,7 +18,7 @@ jobs:
           fetch-depth: 0
       - uses: ruby/setup-ruby@v1
         with:
-          ruby-version: '2.x'
+          ruby-version: '2.7.2'
       - name: Install Bundler 2.1.4
         run: gem install bundler --version 2.1.4
       - uses: actions/cache@v2

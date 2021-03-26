@@ -228,7 +228,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         }
 
         // When
-        let plugins = Plugins(projectDescriptionHelpers: [
+        let plugins = Plugins.test(projectDescriptionHelpers: [
             .init(name: "LocalPlugin", path: pluginManifestPath, location: .local),
         ])
         try _ = subject.edit(at: directory, in: directory, plugins: plugins)
@@ -268,7 +268,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         }
 
         // When
-        let plugins = Plugins(projectDescriptionHelpers: [
+        let plugins = Plugins.test(projectDescriptionHelpers: [
             .init(name: "LocalPlugin", path: pluginManifestPath, location: .local),
         ])
 
@@ -308,7 +308,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         }
 
         // When
-        let plugins = Plugins(projectDescriptionHelpers: [
+        let plugins = Plugins.test(projectDescriptionHelpers: [
             .init(name: "RemotePlugin", path: AbsolutePath("/Some/Path/To/Plugin"), location: .remote),
         ])
         try _ = subject.edit(at: directory, in: directory, plugins: plugins)

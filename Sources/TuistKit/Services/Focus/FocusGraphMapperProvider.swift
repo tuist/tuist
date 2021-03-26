@@ -43,8 +43,7 @@ final class FocusGraphMapperProvider: GraphMapperProviding {
             mappers.append(CacheTreeShakingGraphMapper())
         }
 
-        /// The default mapper is executed at the end because
-        /// it ensures that the workspace is in sync with the content in the graph.
+        // The default mapper is executed at the end because it ensures that the workspace is in sync with the content in the graph.
         mappers.append(defaultMapper)
 
         return SequentialGraphMapper(mappers)

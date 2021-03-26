@@ -70,7 +70,7 @@ public class CachedManifestLoader: ManifestLoading {
         }
     }
 
-    public func loadSetup(at path: AbsolutePath) throws -> [Upping] {
+    public func loadSetup(at path: AbsolutePath) throws -> SetupActions {
         try manifestLoader.loadSetup(at: path)
     }
 

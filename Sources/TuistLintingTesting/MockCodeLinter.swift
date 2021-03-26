@@ -7,7 +7,7 @@ import TuistCore
 final class MockCodeLinter: CodeLinting {
     var invokedLint = false
     var invokedLintCount = 0
-    var invokedLintParameters: (sources: [AbsolutePath], path: AbsolutePath, strict: Bool)?
+    var invokedLintParameters: (sources: [AbsolutePath], path: AbsolutePath, strict: Bool)? // swiftlint:disable:this large_tuple
     var invokedLintParametersList = [(sources: [AbsolutePath], path: AbsolutePath, strict: Bool)]()
     var stubbedLintError: Error?
 

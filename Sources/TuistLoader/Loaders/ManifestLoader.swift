@@ -76,7 +76,7 @@ public protocol ManifestLoading {
 
     /// Loads the Setup.swift in the given directory.
     /// - Parameter path: Path to the directory that contains the Setup.swift.
-    func loadSetup(at path: AbsolutePath) throws -> [Upping]
+    func loadSetup(at path: AbsolutePath) throws -> SetupActions
 
     /// Loads the name_of_template.swift in the given directory.
     /// - Parameter path: Path to the directory that contains the name_of_template.swift
@@ -157,21 +157,28 @@ public class ManifestLoader: ManifestLoading {
         try loadManifest(.template, at: path)
     }
 
-    public func loadSetup(at path: AbsolutePath) throws -> [Upping] {
+    public func loadSetup(at path: AbsolutePath) throws -> SetupActions {
         let setupPath = path.appending(component: Manifest.setup.fileName(path))
         guard FileHandler.shared.exists(setupPath) else {
             throw ManifestLoaderError.manifestNotFound(.setup, path)
         }
-
         let setup = try loadDataForManifest(.setup, at: setupPath)
         let setupJson = try JSON(data: setup)
+        let requiresJson: [JSON] = try setupJson.get("requires")
+        let requires = try requiresJson.compactMap {
+            try UpRequired.with(
+                dictionary: $0,
+                projectPath: path
+            )
+        }
         let actionsJson: [JSON] = try setupJson.get("actions")
-        return try actionsJson.compactMap {
+        let actions = try actionsJson.compactMap {
             try Up.with(
                 dictionary: $0,
                 projectPath: path
             )
         }
+        return SetupActions(actions: actions, requires: requires)
     }
 
     public func loadDependencies(at path: AbsolutePath) throws -> ProjectDescription.Dependencies {
@@ -219,6 +226,7 @@ public class ManifestLoader: ManifestLoading {
         throw ManifestLoaderError.manifestNotFound(manifest, path)
     }
 
+    // swiftlint:disable:next function_body_length
     private func loadDataForManifest(
         _ manifest: Manifest,
         at path: AbsolutePath

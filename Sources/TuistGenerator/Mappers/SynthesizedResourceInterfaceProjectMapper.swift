@@ -4,8 +4,8 @@ import TuistCore
 import TuistGraph
 import TuistSupport
 
-/// A project mapper that synthezies resource interfaces
-public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping {
+/// A project mapper that synthesizes resource interfaces
+public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { // swiftlint:disable:this type_name
     private let synthesizedResourceInterfacesGenerator: SynthesizedResourceInterfacesGenerating
     private let contentHasher: ContentHashing
 
@@ -85,6 +85,7 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping {
     }
 
     /// - Returns: Modified `Target`, side effects, input paths and output paths which can then be later used in generate script
+    // swiftlint:disable:next function_body_length
     private func renderAndMapTarget(
         _ synthesizedResourceInterfaceType: SynthesizedResourceInterfaceType,
         target: Target,

@@ -34,7 +34,7 @@ public final class MockCarthageController: CarthageControlling {
     }
 
     var invokedIsXCFrameworksProductionSupported = false
-    var invokedIsXCFrameworksProductionSupportedCount = 0
+    var invokedIsXCFrameworksProductionSupportedCount = 0 // swiftlint:disable:this identifier_name
     var isXCFrameworksProductionSupportedStub: (() -> Bool)?
 
     public func isXCFrameworksProductionSupported() throws -> Bool {

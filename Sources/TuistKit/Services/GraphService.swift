@@ -9,49 +9,26 @@ import TuistPlugin
 import TuistSupport
 
 final class GraphService {
-    /// Dot graph generator.
-    private let graphVizGenerator: GraphVizGenerating
-
-    /// Manifest loader.
-    private let manifestLoader: ManifestLoading
-
-    /// The plugin service
-    private let pluginsService: PluginServicing
-
-    /// The Tuist configuration loader
-    private let configLoader: ConfigLoading
+    private let graphVizMapper: GraphToGraphVizMapping
+    private let manifestGraphLoader: ManifestGraphLoading
 
     convenience init() {
-        let manifestLinter = ManifestLinter()
-        let manifestLoader = ManifestLoader()
-
-        let graphVizGenerator = GraphVizGenerator(
-            modelLoader: GeneratorModelLoader(
-                manifestLoader: manifestLoader,
-                manifestLinter: manifestLinter
-            )
-        )
-
-        let configLoader = ConfigLoader(manifestLoader: manifestLoader)
-        let pluginsService = PluginService(manifestLoader: manifestLoader)
+        let manifestLoader = ManifestLoaderFactory()
+            .createManifestLoader()
+        let manifestGraphLoader = ManifestGraphLoader(manifestLoader: manifestLoader)
+        let graphVizMapper = GraphToGraphVizMapper()
         self.init(
-            graphVizGenerator: graphVizGenerator,
-            manifestLoader: manifestLoader,
-            pluginsService: pluginsService,
-            configLoader: configLoader
+            graphVizGenerator: graphVizMapper,
+            manifestGraphLoader: manifestGraphLoader
         )
     }
 
     init(
-        graphVizGenerator: GraphVizGenerating,
-        manifestLoader: ManifestLoading,
-        pluginsService: PluginServicing,
-        configLoader: ConfigLoading
+        graphVizGenerator: GraphToGraphVizMapping,
+        manifestGraphLoader: ManifestGraphLoading
     ) {
-        self.graphVizGenerator = graphVizGenerator
-        self.manifestLoader = manifestLoader
-        self.pluginsService = pluginsService
-        self.configLoader = configLoader
+        graphVizMapper = graphVizGenerator
+        self.manifestGraphLoader = manifestGraphLoader
     }
 
     func run(format: GraphFormat,
@@ -62,21 +39,15 @@ final class GraphService {
              path: AbsolutePath,
              outputPath: AbsolutePath) throws
     {
-        // Load config
-        let config = try configLoader.loadConfig(path: path)
+        let graph = try manifestGraphLoader.loadGraph(at: path)
 
-        // Load Plugins
-        let plugins = try pluginsService.loadPlugins(using: config)
-        manifestLoader.register(plugins: plugins)
-
-        // Generate the graph
-        let graphVizGraph = try graphVizGenerator.generate(
-            at: path,
-            manifestLoader: manifestLoader,
+        let graphVizGraph = graphVizMapper.map(
+            graph: graph,
             skipTestTargets: skipTestTargets,
             skipExternalDependencies: skipExternalDependencies,
             targetsToFilter: targetsToFilter
         )
+
         let filePath = outputPath.appending(component: "graph.\(format.rawValue)")
         if FileHandler.shared.exists(filePath) {
             logger.notice("Deleting existing graph at \(filePath.pathString)")

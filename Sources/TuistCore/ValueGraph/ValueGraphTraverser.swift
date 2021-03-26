@@ -243,6 +243,7 @@ public class ValueGraphTraverser: GraphTraversing {
         return references
     }
 
+    // swiftlint:disable:next function_body_length
     public func linkableDependencies(path: AbsolutePath, name: String) throws -> Set<GraphDependencyReference> {
         guard let target = self.target(path: path, name: name) else { return Set() }
 
@@ -305,13 +306,16 @@ public class ValueGraphTraverser: GraphTraversing {
             // Exclude any static products linked in a host application
             if target.target.product == .unitTests {
                 if let hostApp = hostApplication(path: path, name: name) {
-                    transitiveStaticTargets.subtract(self.transitiveStaticTargets(from: .target(name: hostApp.target.name, path: hostApp.project.path)))
+                    transitiveStaticTargets.subtract(
+                        self.transitiveStaticTargets(from: .target(name: hostApp.target.name, path: hostApp.project.path))
+                    )
                 }
             }
 
             let transitiveStaticTargetReferences = transitiveStaticTargets.compactMap(dependencyReference)
 
-            let staticDependenciesDynamicLibrariesAndFrameworks = transitiveStaticTargets.flatMap { (dependency) -> [GraphDependencyReference] in
+            // swiftlint:disable:next identifier_name
+            let staticDependenciesDynamicLibrariesAndFrameworks = transitiveStaticTargets.flatMap { dependency in
                 self.graph.dependencies[dependency, default: []]
                     .lazy
                     .filter(\.isTarget)
@@ -319,7 +323,8 @@ public class ValueGraphTraverser: GraphTraversing {
                     .compactMap(dependencyReference)
             }
 
-            let staticDependenciesPrecompiledDynamicLibrariesAndFrameworks = transitiveStaticTargets.flatMap { (dependency) -> [GraphDependencyReference] in
+            // swiftlint:disable:next identifier_name
+            let staticDependenciesPrecompiledDynamicLibrariesAndFrameworks = transitiveStaticTargets.flatMap { dependency in
                 self.graph.dependencies[dependency, default: []]
                     .lazy
                     .filter(\.isPrecompiled)

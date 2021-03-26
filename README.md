@@ -114,32 +114,31 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
   <tr>
     <td align="center"><a href="https://github.com/yurapriv"><img src="https://avatars2.githubusercontent.com/u/7814127?v=4" width="100px;" alt=""/><br /><sub><b>Privezentsev Yura</b></sub></a></td>
     <td align="center"><a href="http://ferologics.github.io"><img src="https://avatars2.githubusercontent.com/u/5576161?v=4" width="100px;" alt=""/><br /><sub><b>Fero</b></sub></a></td>
-    <td align="center"><a href="http://www.luispadron.com"><img src="https://avatars3.githubusercontent.com/u/13840545?v=4" width="100px;" alt=""/><br /><sub><b>Luis Padron</b></sub></a></td>
     <td align="center"><a href="https://heberti.com"><img src="https://avatars0.githubusercontent.com/u/103670?v=4" width="100px;" alt=""/><br /><sub><b>Heberti Almeida</b></sub></a></td>
     <td align="center"><a href="http://benscheirman.com"><img src="https://avatars0.githubusercontent.com/u/59140?v=4" width="100px;" alt=""/><br /><sub><b>Ben Scheirman</b></sub></a></td>
     <td align="center"><a href="https://jsorge.net"><img src="https://avatars3.githubusercontent.com/u/2585841?v=4" width="100px;" alt=""/><br /><sub><b>Jared Sorge</b></sub></a></td>
     <td align="center"><a href="https://joeblau.com"><img src="https://avatars1.githubusercontent.com/u/1218847?v=4" width="100px;" alt=""/><br /><sub><b>Joe Blau</b></sub></a></td>
+    <td align="center"><a href="https://twitter.com/dchavezlive"><img src="https://avatars0.githubusercontent.com/u/2475932?v=4" width="100px;" alt=""/><br /><sub><b>David Chavez</b></sub></a></td>
   </tr>
   <tr>
-    <td align="center"><a href="https://twitter.com/dchavezlive"><img src="https://avatars0.githubusercontent.com/u/2475932?v=4" width="100px;" alt=""/><br /><sub><b>David Chavez</b></sub></a></td>
     <td align="center"><a href="https://www.linkedin.com/in/роман-подымов-72338ab0/"><img src="https://avatars3.githubusercontent.com/u/10789692?v=4" width="100px;" alt=""/><br /><sub><b>Roman Podymov</b></sub></a></td>
     <td align="center"><a href="https://github.com/marcinreliga-fn"><img src="https://avatars0.githubusercontent.com/u/76949651?v=4" width="100px;" alt=""/><br /><sub><b>Marcin Religa</b></sub></a></td>
     <td align="center"><a href="https://github.com/adellibovi"><img src="https://avatars3.githubusercontent.com/u/67916?v=4" width="100px;" alt=""/><br /><sub><b>Alfredo Delli Bovi</b></sub></a></td>
     <td align="center"><a href="https://github.com/Jake-Prickett"><img src="https://avatars1.githubusercontent.com/u/26095410?v=4" width="100px;" alt=""/><br /><sub><b>Jake Prickett</b></sub></a></td>
     <td align="center"><a href="https://github.com/danyf90"><img src="https://avatars.githubusercontent.com/u/2794031?v=4" width="100px;" alt=""/><br /><sub><b>Daniele Formichelli</b></sub></a></td>
     <td align="center"><a href="https://www.facebook.com/PetrachkovSergey"><img src="https://avatars.githubusercontent.com/u/7995896?v=4" width="100px;" alt=""/><br /><sub><b>Sergey Petrachkov</b></sub></a></td>
+    <td align="center"><a href="http://jinuman.github.io/resume"><img src="https://avatars.githubusercontent.com/u/26243835?v=4" width="100px;" alt=""/><br /><sub><b>Jinwoo, Kim</b></sub></a></td>
   </tr>
   <tr>
-    <td align="center"><a href="http://jinuman.github.io/resume"><img src="https://avatars.githubusercontent.com/u/26243835?v=4" width="100px;" alt=""/><br /><sub><b>Jinwoo, Kim</b></sub></a></td>
     <td align="center"><a href="https://github.com/thedavidharris"><img src="https://avatars.githubusercontent.com/u/5666250?v=4" width="100px;" alt=""/><br /><sub><b>David Harris</b></sub></a></td>
     <td align="center"><a href="https://github.com/DimaMishchenko"><img src="https://avatars.githubusercontent.com/u/25247301?v=4" width="100px;" alt=""/><br /><sub><b>Dmytro Mishchenko</b></sub></a></td>
     <td align="center"><a href="http://www.sampettersson.com"><img src="https://avatars.githubusercontent.com/u/5459507?v=4" width="100px;" alt=""/><br /><sub><b>Sam Pettersson</b></sub></a></td>
     <td align="center"><a href="http://www.joshholtz.com"><img src="https://avatars.githubusercontent.com/u/401294?v=4" width="100px;" alt=""/><br /><sub><b>Josh Holtz</b></sub></a></td>
     <td align="center"><a href="http://jierong.dev"><img src="https://avatars.githubusercontent.com/u/7414906?v=4" width="100px;" alt=""/><br /><sub><b>Jierong Li</b></sub></a></td>
     <td align="center"><a href="https://twitter.com/freak4pc"><img src="https://avatars.githubusercontent.com/u/605076?v=4" width="100px;" alt=""/><br /><sub><b>Shai Mishali</b></sub></a></td>
+    <td align="center"><a href="https://twitter.com/FranzJBusch"><img src="https://avatars.githubusercontent.com/u/3491887?v=4" width="100px;" alt=""/><br /><sub><b>Franz Busch</b></sub></a></td>
   </tr>
   <tr>
-    <td align="center"><a href="https://twitter.com/FranzJBusch"><img src="https://avatars.githubusercontent.com/u/3491887?v=4" width="100px;" alt=""/><br /><sub><b>Franz Busch</b></sub></a></td>
     <td align="center"><a href="https://github.com/tiarnann"><img src="https://avatars.githubusercontent.com/u/10522081?v=4" width="100px;" alt=""/><br /><sub><b>Tíarnán McGrath</b></sub></a></td>
   </tr>
 </table>

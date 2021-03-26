@@ -5,16 +5,19 @@ import TuistCore
 import TuistGraph
 
 extension TuistGraph.TestAction {
+    // swiftlint:disable function_body_length
     /// Maps a ProjectDescription.TestAction instance into a TuistGraph.TestAction instance.
     /// - Parameters:
     ///   - manifest: Manifest representation of test action model.
     ///   - generatorPaths: Generator paths.
     static func from(manifest: ProjectDescription.TestAction, generatorPaths: GeneratorPaths) throws -> TuistGraph.TestAction {
+        // swiftlint:enable function_body_length
         let testPlans: [TuistGraph.TestPlan]?
         let targets: [TuistGraph.TestableTarget]
         let arguments: TuistGraph.Arguments?
         let coverage: Bool
         let codeCoverageTargets: [TuistGraph.TargetReference]
+        let expandVariablesFromTarget: TuistGraph.TargetReference?
         let diagnosticsOptions: Set<TuistGraph.SchemeDiagnosticsOption>
         let language: String?
         let region: String?
@@ -29,6 +32,7 @@ extension TuistGraph.TestAction {
             arguments = nil
             coverage = false
             codeCoverageTargets = []
+            expandVariablesFromTarget = nil
             diagnosticsOptions = Set()
             language = nil
             region = nil
@@ -37,6 +41,12 @@ extension TuistGraph.TestAction {
             arguments = manifest.arguments.map { TuistGraph.Arguments.from(manifest: $0) }
             coverage = manifest.coverage
             codeCoverageTargets = try manifest.codeCoverageTargets.map {
+                TuistGraph.TargetReference(
+                    projectPath: try generatorPaths.resolveSchemeActionProjectPath($0.projectPath),
+                    name: $0.targetName
+                )
+            }
+            expandVariablesFromTarget = try manifest.expandVariableFromTarget.map {
                 TuistGraph.TargetReference(
                     projectPath: try generatorPaths.resolveSchemeActionProjectPath($0.projectPath),
                     name: $0.targetName
@@ -67,6 +77,7 @@ extension TuistGraph.TestAction {
             configurationName: configurationName,
             coverage: coverage,
             codeCoverageTargets: codeCoverageTargets,
+            expandVariableFromTarget: expandVariablesFromTarget,
             preActions: preActions,
             postActions: postActions,
             diagnosticsOptions: diagnosticsOptions,
