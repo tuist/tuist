@@ -84,9 +84,15 @@ class UpCarthage: Up, GraphInitiatable {
             try upHomebrew.meet(projectPath: projectPath)
         }
 
-        /// Bootstraping Carthage dependencies.
-        let oudated = try carthage.outdated(path: projectPath) ?? []
-        try carthage.bootstrap(path: projectPath, platforms: platforms, useXCFrameworks: useXCFrameworks, noUseBinaries: noUseBinaries, dependencies: oudated)
+        /// Bootstrapping Carthage dependencies.
+        let outdated = try carthage.outdated(path: projectPath) ?? []
+        try carthage.bootstrap(
+            path: projectPath,
+            platforms: platforms,
+            useXCFrameworks: useXCFrameworks,
+            noUseBinaries: noUseBinaries,
+            dependencies: outdated
+        )
     }
 
     func whatever() {}

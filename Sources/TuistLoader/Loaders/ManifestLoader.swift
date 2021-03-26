@@ -226,6 +226,7 @@ public class ManifestLoader: ManifestLoading {
         throw ManifestLoaderError.manifestNotFound(manifest, path)
     }
 
+    // swiftlint:disable:next function_body_length
     private func loadDataForManifest(
         _ manifest: Manifest,
         at path: AbsolutePath

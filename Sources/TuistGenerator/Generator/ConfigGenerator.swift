@@ -20,6 +20,7 @@ protocol ConfigGenerating: AnyObject {
                               sourceRootPath: AbsolutePath) throws
 }
 
+// swiftlint:disable:next type_body_length
 final class ConfigGenerator: ConfigGenerating {
     // MARK: - Attributes
 
@@ -168,7 +169,7 @@ final class ConfigGenerator: ConfigGenerating {
             target: target,
             graphTraverser: graphTraverser,
             swiftVersion: swiftVersion,
-            projectPath: project.path,
+            project: project,
             sourceRootPath: sourceRootPath
         )
 
@@ -194,26 +195,39 @@ final class ConfigGenerator: ConfigGenerating {
                                      target: Target,
                                      graphTraverser: GraphTraversing,
                                      swiftVersion: String,
-                                     projectPath: AbsolutePath,
+                                     project: Project,
                                      sourceRootPath: AbsolutePath)
     {
-        settings.merge(generalTargetDerivedSettings(target: target, swiftVersion: swiftVersion, sourceRootPath: sourceRootPath)) { $1 }
-        settings.merge(testBundleTargetDerivedSettings(target: target, graphTraverser: graphTraverser, projectPath: projectPath)) { $1 }
+        settings.merge(
+            generalTargetDerivedSettings(
+                target: target,
+                swiftVersion: swiftVersion,
+                sourceRootPath: sourceRootPath,
+                project: project
+            )
+        ) { $1 }
+        settings.merge(testBundleTargetDerivedSettings(target: target, graphTraverser: graphTraverser, projectPath: project.path)) { $1 }
         settings.merge(deploymentTargetDerivedSettings(target: target)) { $1 }
-        settings.merge(watchTargetDerivedSettings(target: target, graphTraverser: graphTraverser, projectPath: projectPath)) { $1 }
+        settings.merge(watchTargetDerivedSettings(target: target, graphTraverser: graphTraverser, projectPath: project.path)) { $1 }
     }
 
-    private func generalTargetDerivedSettings(target: Target,
-                                              swiftVersion: String,
-                                              sourceRootPath: AbsolutePath) -> SettingsDictionary
-    {
+    private func generalTargetDerivedSettings(
+        target: Target,
+        swiftVersion: String,
+        sourceRootPath: AbsolutePath,
+        project: Project
+    ) -> SettingsDictionary {
         var settings: SettingsDictionary = [:]
         settings["PRODUCT_BUNDLE_IDENTIFIER"] = .string(target.bundleId)
 
         // Info.plist
         if let infoPlist = target.infoPlist, let path = infoPlist.path {
             let relativePath = path.relative(to: sourceRootPath).pathString
-            settings["INFOPLIST_FILE"] = .string("$(SRCROOT)/\(relativePath)")
+            if project.xcodeProjPath.parentDirectory == sourceRootPath {
+                settings["INFOPLIST_FILE"] = .string(relativePath)
+            } else {
+                settings["INFOPLIST_FILE"] = .string("$(SRCROOT)/\(relativePath)")
+            }
         }
 
         if let entitlements = target.entitlements {

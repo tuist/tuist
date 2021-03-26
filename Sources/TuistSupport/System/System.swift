@@ -234,6 +234,7 @@ public enum SystemError: FatalError, Equatable {
     }
 }
 
+// swiftlint:disable:next type_body_length
 public final class System: Systeming {
     /// Shared system instance.
     public static var shared: Systeming = System()

@@ -127,9 +127,16 @@ extension String {
 
         var modifiableString = self
         matches.forEach { result in
-            guard let firstRange = Range(result.range(at: 2), in: modifiableString), let secondRange = Range(result.range(at: 4), in: modifiableString) else { return }
-            guard let firstInt = UInt8(modifiableString[firstRange], radix: 16), let secondInt = UInt8(modifiableString[secondRange], radix: 16) else { return }
-            modifiableString.replaceSubrange(Range(result.range, in: modifiableString)!, with: String(decoding: [firstInt, secondInt] as [UTF8.CodeUnit], as: UTF8.self))
+            guard
+                let firstRange = Range(result.range(at: 2), in: modifiableString),
+                let secondRange = Range(result.range(at: 4), in: modifiableString),
+                let firstInt = UInt8(modifiableString[firstRange], radix: 16),
+                let secondInt = UInt8(modifiableString[secondRange], radix: 16)
+            else {
+                return
+            }
+            let resultRange = Range(result.range, in: modifiableString)!
+            modifiableString.replaceSubrange(resultRange, with: String(decoding: [firstInt, secondInt] as [UTF8.CodeUnit], as: UTF8.self))
         }
 
         return modifiableString

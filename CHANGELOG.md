@@ -12,7 +12,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Changed
 
-- Support expand variables configuration in test scheme Environment Variables [#2697] by [@davebcn87](https://github.com/davebcn87)
+- Add SRCROOT for Info.plist only when necessary [#2706](https://github.com/tuist/tuist/pull/2706) by [@fortmarek](https://github.com/fortmarek)
+- Support expand variables configuration in test scheme Environment Variables [#2697](https://github.com/tuist/tuist/pull/2694) by [@davebcn87](https://github.com/davebcn87)
 - Support unversioned core data models [#2694](https://github.com/tuist/tuist/pull/2694) by [@freak4pc](https://github.com/freak4pc)
 - Remove reference type Graph [#2689](https://github.com/tuist/tuist/pull/2689) by [@fortmarek](https://github.com/fortmarek)
 - Migrate mappers to ValueGraph [#2683](https://github.com/tuist/tuist/pull/2683) by [@fortmarek](https://github.com/fortmarek)
@@ -31,6 +32,9 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Fixed
 
 - Fixed running `tuist dump` for projects with plugins [#2700](https://github.com/tuist/tuist/pull/2700) by [@danyf90](https://github.com/danyf90)
+- Fix false positive duplicate bundle id lint warning [#2707](https://github.com/tuist/tuist/pull/2707) by [@kwridan](https://github.com/kwridan)
+- Failing Homebrew runs in M1 environments [#2711](https://github.com/tuist/tuist/pull/2711) by [@pepibumur](https://github.com/pepibumur)
+- Installation of Tuist when `/usr/local/bin` doesn't exist [#2710](https://github.com/tuist/tuist/pull/2710) by [@pepibumur](https://github.com/pepibumur)
 
 ## 1.38.0 - Cold Waves
 
