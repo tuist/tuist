@@ -23,7 +23,7 @@ module Fourier
             .with(zip: zip_path, into: content_path)
           FileUtils
             .expects(:copy_entry)
-            .with(content_path, Swiftlint::OUTPUT_DIRECTORY)
+            .with(content_path, Swiftlint::OUTPUT_DIRECTORY, false, false, true)
 
           # When
           Services::Update::Swiftlint.call

@@ -15,7 +15,7 @@ module Fourier
           Dir.mktmpdir do |temporary_dir|
             binary_zip_path = download(temporary_dir: temporary_dir)
             binary_directory_path = extract(binary_zip_path)
-            FileUtils.copy_entry(binary_directory_path, OUTPUT_DIRECTORY)
+            FileUtils.copy_entry(binary_directory_path, OUTPUT_DIRECTORY, false, false, true)
           end
         end
 

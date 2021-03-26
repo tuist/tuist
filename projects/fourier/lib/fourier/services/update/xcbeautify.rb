@@ -8,19 +8,16 @@ module Fourier
       class Xcbeautify < Base
         VERSION = "0.9.1"
         SOURCE_TAR_URL = "https://github.com/thii/xcbeautify/archive/#{VERSION}.zip"
+        OUTPUT_DIRECTORY = File.join(Constants::TUIST_VENDOR_DIRECTORY, "xcbeautify")
 
         def call
-          output_directory = File.join(Constants::TUIST_VENDOR_DIRECTORY, "xcbeautify")
-
           Dir.mktmpdir do |temporary_dir|
             Dir.mktmpdir do |temporary_output_directory|
               sources_zip_path = download(temporary_dir: temporary_dir)
               sources_path = extract(sources_zip_path)
               build(sources_path, into: temporary_output_directory)
               FileUtils.copy_entry(File.join(sources_path, "LICENSE"), File.join(temporary_output_directory, "LICENSE"))
-              FileUtils.rm_rf(output_directory) if Dir.exist?(output_directory)
-              FileUtils.mkdir_p(output_directory)
-              FileUtils.copy_entry(temporary_output_directory, output_directory)
+              FileUtils.copy_entry(temporary_output_directory, OUTPUT_DIRECTORY, false, false, true)
               puts(::CLI::UI.fmt("{{success:xcbeautify built and vendored successfully.}}"))
             end
           end
@@ -37,9 +34,9 @@ module Fourier
 
         def extract(sources_zip_path)
           puts("Extracting source code...")
-          zip_content_path = File.join(File.dirname(sources_zip_path), "content")
-          Utilities::Zip.extract(zip: sources_zip_path, into: zip_content_path)
-          Dir.glob(File.join(zip_content_path, "*/")).first
+          content_path = File.join(File.dirname(sources_zip_path), "content")
+          Utilities::Zip.extract(zip: sources_zip_path, into: content_path)
+          Dir.glob(File.join(content_path, "*/")).first
         end
 
         def build(sources_path, into:)
