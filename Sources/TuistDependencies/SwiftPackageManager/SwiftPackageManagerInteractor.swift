@@ -45,11 +45,14 @@ public protocol SwiftPackageManagerInteracting {
 
 public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting {
     private let fileHandler: FileHandling
+    private let swiftPackageManager: SwiftPackageManaging
 
     public init(
-        fileHandler: FileHandling = FileHandler.shared
+        fileHandler: FileHandling = FileHandler.shared,
+        swiftPackageManager: SwiftPackageManaging = SwiftPackageManager()
     ) {
         self.fileHandler = fileHandler
+        self.swiftPackageManager = swiftPackageManager
     }
 
     public func fetch(dependenciesDirectory: AbsolutePath, dependencies: SwiftPackageManagerDependencies) throws {
@@ -66,8 +69,7 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
             try loadDependencies(pathsProvider: pathsProvider, packageManifestContent: dependencies.manifestValue())
 
             // run `Swift Package Manager`
-            let command = ["swift", "package", "--package-path", "\(temporaryDirectoryPath.pathString)", "resolve"]
-            try System.shared.runAndPrint(command)
+            try swiftPackageManager.resolve(at: temporaryDirectoryPath)
 
             // post installation
             try saveDepedencies(pathsProvider: pathsProvider)
