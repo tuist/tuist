@@ -9,13 +9,13 @@ module Fourier
       class Swiftlint < Base
         VERSION = "0.43.1"
         PORTABLE_BINARY_URL = "https://github.com/realm/SwiftLint/releases/download/#{VERSION}/portable_swiftlint.zip"
+        OUTPUT_DIRECTORY = File.join(Constants::TUIST_VENDOR_DIRECTORY, "swiftlint")
 
         def call
-          output_directory = File.join(Constants::TUIST_VENDOR_DIRECTORY, "swiftlint")
           Dir.mktmpdir do |temporary_dir|
             binary_zip_path = download(temporary_dir: temporary_dir)
             binary_directory_path = extract(binary_zip_path)
-            FileUtils.copy_entry(binary_directory_path, output_directory)
+            FileUtils.copy_entry(binary_directory_path, OUTPUT_DIRECTORY)
           end
         end
 
