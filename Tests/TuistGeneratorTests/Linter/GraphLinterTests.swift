@@ -1171,28 +1171,35 @@ final class GraphLinterTests: TuistUnitTestCase {
         let appTarget = Target.test(name: "AppTarget", product: .app)
         let frameworkA = Target.test(name: "frameworkA", product: .framework, bundleId: "${ANY_VARIABLE}")
         let frameworkB = Target.test(name: "frameworkB", product: .framework, bundleId: "${ANY_VARIABLE}")
+        let frameworkC = Target.test(name: "frameworkC", product: .framework, bundleId: "prefix.${ANY_VARIABLE}")
+        let frameworkD = Target.test(name: "frameworkD", product: .framework, bundleId: "prefix.${ANY_VARIABLE}")
+        let frameworkE = Target.test(name: "frameworkE", product: .framework, bundleId: "${ANY_VARIABLE}.suffix")
+        let frameworkF = Target.test(name: "frameworkF", product: .framework, bundleId: "${ANY_VARIABLE}.suffix")
 
-        let app = Project.test(path: path, name: "App", targets: [appTarget])
-        let frameworks1 = Project.test(
-            path: "/tmp/frameworks1",
-            name: "Frameworks1",
-            targets: [frameworkA, frameworkB]
+        let project = Project.test(
+            path: path,
+            name: "App",
+            targets: [appTarget, frameworkA, frameworkB, frameworkC, frameworkD, frameworkE, frameworkF]
         )
-
-        let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
-            .target(name: app.name, path: path): Set([.target(name: frameworkA.name, path: frameworks1.path),
-                                                      .target(name: frameworkB.name, path: frameworks1.path)]),
-        ]
-
-        let project = Project.test(path: path, targets: [appTarget, frameworkA, frameworkB])
 
         let graph = ValueGraph.test(
             path: path,
-            workspace: Workspace.test(projects: [path]),
-            projects: [path: project],
-            targets: [path: [appTarget.name: appTarget],
-                      frameworks1.path: [frameworkA.name: frameworkA, frameworkB.name: frameworkB]],
-            dependencies: dependencies
+            workspace: Workspace.test(projects: [project.path]),
+            projects: [
+                project.path: project,
+            ],
+            targets: [
+                project.path: [
+                    appTarget.name: appTarget,
+                    frameworkA.name: frameworkA,
+                    frameworkB.name: frameworkB,
+                    frameworkC.name: frameworkC,
+                    frameworkD.name: frameworkD,
+                    frameworkE.name: frameworkE,
+                    frameworkF.name: frameworkF,
+                ],
+            ],
+            dependencies: [:]
         )
         let graphTraverser = ValueGraphTraverser(graph: graph)
 

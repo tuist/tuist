@@ -251,12 +251,15 @@ public class GraphLinter: GraphLinting {
 
     private func lintBundleIdentifiers(graphTraverser: GraphTraversing) -> [LintingIssue] {
         var bundleIds = [BundleIdKey: [String]]()
-        let buildSettingRegex = "\\$[\\({](.*)[\\)}]"
-
         graphTraverser.targets
             .flatMap { $0.value.map(\.value) }
             .forEach { target in
-                if target.bundleId.matches(pattern: buildSettingRegex) {
+                // skip duplicate check for bundle Ids that contain variables
+                // e.g.
+                // - `${MY_BUNDLE_ID}`
+                // - `prefix.${PRODUCT_NAME:rfc1034identifier}`
+                // - `${PRODUCT_NAME:rfc1034identifier}.suffix`
+                if target.bundleId.contains("$") {
                     return
                 }
 
