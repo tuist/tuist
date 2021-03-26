@@ -316,7 +316,11 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
 
         var macroExpansion: XCScheme.BuildableReference?
         if let expandVariableFromTarget = testAction.expandVariableFromTarget {
-            guard let graphTarget = graphTraverser.target(path: expandVariableFromTarget.projectPath, name: expandVariableFromTarget.name) else { return nil }
+            guard
+                let graphTarget = graphTraverser.target(path: expandVariableFromTarget.projectPath, name: expandVariableFromTarget.name)
+            else {
+                return nil
+            }
             macroExpansion = try testCoverageTargetReferences(
                 graphTarget: graphTarget,
                 graphTraverser: graphTraverser,
