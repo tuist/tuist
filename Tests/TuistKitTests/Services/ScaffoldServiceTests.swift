@@ -10,6 +10,7 @@ import XCTest
 @testable import TuistCoreTesting
 @testable import TuistKit
 @testable import TuistLoaderTesting
+@testable import TuistPluginTesting
 @testable import TuistScaffoldTesting
 @testable import TuistSupportTesting
 
@@ -18,16 +19,22 @@ final class ScaffoldServiceTests: TuistUnitTestCase {
     var templateLoader: MockTemplateLoader!
     var templatesDirectoryLocator: MockTemplatesDirectoryLocator!
     var templateGenerator: MockTemplateGenerator!
+    var configLoader: MockConfigLoader!
+    var pluginService: MockPluginService!
 
     override func setUp() {
         super.setUp()
         templateLoader = MockTemplateLoader()
         templatesDirectoryLocator = MockTemplatesDirectoryLocator()
         templateGenerator = MockTemplateGenerator()
+        configLoader = MockConfigLoader()
+        pluginService = MockPluginService()
         subject = ScaffoldService(
             templateLoader: templateLoader,
             templatesDirectoryLocator: templatesDirectoryLocator,
-            templateGenerator: templateGenerator
+            templateGenerator: templateGenerator,
+            configLoader: configLoader,
+            pluginService: pluginService
         )
     }
 
@@ -68,11 +75,45 @@ final class ScaffoldServiceTests: TuistUnitTestCase {
         XCTAssertEqual(options.optional, expectedOptions.optional)
     }
 
+    func test_load_template_plugin_options() throws {
+        // Given
+        templateLoader.loadTemplateStub = { _ in
+            Template(
+                description: "test",
+                attributes: [
+                    .required("required"),
+                    .optional("optional", default: ""),
+                ]
+            )
+        }
+
+        let expectedOptions: (required: [String], optional: [String]) = (required: ["required"], optional: ["optional"])
+        let pluginTemplatePath = try temporaryPath().appending(component: "PluginTemplate")
+
+        pluginService.loadPluginsStub = { _ in
+            Plugins.test(templatePaths: [pluginTemplatePath])
+        }
+
+        templatesDirectoryLocator.templatePluginDirectoriesStub = { _ in
+            [pluginTemplatePath]
+        }
+
+        // When
+        let options = try subject.loadTemplateOptions(
+            templateName: "PluginTemplate",
+            path: nil
+        )
+
+        // Then
+        XCTAssertEqual(options.required, expectedOptions.required)
+        XCTAssertEqual(options.optional, expectedOptions.optional)
+    }
+
     func test_fails_when_template_not_found() throws {
         let templateName = "template"
         XCTAssertThrowsSpecific(
             try subject.testRun(templateName: templateName),
-            ScaffoldServiceError.templateNotFound(templateName)
+            ScaffoldServiceError.templateNotFound(templateName, searchPaths: [])
         )
     }
 

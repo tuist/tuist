@@ -314,6 +314,17 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             )
         }
 
+        var macroExpansion: XCScheme.BuildableReference?
+        if let expandVariableFromTarget = testAction.expandVariableFromTarget {
+            guard let graphTarget = graphTraverser.target(path: expandVariableFromTarget.projectPath, name: expandVariableFromTarget.name) else { return nil }
+            macroExpansion = try testCoverageTargetReferences(
+                graphTarget: graphTarget,
+                graphTraverser: graphTraverser,
+                generatedProjects: generatedProjects,
+                rootPath: rootPath
+            )
+        }
+
         let onlyGenerateCoverageForSpecifiedTargets = codeCoverageTargets.count > 0 ? true : nil
 
         let disableMainThreadChecker = !testAction.diagnosticsOptions.contains(.mainThreadChecker)
@@ -323,7 +334,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
 
         return XCScheme.TestAction(
             buildConfiguration: testAction.configurationName,
-            macroExpansion: nil,
+            macroExpansion: macroExpansion,
             testables: testables,
             testPlans: testPlans,
             preActions: preActions,

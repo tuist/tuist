@@ -6,7 +6,6 @@ import { Location } from '@reach/router'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faGithub } from '@fortawesome/free-brands-svg-icons'
 import { faSlack } from '@fortawesome/free-brands-svg-icons'
-import { faDiscourse } from '@fortawesome/free-brands-svg-icons'
 import logo from '../../static/logo.svg'
 
 export default ({ menuOpen, setMenuOpen, menuRef }) => {
@@ -27,7 +26,6 @@ export default ({ menuOpen, setMenuOpen, menuRef }) => {
     site: {
       siteMetadata: {
         githubUrl,
-        discourseUrl,
         slackUrl,
         firstDocumentationPagePath,
       },
@@ -36,7 +34,6 @@ export default ({ menuOpen, setMenuOpen, menuRef }) => {
     query {
       site {
         siteMetadata {
-          discourseUrl
           githubUrl
           slackUrl
           firstDocumentationPagePath
@@ -153,18 +150,6 @@ export default ({ menuOpen, setMenuOpen, menuRef }) => {
                   >
                     APPS AT SCALE
                   </Link>
-                  <Link
-                    sx={{
-                      ...linkStyle,
-                      ...(isBlog ? hoverStyle : {}),
-                      ml: [0, 4],
-                      variant: 'text.header',
-                    }}
-                    to="/stickers"
-                    alt="Ask for free nice-looking stickers"
-                  >
-                    STICKERS
-                  </Link>
                 </div>
 
                 <div sx={{ flexDirection: 'row', display: 'flex', mt: [3, 0] }}>
@@ -187,28 +172,6 @@ export default ({ menuOpen, setMenuOpen, menuRef }) => {
                         '&:hover': { path: { fill: theme.colors.primary } },
                       }}
                       icon={faGithub}
-                      size="lg"
-                    />
-                  </a>
-                  <a
-                    sx={{
-                      ...linkStyle,
-                      ml: 4,
-                      display: 'flex',
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                    }}
-                    target="__blank"
-                    href={discourseUrl}
-                    alt="The project's Discourse"
-                  >
-                    <FontAwesomeIcon
-                      sx={{
-                        mt: -1,
-                        path: { fill: theme.colors.text },
-                        '&:hover': { path: { fill: theme.colors.primary } },
-                      }}
-                      icon={faDiscourse}
                       size="lg"
                     />
                   </a>

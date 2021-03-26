@@ -270,6 +270,7 @@ final class TestModelGenerator {
                     configurationName: "Debug",
                     coverage: boolStub,
                     codeCoverageTargets: targets,
+                    expandVariableFromTarget: nil,
                     preActions: createExecutionActions(),
                     postActions: createExecutionActions(),
                     diagnosticsOptions: Set()

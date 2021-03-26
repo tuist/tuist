@@ -103,6 +103,44 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         assert(config: customReleaseConfig, contains: releaseSettings)
     }
 
+    func test_generateTargetConfig_whenSourceRootIsEqualToXcodeprojPath() throws {
+        // Given
+        let sourceRootPath = try temporaryPath()
+        let project = Project.test(
+            sourceRootPath: sourceRootPath,
+            xcodeProjPath: sourceRootPath.appending(component: "Project.xcodeproj")
+        )
+        let target = Target.test(
+            infoPlist: .file(path: sourceRootPath.appending(component: "Info.plist"))
+        )
+        let graph = ValueGraph.test(path: project.path)
+        let graphTraverser = ValueGraphTraverser(graph: graph)
+
+        // When
+        try subject.generateTargetConfig(
+            target,
+            project: project,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            projectSettings: .default,
+            fileElements: ProjectFileElements(),
+            graphTraverser: graphTraverser,
+            sourceRootPath: sourceRootPath
+        )
+
+        // Then
+        let configurationList = pbxTarget.buildConfigurationList
+        let debugConfig = configurationList?.configuration(name: "Debug")
+        let releaseConfig = configurationList?.configuration(name: "Release")
+
+        let expectedSettings = [
+            "INFOPLIST_FILE": "Info.plist",
+        ]
+
+        assert(config: debugConfig, contains: expectedSettings)
+        assert(config: releaseConfig, contains: expectedSettings)
+    }
+
     func test_generateTestTargetConfiguration_iOS() throws {
         // Given / When
         try generateTestTargetConfig(appName: "App")
