@@ -11,8 +11,8 @@ on:
       - Package.resolved
       - Sources/**
       - Tests/**
-      - features/**
-      - fixtures/**
+      - projects/tuist/features/**
+      - projects/tuist/fixtures/**
 
 env:
   RUBY_VERSION: '2.7.2'
@@ -101,7 +101,7 @@ jobs:
             'scaffold',
             'test',
             'up',
-            'graph'
+            'graph',
           ]
     steps:
       - uses: actions/checkout@v1
