@@ -31,7 +31,7 @@ final class UpHomebrewTests: TuistUnitTestCase {
                 throw NSError.test()
             }
         }
-        system.errorCommand("/usr/local/bin/brew", "list", "swiftlint")
+        system.errorCommand("/usr/bin/env", "brew", "list", "swiftlint")
         let got = try subject.isMet(projectPath: temporaryPath)
         XCTAssertFalse(got)
     }
@@ -46,7 +46,7 @@ final class UpHomebrewTests: TuistUnitTestCase {
                 throw NSError.test()
             }
         }
-        system.succeedCommand("/usr/local/bin/brew", "list", "swiftlint")
+        system.succeedCommand("/usr/bin/env", "brew", "list", "swiftlint")
         let got = try subject.isMet(projectPath: temporaryPath)
         XCTAssertTrue(got)
     }
@@ -56,13 +56,14 @@ final class UpHomebrewTests: TuistUnitTestCase {
         let subject = UpHomebrew(packages: ["swiftlint"])
 
         system.whichStub = { _ in nil }
-        system.errorCommand("/usr/local/bin/brew", "list", "swiftlint")
+        system.errorCommand("/usr/bin/env", "brew", "list", "swiftlint")
         system.succeedCommand(
-            "/usr/bin/ruby",
+            "/usr/bin/env",
+            "ruby",
             "-e",
             "\"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)\""
         )
-        system.succeedCommand("/usr/local/bin/brew", "install", "swiftlint")
+        system.succeedCommand("/usr/bin/env", "brew", "install", "swiftlint")
 
         try subject.meet(projectPath: temporaryPath)
 
