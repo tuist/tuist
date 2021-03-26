@@ -305,6 +305,7 @@ class ProjectFileElements {
 
     // MARK: - Internal
 
+    // swiftlint:disable:next function_body_length
     @discardableResult func addElement(relativePath: RelativePath,
                                        isLeaf: Bool,
                                        from: AbsolutePath,

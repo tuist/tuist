@@ -5,11 +5,13 @@ import TuistCore
 import TuistGraph
 
 extension TuistGraph.TestAction {
+    // swiftlint:disable function_body_length
     /// Maps a ProjectDescription.TestAction instance into a TuistGraph.TestAction instance.
     /// - Parameters:
     ///   - manifest: Manifest representation of test action model.
     ///   - generatorPaths: Generator paths.
     static func from(manifest: ProjectDescription.TestAction, generatorPaths: GeneratorPaths) throws -> TuistGraph.TestAction {
+        // swiftlint:enable function_body_length
         let testPlans: [TuistGraph.TestPlan]?
         let targets: [TuistGraph.TestableTarget]
         let arguments: TuistGraph.Arguments?

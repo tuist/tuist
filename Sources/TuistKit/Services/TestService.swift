@@ -66,6 +66,7 @@ final class TestService {
         self.contentHasher = contentHasher
     }
 
+    // swiftlint:disable:next function_body_length
     func run(
         schemeName: String?,
         clean: Bool,
@@ -92,7 +93,8 @@ final class TestService {
         let graphTraverser = ValueGraphTraverser(graph: graph)
         let version = osVersion?.version()
 
-        let testableSchemes = buildGraphInspector.testableSchemes(graphTraverser: graphTraverser) + buildGraphInspector.projectSchemes(graphTraverser: graphTraverser)
+        let testableSchemes = buildGraphInspector.testableSchemes(graphTraverser: graphTraverser) +
+            buildGraphInspector.projectSchemes(graphTraverser: graphTraverser)
         logger.log(
             level: .debug,
             "Found the following testable schemes: \(Set(testableSchemes.map(\.name)).joined(separator: ", "))"

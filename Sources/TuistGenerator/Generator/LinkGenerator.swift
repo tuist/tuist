@@ -192,6 +192,7 @@ final class LinkGenerator: LinkGenerating {
         }
     }
 
+    // swiftlint:disable:next function_body_length
     func generateEmbedPhase(dependencies: [GraphDependencyReference],
                             target: Target,
                             pbxTarget: PBXTarget,

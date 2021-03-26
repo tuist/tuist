@@ -11,7 +11,7 @@ import TuistSupport
 protocol Generating {
     @discardableResult
     func load(path: AbsolutePath) throws -> ValueGraph
-    func loadProject(path: AbsolutePath) throws -> (Project, ValueGraph, [SideEffectDescriptor])
+    func loadProject(path: AbsolutePath) throws -> (Project, ValueGraph, [SideEffectDescriptor]) // swiftlint:disable:this large_tuple
     func generate(path: AbsolutePath, projectOnly: Bool) throws -> AbsolutePath
     func generateWithGraph(path: AbsolutePath, projectOnly: Bool) throws -> (AbsolutePath, ValueGraph)
     func generateProjectWorkspace(path: AbsolutePath) throws -> (AbsolutePath, ValueGraph)
@@ -285,7 +285,6 @@ class Generator: Generating {
         )
     }
 
-    // swiftlint:disable:next large_tuple
     private func loadWorkspace(path: AbsolutePath) throws -> (ValueGraph, [SideEffectDescriptor]) {
         // Load config
         let config = try configLoader.loadConfig(path: path)

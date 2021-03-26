@@ -7,7 +7,7 @@ public final class MockQueuer: Queuing {
     public var invokedAddOperation = false
     public var invokedAddOperationCount = 0
     public var invokedAddOperationParameterOperation: Operation?
-    public var invokedAddOperationParametersOperationsList = [Operation]()
+    public var invokedAddOperationParametersOperationsList = [Operation]() // swiftlint:disable:this identifier_name
 
     public func addOperation(_ operation: Operation) {
         invokedAddOperation = true
@@ -25,7 +25,7 @@ public final class MockQueuer: Queuing {
     }
 
     public var invokedWaitUntilAllOperationsAreFinished = false
-    public var invokedWaitUntilAllOperationsAreFinishedCount = 0
+    public var invokedWaitUntilAllOperationsAreFinishedCount = 0 // swiftlint:disable:this identifier_name
 
     public func waitUntilAllOperationsAreFinished() {
         invokedWaitUntilAllOperationsAreFinished = true

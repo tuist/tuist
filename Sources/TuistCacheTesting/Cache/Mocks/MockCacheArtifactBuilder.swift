@@ -21,6 +21,7 @@ public final class MockCacheArtifactBuilder: CacheArtifactBuilding {
 
     public var invokedBuildWorkspacePath = false
     public var invokedBuildWorkspacePathCount = 0
+    // swiftlint:disable:next large_tuple
     public var invokedBuildWorkspacePathParameters: (workspacePath: AbsolutePath, target: Target, outputDirectory: AbsolutePath)?
     public var invokedBuildWorkspacePathParametersList = [(workspacePath: AbsolutePath, target: Target, outputDirectory: AbsolutePath)]()
     public var stubbedBuildWorkspacePathError: Error?
@@ -37,6 +38,7 @@ public final class MockCacheArtifactBuilder: CacheArtifactBuilding {
 
     public var invokedBuildProjectPath = false
     public var invokedBuildProjectPathCount = 0
+    // swiftlint:disable:next large_tuple
     public var invokedBuildProjectPathParameters: (projectPath: AbsolutePath, target: Target, outputDirectory: AbsolutePath)?
     public var invokedBuildProjectPathParametersList = [(projectPath: AbsolutePath, target: Target, outputDirectory: AbsolutePath)]()
     public var stubbedBuildProjectPathError: Error?
