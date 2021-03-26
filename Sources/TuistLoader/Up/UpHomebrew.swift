@@ -58,7 +58,8 @@ class UpHomebrew: Up, GraphInitiatable {
         try nonInstalledPackages.forEach { package in
             logger.notice("Installing Homebrew package: \(package)")
             try System.shared.runAndPrint(
-                "/usr/local/bin/brew",
+                "/usr/bin/env",
+                "brew",
                 "install",
                 package,
                 verbose: true,
@@ -68,6 +69,6 @@ class UpHomebrew: Up, GraphInitiatable {
     }
 
     private func packageInstalled(_ name: String) -> Bool {
-        (try? System.shared.run("/usr/local/bin/brew", "list", name)) != nil
+        (try? System.shared.run("/usr/bin/env", "brew", "list", name)) != nil
     }
 }
