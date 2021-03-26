@@ -29,6 +29,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Updated Queuer to 2.1.1 [#2679](https://github.com/tuist/tuist/pull/2679) by [@pepibumur](https://github.com/pepibumur)
 - Updated CombineExt to 1.3.0 [#2679](https://github.com/tuist/tuist/pull/2679) by [@pepibumur](https://github.com/pepibumur)
 
+### Fixed
+
+- Fix false positive duplicate bundle id lint warning [#2707](https://github.com/tuist/tuist/pull/2707) by [@kwridan](https://github.com/kwridan)
+
 ## 1.38.0 - Cold Waves
 
 ### Added
