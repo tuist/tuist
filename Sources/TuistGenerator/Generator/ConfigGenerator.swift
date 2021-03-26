@@ -20,6 +20,7 @@ protocol ConfigGenerating: AnyObject {
                               sourceRootPath: AbsolutePath) throws
 }
 
+// swiftlint:disable:next type_body_length
 final class ConfigGenerator: ConfigGenerating {
     // MARK: - Attributes
 
