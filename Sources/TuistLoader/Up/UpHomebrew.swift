@@ -47,7 +47,8 @@ class UpHomebrew: Up, GraphInitiatable {
         if !toolInstalled("brew") {
             logger.notice("Installing Homebrew")
             try System.shared.runAndPrint(
-                "/usr/bin/ruby",
+                "/usr/bin/env",
+                "ruby",
                 "-e",
                 "\"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)\"",
                 verbose: true,

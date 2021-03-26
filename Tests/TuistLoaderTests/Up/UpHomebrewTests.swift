@@ -58,7 +58,8 @@ final class UpHomebrewTests: TuistUnitTestCase {
         system.whichStub = { _ in nil }
         system.errorCommand("/usr/bin/env", "brew", "list", "swiftlint")
         system.succeedCommand(
-            "/usr/bin/ruby",
+            "/usr/bin/env",
+            "ruby",
             "-e",
             "\"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)\""
         )
