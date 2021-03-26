@@ -10,10 +10,9 @@ module Fourier
       class Swiftdoc < Base
         VERSION = "1.0.0-beta.5"
         SOURCE_TAR_URL = "https://github.com/SwiftDocOrg/swift-doc/archive/refs/tags/#{VERSION}.zip"
+        OUTPUT_DIRECTORY = File.join(Constants::TUIST_VENDOR_DIRECTORY, "swift-doc")
 
         def call
-          output_directory = File.join(Constants::TUIST_VENDOR_DIRECTORY, "swift-doc")
-
           Dir.mktmpdir do |temporary_dir|
             Dir.mktmpdir do |temporary_output_directory|
               sources_zip_path = download(temporary_dir: temporary_dir)
@@ -31,9 +30,7 @@ File.join(temporary_output_directory, "LICENSE.md"))
               FileUtils.copy_entry(syntax_parser_dylib,
                 File.join(temporary_output_directory, File.basename(syntax_parser_dylib)))
 
-              FileUtils.rm_rf(output_directory) if Dir.exist?(output_directory)
-              FileUtils.mkdir_p(output_directory)
-              FileUtils.copy_entry(temporary_output_directory, output_directory)
+              FileUtils.copy_entry(temporary_output_directory, OUTPUT_DIRECTORY, false, false, true)
               puts(::CLI::UI.fmt("{{success:swiftdoc built and vendored successfully.}}"))
             end
           end
