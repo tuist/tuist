@@ -32,6 +32,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Fixed
 
 - Fix false positive duplicate bundle id lint warning [#2707](https://github.com/tuist/tuist/pull/2707) by [@kwridan](https://github.com/kwridan)
+- Installation of Tuist when `/usr/local/bin` doesn't exist [#2710](https://github.com/tuist/tuist/pull/2710) by [@pepibumur](https://github.com/pepibumur)
 
 ## 1.38.0 - Cold Waves
 
