@@ -1,4 +1,4 @@
-name: Next Website
+name: Docs
 
 on:
   push:
@@ -6,7 +6,9 @@ on:
       - main
   pull_request:
     paths:
-      - projects/next/**
+      - projects/docs/**
+env:
+  RUBY_VERSION: '2.7.2'
 
 jobs:
   build:
@@ -42,6 +44,6 @@ jobs:
           bundle config path vendor/bundle
           bundle install --jobs 4 --retry 3
       - name: Install NPM dependencies
-        run: yarn install --prod --pure-lockfile --cwd projects/next
+        run: yarn install --prod --pure-lockfile --cwd projects/docs
       - name: Build
-        run: ./fourier build next
+        run: ./fourier build docs
