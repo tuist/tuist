@@ -9,9 +9,13 @@ public protocol SwiftPackageManaging {
     /// - Parameter path: Directory where the `Package.swift` is defined.
     func resolve(at path: AbsolutePath) throws
     
+    /// Loads a `Package.swift` manifest file info.
+    /// - Parameter path: Directory where the `Package.swift` is defined.
+    func loadPackageInfo(at path: AbsolutePath) throws -> PackageInfo
+    
     /// Loads the resolved dependency graph.
     /// - Parameter path: Directory where the `Package.swift` is defined.
-    func loadDepedencies(at path: AbsolutePath) throws -> PackageDependency
+    func loadDependencies(at path: AbsolutePath) throws -> PackageDependency
 }
 
 public final class SwiftPackageManager: SwiftPackageManaging {
@@ -29,7 +33,24 @@ public final class SwiftPackageManager: SwiftPackageManaging {
         try System.shared.run(command)
     }
     
-    public func loadDepedencies(at path: AbsolutePath) throws -> PackageDependency {
+    public func loadPackageInfo(at path: AbsolutePath) throws -> PackageInfo {
+        let command = [
+            "swift",
+            "package",
+            "--package-path",
+            path.pathString,
+            "dump-package",
+        ]
+        
+        let json = try System.shared.capture(command)
+        
+        let data = Data(json.utf8)
+        let decoder = JSONDecoder()
+        
+        return try decoder.decode(PackageInfo.self, from: data)
+    }
+    
+    public func loadDependencies(at path: AbsolutePath) throws -> PackageDependency {
         let command = [
             "swift",
             "package",

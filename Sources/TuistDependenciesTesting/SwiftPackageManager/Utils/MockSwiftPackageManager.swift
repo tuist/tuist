@@ -20,17 +20,31 @@ public final class MockSwiftPackageManager: SwiftPackageManaging {
         try resolveStub?(path)
     }
     
-    var invokedLoadDepedencies = false
-    var invokedLoadDepedenciesCount = 0
-    var invokedLoadDepedenciesParameters: AbsolutePath?
-    var invokedLoadDepedenciesParametersList = [AbsolutePath]()
-    var loadDepedenciesStub: ((AbsolutePath) throws  -> PackageDependency)?
+    var invokedLoadDependencies = false
+    var invokedLoadDependenciesCount = 0
+    var invokedLoadDependenciesParameters: AbsolutePath?
+    var invokedLoadDependenciesParametersList = [AbsolutePath]()
+    var loadDependenciesStub: ((AbsolutePath) throws  -> PackageDependency)?
     
-    public func loadDepedencies(at path: AbsolutePath) throws -> PackageDependency {
-        invokedLoadDepedencies = true
-        invokedLoadDepedenciesCount += 1
-        invokedLoadDepedenciesParameters = path
-        invokedLoadDepedenciesParametersList.append(path)
-        return (try loadDepedenciesStub?(path)) ?? .test()
+    public func loadDependencies(at path: AbsolutePath) throws -> PackageDependency {
+        invokedLoadDependencies = true
+        invokedLoadDependenciesCount += 1
+        invokedLoadDependenciesParameters = path
+        invokedLoadDependenciesParametersList.append(path)
+        return (try loadDependenciesStub?(path)) ?? .test()
+    }
+    
+    var invokedLoadPackageInfo = false
+    var invokedLoadPackageInfoCount = 0
+    var invokedLoadPackageInfoParameters: AbsolutePath?
+    var invokedLoadPackageInfoParametersList = [AbsolutePath]()
+    var loadPackageInfoStub: ((AbsolutePath) throws  -> PackageInfo)?
+    
+    public func loadPackageInfo(at path: AbsolutePath) throws -> PackageInfo {
+        invokedLoadPackageInfo = true
+        invokedLoadPackageInfoCount += 1
+        invokedLoadPackageInfoParameters = path
+        invokedLoadPackageInfoParametersList.append(path)
+        return (try loadPackageInfoStub?(path)) ?? .test()
     }
 }
