@@ -7,14 +7,63 @@
 
 /* You can override the default Infima variables here. */
 :root {
-  --ifm-color-primary: #25c2a0;
-  --ifm-color-primary-dark: rgb(33, 175, 144);
-  --ifm-color-primary-darker: rgb(31, 165, 136);
-  --ifm-color-primary-darkest: rgb(26, 136, 112);
-  --ifm-color-primary-light: rgb(70, 203, 174);
-  --ifm-color-primary-lighter: rgb(102, 212, 189);
-  --ifm-color-primary-lightest: rgb(146, 224, 208);
+  --ifm-color-primary: #6236ff;
+  --ifm-menu-color-active: #6236ff;
+  --ifm-color-primary-dark: #3000da;
+  --ifm-color-primary-darker: #2700b1;
+  --ifm-color-primary-darkest: #1f0383;
+  --ifm-color-primary-light: #7e59ff;
+  --ifm-color-primary-lighter: #9d82ff;
+  --ifm-color-primary-lightest: #f5f2ff;
   --ifm-code-font-size: 95%;
+}
+
+html[data-theme='dark'] {
+  --ifm-color-primary: #b19bff;
+  --ifm-menu-color-active: #b19bff;
+  --ifm-color-primary-dark: #3000da;
+  --ifm-color-primary-darker: #2700b1;
+  --ifm-color-primary-darkest: #1f0383;
+  --ifm-color-primary-light: #7e59ff;
+  --ifm-color-primary-lighter: #9d82ff;
+  --ifm-color-primary-lightest: #f5f2ff;
+  --ifm-code-font-size: 95%;
+}
+
+.navbar {
+  background-color: var(--ifm-color-primary-lightest);
+  box-shadow: none;
+}
+
+.footer {
+  background-color: var(--ifm-color-primary-lightest);
+  color: var(--ifm-color-primary);
+}
+
+.footer__title {
+  color: var(--ifm-color-primary);
+  margin-bottom: 0.5rem;
+}
+
+.footer__link-item {
+  color: var(--ifm-color-primary);
+}
+
+html[data-theme='dark'] .footer {
+  background-color: var(--ifm-color-primary-darkest);
+}
+
+html[data-theme='dark'] .footer__title {
+  color: var(--ifm-color-primary);
+  margin-bottom: 0.5rem;
+}
+
+html[data-theme='dark'] .footer__link-item {
+  color: var(--ifm-color-primary);
+}
+
+html[data-theme='dark'] .navbar {
+  background-color: var(--ifm-color-primary-darkest);
 }
 
 .docusaurus-highlight-code-line {
@@ -22,4 +71,9 @@
   display: block;
   margin: 0 calc(-1 * var(--ifm-pre-padding));
   padding: 0 var(--ifm-pre-padding);
+}
+
+/* Page titles, h1 */
+[class^='docTitle'] {
+  font-size: 2rem !important;
 }

@@ -1,31 +1,40 @@
 /** @type {import('@docusaurus/types').DocusaurusConfig} */
 module.exports = {
-  title: 'My Site',
-  tagline: 'The tagline of my site',
-  url: 'https://your-docusaurus-test-site.com',
+  title: 'Tuist Documentation',
+  tagline: 'Documentation about how to use and contribute to the tool.',
+  url: 'https://docs.tuist.io',
   baseUrl: '/',
   onBrokenLinks: 'throw',
   onBrokenMarkdownLinks: 'warn',
   favicon: 'img/favicon.ico',
-  organizationName: 'facebook', // Usually your GitHub org/user name.
-  projectName: 'docusaurus', // Usually your repo name.
+  organizationName: 'tuist',
+  projectName: 'tuist',
+  customFields: {
+    defaultDocsLandingPage: 'getting-started',
+  },
   themeConfig: {
+    algolia: {
+      apiKey: process.env.ALGOLIA_API_KEY || 'dev',
+      indexName: process.env.ALGOLIA_INDEX_NAME || 'dev',
+      contextualSearch: true,
+      searchParameters: {},
+    },
     navbar: {
-      title: 'My Site',
+      title: 'Tuist',
       logo: {
-        alt: 'My Site Logo',
+        alt: 'Tuist Logo',
         src: 'img/logo.svg',
       },
       items: [
         {
-          to: 'docs/',
+          to: '/docs/getting-started',
           activeBasePath: 'docs',
           label: 'Docs',
           position: 'left',
         },
-        {to: 'blog', label: 'Blog', position: 'left'},
+        { to: 'blog', label: 'Blog', position: 'left' },
         {
-          href: 'https://github.com/facebook/docusaurus',
+          href: 'https://github.com/tuist/tuist',
           label: 'GitHub',
           position: 'right',
         },
@@ -47,16 +56,17 @@ module.exports = {
           title: 'Community',
           items: [
             {
-              label: 'Stack Overflow',
+              label: 'GitHub Discussions',
               href: 'https://stackoverflow.com/questions/tagged/docusaurus',
             },
             {
-              label: 'Discord',
-              href: 'https://discordapp.com/invite/docusaurus',
+              label: 'Slack',
+              href:
+                'https://join.slack.com/t/tuistapp/shared_invite/zt-g38gajhj-D6LLakrPnVCy4sLm24KxaQ',
             },
             {
               label: 'Twitter',
-              href: 'https://twitter.com/docusaurus',
+              href: 'https://twitter.com/tuistio',
             },
           ],
         },
@@ -64,34 +74,37 @@ module.exports = {
           title: 'More',
           items: [
             {
-              label: 'Blog',
-              to: 'blog',
-            },
-            {
-              label: 'GitHub',
-              href: 'https://github.com/facebook/docusaurus',
+              label: 'tuist.io',
+              to: 'https://tuist.io',
             },
           ],
         },
       ],
-      copyright: `Copyright © ${new Date().getFullYear()} My Project, Inc. Built with Docusaurus.`,
+      copyright: `Copyright © ${new Date().getFullYear()} Tuist, Inc. Built with Docusaurus.`,
     },
   },
+  plugins: [
+    [
+      '@docusaurus/plugin-sitemap',
+      {
+        changefreq: 'weekly',
+        priority: 0.5,
+        trailingSlash: false,
+      },
+    ],
+  ],
   presets: [
     [
       '@docusaurus/preset-classic',
       {
         docs: {
           sidebarPath: require.resolve('./sidebars.js'),
-          // Please change this to your repo.
-          editUrl:
-            'https://github.com/facebook/docusaurus/edit/master/website/',
+          editUrl: 'https://github.com/tuist/tuist/blob/main/projects/docs/',
         },
         blog: {
           showReadingTime: true,
-          // Please change this to your repo.
           editUrl:
-            'https://github.com/facebook/docusaurus/edit/master/website/blog/',
+            'https://github.com/tuist/tuist/blob/main/projects/docs/blog',
         },
         theme: {
           customCss: require.resolve('./src/css/custom.css'),
@@ -99,4 +112,4 @@ module.exports = {
       },
     ],
   ],
-};
+}

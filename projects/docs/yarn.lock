@@ -1340,7 +1340,7 @@
   dependencies:
     "@docusaurus/core" "2.0.0-alpha.72"
 
-"@docusaurus/plugin-sitemap@2.0.0-alpha.72":
+"@docusaurus/plugin-sitemap@2.0.0-alpha.72", "@docusaurus/plugin-sitemap@^2.0.0-alpha.72":
   version "2.0.0-alpha.72"
   resolved "https://registry.yarnpkg.com/@docusaurus/plugin-sitemap/-/plugin-sitemap-2.0.0-alpha.72.tgz#6ad55c894c19315c91847d17f0c9dcfb145132f8"
   integrity sha512-ZaMeJFDdey+PDMxg7qI2u9Wm7ylZb30FBR14wPSH5da+yMnNtl8wAlWEW8RkEgKYo04mE7DMvdEZ1YdsPF7cQg==
@@ -1419,7 +1419,7 @@
     "@docusaurus/plugin-content-pages" "2.0.0-alpha.72"
     "@docusaurus/types" "2.0.0-alpha.72"
 
-"@docusaurus/theme-search-algolia@2.0.0-alpha.72":
+"@docusaurus/theme-search-algolia@2.0.0-alpha.72", "@docusaurus/theme-search-algolia@^2.0.0-alpha.72":
   version "2.0.0-alpha.72"
   resolved "https://registry.yarnpkg.com/@docusaurus/theme-search-algolia/-/theme-search-algolia-2.0.0-alpha.72.tgz#3b9e074f6dd38b4fe0b51ac42eec64a4735b37ec"
   integrity sha512-K+7WvYx0vkclaCN6nvcX4rFD/M+0b0YpjAbg+aFLzeAo77vIJESgByOc6RuK3XNALX4H2U8k7j0+wWIPsJtM1Q==
