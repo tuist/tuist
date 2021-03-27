@@ -8,15 +8,25 @@ public final class MockSwiftPackageManagerInteractor: SwiftPackageManagerInterac
 
     var invokedFetch = false
     var invokedFetchCount = 0
-    var invokedFetchParameters: (dependenciesDirectory: AbsolutePath, dependencies: SwiftPackageManagerDependencies)?
-    var invokedFetchParametersList = [(dependenciesDirectory: AbsolutePath, dependencies: SwiftPackageManagerDependencies)]()
+    var invokedFetchParameters: FetchParameters?
+    var invokedFetchParametersList = [FetchParameters]()
     var stubbedFetchError: Error?
 
-    public func fetch(dependenciesDirectory: AbsolutePath, dependencies: SwiftPackageManagerDependencies) throws {
+    public func fetch(
+        dependenciesDirectory: AbsolutePath,
+        dependencies: SwiftPackageManagerDependencies,
+        platforms: Set<Platform>
+    ) throws {
+        let parameters = FetchParameters(
+            dependenciesDirectory: dependenciesDirectory,
+            dependencies: dependencies,
+            platforms: platforms
+        )
+        
         invokedFetch = true
         invokedFetchCount += 1
-        invokedFetchParameters = (dependenciesDirectory, dependencies)
-        invokedFetchParametersList.append((dependenciesDirectory, dependencies))
+        invokedFetchParameters = parameters
+        invokedFetchParametersList.append(parameters)
         if let error = stubbedFetchError {
             throw error
         }
@@ -36,5 +46,15 @@ public final class MockSwiftPackageManagerInteractor: SwiftPackageManagerInterac
         if let error = stubbedCleanError {
             throw error
         }
+    }
+}
+
+// MARK: - Models
+
+extension MockSwiftPackageManagerInteractor {
+    struct FetchParameters {
+        let dependenciesDirectory: AbsolutePath
+        let dependencies: SwiftPackageManagerDependencies
+        let platforms: Set<Platform>
     }
 }

@@ -44,6 +44,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         let depedencies = SwiftPackageManagerDependencies([
             .remote(url: "https://github.com/Alamofire/Alamofire.git", requirement: .upToNextMajor("5.2.0")),
         ])
+        let platforms = Set<Platform>([.iOS])
         
         swiftPackageManager.resolveStub = { [fileHandler] path in
             try [
@@ -60,7 +61,11 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         }
 
         // When
-        try subject.fetch(dependenciesDirectory: dependenciesDirectory, dependencies: depedencies)
+        try subject.fetch(
+            dependenciesDirectory: dependenciesDirectory,
+            dependencies: depedencies,
+            platforms: platforms
+        )
 
         // Then
         XCTAssertTrue(swiftPackageManager.invokedResolve)
@@ -102,6 +107,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         let depedencies = SwiftPackageManagerDependencies([
             .remote(url: "https://github.com/Alamofire/Alamofire.git", requirement: .upToNextMajor("5.2.0")),
         ])
+        let platforms = Set<Platform>([.iOS])
         
         try fileHandler.touch(lockfilesDirectory.appending(component: "OtherLockfile.lock"))
         try fileHandler.touch(dependenciesDirectory.appending(components: "OtherDepedenciesManager", "Info.plist"))
@@ -121,7 +127,11 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         }
 
         // When
-        try subject.fetch(dependenciesDirectory: dependenciesDirectory, dependencies: depedencies)
+        try subject.fetch(
+            dependenciesDirectory: dependenciesDirectory,
+            dependencies: depedencies,
+            platforms: platforms
+        )
 
         // Then
         XCTAssertTrue(swiftPackageManager.invokedResolve)

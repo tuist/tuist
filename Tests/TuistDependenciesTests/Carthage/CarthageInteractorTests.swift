@@ -46,13 +46,17 @@ final class CarthageInteractorTests: TuistUnitTestCase {
             [
                 .github(path: "Moya", requirement: .exact("1.1.1")),
             ],
-            platforms: [.iOS],
             options: []
         )
+        let platforms = Set<Platform>([.iOS])
 
         // When / Then
         XCTAssertThrowsSpecific(
-            try subject.fetch(dependenciesDirectory: dependenciesDirectory, dependencies: dependencies),
+            try subject.fetch(
+                dependenciesDirectory: dependenciesDirectory,
+                dependencies: dependencies,
+                platforms: platforms
+            ),
             CarthageInteractorError.carthageNotFound
         )
     }
@@ -69,12 +73,16 @@ final class CarthageInteractorTests: TuistUnitTestCase {
             [
                 .github(path: "Moya", requirement: .exact("1.1.1")),
             ],
-            platforms: [.iOS],
             options: [.useXCFrameworks]
         )
+        let platforms = Set<Platform>([.iOS])
 
         XCTAssertThrowsSpecific(
-            try subject.fetch(dependenciesDirectory: dependenciesDirectory, dependencies: dependencies),
+            try subject.fetch(
+                dependenciesDirectory: dependenciesDirectory,
+                dependencies: dependencies,
+                platforms: platforms
+            ),
             CarthageInteractorError.xcFrameworksProductionNotSupported
         )
     }
@@ -109,7 +117,6 @@ final class CarthageInteractorTests: TuistUnitTestCase {
             [
                 .github(path: "Moya", requirement: .exact("1.1.1")),
             ],
-            platforms: platforms,
             options: options
         )
         let stubbedCommand = ["carthage", "bootstrap", "--project-directory", try temporaryPath().pathString, "--platform iOS,macOS,tvOS,watchOS", "--cache-builds", "--new-resolver"]
@@ -120,7 +127,11 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         system.succeedCommand(stubbedCommand)
 
         // When
-        try subject.fetch(dependenciesDirectory: dependenciesDirectory, dependencies: stubbedDependencies)
+        try subject.fetch(
+            dependenciesDirectory: dependenciesDirectory,
+            dependencies: stubbedDependencies,
+            platforms: platforms
+        )
 
         // Then
         let expectedCartfileResolvedPath = dependenciesDirectory
@@ -170,7 +181,6 @@ final class CarthageInteractorTests: TuistUnitTestCase {
             [
                 .github(path: "Moya", requirement: .exact("1.1.1")),
             ],
-            platforms: platforms,
             options: options
         )
         let stubbedCommand = ["carthage", "bootstrap", "--project-directory", try temporaryPath().pathString, "--platform iOS", "--cache-builds", "--new-resolver"]
@@ -181,7 +191,11 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         system.succeedCommand(stubbedCommand)
 
         // When
-        try subject.fetch(dependenciesDirectory: dependenciesDirectory, dependencies: stubbedDependencies)
+        try subject.fetch(
+            dependenciesDirectory: dependenciesDirectory,
+            dependencies: stubbedDependencies,
+            platforms: platforms
+        )
 
         // Then
         let expectedCartfileResolvedPath = dependenciesDirectory

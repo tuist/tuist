@@ -4,39 +4,31 @@ import Foundation
 public struct CarthageDependencies: Codable, Equatable {
     /// List of depedencies that will be installed using Carthage.
     public let dependencies: [Dependency]
-    /// List of platforms for which you want to install depedencies. Refers to `--platform` Carthage flag.
-    public let platforms: Set<Platform>
     /// List of options for Carthage installation.
     public let options: Set<Options>
 
     /// Initializes a new `CarthageDependencies` instance.
     /// - Parameters:
     ///   - dependencies: List of depedencies that can be installed using Carthage.
-    ///   - platforms: List of platforms for which you want to install depedencies. Refers to `--platform` Carthage flag.
     ///   - options: List of options for Carthage installation.
     init(
         dependencies: [Dependency],
-        platforms: Set<Platform> = Set(Platform.allCases),
         options: Set<Options> = []
     ) {
         self.dependencies = dependencies
-        self.platforms = platforms
         self.options = options
     }
 
     /// Creates `CarthageDependencies` instance.
     /// - Parameters:
     ///   - dependencies: List of depedencies that can be installed using Carthage.
-    ///   - platforms: List of platforms for which you want to install depedencies. Refers to `--platform` Carthage flag.
     ///   - options: List of options for Carthage installation.
     public static func carthage(
         _ dependencies: [Dependency],
-        platforms: Set<Platform> = Set(Platform.allCases),
         options: Set<Options> = []
     ) -> Self {
         .init(
             dependencies: dependencies,
-            platforms: platforms,
             options: options
         )
     }

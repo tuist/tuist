@@ -42,7 +42,6 @@ final class DependenciesModelLoaderTests: TuistUnitTestCase {
                         .github(path: "Dependency1", requirement: .exact("1.1.1")),
                         .git(path: "Dependency1", requirement: .exact("2.3.4")),
                     ],
-                    platforms: [.iOS, .macOS],
                     options: [.useXCFrameworks, .noUseBinaries]
                 ),
                 swiftPackageManager: .swiftPackageManager(
@@ -50,7 +49,8 @@ final class DependenciesModelLoaderTests: TuistUnitTestCase {
                         .local(path: Path(localSwiftPackagePath.pathString)),
                         .remote(url: "RemoteUrl.com", requirement: .exact("1.2.3")),
                     ]
-                )
+                ),
+                platforms: [.iOS, .macOS]
             )
         }
 
@@ -64,7 +64,6 @@ final class DependenciesModelLoaderTests: TuistUnitTestCase {
                     .github(path: "Dependency1", requirement: .exact("1.1.1")),
                     .git(path: "Dependency1", requirement: .exact("2.3.4")),
                 ],
-                platforms: [.iOS, .macOS],
                 options: [.useXCFrameworks, .noUseBinaries]
             ),
             swiftPackageManager: .init(
@@ -72,7 +71,8 @@ final class DependenciesModelLoaderTests: TuistUnitTestCase {
                     .local(path: localSwiftPackagePath),
                     .remote(url: "RemoteUrl.com", requirement: .exact("1.2.3")),
                 ]
-            )
+            ),
+            platforms: [.iOS, .macOS]
         )
         XCTAssertEqual(got, expected)
     }

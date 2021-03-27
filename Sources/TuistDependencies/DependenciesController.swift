@@ -38,15 +38,30 @@ public final class DependenciesController: DependenciesControlling {
         let dependenciesDirectory = path
             .appending(component: Constants.tuistDirectoryName)
             .appending(component: Constants.DependenciesDirectory.name)
+        
+        let platforms = dependencies.platforms
+        
+        guard !platforms.isEmpty else {
+            #warning("Add error log. Missing platforms in Dependencies.swift!")
+            return
+        }
 
         if let carthageDepedencies = dependencies.carthage, !carthageDepedencies.dependencies.isEmpty {
-            try carthageInteractor.fetch(dependenciesDirectory: dependenciesDirectory, dependencies: carthageDepedencies)
+            try carthageInteractor.fetch(
+                dependenciesDirectory: dependenciesDirectory,
+                dependencies: carthageDepedencies,
+                platforms: platforms
+            )
         } else {
             try carthageInteractor.clean(dependenciesDirectory: dependenciesDirectory)
         }
 
         if let swiftPackageManagerDependencies = dependencies.swiftPackageManager, !swiftPackageManagerDependencies.packages.isEmpty {
-            try swiftPackageManagerInteractor.fetch(dependenciesDirectory: dependenciesDirectory, dependencies: swiftPackageManagerDependencies)
+            try swiftPackageManagerInteractor.fetch(
+                dependenciesDirectory: dependenciesDirectory,
+                dependencies: swiftPackageManagerDependencies,
+                platforms: platforms
+            )
         } else {
             try swiftPackageManagerInteractor.clean(dependenciesDirectory: dependenciesDirectory)
         }
