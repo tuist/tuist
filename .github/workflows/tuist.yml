@@ -11,8 +11,8 @@ on:
       - Package.resolved
       - Sources/**
       - Tests/**
-      - features/**
-      - fixtures/**
+      - projects/tuist/features/**
+      - projects/tuist/fixtures/**
 
 env:
   RUBY_VERSION: '2.7.2'
