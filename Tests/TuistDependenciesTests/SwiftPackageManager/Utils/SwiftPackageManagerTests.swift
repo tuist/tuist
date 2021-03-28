@@ -37,6 +37,24 @@ final class SwiftPackageManagerTests: TuistUnitTestCase {
         XCTAssertNoThrow(try subject.resolve(at: path))
     }
     
+    func test_generateXcodeProject() throws {
+        // Given
+        let path = try temporaryPath()
+        let outputPath = path.appending(component: "Output")
+        system.succeedCommand([
+            "swift",
+            "package",
+            "--package-path",
+            path.pathString,
+            "generate-xcodeproj",
+            "--output",
+            outputPath.pathString
+        ])
+        
+        // When / Then
+        XCTAssertNoThrow(try subject.generateXcodeProject(at: path, outputPath: outputPath))
+    }
+    
     func test_loadPackageInfo() throws {
         // Given
         let path = try temporaryPath()

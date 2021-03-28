@@ -20,6 +20,20 @@ public final class MockSwiftPackageManager: SwiftPackageManaging {
         try resolveStub?(path)
     }
     
+    var invokedGenerateXcodeProject = false
+    var invokedGenerateXcodeProjectCount = 0
+    var invokedGenerateXcodeProjectParameters: (AbsolutePath, AbsolutePath)?
+    var invokedGenerateXcodeProjectParametersList = [(AbsolutePath, AbsolutePath)]()
+    var generateXcodeProjectStub: ((AbsolutePath, AbsolutePath) throws  -> Void)?
+    
+    public func generateXcodeProject(at path: AbsolutePath, outputPath: AbsolutePath) throws {
+        invokedGenerateXcodeProject = true
+        invokedGenerateXcodeProjectCount += 1
+        invokedGenerateXcodeProjectParameters = (path, outputPath)
+        invokedGenerateXcodeProjectParametersList.append((path, outputPath))
+        try generateXcodeProjectStub?(path, outputPath)
+    }
+    
     var invokedLoadDependencies = false
     var invokedLoadDependenciesCount = 0
     var invokedLoadDependenciesParameters: AbsolutePath?
