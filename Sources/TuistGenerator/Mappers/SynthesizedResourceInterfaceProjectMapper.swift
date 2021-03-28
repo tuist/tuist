@@ -8,20 +8,27 @@ import TuistSupport
 public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { // swiftlint:disable:this type_name
     private let synthesizedResourceInterfacesGenerator: SynthesizedResourceInterfacesGenerating
     private let contentHasher: ContentHashing
+    private let plugins: Plugins
 
-    public convenience init(contentHasher: ContentHashing) {
+    public convenience init(
+        contentHasher: ContentHashing,
+        plugins: Plugins
+    ) {
         self.init(
             synthesizedResourceInterfacesGenerator: SynthesizedResourceInterfacesGenerator(),
-            contentHasher: contentHasher
+            contentHasher: contentHasher,
+            plugins: plugins
         )
     }
 
     init(
         synthesizedResourceInterfacesGenerator: SynthesizedResourceInterfacesGenerating,
-        contentHasher: ContentHashing
+        contentHasher: ContentHashing,
+        plugins: Plugins
     ) {
         self.synthesizedResourceInterfacesGenerator = synthesizedResourceInterfacesGenerator
         self.contentHasher = contentHasher
+        self.plugins = plugins
     }
 
     public func map(project: Project) throws -> (Project, [SideEffectDescriptor]) {
@@ -48,38 +55,19 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
         var target = target
 
         var sideEffects: [SideEffectDescriptor] = []
-
-        let assetsSideEffects: [SideEffectDescriptor]
-        (target, assetsSideEffects) = try renderAndMapTarget(
-            .assets,
-            target: target,
-            project: project
-        )
-        sideEffects += assetsSideEffects
-
-        let stringsSideEffects: [SideEffectDescriptor]
-        (target, stringsSideEffects) = try renderAndMapTarget(
-            .strings,
-            target: target,
-            project: project
-        )
-        sideEffects += stringsSideEffects
-
-        let plistsSideEffects: [SideEffectDescriptor]
-        (target, plistsSideEffects) = try renderAndMapTarget(
-            .plists,
-            target: target,
-            project: project
-        )
-        sideEffects += plistsSideEffects
-
-        let fontsSideEffects: [SideEffectDescriptor]
-        (target, fontsSideEffects) = try renderAndMapTarget(
-            .fonts,
-            target: target,
-            project: project
-        )
-        sideEffects += fontsSideEffects
+        
+        try project.resourceSynthesizers
+            .map(\.resourceType)
+            .map(SynthesizedResourceInterfaceType.init)
+            .forEach { interfaceType in
+                let interfaceTypeEffects: [SideEffectDescriptor]
+                (target, interfaceTypeEffects) = try renderAndMapTarget(
+                    interfaceType,
+                    target: target,
+                    project: project
+                )
+                sideEffects += interfaceTypeEffects
+            }
 
         return (target, sideEffects)
     }

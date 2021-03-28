@@ -3,12 +3,28 @@ import StencilSwiftKit
 import SwiftGenKit
 import TSCBasic
 import TuistSupport
+import TuistGraph
 
 enum SynthesizedResourceInterfaceType {
     case assets
     case strings
     case plists
     case fonts
+    
+    init(
+        resourceType: ResourceSynthesizer.ResourceType
+    ) {
+        switch resourceType {
+        case .assets:
+            self = .assets
+        case .strings:
+            self = .strings
+        case .plists:
+            self = .plists
+        case .fonts:
+            self = .fonts
+        }
+    }
 
     var name: String {
         switch self {

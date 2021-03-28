@@ -19,9 +19,15 @@ class CacheControllerProjectMapperProvider: ProjectMapperProviding {
         self.contentHasher = contentHasher
     }
 
-    func mapper(config: Config) -> ProjectMapping {
+    func mapper(
+        config: Config,
+        plugins: Plugins
+    ) -> ProjectMapping {
         let defaultProjectMapperProvider = ProjectMapperProvider(contentHasher: contentHasher)
-        let defaultMapper = defaultProjectMapperProvider.mapper(config: config)
+        let defaultMapper = defaultProjectMapperProvider.mapper(
+            config: config,
+            plugins: plugins
+        )
         return SequentialProjectMapper(mappers: [defaultMapper])
     }
 }

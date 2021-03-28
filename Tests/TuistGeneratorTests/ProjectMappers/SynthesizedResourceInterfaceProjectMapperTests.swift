@@ -22,15 +22,16 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
         contentHasher = ContentHasher()
         subject = SynthesizedResourceInterfaceProjectMapper(
             synthesizedResourceInterfacesGenerator: synthesizedResourceInterfacesGenerator,
-            contentHasher: contentHasher
+            contentHasher: contentHasher,
+            plugins: .test()
         )
     }
 
     override func tearDown() {
-        super.tearDown()
         contentHasher = nil
         synthesizedResourceInterfacesGenerator = nil
         subject = nil
+        super.tearDown()
     }
 
     func test_map() throws {

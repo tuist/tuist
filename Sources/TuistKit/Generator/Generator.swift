@@ -121,7 +121,10 @@ class Generator: Generating {
         let models = try convert(manifests: manifests)
 
         // Apply any registered model mappers
-        let projectMapper = projectMapperProvider.mapper(config: config)
+        let projectMapper = projectMapperProvider.mapper(
+            config: config,
+            plugins: plugins
+        )
         let updatedModels = try models.map(projectMapper.map)
         let updatedProjects = updatedModels.map(\.0)
         let modelMapperSideEffects = updatedModels.flatMap(\.1)
@@ -255,7 +258,10 @@ class Generator: Generating {
         let models = (workspace: workspace, projects: projects)
 
         // Apply any registered model mappers
-        let workspaceMapper = workspaceMapperProvider.mapper(config: config)
+        let workspaceMapper = workspaceMapperProvider.mapper(
+            config: config,
+            plugins: plugins
+        )
         let (updatedModels, modelMapperSideEffects) = try workspaceMapper.map(
             workspace: .init(workspace: models.workspace, projects: models.projects)
         )
@@ -304,7 +310,10 @@ class Generator: Generating {
         let models = try convert(manifests: manifests)
 
         // Apply model mappers
-        let workspaceMapper = workspaceMapperProvider.mapper(config: config)
+        let workspaceMapper = workspaceMapperProvider.mapper(
+            config: config,
+            plugins: plugins
+        )
         let (updatedModels, modelMapperSideEffects) = try workspaceMapper.map(
             workspace: .init(workspace: models.workspace, projects: models.projects)
         )

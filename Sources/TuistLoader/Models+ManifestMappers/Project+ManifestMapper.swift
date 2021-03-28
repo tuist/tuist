@@ -3,6 +3,28 @@ import ProjectDescription
 import TSCBasic
 import TuistGraph
 
+extension TuistGraph.ResourceSynthesizer {
+    static func from(
+        manifest: ProjectDescription.ResourceSynthesizer
+    ) -> Self {
+        .init(
+            pluginName: manifest.pluginName,
+            resourceType: TuistGraph.ResourceSynthesizer.ResourceType.from(manifest: manifest.resourceType)
+        )
+    }
+}
+
+extension TuistGraph.ResourceSynthesizer.ResourceType {
+    static func from(
+        manifest: ProjectDescription.ResourceSynthesizer.ResourceType
+    ) -> Self {
+        switch manifest {
+        case .strings:
+            return .strings
+        }
+    }
+}
+
 extension TuistGraph.Project {
     /// Maps a ProjectDescription.FileElement instance into a [TuistGraph.FileElement] instance.
     /// Glob patterns in file elements are unfolded as part of the mapping.
@@ -20,6 +42,7 @@ extension TuistGraph.Project {
         let additionalFiles = try manifest.additionalFiles.flatMap { try TuistGraph.FileElement.from(manifest: $0, generatorPaths: generatorPaths) }
         let packages = try manifest.packages.map { try TuistGraph.Package.from(manifest: $0, generatorPaths: generatorPaths) }
         let ideTemplateMacros = try manifest.fileHeaderTemplate.map { try IDETemplateMacros.from(manifest: $0, generatorPaths: generatorPaths) }
+        let resourceSynthesizers = manifest.resourceSynthesizers.map(TuistGraph.ResourceSynthesizer.from)
         return Project(
             path: generatorPaths.manifestDirectory,
             sourceRootPath: generatorPaths.manifestDirectory,
@@ -33,7 +56,8 @@ extension TuistGraph.Project {
             packages: packages,
             schemes: schemes,
             ideTemplateMacros: ideTemplateMacros,
-            additionalFiles: additionalFiles
+            additionalFiles: additionalFiles,
+            resourceSynthesizers: resourceSynthesizers
         )
     }
 }

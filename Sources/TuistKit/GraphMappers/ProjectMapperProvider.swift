@@ -10,7 +10,10 @@ import TuistSupport
 protocol ProjectMapperProviding {
     /// Returns a list of mappers to be used for a specific configuration.
     /// - Parameter config: Project's configuration.
-    func mapper(config: Config) -> ProjectMapping
+    func mapper(
+        config: Config,
+        plugins: Plugins
+    ) -> ProjectMapping
 }
 
 final class ProjectMapperProvider: ProjectMapperProviding {
@@ -23,7 +26,10 @@ final class ProjectMapperProvider: ProjectMapperProviding {
         self.contentHasher = contentHasher
     }
 
-    func mapper(config: Config) -> ProjectMapping {
+    func mapper(
+        config: Config,
+        plugins: Plugins
+    ) -> ProjectMapping {
         var mappers: [ProjectMapping] = []
 
         // Auto-generation of schemes
@@ -36,7 +42,12 @@ final class ProjectMapperProvider: ProjectMapperProviding {
 
         // Namespace generator
         if !config.generationOptions.contains(.disableSynthesizedResourceAccessors) {
-            mappers.append(SynthesizedResourceInterfaceProjectMapper(contentHasher: contentHasher))
+            mappers.append(
+                SynthesizedResourceInterfaceProjectMapper(
+                    contentHasher: contentHasher,
+                    plugins: plugins
+                )
+            )
         }
 
         // Logfile noise suppression

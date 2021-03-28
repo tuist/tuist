@@ -5,8 +5,11 @@ import TuistGraph
 @testable import TuistKit
 
 final class MockProjectMapperProvider: ProjectMapperProviding {
-    var mapperStub: ((Config) -> ProjectMapping)?
-    func mapper(config: Config) -> ProjectMapping {
-        mapperStub?(config) ?? SequentialProjectMapper(mappers: [])
+    var mapperStub: ((Config, Plugins) -> ProjectMapping)?
+    func mapper(
+        config: Config,
+        plugins: Plugins
+    ) -> ProjectMapping {
+        mapperStub?(config, plugins) ?? SequentialProjectMapper(mappers: [])
     }
 }

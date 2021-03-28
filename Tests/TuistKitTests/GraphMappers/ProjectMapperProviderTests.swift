@@ -31,7 +31,10 @@ final class ProjectMapperProviderTests: TuistUnitTestCase {
         subject = ProjectMapperProvider(contentHasher: ContentHasher())
 
         // When
-        let got = subject.mapper(config: Config.test(cloud: .test(options: [])))
+        let got = subject.mapper(
+            config: Config.test(cloud: .test(options: [])),
+            plugins: .test()
+        )
 
         // Then
         let sequentialProjectMapper = try XCTUnwrap(got as? SequentialProjectMapper)
@@ -43,7 +46,10 @@ final class ProjectMapperProviderTests: TuistUnitTestCase {
         subject = ProjectMapperProvider(contentHasher: ContentHasher())
 
         // When
-        let got = subject.mapper(config: Config.test())
+        let got = subject.mapper(
+            config: Config.test(),
+            plugins: .test()
+        )
 
         // Then
         let sequentialProjectMapper = try XCTUnwrap(got as? SequentialProjectMapper)
@@ -55,7 +61,10 @@ final class ProjectMapperProviderTests: TuistUnitTestCase {
         subject = ProjectMapperProvider(contentHasher: ContentHasher())
 
         // When
-        let got = subject.mapper(config: Config.test())
+        let got = subject.mapper(
+            config: Config.test(),
+            plugins: .test()
+        )
 
         // Then
         let sequentialProjectMapper = try XCTUnwrap(got as? SequentialProjectMapper)
@@ -72,7 +81,8 @@ final class ProjectMapperProviderTests: TuistUnitTestCase {
                 generationOptions: [
                     .disableSynthesizedResourceAccessors,
                 ]
-            )
+            ),
+            plugins: .test()
         )
 
         // Then
@@ -90,7 +100,8 @@ final class ProjectMapperProviderTests: TuistUnitTestCase {
                 generationOptions: [
                     .disableShowEnvironmentVarsInScriptPhases,
                 ]
-            )
+            ),
+            plugins: .test()
         )
 
         // Then
@@ -108,7 +119,8 @@ final class ProjectMapperProviderTests: TuistUnitTestCase {
                 generationOptions: [
                     .enableCodeCoverage,
                 ]
-            )
+            ),
+            plugins: .test()
         )
 
         // Then
@@ -121,7 +133,10 @@ final class ProjectMapperProviderTests: TuistUnitTestCase {
         subject = ProjectMapperProvider(contentHasher: CacheContentHasher())
 
         // When
-        let got = subject.mapper(config: Config.test())
+        let got = subject.mapper(
+            config: Config.test(),
+            plugins: .test()
+        )
 
         // Then
         let sequentialProjectMapper = try XCTUnwrap(got as? SequentialProjectMapper)
