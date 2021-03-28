@@ -4,7 +4,7 @@ import TSCBasic
 
 public final class MockTemplatesDirectoryLocator: TemplatesDirectoryLocating {
     public init() {}
-    
+
     public var locateUserTemplatesStub: ((AbsolutePath) -> AbsolutePath?)?
     public var locateTuistTemplatesStub: (() -> AbsolutePath?)?
     public var templateDirectoriesStub: ((AbsolutePath) throws -> [AbsolutePath])?
