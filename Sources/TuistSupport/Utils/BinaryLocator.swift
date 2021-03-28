@@ -1,6 +1,5 @@
 import Foundation
 import TSCBasic
-import TuistSupport
 
 enum BinaryLocatorError: FatalError, Equatable {
     case swiftLintNotFound

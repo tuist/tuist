@@ -1,6 +1,5 @@
 import Foundation
 import RxSwift
-import TuistSupport
 
 public extension Observable where Element == SystemEvent<XcodeBuildOutput> {
     func printFormattedOutput() -> Observable<SystemEvent<XcodeBuildOutput>> {

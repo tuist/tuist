@@ -1,9 +1,7 @@
 import Foundation
 import RxSwift
 import TSCBasic
-import TuistCore
-import TuistSupport
-@testable import TuistSupportTesting
+@testable import TuistSupport
 
 final class MockXcodeBuildController: XcodeBuildControlling {
     var buildStub: ((XcodeBuildTarget, String, Bool, [XcodeBuildArgument]) -> Observable<SystemEvent<XcodeBuildOutput>>)?

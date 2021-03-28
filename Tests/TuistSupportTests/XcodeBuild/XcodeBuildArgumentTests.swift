@@ -1,7 +1,8 @@
 import Foundation
 import TSCBasic
 import XCTest
-@testable import TuistCore
+
+@testable import TuistSupport
 @testable import TuistSupportTesting
 
 final class XcodeBuildArgumentTests: TuistUnitTestCase {

@@ -6,7 +6,7 @@ import TuistDocTesting
 import TuistSupport
 import XCTest
 
-@testable import TuistCore
+@testable import TuistSupport
 @testable import TuistSupportTesting
 
 final class SwiftDocControllerTests: TuistUnitTestCase {

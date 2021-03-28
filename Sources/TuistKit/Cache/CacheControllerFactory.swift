@@ -1,6 +1,7 @@
 import TuistAutomation
 import TuistCache
 import TuistCore
+import TuistSupport
 
 /// A factory that returns cache controllers for different type of pre-built artifacts.
 final class CacheControllerFactory {

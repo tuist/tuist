@@ -1,10 +1,9 @@
 import Foundation
 import RxBlocking
 import TSCBasic
-import TuistCore
-import TuistSupport
 import XCTest
 
+@testable import TuistSupport
 @testable import TuistSupportTesting
 
 final class XcodeBuildTargetTests: TuistUnitTestCase {

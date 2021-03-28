@@ -1,6 +1,4 @@
 import Foundation
-import TuistCore
-import TuistSupport
 
 protocol Formatting {
     func buildArguments() throws -> [String]

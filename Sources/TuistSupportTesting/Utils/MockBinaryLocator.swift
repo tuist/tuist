@@ -1,6 +1,6 @@
 import Foundation
 import TSCBasic
-@testable import TuistCore
+@testable import TuistSupport
 
 public final class MockBinaryLocator: BinaryLocating {
     var invokedSwiftLintPath = false
