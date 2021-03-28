@@ -9,6 +9,8 @@ import TuistScaffold
 import TuistScaffoldTesting
 import TuistSupport
 import TuistSupportTesting
+import TuistScaffold
+import TuistScaffoldTesting
 import XCTest
 
 @testable import TuistPlugin
