@@ -210,8 +210,8 @@ GEM
       rubocop (>= 0.90, < 2.0)
     rubocop-rake (0.5.1)
       rubocop
-    rubocop-shopify (1.0.7)
-      rubocop (~> 1.4)
+    rubocop-shopify (2.0.1)
+      rubocop (~> 1.11)
     ruby-macho (1.4.0)
     ruby-progressbar (1.11.0)
     ruby2_keywords (0.0.4)
