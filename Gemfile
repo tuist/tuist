@@ -29,7 +29,7 @@ end
 
 group :development do
   gem 'rubocop-shopify'
-  gem "rubocop-minitest", "~> 0.10.3"
+  gem "rubocop-minitest", "~> 0.11.0"
   gem "rubocop-rake", "~> 0.5.1"
 end
 
