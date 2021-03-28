@@ -69,7 +69,7 @@
     "react-select": "^4.2.1",
     "react-select-country-list": "^2.2.3",
     "react-share": "^4.4.0",
-    "react-spring": "^8.0.22",
+    "react-spring": "^9.0.0",
     "react-sticky-header": "^0.2.0",
     "react-twitter-embed": "^3.0.3",
     "react-use-scroll": "^1.0.3",
