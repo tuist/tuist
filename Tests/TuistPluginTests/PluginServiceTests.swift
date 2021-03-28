@@ -7,31 +7,37 @@ import TuistLoader
 import TuistLoaderTesting
 import TuistSupport
 import TuistSupportTesting
+import TuistScaffold
+import TuistScaffoldTesting
 import XCTest
 
 @testable import TuistPlugin
 
 final class PluginServiceTests: TuistTestCase {
     private var manifestLoader: MockManifestLoader!
+    private var templatesDirectoryLocator: MockTemplatesDirectoryLocator!
     private var gitHandler: MockGitHandler!
     private var subject: PluginService!
 
     override func setUp() {
         super.setUp()
         manifestLoader = MockManifestLoader()
+        templatesDirectoryLocator = MockTemplatesDirectoryLocator()
         gitHandler = MockGitHandler()
         subject = PluginService(
             manifestLoader: manifestLoader,
+            templatesDirectoryLocator: templatesDirectoryLocator,
             fileHandler: fileHandler,
             gitHandler: gitHandler
         )
     }
 
     override func tearDown() {
-        super.tearDown()
         manifestLoader = nil
+        templatesDirectoryLocator = nil
         gitHandler = nil
         subject = nil
+        super.tearDown()
     }
 
     func test_loadPlugins_WHEN_localHelpers() throws {
@@ -88,6 +94,11 @@ final class PluginServiceTests: TuistTestCase {
         let pluginPath = try temporaryPath()
         let pluginName = "TestPlugin"
         let templatePath = pluginPath.appending(components: "Templates", "custom")
+        templatesDirectoryLocator.templatePluginDirectoriesStub = { _ in
+            [
+                templatePath,
+            ]
+        }
 
         try makeDirectories(templatePath)
 
@@ -116,6 +127,11 @@ final class PluginServiceTests: TuistTestCase {
         let cachedPluginPath = environment.cacheDirectory.appending(components: Constants.pluginsDirectoryName, pluginFingerprint)
         let pluginName = "TestPlugin"
         let templatePath = cachedPluginPath.appending(components: "Templates", "custom")
+        templatesDirectoryLocator.templatePluginDirectoriesStub = { _ in
+            [
+                templatePath,
+            ]
+        }
 
         try makeDirectories(templatePath)
 
