@@ -88,7 +88,7 @@ module.exports = {
         docs: {
           routeBasePath: '/',
           sidebarPath: require.resolve('./sidebars.js'),
-          editUrl: 'https://github.com/tuist/tuist/blob/main/projects/docs/',
+          editUrl: 'https://github.com/tuist/tuist/blob/main/projects/',
         },
         theme: {
           customCss: require.resolve('./src/css/custom.css'),
