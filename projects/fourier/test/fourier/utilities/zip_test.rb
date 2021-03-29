@@ -3,6 +3,13 @@ require "test_helper"
 
 module Fourier
   module Utilities
+
+    class File
+      def permissions
+        File.stat(self).mode
+      end
+    end
+
     class ZipTest < TestCase
       include TestHelpers::TemporaryDirectory
 
@@ -25,7 +32,10 @@ module Fourier
         )
 
         # Then
-        assert(File.exist?(File.join(dst_dir, "test")))
+        test_file = File.join(dst_dir, "test")
+
+        assert(File.exist?(test_file))
+        assert(File.open(test_file).permissions, File.open(source_file).permissions)
       end
     end
   end
