@@ -9,7 +9,7 @@ import XCTest
 @testable import TuistLoader
 @testable import TuistSupportTesting
 
-final class CoreDataModeltManifestMapperTests: TuistUnitTestCase {
+final class CoreDataModelManifestMapperTests: TuistUnitTestCase {
     func test_from() throws {
         // Given
         let temporaryPath = try self.temporaryPath()
@@ -71,8 +71,16 @@ final class CoreDataModeltManifestMapperTests: TuistUnitTestCase {
         // When
         let manifestWithoutCurrentVersion = ProjectDescription.CoreDataModel("model.xcdatamodeld")
 
-        XCTAssertThrowsError(
-            try TuistGraph.CoreDataModel.from(manifest: manifestWithoutCurrentVersion, generatorPaths: generatorPaths)
+        XCTAssertEqual(
+            try TuistGraph.CoreDataModel.from(
+                manifest: manifestWithoutCurrentVersion,
+                generatorPaths: generatorPaths
+            ),
+            TuistGraph.CoreDataModel(
+                path: temporaryPath.appending(component: "model.xcdatamodeld"),
+                versions: [],
+                currentVersion: "model"
+            )
         )
     }
 

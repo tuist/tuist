@@ -24,7 +24,7 @@ final class UpRequiredTests: TuistUnitTestCase {
     func test_with_when_variable_is() throws {
         let temporaryPath = try self.temporaryPath()
         let dictionary = JSON([
-            "type": "variable_is",
+            "type": "precondition",
             "name": "Variable is",
             "is_met": JSON.array([JSON.string("is_met")]),
             "advice": "corrective advice",
@@ -38,7 +38,7 @@ final class UpRequiredTests: TuistUnitTestCase {
     func test_with_when_variable_exists() throws {
         let temporaryPath = try self.temporaryPath()
         let dictionary = JSON([
-            "type": "variable_exists",
+            "type": "precondition",
             "name": "Variable exists",
             "is_met": JSON.array([JSON.string("is_met")]),
             "advice": "corrective advice",
