@@ -20,7 +20,7 @@ module Fourier
 
               build(sources_path, into: temporary_output_directory)
               FileUtils.copy_entry(File.join(sources_path, "LICENSE.md"),
-File.join(temporary_output_directory, "LICENSE.md"))
+                File.join(temporary_output_directory, "LICENSE.md"))
 
               # # swift-doc expects the lib_InternalSwiftSyntaxParser dynamic library.
               # https://github.com/SwiftDocOrg/homebrew-formulae/blob/master/Formula/swift-doc.rb#L43
