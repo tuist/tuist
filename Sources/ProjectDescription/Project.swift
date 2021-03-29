@@ -10,11 +10,28 @@ public struct ResourceSynthesizer: Codable, Equatable {
         case strings
     }
     
+    /// Default string synthesizer
     public static func strings() -> Self {
         .init(
             pluginName: nil,
             resourceType: .strings
         )
+    }
+    
+    /// Strings synthesizer defined in a plugin
+    public static func strings(pluginName: String) -> Self {
+        .init(
+            pluginName: pluginName,
+            resourceType: .strings
+        )
+    }
+}
+
+extension Array where Element == ResourceSynthesizer {
+    public static var `default`: Self {
+        [
+            .strings(),
+        ]
     }
 }
 
@@ -38,7 +55,7 @@ public struct Project: Codable, Equatable {
         schemes: [Scheme] = [],
         fileHeaderTemplate: FileHeaderTemplate? = nil,
         additionalFiles: [FileElement] = [],
-        resourceSynthesizers: [ResourceSynthesizer] = []
+        resourceSynthesizers: [ResourceSynthesizer] = .default
     ) {
         self.name = name
         self.organizationName = organizationName

@@ -57,20 +57,24 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
         var sideEffects: [SideEffectDescriptor] = []
         
         try project.resourceSynthesizers
-            .map { resourceSynthesizer in
+            .map { resourceSynthesizer throws -> (SynthesizedResourceInterfaceType, String) in
                 let interfaceType = SynthesizedResourceInterfaceType(resourceType: resourceSynthesizer.resourceType)
                 if let pluginName = resourceSynthesizer.pluginName {
                     guard let plugin = plugins.resourceSynthesizers.first(where: { $0.name == pluginName }) else { fatalError() }
-                    
-//                    (interfaceType, plugins.resourceSynthesizers)
+                    let templateString = try FileHandler.shared.readTextFile(
+                        plugin.path
+                            .appending(components: "\(interfaceType.name).stencil")
+                    )
+                    return (interfaceType, templateString)
                 } else {
                     return (interfaceType, interfaceType.templateString)
                 }
             }
-            .forEach { interfaceType in
+            .forEach { interfaceType, templateString in
                 let interfaceTypeEffects: [SideEffectDescriptor]
                 (target, interfaceTypeEffects) = try renderAndMapTarget(
                     interfaceType,
+                    templateString: templateString,
                     target: target,
                     project: project
                 )
@@ -84,6 +88,7 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
     // swiftlint:disable:next function_body_length
     private func renderAndMapTarget(
         _ synthesizedResourceInterfaceType: SynthesizedResourceInterfaceType,
+        templateString: String,
         target: Target,
         project: Project
     ) throws -> (
@@ -111,6 +116,7 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
                     name,
                     try synthesizedResourceInterfacesGenerator.render(
                         synthesizedResourceInterfaceType,
+                        templateString: templateString,
                         name: name,
                         paths: [path]
                     )
@@ -131,6 +137,7 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
                     synthesizedResourceInterfaceType.name + "+" + name,
                     try synthesizedResourceInterfacesGenerator.render(
                         synthesizedResourceInterfaceType,
+                        templateString: templateString,
                         name: name,
                         paths: paths
                     )

@@ -69,6 +69,7 @@ enum SynthesizedResourceInterfaceType {
 protocol SynthesizedResourceInterfacesGenerating {
     func render(
         _ synthesizedResourceInterfaceType: SynthesizedResourceInterfaceType,
+        templateString: String,
         name: String,
         paths: [AbsolutePath]
     ) throws -> String
@@ -77,11 +78,12 @@ protocol SynthesizedResourceInterfacesGenerating {
 final class SynthesizedResourceInterfacesGenerator: SynthesizedResourceInterfacesGenerating {
     func render(
         _ synthesizedResourceInterfaceType: SynthesizedResourceInterfaceType,
+        templateString: String,
         name: String,
         paths: [AbsolutePath]
     ) throws -> String {
         let template = StencilSwiftTemplate(
-            templateString: synthesizedResourceInterfaceType.templateString,
+            templateString: templateString,
             environment: stencilSwiftEnvironment()
         )
 

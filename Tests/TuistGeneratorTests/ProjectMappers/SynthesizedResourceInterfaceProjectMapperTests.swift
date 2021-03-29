@@ -36,7 +36,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
 
     func test_map() throws {
         // Given
-        synthesizedResourceInterfacesGenerator.renderStub = { _, _, paths in
+        synthesizedResourceInterfacesGenerator.renderStub = { _, _, _, paths in
             let content = paths.map(\.basename).joined(separator: ", ")
             return content
         }
