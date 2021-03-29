@@ -9,12 +9,14 @@ public struct PackageDependency: Equatable, Codable, Hashable {
     public let dependencies: [PackageDependency]
 }
 
+// MARK: - Helpers
+
 extension PackageDependency {
     /// Returns flatted unique dependencies.
-    public var uniqueDependencies: Set<PackageDependency> {
+    public func uniqueDependencies() -> Set<PackageDependency> {
         dependencies.reduce(into: [self]) { result, dependency in
             if !result.contains(dependency) {
-                result.formUnion(dependency.uniqueDependencies)
+                result.formUnion(dependency.uniqueDependencies())
             }
         }
     }

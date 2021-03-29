@@ -1,33 +1,38 @@
 import Foundation
+import TuistGraph
 
 /// A model that represents a `Package.swift` manifest file.
 public struct PackageInfo: Equatable, Codable {
     public let name: String
-    public let platforms: [Platform]
+    public let platforms: [PlatformInfo]
     public let toolsVersion: ToolsVersion
-    public let cLanguageStandard: String?
-    public let cxxLanguageStandard: String?
+}
+
+// MARK: - Helpers
+
+extension PackageInfo {
+    /// Returns a main scheme name from project that was generated using `swift package generate-xcodeproj` command.
+    var schemeName: String {
+        name + "-Package"
+    }
     
-    // add later:
-    //
-    // "dependencies"
-    // "pkgConfig"
-    // "products"
-    // "providers"
-    // "swiftLanguageVersions"
-    // "targets"
+    /// Returns platforms that the package supports.
+    var supportedPlatforms: Set<Platform> {
+        Set(platforms.compactMap(\.platform))
+    }
 }
 
 // MARK: - Models
 
 extension PackageInfo {
-    public struct Platform: Equatable, Codable {
+    public struct PlatformInfo: Equatable, Codable {
         public let platformName: String
         public let version: String
         
-        // add later:
-        //
-        // "options"
+        /// Returns `TuistGraph.Platform` representation.
+        var platform: Platform? {
+            Platform(rawValue: platformName)
+        }
     }
     
     public struct ToolsVersion: Equatable, Codable {

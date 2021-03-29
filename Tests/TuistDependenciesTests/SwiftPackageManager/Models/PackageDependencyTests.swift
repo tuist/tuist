@@ -67,7 +67,7 @@ final class PackageDependencyTests: TuistUnitTestCase {
         )
         
         // When
-        let got = subject5.uniqueDependencies
+        let got = subject5.uniqueDependencies()
         
         // Then
         let expected = Set([subject1, subject2, subject3, subject4, subject5])
