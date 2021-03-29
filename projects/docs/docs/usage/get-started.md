@@ -1,6 +1,7 @@
 ---
-title: Getting Started
-slug: /getting-started
+title: Get started
+slug: /usage/get-started
+description: Learn how to install Tuist in your environment and generate your first project.
 ---
 
 Tuist is a command line tool \(CLI\) that aims to facilitate the generation, maintenance, and interaction with Xcode projects. It's distributed as a binary, which you can easily install and use without having to depend on other tools to manage dependencies \(like you would do if the tool was written in other programming languages such as Ruby, or Java\).

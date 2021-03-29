@@ -10,9 +10,13 @@ module.exports = {
   organizationName: 'tuist',
   projectName: 'tuist',
   customFields: {
-    defaultDocsLandingPage: 'getting-started',
+    defaultDocsLandingPage: 'usage/get-started',
   },
   themeConfig: {
+    prism: {
+      additionalLanguages: ['swift', 'ruby'],
+      theme: require('prism-react-renderer/themes/dracula'),
+    },
     algolia: {
       apiKey: process.env.ALGOLIA_API_KEY || 'dev',
       indexName: process.env.ALGOLIA_INDEX_NAME || 'dev',
@@ -26,12 +30,6 @@ module.exports = {
         src: 'img/logo.svg',
       },
       items: [
-        {
-          to: '/docs/getting-started',
-          activeBasePath: 'docs',
-          label: 'Docs',
-          position: 'left',
-        },
         {
           href: 'https://github.com/tuist/tuist',
           label: 'GitHub',
