@@ -10,9 +10,13 @@ module.exports = {
   organizationName: 'tuist',
   projectName: 'tuist',
   customFields: {
-    defaultDocsLandingPage: 'getting-started',
+    defaultDocsLandingPage: 'contributors/get-started',
   },
   themeConfig: {
+    prism: {
+      additionalLanguages: ['swift', 'ruby'],
+      theme: require('prism-react-renderer/themes/dracula'),
+    },
     algolia: {
       apiKey: process.env.ALGOLIA_API_KEY || 'dev',
       indexName: process.env.ALGOLIA_INDEX_NAME || 'dev',
@@ -26,12 +30,6 @@ module.exports = {
         src: 'img/logo.svg',
       },
       items: [
-        {
-          to: '/docs/getting-started',
-          activeBasePath: 'docs',
-          label: 'Docs',
-          position: 'left',
-        },
         {
           href: 'https://github.com/tuist/tuist',
           label: 'GitHub',
@@ -47,7 +45,7 @@ module.exports = {
           items: [
             {
               label: 'Getting Started',
-              to: 'docs/',
+              to: '/',
             },
           ],
         },
@@ -88,8 +86,9 @@ module.exports = {
       '@docusaurus/preset-classic',
       {
         docs: {
+          routeBasePath: '/',
           sidebarPath: require.resolve('./sidebars.js'),
-          editUrl: 'https://github.com/tuist/tuist/blob/main/projects/docs/',
+          editUrl: 'https://github.com/tuist/tuist/blob/main/projects/',
         },
         theme: {
           customCss: require.resolve('./src/css/custom.css'),
