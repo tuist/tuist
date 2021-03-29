@@ -4,6 +4,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+## 1.39.1
+
 ### Fixed
 
 - Fixed vendor updates not restoring original file permissions [#2743](https://github.com/tuist/tuist/pull/2688) by [@davebcn87](https://github.com/davebcn87)
