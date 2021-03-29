@@ -32,7 +32,6 @@ module.exports = {
           label: 'Docs',
           position: 'left',
         },
-        { to: 'blog', label: 'Blog', position: 'left' },
         {
           href: 'https://github.com/tuist/tuist',
           label: 'GitHub',
@@ -83,16 +82,7 @@ module.exports = {
       copyright: `Copyright © ${new Date().getFullYear()} Tuist, Inc. Built with Docusaurus.`,
     },
   },
-  plugins: [
-    [
-      '@docusaurus/plugin-sitemap',
-      {
-        changefreq: 'weekly',
-        priority: 0.5,
-        trailingSlash: false,
-      },
-    ],
-  ],
+  plugins: [],
   presets: [
     [
       '@docusaurus/preset-classic',
@@ -100,11 +90,6 @@ module.exports = {
         docs: {
           sidebarPath: require.resolve('./sidebars.js'),
           editUrl: 'https://github.com/tuist/tuist/blob/main/projects/docs/',
-        },
-        blog: {
-          showReadingTime: true,
-          editUrl:
-            'https://github.com/tuist/tuist/blob/main/projects/docs/blog',
         },
         theme: {
           customCss: require.resolve('./src/css/custom.css'),
