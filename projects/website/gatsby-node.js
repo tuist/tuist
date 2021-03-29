@@ -98,7 +98,6 @@ exports.onCreateNode = ({ node, getNode, actions }) => {
         const toPath = `https://docs.tuist.io/${filename
           .replace('/docs/', '')
           .replace('contribution', 'contributors')}`
-        console.log(toPath)
         createRedirect({
           fromPath: filename,
           toPath: toPath,
