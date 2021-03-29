@@ -1,6 +1,6 @@
 ---
 title: Get started
-slug: /contributors/getting-started
+slug: /contributors/get-started
 description: This is page contains a handful of resources and tips for users that are interested in contributing to the project. From how the project is structured to what utilities are available, including bits about the testing strategies that we follow.
 ---
 
