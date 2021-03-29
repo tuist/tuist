@@ -57,8 +57,16 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
         var sideEffects: [SideEffectDescriptor] = []
         
         try project.resourceSynthesizers
-            .map(\.resourceType)
-            .map(SynthesizedResourceInterfaceType.init)
+            .map { resourceSynthesizer in
+                let interfaceType = SynthesizedResourceInterfaceType(resourceType: resourceSynthesizer.resourceType)
+                if let pluginName = resourceSynthesizer.pluginName {
+                    guard let plugin = plugins.resourceSynthesizers.first(where: { $0.name == pluginName }) else { fatalError() }
+                    
+//                    (interfaceType, plugins.resourceSynthesizers)
+                } else {
+                    return (interfaceType, interfaceType.templateString)
+                }
+            }
             .forEach { interfaceType in
                 let interfaceTypeEffects: [SideEffectDescriptor]
                 (target, interfaceTypeEffects) = try renderAndMapTarget(

@@ -79,10 +79,18 @@ public final class PluginService: PluginServicing {
             }
 
         let templatePaths = try pluginPaths.flatMap(templatePaths(pluginPath:))
-
+        let resourceSynthesizerPlugins = zip(
+            (localPluginManifests + remotePluginManifests).map(\.name),
+            pluginPaths
+                .map { $0.appending(component: Constants.resourceTemplatesDirectoryName) }
+                .filter(FileHandler.shared.exists)
+        )
+        .map(ResourceSynthesizerPlugin.init)
+        
         return Plugins(
             projectDescriptionHelpers: localProjectDescriptionHelperPlugins + remoteProjectDescriptionHelperPlugins,
-            templatePaths: templatePaths
+            templatePaths: templatePaths,
+            resourceSynthesizers: resourceSynthesizerPlugins
         )
     }
 

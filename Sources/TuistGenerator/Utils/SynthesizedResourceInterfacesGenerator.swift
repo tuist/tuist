@@ -39,7 +39,7 @@ enum SynthesizedResourceInterfaceType {
         }
     }
 
-    fileprivate var templateString: String {
+    var templateString: String {
         switch self {
         case .assets:
             return SynthesizedResourceInterfaceTemplates.assetsTemplate
