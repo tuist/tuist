@@ -4,6 +4,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Fixed
+
+- Fixed vendor updates not restoring original file permissions [#2743] by [@davebcn87](https://github.com/davebcn87)
+
 ## 1.39.0 - Innovators
 
 ### Added

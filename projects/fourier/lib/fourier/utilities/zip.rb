@@ -12,6 +12,7 @@ module Fourier
         ::Zip::File.open(zip) do |zip_file|
           zip_file.each do |f|
             fpath = File.join(into, f.name)
+            zip_file.restore_permissions = true
             zip_file.extract(f, fpath) unless File.exist?(fpath)
           end
         end
