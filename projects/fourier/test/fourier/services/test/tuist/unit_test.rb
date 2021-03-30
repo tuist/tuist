@@ -13,6 +13,9 @@ module Fourier
             Utilities::System
               .expects(:tuist)
               .with("test")
+            Utilities::System
+              .expects(:system)
+              .with("swift", "test")
 
             # When/Then
             Unit.call

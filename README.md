@@ -46,8 +46,8 @@ tuist build # Builds your project
 
 The repository is a monorepo with multiple projects:
 
-- [Swift Package (CLI) 📦](/)
-- [Main Website 🌍](/website)
+- [Swift Package (CLI) 📦](/../..)
+- [Main Website 🌍](projects/website)
 
 ## Documentation 📝
 

@@ -6,7 +6,7 @@ on:
       - main
   pull_request:
     paths:
-      - tools/fourier/**
+      - projects/fourier/**
 
 env:
   RUBY_VERSION: '2.7.2'

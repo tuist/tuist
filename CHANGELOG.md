@@ -4,6 +4,18 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Fixed
+
+- Fixed running `tuist dump` for projects with plugins [#2700](https://github.com/tuist/tuist/pull/2700) by [@danyf90](https://github.com/danyf90)
+
+## 1.39.1
+
+### Fixed
+
+- Fixed vendor updates not restoring original file permissions [#2743](https://github.com/tuist/tuist/pull/2688) by [@davebcn87](https://github.com/davebcn87)
+
+## 1.39.0 - Innovators
+
 ### Added
 
 - Add support for disabling Swift Package locking to speed up project generation when using Swift Package Manager [#2693](https://github.com/tuist/tuist/pull/2693) by [@jsorge](https://github.com/jsorge).
@@ -31,7 +43,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Fixed
 
-- Fixed running `tuist dump` for projects with plugins [#2700](https://github.com/tuist/tuist/pull/2700) by [@danyf90](https://github.com/danyf90)
+- Run all unit tests [#2739](https://github.com/tuist/tuist/pull/2739) by [@fortmarek](https://github.com/fortmarek)
 - Fix false positive duplicate bundle id lint warning [#2707](https://github.com/tuist/tuist/pull/2707) by [@kwridan](https://github.com/kwridan)
 - Failing Homebrew runs in M1 environments [#2711](https://github.com/tuist/tuist/pull/2711) by [@pepibumur](https://github.com/pepibumur)
 - Installation of Tuist when `/usr/local/bin` doesn't exist [#2710](https://github.com/tuist/tuist/pull/2710) by [@pepibumur](https://github.com/pepibumur)

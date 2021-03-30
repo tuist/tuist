@@ -29,12 +29,21 @@
         }
       },
       {
+        "package": "combine-schedulers",
+        "repositoryURL": "https://github.com/pointfreeco/combine-schedulers",
+        "state": {
+          "branch": null,
+          "revision": "f1250faa1c1436ca83950ce676a4fe97a309a457",
+          "version": "0.4.1"
+        }
+      },
+      {
         "package": "CombineExt",
         "repositoryURL": "https://github.com/CombineCommunity/CombineExt.git",
         "state": {
           "branch": null,
-          "revision": "6664678135c6aec049c887a51c9da2545f184882",
-          "version": "1.2.0"
+          "revision": "5b8a0c0f178527f9204200505c5fefa6847e528f",
+          "version": "1.3.0"
         }
       },
       {
@@ -87,8 +96,8 @@
         "repositoryURL": "https://github.com/apple/swift-tools-support-core.git",
         "state": {
           "branch": null,
-          "revision": "243beea77d20db46647a3de4765c96e2c801c7c7",
-          "version": "0.1.12"
+          "revision": "ab6339b6a33b69886b3cf2254d3326eddfe58eb0",
+          "version": "0.2.2"
         }
       },
       {
@@ -107,6 +116,15 @@
           "branch": null,
           "revision": "c8afc799be95bbc6c329ba12d15342ffa7c4577d",
           "version": "7.19.0"
+        }
+      },
+      {
+        "package": "xctest-dynamic-overlay",
+        "repositoryURL": "https://github.com/pointfreeco/xctest-dynamic-overlay",
+        "state": {
+          "branch": null,
+          "revision": "603974e3909ad4b48ba04aad7e0ceee4f077a518",
+          "version": "0.1.0"
         }
       },
       {

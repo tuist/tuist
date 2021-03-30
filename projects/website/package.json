@@ -1,5 +1,5 @@
 {
-  "name": "tuist-website",
+  "name": "website",
   "description": "Tuist website",
   "private": true,
   "version": "0.1.0",
@@ -17,10 +17,10 @@
     "@mdx-js/tag": "^0.20.3",
     "@theme-ui/color": "^0.3.5",
     "@theme-ui/match-media": "^0.3.5",
-    "@theme-ui/presets": "^0.3.5",
+    "@theme-ui/presets": "^0.6.0",
     "@theme-ui/prism": "^0.3.5",
     "@theme-ui/sidenav": "^0.3.5",
-    "@theme-ui/typography": "^0.3.5",
+    "@theme-ui/typography": "^0.6.0",
     "autoprefixer": "^10.2.5",
     "copy-text-to-clipboard": "^3.0.1",
     "focus-visible": "^5.2.0",
@@ -66,10 +66,10 @@
     "react-markdown": "^4.3.1",
     "react-pose": "^4.0.10",
     "react-protected-mailto": "^1.0.3",
-    "react-select": "^4.2.1",
+    "react-select": "^4.3.0",
     "react-select-country-list": "^2.2.3",
     "react-share": "^4.4.0",
-    "react-spring": "^8.0.22",
+    "react-spring": "^9.0.0",
     "react-sticky-header": "^0.2.0",
     "react-twitter-embed": "^3.0.3",
     "react-use-scroll": "^1.0.3",
@@ -103,5 +103,10 @@
   },
   "resolutions": {
     "sharp": "0.23.1"
+  },
+  "workspaces": {
+    "nohoist": [
+      "**/*"
+    ]
   }
 }

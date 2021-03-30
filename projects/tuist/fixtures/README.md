@@ -162,7 +162,7 @@ Dependencies:
 - A -> B
 - A -> prebuild C (libC.a)
 
-Note: to re-create `libC.a` run `fixtures/ios_app_with_static_libraries/Modules/C/build.sh`
+Note: to re-create `libC.a` run `ios_app_with_static_libraries/Modules/C/build.sh`
 
 ## ios_app_with_static_frameworks
 
@@ -203,7 +203,7 @@ Dependencies:
 - A -> C
 - C -> D
 
-Note: to re-create `PrebuiltStaticFramework.framework` run `fixtures/ios_app_with_static_frameworks/Prebuilt//build.sh`
+Note: to re-create `PrebuiltStaticFramework.framework` run `ios_app_with_static_frameworks/Prebuilt//build.sh`
 
 ## ios_app_with_tests
 
@@ -233,7 +233,7 @@ Dependencies:
 - App -> Framework1
 - Framework1 -> Framework2 (prebuilt)
 
-Note: to re-create `Framework2.framework` run `fixtures/ios_app_with_transitive_framework/Framework2/build.sh`
+Note: to re-create `Framework2.framework` run `ios_app_with_transitive_framework/Framework2/build.sh`
 
 ## ios_app_with_pods
 
@@ -259,7 +259,7 @@ An iOS application with remote Swift package
 
 An iOS application that depends on static library that depends on Swift package where static library is defined first
 
-Note: to re-create `PrebuiltStaticFramework.framework` run `fixtures/ios_app_with_static_library_and_package/Prebuilt/build.sh`
+Note: to re-create `PrebuiltStaticFramework.framework` run `ios_app_with_static_library_and_package/Prebuilt/build.sh`
 
 ## ios_workspace_with_dependency_cycle
 

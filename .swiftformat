@@ -1,7 +1,7 @@
 # file options
 
 --symlinks ignore
---exclude Tests/XCTestManifests.swift,fixtures/,features/,Project.swift
+--exclude Tests/XCTestManifests.swift,projects/tuist/fixtures/,projects/tuist/features/,Project.swift
 
 # format options
 
