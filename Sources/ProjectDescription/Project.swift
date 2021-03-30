@@ -4,25 +4,46 @@ import Foundation
 
 public struct ResourceSynthesizer: Codable, Equatable {
     public let pluginName: String?
-    public let resourceType: ResourceType
+    public let parser: Parser
+    public let extensions: Set<String>
+    public let templateName: String
     
-    public enum ResourceType: String, Codable {
+    public enum Parser: String, Codable {
         case strings
     }
     
     /// Default string synthesizer
     public static func strings() -> Self {
-        .init(
-            pluginName: nil,
-            resourceType: .strings
-        )
+        .strings(pluginName: nil)
     }
     
     /// Strings synthesizer defined in a plugin
     public static func strings(pluginName: String) -> Self {
+        .strings(
+            pluginName: pluginName as String?
+        )
+    }
+    
+    public static func custom(
+        pluginName: String,
+        parser: Parser,
+        extensions: Set<String>,
+        templateName: String
+    ) -> Self {
         .init(
             pluginName: pluginName,
-            resourceType: .strings
+            parser: parser,
+            extensions: extensions,
+            templateName: templateName
+        )
+    }
+
+    private static func strings(pluginName: String?) -> Self {
+        .init(
+            pluginName: pluginName,
+            parser: .strings,
+            extensions: ["strings", "stringsdict"],
+            templateName: "Strings"
         )
     }
 }

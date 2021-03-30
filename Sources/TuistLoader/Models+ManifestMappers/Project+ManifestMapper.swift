@@ -9,14 +9,16 @@ extension TuistGraph.ResourceSynthesizer {
     ) -> Self {
         .init(
             pluginName: manifest.pluginName,
-            resourceType: TuistGraph.ResourceSynthesizer.ResourceType.from(manifest: manifest.resourceType)
+            parser: TuistGraph.ResourceSynthesizer.Parser.from(manifest: manifest.parser),
+            extensions: manifest.extensions,
+            templateName: manifest.templateName
         )
     }
 }
 
-extension TuistGraph.ResourceSynthesizer.ResourceType {
+extension TuistGraph.ResourceSynthesizer.Parser {
     static func from(
-        manifest: ProjectDescription.ResourceSynthesizer.ResourceType
+        manifest: ProjectDescription.ResourceSynthesizer.Parser
     ) -> Self {
         switch manifest {
         case .strings:

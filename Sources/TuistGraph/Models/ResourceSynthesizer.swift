@@ -2,33 +2,26 @@ import Foundation
 
 public struct ResourceSynthesizer: Equatable, Hashable {
     public let pluginName: String?
-    public let resourceType: ResourceType
+    public let parser: Parser
+    public let extensions: Set<String>
+    public let templateName: String
     
-    public enum ResourceType: Equatable, Hashable {
+    public enum Parser: Equatable, Hashable {
         case strings
         case assets
         case plists
         case fonts
-        
-        public var name: String {
-            switch self {
-            case .strings:
-                return "Strings"
-            case .assets:
-                return "Assets"
-            case .plists:
-                return "Plists"
-            case .fonts:
-                return "Fonts"
-            }
-        }
     }
     
     public init(
         pluginName: String?,
-        resourceType: ResourceType
+        parser: Parser,
+        extensions: Set<String>,
+        templateName: String
     ) {
         self.pluginName = pluginName
-        self.resourceType = resourceType
+        self.parser = parser
+        self.extensions = extensions
+        self.templateName = templateName
     }
 }
